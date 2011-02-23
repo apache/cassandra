@@ -17,90 +17,39 @@
  */
 package org.apache.cassandra.contrib.stress.operations;
 
-import org.apache.cassandra.contrib.stress.util.OperationThread;
+import org.apache.cassandra.contrib.stress.util.Operation;
 import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.thrift.*;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-public class MultiGetter extends OperationThread
+public class MultiGetter extends Operation
 {
     public MultiGetter(int index)
     {
         super(index);
     }
 
-    public void run()
+    public void run(Cassandra.Client client) throws IOException
     {
         SlicePredicate predicate = new SlicePredicate().setSlice_range(new SliceRange(ByteBuffer.wrap(new byte[]{}),
                                                                                       ByteBuffer.wrap(new byte[] {}),
                                                                                       false, session.getColumnsPerKey()));
 
         int offset = index * session.getKeysPerThread();
-        Map<ByteBuffer,List<ColumnOrSuperColumn>> results = null;
-        int count  = (((index + 1) * session.getKeysPerThread()) - offset) / session.getKeysPerCall();
+        Map<ByteBuffer,List<ColumnOrSuperColumn>> results;
 
         if (session.getColumnFamilyType() == ColumnFamilyType.Super)
         {
-            for (int i = 0; i < count; i++)
+            List<ByteBuffer> keys = generateKeys(offset, offset + session.getKeysPerCall());
+
+            for (int j = 0; j < session.getSuperColumns(); j++)
             {
-                List<ByteBuffer> keys = generateKeys(offset, offset + session.getKeysPerCall());
-
-                for (int j = 0; j < session.getSuperColumns(); j++)
-                {
-                    ColumnParent parent = new ColumnParent("Super1").setSuper_column(("S" + j).getBytes());
-
-                    long start = System.currentTimeMillis();
-
-                    boolean success = false;
-                    String exceptionMessage = null;
-
-                    for (int t = 0; t < session.getRetryTimes(); t++)
-                    {
-                        if (success)
-                            break;
-
-                        try
-                        {
-                            results = client.multiget_slice(keys, parent, predicate, session.getConsistencyLevel());
-                            success = (results.size() != 0);
-                        }
-                        catch (Exception e)
-                        {
-                            exceptionMessage = getExceptionMessage(e);
-                        }
-                    }
-
-                    if (!success)
-                    {
-                        System.err.printf("Thread [%d] retried %d times - error on calling multiget_slice for keys %s %s%n",
-                                                                                              index,
-                                                                                              session.getRetryTimes(),
-                                                                                              keys,
-                                                                                              (exceptionMessage == null) ? "" : "(" + exceptionMessage + ")");
-
-                        if (!session.ignoreErrors())
-                            return;
-                    }
-
-                    session.operationCount.getAndIncrement(index);
-                    session.keyCount.getAndAdd(index, keys.size());
-                    session.latencies.getAndAdd(index, System.currentTimeMillis() - start);
-
-                    offset += session.getKeysPerCall();
-                }
-            }
-        }
-        else
-        {
-            ColumnParent parent = new ColumnParent("Standard1");
-
-            for (int i = 0; i < count; i++)
-            {
-                List<ByteBuffer> keys = generateKeys(offset, offset + session.getKeysPerCall());
+                ColumnParent parent = new ColumnParent("Super1").setSuper_column(("S" + j).getBytes());
 
                 long start = System.currentTimeMillis();
 
@@ -120,28 +69,67 @@ public class MultiGetter extends OperationThread
                     catch (Exception e)
                     {
                         exceptionMessage = getExceptionMessage(e);
-                        success = false;
                     }
                 }
 
                 if (!success)
                 {
-                    System.err.printf("Thread [%d] retried %d times - error on calling multiget_slice for keys %s %s%n",
-                                                                                        index,
-                                                                                        session.getRetryTimes(),
-                                                                                        keys,
-                                                                                        (exceptionMessage == null) ? "" : "(" + exceptionMessage + ")");
-
-                    if (!session.ignoreErrors())
-                        return;
+                    error(String.format("Operation [%d] retried %d times - error on calling multiget_slice for keys %s %s%n",
+                                        index,
+                                        session.getRetryTimes(),
+                                        keys,
+                                        (exceptionMessage == null) ? "" : "(" + exceptionMessage + ")"));
                 }
 
-                session.operationCount.getAndIncrement(index);
-                session.keyCount.getAndAdd(index, keys.size());
-                session.latencies.getAndAdd(index, System.currentTimeMillis() - start);
+                session.operations.getAndIncrement();
+                session.keys.getAndAdd(keys.size());
+                session.latency.getAndAdd(System.currentTimeMillis() - start);
 
                 offset += session.getKeysPerCall();
             }
+        }
+        else
+        {
+            ColumnParent parent = new ColumnParent("Standard1");
+
+            List<ByteBuffer> keys = generateKeys(offset, offset + session.getKeysPerCall());
+
+            long start = System.currentTimeMillis();
+
+            boolean success = false;
+            String exceptionMessage = null;
+
+            for (int t = 0; t < session.getRetryTimes(); t++)
+            {
+                if (success)
+                    break;
+
+                try
+                {
+                    results = client.multiget_slice(keys, parent, predicate, session.getConsistencyLevel());
+                    success = (results.size() != 0);
+                }
+                catch (Exception e)
+                {
+                    exceptionMessage = getExceptionMessage(e);
+                    success = false;
+                }
+            }
+
+            if (!success)
+            {
+                error(String.format("Operation [%d] retried %d times - error on calling multiget_slice for keys %s %s%n",
+                                    index,
+                                    session.getRetryTimes(),
+                                    keys,
+                                    (exceptionMessage == null) ? "" : "(" + exceptionMessage + ")"));
+            }
+
+            session.operations.getAndIncrement();
+            session.keys.getAndAdd(keys.size());
+            session.latency.getAndAdd(System.currentTimeMillis() - start);
+
+            offset += session.getKeysPerCall();
         }
     }
 

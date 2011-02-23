@@ -20,8 +20,8 @@ package org.apache.cassandra.contrib.stress;
 import java.io.*;
 import java.nio.ByteBuffer;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicIntegerArray;
-import java.util.concurrent.atomic.AtomicLongArray;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.commons.cli.*;
 
@@ -38,9 +38,9 @@ public class Session
     // command line options
     public static final Options availableOptions = new Options();
 
-    public final AtomicIntegerArray operationCount;
-    public final AtomicIntegerArray keyCount;
-    public final AtomicLongArray latencies;
+    public final AtomicInteger operations;
+    public final AtomicInteger keys;
+    public final AtomicLong    latency;
 
     static
     {
@@ -93,7 +93,7 @@ public class Session
     private PrintStream out = System.out;
 
     private IndexType indexType = null;
-    private Stress.Operation operation = Stress.Operation.INSERT;
+    private Stress.Operations operation = Stress.Operations.INSERT;
     private ColumnFamilyType columnFamilyType = ColumnFamilyType.Standard;
     private ConsistencyLevel consistencyLevel = ConsistencyLevel.ONE;
     private String replicationStrategy = "org.apache.cassandra.locator.SimpleStrategy";
@@ -183,7 +183,7 @@ public class Session
                 unframed = Boolean.parseBoolean(cmd.getOptionValue("m"));
 
             if (cmd.hasOption("o"))
-                operation = Stress.Operation.valueOf(cmd.getOptionValue("o").toUpperCase());
+                operation = Stress.Operations.valueOf(cmd.getOptionValue("o").toUpperCase());
 
             if (cmd.hasOption("u"))
                 superColumns = Integer.parseInt(cmd.getOptionValue("u"));
@@ -248,9 +248,9 @@ public class Session
         mean  = numKeys / 2;
         sigma = numKeys * STDev;
 
-        operationCount = new AtomicIntegerArray(threads);
-        keyCount = new AtomicIntegerArray(threads);
-        latencies = new AtomicLongArray(threads);
+        operations = new AtomicInteger();
+        keys = new AtomicInteger();
+        latency = new AtomicLong();
     }
 
     public int getCardinality()
@@ -323,7 +323,7 @@ public class Session
         return ignoreErrors;
     }
 
-    public Stress.Operation getOperation()
+    public Stress.Operations getOperation()
     {
         return operation;
     }

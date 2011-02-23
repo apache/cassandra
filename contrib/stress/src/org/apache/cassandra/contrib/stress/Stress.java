@@ -18,15 +18,18 @@
 package org.apache.cassandra.contrib.stress;
 
 import org.apache.cassandra.contrib.stress.operations.*;
-import org.apache.cassandra.contrib.stress.util.OperationThread;
+import org.apache.cassandra.contrib.stress.util.Operation;
+import org.apache.cassandra.thrift.Cassandra;
 import org.apache.commons.cli.Option;
 
 import java.io.PrintStream;
 import java.util.Random;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.SynchronousQueue;
 
 public final class Stress
 {
-    public static enum Operation
+    public static enum Operations
     {
         INSERT, READ, RANGE_SLICE, INDEXED_RANGE_SLICE, MULTI_GET
     }
@@ -34,9 +37,15 @@ public final class Stress
     public static Session session;
     public static Random randomizer = new Random();
 
+    /**
+     * Producer-Consumer model: 1 producer, N consumers
+     */
+    private static final BlockingQueue<Operation> operations = new SynchronousQueue<Operation>(true);
+
     public static void main(String[] arguments) throws Exception
     {
-        int epoch, total, oldTotal, latency, keyCount, oldKeyCount, oldLatency;
+        long latency, oldLatency;
+        int epoch, total, oldTotal, keyCount, oldKeyCount;
 
         try
         {
@@ -49,51 +58,52 @@ public final class Stress
         }
 
         // creating keyspace and column families
-        if (session.getOperation() == Stress.Operation.INSERT)
+        if (session.getOperation() == Stress.Operations.INSERT)
         {
             session.createKeySpaces();
         }
 
         int threadCount  = session.getThreads();
-        Thread[] threads = new Thread[threadCount];
-        PrintStream out  = session.getOutputStream();
+        Thread[] consumers = new Thread[threadCount];
+        PrintStream out = session.getOutputStream();
+
+        out.println("total,interval_op_rate,interval_key_rate,avg_latency,elapsed_time");
+
+        int itemsPerThread = session.getKeysPerThread();
+        int modulo = session.getNumKeys() % threadCount;
 
         // creating required type of the threads for the test
-        try
+        for (int i = 0; i < threadCount; i++)
         {
-            for (int i = 0; i < threadCount; i++)
-            {
-                threads[i] = createOperation(i);
-            }
+            if (i == threadCount - 1)
+                itemsPerThread += modulo; // last one is going to handle N + modulo items
+
+            consumers[i] = new Consumer(itemsPerThread);
         }
-        catch (Exception e)
-        {
-            System.err.println(e.getMessage());
-            return;
-        }
+
+        new Producer().start();
 
         // starting worker threads
         for (int i = 0; i < threadCount; i++)
         {
-            threads[i].start();
+            consumers[i].start();
         }
 
         // initialization of the values
         boolean terminate = false;
-        epoch = total = latency = keyCount = 0;
+        latency = 0;
+        epoch = total = keyCount = 0;
 
         int interval = session.getProgressInterval();
         int epochIntervals = session.getProgressInterval() * 10;
         long testStartTime = System.currentTimeMillis();
-
-        out.println("total,interval_op_rate,interval_key_rate,avg_latency,elapsed_time");
 
         while (!terminate)
         {
             Thread.sleep(100);
 
             int alive = 0;
-            for (Thread thread : threads)
+            for (Thread thread : consumers)
                 if (thread.isAlive()) alive++;
 
             if (alive == 0)
@@ -109,20 +119,9 @@ public final class Stress
                 oldLatency  = latency;
                 oldKeyCount = keyCount;
 
-                int currentTotal = 0, currentKeyCount = 0, currentLatency = 0;
-
-                for (Thread t : threads)
-                {
-                    OperationThread thread = (OperationThread) t;
-
-                    currentTotal    += session.operationCount.get(thread.index);
-                    currentKeyCount += session.keyCount.get(thread.index);
-                    currentLatency  += session.latencies.get(thread.index);
-                }
-
-                total    = currentTotal;
-                keyCount = currentKeyCount;
-                latency  = currentLatency;
+                total    = session.operations.get();
+                keyCount = session.keys.get();
+                latency  = session.latency.get();
 
                 int opDelta  = total - oldTotal;
                 int keyDelta = keyCount - oldKeyCount;
@@ -136,7 +135,7 @@ public final class Stress
         }
     }
 
-    private static Thread createOperation(int index)
+    private static Operation createOperation(int index)
     {
         switch (session.getOperation())
         {
@@ -174,4 +173,58 @@ public final class Stress
                                                             option.getLongOpt(), (option.hasArg()) ? "="+upperCaseName : "", option.getDescription()));
         }
     }
+
+    /**
+     * Produces exactly N items (awaits each to be consumed)
+     */
+    private static class Producer extends Thread
+    {
+        public void run()
+        {
+            for (int i = 0; i < session.getNumKeys(); i++)
+            {
+                try
+                {
+                    operations.put(createOperation(i));
+                }
+                catch (InterruptedException e)
+                {
+                    System.err.println("Producer error - " + e.getMessage());
+                    return;
+                }
+            }
+        }
+    }
+
+    /**
+     * Each consumes exactly N items from queue
+     */
+    private static class Consumer extends Thread
+    {
+        private final int items;
+
+        public Consumer(int toConsume)
+        {
+            items = toConsume;
+        }
+
+        public void run()
+        {
+            Cassandra.Client client = session.getClient();
+
+            for (int i = 0; i < items; i++)
+            {
+                try
+                {
+                    operations.take().run(client); // running job
+                }
+                catch (Exception e)
+                {
+                    System.err.println(e.getMessage());
+                    System.exit(-1);
+                }
+            }
+        }
+    }
+
 }

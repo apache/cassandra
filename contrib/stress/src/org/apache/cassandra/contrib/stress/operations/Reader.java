@@ -17,25 +17,22 @@
  */
 package org.apache.cassandra.contrib.stress.operations;
 
-import org.apache.cassandra.contrib.stress.util.OperationThread;
+import org.apache.cassandra.contrib.stress.util.Operation;
 import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.thrift.*;
-import org.apache.cassandra.utils.ByteBufferUtil;
 
 import java.io.IOException;
-import java.lang.AssertionError;
 import java.nio.ByteBuffer;
-import java.nio.charset.CharacterCodingException;
 import java.util.List;
 
-public class Reader extends OperationThread
+public class Reader extends Operation
 {
     public Reader(int index)
     {
         super(index);
     }
 
-    public void run()
+    public void run(Cassandra.Client client) throws IOException
     {
         SliceRange sliceRange = new SliceRange();
 
@@ -50,75 +47,23 @@ public class Reader extends OperationThread
 
         if (session.getColumnFamilyType() == ColumnFamilyType.Super)
         {
-            runSuperColumnReader(predicate);
+            runSuperColumnReader(predicate, client);
         }
         else
         {
-            runColumnReader(predicate);
+            runColumnReader(predicate, client);
         }
     }
 
-    private void runSuperColumnReader(SlicePredicate predicate)
+    private void runSuperColumnReader(SlicePredicate predicate, Cassandra.Client client) throws IOException
     {
-        for (int i = 0; i < session.getKeysPerThread(); i++)
+        byte[] rawKey = generateKey();
+        ByteBuffer key = ByteBuffer.wrap(rawKey);
+
+        for (int j = 0; j < session.getSuperColumns(); j++)
         {
-            byte[] rawKey = generateKey();
-            ByteBuffer key = ByteBuffer.wrap(rawKey);
-
-            for (int j = 0; j < session.getSuperColumns(); j++)
-            {
-                String superColumn = 'S' + Integer.toString(j);
-                ColumnParent parent = new ColumnParent("Super1").setSuper_column(superColumn.getBytes());
-
-                long start = System.currentTimeMillis();
-
-                boolean success = false;
-                String exceptionMessage = null;
-
-                for (int t = 0; t < session.getRetryTimes(); t++)
-                {
-                    if (success)
-                        break;
-
-                    try
-                    {
-                        List<ColumnOrSuperColumn> columns;
-                        columns = client.get_slice(key, parent, predicate, session.getConsistencyLevel());
-                        success = (columns.size() != 0);
-                    }
-                    catch (Exception e)
-                    {
-                        exceptionMessage = getExceptionMessage(e);
-                        success = false;
-                    }
-                }
-
-                if (!success)
-                {
-                    System.err.printf("Thread [%d] retried %d times - error reading key %s %s%n", index,
-                                                                                                  session.getRetryTimes(),
-                                                                                                  new String(rawKey),
-                                                                                                  (exceptionMessage == null) ? "" : "(" + exceptionMessage + ")");
-
-                    if (!session.ignoreErrors())
-                        return;
-                }
-
-                session.operationCount.getAndIncrement(index);
-                session.keyCount.getAndIncrement(index);
-                session.latencies.getAndAdd(index, System.currentTimeMillis() - start);
-            }
-        }
-    }
-
-    private void runColumnReader(SlicePredicate predicate)
-    {
-        ColumnParent parent = new ColumnParent("Standard1");
-
-        for (int i = 0; i < session.getKeysPerThread(); i++)
-        {
-            byte[] key = generateKey();
-            ByteBuffer keyBuffer = ByteBuffer.wrap(key);
+            String superColumn = 'S' + Integer.toString(j);
+            ColumnParent parent = new ColumnParent("Super1").setSuper_column(superColumn.getBytes());
 
             long start = System.currentTimeMillis();
 
@@ -133,7 +78,7 @@ public class Reader extends OperationThread
                 try
                 {
                     List<ColumnOrSuperColumn> columns;
-                    columns = client.get_slice(keyBuffer, parent, predicate, session.getConsistencyLevel());
+                    columns = client.get_slice(key, parent, predicate, session.getConsistencyLevel());
                     success = (columns.size() != 0);
                 }
                 catch (Exception e)
@@ -145,18 +90,61 @@ public class Reader extends OperationThread
 
             if (!success)
             {
-                System.err.printf("Thread [%d] retried %d times - error reading key %s %s%n", index,
-                                                                                              session.getRetryTimes(),
-                                                                                              new String(key),
-                                                                                              (exceptionMessage == null) ? "" : "(" + exceptionMessage + ")");
-
-                if (!session.ignoreErrors())
-                    return;
+                error(String.format("Operation [%d] retried %d times - error reading key %s %s%n",
+                                    index,
+                                    session.getRetryTimes(),
+                                    new String(rawKey),
+                                    (exceptionMessage == null) ? "" : "(" + exceptionMessage + ")"));
             }
 
-            session.operationCount.getAndIncrement(index);
-            session.keyCount.getAndIncrement(index);
-            session.latencies.getAndAdd(index, System.currentTimeMillis() - start);
+            session.operations.getAndIncrement();
+            session.keys.getAndIncrement();
+            session.latency.getAndAdd(System.currentTimeMillis() - start);
         }
     }
+
+    private void runColumnReader(SlicePredicate predicate, Cassandra.Client client) throws IOException
+    {
+        ColumnParent parent = new ColumnParent("Standard1");
+
+        byte[] key = generateKey();
+        ByteBuffer keyBuffer = ByteBuffer.wrap(key);
+
+        long start = System.currentTimeMillis();
+
+        boolean success = false;
+        String exceptionMessage = null;
+
+        for (int t = 0; t < session.getRetryTimes(); t++)
+        {
+            if (success)
+                break;
+
+            try
+            {
+                List<ColumnOrSuperColumn> columns;
+                columns = client.get_slice(keyBuffer, parent, predicate, session.getConsistencyLevel());
+                success = (columns.size() != 0);
+            }
+            catch (Exception e)
+            {
+                exceptionMessage = getExceptionMessage(e);
+                success = false;
+            }
+        }
+
+        if (!success)
+        {
+            error(String.format("Operation [%d] retried %d times - error reading key %s %s%n",
+                                index,
+                                session.getRetryTimes(),
+                                new String(key),
+                                (exceptionMessage == null) ? "" : "(" + exceptionMessage + ")"));
+        }
+
+        session.operations.getAndIncrement();
+        session.keys.getAndIncrement();
+        session.latency.getAndAdd(System.currentTimeMillis() - start);
+    }
+
 }

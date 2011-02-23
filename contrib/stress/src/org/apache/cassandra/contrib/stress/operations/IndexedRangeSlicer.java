@@ -17,23 +17,23 @@
  */
 package org.apache.cassandra.contrib.stress.operations;
 
-import org.apache.cassandra.contrib.stress.util.OperationThread;
+import org.apache.cassandra.contrib.stress.util.Operation;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 
-public class IndexedRangeSlicer extends OperationThread
+public class IndexedRangeSlicer extends Operation
 {
     public IndexedRangeSlicer(int index)
     {
         super(index);
     }
 
-    public void run()
+    public void run(Cassandra.Client client) throws IOException
     {
         String format = "%0" + session.getTotalKeysLength() + "d";
         SlicePredicate predicate = new SlicePredicate().setSlice_range(new SliceRange(ByteBuffer.wrap(new byte[]{}),
@@ -46,64 +46,59 @@ public class IndexedRangeSlicer extends OperationThread
 
         ByteBuffer columnName = ByteBuffer.wrap("C1".getBytes());
 
-        for (int i = range.begins(); i < range.size(); i++)
+        int received = 0;
+
+        String startOffset = "0";
+        ByteBuffer value = ByteBuffer.wrap(values.get(index % values.size()).getBytes());
+
+        IndexExpression expression = new IndexExpression(columnName, IndexOperator.EQ, value);
+
+        while (received < expectedPerValue)
         {
-            int received = 0;
+            IndexClause clause = new IndexClause(Arrays.asList(expression),
+                                                 ByteBuffer.wrap(startOffset.getBytes()),
+                                                 session.getKeysPerCall());
 
-            String startOffset = "0";
-            ByteBuffer value = ByteBuffer.wrap(values.get(i % values.size()).getBytes());
+            List<KeySlice> results = null;
+            long start = System.currentTimeMillis();
 
-            IndexExpression expression = new IndexExpression(columnName, IndexOperator.EQ, value);
+            boolean success = false;
+            String exceptionMessage = null;
 
-            while (received < expectedPerValue)
+            for (int t = 0; t < session.getRetryTimes(); t++)
             {
-                IndexClause clause = new IndexClause(Arrays.asList(expression), ByteBuffer.wrap(startOffset.getBytes()),
-                                                                                session.getKeysPerCall());
+                if (success)
+                    break;
 
-                List<KeySlice> results = null;
-                long start = System.currentTimeMillis();
-
-                boolean success = false;
-                String exceptionMessage = null;
-
-                for (int t = 0; t < session.getRetryTimes(); t++)
+                try
                 {
-                    if (success)
-                        break;
-
-                    try
-                    {
-                        results = client.get_indexed_slices(parent, clause, predicate, session.getConsistencyLevel());
-                        success = (results.size() != 0);
-                    }
-                    catch (Exception e)
-                    {
-                        exceptionMessage = getExceptionMessage(e);
-                        success = false;
-                    }
+                    results = client.get_indexed_slices(parent, clause, predicate, session.getConsistencyLevel());
+                    success = (results.size() != 0);
                 }
-
-                if (!success)
+                catch (Exception e)
                 {
-                    System.err.printf("Thread [%d] retried %d times - error on calling get_indexed_slices for offset %s %s%n",
-                                                                                              index,
-                                                                                              session.getRetryTimes(),
-                                                                                              startOffset,
-                                                                                              (exceptionMessage == null) ? "" : "(" + exceptionMessage + ")");
-
-                    if (!session.ignoreErrors())
-                        return;
+                    exceptionMessage = getExceptionMessage(e);
+                    success = false;
                 }
-
-                received += results.size();
-
-                // convert max key found back to an integer, and increment it
-                startOffset = String.format(format, (1 + getMaxKey(results)));
-
-                session.operationCount.getAndIncrement(index);
-                session.keyCount.getAndAdd(index, results.size());
-                session.latencies.getAndAdd(index, System.currentTimeMillis() - start);
             }
+
+            if (!success)
+            {
+                error(String.format("Operation [%d] retried %d times - error on calling get_indexed_slices for offset %s %s%n",
+                                    index,
+                                    session.getRetryTimes(),
+                                    startOffset,
+                                    (exceptionMessage == null) ? "" : "(" + exceptionMessage + ")"));
+            }
+
+            received += results.size();
+
+            // convert max key found back to an integer, and increment it
+            startOffset = String.format(format, (1 + getMaxKey(results)));
+
+            session.operations.getAndIncrement();
+            session.keys.getAndAdd(results.size());
+            session.latency.getAndAdd(System.currentTimeMillis() - start);
         }
     }
 
