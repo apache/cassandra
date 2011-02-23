@@ -1234,11 +1234,17 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     {
         if (tableName.equals("system"))
             throw new RuntimeException("Cleanup of the system table is neither necessary nor wise");
-                    
+
         for (ColumnFamilyStore cfStore : getValidColumnFamilies(tableName, columnFamilies))
         {
             cfStore.forceCleanup();
         }
+    }
+
+    public void scrub(String tableName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException
+    {
+        for (ColumnFamilyStore cfStore : getValidColumnFamilies(tableName, columnFamilies))
+            cfStore.scrub();
     }
 
     public void forceTableCompaction(String tableName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException

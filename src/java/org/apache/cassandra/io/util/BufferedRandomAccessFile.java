@@ -53,10 +53,9 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
     // buffer which will cache file blocks
     private ByteBuffer buffer;
 
-    // `current` is the current user-visible position in in the file, i.e., corresponding to getFilePointer() or seek()
-    // `bufferOffset` is the position in the file of the beginning of the buffer
+    // `current` as current position in file
+    // `bufferOffset` is the offset of the beginning of the buffer
     // `bufferEnd` is `bufferOffset` + count of bytes read from file, i.e. the lowest position we can't read from the buffer
-    // (NOT the same as bufferOffset + buffer.length since buffer may not be completely full)
     private long bufferOffset, bufferEnd, current = 0;
 
     // max buffer size is set according to (int size) parameter in the
@@ -202,6 +201,7 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
             buffer.rewind();
             bufferEnd = bufferOffset;
             hitEOF = true;
+
             return 0;
         }
 
@@ -464,6 +464,11 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
         if (bytes > Integer.MAX_VALUE)
             throw new UnsupportedOperationException("Overflow: " + bytes);
         return (int) bytes;
+    }
+
+    public static BufferedRandomAccessFile getUncachingReader(String filename) throws IOException
+    {
+        return new BufferedRandomAccessFile(new File(filename), "r", 8 * 1024 * 1024, true);
     }
 
     /**

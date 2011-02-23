@@ -928,6 +928,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         CompactionManager.instance.performCleanup(ColumnFamilyStore.this);
     }
 
+    public void scrub() throws ExecutionException, InterruptedException
+    {
+        snapshotWithoutFlush("pre-scrub-" + System.currentTimeMillis());
+        CompactionManager.instance.performScrub(ColumnFamilyStore.this);
+    }
+
     void markCompacted(Collection<SSTableReader> sstables)
     {
         ssTables.markCompacted(sstables);
@@ -1601,26 +1607,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return metadata.comparator;
     }
 
-    /**
-     * Take a snap shot of this columnfamily store.
-     * 
-     * @param snapshotName the name of the associated with the snapshot 
-     */
-    public void snapshot(String snapshotName)
+    private void snapshotWithoutFlush(String snapshotName)
     {
-        try
-        {
-            forceBlockingFlush();
-        }
-        catch (ExecutionException e)
-        {
-            throw new RuntimeException(e);
-        }
-        catch (InterruptedException e)
-        {
-            throw new AssertionError(e);
-        }
-
         for (SSTableReader ssTable : ssTables)
         {
             try
@@ -1641,6 +1629,30 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 throw new IOError(e);
             }
         }
+    }
+
+
+    /**
+     * Take a snap shot of this columnfamily store.
+     * 
+     * @param snapshotName the name of the associated with the snapshot 
+     */
+    public void snapshot(String snapshotName)
+    {
+        try
+        {
+            forceBlockingFlush();
+        }
+        catch (ExecutionException e)
+        {
+            throw new RuntimeException(e);
+        }
+        catch (InterruptedException e)
+        {
+            throw new AssertionError(e);
+        }
+
+        snapshotWithoutFlush(snapshotName);
     }
 
     public boolean hasUnreclaimedSpace()

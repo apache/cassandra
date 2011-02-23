@@ -72,7 +72,7 @@ public class NodeCmd {
 
     public enum NodeCommand {
         RING, INFO, CFSTATS, SNAPSHOT, CLEARSNAPSHOT, VERSION, TPSTATS, FLUSH, DRAIN,
-        DECOMMISSION, MOVE, LOADBALANCE, REMOVETOKEN, REPAIR, CLEANUP, COMPACT,
+        DECOMMISSION, MOVE, LOADBALANCE, REMOVETOKEN, REPAIR, CLEANUP, COMPACT, SCRUB,
         SETCACHECAPACITY, GETCOMPACTIONTHRESHOLD, SETCOMPACTIONTHRESHOLD, NETSTATS, CFHISTOGRAMS,
         COMPACTIONSTATS, DISABLEGOSSIP, ENABLEGOSSIP, INVALIDATEKEYCACHE, INVALIDATEROWCACHE,
         DISABLETHRIFT, ENABLETHRIFT
@@ -114,6 +114,7 @@ public class NodeCmd {
         addCmdHelp(header, "repair [keyspace] [cfnames]", "Repair one or more column family");
         addCmdHelp(header, "cleanup [keyspace] [cfnames]", "Run cleanup on one or more column family");
         addCmdHelp(header, "compact [keyspace] [cfnames]", "Force a (major) compaction on one or more column family");
+        addCmdHelp(header, "scrub [keyspace] [cfnames]", "Scrub (rebuild sstables for) one or more column family");
         addCmdHelp(header, "invalidatekeycache [keyspace] [cfnames]", "Invalidate the key cache of one or more column family");
         addCmdHelp(header, "invalidaterowcache [keyspace] [cfnames]", "Invalidate the key cache of one or more column family");
         addCmdHelp(header, "getcompactionthreshold <keyspace> <cfname>", "Print min and max compaction thresholds for a given column family");
@@ -574,6 +575,7 @@ public class NodeCmd {
             case COMPACT :
             case REPAIR  :
             case FLUSH   :
+            case SCRUB   :
             case INVALIDATEKEYCACHE :
             case INVALIDATEROWCACHE :
                 optionalKSandCFs(nc, arguments, probe);
@@ -628,51 +630,22 @@ public class NodeCmd {
 
     private static void optionalKSandCFs(NodeCommand nc, String[] cmdArgs, NodeProbe probe) throws InterruptedException, IOException
     {
-        // Per-keyspace
-        if (cmdArgs.length == 1)
+        // cmdArgs[0] is "scrub"
+        // if there is one additional arg, it's the keyspace; more are columnfamilies
+        List<String> keyspaces = cmdArgs.length == 1 ? probe.getKeyspaces() : Arrays.asList(cmdArgs[1]);
+        for (String keyspace : keyspaces)
         {
-            for (String keyspace : probe.getKeyspaces())
-            {
-                switch (nc)
-                {
-                    case REPAIR             : probe.forceTableRepair(keyspace); break;
-                    case INVALIDATEKEYCACHE : probe.invalidateKeyCaches(keyspace); break;
-                    case INVALIDATEROWCACHE : probe.invalidateRowCaches(keyspace); break;
-                    case FLUSH   :
-                        try { probe.forceTableFlush(keyspace); }
-                        catch (ExecutionException ee) { err(ee, "Error occured while flushing keyspace " + keyspace); }
-                        break;
-                    case COMPACT :
-                        try { probe.forceTableCompaction(keyspace); }
-                        catch (ExecutionException ee) { err(ee, "Error occured while compacting keyspace " + keyspace); }
-                        break;
-                    case CLEANUP :
-                        if (keyspace.equals("system")) { break; } // Skip cleanup on system cfs.
-                        try { probe.forceTableCleanup(keyspace); }
-                        catch (ExecutionException ee) { err(ee, "Error occured while cleaning up keyspace " + keyspace); }
-                        break;
-                    default:
-                        throw new RuntimeException("Unreachable code.");
-                }
-            }
-        }
-        // Per-cf (or listed cfs) in given keyspace
-        else
-        {
-            String keyspace = cmdArgs[1];
-            
-            // Check if this keyspace exists
             if (!probe.getKeyspaces().contains(keyspace))
             {
                 System.err.println("Keyspace [" + keyspace + "] does not exist.");
                 System.exit(1);
             }
-                
-            String[] columnFamilies = new String[cmdArgs.length - 2];
-            for (int i = 0; i < columnFamilies.length; i++)
-            {
-                columnFamilies[i] = cmdArgs[i + 2];
-            }
+        }
+
+        // second loop so we're less likely to die halfway through due to invalid keyspace
+        for (String keyspace : keyspaces)
+        {
+            String[] columnFamilies = cmdArgs.length <= 2 ? new String[0] : Arrays.copyOfRange(cmdArgs, 2, cmdArgs.length);
             switch (nc)
             {
                 case REPAIR  : probe.forceTableRepair(keyspace, columnFamilies); break;
@@ -687,8 +660,13 @@ public class NodeCmd {
                     catch (ExecutionException ee) { err(ee, "Error occured during compaction"); }
                     break;
                 case CLEANUP :
+                    if (keyspace.equals("system")) { break; } // Skip cleanup on system cfs.
                     try { probe.forceTableCleanup(keyspace, columnFamilies); }
                     catch (ExecutionException ee) { err(ee, "Error occured during cleanup"); }
+                    break;
+                case SCRUB :
+                    try { probe.scrub(keyspace, columnFamilies); }
+                    catch (ExecutionException ee) { err(ee, "Error occured while scrubbing keyspace " + keyspace); }
                     break;
                 default:
                     throw new RuntimeException("Unreachable code.");

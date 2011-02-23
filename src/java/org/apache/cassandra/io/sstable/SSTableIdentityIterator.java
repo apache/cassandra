@@ -24,15 +24,22 @@ package org.apache.cassandra.io.sstable;
 import java.io.DataOutput;
 import java.io.IOError;
 import java.io.IOException;
+import java.util.ArrayList;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.columniterator.IColumnIterator;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
+import org.apache.cassandra.utils.Filter;
 
 public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterator>, IColumnIterator
 {
+    private static final Logger logger = LoggerFactory.getLogger(SSTableIdentityIterator.class);
+
     private final DecoratedKey key;
     private final long finishedAt;
     private final BufferedRandomAccessFile file;
@@ -56,6 +63,12 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
     public SSTableIdentityIterator(SSTableReader sstable, BufferedRandomAccessFile file, DecoratedKey key, long dataStart, long dataSize)
     throws IOException
     {
+        this(sstable, file, key, dataStart, dataSize, false);
+    }
+
+    public SSTableIdentityIterator(SSTableReader sstable, BufferedRandomAccessFile file, DecoratedKey key, long dataStart, long dataSize, boolean deserializeRowHeader)
+    throws IOException
+    {
         this.sstable = sstable;
         this.file = file;
         this.key = key;
@@ -66,6 +79,28 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
         try
         {
             file.seek(this.dataStart);
+            if (deserializeRowHeader)
+            {
+                try
+                {
+                    IndexHelper.defreezeBloomFilter(file, sstable.descriptor.usesOldBloomFilter);
+                }
+                catch (Exception e)
+                {
+                    logger.info("Invalid bloom filter in " + sstable + "; will rebuild it");
+                    // deFreeze should have left the file position ready to deserialize index
+                }
+                try
+                {
+                    IndexHelper.deserializeIndex(file);
+                }
+                catch (Exception e)
+                {
+                    logger.info("Invalid row summary in " + sstable + "; will rebuild it");
+                }
+                file.seek(this.dataStart);
+            }
+
             IndexHelper.skipBloomFilter(file);
             IndexHelper.skipIndex(file);
             columnFamily = sstable.createColumnFamily();
