@@ -89,8 +89,10 @@ public class CacheWriter<K, V> implements ICompactionInfo
         {
             out.close();
         }
+
+        path.delete(); // ignore error if it didn't exist
         if (!tmpFile.renameTo(path))
-            throw new IOException("Unable to rename cache to " + path);
+            throw new IOException("Unable to rename " + tmpFile + " to " + path);
         logger.info(String.format("Saved %s (%d items) in %d ms",
                                   path.getName(), keys.size(), (System.currentTimeMillis() - start)));
     }

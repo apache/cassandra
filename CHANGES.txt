@@ -20,6 +20,7 @@
  * fix EOFing on requests for the last bytes in a file (CASSANDRA-2213)
  * fix BRAF performance when seeking to EOF (CASSANDRA-2218)
  * check for memtable flush_after_mins exceeded every 10s (CASSANDRA-2183)
+ * fix cache saving on Windows (CASSANDRA-2207)
 
 
 0.7.2
