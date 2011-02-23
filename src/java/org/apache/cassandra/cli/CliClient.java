@@ -752,8 +752,8 @@ public class CliClient extends CliUserHelp
             KsDef updatedKsDef = updateKsDefAttributes(statement, currentKsDef);
 
             String mySchemaVersion = thriftClient.system_update_keyspace(updatedKsDef);
-            validateSchemaIsSettled(mySchemaVersion);
             sessionState.out.println(mySchemaVersion);
+            validateSchemaIsSettled(mySchemaVersion);
             keyspacesMap.put(keyspaceName, thriftClient.describe_keyspace(keyspaceName));
         }
         catch (InvalidRequestException e)

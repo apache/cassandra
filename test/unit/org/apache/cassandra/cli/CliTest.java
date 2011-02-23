@@ -27,6 +27,7 @@ import org.junit.Test;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.util.regex.Pattern;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -176,7 +177,7 @@ public class CliTest extends CleanupHelper
             assertEquals(errStream.toString() + " processing " + statement, "", errStream.toString());
             if (statement.startsWith("drop ") || statement.startsWith("create ") || statement.startsWith("update "))
             {
-                assertTrue(result.matches("(.{8})-(.{4})-(.{4})-(.{4})-(.{12})\n"));
+                assert Pattern.compile("(.{8})-(.{4})-(.{4})-(.{4})-(.{12}).*", Pattern.DOTALL).matcher(result).matches() : result;
             }
             else if (statement.startsWith("set "))
             {
