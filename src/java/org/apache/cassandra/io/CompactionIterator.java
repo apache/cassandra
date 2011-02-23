@@ -134,9 +134,9 @@ implements Closeable, ICompactionInfo
         {
             logger.info(String.format("Compacting large row %s (%d bytes) incrementally",
                                       ByteBufferUtil.bytesToHex(rows.get(0).getKey().key), rowSize));
-            return new LazilyCompactedRow(cfs, rows, major, gcBefore);
+            return new LazilyCompactedRow(cfs, rows, major, gcBefore, false);
         }
-        return new PrecompactedRow(cfs, rows, major, gcBefore);
+        return new PrecompactedRow(cfs, rows, major, gcBefore, false);
     }
 
     public void close() throws IOException

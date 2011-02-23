@@ -212,6 +212,7 @@ public final class CFMetaData
         this.memtableThroughputInMb = memtableThroughputInMb == null
                                       ? DEFAULT_MEMTABLE_THROUGHPUT_IN_MB
                                       : memtableThroughputInMb;
+
         this.memtableOperationsInMillions = memtableOperationsInMillions == null
                                             ? DEFAULT_MEMTABLE_OPERATIONS_IN_MILLIONS
                                             : memtableOperationsInMillions;
@@ -904,28 +905,22 @@ public final class CFMetaData
 
     public static void validateMemtableSettings(org.apache.cassandra.thrift.CfDef cf_def) throws ConfigurationException
     {
-        if (cf_def.isSetMemtable_flush_after_mins() && cf_def.memtable_flush_after_mins <= 0) {
-            throw new ConfigurationException("memtable_flush_after_mins cannot be non-positive");
-        }
-        if (cf_def.isSetMemtable_throughput_in_mb() && cf_def.memtable_throughput_in_mb <= 0) {
-            throw new ConfigurationException("memtable_throughput_in_mb cannot be non-positive.");
-        }
-        if (cf_def.isSetMemtable_operations_in_millions() && cf_def.memtable_operations_in_millions <= 0) {
-            throw new ConfigurationException("memtable_operations_in_millions cannot be non-positive");
-        }
+        if (cf_def.isSetMemtable_flush_after_mins())
+            DatabaseDescriptor.validateMemtableFlushPeriod(cf_def.memtable_flush_after_mins);
+        if (cf_def.isSetMemtable_throughput_in_mb())
+            DatabaseDescriptor.validateMemtableThroughput(cf_def.memtable_throughput_in_mb);
+        if (cf_def.isSetMemtable_operations_in_millions())
+            DatabaseDescriptor.validateMemtableOperations(cf_def.memtable_operations_in_millions);
     }
 
     public static void validateMemtableSettings(org.apache.cassandra.db.migration.avro.CfDef cf_def) throws ConfigurationException
     {
-        if (cf_def.memtable_flush_after_mins != null && cf_def.memtable_flush_after_mins <= 0) {
-            throw new ConfigurationException("memtable_flush_after_mins cannot be non-positive");
-        }
-        if (cf_def.memtable_throughput_in_mb != null && cf_def.memtable_throughput_in_mb <= 0) {
-            throw new ConfigurationException("memtable_throughput_in_mb cannot be non-positive.");
-        }
-        if (cf_def.memtable_operations_in_millions != null && cf_def.memtable_operations_in_millions <= 0) {
-            throw new ConfigurationException("memtable_operations_in_millions cannot be non-positive");
-        }
+        if (cf_def.memtable_flush_after_mins != null)
+            DatabaseDescriptor.validateMemtableFlushPeriod(cf_def.memtable_flush_after_mins);
+        if (cf_def.memtable_throughput_in_mb != null)
+            DatabaseDescriptor.validateMemtableThroughput(cf_def.memtable_throughput_in_mb);
+        if (cf_def.memtable_operations_in_millions != null)
+            DatabaseDescriptor.validateMemtableOperations(cf_def.memtable_operations_in_millions);
     }
 
     @Override

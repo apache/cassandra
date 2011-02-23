@@ -25,6 +25,7 @@ import java.nio.charset.CharacterCodingException;
 import java.util.*;
 
 import com.google.common.base.Charsets;
+import com.google.common.base.Joiner;
 
 import org.antlr.runtime.tree.Tree;
 import org.apache.cassandra.auth.SimpleAuthenticator;
@@ -33,6 +34,7 @@ import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.db.CompactionManagerMBean;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.locator.SimpleSnitch;
+import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -753,8 +755,8 @@ public class CliClient extends CliUserHelp
             KsDef updatedKsDef = updateKsDefAttributes(statement, currentKsDef);
 
             String mySchemaVersion = thriftClient.system_update_keyspace(updatedKsDef);
-            validateSchemaIsSettled(mySchemaVersion);
             sessionState.out.println(mySchemaVersion);
+            validateSchemaIsSettled(mySchemaVersion);
             keyspacesMap.put(keyspaceName, thriftClient.describe_keyspace(keyspaceName));
         }
         catch (InvalidRequestException e)
@@ -2087,13 +2089,13 @@ public class CliClient extends CliUserHelp
     /** validates schema is propagated to all nodes */
     private void validateSchemaIsSettled(String currentVersionId)
     {
-        Map<String, List<String>> versions;
+        sessionState.out.println("Waiting for schema agreement...");
+        Map<String, List<String>> versions = null;
 
-        long start = System.currentTimeMillis();
-        long limit = start + sessionState.schema_mwt;
-
+        long limit = System.currentTimeMillis() + sessionState.schema_mwt;
         boolean inAgreement = false;
-        while (limit - start >= 0)
+        outer:
+        while (limit - System.currentTimeMillis() >= 0 && !inAgreement)
         {
             try
             {
@@ -2105,29 +2107,23 @@ public class CliClient extends CliUserHelp
                 continue;
             }
 
-            boolean currentlyInAgreement = true;
             for (String version : versions.keySet())
             {
-                if (!version.equals(currentVersionId))
-                {
-                    currentlyInAgreement = false;
-                    break; // only one disagreement is enough
-                }
+                if (!version.equals(currentVersionId) && !version.equals(StorageProxy.UNREACHABLE))
+                    continue outer;
             }
-
-            if (currentlyInAgreement)
-            {
-                inAgreement = true;
-                break; // all nodes are in agreement no need to loop
-            }
-            start = System.currentTimeMillis();
+            inAgreement = true;
         }
 
+        if (versions.containsKey(StorageProxy.UNREACHABLE))
+            sessionState.err.printf("Warning: unreachable nodes %s", Joiner.on(", ").join(versions.get(StorageProxy.UNREACHABLE)));
         if (!inAgreement)
         {
-            sessionState.err.printf("The schema has not settled in %d seconds and further migrations are ill-advised until it does.%n", sessionState.schema_mwt / 1000);
+            sessionState.err.printf("The schema has not settled in %d seconds; further migrations are ill-advised until it does.%nVersions are %s%n",
+                                    sessionState.schema_mwt / 1000, FBUtilities.toString(versions));
             System.exit(-1);
         }
+        sessionState.out.println("... schemas agree across the cluster");
     }
 
     private static class CfDefNamesComparator implements Comparator<CfDef>

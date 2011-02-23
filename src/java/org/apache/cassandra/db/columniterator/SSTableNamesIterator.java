@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.apache.cassandra.db.ColumnFamilySerializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -108,7 +109,13 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
 
         // we can stop early if bloom filter says none of the columns actually exist -- but,
         // we can't stop before initializing the cf above, in case there's a relevant tombstone
-        cf = ColumnFamily.serializer().deserializeFromSSTableNoColumns(ColumnFamily.create(sstable.metadata), file);
+        ColumnFamilySerializer serializer = ColumnFamily.serializer();
+        try {
+            cf = serializer.deserializeFromSSTableNoColumns(ColumnFamily.create(sstable.metadata), file);
+        } catch (Exception e) {
+            throw new IOException
+                (serializer + " failed to deserialize " + sstable.getColumnFamilyName() + " with " + sstable.metadata + " from " + file, e);
+        }
 
         List<ByteBuffer> filteredColumnNames = new ArrayList<ByteBuffer>(columns.size());
         for (ByteBuffer name : columns)
@@ -153,7 +160,7 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
 
         /* get the various column ranges we have to read */
         AbstractType comparator = metadata.comparator;
-        SortedSet<IndexHelper.IndexInfo> ranges = new TreeSet<IndexHelper.IndexInfo>(IndexHelper.getComparator(comparator));
+        SortedSet<IndexHelper.IndexInfo> ranges = new TreeSet<IndexHelper.IndexInfo>(IndexHelper.getComparator(comparator, false));
         for (ByteBuffer name : filteredColumnNames)
         {
             int index = IndexHelper.indexFor(name, indexList, comparator, false);

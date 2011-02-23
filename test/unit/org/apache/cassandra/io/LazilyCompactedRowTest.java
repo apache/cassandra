@@ -290,7 +290,7 @@ public class LazilyCompactedRowTest extends CleanupHelper
         @Override
         protected AbstractCompactedRow getCompactedRow()
         {
-            return new LazilyCompactedRow(cfStore, rows, true, Integer.MAX_VALUE);
+            return new LazilyCompactedRow(cfStore, rows, true, Integer.MAX_VALUE, true);
         }
     }
 
@@ -307,7 +307,7 @@ public class LazilyCompactedRowTest extends CleanupHelper
         @Override
         protected AbstractCompactedRow getCompactedRow()
         {
-            return new PrecompactedRow(cfStore, rows, true, Integer.MAX_VALUE);
+            return new PrecompactedRow(cfStore, rows, true, Integer.MAX_VALUE, true);
         }
     }
 }

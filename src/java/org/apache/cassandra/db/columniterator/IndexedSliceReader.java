@@ -146,8 +146,6 @@ class IndexedSliceReader extends AbstractIterator<IColumn> implements IColumnIte
             file.readInt(); // column count
             this.mark = file.mark();
             curRangeIndex = IndexHelper.indexFor(startColumn, indexes, comparator, reversed);
-            if (reversed && curRangeIndex == indexes.size())
-                curRangeIndex--;
         }
 
         public boolean getNextBlock() throws IOException

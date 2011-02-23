@@ -31,6 +31,8 @@ import java.util.concurrent.TimeoutException;
 import java.util.zip.DataFormatException;
 import java.util.zip.Inflater;
 
+import com.google.common.base.Predicates;
+import com.google.common.collect.Maps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -712,11 +714,13 @@ public class CassandraServer implements Cassandra.Iface
         }
     }
 
-    public String system_add_column_family(CfDef cf_def) throws InvalidRequestException, TException
+    public synchronized String system_add_column_family(CfDef cf_def) throws InvalidRequestException, TException
     {
         logger.debug("add_column_family");
         state().hasColumnFamilyListAccess(Permission.WRITE);
         ThriftValidation.validateCfDef(cf_def);
+        validateSchemaAgreement();
+
         try
         {
             applyMigrationOnStage(new AddColumnFamily(convertToCFMetaData(cf_def)));
@@ -736,10 +740,11 @@ public class CassandraServer implements Cassandra.Iface
         }
     }
 
-    public String system_drop_column_family(String column_family) throws InvalidRequestException, TException
+    public synchronized String system_drop_column_family(String column_family) throws InvalidRequestException, TException
     {
         logger.debug("drop_column_family");
         state().hasColumnFamilyListAccess(Permission.WRITE);
+        validateSchemaAgreement();
         
         try
         {
@@ -760,10 +765,11 @@ public class CassandraServer implements Cassandra.Iface
         }
     }
 
-    public String system_add_keyspace(KsDef ks_def) throws InvalidRequestException, TException
+    public synchronized String system_add_keyspace(KsDef ks_def) throws InvalidRequestException, TException
     {
         logger.debug("add_keyspace");
         state().hasKeyspaceListAccess(Permission.WRITE);
+        validateSchemaAgreement();
         
         // generate a meaningful error if the user setup keyspace and/or column definition incorrectly
         for (CfDef cf : ks_def.cf_defs) 
@@ -805,10 +811,11 @@ public class CassandraServer implements Cassandra.Iface
         }
     }
     
-    public String system_drop_keyspace(String keyspace) throws InvalidRequestException, TException
+    public synchronized String system_drop_keyspace(String keyspace) throws InvalidRequestException, TException
     {
         logger.debug("drop_keyspace");
         state().hasKeyspaceListAccess(Permission.WRITE);
+        validateSchemaAgreement();
         
         try
         {
@@ -830,15 +837,15 @@ public class CassandraServer implements Cassandra.Iface
     }
 
     /** update an existing keyspace, but do not allow column family modifications. */
-    public String system_update_keyspace(KsDef ks_def) throws InvalidRequestException, TException
+    public synchronized String system_update_keyspace(KsDef ks_def) throws InvalidRequestException, TException
     {
         logger.debug("update_keyspace");
         state().hasKeyspaceListAccess(Permission.WRITE);
-
         ThriftValidation.validateTable(ks_def.name);
         if (ks_def.getCf_defs() != null && ks_def.getCf_defs().size() > 0)
             throw new InvalidRequestException("Keyspace update must not contain any column family definitions.");
-        
+        validateSchemaAgreement();
+
         try
         {
             KSMetaData ksm = new KSMetaData(
@@ -863,18 +870,17 @@ public class CassandraServer implements Cassandra.Iface
         }
     }
 
-    public String system_update_column_family(CfDef cf_def) throws InvalidRequestException, TException
+    public synchronized String system_update_column_family(CfDef cf_def) throws InvalidRequestException, TException
     {
         logger.debug("update_column_family");
         state().hasColumnFamilyListAccess(Permission.WRITE);
-        
         if (cf_def.keyspace == null || cf_def.name == null)
             throw new InvalidRequestException("Keyspace and CF name must be set.");
-        
         CFMetaData oldCfm = DatabaseDescriptor.getCFMetaData(CFMetaData.getId(cf_def.keyspace, cf_def.name));
         if (oldCfm == null) 
             throw new InvalidRequestException("Could not find column family definition to modify.");
-        
+        validateSchemaAgreement();
+
         try
         {
             // ideally, apply() would happen on the stage with the
@@ -895,6 +901,15 @@ public class CassandraServer implements Cassandra.Iface
             ex.initCause(e);
             throw ex;
         }
+    }
+
+    private void validateSchemaAgreement() throws InvalidRequestException
+    {
+        // unreachable hosts don't count towards disagreement
+        Map<String, List<String>> versions = Maps.filterKeys(StorageProxy.describeSchemaVersions(),
+                                                             Predicates.not(Predicates.equalTo(StorageProxy.UNREACHABLE)));
+        if (versions.size() > 1)
+            throw new InvalidRequestException("Cluster schema does not yet agree");
     }
 
     // @see CFMetaData.applyImplicitDefaults().

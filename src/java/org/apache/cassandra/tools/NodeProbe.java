@@ -169,6 +169,11 @@ public class NodeProbe
         ssProxy.forceTableCleanup(tableName, columnFamilies);
     }
 
+    public void scrub(String tableName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException
+    {
+        ssProxy.scrub(tableName, columnFamilies);
+    }
+
     public void forceTableCompaction(String tableName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException
     {
         ssProxy.forceTableCompaction(tableName, columnFamilies);

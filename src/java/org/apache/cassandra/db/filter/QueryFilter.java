@@ -210,4 +210,13 @@ public class QueryFilter
     {
         return new QueryFilter(key, path, new NamesQueryFilter(column));
     }
+
+    @Override
+    public String toString() {
+        return getClass().getSimpleName() + "(key=" + key +
+               ", path=" + path +
+               (filter == null ? "" : ", filter=" + filter) +
+               (superFilter == null ? "" : ", superFilter=" + superFilter) +
+               ")";
+    }
 }

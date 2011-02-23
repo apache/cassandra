@@ -39,6 +39,7 @@ import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.columniterator.IColumnIterator;
 import org.apache.cassandra.db.commitlog.CommitLog;
@@ -977,6 +978,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         CompactionManager.instance.performCleanup(ColumnFamilyStore.this);
     }
 
+    public void scrub() throws ExecutionException, InterruptedException
+    {
+        snapshotWithoutFlush("pre-scrub-" + System.currentTimeMillis());
+        CompactionManager.instance.performScrub(ColumnFamilyStore.this);
+    }
+
     void markCompacted(Collection<SSTableReader> sstables)
     {
         ssTables.markCompacted(sstables);
@@ -1021,12 +1028,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         flushable.flushAndSignal(latch, flushSorter, flushWriter);
     }
 
-    public int getMemtableColumnsCount()
+    public long getMemtableColumnsCount()
     {
         return getMemtableThreadSafe().getCurrentOperations();
     }
 
-    public int getMemtableDataSize()
+    public long getMemtableDataSize()
     {
         return getMemtableThreadSafe().getCurrentThroughput();
     }
@@ -1668,26 +1675,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return metadata.comparator;
     }
 
-    /**
-     * Take a snap shot of this columnfamily store.
-     * 
-     * @param snapshotName the name of the associated with the snapshot 
-     */
-    public void snapshot(String snapshotName)
+    private void snapshotWithoutFlush(String snapshotName)
     {
-        try
-        {
-            forceBlockingFlush();
-        }
-        catch (ExecutionException e)
-        {
-            throw new RuntimeException(e);
-        }
-        catch (InterruptedException e)
-        {
-            throw new AssertionError(e);
-        }
-
         for (SSTableReader ssTable : ssTables)
         {
             try
@@ -1708,6 +1697,30 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 throw new IOError(e);
             }
         }
+    }
+
+
+    /**
+     * Take a snap shot of this columnfamily store.
+     * 
+     * @param snapshotName the name of the associated with the snapshot 
+     */
+    public void snapshot(String snapshotName)
+    {
+        try
+        {
+            forceBlockingFlush();
+        }
+        catch (ExecutionException e)
+        {
+            throw new RuntimeException(e);
+        }
+        catch (InterruptedException e)
+        {
+            throw new AssertionError(e);
+        }
+
+        snapshotWithoutFlush(snapshotName);
     }
 
     public boolean hasUnreclaimedSpace()
@@ -2012,24 +2025,20 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         return memsize.value();
     }
-    public void setMemtableThroughputInMB(int size)
+    public void setMemtableThroughputInMB(int size) throws ConfigurationException
     {
-        if (size <= 0) {
-            throw new RuntimeException("MemtableThroughputInMB must be greater than 0.");
-        }
-        this.memsize.set(size);
+        DatabaseDescriptor.validateMemtableThroughput(size);
+        memsize.set(size);
     }
 
     public double getMemtableOperationsInMillions()
     {
         return memops.value();
     }
-    public void setMemtableOperationsInMillions(double ops)
+    public void setMemtableOperationsInMillions(double ops) throws ConfigurationException
     {
-        if (ops <= 0) {
-            throw new RuntimeException("MemtableOperationsInMillions must be greater than 0.0.");
-        }
-        this.memops.set(ops);
+        DatabaseDescriptor.validateMemtableOperations(ops);
+        memops.set(ops);
     }
 
     public long estimateKeys()

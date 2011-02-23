@@ -30,12 +30,14 @@ import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.collect.Iterators;
 import com.google.common.collect.PeekingIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.columniterator.IColumnIterator;
 import org.apache.cassandra.db.columniterator.SimpleAbstractColumnIterator;
 import org.apache.cassandra.db.filter.AbstractColumnIterator;
@@ -52,23 +54,23 @@ public class Memtable implements Comparable<Memtable>, IFlushable
 
     private boolean isFrozen;
 
-    private final AtomicInteger currentThroughput = new AtomicInteger(0);
-    private final AtomicInteger currentOperations = new AtomicInteger(0);
+    private final AtomicLong currentThroughput = new AtomicLong(0);
+    private final AtomicLong currentOperations = new AtomicLong(0);
 
     private final long creationTime;
     private final ConcurrentNavigableMap<DecoratedKey, ColumnFamily> columnFamilies = new ConcurrentSkipListMap<DecoratedKey, ColumnFamily>();
     public final ColumnFamilyStore cfs;
 
-    private final int THRESHOLD;
-    private final int THRESHOLD_COUNT;
+    private final long THRESHOLD;
+    private final long THRESHOLD_COUNT;
 
     public Memtable(ColumnFamilyStore cfs)
     {
 
         this.cfs = cfs;
         creationTime = System.currentTimeMillis();
-        this.THRESHOLD = cfs.getMemtableThroughputInMB() * 1024 * 1024;
-        this.THRESHOLD_COUNT = (int) (cfs.getMemtableOperationsInMillions() * 1024 * 1024);
+        THRESHOLD = cfs.getMemtableThroughputInMB() * 1024 * 1024;
+        THRESHOLD_COUNT = (long) (cfs.getMemtableOperationsInMillions() * 1024 * 1024);
     }
 
     /**
@@ -88,12 +90,12 @@ public class Memtable implements Comparable<Memtable>, IFlushable
     		return 0;
     }
 
-    public int getCurrentThroughput()
+    public long getCurrentThroughput()
     {
         return currentThroughput.get();
     }
     
-    public int getCurrentOperations()
+    public long getCurrentOperations()
     {
         return currentOperations.get();
     }

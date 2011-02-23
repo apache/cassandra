@@ -259,7 +259,7 @@ public abstract class SSTable
     @Override
     public String toString()
     {
-        return getClass().getName() + "(" +
+        return getClass().getSimpleName() + "(" +
                "path='" + getFilename() + '\'' +
                ')';
     }

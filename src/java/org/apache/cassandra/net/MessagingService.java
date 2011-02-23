@@ -25,7 +25,6 @@ import java.net.*;
 import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousCloseException;
 import java.nio.channels.ServerSocketChannel;
-import java.security.MessageDigest;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -151,21 +150,6 @@ public final class MessagingService implements MessagingServiceMBean
     {
         for (ILatencySubscriber subscriber : subscribers)
             subscriber.receiveTiming(address, latency);
-    }
-
-    public static byte[] hash(String type, byte data[])
-    {
-        byte result[];
-        try
-        {
-            MessageDigest messageDigest = MessageDigest.getInstance(type);
-            result = messageDigest.digest(data);
-        }
-        catch (Exception e)
-        {
-            throw new RuntimeException(e);
-        }
-        return result;
     }
 
     /** called from gossiper when it notices a node is not responding. */

@@ -189,6 +189,9 @@ public class RowMutation implements IMutation, MessageProducer
         Table.open(table_).apply(this, true);
     }
 
+    /**
+     * Apply without touching the commitlog. For testing.
+     */
     public void applyUnsafe() throws IOException
     {
         Table.open(table_).apply(this, false);

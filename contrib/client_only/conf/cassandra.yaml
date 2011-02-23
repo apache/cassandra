@@ -34,6 +34,8 @@ hinted_handoff_enabled: true
 # this defines the maximum amount of time a dead host will have hints
 # generated.  After it has been dead this long, hints will be dropped.
 max_hint_window_in_ms: 3600000 # one hour
+# Sleep this long after delivering each row or row fragment
+hinted_handoff_throttle_delay_in_ms: 50
 
 # authentication backend, implementing IAuthenticator; used to identify users
 authenticator: org.apache.cassandra.auth.AllowAllAuthenticator
@@ -89,6 +91,31 @@ commitlog_sync: periodic
 # and the CommitLog is simply synced every commitlog_sync_period_in_ms
 # milliseconds.
 commitlog_sync_period_in_ms: 10000
+
+# emergency pressure valve: each time heap usage after a full (CMS)
+# garbage collection is above this fraction of the max, Cassandra will
+# flush the largest memtables.  
+#
+# Set to 1.0 to disable.  Setting this lower than
+# CMSInitiatingOccupancyFraction is not likely to be useful.
+#
+# RELYING ON THIS AS YOUR PRIMARY TUNING MECHANISM WILL WORK POORLY:
+# it is most effective under light to moderate load, or read-heavy
+# workloads; under truly massive write load, it will often be too
+# little, too late.
+flush_largest_memtables_at: 0.75
+
+# emergency pressure valve #2: the first time heap usage after a full
+# (CMS) garbage collection is above this fraction of the max,
+# Cassandra will reduce cache maximum _capacity_ to the given fraction
+# of the current _size_.  Should usually be set substantially above
+# flush_largest_memtables_at, since that will have less long-term
+# impact on the system.  
+# 
+# Set to 1.0 to disable.  Setting this lower than
+# CMSInitiatingOccupancyFraction is not likely to be useful.
+reduce_cache_sizes_at: 0.85
+reduce_cache_capacity_to: 0.6
 
 # Addresses of hosts that are deemed contact points.
 # Cassandra nodes use this list of hosts to find each other and learn
@@ -198,6 +225,11 @@ column_index_size_in_kb: 64
 # over to disk and use a slower two-pass compaction process.  A message
 # will be logged specifying the row key.
 in_memory_compaction_limit_in_mb: 64
+
+# Track cached row keys during compaction, and re-cache their new
+# positions in the compacted sstable.  Disable if you use really large
+# key caches.
+compaction_preheat_key_cache: true
 
 # Time to wait for a reply from other nodes before failing the command 
 rpc_timeout_in_ms: 10000

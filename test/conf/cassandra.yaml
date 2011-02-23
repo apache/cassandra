@@ -98,6 +98,11 @@ keyspaces:
           column_type: Super
           default_validation_class: CounterColumnType
 
+        - name: Super5
+          column_type: Super
+          rows_cached: 0
+          keys_cached: 0
+            
         - name: Indexed1
           column_metadata:
             - name: birthdate
@@ -207,3 +212,12 @@ keyspaces:
 
         - name: Standard2
           keys_cached: 1.0
+
+    - name: RowCacheSpace
+      replica_placement_strategy: org.apache.cassandra.locator.SimpleStrategy
+      replication_factor: 1
+      column_families:
+        - name: CachedCF
+          rows_cached: 100
+        - name: CFWithoutCache
+          rows_cached: 0

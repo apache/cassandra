@@ -26,7 +26,6 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.Map;
 import java.util.Properties;
 
@@ -111,15 +110,11 @@ public class SimpleAuthenticator implements IAuthenticator
                     authenticated = password.equals(props.getProperty(username));
                     break;
                 case MD5:
-                    authenticated = MessageDigest.isEqual(MessageDigest.getInstance("MD5").digest(password.getBytes()), FBUtilities.hexToBytes(props.getProperty(username)));
+                    authenticated = MessageDigest.isEqual(FBUtilities.threadLocalMD5Digest().digest(password.getBytes()), FBUtilities.hexToBytes(props.getProperty(username)));
                     break;
                 default:
                     throw new RuntimeException("Unknown PasswordMode " + mode);
             }
-        }
-        catch (NoSuchAlgorithmException e)
-        {
-            throw new RuntimeException("You requested MD5 checking but the MD5 digest algorithm is not available: " + e.getMessage());
         }
         catch (IOException e)
         {

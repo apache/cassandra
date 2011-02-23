@@ -112,7 +112,7 @@ public class DatabaseDescriptor
 
         return url;
     }
-
+    
     static
     {
         try
@@ -368,10 +368,6 @@ public class DatabaseDescriptor
                 if (conf.saved_caches_directory == null)
                     throw new ConfigurationException("saved_caches_directory missing");
             }
-
-            /* threshold after which commit log should be rotated. */
-            if (conf.commitlog_rotation_threshold_in_mb != null)
-                CommitLog.setSegmentSize(conf.commitlog_rotation_threshold_in_mb * 1024 * 1024);
 
             // Hardcoded system tables
             KSMetaData systemMeta = new KSMetaData(Table.SYSTEM_TABLE,
@@ -918,6 +914,14 @@ public class DatabaseDescriptor
         currentIndex = (currentIndex + 1) % conf.data_file_directories.length;
         return dataFileDirectory;
     }
+    
+    /* threshold after which commit log should be rotated. */
+    public static int getCommitLogSegmentSize() 
+    {
+        return conf.commitlog_rotation_threshold_in_mb != null ?
+               conf.commitlog_rotation_threshold_in_mb * 1024 * 1024 :
+               128*1024*1024;
+    }
 
     public static String getCommitLogLocation()
     {
@@ -1200,5 +1204,25 @@ public class DatabaseDescriptor
     public static boolean getPreheatKeyCache()
     {
         return conf.compaction_preheat_key_cache;
+    }
+
+    public static void validateMemtableThroughput(int sizeInMB) throws ConfigurationException
+    {
+        if (sizeInMB <= 0)
+            throw new ConfigurationException("memtable_throughput_in_mb must be greater than 0.");
+    }
+
+    public static void validateMemtableOperations(double operationsInMillions) throws ConfigurationException
+    {
+        if (operationsInMillions <= 0)
+            throw new ConfigurationException("memtable_operations_in_millions must be greater than 0.0.");
+        if (operationsInMillions > Long.MAX_VALUE / 1024 * 1024)
+            throw new ConfigurationException("memtable_operations_in_millions must be less than " + Long.MAX_VALUE / 1024 * 1024);
+    }
+
+    public static void validateMemtableFlushPeriod(int minutes) throws ConfigurationException
+    {
+        if (minutes <= 0)
+            throw new ConfigurationException("memtable_flush_after_mins must be greater than 0.");
     }
 }

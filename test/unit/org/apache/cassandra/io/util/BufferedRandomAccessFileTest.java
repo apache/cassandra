@@ -163,4 +163,27 @@ public class BufferedRandomAccessFileTest
         // Expect this call to fail -- the distance from mark to current file pointer > 2gb.
         bpm = rw.bytesPastMark(mark);
     }
+
+    @Test
+    public void testRead() throws IOException
+    {
+        File tmpFile = File.createTempFile("readtest", "bin");
+        tmpFile.deleteOnExit();
+
+        BufferedRandomAccessFile rw = new BufferedRandomAccessFile(tmpFile.getPath(), "rw");
+        rw.write(new byte[]{ 1 });
+
+        rw.seek(0);
+        // test read of buffered-but-not-yet-written data
+        byte[] buffer = new byte[1];
+        assert rw.read(buffer) == 1;
+        assert buffer[0] == 1;
+        rw.close();
+
+        // test read of not-yet-buffered data
+        rw = new BufferedRandomAccessFile(tmpFile.getPath(), "rw");
+        assert rw.read(buffer) == 1;
+        assert buffer[0] == 1;
+    }
+
 }

@@ -22,6 +22,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
+import org.apache.cassandra.config.ConfigurationException;
+
 /**
  * The MBean interface for ColumnFamilyStore
  */
@@ -38,14 +40,14 @@ public interface ColumnFamilyStoreMBean
      * 
      * @return The size in bytes.
      */
-    public int getMemtableDataSize();
+    public long getMemtableDataSize();
     
     /**
      * Returns the total number of columns present in the memtable.
      * 
      * @return The number of columns.
      */
-    public int getMemtableColumnsCount();
+    public long getMemtableColumnsCount();
     
     /**
      * Returns the number of times that a flush has resulted in the
@@ -211,10 +213,10 @@ public interface ColumnFamilyStoreMBean
     public void setMemtableFlushAfterMins(int time);
 
     public int getMemtableThroughputInMB();
-    public void setMemtableThroughputInMB(int size);
+    public void setMemtableThroughputInMB(int size) throws ConfigurationException;
 
     public double getMemtableOperationsInMillions();
-    public void setMemtableOperationsInMillions(double ops);
+    public void setMemtableOperationsInMillions(double ops) throws ConfigurationException;
 
     public long estimateKeys();
 

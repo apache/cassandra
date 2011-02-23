@@ -157,4 +157,12 @@ public class MappedFileDataInput extends AbstractDataInput implements FileDataIn
             this.position = position;
         }
     }
+
+    @Override
+    public String toString() {
+        return getClass().getSimpleName() + "(" +
+               "filename='" + filename + "'" +
+               ", position=" + position +
+               ")";
+    }
 }

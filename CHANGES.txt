@@ -22,7 +22,21 @@
  * refactor stress.py to have only one copy of the format string 
    used for creating row keys (CASSANDRA-2108)
  * validate index names for \w+ (CASSANDRA-2196)
- * Fix Cassandra cli to respect timeout if schema does not settle (CASSANDRA-2187)
+ * Fix Cassandra cli to respect timeout if schema does not settle 
+   (CASSANDRA-2187)
+ * update memtable_throughput to be a long (CASSANDRA-2158)
+ * fix for compaction and cleanup writing old-format data into new-version 
+   sstable (CASSANDRA-2211, -2216)
+ * add nodetool scrub (CASSANDRA-2217)
+ * fix sstable2json large-row pagination (CASSANDRA-2188)
+ * fix EOFing on requests for the last bytes in a file (CASSANDRA-2213)
+ * fix BRAF performance when seeking to EOF (CASSANDRA-2218)
+ * check for memtable flush_after_mins exceeded every 10s (CASSANDRA-2183)
+ * fix cache saving on Windows (CASSANDRA-2207)
+ * add validateSchemaAgreement call + synchronization to schema
+   modification operations (CASSANDRA-2222)
+ * fix for reversed slice queries on large rows (CASSANDRA-2212)
+ * fat clients were writing local data (CASSANDRA-2223)
  * update memtable_throughput to be a long (CASSANDRA-2158)
 
 
@@ -34,6 +48,7 @@
 
 
 0.7.1
+ * refactor MessageDigest creation code. (CASSANDRA-2107)
  * buffer network stack to avoid inefficient small TCP messages while avoiding
    the nagle/delayed ack problem (CASSANDRA-1896)
  * check log4j configuration for changes every 10s (CASSANDRA-1525, 1907)

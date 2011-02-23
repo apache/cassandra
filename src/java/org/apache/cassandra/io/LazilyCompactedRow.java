@@ -59,15 +59,17 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements IIterabl
     private final boolean shouldPurge;
     private final int gcBefore;
     private final DataOutputBuffer headerBuffer;
+    private final boolean forceDeserialize;
     private ColumnFamily emptyColumnFamily;
     private LazyColumnIterator iter;
     private int columnCount;
     private long columnSerializedSize;
 
-    public LazilyCompactedRow(ColumnFamilyStore cfStore, List<SSTableIdentityIterator> rows, boolean major, int gcBefore)
+    public LazilyCompactedRow(ColumnFamilyStore cfStore, List<SSTableIdentityIterator> rows, boolean major, int gcBefore, boolean forceDeserialize)
     {
         super(rows.get(0).getKey());
         this.gcBefore = gcBefore;
+        this.forceDeserialize = forceDeserialize;
         this.rows = new ArrayList<SSTableIdentityIterator>(rows);
 
         Set<SSTable> sstables = new HashSet<SSTable>();
@@ -94,7 +96,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements IIterabl
 
     public void write(DataOutput out) throws IOException
     {
-        if (rows.size() == 1 && !shouldPurge)
+        if (rows.size() == 1 && !shouldPurge && rows.get(0).sstable.descriptor.isLatestVersion && !forceDeserialize)
         {
             SSTableIdentityIterator row = rows.get(0);
             out.writeLong(row.dataSize);

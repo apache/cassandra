@@ -186,7 +186,7 @@ public class SSTableScanner implements Iterator<IColumnIterator>, Closeable
             }
             catch (IOException e)
             {
-                throw new RuntimeException(e);
+                throw new RuntimeException(SSTableScanner.this + " failed to provide next columns from " + this, e);
             }
         }
 
@@ -194,5 +194,21 @@ public class SSTableScanner implements Iterator<IColumnIterator>, Closeable
         {
             throw new UnsupportedOperationException();
         }
+
+        @Override
+        public String toString() {
+            return getClass().getSimpleName() + "(" +
+                   "finishedAt:" + finishedAt +
+                   ")";
+    }
+}
+
+    @Override
+    public String toString() {
+        return getClass().getSimpleName() + "(" +
+               "file=" + file +
+               " sstable=" + sstable +
+               " exhausted=" + exhausted +
+               ")";
     }
 }

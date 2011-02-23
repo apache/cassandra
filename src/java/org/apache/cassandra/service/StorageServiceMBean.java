@@ -159,6 +159,14 @@ public interface StorageServiceMBean
     public void forceTableCleanup(String tableName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException;
 
     /**
+     * Scrub (deserialize + reserialize at the latest version, skipping bad rows if any) the given keyspace.
+     * If columnFamilies array is empty, all CFs are scrubbed.
+     *
+     * Scrubbed CFs will be snapshotted first.
+     */
+    public void scrub(String tableName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException;
+
+    /**
      * Flush all memtables for the given column families, or all columnfamilies for the given table
      * if none are explicitly listed.
      * @param tableName

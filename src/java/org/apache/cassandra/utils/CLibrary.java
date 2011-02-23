@@ -157,7 +157,7 @@ public final class CLibrary
         }
     }
 
-    private static void createHardLinkWithExec(File sourceFile, File destinationFile) throws IOException
+    public static void createHardLinkWithExec(File sourceFile, File destinationFile) throws IOException
     {
         String osname = System.getProperty("os.name");
         ProcessBuilder pb;

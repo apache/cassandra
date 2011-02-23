@@ -83,13 +83,16 @@ public abstract class Migration
     protected transient boolean clientMode;
     
     /** Subclasses must have a matching constructor */
-    protected Migration() { /* pass */ }
+    protected Migration() 
+    {
+        clientMode = StorageService.instance.isClientMode();
+    }
 
     Migration(UUID newVersion, UUID lastVersion)
     {
+        this();
         this.newVersion = newVersion;
         this.lastVersion = lastVersion;
-        clientMode = StorageService.instance.isClientMode();
     }
     
     // block compactions and flushing.

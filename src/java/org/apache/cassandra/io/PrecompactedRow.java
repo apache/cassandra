@@ -58,7 +58,7 @@ public class PrecompactedRow extends AbstractCompactedRow
         this.headerBuffer = new DataOutputBuffer();
     }
 
-    public PrecompactedRow(ColumnFamilyStore cfStore, List<SSTableIdentityIterator> rows, boolean major, int gcBefore)
+    public PrecompactedRow(ColumnFamilyStore cfStore, List<SSTableIdentityIterator> rows, boolean major, int gcBefore, boolean forceDeserialize)
     {
         super(rows.get(0).getKey());
         buffer = new DataOutputBuffer();
@@ -71,7 +71,7 @@ public class PrecompactedRow extends AbstractCompactedRow
         }
         boolean shouldPurge = major || !cfStore.isKeyInRemainingSSTables(key, sstables);
 
-        if (rows.size() > 1 || shouldPurge)
+        if (rows.size() > 1 || shouldPurge || !rows.get(0).sstable.descriptor.isLatestVersion || forceDeserialize)
         {
             ColumnFamily cf = null;
             for (SSTableIdentityIterator row : rows)

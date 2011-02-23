@@ -79,20 +79,16 @@ import org.apache.cassandra.utils.WrappedRunnable;
 public class CommitLog
 {
     private static final int MAX_OUTSTANDING_REPLAY_COUNT = 1024;
-    private static volatile int SEGMENT_SIZE = 128*1024*1024; // roll after log gets this big
-
+    
     static final Logger logger = LoggerFactory.getLogger(CommitLog.class);
 
     public static final CommitLog instance = new CommitLog();
 
     private final Deque<CommitLogSegment> segments = new ArrayDeque<CommitLogSegment>();
 
-    public static void setSegmentSize(int size)
-    {
-        SEGMENT_SIZE = size;
-    }
-
     private final ICommitLogExecutorService executor;
+    
+    private volatile int segmentSize = 128*1024*1024; // roll after log gets this big
 
     /**
      * param @ table - name of table for which we are maintaining
@@ -105,6 +101,7 @@ public class CommitLog
         try
         {
             DatabaseDescriptor.createAllDirectories();
+            segmentSize = DatabaseDescriptor.getCommitLogSegmentSize();
         }
         catch (IOException e)
         {
@@ -479,7 +476,7 @@ public class CommitLog
             {
                 currentSegment().write(rowMutation);
                 // roll log if necessary
-                if (currentSegment().length() >= SEGMENT_SIZE)
+                if (currentSegment().length() >= segmentSize)
                 {
                     sync();
                     segments.add(new CommitLogSegment());

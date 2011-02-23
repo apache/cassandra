@@ -70,15 +70,18 @@ public class Table
 
     // It is possible to call Table.open without a running daemon, so it makes sense to ensure
     // proper directories here as well as in CassandraDaemon.
-    static
+    static 
     {
-        try
+        if (!StorageService.instance.isClientMode()) 
         {
-            DatabaseDescriptor.createAllDirectories();
-        }
-        catch (IOException ex)
-        {
-            throw new IOError(ex);
+            try
+            {
+                DatabaseDescriptor.createAllDirectories();
+            }
+            catch (IOException ex)
+            {
+                throw new IOError(ex);
+            }
         }
     }
 
@@ -160,36 +163,6 @@ public class Table
     }
 
     /**
-     * Do a cleanup of keys that do not belong locally.
-     */
-    public void forceCleanup() throws IOException, ExecutionException, InterruptedException
-    {
-        if (name.equals(SYSTEM_TABLE))
-            throw new UnsupportedOperationException("Cleanup of the system table is neither necessary nor wise");
-
-        // Sort the column families in order of SSTable size, so cleanup of smaller CFs
-        // can free up space for larger ones
-        List<ColumnFamilyStore> sortedColumnFamilies = new ArrayList<ColumnFamilyStore>(columnFamilyStores.values());
-        Collections.sort(sortedColumnFamilies, new Comparator<ColumnFamilyStore>()
-        {
-            // Compare first on size and, if equal, sort by name (arbitrary & deterministic).
-            public int compare(ColumnFamilyStore cf1, ColumnFamilyStore cf2)
-            {
-                long diff = (cf1.getTotalDiskSpaceUsed() - cf2.getTotalDiskSpaceUsed());
-                if (diff > 0)
-                    return 1;
-                if (diff < 0)
-                    return -1;
-                return cf1.columnFamily.compareTo(cf2.columnFamily);
-            }
-        });
-
-        // Cleanup in sorted order to free up space for the larger ones
-        for (ColumnFamilyStore cfs : sortedColumnFamilies)
-            cfs.forceCleanup();
-    }
-
-    /**
      * Take a snapshot of the entire set of column families with a given timestamp.
      * 
      * @param clientSuppliedName the tag associated with the name of the snapshot.  This
@@ -238,16 +211,6 @@ public class Table
         }
     }
     
-    /*
-     * This method is an ADMIN operation to force compaction
-     * of all SSTables on disk. 
-     */
-    public void forceCompaction() throws IOException, ExecutionException, InterruptedException
-    {
-        for (ColumnFamilyStore cfStore : columnFamilyStores.values())
-            CompactionManager.instance.performMajor(cfStore);
-    }
-
     /**
      * @return A list of open SSTableReaders (TODO: ensure that the caller doesn't modify these).
      */
@@ -282,7 +245,8 @@ public class Table
             try
             {
                 String keyspaceDir = dataDir + File.separator + table;
-                FileUtils.createDirectory(keyspaceDir);
+                if (!StorageService.instance.isClientMode())
+                    FileUtils.createDirectory(keyspaceDir);
     
                 // remove the deprecated streaming directory.
                 File streamingDir = new File(keyspaceDir, "stream");
@@ -301,13 +265,6 @@ public class Table
             initCf(cfm.cfId, cfm.cfName);
         }
 
-        // check 10x as often as the shortest lifetime, so we can exceed all lifetimes by 10% at most
-        int minCheckMs = Integer.MAX_VALUE;
-        for (ColumnFamilyStore cfs : columnFamilyStores.values())
-        {
-            minCheckMs = Math.min(minCheckMs, cfs.getMemtableFlushAfterMins() * 60 * 1000 / 10);
-        }
-
         Runnable runnable = new Runnable()
         {
             public void run()
@@ -318,7 +275,7 @@ public class Table
                 }
             }
         };
-        flushTask = StorageService.scheduledTasks.scheduleWithFixedDelay(runnable, minCheckMs, minCheckMs, TimeUnit.MILLISECONDS);
+        flushTask = StorageService.scheduledTasks.scheduleWithFixedDelay(runnable, 10, 10, TimeUnit.SECONDS);
     }
 
     public void createReplicationStrategy(KSMetaData ksm) throws ConfigurationException
@@ -370,15 +327,7 @@ public class Table
                                                                      cfName, cfId, columnFamilyStores.get(cfId));
         columnFamilyStores.put(cfId, ColumnFamilyStore.createColumnFamilyStore(this, cfName));
     }
-    
-    public void reloadCf(Integer cfId) throws IOException
-    {
-        ColumnFamilyStore cfs = columnFamilyStores.remove(cfId);
-        assert cfs != null;
-        unloadCf(cfs);
-        initCf(cfId, cfs.getColumnFamilyName());
-    }
-    
+
     /** basically a combined drop and add */
     public void renameCf(Integer cfId, String newName) throws IOException
     {
@@ -757,5 +706,10 @@ public class Table
         // truncate, blocking
         cfs.truncate().get();
         logger.debug("Truncation done.");
+    }
+
+    @Override
+    public String toString() {
+        return getClass().getSimpleName() + "(name='" + name + "')";
     }
 }
