@@ -25,6 +25,7 @@
    modification operations (CASSANDRA-2222)
  * fix for reversed slice queries on large rows (CASSANDRA-2212)
  * fat clients were writing local data (CASSANDRA-2223)
+ * turn off string interning in json2sstable (CASSANDRA-2189)
 
 
 0.7.2
