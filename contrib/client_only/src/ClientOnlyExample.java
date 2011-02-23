@@ -43,8 +43,8 @@ public class ClientOnlyExample
 
     private static final String KEYSPACE = "Keyspace1";
     private static final String COLUMN_FAMILY = "Standard1";
-
-    private static void testWriting() throws Exception
+    
+    private static void startClient() throws Exception
     {
         StorageService.instance.initClient();
         // sleep for a bit so that gossip can do its thing.
@@ -56,7 +56,10 @@ public class ClientOnlyExample
         {
             throw new AssertionError(ex);
         }
+    }
 
+    private static void testWriting() throws Exception
+    {
         // do some writing.
         for (int i = 0; i < 100; i++)
         {
@@ -72,22 +75,10 @@ public class ClientOnlyExample
             System.out.println("wrote key" + i);
         }
         System.out.println("Done writing.");
-        StorageService.instance.stopClient();
     }
 
     private static void testReading() throws Exception
     {
-        StorageService.instance.initClient();
-        // sleep for a bit so that gossip can do its thing.
-        try
-        {
-            Thread.sleep(10000L);
-        }
-        catch (Exception ex)
-        {
-            throw new AssertionError(ex);
-        }
-
         // do some queries.
         Collection<ByteBuffer> cols = new ArrayList<ByteBuffer>()
         {{
@@ -114,11 +105,6 @@ public class ClientOnlyExample
             else
                 System.err.println("This output indicates that nothing was read.");
         }
-
-        // no need to do this:
-        // StorageService.instance().decommission();
-        // do this instead:
-        StorageService.instance.stopClient();
     }
 
     /**
@@ -137,17 +123,26 @@ public class ClientOnlyExample
      */
     public static void main(String args[]) throws Exception
     {
-        if (args.length == 0)
-            System.out.println("run with \"read\" or \"write\".");
-        else if ("read".equalsIgnoreCase(args[0]))
+        startClient();
+        setupKeyspace(createConnection());
+        testWriting();
+        logger.info("Writing is done. Sleeping, then will try to read.");
+        try
         {
-            testReading();
+            Thread.currentThread().sleep(10000);
         }
-        else if ("write".equalsIgnoreCase(args[0]))
+        catch (InterruptedException ex) 
         {
-            setupKeyspace(createConnection());
-            testWriting();
+            throw new RuntimeException(ex);
         }
+        
+        testReading();
+        
+        // no need to do this:
+        // StorageService.instance().decommission();
+        // do this instead:
+        StorageService.instance.stopClient();
+        System.exit(0); // the only way to really stop the process.
     }
     
     /**
@@ -159,15 +154,22 @@ public class ClientOnlyExample
         CfDef columnFamily = new CfDef(KEYSPACE, COLUMN_FAMILY);
         cfDefList.add(columnFamily);
 
-        client.system_add_keyspace(new KsDef(KEYSPACE, "org.apache.cassandra.locator.SimpleStrategy", 1, cfDefList));
-        int magnitude = client.describe_ring(KEYSPACE).size();
-        try
+        try 
         {
-            Thread.sleep(1000 * magnitude);
+            client.system_add_keyspace(new KsDef(KEYSPACE, "org.apache.cassandra.locator.SimpleStrategy", 1, cfDefList));
+            int magnitude = client.describe_ring(KEYSPACE).size();
+            try
+            {
+                Thread.sleep(1000 * magnitude);
+            }
+            catch (InterruptedException e)
+            {
+                throw new RuntimeException(e);
+            }
         }
-        catch (InterruptedException e)
+        catch (InvalidRequestException probablyExists) 
         {
-            throw new RuntimeException(e);
+            logger.warn("Problem creating keyspace: " + probablyExists.getMessage());    
         }
     }
 

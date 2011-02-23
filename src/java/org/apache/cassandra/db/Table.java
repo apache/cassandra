@@ -68,15 +68,18 @@ public class Table
 
     // It is possible to call Table.open without a running daemon, so it makes sense to ensure
     // proper directories here as well as in CassandraDaemon.
-    static
+    static 
     {
-        try
+        if (!StorageService.instance.isClientMode()) 
         {
-            DatabaseDescriptor.createAllDirectories();
-        }
-        catch (IOException ex)
-        {
-            throw new IOError(ex);
+            try
+            {
+                DatabaseDescriptor.createAllDirectories();
+            }
+            catch (IOException ex)
+            {
+                throw new IOError(ex);
+            }
         }
     }
 
@@ -231,7 +234,8 @@ public class Table
             try
             {
                 String keyspaceDir = dataDir + File.separator + table;
-                FileUtils.createDirectory(keyspaceDir);
+                if (!StorageService.instance.isClientMode())
+                    FileUtils.createDirectory(keyspaceDir);
     
                 // remove the deprecated streaming directory.
                 File streamingDir = new File(keyspaceDir, "stream");

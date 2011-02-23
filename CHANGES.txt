@@ -24,6 +24,7 @@
  * add validateSchemaAgreement call + synchronization to schema
    modification operations (CASSANDRA-2222)
  * fix for reversed slice queries on large rows (CASSANDRA-2212)
+ * fat clients were writing local data (CASSANDRA-2223)
 
 
 0.7.2

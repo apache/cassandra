@@ -256,6 +256,15 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
     {
         Gossiper gossiper = Gossiper.instance;
         int waited = 0;
+        // first, wait for schema to be gossiped.
+        while (gossiper.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.SCHEMA) == null) {
+            Thread.sleep(1000);
+            waited += 1000;
+            if (waited > 2 * StorageService.RING_DELAY)
+                throw new RuntimeException("Didin't receive gossiped schema from " + endpoint + " in " + 2 * StorageService.RING_DELAY + "ms");
+        }
+        waited = 0;
+        // then wait for the correct schema version.
         while (!gossiper.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.SCHEMA).value.equals(
                 gossiper.getEndpointStateForEndpoint(FBUtilities.getLocalAddress()).getApplicationState(ApplicationState.SCHEMA).value))
         {

@@ -71,7 +71,10 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
 
     public void onRemove(InetAddress endpoint) { }
     
-    /** will either push or pull an updating depending on who is behind. */
+    /** 
+     * will either push or pull an updating depending on who is behind.
+     * fat clients should never push their schemas (since they have no local storage).
+     */
     public static void rectify(UUID theirVersion, InetAddress endpoint)
     {
         UUID myVersion = DatabaseDescriptor.getDefsVersion();
@@ -82,7 +85,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
             logger.debug("My data definitions are old. Asking for updates since {}", myVersion.toString());
             announce(myVersion, Collections.singleton(endpoint));
         }
-        else
+        else if (!StorageService.instance.isClientMode())
         {
             logger.debug("Their data definitions are old. Sending updates since {}", theirVersion.toString());
             pushMigrations(theirVersion, myVersion, endpoint);
@@ -101,8 +104,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
     /** announce my version passively over gossip **/
     public static void passiveAnnounce(UUID version)
     {
-        if (!StorageService.instance.isClientMode())
-            Gossiper.instance.addLocalApplicationState(ApplicationState.SCHEMA, StorageService.instance.valueFactory.migration(version));
+        Gossiper.instance.addLocalApplicationState(ApplicationState.SCHEMA, StorageService.instance.valueFactory.migration(version));
         logger.debug("Announcing my schema is " + version);
     }
 

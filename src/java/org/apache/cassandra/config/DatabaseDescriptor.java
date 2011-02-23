@@ -112,7 +112,7 @@ public class    DatabaseDescriptor
 
         return url;
     }
-
+    
     static
     {
         try
@@ -361,10 +361,6 @@ public class    DatabaseDescriptor
                 if (conf.saved_caches_directory == null)
                     throw new ConfigurationException("saved_caches_directory missing");
             }
-
-            /* threshold after which commit log should be rotated. */
-            if (conf.commitlog_rotation_threshold_in_mb != null)
-                CommitLog.setSegmentSize(conf.commitlog_rotation_threshold_in_mb * 1024 * 1024);
 
             // Hardcoded system tables
             KSMetaData systemMeta = new KSMetaData(Table.SYSTEM_TABLE,
@@ -901,6 +897,14 @@ public class    DatabaseDescriptor
         String dataFileDirectory = conf.data_file_directories[currentIndex];
         currentIndex = (currentIndex + 1) % conf.data_file_directories.length;
         return dataFileDirectory;
+    }
+    
+    /* threshold after which commit log should be rotated. */
+    public static int getCommitLogSegmentSize() 
+    {
+        return conf.commitlog_rotation_threshold_in_mb != null ?
+               conf.commitlog_rotation_threshold_in_mb * 1024 * 1024 :
+               128*1024*1024;
     }
 
     public static String getCommitLogLocation()
