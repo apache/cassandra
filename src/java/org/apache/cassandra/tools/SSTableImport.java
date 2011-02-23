@@ -31,6 +31,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableWriter;
 import org.codehaus.jackson.type.TypeReference;
 
@@ -208,7 +209,7 @@ public class SSTableImport
         Map<?, ?> data = parser.readValueAs(new TypeReference<Map<?, ?>>() {});
 
         keyCountToImport = (keyCountToImport == null) ? data.size() : keyCountToImport;
-        SSTableWriter writer = new SSTableWriter(ssTablePath, keyCountToImport);
+        SSTableWriter writer = new SSTableWriter(ssTablePath, keyCountToImport, DatabaseDescriptor.getCFMetaData(Descriptor.fromFilename(ssTablePath)), partitioner);
 
         System.out.printf("Importing %s keys...%n", keyCountToImport);
 
@@ -280,7 +281,7 @@ public class SSTableImport
         System.out.printf("Importing %s keys...%n", keyCountToImport);
 
         parser = getParser(jsonFile); // renewing parser
-        SSTableWriter writer = new SSTableWriter(ssTablePath, keyCountToImport);
+        SSTableWriter writer = new SSTableWriter(ssTablePath, keyCountToImport, DatabaseDescriptor.getCFMetaData(Descriptor.fromFilename(ssTablePath)), partitioner);
 
         int lineNumber = 1;
         DecoratedKey prevStoredKey = null;
