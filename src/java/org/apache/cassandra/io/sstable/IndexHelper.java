@@ -111,8 +111,7 @@ public class IndexHelper
     }
 
     /**
-     * the index of the IndexInfo in which @name will be found.
-     * If the index is @indexList.size(), the @name appears nowhere.
+     * The index of the IndexInfo in which a scan starting with @name should begin.
      *
      * @param name
      *         name of the index
@@ -133,19 +132,40 @@ public class IndexHelper
         if (name.remaining() == 0 && reversed)
             return indexList.size() - 1;
         IndexInfo target = new IndexInfo(name, name, 0, 0);
-        int index = Collections.binarySearch(indexList, target, getComparator(comparator));
-        return index < 0 ? -1 * (index + 1) : index;
+        /*
+        Take the example from the unit test, and say your index looks like this:
+        [0..5][10..15][20..25]
+        and you look for the slice [13..17].
+
+        When doing forward slice, we we doing a binary search comparing 13 (the start of the query)
+        to the lastName part of the index slot. You'll end up with the "first" slot, going from left to right,
+        that may contain the start.
+
+        When doing a reverse slice, we do the same thing, only using as a start column the end of the query,
+        i.e. 17 in this example, compared to the firstName part of the index slots.  bsearch will give us the
+        first slot where firstName > start ([20..25] here), so we subtract an extra one to get the slot just before.
+        */
+        int index = Collections.binarySearch(indexList, target, getComparator(comparator, reversed));
+        return index < 0 ? -index - (reversed ? 2 : 1) : index;
     }
 
-    public static Comparator<IndexInfo> getComparator(final AbstractType nameComparator)
+    public static Comparator<IndexInfo> getComparator(final AbstractType nameComparator, boolean reversed)
     {
-        return new Comparator<IndexInfo>()
-        {
-            public int compare(IndexInfo o1, IndexInfo o2)
-            {
-                return nameComparator.compare(o1.lastName, o2.lastName);
-            }
-        };
+        return reversed
+              ? new Comparator<IndexInfo>()
+                {
+                    public int compare(IndexInfo o1, IndexInfo o2)
+                    {
+                        return nameComparator.compare(o1.firstName, o2.firstName);
+                    }
+                }
+              : new Comparator<IndexInfo>()
+                {
+                    public int compare(IndexInfo o1, IndexInfo o2)
+                    {
+                        return nameComparator.compare(o1.lastName, o2.lastName);
+                    }
+                };
     }
 
     public static class IndexInfo
