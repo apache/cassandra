@@ -58,11 +58,6 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
     // `bufferEnd` is `bufferOffset` + count of bytes read from file, i.e. the lowest position we can't read from the buffer
     private long bufferOffset, bufferEnd, current = 0;
 
-    // max buffer size is set according to (int size) parameter in the
-    // constructor
-    // or in directIO() method to the DEFAULT_DIRECT_BUFFER_SIZE
-    private long maxBufferSize;
-
     // constant, used for caching purpose, -1 if file is open in "rw" mode
     // otherwise this will hold cached file length
     private final long fileLength;
@@ -120,10 +115,8 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
         channel = super.getChannel();
         filePath = file.getAbsolutePath();
 
-        maxBufferSize = Math.max(bufferSize, DEFAULT_BUFFER_SIZE);
-
         // allocating required size of the buffer
-        buffer = ByteBuffer.allocate((int) maxBufferSize);
+        buffer = ByteBuffer.allocate(bufferSize);
 
         // if in read-only mode, caching file size
         fileLength = (mode.equals("r")) ? this.channel.size() : -1;
@@ -211,7 +204,7 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
         channel.position(bufferOffset); // setting channel position
         long bytesRead = channel.read(buffer); // reading from that position
 
-        hitEOF = (bytesRead < maxBufferSize); // buffer is not fully loaded with
+        hitEOF = (bytesRead < buffer.capacity()); // buffer is not fully loaded with
                                               // data
         bufferEnd = bufferOffset + bytesRead;
 
@@ -284,13 +277,11 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
         if (length > bufferEnd && hitEOF)
             return -1;
 
-        final int left = (int) maxBufferSize - buffer.position();
+        final int left = buffer.capacity() - buffer.position();
         if (current < bufferOffset || left < length)
-        {
             reBuffer();
-        }
 
-        length = Math.min(length, (int) (maxBufferSize - buffer.position()));
+        length = Math.min(length, buffer.capacity() - buffer.position());
         buffer.get(buff, offset, length);
         current += length;
 
@@ -341,15 +332,13 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
      */
     private int writeAtMost(byte[] buff, int offset, int length) throws IOException
     {
-        final int left = (int) maxBufferSize - buffer.position();
+        final int left = buffer.capacity() - buffer.position();
         if (current < bufferOffset || left < length)
-        {
             reBuffer();
-        }
 
         // logic is the following: we need to add bytes to the end of the buffer
         // starting from current buffer position and return this length
-        length = Math.min(length, (int) (maxBufferSize - buffer.position()));
+        length = Math.min(length, buffer.capacity() - buffer.position());
 
         buffer.put(buff, offset, length);
         current += length;
