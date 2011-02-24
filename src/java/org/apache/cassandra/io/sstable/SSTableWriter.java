@@ -22,8 +22,11 @@ package org.apache.cassandra.io.sstable;
 import java.io.*;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+
+import com.google.common.collect.Sets;
 
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.slf4j.Logger;
@@ -206,8 +209,10 @@ public class SSTableWriter extends SSTable
         Descriptor newdesc = tmpdesc.asTemporary(false);
         try
         {
-            for (Component component : components)
+            // do -Data last because -Data present should mean the sstable was completely renamed before crash
+            for (Component component : Sets.difference(components, Collections.singleton(Component.DATA)))
                 FBUtilities.renameWithConfirm(tmpdesc.filenameFor(component), newdesc.filenameFor(component));
+            FBUtilities.renameWithConfirm(tmpdesc.filenameFor(Component.DATA), newdesc.filenameFor(Component.DATA));
         }
         catch (IOException e)
         {

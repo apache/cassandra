@@ -17,26 +17,27 @@
  */
 package org.apache.cassandra.contrib.stress.operations;
 
-import org.apache.cassandra.contrib.stress.util.OperationThread;
+import org.apache.cassandra.contrib.stress.util.Operation;
 import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.charset.CharacterCodingException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class Inserter extends OperationThread
+public class Inserter extends Operation
 {
+
     public Inserter(int index)
     {
         super(index);
     }
 
-    public void run()
+    public void run(Cassandra.Client client) throws IOException
     {
         List<String> values  = generateValues();
         List<Column> columns = new ArrayList<Column>();
@@ -48,8 +49,10 @@ public class Inserter extends OperationThread
         // columns = [Column('C' + str(j), 'unset', time.time() * 1000000) for j in xrange(columns_per_key)]
         for (int i = 0; i < session.getColumnsPerKey(); i++)
         {
-            byte[] columnName = ("C" + Integer.toString(i)).getBytes();
-            columns.add(new Column(ByteBuffer.wrap(columnName), ByteBuffer.wrap(new byte[] {}), System.currentTimeMillis()));
+            String columnName  = ("C" + Integer.toString(i));
+            String columnValue = values.get(index % values.size());
+
+            columns.add(new Column(ByteBufferUtil.bytes(columnName), ByteBufferUtil.bytes(columnValue), System.currentTimeMillis()));
         }
 
         if (session.getColumnFamilyType() == ColumnFamilyType.Super)
@@ -62,58 +65,47 @@ public class Inserter extends OperationThread
             }
         }
 
-        for (int i : range)
+        String rawKey = String.format(format, index);
+        Map<ByteBuffer, Map<String, List<Mutation>>> record = new HashMap<ByteBuffer, Map<String, List<Mutation>>>();
+
+        record.put(ByteBufferUtil.bytes(rawKey), session.getColumnFamilyType() == ColumnFamilyType.Super
+                                                                                ? getSuperColumnsMutationMap(superColumns)
+                                                                                : getColumnsMutationMap(columns));
+
+        long start = System.currentTimeMillis();
+
+        boolean success = false;
+        String exceptionMessage = null;
+
+        for (int t = 0; t < session.getRetryTimes(); t++)
         {
-            String rawKey = String.format(format, i);
-            ByteBuffer key = ByteBuffer.wrap(rawKey.getBytes());
-            Map<ByteBuffer, Map<String, List<Mutation>>> record = new HashMap<ByteBuffer, Map<String, List<Mutation>>>();
+            if (success)
+                break;
 
-            record.put(key, session.getColumnFamilyType() == ColumnFamilyType.Super
-                                                          ? getSuperColumnsMutationMap(superColumns)
-                                                          : getColumnsMutationMap(columns));
-
-            String value = values.get(i % values.size());
-
-            for (Column c : columns)
-                c.value = ByteBuffer.wrap(value.getBytes());
-
-            long start = System.currentTimeMillis();
-
-            boolean success = false;
-            String exceptionMessage = null;
-
-            for (int t = 0; t < session.getRetryTimes(); t++)
+            try
             {
-                if (success)
-                    break;
-
-                try
-                {
-                    client.batch_mutate(record, session.getConsistencyLevel());
-                    success = true;
-                }
-                catch (Exception e)
-                {
-                    exceptionMessage = getExceptionMessage(e);
-                    success = false;
-                }
+                client.batch_mutate(record, session.getConsistencyLevel());
+                success = true;
             }
-
-            if (!success)
+            catch (Exception e)
             {
-                System.err.printf("Thread [%d] retried %d times - error inserting key %s %s%n", index,
-                                                                                                session.getRetryTimes(),
-                                                                                                rawKey,
-                                                                                                (exceptionMessage == null) ? "" : "(" + exceptionMessage + ")");
-
-                if (!session.ignoreErrors())
-                    break;
+                exceptionMessage = getExceptionMessage(e);
+                success = false;
             }
-
-            session.operationCount.getAndIncrement(index);
-            session.keyCount.getAndIncrement(index);
-            session.latencies.getAndAdd(index, System.currentTimeMillis() - start);
         }
+
+        if (!success)
+        {
+            error(String.format("Operation [%d] retried %d times - error inserting key %s %s%n",
+                                index,
+                                session.getRetryTimes(),
+                                rawKey,
+                                (exceptionMessage == null) ? "" : "(" + exceptionMessage + ")"));
+        }
+
+        session.operations.getAndIncrement();
+        session.keys.getAndIncrement();
+        session.latency.getAndAdd(System.currentTimeMillis() - start);
     }
 
     private Map<String, List<Mutation>> getSuperColumnsMutationMap(List<SuperColumn> superColumns)

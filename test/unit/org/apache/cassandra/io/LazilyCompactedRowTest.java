@@ -45,6 +45,8 @@ import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.MappedFileDataInput;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.UUIDGen;
 
 import org.junit.Test;
 
@@ -276,6 +278,28 @@ public class LazilyCompactedRowTest extends CleanupHelper
         assertBytes(cfs, Integer.MAX_VALUE, true);
         assertDigest(cfs, Integer.MAX_VALUE, true);
     }
+
+    @Test
+    public void testTwoRowSuperColumn() throws IOException, ExecutionException, InterruptedException
+    {
+        CompactionManager.instance.disableAutoCompaction();
+
+        Table table = Table.open("Keyspace4");
+        ColumnFamilyStore cfs = table.getColumnFamilyStore("Super5");
+
+        ByteBuffer key = ByteBufferUtil.bytes("k");
+        RowMutation rm = new RowMutation("Keyspace4", key);
+        ByteBuffer scKey = ByteBuffer.wrap(UUIDGen.decompose(UUIDGen.makeType1UUIDFromHost(FBUtilities.getLocalAddress())));
+        rm.add(new QueryPath("Super5", scKey , ByteBufferUtil.bytes("c")), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
+        rm.apply();
+        cfs.forceBlockingFlush();
+
+        rm.apply();
+        cfs.forceBlockingFlush();
+
+        assertBytes(cfs, Integer.MAX_VALUE, true);
+    }
+
 
     private static class LazyCompactionIterator extends CompactionIterator
     {

@@ -587,7 +587,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
     {
         return metadata.cfType == ColumnFamilyType.Standard
                ? Column.serializer()
-               : SuperColumn.serializer(getColumnComparator());
+               : SuperColumn.serializer(metadata.subcolumnComparator);
     }
 
     /**

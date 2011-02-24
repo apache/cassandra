@@ -155,7 +155,7 @@ public class Memtable implements Comparable<Memtable>, IFlushable
     private SSTableReader writeSortedContents() throws IOException
     {
         logger.info("Writing " + this);
-        SSTableWriter writer = new SSTableWriter(cfs.getFlushPath(), columnFamilies.size(), cfs.metadata, cfs.partitioner);
+        SSTableWriter writer = cfs.createFlushWriter(columnFamilies.size());
 
         for (Map.Entry<DecoratedKey, ColumnFamily> entry : columnFamilies.entrySet())
             writer.append(entry.getKey(), entry.getValue());

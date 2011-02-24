@@ -189,6 +189,13 @@ keyspaces:
           rows_cached: 0
           keys_cached: 0
 
+        - name: Super5
+          column_type: Super
+          compare_with: TimeUUIDType
+          compare_subcolumns_with: BytesType
+          rows_cached: 0
+          keys_cached: 0
+
     - name: Keyspace5
       replica_placement_strategy: org.apache.cassandra.locator.SimpleStrategy
       replication_factor: 2

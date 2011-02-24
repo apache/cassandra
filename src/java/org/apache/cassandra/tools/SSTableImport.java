@@ -367,7 +367,7 @@ public class SSTableImport
      */
     private static JsonParser getParser(String fileName) throws IOException
     {
-        return factory.createJsonParser(new File(fileName));
+        return factory.createJsonParser(new File(fileName)).configure(JsonParser.Feature.INTERN_FIELD_NAMES, false);
     }
 
     /**

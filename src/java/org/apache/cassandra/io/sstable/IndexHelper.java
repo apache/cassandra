@@ -151,21 +151,7 @@ public class IndexHelper
 
     public static Comparator<IndexInfo> getComparator(final AbstractType nameComparator, boolean reversed)
     {
-        return reversed
-              ? new Comparator<IndexInfo>()
-                {
-                    public int compare(IndexInfo o1, IndexInfo o2)
-                    {
-                        return nameComparator.compare(o1.firstName, o2.firstName);
-                    }
-                }
-              : new Comparator<IndexInfo>()
-                {
-                    public int compare(IndexInfo o1, IndexInfo o2)
-                    {
-                        return nameComparator.compare(o1.lastName, o2.lastName);
-                    }
-                };
+        return reversed ? nameComparator.indexReverseComparator : nameComparator.indexComparator;
     }
 
     public static class IndexInfo

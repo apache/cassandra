@@ -17,15 +17,17 @@
  */
 package org.apache.cassandra.contrib.stress.operations;
 
-import org.apache.cassandra.contrib.stress.util.OperationThread;
+import org.apache.cassandra.contrib.stress.util.Operation;
 import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.thrift.*;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
-public class RangeSlicer extends OperationThread
+public class RangeSlicer extends Operation
 {
 
     public RangeSlicer(int index)
@@ -33,87 +35,29 @@ public class RangeSlicer extends OperationThread
         super(index);
     }
 
-    public void run()
+    public void run(Cassandra.Client client) throws IOException
     {
         String format = "%0" + session.getTotalKeysLength() + "d";
 
         // initial values
-        int current = range.begins();
-        int limit   = range.limit();
-        int count   = session.getColumnsPerKey();
-        int last    = current + session.getKeysPerCall();
+        int count = session.getColumnsPerKey();
 
         SlicePredicate predicate = new SlicePredicate().setSlice_range(new SliceRange(ByteBuffer.wrap(new byte[] {}),
                                                                                       ByteBuffer.wrap(new byte[] {}),
-                                                                                      false, count));
+                                                                                      false,
+                                                                                      count));
 
         if (session.getColumnFamilyType() == ColumnFamilyType.Super)
         {
-            while (current < limit)
+            byte[] start = String.format(format, index).getBytes();
+
+            List<KeySlice> slices = new ArrayList<KeySlice>();
+            KeyRange range = new KeyRange(count).setStart_key(start).setEnd_key(ByteBufferUtil.EMPTY_BYTE_BUFFER);
+
+            for (int i = 0; i < session.getSuperColumns(); i++)
             {
-                byte[] start = String.format(format, current).getBytes();
-                byte[] end   = String.format(format, last).getBytes();
-
-                List<KeySlice> slices = new ArrayList<KeySlice>();
-                KeyRange range = new KeyRange(count).setStart_key(start).setEnd_key(end);
-
-                for (int i = 0; i < session.getSuperColumns(); i++)
-                {
-                    String superColumnName = "S" + Integer.toString(i);
-                    ColumnParent parent = new ColumnParent("Super1").setSuper_column(ByteBuffer.wrap(superColumnName.getBytes()));
-
-                    long startTime = System.currentTimeMillis();
-
-                    boolean success = false;
-                    String exceptionMessage = null;
-
-                    for (int t = 0; t < session.getRetryTimes(); t++)
-                    {
-                        try
-                        {
-                            slices = client.get_range_slices(parent, predicate, range, session.getConsistencyLevel());
-                            success = (slices.size() != 0);
-                        }
-                        catch (Exception e)
-                        {
-                            exceptionMessage = getExceptionMessage(e);
-                            success = false;
-                        }
-                    }
-
-                    if (!success)
-                    {
-                        System.err.printf("Thread [%d] retried %d times - error on calling get_range_slices for range %s->%s %s%n",
-                                                                                            index,
-                                                                                            session.getRetryTimes(),
-                                                                                            new String(start),
-                                                                                            new String(end),
-                                                                                            (exceptionMessage == null) ? "" : "(" + exceptionMessage + ")");
-
-                        if (!session.ignoreErrors())
-                            return;
-                    }
-
-                    session.operationCount.getAndIncrement(index);
-                    session.latencies.getAndAdd(index, System.currentTimeMillis() - startTime);
-                }
-
-                current += slices.size() + 1;
-                last = current + slices.size() + 1;
-                session.keyCount.getAndAdd(index, slices.size());
-            }
-        }
-        else
-        {
-            ColumnParent parent = new ColumnParent("Standard1");
-
-            while (current < limit)
-            {
-                byte[] start = String.format(format, current).getBytes();
-                byte[] end   = String.format(format, last).getBytes();
-
-                List<KeySlice> slices = new ArrayList<KeySlice>();
-                KeyRange range = new KeyRange(count).setStart_key(start).setEnd_key(end);
+                String superColumnName = "S" + Integer.toString(i);
+                ColumnParent parent = new ColumnParent("Super1").setSuper_column(ByteBuffer.wrap(superColumnName.getBytes()));
 
                 long startTime = System.currentTimeMillis();
 
@@ -122,9 +66,6 @@ public class RangeSlicer extends OperationThread
 
                 for (int t = 0; t < session.getRetryTimes(); t++)
                 {
-                    if (success)
-                        break;
-
                     try
                     {
                         slices = client.get_range_slices(parent, predicate, range, session.getConsistencyLevel());
@@ -139,24 +80,62 @@ public class RangeSlicer extends OperationThread
 
                 if (!success)
                 {
-                    System.err.printf("Thread [%d] retried %d times - error on calling get_indexed_slices for range %s->%s %s%n",
-                                                                                              index,
-                                                                                              session.getRetryTimes(),
-                                                                                              new String(start),
-                                                                                              new String(end),
-                                                                                              (exceptionMessage == null) ? "" : "(" + exceptionMessage + ")");
-
-                    if (!session.ignoreErrors())
-                        return;
+                    error(String.format("Operation [%d] retried %d times - error on calling get_range_slices for range offset %s %s%n",
+                                        index,
+                                        session.getRetryTimes(),
+                                        new String(start),
+                                        (exceptionMessage == null) ? "" : "(" + exceptionMessage + ")"));
                 }
 
-                current += slices.size() + 1;
-                last = current + slices.size() + 1;
-
-                session.operationCount.getAndIncrement(index);
-                session.keyCount.getAndAdd(index, slices.size());
-                session.latencies.getAndAdd(index, System.currentTimeMillis() - startTime);
+                session.operations.getAndIncrement();
+                session.latency.getAndAdd(System.currentTimeMillis() - startTime);
             }
+
+            session.keys.getAndAdd(slices.size());
+        }
+        else
+        {
+            ColumnParent parent = new ColumnParent("Standard1");
+
+            byte[] start = String.format(format, index).getBytes();
+
+            List<KeySlice> slices = new ArrayList<KeySlice>();
+            KeyRange range = new KeyRange(count).setStart_key(start).setEnd_key(ByteBufferUtil.EMPTY_BYTE_BUFFER);
+
+            long startTime = System.currentTimeMillis();
+
+            boolean success = false;
+            String exceptionMessage = null;
+
+            for (int t = 0; t < session.getRetryTimes(); t++)
+            {
+                if (success)
+                    break;
+
+                try
+                {
+                    slices = client.get_range_slices(parent, predicate, range, session.getConsistencyLevel());
+                    success = (slices.size() != 0);
+                }
+                catch (Exception e)
+                {
+                    exceptionMessage = getExceptionMessage(e);
+                    success = false;
+                }
+            }
+
+            if (!success)
+            {
+                error(String.format("Operation [%d] retried %d times - error on calling get_indexed_slices for range offset %s %s%n",
+                                    index,
+                                    session.getRetryTimes(),
+                                    new String(start),
+                                    (exceptionMessage == null) ? "" : "(" + exceptionMessage + ")"));
+            }
+
+            session.operations.getAndIncrement();
+            session.keys.getAndAdd(slices.size());
+            session.latency.getAndAdd(System.currentTimeMillis() - startTime);
         }
     }
 }

@@ -445,8 +445,7 @@ public class CompactionManager implements CompactionManagerMBean
                 return 0;
             }
 
-            String newFilename = new File(cfs.getTempSSTablePath(compactionFileLocation)).getAbsolutePath();
-            writer = new SSTableWriter(newFilename, expectedBloomFilterSize, cfs.metadata, cfs.partitioner);
+            writer = cfs.createCompactionWriter(expectedBloomFilterSize, compactionFileLocation);
             while (nni.hasNext())
             {
                 AbstractCompactedRow row = nni.next();
@@ -507,15 +506,13 @@ public class CompactionManager implements CompactionManagerMBean
     private void doScrub(ColumnFamilyStore cfs) throws IOException
     {
         assert !cfs.isIndex();
-        Table table = cfs.table;
-        Collection<Range> ranges = StorageService.instance.getLocalRanges(table.name);
 
         for (final SSTableReader sstable : cfs.getSSTables())
         {
             logger.info("Scrubbing " + sstable);
 
             // Calculate the expected compacted filesize
-            String compactionFileLocation = table.getDataFileLocation(sstable.length());
+            String compactionFileLocation = cfs.table.getDataFileLocation(sstable.length());
             if (compactionFileLocation == null)
                 throw new IOException("disk full");
 
@@ -707,8 +704,7 @@ public class CompactionManager implements CompactionManagerMBean
         if (writer == null)
         {
             FileUtils.createDirectory(compactionFileLocation);
-            String newFilename = new File(cfs.getTempSSTablePath(compactionFileLocation)).getAbsolutePath();
-            writer = new SSTableWriter(newFilename, expectedBloomFilterSize, cfs.metadata, cfs.partitioner);
+            writer = cfs.createCompactionWriter(expectedBloomFilterSize, compactionFileLocation);
         }
         return writer;
     }

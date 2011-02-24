@@ -17,8 +17,10 @@
  */
 package org.apache.cassandra.contrib.stress.util;
 
+import java.io.IOException;
 import java.math.BigInteger;
 import java.security.MessageDigest;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
@@ -29,27 +31,27 @@ import org.apache.cassandra.thrift.Cassandra;
 import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.utils.FBUtilities;
 
-public abstract class OperationThread extends Thread
+public abstract class Operation
 {
     public final int index;
 
     protected final Session session;
-    protected final Cassandra.Client client;
+    protected static volatile Double nextGaussian = null;
 
-    protected final Range range;
-
-    protected Double nextGaussian = null;
-
-    public OperationThread(int idx)
+    public Operation(int idx)
     {
         index = idx;
         session = Stress.session;
-
-        int keysPerThread = session.getKeysPerThread();
-        range = new Range((int) (keysPerThread * (idx + session.getSkipKeys())), keysPerThread * (idx + 1));
-
-        client = session.getClient();
     }
+
+    /**
+     * Run operation
+     * @param client Cassandra Thrift client connection
+     * @throws IOException on any I/O error.
+     */
+    public abstract void run(Cassandra.Client client) throws IOException;
+
+    // Utility methods
 
     /**
      * def generate_values():
@@ -81,27 +83,28 @@ public abstract class OperationThread extends Thread
      * key generator using Gauss or Random algorithm
      * @return byte[] representation of the key string
      */
-    protected byte[] generateKey()
+    protected static byte[] generateKey()
     {
-        return (session.useRandomGenerator()) ? generateRandomKey() : generateGaussKey();
+        return (Stress.session.useRandomGenerator()) ? generateRandomKey() : generateGaussKey();
     }
 
     /**
      * Random key generator
      * @return byte[] representation of the key string
      */
-    private byte[] generateRandomKey()
+    private static byte[] generateRandomKey()
     {
-        String format = "%0" + session.getTotalKeysLength() + "d";
-        return String.format(format, Stress.randomizer.nextInt(session.getNumKeys() - 1)).getBytes();
+        String format = "%0" + Stress.session.getTotalKeysLength() + "d";
+        return String.format(format, Stress.randomizer.nextInt(Stress.session.getNumKeys() - 1)).getBytes();
     }
 
     /**
      * Gauss key generator
      * @return byte[] representation of the key string
      */
-    private byte[] generateGaussKey()
+    private static byte[] generateGaussKey()
     {
+        Session session = Stress.session;
         String format = "%0" + session.getTotalKeysLength() + "d";
 
         for (;;)
@@ -122,7 +125,7 @@ public abstract class OperationThread extends Thread
      *
      * @return next Gaussian distribution number
      */
-    private double nextGaussian(int mu, float sigma)
+    private static double nextGaussian(int mu, float sigma)
     {
         Random random = Stress.randomizer;
 
@@ -181,4 +184,11 @@ public abstract class OperationThread extends Thread
         return (message == null) ? "(" + className + ")" : String.format("(%s): %s", className, message);
     }
 
+    protected void error(String message) throws IOException
+    {
+        if (!session.ignoreErrors())
+            throw new IOException(message);
+        else
+            System.err.println(message);
+    }
 }

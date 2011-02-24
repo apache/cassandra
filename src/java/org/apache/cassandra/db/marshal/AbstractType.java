@@ -26,6 +26,7 @@ import java.util.Collection;
 import java.util.Comparator;
 
 import org.apache.cassandra.db.IColumn;
+import static org.apache.cassandra.io.sstable.IndexHelper.IndexInfo;
 
 /**
  * Specifies a Comparator for a specific type of ByteBuffer.
@@ -37,6 +38,28 @@ import org.apache.cassandra.db.IColumn;
  */
 public abstract class AbstractType implements Comparator<ByteBuffer>
 {
+    public final Comparator<IndexInfo> indexComparator;
+    public final Comparator<IndexInfo> indexReverseComparator;
+
+    protected AbstractType()
+    {
+        final AbstractType that = this;
+        indexComparator = new Comparator<IndexInfo>()
+        {
+            public int compare(IndexInfo o1, IndexInfo o2)
+            {
+                return that.compare(o1.lastName, o2.lastName);
+            }
+        };
+        indexReverseComparator = new Comparator<IndexInfo>()
+        {
+            public int compare(IndexInfo o1, IndexInfo o2)
+            {
+                return that.compare(o1.firstName, o2.firstName);
+            }
+        };
+    }
+
     /** get a string representation of the bytes suitable for log messages */
     public abstract String getString(ByteBuffer bytes);
 
