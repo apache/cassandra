@@ -83,7 +83,7 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
      */
     public BufferedRandomAccessFile(String name, String mode) throws IOException
     {
-        this(new File(name), mode, 0);
+        this(new File(name), mode, DEFAULT_BUFFER_SIZE);
     }
 
     public BufferedRandomAccessFile(String name, String mode, int bufferSize) throws IOException
@@ -98,7 +98,7 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
      */
     public BufferedRandomAccessFile(File file, String mode) throws IOException
     {
-        this(file, mode, 0);
+        this(file, mode, DEFAULT_BUFFER_SIZE);
     }
 
     public BufferedRandomAccessFile(File file, String mode, int bufferSize) throws IOException
@@ -116,6 +116,8 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
         filePath = file.getAbsolutePath();
 
         // allocating required size of the buffer
+        if (bufferSize <= 0)
+            throw new IllegalArgumentException("bufferSize must be positive");
         buffer = ByteBuffer.allocate(bufferSize);
 
         // if in read-only mode, caching file size
