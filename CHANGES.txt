@@ -31,6 +31,8 @@
    (CASSANDRA-2206)
  * fix supercolumn de/serialization when subcolumn comparator is different
    from supercolumn's (CASSANDRA-2104)
+ * fix starting up on Windows when CASSANDRA_HOME contains whitespace
+   (CASSANDRA-2237)
 
 
 0.7.2
