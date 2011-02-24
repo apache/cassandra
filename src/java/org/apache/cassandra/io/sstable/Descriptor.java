@@ -199,7 +199,11 @@ public class Descriptor
         if (!(o instanceof Descriptor))
             return false;
         Descriptor that = (Descriptor)o;
-        return that.directory.equals(this.directory) && that.generation == this.generation && that.ksname.equals(this.ksname) && that.cfname.equals(this.cfname);
+        return that.directory.equals(this.directory)
+               && that.generation == this.generation
+               && that.ksname.equals(this.ksname)
+               && that.cfname.equals(this.cfname)
+               && that.temporary == this.temporary;
     }
 
     @Override
