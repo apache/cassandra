@@ -27,6 +27,8 @@
  * fat clients were writing local data (CASSANDRA-2223)
  * turn off string interning in json2sstable (CASSANDRA-2189)
  * set DEFAULT_MEMTABLE_LIFETIME_IN_MINS to 24h
+ * improve detection and cleanup of partially-written sstables 
+   (CASSANDRA-2206)
 
 
 0.7.2
