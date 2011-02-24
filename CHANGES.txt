@@ -8,7 +8,7 @@
  * change default JMX port to 7199 (CASSANDRA-2027)
  * backwards compatible internal messaging (CASSANDRA-1015)
  * check for null encryption in MessagingService (CASSANDRA-2152)
-
+ * Fix for Cli to support updating replicate_on_write (CASSANDRA-2236)
 
 0.7.3
  * Keep endpoint state until aVeryLongTime (CASSANDRA-2115)
