@@ -939,6 +939,9 @@ public class CliClient extends CliUserHelp
             case MAX_COMPACTION_THRESHOLD:
                 cfDef.setMax_compaction_threshold(Integer.parseInt(mValue));
                 break;
+            case REPLICATE_ON_WRITE:
+                cfDef.setReplicate_on_write(Boolean.parseBoolean(mValue));
+                break;
             default:
                 //must match one of the above or we'd throw an exception at the valueOf statement above.
                 assert(false);
@@ -1324,6 +1327,7 @@ public class CliClient extends CliUserHelp
                 sessionState.out.printf("      GC grace seconds: %s%n", cf_def.gc_grace_seconds);
                 sessionState.out.printf("      Compaction min/max thresholds: %s/%s%n", cf_def.min_compaction_threshold, cf_def.max_compaction_threshold);
                 sessionState.out.printf("      Read repair chance: %s%n", cf_def.read_repair_chance);
+                sessionState.out.printf("      Replicate on write: %s%n", cf_def.replicate_on_write);
 
                 // if we have connection to the cfMBean established
                 if (cfMBean != null)

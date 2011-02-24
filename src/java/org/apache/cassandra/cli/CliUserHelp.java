@@ -49,6 +49,7 @@ public class CliUserHelp {
         DEFAULT_VALIDATION_CLASS,
         MIN_COMPACTION_THRESHOLD,
         MAX_COMPACTION_THRESHOLD,
+        REPLICATE_ON_WRITE,
     }
 
     protected EnumMap<ColumnFamilyArgument, String> argumentExplanations = new EnumMap<ColumnFamilyArgument, String>(ColumnFamilyArgument.class)
@@ -68,6 +69,7 @@ public class CliUserHelp {
         put(ColumnFamilyArgument.GC_GRACE, "Discard tombstones after this many seconds");
         put(ColumnFamilyArgument.MIN_COMPACTION_THRESHOLD, "Avoid minor compactions of less than this number of sstable files");
         put(ColumnFamilyArgument.MAX_COMPACTION_THRESHOLD, "Compact no more than this number of sstable files at once");
+        put(ColumnFamilyArgument.REPLICATE_ON_WRITE, "Replicate every counter update from the leader to the follower replicas");
     }};
     
     protected void printCmdHelp(Tree statement, CliSessionState state)
