@@ -441,7 +441,7 @@ public class NodeCmd {
         ColumnFamilyStoreMBean store = this.probe.getCfsProxy(keySpace, columnFamily);
 
         // default is 90 offsets
-        long[] offsets = new EstimatedHistogram(90).getBucketOffsets();
+        long[] offsets = new EstimatedHistogram().getBucketOffsets();
 
         long[] rrlh = store.getRecentReadLatencyHistogramMicros();
         long[] rwlh = store.getRecentWriteLatencyHistogramMicros();

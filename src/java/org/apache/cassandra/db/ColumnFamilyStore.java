@@ -410,7 +410,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         long count = 0;
         for (SSTableReader sstable : ssTables)
         {
-            sum += sstable.getEstimatedRowSize().median();
+            sum += sstable.getEstimatedRowSize().mean();
             count++;
         }
         return count > 0 ? sum / count : 0;
@@ -422,7 +422,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         int count = 0;
         for (SSTableReader sstable : ssTables)
         {
-            sum += sstable.getEstimatedColumnCount().median();
+            sum += sstable.getEstimatedColumnCount().mean();
             count++;
         }
         return count > 0 ? (int) (sum / count) : 0;
@@ -1023,12 +1023,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public long[] getRecentSSTablesPerReadHistogram()
     {
-        return recentSSTablesPerRead.get(true);
+        return recentSSTablesPerRead.getBuckets(true);
     }
 
     public long[] getSSTablesPerReadHistogram()
     {
-        return sstablesPerRead.get(false);
+        return sstablesPerRead.getBuckets(false);
     }
 
     public long getReadCount()
@@ -1984,7 +1984,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         for (SSTableReader sstable : ssTables)
         {
-            long[] rowSize = sstable.getEstimatedRowSize().get(false);
+            long[] rowSize = sstable.getEstimatedRowSize().getBuckets(false);
 
             for (int i = 0; i < histogram.length; i++)
                 histogram[i] += rowSize[i];
@@ -1999,7 +1999,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         for (SSTableReader sstable : ssTables)
         {
-            long[] columnSize = sstable.getEstimatedColumnCount().get(false);
+            long[] columnSize = sstable.getEstimatedColumnCount().getBuckets(false);
 
             for (int i = 0; i < histogram.length; i++)
                 histogram[i] += columnSize[i];
