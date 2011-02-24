@@ -29,6 +29,8 @@
  * set DEFAULT_MEMTABLE_LIFETIME_IN_MINS to 24h
  * improve detection and cleanup of partially-written sstables 
    (CASSANDRA-2206)
+ * fix supercolumn de/serialization when subcolumn comparator is different
+   from supercolumn's (CASSANDRA-2104)
 
 
 0.7.2
