@@ -73,7 +73,7 @@ h2. UPDATE
 _Synopsis:_
 
 bc. 
-UPDATE <COLUMN FAMILY> [USING CONSISTENCY.<CL>]
+UPDATE <COLUMN FAMILY> [USING CONSISTENCY <CL>]
         SET name1 = value1, name2 = value2 WHERE KEY = keyname;
         
 An @UPDATE@ is used to write one or more columns to a record in a Cassandra column family. No results are returned.
@@ -244,12 +244,12 @@ bc.
 
 Consistency level specifications are made up the keyword @USING@, followed by a consistency level identifier. Valid consistency levels are as follows:
 
-* @CONSISTENCY.ZERO@
-* @CONSISTENCY.ONE@ (default)
-* @CONSISTENCY.QUORUM@
-* @CONSISTENCY.ALL@
-* @CONSISTENCY.DCQUORUM@
-* @CONSISTENCY.DCQUORUMSYNC@
+* @CONSISTENCY ZERO@
+* @CONSISTENCY ONE@ (default)
+* @CONSISTENCY QUORUM@
+* @CONSISTENCY ALL@
+* @CONSISTENCY DCQUORUM@
+* @CONSISTENCY DCQUORUMSYNC@
 
 h3(#terms). Term specification
 

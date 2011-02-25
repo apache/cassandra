@@ -94,7 +94,7 @@ selectStatement returns [SelectStatement expr]
           | K_COUNT '(' s2=selectExpression ')' { expression = s2; isCountOp = true; }
           )
           K_FROM columnFamily=IDENT
-          ( K_USING K_CONSISTENCY '.' K_LEVEL { cLevel = ConsistencyLevel.valueOf($K_LEVEL.text); } )?
+          ( K_USING K_CONSISTENCY K_LEVEL { cLevel = ConsistencyLevel.valueOf($K_LEVEL.text); } )?
           ( K_WHERE whereClause )?
           ( K_LIMIT rows=INTEGER { numRecords = Integer.parseInt($rows.text); } )?
           endStmnt
@@ -141,7 +141,7 @@ batchUpdateStatement returns [BatchUpdateStatement expr]
           ConsistencyLevel cLevel = ConsistencyLevel.ONE;
           List<UpdateStatement> updates = new ArrayList<UpdateStatement>();
       }
-      K_BEGIN K_BATCH ( K_USING K_CONSISTENCY '.' K_LEVEL { cLevel = ConsistencyLevel.valueOf($K_LEVEL.text); } )?
+      K_BEGIN K_BATCH ( K_USING K_CONSISTENCY K_LEVEL { cLevel = ConsistencyLevel.valueOf($K_LEVEL.text); } )?
           u1=updateStatement { updates.add(u1); } ( uN=updateStatement { updates.add(uN); } )*
       K_APPLY K_BATCH EOF
       {
@@ -166,7 +166,7 @@ updateStatement returns [UpdateStatement expr]
           Map<Term, Term> columns = new HashMap<Term, Term>();
       }
       K_UPDATE columnFamily=IDENT
-          (K_USING K_CONSISTENCY '.' K_LEVEL { cLevel = ConsistencyLevel.valueOf($K_LEVEL.text); })?
+          (K_USING K_CONSISTENCY K_LEVEL { cLevel = ConsistencyLevel.valueOf($K_LEVEL.text); })?
           K_SET termPair[columns] (',' termPair[columns])*
           K_WHERE K_KEY '=' key=term endStmnt
       {
@@ -192,7 +192,7 @@ deleteStatement returns [DeleteStatement expr]
       }
       K_DELETE
           ( cols=termList { columnsList = $cols.items; })?
-          K_FROM columnFamily=IDENT ( K_USING K_CONSISTENCY '.' K_LEVEL )?
+          K_FROM columnFamily=IDENT ( K_USING K_CONSISTENCY K_LEVEL )?
           K_WHERE ( K_KEY '=' key=term           { keyList = Collections.singletonList(key); }
                   | K_KEY K_IN '(' keys=termList { keyList = $keys.items; } ')'
                   )?

@@ -34,7 +34,7 @@ def load_sample(dbconn):
     """)
 
     dbconn.execute("""
-    BEGIN BATCH USING CONSISTENCY.ONE
+    BEGIN BATCH USING CONSISTENCY ONE
      UPDATE StandardLong1 SET 1L="1", 2L="2", 3L="3", 4L="4" WHERE KEY="aa";
      UPDATE StandardLong1 SET 5L="5", 6L="6", 7L="8", 9L="9" WHERE KEY="ab";
      UPDATE StandardLong1 SET 9L="9", 8L="8", 7L="7", 6L="6" WHERE KEY="ac";
@@ -46,7 +46,7 @@ def load_sample(dbconn):
     """)
     
     dbconn.execute("""
-    BEGIN BATCH USING CONSISTENCY.ONE
+    BEGIN BATCH USING CONSISTENCY ONE
       UPDATE StandardInteger1 SET 10="a", 20="b", 30="c", 40="d" WHERE KEY="k1";
       UPDATE StandardInteger1 SET 10="e", 20="f", 30="g", 40="h" WHERE KEY="k2";
       UPDATE StandardInteger1 SET 10="i", 20="j", 30="k", 40="l" WHERE KEY="k3";
