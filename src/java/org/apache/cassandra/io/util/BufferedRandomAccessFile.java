@@ -47,16 +47,16 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
     public static final int DEFAULT_BUFFER_SIZE = 65535;
 
     // isDirty - true if this.buffer contains any un-synced bytes
-    // hitEOF - true if buffer capacity is less then it's maximal size
-    private boolean isDirty, syncNeeded, hitEOF = false;
+    private boolean isDirty, syncNeeded;
 
     // buffer which will cache file blocks
-    private ByteBuffer buffer;
+    private byte[] buffer;
 
     // `current` as current position in file
     // `bufferOffset` is the offset of the beginning of the buffer
-    // `bufferEnd` is `bufferOffset` + count of bytes read from file, i.e. the lowest position we can't read from the buffer
-    private long bufferOffset, bufferEnd, current = 0;
+    // `validBufferBytes` is the number of bytes in the buffer that are actually valid; this will be LESS than buffer capacity if buffer is not full!
+    private long bufferOffset, current = 0;
+    private int validBufferBytes = 0;
 
     // constant, used for caching purpose, -1 if file is open in "rw" mode
     // otherwise this will hold cached file length
@@ -118,11 +118,11 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
         // allocating required size of the buffer
         if (bufferSize <= 0)
             throw new IllegalArgumentException("bufferSize must be positive");
-        buffer = ByteBuffer.allocate(bufferSize);
+        buffer = new byte[bufferSize];
+        reBuffer();
 
         // if in read-only mode, caching file size
         fileLength = (mode.equals("r")) ? this.channel.size() : -1;
-        bufferEnd = reBuffer(); // bufferBottom equals to the bytes read
         fd = CLibrary.getfd(this.getFD());
     }
 
@@ -155,9 +155,7 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
             if (channel.position() != bufferOffset)
                 channel.position(bufferOffset);
 
-            int lengthToWrite = (int) (bufferEnd - bufferOffset);
-
-            super.write(buffer.array(), 0, lengthToWrite);
+            super.write(buffer, 0, validBufferBytes);
 
             if (skipCache)
             {
@@ -167,7 +165,7 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
                 // so we continue to clear pages we don't need from the first
                 // offset we see
                 // periodically we update this starting offset
-                bytesSinceCacheFlush += lengthToWrite;
+                bytesSinceCacheFlush += validBufferBytes;
 
                 if (bufferOffset < minBufferOffset)
                     minBufferOffset = bufferOffset;
@@ -185,66 +183,53 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
         }
     }
 
-    private long reBuffer() throws IOException
+    private void reBuffer() throws IOException
     {
         flush(); // synchronizing buffer and file on disk
-        buffer.clear();
-        bufferOffset = current;
 
+        bufferOffset = current;
         if (bufferOffset >= channel.size())
         {
-            buffer.rewind();
-            bufferEnd = bufferOffset;
-            hitEOF = true;
-
-            return 0;
+            validBufferBytes = 0;
+            return;
         }
 
         if (bufferOffset < minBufferOffset)
             minBufferOffset = bufferOffset;
 
         channel.position(bufferOffset); // setting channel position
-        long bytesRead = channel.read(buffer); // reading from that position
+        int read = 0;
+        while (read < buffer.length)
+        {
+            int n = super.read(buffer, read, buffer.length - read);
+            if (n < 0)
+                break;
+            read += n;
+        }
+        validBufferBytes = read;
 
-        hitEOF = (bytesRead < buffer.capacity()); // buffer is not fully loaded with
-                                              // data
-        bufferEnd = bufferOffset + bytesRead;
-
-        buffer.rewind();
-
-        bytesSinceCacheFlush += bytesRead;
-
+        bytesSinceCacheFlush += read;
         if (skipCache && bytesSinceCacheFlush >= MAX_BYTES_IN_PAGE_CACHE)
         {
             CLibrary.trySkipCache(this.fd, (int) minBufferOffset, 0);
             bytesSinceCacheFlush = 0;
             minBufferOffset = Long.MAX_VALUE;
         }
-
-        return bytesRead;
     }
 
     @Override
-    // -1 will be returned if EOF is reached, RandomAccessFile is responsible
-    // for
-    // throwing EOFException
+    // -1 will be returned if there is nothing to read; higher-level methods like readInt
+    // or readFully (from RandomAccessFile) will throw EOFException but this should not
     public int read() throws IOException
     {
         if (isEOF())
             return -1; // required by RandomAccessFile
 
-        if (current < bufferOffset || current >= bufferEnd)
-        {
+        if (current >= bufferOffset + buffer.length)
             reBuffer();
+        assert current >= bufferOffset && current < bufferOffset + validBufferBytes;
 
-            if (current == bufferEnd && hitEOF)
-                return -1; // required by RandomAccessFile
-        }
-
-        byte result = buffer.get();
-        current++;
-
-        return ((int) result) & 0xFF;
+        return ((int) buffer[(int) (current++ - bufferOffset)]) & 0xFF;
     }
 
     @Override
@@ -254,40 +239,25 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
     }
 
     @Override
-    // -1 will be returned if EOF is reached; higher-level methods like readInt
+    // -1 will be returned if there is nothing to read; higher-level methods like readInt
     // or readFully (from RandomAccessFile) will throw EOFException but this should not
     public int read(byte[] buff, int offset, int length) throws IOException
     {
-        int bytesCount = 0;
+        if (length == 0)
+            return 0;
 
-        while (length > 0)
-        {
-            int bytesRead = readAtMost(buff, offset, length);
-            if (bytesRead == -1)
-                return -1; // EOF
-
-            offset += bytesRead;
-            length -= bytesRead;
-            bytesCount += bytesRead;
-        }
-
-        return bytesCount;
-    }
-
-    private int readAtMost(byte[] buff, int offset, int length) throws IOException
-    {
-        if (length > bufferEnd && hitEOF)
+        if (isEOF())
             return -1;
 
-        final int left = buffer.capacity() - buffer.position();
-        if (current < bufferOffset || left < length)
+        if (current >= bufferOffset + buffer.length)
             reBuffer();
+        assert current >= bufferOffset && current < bufferOffset + validBufferBytes;
 
-        length = Math.min(length, buffer.capacity() - buffer.position());
-        buffer.get(buff, offset, length);
-        current += length;
+        int toCopy = Math.min(length, validBufferBytes - (int) (current - bufferOffset));
+        System.arraycopy(buffer, (int) (current - bufferOffset), buff, offset, toCopy);
+        current += toCopy;
 
-        return length;
+        return toCopy;
     }
 
     public ByteBuffer readBytes(int length) throws IOException
@@ -300,12 +270,12 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
         return ByteBuffer.wrap(buff);
     }
 
+    private final byte[] singleByteBuffer = new byte[1]; // so we can use the write(byte[]) path w/o tons of new byte[] allocations
     @Override
     public void write(int val) throws IOException
     {
-        byte[] b = new byte[1];
-        b[0] = (byte) val;
-        this.write(b, 0, b.length);
+        singleByteBuffer[0] = (byte) val;
+        this.write(singleByteBuffer, 0, 1);
     }
 
     @Override
@@ -334,21 +304,18 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
      */
     private int writeAtMost(byte[] buff, int offset, int length) throws IOException
     {
-        final int left = buffer.capacity() - buffer.position();
-        if (current < bufferOffset || left < length)
+        if (current >= bufferOffset + buffer.length)
             reBuffer();
+        assert current < bufferOffset + buffer.length;
 
-        // logic is the following: we need to add bytes to the end of the buffer
-        // starting from current buffer position and return this length
-        length = Math.min(length, buffer.capacity() - buffer.position());
+        int positionWithinBuffer = (int) (current - bufferOffset);
+        int toCopy = Math.min(length, buffer.length - positionWithinBuffer);
+        System.arraycopy(buff, offset, buffer, positionWithinBuffer, toCopy);
+        current += toCopy;
+        validBufferBytes = Math.max(validBufferBytes, positionWithinBuffer + toCopy);
+        assert current <= bufferOffset + buffer.length;
 
-        buffer.put(buff, offset, length);
-        current += length;
-
-        if (current > bufferEnd)
-            bufferEnd = current;
-
-        return length;
+        return toCopy;
     }
 
     @Override
@@ -356,13 +323,8 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
     {
         current = newPosition;
 
-        if (newPosition >= bufferEnd || newPosition < bufferOffset)
-        {
+        if (newPosition >= bufferOffset + validBufferBytes || newPosition < bufferOffset)
             reBuffer(); // this will set bufferEnd for us
-        }
-
-        final int delta = (int) (newPosition - bufferOffset);
-        buffer.position(delta);
     }
 
     @Override
@@ -382,12 +344,12 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
 
     public long length() throws IOException
     {
-        return (fileLength == -1) ? Math.max(current, channel.size()) : fileLength;
+        return (fileLength == -1) ? Math.max(Math.max(current, channel.size()), bufferOffset + validBufferBytes) : fileLength;
     }
 
     public long getFilePointer()
     {
-        return bufferOffset + buffer.position();
+        return current;
     }
 
     public String getPath()
@@ -395,6 +357,9 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
         return filePath;
     }
 
+    /**
+     * @return true if there is no more data to read
+     */
     public boolean isEOF() throws IOException
     {
         return getFilePointer() == length();

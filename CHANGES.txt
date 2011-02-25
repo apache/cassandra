@@ -30,7 +30,7 @@
  * add nodetool scrub (CASSANDRA-2217)
  * fix sstable2json large-row pagination (CASSANDRA-2188)
  * fix EOFing on requests for the last bytes in a file (CASSANDRA-2213)
- * fix BRAF performance when seeking to EOF (CASSANDRA-2218)
+ * fix BufferedRandomAccessFile bugs (CASSANDRA-2218, -2241)
  * check for memtable flush_after_mins exceeded every 10s (CASSANDRA-2183)
  * fix cache saving on Windows (CASSANDRA-2207)
  * add validateSchemaAgreement call + synchronization to schema

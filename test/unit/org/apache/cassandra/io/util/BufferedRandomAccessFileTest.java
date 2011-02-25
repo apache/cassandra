@@ -26,6 +26,7 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.concurrent.Callable;
 
 import org.junit.Test;
 
@@ -98,37 +99,69 @@ public class BufferedRandomAccessFileTest
         rw.write(42);
     }
 
-    protected void expectException(int size, int offset, int len, BufferedRandomAccessFile braf)
+    @Test
+    public void testNotEOF() throws IOException
+    {
+        assertEquals(1, new BufferedRandomAccessFile(writeTemporaryFile(new byte[1]), "rw").read(new byte[2]));
+    }
+
+
+    protected void expectEOF(Callable<?> callable)
     {
         boolean threw = false;
         try
         {
-            braf.readFully(new byte[size], offset, len);
+            callable.call();
         }
-        catch(Throwable t)
+        catch (Exception e)
         {
-            assert t.getClass().equals(EOFException.class) : t.getClass().getName() + " is not " + EOFException.class.getName();
+            assert e.getClass().equals(EOFException.class) : e.getClass().getName() + " is not " + EOFException.class.getName();
             threw = true;
         }
         assert threw : EOFException.class.getName() + " not received";
     }
 
     @Test
-    public void testEOF() throws Exception
+    public void testEOF() throws IOException
     {
         for (String mode : Arrays.asList("r", "rw")) // read, read+write
         {
-            for (int buf : Arrays.asList(8, 16, 32, 0))  // smaller, equal, bigger, zero
+            for (int bufferSize : Arrays.asList(1, 2, 3, 5, 8, 64))  // smaller, equal, bigger buffer sizes
             {
-                for (int off : Arrays.asList(0, 8))
+                final byte[] target = new byte[32];
+
+                // single too-large read
+                for (final int offset : Arrays.asList(0, 8))
                 {
-                    expectException(32, off, 17, new BufferedRandomAccessFile(writeTemporaryFile(new byte[16]), mode, buf));
+                    final BufferedRandomAccessFile file = new BufferedRandomAccessFile(writeTemporaryFile(new byte[16]), mode, bufferSize);
+                    expectEOF(new Callable<Object>()
+                    {
+                        public Object call() throws IOException
+                        {
+                            file.readFully(target, offset, 17);
+                            return null;
+                        }
+                    });
+                }
+
+                // first read is ok but eventually EOFs
+                for (final int n : Arrays.asList(1, 2, 4, 8))
+                {
+                    final BufferedRandomAccessFile file = new BufferedRandomAccessFile(writeTemporaryFile(new byte[16]), mode, bufferSize);
+                    expectEOF(new Callable<Object>()
+                    {
+                        public Object call() throws IOException
+                        {
+                            while (true)
+                                file.readFully(target, 0, n);
+                        }
+                    });
                 }
             }
         }
     }
 
-    protected File writeTemporaryFile(byte[] data) throws Exception
+    protected File writeTemporaryFile(byte[] data) throws IOException
     {
         File f = File.createTempFile("BRAFTestFile", null);
         f.deleteOnExit();
@@ -172,12 +205,12 @@ public class BufferedRandomAccessFileTest
 
         BufferedRandomAccessFile rw = new BufferedRandomAccessFile(tmpFile.getPath(), "rw");
         rw.write(new byte[]{ 1 });
-
         rw.seek(0);
+
         // test read of buffered-but-not-yet-written data
         byte[] buffer = new byte[1];
-        assert rw.read(buffer) == 1;
-        assert buffer[0] == 1;
+        assertEquals(1, rw.read(buffer));
+        assertEquals(1, buffer[0]);
         rw.close();
 
         // test read of not-yet-buffered data
