@@ -514,11 +514,8 @@ public class CompactionManager implements CompactionManagerMBean
             String compactionFileLocation = cfs.table.getDataFileLocation(sstable.length());
             if (compactionFileLocation == null)
                 throw new IOException("disk full");
-
             int expectedBloomFilterSize = Math.max(DatabaseDescriptor.getIndexInterval(),
                                                    (int)(SSTableReader.getApproximateKeyCount(Arrays.asList(sstable))));
-            if (logger.isDebugEnabled())
-              logger.debug("Expected bloom filter size : " + expectedBloomFilterSize);
 
             // loop through each row, deserializing to check for damage.
             // we'll also loop through the index at the same time, using the position from the index to recover if the
@@ -536,6 +533,8 @@ public class CompactionManager implements CompactionManagerMBean
             while (!dataFile.isEOF())
             {
                 long rowStart = dataFile.getFilePointer();
+                if (logger.isDebugEnabled())
+                    logger.debug("Reading row at " + rowStart);
                 DecoratedKey key = SSTableReader.decodeKey(sstable.partitioner, sstable.descriptor, ByteBufferUtil.readWithShortLength(dataFile));
                 ByteBuffer currentIndexKey = nextIndexKey;
                 nextIndexKey = indexFile.isEOF() ? null : ByteBufferUtil.readWithShortLength(indexFile);
@@ -543,6 +542,8 @@ public class CompactionManager implements CompactionManagerMBean
 
                 long dataSize = sstable.descriptor.hasIntRowSize ? dataFile.readInt() : dataFile.readLong();
                 long dataStart = dataFile.getFilePointer();
+                if (logger.isDebugEnabled())
+                    logger.debug(String.format("row %s is %s bytes", ByteBufferUtil.bytesToHex(key.key), dataSize));
 
                 SSTableIdentityIterator row = new SSTableIdentityIterator(sstable, dataFile, key, dataStart, dataSize, true);
                 writer.mark();
