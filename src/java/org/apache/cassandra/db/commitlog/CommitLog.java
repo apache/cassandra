@@ -172,7 +172,7 @@ public class CommitLog
 
         for (File file : clogs)
         {
-            int bufferSize = (int)Math.min(file.length(), 32 * 1024 * 1024);
+            int bufferSize = (int) Math.min(Math.max(file.length(), 1), 32 * 1024 * 1024);
             BufferedRandomAccessFile reader = new BufferedRandomAccessFile(new File(file.getAbsolutePath()), "r", bufferSize, true);
 
             try

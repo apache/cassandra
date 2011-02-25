@@ -76,8 +76,8 @@ public class Descriptor
         hasStringsInBloomFilter = version.compareTo("c") < 0;
         hasIntRowSize = version.compareTo("d") < 0;
         hasEncodedKeys = version.compareTo("e") < 0;
-        isLatestVersion = version.compareTo(CURRENT_VERSION) == 0;
         usesOldBloomFilter = version.compareTo("f") < 0;
+        isLatestVersion = version.compareTo(CURRENT_VERSION) == 0;
     }
 
     public String filenameFor(Component component)
