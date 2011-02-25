@@ -33,6 +33,7 @@
    from supercolumn's (CASSANDRA-2104)
  * fix starting up on Windows when CASSANDRA_HOME contains whitespace
    (CASSANDRA-2237)
+ * add [get|set][row|key]cacheSavePeriod to JMX (CASSANDRA-2100)
 
 
 0.7.2

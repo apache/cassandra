@@ -228,4 +228,10 @@ public interface ColumnFamilyStoreMBean
      * @return list of the index names
      */
     public List<String> getBuiltIndexes();
+
+    public int getRowCacheSavePeriodInSeconds();
+    public void setRowCacheSavePeriodInSeconds(int rcspis);
+
+    public int getKeyCacheSavePeriodInSeconds();
+    public void setKeyCacheSavePeriodInSeconds(int kcspis);
 }
