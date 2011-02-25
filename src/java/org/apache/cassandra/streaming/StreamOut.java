@@ -98,7 +98,7 @@ public class StreamOut
     {
         Table table = Table.open(tableName);
         logger.info("Flushing memtables for {}...", tableName);
-        for (Future f : table.flush())
+        for (Future<?> f : table.flush())
         {
             try
             {

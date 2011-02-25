@@ -52,12 +52,12 @@ public class RingCache
 
     private final Set<String> seeds_ = new HashSet<String>();
     private final int port_;
-    private final IPartitioner partitioner_;
+    private final IPartitioner<?> partitioner_;
     private final String keyspace;
 
     private Multimap<Range, InetAddress> rangeMap;
 
-    public RingCache(String keyspace, IPartitioner partitioner, String addresses, int port) throws IOException
+    public RingCache(String keyspace, IPartitioner<?> partitioner, String addresses, int port) throws IOException
     {
         for (String seed : addresses.split(","))
             seeds_.add(seed);
@@ -113,7 +113,6 @@ public class RingCache
     }
 
     /** ListMultimap promises to return a List for get(K) */
-    @SuppressWarnings(value="unchecked")
     public List<InetAddress> getEndpoint(Range range)
     {
         return (List<InetAddress>) rangeMap.get(range);

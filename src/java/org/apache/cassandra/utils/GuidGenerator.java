@@ -21,15 +21,10 @@ package org.apache.cassandra.utils;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
-import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.util.Random;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 public class GuidGenerator {
-    private static Logger logger_ = LoggerFactory.getLogger(GuidGenerator.class);
     private static Random myRand;
     private static SecureRandom mySecureRand;
     private static String s_id;

@@ -61,7 +61,7 @@ public class RowIterator implements Closeable, Iterator<Row>
 
     public void close() throws IOException
     {
-        for (Iterator iter : iterators)
+        for (Iterator<IColumnIterator> iter : iterators)
         {
             if (iter instanceof Closeable)
             {

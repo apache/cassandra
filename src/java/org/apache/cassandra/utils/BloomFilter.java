@@ -24,7 +24,6 @@ import org.apache.cassandra.io.ICompactSerializer2;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.utils.obs.OpenBitSet;
 
 public class BloomFilter extends Filter

@@ -80,11 +80,11 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor
         super.afterExecute(r,t);
 
         // exceptions wrapped by FutureTask
-        if (r instanceof FutureTask)
+        if (r instanceof FutureTask<?>)
         {
             try
             {
-                ((FutureTask) r).get();
+                ((FutureTask<?>) r).get();
             }
             catch (InterruptedException e)
             {

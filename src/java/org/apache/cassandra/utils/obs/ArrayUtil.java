@@ -17,8 +17,6 @@
 
 package org.apache.cassandra.utils.obs;
 
-import java.util.Collection;
-
 /**
  * Methods for manipulating arrays.
  *

@@ -19,17 +19,13 @@
 package org.apache.cassandra.utils;
 
 import java.util.*;
-import java.util.concurrent.Callable;
 
 import com.google.common.base.Function;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 public class ExpiringMap<K, V>
 {
-    private static final Logger logger = LoggerFactory.getLogger(ExpiringMap.class);
     private final Function<Pair<K,V>, ?> postExpireHook;
 
     private static class CacheableObject<T>

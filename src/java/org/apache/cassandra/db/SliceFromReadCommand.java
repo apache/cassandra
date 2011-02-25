@@ -59,7 +59,7 @@ public class SliceFromReadCommand extends ReadCommand
     @Override
     public Row getRow(Table table) throws IOException
     {
-        DecoratedKey dk = StorageService.getPartitioner().decorateKey(key);
+        DecoratedKey<?> dk = StorageService.getPartitioner().decorateKey(key);
         return table.getRow(QueryFilter.getSliceFilter(dk, queryPath, start, finish, reversed, count));
     }
 

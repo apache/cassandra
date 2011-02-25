@@ -37,7 +37,6 @@ import org.apache.cassandra.concurrent.IExecutorMBean;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.CompactionManager;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.service.GCInspector;
 
 public class StatusLogger
 {

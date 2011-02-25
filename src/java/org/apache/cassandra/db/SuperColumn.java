@@ -29,9 +29,6 @@ import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.IColumnSerializer;
 import org.apache.cassandra.io.util.ColumnSortedMap;
@@ -42,8 +39,6 @@ import org.apache.cassandra.utils.FBUtilities;
 
 public class SuperColumn implements IColumn, IColumnContainer
 {
-    private static Logger logger_ = LoggerFactory.getLogger(SuperColumn.class);
-
     public static SuperColumnSerializer serializer(AbstractType comparator)
     {
         return new SuperColumnSerializer(comparator);
@@ -333,8 +328,6 @@ public class SuperColumn implements IColumn, IColumnContainer
 
 class SuperColumnSerializer implements IColumnSerializer
 {
-    private static Logger logger = LoggerFactory.getLogger(SuperColumnSerializer.class);
-
     private AbstractType comparator;
 
     public SuperColumnSerializer(AbstractType comparator)

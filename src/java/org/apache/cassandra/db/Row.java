@@ -22,16 +22,12 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class Row
 {
-    private static Logger logger_ = LoggerFactory.getLogger(Row.class);
     private static RowSerializer serializer = new RowSerializer();
 
     static RowSerializer serializer()
@@ -39,10 +35,10 @@ public class Row
         return serializer;
     }
 
-    public final DecoratedKey key;
+    public final DecoratedKey<?> key;
     public final ColumnFamily cf;
 
-    public Row(DecoratedKey key, ColumnFamily cf)
+    public Row(DecoratedKey<?> key, ColumnFamily cf)
     {
         assert key != null;
         // cf may be null, indicating no data

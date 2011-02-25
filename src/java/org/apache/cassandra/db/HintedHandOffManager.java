@@ -46,7 +46,6 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.ApplicationState;
-import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.*;
 import org.apache.cassandra.thrift.*;
@@ -129,7 +128,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         }
 
         Table table = Table.open(tableName);
-        DecoratedKey dkey = StorageService.getPartitioner().decorateKey(key);
+        DecoratedKey<?> dkey = StorageService.getPartitioner().decorateKey(key);
         ColumnFamilyStore cfs = table.getColumnFamilyStore(cfName);
         ByteBuffer startColumn = ByteBufferUtil.EMPTY_BYTE_BUFFER;
         while (true)
@@ -308,7 +307,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         // 4. Force a flush
         // 5. Do major compaction to clean up all deletes etc.
         ByteBuffer endpointAsUTF8 = ByteBuffer.wrap(endpoint.getHostAddress().getBytes(UTF_8)); // keys have to be UTF8 to make OPP happy
-        DecoratedKey epkey =  StorageService.getPartitioner().decorateKey(endpointAsUTF8);
+        DecoratedKey<?> epkey =  StorageService.getPartitioner().decorateKey(endpointAsUTF8);
         int rowsReplayed = 0;
         ColumnFamilyStore hintStore = Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(HINTS_CF);
         ByteBuffer startColumn = ByteBufferUtil.EMPTY_BYTE_BUFFER;
@@ -363,7 +362,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
     /** called when a keyspace is dropped or rename. newTable==null in the case of a drop. */
     public static void renameHints(String oldTable, String newTable) throws IOException
     {
-        DecoratedKey oldTableKey = StorageService.getPartitioner().decorateKey(ByteBuffer.wrap(oldTable.getBytes(UTF_8)));
+        DecoratedKey<?> oldTableKey = StorageService.getPartitioner().decorateKey(ByteBuffer.wrap(oldTable.getBytes(UTF_8)));
         // we're basically going to fetch, drop and add the scf for the old and new table. we need to do it piecemeal 
         // though since there could be GB of data.
         ColumnFamilyStore hintStore = Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(HINTS_CF);
@@ -456,7 +455,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         predicate.setSlice_range(sliceRange);
 
         // From keys "" to ""...
-        IPartitioner partitioner = StorageService.getPartitioner();
+        IPartitioner<?> partitioner = StorageService.getPartitioner();
         ByteBuffer empty = ByteBufferUtil.EMPTY_BYTE_BUFFER;
         Range range = new Range(partitioner.getToken(empty), partitioner.getToken(empty));
 

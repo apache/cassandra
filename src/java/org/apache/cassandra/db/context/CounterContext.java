@@ -20,7 +20,6 @@ package org.apache.cassandra.db.context;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
-import java.util.*;
 
 import org.apache.commons.lang.ArrayUtils;
 

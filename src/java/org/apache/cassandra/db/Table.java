@@ -363,7 +363,7 @@ public class Table
             if (writeCommitLog)
                 CommitLog.instance.add(mutation);
         
-            DecoratedKey key = StorageService.getPartitioner().decorateKey(mutation.key());
+            DecoratedKey<?> key = StorageService.getPartitioner().decorateKey(mutation.key());
             for (ColumnFamily cf : mutation.getColumnFamilies())
             {
                 ColumnFamilyStore cfs = columnFamilyStores.get(cf.id());
@@ -464,7 +464,7 @@ public class Table
         }
     }
 
-    private static ColumnFamily readCurrentIndexedColumns(DecoratedKey key, ColumnFamilyStore cfs, SortedSet<ByteBuffer> mutatedIndexedColumns)
+    private static ColumnFamily readCurrentIndexedColumns(DecoratedKey<?> key, ColumnFamilyStore cfs, SortedSet<ByteBuffer> mutatedIndexedColumns)
     {
         QueryFilter filter = QueryFilter.getNamesFilter(key, new QueryPath(cfs.getColumnFamilyName()), mutatedIndexedColumns);
         return cfs.getColumnFamily(filter);
@@ -573,7 +573,7 @@ public class Table
         {
             while (iter.hasNext())
             {
-                DecoratedKey key = iter.next();
+                DecoratedKey<?> key = iter.next();
                 logger.debug("Indexing row {} ", key);
                 List<Memtable> memtablesToFlush = Collections.emptyList();
                 flusherLock.readLock().lock();
@@ -642,7 +642,7 @@ public class Table
     // for binary load path.  skips commitlog.
     void load(RowMutation rowMutation) throws IOException
     {
-        DecoratedKey key = StorageService.getPartitioner().decorateKey(rowMutation.key());
+        DecoratedKey<?> key = StorageService.getPartitioner().decorateKey(rowMutation.key());
         for (ColumnFamily columnFamily : rowMutation.getColumnFamilies())
         {
             Collection<IColumn> columns = columnFamily.getSortedColumns();

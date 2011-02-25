@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.utils;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.BitSet;
 
@@ -122,7 +121,7 @@ public class LegacyBloomFilter extends Filter
         return filter_.toString();
     }
 
-    ICompactSerializer tserializer()
+    ICompactSerializer<LegacyBloomFilter> tserializer()
     {
         return serializer_;
     }

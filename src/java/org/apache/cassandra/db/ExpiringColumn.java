@@ -22,8 +22,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 
-import org.apache.log4j.Logger;
-
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -40,8 +38,6 @@ import org.apache.cassandra.utils.ByteBufferUtil;
  */
 public class ExpiringColumn extends Column
 {
-    private static Logger logger = Logger.getLogger(ExpiringColumn.class);
-
     private final int localExpirationTime;
     private final int timeToLive;
 

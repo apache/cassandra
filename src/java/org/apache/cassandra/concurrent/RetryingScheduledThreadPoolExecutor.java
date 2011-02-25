@@ -23,8 +23,6 @@ package org.apache.cassandra.concurrent;
 
 import java.util.concurrent.*;
 
-import org.apache.log4j.Logger;
-
 public class RetryingScheduledThreadPoolExecutor extends ScheduledThreadPoolExecutor
 {
     public RetryingScheduledThreadPoolExecutor(String threadPoolName, int priority)

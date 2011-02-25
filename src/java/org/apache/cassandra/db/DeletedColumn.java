@@ -20,15 +20,10 @@ package org.apache.cassandra.db;
 
 import java.nio.ByteBuffer;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class DeletedColumn extends Column
-{
-    private static Logger logger = LoggerFactory.getLogger(DeletedColumn.class);
-    
+{    
     public DeletedColumn(ByteBuffer name, int localDeletionTime, long timestamp)
     {
         this(name, ByteBufferUtil.bytes(localDeletionTime), timestamp);
