@@ -382,7 +382,11 @@ public class QueryProcessor
         CqlParser parser = getParser(queryString);
         CQLStatement statement = parser.query();
         parser.throwLastRecognitionError();
-        String keyspace = clientState.getKeyspace();
+        String keyspace = null;
+        
+        // Chicken-and-egg; No keyspace to get when we're setting one. 
+        if (statement.type != StatementType.USE)
+            keyspace = clientState.getKeyspace();
         
         CqlResult avroResult = new CqlResult();
         

@@ -640,7 +640,8 @@ public class CassandraServer implements Cassandra.Iface
         return DatabaseDescriptor.getEndpointSnitch().getClass().getName();
     }
 
-    public List<String> describe_splits(String cfName, String start_token, String end_token, int keys_per_split) throws TException
+    public List<String> describe_splits(String cfName, String start_token, String end_token, int keys_per_split)
+    throws TException, InvalidRequestException
     {
         // TODO: add keyspace authorization call post CASSANDRA-1425
         Token.TokenFactory tf = StorageService.getPartitioner().getTokenFactory();

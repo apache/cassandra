@@ -55,8 +55,10 @@ public class ClientState
         reset();
     }
     
-    public String getKeyspace()
+    public String getKeyspace() throws InvalidRequestException
     {
+        if (keyspace == null)
+            throw new InvalidRequestException("no keyspace has been specified");
         return keyspace;
     }
 

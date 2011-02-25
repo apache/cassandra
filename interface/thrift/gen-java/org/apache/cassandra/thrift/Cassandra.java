@@ -143,6 +143,11 @@ public class Cassandra {
      * that all the values in column_path besides column_path.column_family are truly optional: you can remove the entire
      * row by just specifying the ColumnFamily, or you can remove a SuperColumn or a single Column by specifying those levels too.
      * 
+     * Note that counters have limited support for deletes: if you remove
+     * a counter, you must wait to issue any following update until the
+     * delete has reached all the nodes and all of them have been fully
+     * compacted.
+     * 
      * @param key
      * @param column_path
      * @param timestamp
@@ -294,7 +299,7 @@ public class Cassandra {
      * @param end_token
      * @param keys_per_split
      */
-    public List<String> describe_splits(String cfName, String start_token, String end_token, int keys_per_split) throws TException;
+    public List<String> describe_splits(String cfName, String start_token, String end_token, int keys_per_split) throws InvalidRequestException, TException;
 
     /**
      * adds a column family. returns the new schema id.
@@ -1620,7 +1625,7 @@ public class Cassandra {
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "describe_keyspace failed: unknown result");
     }
 
-    public List<String> describe_splits(String cfName, String start_token, String end_token, int keys_per_split) throws TException
+    public List<String> describe_splits(String cfName, String start_token, String end_token, int keys_per_split) throws InvalidRequestException, TException
     {
       send_describe_splits(cfName, start_token, end_token, keys_per_split);
       return recv_describe_splits();
@@ -1639,7 +1644,7 @@ public class Cassandra {
       oprot_.getTransport().flush();
     }
 
-    public List<String> recv_describe_splits() throws TException
+    public List<String> recv_describe_splits() throws InvalidRequestException, TException
     {
       TMessage msg = iprot_.readMessageBegin();
       if (msg.type == TMessageType.EXCEPTION) {
@@ -1655,6 +1660,9 @@ public class Cassandra {
       iprot_.readMessageEnd();
       if (result.isSetSuccess()) {
         return result.success;
+      }
+      if (result.ire != null) {
+        throw result.ire;
       }
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "describe_splits failed: unknown result");
     }
@@ -2929,7 +2937,7 @@ public class Cassandra {
         prot.writeMessageEnd();
       }
 
-      public List<String> getResult() throws TException {
+      public List<String> getResult() throws InvalidRequestException, TException {
         if (getState() != State.RESPONSE_READ) {
           throw new IllegalStateException("Method call not finished!");
         }
@@ -4298,7 +4306,19 @@ public class Cassandra {
         }
         iprot.readMessageEnd();
         describe_splits_result result = new describe_splits_result();
-        result.success = iface_.describe_splits(args.cfName, args.start_token, args.end_token, args.keys_per_split);
+        try {
+          result.success = iface_.describe_splits(args.cfName, args.start_token, args.end_token, args.keys_per_split);
+        } catch (InvalidRequestException ire) {
+          result.ire = ire;
+        } catch (Throwable th) {
+          LOGGER.error("Internal error processing describe_splits", th);
+          TApplicationException x = new TApplicationException(TApplicationException.INTERNAL_ERROR, "Internal error processing describe_splits");
+          oprot.writeMessageBegin(new TMessage("describe_splits", TMessageType.EXCEPTION, seqid));
+          x.write(oprot);
+          oprot.writeMessageEnd();
+          oprot.getTransport().flush();
+          return;
+        }
         oprot.writeMessageBegin(new TMessage("describe_splits", TMessageType.REPLY, seqid));
         result.write(oprot);
         oprot.writeMessageEnd();
@@ -30156,12 +30176,15 @@ public class Cassandra {
     private static final TStruct STRUCT_DESC = new TStruct("describe_splits_result");
 
     private static final TField SUCCESS_FIELD_DESC = new TField("success", TType.LIST, (short)0);
+    private static final TField IRE_FIELD_DESC = new TField("ire", TType.STRUCT, (short)1);
 
     public List<String> success;
+    public InvalidRequestException ire;
 
     /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
     public enum _Fields implements TFieldIdEnum {
-      SUCCESS((short)0, "success");
+      SUCCESS((short)0, "success"),
+      IRE((short)1, "ire");
 
       private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -30178,6 +30201,8 @@ public class Cassandra {
         switch(fieldId) {
           case 0: // SUCCESS
             return SUCCESS;
+          case 1: // IRE
+            return IRE;
           default:
             return null;
         }
@@ -30225,6 +30250,8 @@ public class Cassandra {
       tmpMap.put(_Fields.SUCCESS, new FieldMetaData("success", TFieldRequirementType.DEFAULT, 
           new ListMetaData(TType.LIST, 
               new FieldValueMetaData(TType.STRING))));
+      tmpMap.put(_Fields.IRE, new FieldMetaData("ire", TFieldRequirementType.DEFAULT, 
+          new FieldValueMetaData(TType.STRUCT)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       FieldMetaData.addStructMetaDataMap(describe_splits_result.class, metaDataMap);
     }
@@ -30233,10 +30260,12 @@ public class Cassandra {
     }
 
     public describe_splits_result(
-      List<String> success)
+      List<String> success,
+      InvalidRequestException ire)
     {
       this();
       this.success = success;
+      this.ire = ire;
     }
 
     /**
@@ -30250,6 +30279,9 @@ public class Cassandra {
         }
         this.success = __this__success;
       }
+      if (other.isSetIre()) {
+        this.ire = new InvalidRequestException(other.ire);
+      }
     }
 
     public describe_splits_result deepCopy() {
@@ -30259,6 +30291,7 @@ public class Cassandra {
     @Override
     public void clear() {
       this.success = null;
+      this.ire = null;
     }
 
     public int getSuccessSize() {
@@ -30300,6 +30333,30 @@ public class Cassandra {
       }
     }
 
+    public InvalidRequestException getIre() {
+      return this.ire;
+    }
+
+    public describe_splits_result setIre(InvalidRequestException ire) {
+      this.ire = ire;
+      return this;
+    }
+
+    public void unsetIre() {
+      this.ire = null;
+    }
+
+    /** Returns true if field ire is set (has been asigned a value) and false otherwise */
+    public boolean isSetIre() {
+      return this.ire != null;
+    }
+
+    public void setIreIsSet(boolean value) {
+      if (!value) {
+        this.ire = null;
+      }
+    }
+
     public void setFieldValue(_Fields field, Object value) {
       switch (field) {
       case SUCCESS:
@@ -30310,6 +30367,14 @@ public class Cassandra {
         }
         break;
 
+      case IRE:
+        if (value == null) {
+          unsetIre();
+        } else {
+          setIre((InvalidRequestException)value);
+        }
+        break;
+
       }
     }
 
@@ -30317,6 +30382,9 @@ public class Cassandra {
       switch (field) {
       case SUCCESS:
         return getSuccess();
+
+      case IRE:
+        return getIre();
 
       }
       throw new IllegalStateException();
@@ -30331,6 +30399,8 @@ public class Cassandra {
       switch (field) {
       case SUCCESS:
         return isSetSuccess();
+      case IRE:
+        return isSetIre();
       }
       throw new IllegalStateException();
     }
@@ -30357,6 +30427,15 @@ public class Cassandra {
           return false;
       }
 
+      boolean this_present_ire = true && this.isSetIre();
+      boolean that_present_ire = true && that.isSetIre();
+      if (this_present_ire || that_present_ire) {
+        if (!(this_present_ire && that_present_ire))
+          return false;
+        if (!this.ire.equals(that.ire))
+          return false;
+      }
+
       return true;
     }
 
@@ -30368,6 +30447,11 @@ public class Cassandra {
       builder.append(present_success);
       if (present_success)
         builder.append(success);
+
+      boolean present_ire = true && (isSetIre());
+      builder.append(present_ire);
+      if (present_ire)
+        builder.append(ire);
 
       return builder.toHashCode();
     }
@@ -30386,6 +30470,16 @@ public class Cassandra {
       }
       if (isSetSuccess()) {
         lastComparison = TBaseHelper.compareTo(this.success, typedOther.success);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetIre()).compareTo(typedOther.isSetIre());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      if (isSetIre()) {
+        lastComparison = TBaseHelper.compareTo(this.ire, typedOther.ire);
         if (lastComparison != 0) {
           return lastComparison;
         }
@@ -30424,6 +30518,14 @@ public class Cassandra {
               TProtocolUtil.skip(iprot, field.type);
             }
             break;
+          case 1: // IRE
+            if (field.type == TType.STRUCT) {
+              this.ire = new InvalidRequestException();
+              this.ire.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
           default:
             TProtocolUtil.skip(iprot, field.type);
         }
@@ -30449,6 +30551,10 @@ public class Cassandra {
           oprot.writeListEnd();
         }
         oprot.writeFieldEnd();
+      } else if (this.isSetIre()) {
+        oprot.writeFieldBegin(IRE_FIELD_DESC);
+        this.ire.write(oprot);
+        oprot.writeFieldEnd();
       }
       oprot.writeFieldStop();
       oprot.writeStructEnd();
@@ -30464,6 +30570,14 @@ public class Cassandra {
         sb.append("null");
       } else {
         sb.append(this.success);
+      }
+      first = false;
+      if (!first) sb.append(", ");
+      sb.append("ire:");
+      if (this.ire == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.ire);
       }
       first = false;
       sb.append(")");
