@@ -69,8 +69,6 @@ public class ThriftValidation
 
     public static ColumnFamilyType validateColumnFamily(String tablename, String cfName) throws InvalidRequestException
     {
-        if (tablename == null)
-            throw new InvalidRequestException("no keyspace has been specified");
         if (cfName.isEmpty())
         {
             throw new InvalidRequestException("non-empty columnfamily is required");
