@@ -49,7 +49,7 @@ public class UpdateColumnFamily extends Migration
         {
             for (ColumnDef entry : cf_def.column_metadata)
             {
-                if (entry.index_name != null && !Migration.isLegalName((String) entry.index_name))
+                if (entry.index_name != null && !Migration.isLegalName(entry.index_name.toString()))
                     throw new ConfigurationException("Invalid index name: " + entry.index_name);
             }
         }
