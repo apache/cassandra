@@ -33,6 +33,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.antlr.runtime.*;
+import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.CFMetaData;
@@ -199,13 +200,22 @@ public class QueryProcessor
         return rows;
     }
     
-    private static void batchUpdate(String keyspace, List<UpdateStatement> updateStatements, ConsistencyLevel consistency)
+    private static void batchUpdate(ClientState clientState, List<UpdateStatement> updateStatements, ConsistencyLevel consistency)
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
+        String keyspace = clientState.getKeyspace();
         List<RowMutation> rowMutations = new ArrayList<RowMutation>();
+        List<String> cfamsSeen = new ArrayList<String>();
 
         for (UpdateStatement update : updateStatements)
         {
+            // Avoid unnecessary authorizations.
+            if (!(cfamsSeen.contains(update.getColumnFamily())))
+            {
+                clientState.hasColumnFamilyAccess(update.getColumnFamily(), Permission.WRITE);
+                cfamsSeen.add(update.getColumnFamily());
+            }
+            
             ByteBuffer key = update.getKey().getByteBuffer();
             validateKey(key);
             validateColumnFamily(keyspace, update.getColumnFamily());
@@ -396,6 +406,7 @@ public class QueryProcessor
         {
             case SELECT:
                 SelectStatement select = (SelectStatement)statement.statement;
+                clientState.hasColumnFamilyAccess(select.getColumnFamily(), Permission.READ);
                 validateColumnFamily(keyspace, select.getColumnFamily());
                 validateSelect(keyspace, select);
                 
@@ -468,7 +479,7 @@ public class QueryProcessor
                 
             case UPDATE:
                 UpdateStatement update = (UpdateStatement)statement.statement;
-                batchUpdate(keyspace, Collections.singletonList(update), update.getConsistencyLevel());
+                batchUpdate(clientState, Collections.singletonList(update), update.getConsistencyLevel());
                 avroResult.type = CqlResultType.VOID;
                 return avroResult;
                 
@@ -480,7 +491,7 @@ public class QueryProcessor
                         throw new InvalidRequestException(
                                 "Consistency level must be set on the BATCH, not individual UPDATE statements");
                 
-                batchUpdate(keyspace, batch.getUpdates(), batch.getConsistencyLevel());
+                batchUpdate(clientState, batch.getUpdates(), batch.getConsistencyLevel());
                 avroResult.type = CqlResultType.VOID;
                 return avroResult;
                 
@@ -492,6 +503,7 @@ public class QueryProcessor
             
             case TRUNCATE:
                 String columnFamily = (String)statement.statement;
+                clientState.hasColumnFamilyAccess(columnFamily, Permission.WRITE);
                 
                 try
                 {
@@ -511,6 +523,7 @@ public class QueryProcessor
             
             case DELETE:
                 DeleteStatement delete = (DeleteStatement)statement.statement;
+                clientState.hasColumnFamilyAccess(delete.getColumnFamily(), Permission.WRITE);
                 
                 List<RowMutation> rowMutations = new ArrayList<RowMutation>();
                 for (Term key : delete.getKeys())
@@ -545,6 +558,7 @@ public class QueryProcessor
             case CREATE_KEYSPACE:
                 CreateKeyspaceStatement create = (CreateKeyspaceStatement)statement.statement;
                 create.validate();
+                clientState.hasKeyspaceListAccess(Permission.WRITE);
                 
                 try
                 {
@@ -572,6 +586,7 @@ public class QueryProcessor
                
             case CREATE_COLUMNFAMILY:
                 CreateColumnFamilyStatement createCf = (CreateColumnFamilyStatement)statement.statement;
+                clientState.hasColumnFamilyListAccess(Permission.WRITE);
                 
                 try
                 {
@@ -595,6 +610,7 @@ public class QueryProcessor
                 
             case CREATE_INDEX:
                 CreateIndexStatement createIdx = (CreateIndexStatement)statement.statement;
+                clientState.hasColumnFamilyListAccess(Permission.WRITE);
                 CFMetaData oldCfm = DatabaseDescriptor.getCFMetaData(CFMetaData.getId(keyspace,
                                                                                       createIdx.getColumnFamily()));
                 if (oldCfm == null)
