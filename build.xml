@@ -61,9 +61,8 @@
               value="http://repo2.maven.org/maven2/org/apache/maven/maven-ant-tasks" />
 
     <!-- http://cobertura.sourceforge.net/ -->
+    <property name="cobertura.version" value="1.9.4.1"/>
     <property name="cobertura.build.dir" value="${build.dir}/cobertura"/>
-    <!-- can't include due to licensing, specify jar via command line -->
-    <property name="cobertura.dir" value="/tmp"/>
     <property name="cobertura.report.dir" value="${cobertura.build.dir}/report"/>
     <property name="cobertura.classes.dir" value="${cobertura.build.dir}/classes"/>
     <property name="cobertura.datafile" value="${cobertura.build.dir}/cobertura.ser"/>
@@ -188,6 +187,11 @@
           <remoteRepository refid="cloudera"/>
           <remoteRepository refid="java.net2"/>
       </artifact:dependencies>
+      <artifact:dependencies pathId="cobertura.classpath">
+          <dependency groupId="net.sourceforge.cobertura" artifactId="cobertura" version="${cobertura.version}"/>
+          <remoteRepository refid="central"/>
+      </artifact:dependencies>
+
       <copy todir="${build.dir.lib}/jars">
           <fileset refid="build-dependency-jars"/>
           <mapper type="flatten"/>
@@ -544,7 +548,7 @@
         <classpath>
           <path refid="cassandra.classpath" />
           <pathelement location="${test.classes}"/>
-          <pathelement location="${cobertura.dir}/cobertura.jar"/>
+          <path refid="cobertura.classpath"/>
           <pathelement location="${test.conf}"/>
           <fileset dir="${test.lib}">
             <include name="**/*.jar" />
@@ -600,12 +604,7 @@
   <!-- instruments the classes to later create code coverage reports -->
   <target name="cobertura-instrument" depends="build,build-test">
     <taskdef resource="tasks.properties">
-      <classpath>
-        <fileset dir="${cobertura.dir}">
-            <include name="cobertura.jar" />
-            <include name="lib/**/*.jar" />
-        </fileset>
-      </classpath>
+      <classpath refid="cobertura.classpath"/>
     </taskdef>
 
     <delete file="${cobertura.datafile}"/>
