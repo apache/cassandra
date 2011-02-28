@@ -40,42 +40,41 @@ public abstract class AbstractType implements Comparator<ByteBuffer>
 {
     public final Comparator<IndexInfo> indexComparator;
     public final Comparator<IndexInfo> indexReverseComparator;
+    public final Comparator<IColumn> columnComparator;
+    public final Comparator<IColumn> columnReverseComparator;
+    public final Comparator<ByteBuffer> reverseComparator;
 
     protected AbstractType()
     {
-        final AbstractType that = this;
         indexComparator = new Comparator<IndexInfo>()
         {
             public int compare(IndexInfo o1, IndexInfo o2)
             {
-                return that.compare(o1.lastName, o2.lastName);
+                return AbstractType.this.compare(o1.lastName, o2.lastName);
             }
         };
         indexReverseComparator = new Comparator<IndexInfo>()
         {
             public int compare(IndexInfo o1, IndexInfo o2)
             {
-                return that.compare(o1.firstName, o2.firstName);
+                return AbstractType.this.compare(o1.firstName, o2.firstName);
             }
         };
-    }
-
-    /** get a string representation of the bytes suitable for log messages */
-    public abstract String getString(ByteBuffer bytes);
-
-    /** get a byte representation of the given string.
-     *  defaults to unsupportedoperation so people deploying custom Types can update at their leisure. */
-    public ByteBuffer fromString(String source)
-    {
-        throw new UnsupportedOperationException();
-    }
-
-    /* validate that the byte array is a valid sequence for the type we are supposed to be comparing */
-    public abstract void validate(ByteBuffer bytes) throws MarshalException;
-
-    public Comparator<ByteBuffer> getReverseComparator()
-    {
-        return new Comparator<ByteBuffer>()
+        columnComparator = new Comparator<IColumn>()
+        {
+            public int compare(IColumn c1, IColumn c2)
+            {
+                return AbstractType.this.compare(c1.name(), c2.name());
+            }
+        };
+        columnReverseComparator = new Comparator<IColumn>()
+        {
+            public int compare(IColumn c1, IColumn c2)
+            {
+                return AbstractType.this.compare(c2.name(), c1.name());
+            }
+        };
+        reverseComparator = new Comparator<ByteBuffer>()
         {
             public int compare(ByteBuffer o1, ByteBuffer o2)
             {
@@ -92,6 +91,25 @@ public abstract class AbstractType implements Comparator<ByteBuffer>
             }
         };
     }
+
+    /** @deprecated; use reverseComparator field instead */
+    public Comparator<ByteBuffer> getReverseComparator()
+    {
+        return reverseComparator;
+    }
+
+    /** get a string representation of the bytes suitable for log messages */
+    public abstract String getString(ByteBuffer bytes);
+
+    /** get a byte representation of the given string.
+     *  defaults to unsupportedoperation so people deploying custom Types can update at their leisure. */
+    public ByteBuffer fromString(String source)
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    /* validate that the byte array is a valid sequence for the type we are supposed to be comparing */
+    public abstract void validate(ByteBuffer bytes) throws MarshalException;
 
     /* convenience method */
     public String getString(Collection<ByteBuffer> names)
