@@ -332,6 +332,16 @@ public class NodeProbe
         ssProxy.clearSnapshot();
     }
 
+    public boolean isJoined()
+    {
+        return ssProxy.isJoined();
+    }
+
+    public void joinRing() throws IOException, ConfigurationException
+    {
+        ssProxy.joinRing();
+    }
+
     public void decommission() throws InterruptedException
     {
         ssProxy.decommission();

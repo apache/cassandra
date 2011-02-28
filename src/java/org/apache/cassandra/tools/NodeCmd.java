@@ -31,6 +31,8 @@ import java.util.Map.Entry;
 import java.util.concurrent.ExecutionException;
 
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.config.ConfigurationException;
+
 import org.apache.commons.cli.*;
 
 import org.apache.cassandra.cache.JMXInstrumentedCacheMBean;
@@ -74,7 +76,7 @@ public class NodeCmd
         DECOMMISSION, MOVE, LOADBALANCE, REMOVETOKEN, REPAIR, CLEANUP, COMPACT, SCRUB,
         SETCACHECAPACITY, GETCOMPACTIONTHRESHOLD, SETCOMPACTIONTHRESHOLD, NETSTATS, CFHISTOGRAMS,
         COMPACTIONSTATS, DISABLEGOSSIP, ENABLEGOSSIP, INVALIDATEKEYCACHE, INVALIDATEROWCACHE,
-        DISABLETHRIFT, ENABLETHRIFT
+        DISABLETHRIFT, ENABLETHRIFT, JOIN
     }
 
     
@@ -88,6 +90,7 @@ public class NodeCmd
         header.append("\nAvailable commands:\n");
         // No args
         addCmdHelp(header, "ring", "Print informations on the token ring");
+        addCmdHelp(header, "join", "Join the ring");
         addCmdHelp(header, "info", "Print node informations (uptime, load, ...)");
         addCmdHelp(header, "cfstats", "Print statistics on column families");
         addCmdHelp(header, "clearsnapshot", "Remove all existing snapshots");
@@ -465,7 +468,7 @@ public class NodeCmd
         }
     }
 
-    public static void main(String[] args) throws IOException, InterruptedException, ParseException
+    public static void main(String[] args) throws IOException, InterruptedException, ConfigurationException, ParseException
     {
         CommandLineParser parser = new PosixParser();
         ToolCommandLine cmd = null;
@@ -559,6 +562,16 @@ public class NodeCmd
             case MOVE :
                 if (arguments.length != 1) { badUse("Missing token argument for move."); }
                 probe.move(arguments[0]);
+                break;
+
+            case JOIN:
+                if (probe.isJoined())
+                {
+                    System.err.println("This node has already joined the ring.");
+                    System.exit(1);
+                }
+
+                probe.joinRing();
                 break;
 
             case REMOVETOKEN :
