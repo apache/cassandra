@@ -325,7 +325,7 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<org.apache.cass
                 }
 
                 Map<ByteBuffer, Map<String, List<Mutation>>> batch = new HashMap<ByteBuffer, Map<String, List<Mutation>>>();
-                while (batch.size() < batchThreshold || mutation != null)
+                while (batch.size() < batchThreshold)
                 {
                     Map<String, List<Mutation>> subBatch = batch.get(mutation.left);
                     if (subBatch == null)
@@ -335,7 +335,6 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<org.apache.cass
                     }
                     
                     subBatch.get(columnFamily).add(mutation.right);
-                    mutation = null;
                     if ((mutation = queue.poll()) == null)
                         break;
                 }
