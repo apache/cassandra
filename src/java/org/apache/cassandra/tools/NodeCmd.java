@@ -30,6 +30,7 @@ import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.ExecutionException;
 
+import org.apache.cassandra.utils.Pair;
 import org.apache.commons.cli.*;
 
 import org.apache.cassandra.cache.JMXInstrumentedCacheMBean;
@@ -40,29 +41,26 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.net.MessagingServiceMBean;
 import org.apache.cassandra.utils.EstimatedHistogram;
 
-public class NodeCmd {
-    private static final String HOST_OPT_LONG = "host";
-    private static final String HOST_OPT_SHORT = "h";
-    private static final String PORT_OPT_LONG = "port";
-    private static final String PORT_OPT_SHORT = "p";
-    private static final String USERNAME_OPT_LONG = "username";
-    private static final String USERNAME_OPT_SHORT = "u";
-    private static final String PASSWORD_OPT_LONG = "password";
-    private static final String PASSWORD_OPT_SHORT = "pw";
-    private static final int defaultPort = 8080;
-    private static Options options = null;
+public class NodeCmd
+{
+    private static final Pair<String, String> HOST_OPT = new Pair<String, String>("h", "host");
+    private static final Pair<String, String> PORT_OPT = new Pair<String, String>("p", "port");
+    private static final Pair<String, String> USERNAME_OPT = new Pair<String, String>("u",  "username");
+    private static final Pair<String, String> PASSWORD_OPT = new Pair<String, String>("pw", "password");
+    private static final int DEFAULT_PORT = 8080;
+
+    private static ToolOptions options = null;
     
     private NodeProbe probe;
     
     static
     {
-        options = new Options();
-        Option optHost = new Option(HOST_OPT_SHORT, HOST_OPT_LONG, true, "node hostname or ip address");
-        optHost.setRequired(true);
-        options.addOption(optHost);
-        options.addOption(PORT_OPT_SHORT, PORT_OPT_LONG, true, "remote jmx agent port number");
-        options.addOption(USERNAME_OPT_SHORT, USERNAME_OPT_LONG, true, "remote jmx agent username");
-        options.addOption(PASSWORD_OPT_SHORT, PASSWORD_OPT_LONG, true, "remote jmx agent password");
+        options = new ToolOptions();
+
+        options.addOption(HOST_OPT,     true, "node hostname or ip address", true);
+        options.addOption(PORT_OPT,     true, "remote jmx agent port number");
+        options.addOption(USERNAME_OPT, true, "remote jmx agent username");
+        options.addOption(PASSWORD_OPT, true, "remote jmx agent password");
     }
     
     public NodeCmd(NodeProbe probe)
@@ -70,7 +68,8 @@ public class NodeCmd {
         this.probe = probe;
     }
 
-    public enum NodeCommand {
+    public enum NodeCommand
+    {
         RING, INFO, CFSTATS, SNAPSHOT, CLEARSNAPSHOT, VERSION, TPSTATS, FLUSH, DRAIN,
         DECOMMISSION, MOVE, LOADBALANCE, REMOVETOKEN, REPAIR, CLEANUP, COMPACT, SCRUB,
         SETCACHECAPACITY, GETCOMPACTIONTHRESHOLD, SETCOMPACTIONTHRESHOLD, NETSTATS, CFHISTOGRAMS,
@@ -469,21 +468,21 @@ public class NodeCmd {
     public static void main(String[] args) throws IOException, InterruptedException, ParseException
     {
         CommandLineParser parser = new PosixParser();
-        CommandLine cmd = null;
-        
+        ToolCommandLine cmd = null;
+
         try
         {
-            cmd = parser.parse(options, args);
+            cmd = new ToolCommandLine(parser.parse(options, args));
         }
-        catch (ParseException parseExcep)
+        catch (ParseException p)
         {
-            badUse(parseExcep.toString());
+            badUse(p.getMessage());
         }
 
-        String host = cmd.getOptionValue(HOST_OPT_LONG);
-        int port = defaultPort;
+        String host = cmd.getOptionValue(HOST_OPT.left);
+        int port = DEFAULT_PORT;
         
-        String portNum = cmd.getOptionValue(PORT_OPT_LONG);
+        String portNum = cmd.getOptionValue(PORT_OPT.left);
         if (portNum != null)
         {
             try
@@ -495,8 +494,9 @@ public class NodeCmd {
                 throw new ParseException("Port must be a number");
             }
         }
-        String username = cmd.getOptionValue(USERNAME_OPT_LONG);
-        String password = cmd.getOptionValue(PASSWORD_OPT_LONG);
+
+        String username = cmd.getOptionValue(USERNAME_OPT.left);
+        String password = cmd.getOptionValue(PASSWORD_OPT.left);
         
         NodeProbe probe = null;
         try
@@ -507,28 +507,25 @@ public class NodeCmd {
         {
             err(ioe, "Error connection to remote JMX agent!");
         }
-        
-        if (cmd.getArgs().length < 1)
-            badUse("Missing argument for command.");
 
-        NodeCmd nodeCmd = new NodeCmd(probe);
-        
-        // Execute the requested command.
-        String[] arguments = cmd.getArgs();
-        String cmdName = arguments[0];
+        NodeCommand command = null;
 
-        boolean validCommand = false;
-        for (NodeCommand n : NodeCommand.values())
+        try
         {
-            if (cmdName.toUpperCase().equals(n.name()))
-                validCommand = true;
+            command = cmd.getCommand();
+        }
+        catch (IllegalArgumentException e)
+        {
+            badUse(e.getMessage());
         }
 
-        if (!validCommand)
-            badUse("Unrecognized command: " + cmdName);
 
-        NodeCommand nc = NodeCommand.valueOf(cmdName.toUpperCase());
-        switch (nc)
+        NodeCmd nodeCmd = new NodeCmd(probe);
+
+        // Execute the requested command.
+        String[] arguments = cmd.getCommandArguments();
+
+        switch (command)
         {
             case RING            : nodeCmd.printRing(System.out); break;
             case INFO            : nodeCmd.printInfo(System.out); break;
@@ -550,25 +547,25 @@ public class NodeCmd {
                 break;
 
             case NETSTATS :
-                if (arguments.length > 1) { nodeCmd.printNetworkStats(InetAddress.getByName(arguments[1]), System.out); }
+                if (arguments.length > 0) { nodeCmd.printNetworkStats(InetAddress.getByName(arguments[0]), System.out); }
                 else                      { nodeCmd.printNetworkStats(null, System.out); }
                 break;
 
             case SNAPSHOT :
-                if (arguments.length > 1) { probe.takeSnapshot(arguments[1]); }
+                if (arguments.length > 0) { probe.takeSnapshot(arguments[0]); }
                 else                      { probe.takeSnapshot(""); }
                 break;
 
             case MOVE :
-                if (arguments.length != 2) { badUse("Missing token argument for move."); }
-                probe.move(arguments[1]);
+                if (arguments.length != 1) { badUse("Missing token argument for move."); }
+                probe.move(arguments[0]);
                 break;
 
             case REMOVETOKEN :
-                if (arguments.length != 2) { badUse("Missing an argument for removetoken (either status, force, or a token)"); }
-                else if (arguments[1].equals("status")) { nodeCmd.printRemovalStatus(System.out); }
-                else if (arguments[1].equals("force"))  { nodeCmd.printRemovalStatus(System.out); probe.forceRemoveCompletion(); }
-                else                                    { probe.removeToken(arguments[1]); }
+                if (arguments.length != 1) { badUse("Missing an argument for removetoken (either status, force, or a token)"); }
+                else if (arguments[0].equals("status")) { nodeCmd.printRemovalStatus(System.out); }
+                else if (arguments[0].equals("force"))  { nodeCmd.printRemovalStatus(System.out); probe.forceRemoveCompletion(); }
+                else                                    { probe.removeToken(arguments[0]); }
                 break;
 
             case CLEANUP :
@@ -578,32 +575,32 @@ public class NodeCmd {
             case SCRUB   :
             case INVALIDATEKEYCACHE :
             case INVALIDATEROWCACHE :
-                optionalKSandCFs(nc, arguments, probe);
+                optionalKSandCFs(command, arguments, probe);
                 break;
 
             case GETCOMPACTIONTHRESHOLD :
-                if (arguments.length != 3) { badUse("getcompactionthreshold requires ks and cf args."); }
-                probe.getCompactionThreshold(System.out, arguments[1], arguments[2]);
+                if (arguments.length != 2) { badUse("getcompactionthreshold requires ks and cf args."); }
+                probe.getCompactionThreshold(System.out, arguments[0], arguments[1]);
                 break;
 
             case CFHISTOGRAMS :
-                if (arguments.length != 3) { badUse("cfhistograms requires ks and cf args"); }
-                nodeCmd.printCfHistograms(arguments[1], arguments[2], System.out);
+                if (arguments.length != 2) { badUse("cfhistograms requires ks and cf args"); }
+                nodeCmd.printCfHistograms(arguments[0], arguments[1], System.out);
                 break;
 
             case SETCACHECAPACITY :
-                if (arguments.length != 5) { badUse("setcachecapacity requires ks, cf, keycachecap, and rowcachecap args."); }
-                probe.setCacheCapacities(arguments[1], arguments[2], Integer.parseInt(arguments[3]), Integer.parseInt(arguments[4]));
+                if (arguments.length != 4) { badUse("setcachecapacity requires ks, cf, keycachecap, and rowcachecap args."); }
+                probe.setCacheCapacities(arguments[0], arguments[1], Integer.parseInt(arguments[2]), Integer.parseInt(arguments[3]));
                 break;
 
             case SETCOMPACTIONTHRESHOLD :
-                if (arguments.length != 5) { badUse("setcompactionthreshold requires ks, cf, min, and max threshold args."); }
-                int minthreshold = Integer.parseInt(arguments[3]);
-                int maxthreshold = Integer.parseInt(arguments[4]);
+                if (arguments.length != 4) { badUse("setcompactionthreshold requires ks, cf, min, and max threshold args."); }
+                int minthreshold = Integer.parseInt(arguments[2]);
+                int maxthreshold = Integer.parseInt(arguments[3]);
                 if ((minthreshold < 0) || (maxthreshold < 0)) { badUse("Thresholds must be positive integers"); }
                 if (minthreshold > maxthreshold)              { badUse("Min threshold cannot be greater than max."); }
                 if (minthreshold < 2 && maxthreshold != 0)    { badUse("Min threshold must be at least 2"); }
-                probe.setCompactionThreshold(arguments[1], arguments[2], minthreshold, maxthreshold);
+                probe.setCompactionThreshold(arguments[0], arguments[1], minthreshold, maxthreshold);
                 break;
 
             default :
@@ -630,9 +627,8 @@ public class NodeCmd {
 
     private static void optionalKSandCFs(NodeCommand nc, String[] cmdArgs, NodeProbe probe) throws InterruptedException, IOException
     {
-        // cmdArgs[0] is "scrub"
         // if there is one additional arg, it's the keyspace; more are columnfamilies
-        List<String> keyspaces = cmdArgs.length == 1 ? probe.getKeyspaces() : Arrays.asList(cmdArgs[1]);
+        List<String> keyspaces = cmdArgs.length == 0 ? probe.getKeyspaces() : Arrays.asList(cmdArgs[0]);
         for (String keyspace : keyspaces)
         {
             if (!probe.getKeyspaces().contains(keyspace))
@@ -645,7 +641,7 @@ public class NodeCmd {
         // second loop so we're less likely to die halfway through due to invalid keyspace
         for (String keyspace : keyspaces)
         {
-            String[] columnFamilies = cmdArgs.length <= 2 ? new String[0] : Arrays.copyOfRange(cmdArgs, 2, cmdArgs.length);
+            String[] columnFamilies = cmdArgs.length <= 1 ? new String[0] : Arrays.copyOfRange(cmdArgs, 1, cmdArgs.length);
             switch (nc)
             {
                 case REPAIR  : probe.forceTableRepair(keyspace, columnFamilies); break;
@@ -671,6 +667,84 @@ public class NodeCmd {
                 default:
                     throw new RuntimeException("Unreachable code.");
             }
+        }
+    }
+
+
+    private static class ToolOptions extends Options
+    {
+        public void addOption(Pair<String, String> opts, boolean hasArgument, String description)
+        {
+            addOption(opts, hasArgument, description, false);
+        }
+
+        public void addOption(Pair<String, String> opts, boolean hasArgument, String description, boolean required)
+        {
+            addOption(opts.left, opts.right, hasArgument, description, required);
+        }
+
+        public void addOption(String opt, String longOpt, boolean hasArgument, String description, boolean required)
+        {
+            Option option = new Option(opt, longOpt, hasArgument, description);
+            option.setRequired(required);
+            addOption(option);
+        }
+    }
+
+    private static class ToolCommandLine
+    {
+        private final CommandLine commandLine;
+
+        public ToolCommandLine(CommandLine commands)
+        {
+            commandLine = commands;
+        }
+
+        public Option[] getOptions()
+        {
+            return commandLine.getOptions();
+        }
+
+        public boolean hasOption(String opt)
+        {
+            return commandLine.hasOption(opt);
+        }
+
+        public String getOptionValue(String opt)
+        {
+            return commandLine.getOptionValue(opt);
+        }
+
+        public NodeCommand getCommand()
+        {
+            if (commandLine.getArgs().length == 0)
+                throw new IllegalArgumentException("Command was not specified.");
+
+            String command = commandLine.getArgs()[0];
+
+            try
+            {
+                return NodeCommand.valueOf(command.toUpperCase());
+            }
+            catch (IllegalArgumentException e)
+            {
+                throw new IllegalArgumentException("Unrecognized command: " + command);
+            }
+        }
+
+        public String[] getCommandArguments()
+        {
+            List params = commandLine.getArgList();
+
+            if (params.size() < 2) // command parameters are empty
+                return new String[0];
+
+            String[] toReturn = new String[params.size() - 1];
+
+            for (int i = 1; i < params.size(); i++)
+                toReturn[i - 1] = (String) params.get(i);
+
+            return toReturn;
         }
     }
 }
