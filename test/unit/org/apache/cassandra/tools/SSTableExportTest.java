@@ -28,6 +28,7 @@ import java.util.Arrays;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.CounterColumn;
 import org.apache.cassandra.db.ExpiringColumn;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
@@ -132,7 +133,7 @@ public class SSTableExportTest extends SchemaLoader
         
         JSONArray rowB = (JSONArray)json.get(asHex("rowB"));
         JSONArray colB = (JSONArray)rowB.get(0);
-        assert !(Boolean)colB.get(3);
+        assert colB.size() == 3;
 
         JSONArray rowExclude = (JSONArray)json.get(asHex("rowExclude"));
         assert rowExclude == null;
@@ -174,7 +175,7 @@ public class SSTableExportTest extends SchemaLoader
         JSONArray colA = (JSONArray)subColumns.get(0);
         JSONObject rowExclude = (JSONObject)json.get(asHex("rowExclude"));
         assert hexToBytes((String)colA.get(1)).equals(ByteBufferUtil.bytes("valA"));
-        assert !(Boolean)colA.get(3);
+        assert colA.size() == 3;
         assert rowExclude == null;
     }
     
@@ -214,5 +215,32 @@ public class SSTableExportTest extends SchemaLoader
         qf = QueryFilter.getNamesFilter(Util.dk("rowExclude"), new QueryPath("Standard1", null, null), ByteBufferUtil.bytes("name"));
         cf = qf.getSSTableColumnIterator(reader).getColumnFamily();
         assert cf == null;
+    }
+
+    @Test
+    public void testExportCounterCf() throws IOException
+    {
+        File tempSS = tempSSTableFile("Keyspace1", "Counter1");
+        ColumnFamily cfamily = ColumnFamily.create("Keyspace1", "Counter1");
+        SSTableWriter writer = new SSTableWriter(tempSS.getPath(), 2);
+
+        // Add rowA
+        cfamily.addColumn(null, new CounterColumn(ByteBufferUtil.bytes("colA"), 42, System.currentTimeMillis()));
+        writer.append(Util.dk("rowA"), cfamily);
+        cfamily.clear();
+
+        SSTableReader reader = writer.closeAndOpenReader();
+
+        // Export to JSON and verify
+        File tempJson = File.createTempFile("Counter1", ".json");
+        SSTableExport.export(reader, new PrintStream(tempJson.getPath()), new String[0]);
+
+        JSONObject json = (JSONObject)JSONValue.parse(new FileReader(tempJson));
+
+        JSONArray rowA = (JSONArray)json.get(asHex("rowA"));
+        JSONArray colA = (JSONArray)rowA.get(0);
+        assert hexToBytes((String)colA.get(0)).equals(ByteBufferUtil.bytes("colA"));
+        assert ((String) colA.get(3)).equals("c");
+        assert (Long) colA.get(4) == Long.MIN_VALUE;
     }
 }

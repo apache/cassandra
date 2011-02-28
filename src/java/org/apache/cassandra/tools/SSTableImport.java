@@ -82,9 +82,14 @@ public class SSTableImport
         private ByteBuffer name;
         private ByteBuffer value;
         private long timestamp;
-        private boolean isDeleted;
+
+        private String kind;
+        // Expiring columns
         private int ttl;
         private int localExpirationTime;
+
+        // Counter columns
+        private long timestampOfLastDelete;
 
         public JsonColumn(T json, CFMetaData meta, boolean isSubColumn)
         {
@@ -94,21 +99,59 @@ public class SSTableImport
             {
                 List fields = (List<?>) json;
 
-                assert fields.size() == 4 || fields.size() == 6 : "Column definition should have 4 or 6 fields.";
+                assert fields.size() >= 3 : "Column definition should have at least 3";
 
                 name  = stringAsType((String) fields.get(0), comparator);
                 value = stringAsType((String) fields.get(1), meta.getValueValidator(name.duplicate()));
-
                 timestamp = (Long) fields.get(2);
-                isDeleted = (Boolean) fields.get(3);
+                kind = "";
 
-
-                if (fields.size() == 6)
+                if (fields.size() > 3)
                 {
-                    ttl = (Integer) fields.get(4);
-                    localExpirationTime = (int) (long) ((Long) fields.get(5));
+                    if (fields.get(3) instanceof Boolean)
+                    {
+                        // old format, reading this for backward compatibility sake
+                        if (fields.size() == 6)
+                        {
+                            kind = "e";
+                            ttl = (Integer) fields.get(4);
+                            localExpirationTime = (int) (long) ((Long) fields.get(5));
+                        }
+                        else
+                        {
+                            kind = ((Boolean) fields.get(3)) ? "d" : "";
+                        }
+                    }
+                    else
+                    {
+                        kind = (String) fields.get(3);
+                        if (isExpiring())
+                        {
+                            ttl = (Integer) fields.get(4);
+                            localExpirationTime = (int) (long) ((Long) fields.get(5));
+                        }
+                        else if (isCounter())
+                        {
+                            timestampOfLastDelete = (long) ((Integer) fields.get(4));
+                        }
+                    }
                 }
             }
+        }
+
+        public boolean isDeleted()
+        {
+            return kind.equals("d");
+        }
+
+        public boolean isExpiring()
+        {
+            return kind.equals("e");
+        }
+
+        public boolean isCounter()
+        {
+            return kind.equals("c");
         }
 
         public ByteBuffer getName()
@@ -144,11 +187,15 @@ public class SSTableImport
             JsonColumn col = new JsonColumn<List>((List) c, cfm, (superName != null));
             QueryPath path = new QueryPath(cfm.cfName, superName, col.getName());
 
-            if (col.ttl > 0)
+            if (col.isExpiring())
             {
                 cfamily.addColumn(null, new ExpiringColumn(col.getName(), col.getValue(), col.timestamp, col.ttl, col.localExpirationTime));
             }
-            else if (col.isDeleted)
+            else if (col.isCounter())
+            {
+                cfamily.addColumn(null, new CounterColumn(col.getName(), col.getValue(), col.timestamp, col.timestampOfLastDelete));
+            }
+            else if (col.isDeleted())
             {
                 cfamily.addTombstone(path, col.getValue(), col.timestamp);
             }

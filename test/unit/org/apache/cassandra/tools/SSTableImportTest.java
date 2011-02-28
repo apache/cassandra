@@ -24,6 +24,7 @@ import java.io.IOException;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.CounterColumn;
 import org.apache.cassandra.db.DeletedColumn;
 import org.apache.cassandra.db.ExpiringColumn;
 import org.apache.cassandra.db.IColumn;
@@ -72,6 +73,28 @@ public class SSTableImportTest extends SchemaLoader
     }
 
     @Test
+    public void testImportSimpleCfOldFormat() throws IOException
+    {
+        // Import JSON to temp SSTable file
+        String jsonUrl = getClass().getClassLoader().getResource("SimpleCF.oldformat.json").getPath();
+        File tempSS = tempSSTableFile("Keyspace1", "Standard1");
+        SSTableImport.importJson(jsonUrl, "Keyspace1", "Standard1", tempSS.getPath());
+
+        // Verify results
+        SSTableReader reader = SSTableReader.open(Descriptor.fromFilename(tempSS.getPath()));
+        QueryFilter qf = QueryFilter.getIdentityFilter(Util.dk("rowA"), new QueryPath("Standard1"));
+        IColumnIterator iter = qf.getSSTableColumnIterator(reader);
+        ColumnFamily cf = iter.getColumnFamily();
+        while (iter.hasNext()) cf.addColumn(iter.next());
+        assert cf.getColumn(ByteBufferUtil.bytes("colAA")).value().equals(hexToBytes("76616c4141"));
+        assert !(cf.getColumn(ByteBufferUtil.bytes("colAA")) instanceof DeletedColumn);
+        IColumn expCol = cf.getColumn(ByteBufferUtil.bytes("colAC"));
+        assert expCol.value().equals(hexToBytes("76616c4143"));
+        assert expCol instanceof ExpiringColumn;
+        assert ((ExpiringColumn)expCol).getTimeToLive() == 42 && expCol.getLocalDeletionTime() == 2000000000;
+    }
+
+    @Test
     public void testImportSuperCf() throws IOException, ParseException
     {
         String jsonUrl = getClass().getClassLoader().getResource("SuperCF.json").getPath();
@@ -101,5 +124,24 @@ public class SSTableImportTest extends SchemaLoader
         SSTableImport.setKeyCountToImport(3);
         int result = SSTableImport.importSorted(jsonUrl, columnFamily, tempSS.getPath(), partitioner);
         assert result == -1;
+    }
+
+    @Test
+    public void testImportCounterCf() throws IOException
+    {
+        // Import JSON to temp SSTable file
+        String jsonUrl = getClass().getClassLoader().getResource("CounterCF.json").getPath();
+        File tempSS = tempSSTableFile("Keyspace1", "Counter1");
+        SSTableImport.importJson(jsonUrl, "Keyspace1", "Counter1", tempSS.getPath());
+
+        // Verify results
+        SSTableReader reader = SSTableReader.open(Descriptor.fromFilename(tempSS.getPath()));
+        QueryFilter qf = QueryFilter.getIdentityFilter(Util.dk("rowA"), new QueryPath("Counter1"));
+        IColumnIterator iter = qf.getSSTableColumnIterator(reader);
+        ColumnFamily cf = iter.getColumnFamily();
+        while (iter.hasNext()) cf.addColumn(iter.next());
+        IColumn c = cf.getColumn(ByteBufferUtil.bytes("colAA"));
+        assert c instanceof CounterColumn: c;
+        assert ((CounterColumn) c).total() == 42;
     }
 }

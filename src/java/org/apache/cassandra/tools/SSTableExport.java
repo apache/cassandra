@@ -144,15 +144,27 @@ public class SSTableExport
         out.print(quote(validator.getString(value)));
         out.print(", ");
         out.print(column.timestamp());
-        out.print(", ");
-        out.print(column.isMarkedForDelete());
 
-        if (column instanceof ExpiringColumn)
+        if (column instanceof DeletedColumn)
         {
+            out.print(", ");
+            out.print("\"d\"");
+        }
+        else if (column instanceof ExpiringColumn)
+        {
+            out.print(", ");
+            out.print("\"e\"");
             out.print(", ");
             out.print(((ExpiringColumn) column).getTimeToLive());
             out.print(", ");
             out.print(column.getLocalDeletionTime());
+        }
+        else if (column instanceof CounterColumn)
+        {
+            out.print(", ");
+            out.print("\"c\"");
+            out.print(", ");
+            out.print(((CounterColumn) column).timestampOfLastDelete());
         }
 
         out.print("]");
