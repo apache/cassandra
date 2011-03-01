@@ -203,7 +203,7 @@ public class AvroValidation
         if (range.count < 0)
             throw newInvalidRequestException("Ranges require a non-negative count.");
 
-        Comparator<ByteBuffer> orderedComparator = range.reversed ? comparator.getReverseComparator() : comparator;
+        Comparator<ByteBuffer> orderedComparator = range.reversed ? comparator.reverseComparator : comparator;
         if (range.start.remaining() > 0 && range.finish.remaining() > 0 && orderedComparator.compare(range.start, range.finish) > 0)
             throw newInvalidRequestException("range finish must come after start in the order of traversal");
     }

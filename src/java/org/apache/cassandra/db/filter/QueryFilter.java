@@ -88,18 +88,6 @@ public class QueryFilter
         return superFilter.getSSTableColumnIterator(sstable, file, key);
     }
 
-    // here so it can be used by SQF and NQF.  non-package callers should call IFilter.getColumnComparator
-    static Comparator<IColumn> getColumnComparator(final Comparator<ByteBuffer> comparator)
-    {
-        return new Comparator<IColumn>()
-        {
-            public int compare(IColumn c1, IColumn c2)
-            {
-                return comparator.compare(c1.name(), c2.name());
-            }
-        };
-    }
-    
     public void collectCollatedColumns(final ColumnFamily returnCF, Iterator<IColumn> collatedColumns, final int gcBefore)
     {
         // define a 'reduced' iterator that merges columns w/ the same name, which
