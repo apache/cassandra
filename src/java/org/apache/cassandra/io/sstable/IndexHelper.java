@@ -89,22 +89,31 @@ public class IndexHelper
         return indexList;
 	}
 
+    public static Filter defreezeBloomFilter(FileDataInput file, boolean usesOldBloomFilter) throws IOException
+    {
+        return defreezeBloomFilter(file, Integer.MAX_VALUE, usesOldBloomFilter);
+    }
+
     /**
      * De-freeze the bloom filter.
      *
      * @param file - source file
+     * @param maxSize - sanity check: if filter claimes to be larger than this it is bogus
      * @param useOldBuffer - do we need to reuse old buffer?
      *
      * @return bloom filter summarizing the column information
      * @throws java.io.IOException if an I/O error occurs.
+     * Guarantees that file's current position will be just after the bloom filter, even if
+     * the filter cannot be deserialized, UNLESS EOFException is thrown.
      */
-    public static Filter defreezeBloomFilter(FileDataInput file, boolean useOldBuffer) throws IOException
+    public static Filter defreezeBloomFilter(FileDataInput file, long maxSize, boolean useOldBuffer) throws IOException
     {
         int size = file.readInt();
+        if (size > maxSize || size <= 0)
+            throw new EOFException("bloom filter claims to be longer than entire row size");
         ByteBuffer bytes = file.readBytes(size);
 
         DataInputStream stream = new DataInputStream(ByteBufferUtil.inputStream(bytes));
-
         return useOldBuffer
                 ? LegacyBloomFilter.serializer().deserialize(stream)
                 : BloomFilter.serializer().deserialize(stream);
