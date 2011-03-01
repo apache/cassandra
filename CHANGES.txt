@@ -1,8 +1,5 @@
 0.7.4
  * add nodetool join command (CASSANDRA-2160)
- * fix Hadoop ColumnFamilyOutputFormat dropping of mutations
-   when batch fills up (CASSANDRA-2255)
- * move file deletions off of scheduledtasks executor (CASSANDRA-2253)
 
 
 0.7.3
@@ -41,6 +38,9 @@
  * fix starting up on Windows when CASSANDRA_HOME contains whitespace
    (CASSANDRA-2237)
  * add [get|set][row|key]cacheSavePeriod to JMX (CASSANDRA-2100)
+ * fix Hadoop ColumnFamilyOutputFormat dropping of mutations
+   when batch fills up (CASSANDRA-2255)
+ * move file deletions off of scheduledtasks executor (CASSANDRA-2253)
 
 
 0.7.2

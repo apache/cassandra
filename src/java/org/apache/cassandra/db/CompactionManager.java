@@ -636,7 +636,7 @@ public class CompactionManager implements CompactionManagerMBean
                 cfs.replaceCompactedSSTables(Arrays.asList(sstable), Arrays.asList(newSstable));
                 logger.info("Scrub of " + sstable + " complete: " + goodRows + " rows in new sstable");
                 if (badRows > 0)
-                    logger.warn("Unable to recover " + badRows + " that were skipped.  You can attempt manual recovery from the pre-scrub snapshot.  You can also run nodetool repair to transfer the data from a healthy replica, if any");
+                    logger.warn("Unable to recover " + badRows + " rows that were skipped.  You can attempt manual recovery from the pre-scrub snapshot.  You can also run nodetool repair to transfer the data from a healthy replica, if any");
             }
             else
             {
