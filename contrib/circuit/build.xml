@@ -20,7 +20,7 @@
 <project basedir="." default="build" name="circuit">
     <property name="cassandra.dir" value="../.." />
     <property name="cassandra.lib" value="${cassandra.dir}/lib" />
-    <property name="cassandra.classes" value="${cassandra.dir}/build/classes" />
+    <property name="cassandra.classes" value="${cassandra.dir}/build/classes/main" />
     <property name="build.src" value="${basedir}/src" />
     <property name="build.out" value="${basedir}/build" />
     <property name="build.classes" value="${build.out}/classes" />

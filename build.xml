@@ -34,6 +34,7 @@
     <property name="build.dir.lib" value="${basedir}/build/lib"/>
     <property name="build.test.dir" value="${build.dir}/test"/>
     <property name="build.classes" value="${build.dir}/classes"/>
+    <property name="build.classes.main" value="${build.classes}/main" />
     <property name="javadoc.dir" value="${build.dir}/javadoc"/>
     <property name="interface.dir" value="${basedir}/interface"/>
     <property name="interface.thrift.dir" value="${interface.dir}/thrift"/>
@@ -55,7 +56,8 @@
       <isset property="release"/>
     </condition>
     <property name="version" value="${base.version}-SNAPSHOT"/>
-    <property name="version.properties.dir" value="${build.classes}/org/apache/cassandra/config/"/>
+    <property name="version.properties.dir"
+              value="${build.classes.main}/org/apache/cassandra/config/" />
     <property name="final.name" value="${ant.project.name}-${version}"/>
     <property name="maven-ant-tasks.version" value="2.1.1" />
     <property name="maven-ant-tasks.url"
@@ -85,7 +87,7 @@
     <path id="maven-ant-tasks.classpath" path="${build.dir}/maven-ant-tasks-${maven-ant-tasks.version}.jar" />
     <path id="cassandra.classpath">
         <pathelement location="${cobertura.classes.dir}"/>
-        <pathelement location="${build.classes}"/>
+        <pathelement location="${build.classes.main}" />
         <fileset dir="${build.lib}">
           <include name="**/*.jar" />
         </fileset>
@@ -100,7 +102,7 @@
     <target name="init">
         <fail unless="is.source.artifact"
             message="Not a source artifact, stopping here." />
-        <mkdir dir="${build.classes}"/>
+        <mkdir dir="${build.classes.main}"/>
         <mkdir dir="${test.lib}"/>
         <mkdir dir="${test.classes}"/>
         <mkdir dir="${build.src.gen-java}"/>
@@ -346,7 +348,8 @@
     <target depends="init,avro-generate,gen-cli-grammar,gen-cql-grammar"
             name="build-project">
         <echo message="${ant.project.name}: ${ant.file}"/>
-        <javac debug="true" debuglevel="${debuglevel}" destdir="${build.classes}" includeantruntime="false">
+        <javac debug="true" debuglevel="${debuglevel}"
+               destdir="${build.classes.main}" includeantruntime="false">
             <src path="${build.src.java}"/>
             <src path="${build.src.gen-java}"/>
             <src path="${interface.thrift.dir}/gen-java"/>
@@ -366,11 +369,13 @@
         The jar target makes cassandra.jar output.
     -->
     <target name="jar" depends="build" description="Assemble Cassandra JAR files">
-      <mkdir dir="${build.classes}/META-INF"/>
-      <copy file="LICENSE.txt" tofile="${build.classes}/META-INF/LICENSE.txt"/>
-      <copy file="NOTICE.txt" tofile="${build.classes}/META-INF/NOTICE.txt"/>
+      <mkdir dir="${build.classes.main}/META-INF" />
+      <copy file="LICENSE.txt"
+            tofile="${build.classes.main}/META-INF/LICENSE.txt"/>
+      <copy file="NOTICE.txt"
+            tofile="${build.classes.main}/META-INF/NOTICE.txt"/>
       <jar jarfile="${build.dir}/${final.name}.jar"
-           basedir="${build.classes}">
+           basedir="${build.classes.main}">
         <manifest>
         <!-- <section name="org/apache/cassandra/infrastructure"> -->
           <attribute name="Implementation-Title" value="Cassandra"/>
@@ -639,7 +644,7 @@
     <cobertura-instrument todir="${cobertura.classes.dir}" datafile="${cobertura.datafile}">
       <ignore regex="org.apache.log4j.*"/>
 
-      <fileset dir="${build.classes}">
+      <fileset dir="${build.classes.main}">
         <include name="**/*.class"/>
         <exclude name="**/*Test.class"/>
         <exclude name="**/*TestCase.class"/>
@@ -746,7 +751,7 @@
   <classpathentry kind="src" path="test/unit"/>
   <classpathentry kind="src" path="test/long"/>
   <classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
-  <classpathentry kind="output" path="build/classes"/>
+  <classpathentry kind="output" path="${build.classes.main}"/>
   <classpathentry kind="lib" path="build/test/classes"/>
   <classpathentry kind="lib" path="test/conf"/>
 ]]>

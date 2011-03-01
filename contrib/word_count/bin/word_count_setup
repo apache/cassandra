@@ -19,7 +19,7 @@
 cwd=`dirname $0`
 
 # Cassandra class files.
-if [ ! -d $cwd/../../../build/classes ]; then
+if [ ! -d $cwd/../../../build/classes/main ]; then
     echo "Unable to locate cassandra class files" >&2
     exit 1
 fi
@@ -31,7 +31,7 @@ if [ ! -e $cwd/../build/word_count.jar ]; then
 fi
 
 CLASSPATH=$CLASSPATH:$cwd/../build/word_count.jar
-CLASSPATH=$CLASSPATH:.:$cwd/../../../build/classes
+CLASSPATH=$CLASSPATH:.:$cwd/../../../build/classes/main
 for jar in $cwd/../build/lib/jars/*.jar; do
     CLASSPATH=$CLASSPATH:$jar
 done

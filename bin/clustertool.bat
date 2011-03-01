@@ -40,8 +40,8 @@ set CLASSPATH=%CLASSPATH%;%1%2
 goto :eof
 
 :okClasspath
-REM Include the build\classes directory so it works in development
-set CASSANDRA_CLASSPATH=%CLASSPATH%;%CASSANDRA_HOME%\build\classes;%CASSANDRA_CONF%
+REM Include the build\classes\main directory so it works in development
+set CASSANDRA_CLASSPATH=%CLASSPATH%;%CASSANDRA_HOME%\build\classes\main;%CASSANDRA_CONF%
 
 set CASSANDRA_PARAMS=
 set TOOLS_PARAMS=
