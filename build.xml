@@ -105,6 +105,7 @@
     <target name="clean" description="Remove all locally created artifacts">
         <delete dir="${build.test.dir}" />
         <delete dir="${build.classes}" />
+        <delete dir="${cobertura.classes.dir}" />
         <delete dir="${build.src.gen-java}" />
         <delete dir="${interface.avro.dir}" />
         <delete file="${build.dir}/internode.avpr" />
