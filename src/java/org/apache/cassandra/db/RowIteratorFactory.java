@@ -181,15 +181,7 @@ public class RowIteratorFactory
      */
     private static Iterator<Map.Entry<DecoratedKey, ColumnFamily>> memtableEntryIterator(Memtable memtable, DecoratedKey startWith)
     {
-        Table.flusherLock.readLock().lock();
-        try
-        {
-            return memtable.getEntryIterator(startWith);
-        }
-        finally
-        {
-            Table.flusherLock.readLock().unlock();
-        }
+        return memtable.getEntryIterator(startWith);
     }
 
     /**

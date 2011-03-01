@@ -29,6 +29,7 @@ import java.util.concurrent.ConcurrentNavigableMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -52,7 +53,8 @@ public class Memtable implements Comparable<Memtable>, IFlushable
 {
     private static final Logger logger = LoggerFactory.getLogger(Memtable.class);
 
-    private boolean isFrozen;
+    private final AtomicBoolean isPendingFlush = new AtomicBoolean(false);
+    private final AtomicInteger activeWriters = new AtomicInteger(0);
 
     private final AtomicLong currentThroughput = new AtomicLong(0);
     private final AtomicLong currentOperations = new AtomicLong(0);
@@ -105,25 +107,30 @@ public class Memtable implements Comparable<Memtable>, IFlushable
         return currentThroughput.get() >= this.THRESHOLD || currentOperations.get() >= this.THRESHOLD_COUNT;
     }
 
-    boolean isFrozen()
+    boolean isPendingFlush()
     {
-        return isFrozen;
+        return isPendingFlush.get();
     }
 
-    void freeze()
+    boolean markPendingFlush()
     {
-        isFrozen = true;
+        return isPendingFlush.compareAndSet(false, true);
     }
 
     /**
      * Should only be called by ColumnFamilyStore.apply.  NOT a public API.
-     * (CFS handles locking to avoid submitting an op
-     *  to a flushing memtable.  Any other way is unsafe.)
     */
     void put(DecoratedKey key, ColumnFamily columnFamily)
     {
-        assert !isFrozen; // not 100% foolproof but hell, it's an assert
-        resolve(key, columnFamily);
+        try
+        {
+            activeWriters.incrementAndGet();
+            resolve(key, columnFamily);
+        }
+        finally
+        {
+            activeWriters.decrementAndGet();
+        }
     }
 
     private void resolve(DecoratedKey key, ColumnFamily cf)
@@ -173,6 +180,7 @@ public class Memtable implements Comparable<Memtable>, IFlushable
         {
             public void runMayThrow() throws IOException
             {
+                waitForWriters();
                 if (!cfs.reverseReadWriteOrder())
                 {
                     //XXX: race condition: may allow double reconcile; but never misses an MT
@@ -188,6 +196,25 @@ public class Memtable implements Comparable<Memtable>, IFlushable
                 latch.countDown();
             }
         });
+    }
+
+    /*
+     * Wait for all writers to be done with this memtable before flushing.
+     * A busy-wait is probably alright since we'll new wait long.
+     */
+    private void waitForWriters()
+    {
+        while (activeWriters.get() > 0)
+        {
+            try
+            {
+                Thread.sleep(3);
+            }
+            catch (InterruptedException e)
+            {
+                logger.error("Interrupted while waiting on writers.", e);
+            }
+        }
     }
 
     public String toString()
