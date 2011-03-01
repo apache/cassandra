@@ -1,4 +1,6 @@
-/**
+package org.apache.cassandra.io.util;
+/*
+ * 
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -6,147 +8,32 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- *
+ * 
  *   http://www.apache.org/licenses/LICENSE-2.0
- *
+ * 
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
- *
+ * 
  */
-package org.apache.cassandra.io.util;
 
-import org.apache.cassandra.utils.ByteBufferUtil;
 
 import java.io.EOFException;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.channels.ClosedChannelException;
 import java.util.Arrays;
 import java.util.concurrent.Callable;
 
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.assertEquals;
-
 import org.junit.Test;
+
+import static org.junit.Assert.assertEquals;
 
 public class BufferedRandomAccessFileTest
 {
-    @Test
-    public void testReadAndWrite() throws Exception
-    {
-        BufferedRandomAccessFile file = createTempFile("braf");
-
-        // writting string of data to the file
-        byte[] data = "Hello".getBytes();
-        file.write(data);
-        assertEquals(file.length(), data.length);
-        assertEquals(file.getFilePointer(), data.length);
-
-        // reading small amount of data from file, this is handled by initial buffer
-        file.seek(0);
-        byte[] buffer = new byte[data.length];
-        assertEquals(file.read(buffer), data.length);
-        assertTrue(Arrays.equals(buffer, data)); // we read exactly what we wrote
-        assertEquals(file.read(), -1); // nothing more to read EOF
-        assert file.bytesRemaining() == 0 && file.isEOF();
-
-        // writing buffer bigger than page size, which will trigger reBuffer()
-        byte[] bigData = new byte[BufferedRandomAccessFile.DEFAULT_BUFFER_SIZE + 10];
-
-        for (int i = 0; i < bigData.length; i++)
-            bigData[i] = 'd';
-
-        long initialPosition = file.getFilePointer();
-        file.write(bigData); // writing data
-        assertEquals(file.getFilePointer(), initialPosition + bigData.length);
-        assertEquals(file.length(), initialPosition + bigData.length); // file size should equals to last position
-
-        // reading written buffer
-        file.seek(initialPosition); // back to initial (before write) position
-        data = new byte[bigData.length];
-        long sizeRead = 0;
-        for (int i = 0; i < data.length; i++)
-        {
-            data[i] = (byte) file.read(); // this will trigger reBuffer()
-            sizeRead++;
-        }
-
-        assertEquals(sizeRead, data.length); // read exactly data.length bytes
-        assertEquals(file.getFilePointer(), initialPosition + data.length);
-        assertEquals(file.length(), initialPosition + bigData.length);
-        assertTrue(Arrays.equals(bigData, data));
-        assert file.bytesRemaining() == 0 && file.isEOF(); // we are at the of the file
-
-        // test readBytes(int) method
-        file.seek(0);
-        ByteBuffer fileContent = file.readBytes((int) file.length());
-        assertEquals(fileContent.limit(), file.length());
-        assert ByteBufferUtil.string(fileContent).equals("Hello" + new String(bigData));
-
-        // read the same buffer but using readFully(int)
-        data = new byte[bigData.length];
-        file.seek(initialPosition);
-        file.readFully(data);
-        assert file.bytesRemaining() == 0 && file.isEOF(); // we should be at EOF
-        assertTrue(Arrays.equals(bigData, data));
-
-        // try to read past mark (all methods should return -1)
-        data = new byte[10];
-        assertEquals(file.read(), -1);
-        assertEquals(file.read(data), -1);
-        assertEquals(file.read(data, 0, data.length), -1);
-
-        // test read(byte[], int, int)
-        file.seek(0);
-        data = new byte[20];
-        assertEquals(file.read(data, 0, 15), 15);
-        assertTrue(new String(data).contains("Hellodddddddddd"));
-        for (int i = 16; i < data.length; i++)
-        {
-            assert data[i] == 0;
-        }
-
-        // try to seek past EOF
-        file.seek(file.length() + 10); // should not throw an exception
-        assert file.bytesRemaining() == 0 && file.isEOF();
-
-        file.close();
-    }
-
-    @Test
-    public void testReadsAndWriteOnCapacity() throws IOException
-    {
-        File tmpFile = File.createTempFile("readtest", "bin");
-        BufferedRandomAccessFile rw = new BufferedRandomAccessFile(tmpFile, "rw");
-
-        // Fully write the file and sync..
-        byte[] in = new byte[BufferedRandomAccessFile.DEFAULT_BUFFER_SIZE];
-        rw.write(in);
-
-        // Read it into a same size array.
-        byte[] out = new byte[BufferedRandomAccessFile.DEFAULT_BUFFER_SIZE];
-        rw.read(out);
-
-        // We're really at the end.
-        long rem = rw.bytesRemaining();
-        assert rw.isEOF();
-        assert rem == 0 : "BytesRemaining should be 0 but it's " + rem;
-
-        // Cannot read any more.
-        int negone = rw.read();
-        assert negone == -1 : "We read past the end of the file, should have gotten EOF -1. Instead, " + negone;
-
-        // Writing will succeed
-        rw.write(new byte[BufferedRandomAccessFile.DEFAULT_BUFFER_SIZE]);
-        // Forcing a rebuffer here
-        rw.write(42);
-    }
 
     @Test
     public void testLength() throws IOException
@@ -183,140 +70,59 @@ public class BufferedRandomAccessFileTest
         r.close();
     }
 
-    @Test (expected = EOFException.class)
-    public void testReadBytes() throws IOException
+    @Test
+    public void testReadsAndWriteOnCapacity() throws IOException
     {
-        BufferedRandomAccessFile file = createTempFile("brafReadBytes");
+        File tmpFile = File.createTempFile("readtest", "bin");
+        BufferedRandomAccessFile rw = new BufferedRandomAccessFile(tmpFile, "rw");
 
-        byte[] data = new byte[BufferedRandomAccessFile.DEFAULT_BUFFER_SIZE + 10];
+        // Fully write the file and sync..
+        byte[] in = new byte[BufferedRandomAccessFile.DEFAULT_BUFFER_SIZE];
+        rw.write(in);
 
-        for (int i = 0; i < data.length; i++)
-        {
-            data[i] = 'c';
-        }
+        // Read it into a same size array.
+        byte[] out = new byte[BufferedRandomAccessFile.DEFAULT_BUFFER_SIZE];
+        rw.read(out);
 
-        file.write(data);
+        // We're really at the end.
+        long rem = rw.bytesRemaining();
+        assert rw.isEOF();
+        assert rem == 0 : "BytesRemaining should be 0 but it's " + rem;
 
-        file.seek(0);
-        ByteBuffer content = file.readBytes((int) file.length());
+        // Cannot read any more.
+        int negone = rw.read();
+        assert negone == -1 : "We read past the end of the file, should have gotten EOF -1. Instead, " + negone;
 
-        // after reading whole file we should be at EOF
-        assertEquals(ByteBufferUtil.compare(content, data), 0);
-        assert file.bytesRemaining() == 0 && file.isEOF();
-
-        file.seek(0);
-        content = file.readBytes(10); // reading first 10 bytes
-        assertEquals(ByteBufferUtil.compare(content, "cccccccccc".getBytes()), 0);
-        assertEquals(file.bytesRemaining(), file.length() - content.limit());
-
-        // trying to read more than file has right now
-        file.readBytes((int) file.length() + 10); // this throws expected EOFException
-
-        file.close();
-    }
-
-    @Test (expected = IllegalArgumentException.class)
-    public void testSeek() throws Exception
-    {
-        BufferedRandomAccessFile file = createTempFile("brafSeek");
-        byte[] data = new byte[BufferedRandomAccessFile.DEFAULT_BUFFER_SIZE + 20];
-        for (int i = 0; i < data.length; i++)
-        {
-            data[i] = 'c';
-        }
-
-        file.write(data);
-        assert file.bytesRemaining() == 0 && file.isEOF();
-
-        file.seek(0);
-        assertEquals(file.getFilePointer(), 0);
-        assertEquals(file.bytesRemaining(), file.length());
-
-        file.seek(20);
-        assertEquals(file.getFilePointer(), 20);
-        assertEquals(file.bytesRemaining(), file.length() - 20);
-
-        // trying to seek past the end of the file
-        file.seek(file.length() + 30);
-        assertEquals(file.getFilePointer(), data.length + 30);
-        assertEquals(file.getFilePointer(), file.length()); // length should be at seek position
-        assert file.bytesRemaining() == 0 && file.isEOF();
-
-        file.seek(-1); // throws IllegalArgumentException
-
-        file.close();
+        // Writing will succeed
+        rw.write(new byte[BufferedRandomAccessFile.DEFAULT_BUFFER_SIZE]);
+        // Forcing a rebuffer here
+        rw.write(42);
     }
 
     @Test
-    public void testSkipBytes() throws IOException
+    public void testNotEOF() throws IOException
     {
-        BufferedRandomAccessFile file = createTempFile("brafSkipBytes");
-        byte[] data = new byte[BufferedRandomAccessFile.DEFAULT_BUFFER_SIZE * 2];
-
-        file.write(data);
-        assert file.bytesRemaining() == 0 && file.isEOF();
-
-        file.seek(0); // back to the beginning of the file
-        assertEquals(file.skipBytes(10), 10);
-        assertEquals(file.bytesRemaining(), file.length() - 10);
-
-        int initialPosition = (int) file.getFilePointer();
-        // can't skip more than file size
-        assertEquals(file.skipBytes((int) file.length() + 10), file.length() - initialPosition);
-        assertEquals(file.getFilePointer(), file.length());
-        assert file.bytesRemaining() == 0 && file.isEOF();
-
-        file.seek(0);
-
-        // skipping negative amount should return 0
-        assertEquals(file.skipBytes(-1000), 0);
-        assertEquals(file.getFilePointer(), 0);
-        assertEquals(file.bytesRemaining(), file.length());
-
-        file.close();
+        assertEquals(1, new BufferedRandomAccessFile(writeTemporaryFile(new byte[1]), "rw").read(new byte[2]));
     }
 
-    @Test (expected = IllegalArgumentException.class)
-    public void testGetFilePointer() throws IOException
+
+    protected void expectEOF(Callable<?> callable)
     {
-        BufferedRandomAccessFile file = createTempFile("brafGetFilePointer");
-
-        assertEquals(file.getFilePointer(), 0); // initial position should be 0
-
-        file.write(new byte[20]);
-        assertEquals(file.getFilePointer(), 20); // position 20 after writing 20 bytes
-
-        file.seek(10);
-        assertEquals(file.getFilePointer(), 10); // after seek to 10 should be 10
-
-        file.seek(-1);
-        assertEquals(file.getFilePointer(), 10);
-
-        file.seek(30); // past previous end file
-        assertEquals(file.getFilePointer(), 30);
-
-        // position should change after skip bytes
-        file.seek(0);
-        file.skipBytes(15);
-        assertEquals(file.getFilePointer(), 15);
-
-        file.read();
-        assertEquals(file.getFilePointer(), 16);
-        file.read(new byte[4]);
-        assertEquals(file.getFilePointer(), 20);
-
-        file.close();
+        boolean threw = false;
+        try
+        {
+            callable.call();
+        }
+        catch (Exception e)
+        {
+            assert e.getClass().equals(EOFException.class) : e.getClass().getName() + " is not " + EOFException.class.getName();
+            threw = true;
+        }
+        assert threw : EOFException.class.getName() + " not received";
     }
 
     @Test
-    public void testGetPath() throws IOException
-    {
-        BufferedRandomAccessFile file = createTempFile("brafGetPath");
-        assert file.getPath().contains("brafGetPath");
-    }
-
-     @Test
-    public void testIsEOF() throws IOException
+    public void testEOF() throws IOException
     {
         for (String mode : Arrays.asList("r", "rw")) // read, read+write
         {
@@ -355,41 +161,20 @@ public class BufferedRandomAccessFileTest
         }
     }
 
-    @Test
-    public void testNotEOF() throws IOException
+    protected File writeTemporaryFile(byte[] data) throws IOException
     {
-        assertEquals(1, new BufferedRandomAccessFile(writeTemporaryFile(new byte[1]), "rw").read(new byte[2]));
+        File f = File.createTempFile("BRAFTestFile", null);
+        f.deleteOnExit();
+        FileOutputStream fout = new FileOutputStream(f);
+        fout.write(data);
+        fout.getFD().sync();
+        fout.close();
+        return f;
     }
 
-    @Test
-    public void testBytesRemaining() throws IOException
-    {
-        BufferedRandomAccessFile file = createTempFile("brafBytesRemaining");
-        assertEquals(file.bytesRemaining(), 0);
 
-        int toWrite = BufferedRandomAccessFile.DEFAULT_BUFFER_SIZE + 10;
-
-        file.write(new byte[toWrite]);
-        assertEquals(file.bytesRemaining(), 0);
-
-        file.seek(0);
-        assertEquals(file.bytesRemaining(), toWrite);
-
-        for (int i = 1; i <= file.length(); i++)
-        {
-            file.read();
-            assertEquals(file.bytesRemaining(), file.length() - i);
-        }
-
-        file.seek(0);
-        file.skipBytes(10);
-        assertEquals(file.bytesRemaining(), file.length() - 10);
-
-        file.close();
-    }
-
-    @Test (expected = UnsupportedOperationException.class)
-    public void testBytesPastMark() throws IOException
+    @Test (expected=UnsupportedOperationException.class)
+    public void testOverflowMark() throws IOException
     {
         File tmpFile = File.createTempFile("overflowtest", "bin");
         tmpFile.deleteOnExit();
@@ -403,104 +188,35 @@ public class BufferedRandomAccessFileTest
         rw.reset(mark);
 
         // Expect this call to succeed.
-        rw.bytesPastMark(mark);
+        int bpm = rw.bytesPastMark(mark);
 
         // Seek 4gb
         rw.seek(4L*1024L*1024L*1024L*1024L);
-
+        
         // Expect this call to fail -- the distance from mark to current file pointer > 2gb.
-        rw.bytesPastMark(mark);
+        bpm = rw.bytesPastMark(mark);
     }
 
-    @Test (expected = ClosedChannelException.class)
-    public void testClose() throws IOException
+    @Test
+    public void testRead() throws IOException
     {
-        BufferedRandomAccessFile file = createTempFile("brafClose");
+        File tmpFile = File.createTempFile("readtest", "bin");
+        tmpFile.deleteOnExit();
 
-        byte[] data = new byte[BufferedRandomAccessFile.DEFAULT_BUFFER_SIZE + 20];
-        for (int i = 0; i < data.length; i++)
-        {
-            data[i] = 'c';
-        }
+        BufferedRandomAccessFile rw = new BufferedRandomAccessFile(tmpFile.getPath(), "rw");
+        rw.write(new byte[]{ 1 });
+        rw.seek(0);
 
-        file.write(data);
-        file.close();
+        // test read of buffered-but-not-yet-written data
+        byte[] buffer = new byte[1];
+        assertEquals(1, rw.read(buffer));
+        assertEquals(1, buffer[0]);
+        rw.close();
 
-        file.read(); // trying to read throws ClosedChannelException
-        file.write(new byte[1]); // try to write throws ClosedChannelException
-
-        BufferedRandomAccessFile copy = new BufferedRandomAccessFile(file.getPath(), "r");
-        ByteBuffer contents = copy.readBytes((int) copy.length());
-
-        assertEquals(contents.limit(), data.length);
-        assertEquals(ByteBufferUtil.compare(contents, data), 0);
+        // test read of not-yet-buffered data
+        rw = new BufferedRandomAccessFile(tmpFile.getPath(), "rw");
+        assert rw.read(buffer) == 1;
+        assert buffer[0] == 1;
     }
 
-    @Test (expected = AssertionError.class)
-    public void testMarkAndReset() throws IOException
-    {
-        BufferedRandomAccessFile file = createTempFile("brafTestMark");
-        file.write(new byte[30]);
-
-        file.seek(10);
-        FileMark mark = file.mark();
-
-        file.seek(file.length());
-        assertTrue(file.isEOF());
-
-        file.reset();
-        assertEquals(file.bytesRemaining(), 20);
-
-        file.seek(file.length());
-        assertTrue(file.isEOF());
-
-        file.reset(mark);
-        assertEquals(file.bytesRemaining(), 20);
-
-        file.seek(file.length());
-        assertEquals(file.bytesPastMark(), 20);
-        assertEquals(file.bytesPastMark(mark), 20);
-
-        file.reset(mark);
-        assertEquals(file.bytesPastMark(), 0);
-
-        file.seek(0);
-        file.bytesPastMark(); // throws AssertionError
-
-        file.close();
-    }
-
-    private void expectEOF(Callable<?> callable)
-    {
-        boolean threw = false;
-        try
-        {
-            callable.call();
-        }
-        catch (Exception e)
-        {
-            assert e.getClass().equals(EOFException.class) : e.getClass().getName() + " is not " + EOFException.class.getName();
-            threw = true;
-        }
-        assert threw : EOFException.class.getName() + " not received";
-    }
-
-    private BufferedRandomAccessFile createTempFile(String name) throws IOException
-    {
-        File tempFile = File.createTempFile(name, null);
-        tempFile.deleteOnExit();
-
-        return new BufferedRandomAccessFile(tempFile, "rw");
-    }
-
-    private File writeTemporaryFile(byte[] data) throws IOException
-    {
-        File f = File.createTempFile("BRAFTestFile", null);
-        f.deleteOnExit();
-        FileOutputStream fout = new FileOutputStream(f);
-        fout.write(data);
-        fout.getFD().sync();
-        fout.close();
-        return f;
-    }
 }
