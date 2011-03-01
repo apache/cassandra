@@ -61,7 +61,7 @@ public class DatacenterSyncWriteResponseHandler extends AbstractWriteResponseHan
     {
         // Response is been managed by the map so make it 1 for the superclass.
         super(writeEndpoints, hintedEndpoints, consistencyLevel);
-        assert consistencyLevel == ConsistencyLevel.LOCAL_QUORUM;
+        assert consistencyLevel == ConsistencyLevel.EACH_QUORUM;
 
         strategy = (NetworkTopologyStrategy) Table.open(table).getReplicationStrategy();
 
