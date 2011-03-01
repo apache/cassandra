@@ -28,10 +28,12 @@ import java.util.Iterator;
 import java.util.List;
 
 import org.apache.commons.collections.IteratorUtils;
+import org.apache.commons.collections.comparators.ReverseComparator;
 import org.apache.commons.collections.iterators.ReverseListIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.IColumnIterator;
 import org.apache.cassandra.db.columniterator.SSTableSliceIterator;
@@ -88,7 +90,7 @@ public class SliceQueryFilter implements IFilter
         }
 
         // iterate until we get to the "real" start column
-        Comparator<ByteBuffer> comparator = reversed ? superColumn.getComparator().reverseComparator : superColumn.getComparator();
+        Comparator<ByteBuffer> comparator = reversed ? superColumn.getComparator().getReverseComparator() : superColumn.getComparator();
         while (subcolumns.hasNext())
         {
             IColumn column = subcolumns.next();
@@ -105,7 +107,7 @@ public class SliceQueryFilter implements IFilter
 
     public Comparator<IColumn> getColumnComparator(AbstractType comparator)
     {
-        return reversed ? comparator.columnReverseComparator : comparator.columnComparator;
+        return reversed ? new ReverseComparator(QueryFilter.getColumnComparator(comparator)) : QueryFilter.getColumnComparator(comparator);
     }
 
     public void collectReducedColumns(IColumnContainer container, Iterator<IColumn> reducedColumns, int gcBefore)
