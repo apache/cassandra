@@ -36,6 +36,7 @@
     <property name="build.classes" value="${build.dir}/classes"/>
     <property name="build.classes.main" value="${build.classes}/main" />
     <property name="build.classes.thrift" value="${build.classes}/thrift" />
+    <property name="build.classes.cql" value="${build.classes}/cql" />
     <property name="javadoc.dir" value="${build.dir}/javadoc"/>
     <property name="interface.dir" value="${basedir}/interface"/>
     <property name="interface.thrift.dir" value="${interface.dir}/thrift"/>
@@ -106,6 +107,7 @@
             message="Not a source artifact, stopping here." />
         <mkdir dir="${build.classes.main}"/>
         <mkdir dir="${build.classes.thrift}"/>
+        <mkdir dir="${build.classes.cql}"/>
         <mkdir dir="${test.lib}"/>
         <mkdir dir="${test.classes}"/>
         <mkdir dir="${build.src.gen-java}"/>
@@ -364,6 +366,11 @@
             <src path="${build.src.driver}" />
             <classpath refid="cassandra.classpath"/>
         </javac>
+        <javac debug="true" debuglevel="${debuglevel}"
+               destdir="${build.classes.cql}" includeantruntime="false">
+            <src path="${build.src.driver}" />
+            <classpath refid="cassandra.classpath"/>
+        </javac>
 
         <taskdef name="paranamer" classname="com.thoughtworks.paranamer.ant.ParanamerGeneratorTask">
           <classpath refid="cassandra.classpath" />
@@ -411,6 +418,18 @@
           <attribute name="Class-Path"
                      value="${ant.project.name}-thrift-${version}.jar" />
         <!-- </section> -->
+        </manifest>
+      </jar>
+
+      <!-- CQL driver Jar -->
+      <jar jarfile="${build.dir}/${ant.project.name}-cql-${version}.jar"
+           basedir="${build.classes.cql}">
+        <manifest>
+          <attribute name="Implementation-Title" value="Cassandra"/>
+          <attribute name="Implementation-Version" value="${version}"/>
+          <attribute name="Implementation-Vendor" value="Apache"/>
+          <attribute name="Class-Path"
+                     value="${ant.project.name}-thrift-${version}.jar" />
         </manifest>
       </jar>
     </target>
