@@ -100,10 +100,6 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
     private void read(SSTableReader sstable, FileDataInput file)
     throws IOException
     {
-
-        // read the requested columns into `cf`
-        /* Read the bloom filter summarizing the columns */
-
         Filter bf = IndexHelper.defreezeBloomFilter(file, sstable.descriptor.usesOldBloomFilter);
         List<IndexHelper.IndexInfo> indexList = IndexHelper.deserializeIndex(file);
 
