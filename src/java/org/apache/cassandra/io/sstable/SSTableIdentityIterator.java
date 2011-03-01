@@ -22,6 +22,7 @@ package org.apache.cassandra.io.sstable;
 
 
 import java.io.DataOutput;
+import java.io.EOFException;
 import java.io.IOError;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -83,11 +84,14 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
             {
                 try
                 {
-                    IndexHelper.defreezeBloomFilter(file, sstable.descriptor.usesOldBloomFilter);
+                    IndexHelper.defreezeBloomFilter(file, dataSize, sstable.descriptor.usesOldBloomFilter);
                 }
                 catch (Exception e)
                 {
-                    logger.info("Invalid bloom filter in " + sstable + "; will rebuild it");
+                    if (e instanceof EOFException)
+                        throw (EOFException) e;
+
+                    logger.debug("Invalid bloom filter in {}; will rebuild it", sstable);
                     // deFreeze should have left the file position ready to deserialize index
                 }
                 try
@@ -96,7 +100,7 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
                 }
                 catch (Exception e)
                 {
-                    logger.info("Invalid row summary in " + sstable + "; will rebuild it");
+                    logger.debug("Invalid row summary in {}; will rebuild it", sstable);
                 }
                 file.seek(this.dataStart);
             }
