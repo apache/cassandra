@@ -22,6 +22,7 @@ CASSANDRA_CONF=$cassandra_home/test/conf
 # compiled classes. NOTE: This isn't needed by the startup script,
 # it's just used here in constructing the classpath.
 cassandra_bin=$cassandra_home/build/classes/main
+cassandra_bin=$cassandra_bin:$cassandra_home/build/classes/thrift
 #cassandra_bin=$cassandra_home/build/cassandra.jar
 
 # The java classpath (required)

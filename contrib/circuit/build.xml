@@ -20,7 +20,6 @@
 <project basedir="." default="build" name="circuit">
     <property name="cassandra.dir" value="../.." />
     <property name="cassandra.lib" value="${cassandra.dir}/lib" />
-    <property name="cassandra.classes" value="${cassandra.dir}/build/classes/main" />
     <property name="build.src" value="${basedir}/src" />
     <property name="build.out" value="${basedir}/build" />
     <property name="build.classes" value="${build.out}/classes" />
@@ -30,15 +29,20 @@
         <mkdir dir="${build.classes}" />
     </target>
 
+    <path id="cassandra.classes">
+        <pathelement location="${cassandra.dir}/build/classes/main" />
+        <pathelement location="${cassandra.dir}/build/classes/thrift" />
+    </path>
+
     <target depends="init" name="build">
         <javac destdir="${build.classes}">
             <src path="${build.src}" />
             <classpath>
+                <path refid="cassandra.classes" />
                 <path>
                     <fileset dir="${cassandra.lib}">
                         <include name="**/*.jar" />
                     </fileset>
-                    <pathelement location="${cassandra.classes}" />
                 </path>
             </classpath>
         </javac>

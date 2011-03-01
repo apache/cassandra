@@ -32,6 +32,7 @@ fi
 
 CLASSPATH=$CLASSPATH:$cwd/../build/word_count.jar
 CLASSPATH=$CLASSPATH:.:$cwd/../../../build/classes/main
+CLASSPATH=$CLASSPATH:.:$cwd/../../../build/classes/thrift
 for jar in $cwd/../build/lib/jars/*.jar; do
     CLASSPATH=$CLASSPATH:$jar
 done

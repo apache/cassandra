@@ -35,6 +35,7 @@
     <property name="build.test.dir" value="${build.dir}/test"/>
     <property name="build.classes" value="${build.dir}/classes"/>
     <property name="build.classes.main" value="${build.classes}/main" />
+    <property name="build.classes.thrift" value="${build.classes}/thrift" />
     <property name="javadoc.dir" value="${build.dir}/javadoc"/>
     <property name="interface.dir" value="${basedir}/interface"/>
     <property name="interface.thrift.dir" value="${interface.dir}/thrift"/>
@@ -88,6 +89,7 @@
     <path id="cassandra.classpath">
         <pathelement location="${cobertura.classes.dir}"/>
         <pathelement location="${build.classes.main}" />
+        <pathelement location="${build.classes.thrift}" />
         <fileset dir="${build.lib}">
           <include name="**/*.jar" />
         </fileset>
@@ -103,6 +105,7 @@
         <fail unless="is.source.artifact"
             message="Not a source artifact, stopping here." />
         <mkdir dir="${build.classes.main}"/>
+        <mkdir dir="${build.classes.thrift}"/>
         <mkdir dir="${test.lib}"/>
         <mkdir dir="${test.classes}"/>
         <mkdir dir="${build.src.gen-java}"/>
@@ -348,11 +351,16 @@
     <target depends="init,avro-generate,gen-cli-grammar,gen-cql-grammar"
             name="build-project">
         <echo message="${ant.project.name}: ${ant.file}"/>
+        <!-- Order matters! -->
+        <javac debug="true" debuglevel="${debuglevel}"
+               destdir="${build.classes.thrift}" includeantruntime="false">
+            <src path="${interface.thrift.dir}/gen-java"/>
+            <classpath refid="cassandra.classpath"/>
+        </javac>
         <javac debug="true" debuglevel="${debuglevel}"
                destdir="${build.classes.main}" includeantruntime="false">
             <src path="${build.src.java}"/>
             <src path="${build.src.gen-java}"/>
-            <src path="${interface.thrift.dir}/gen-java"/>
             <src path="${build.src.driver}" />
             <classpath refid="cassandra.classpath"/>
         </javac>
@@ -370,10 +378,27 @@
     -->
     <target name="jar" depends="build" description="Assemble Cassandra JAR files">
       <mkdir dir="${build.classes.main}/META-INF" />
+      <mkdir dir="${build.classes.thrift}/META-INF" />
       <copy file="LICENSE.txt"
             tofile="${build.classes.main}/META-INF/LICENSE.txt"/>
+      <copy file="LICENSE.txt"
+            tofile="${build.classes.thrift}/META-INF/LICENSE.txt"/>
       <copy file="NOTICE.txt"
             tofile="${build.classes.main}/META-INF/NOTICE.txt"/>
+      <copy file="NOTICE.txt"
+            tofile="${build.classes.thrift}/META-INF/NOTICE.txt"/>
+
+      <!-- Thrift Jar -->
+      <jar jarfile="${build.dir}/${ant.project.name}-thrift-${version}.jar"
+           basedir="${build.classes.thrift}">
+        <manifest>
+          <attribute name="Implementation-Title" value="Cassandra"/>
+          <attribute name="Implementation-Version" value="${version}"/>
+          <attribute name="Implementation-Vendor" value="Apache"/>
+        </manifest>
+      </jar>
+
+      <!-- Main Jar -->
       <jar jarfile="${build.dir}/${final.name}.jar"
            basedir="${build.classes.main}">
         <manifest>
@@ -381,7 +406,10 @@
           <attribute name="Implementation-Title" value="Cassandra"/>
           <attribute name="Implementation-Version" value="${version}"/>
           <attribute name="Implementation-Vendor" value="Apache"/>
-          <attribute name="Premain-Class" value="org.apache.cassandra.infrastructure.continuations.CAgent"/>
+          <attribute name="Premain-Class"
+                     value="org.apache.cassandra.infrastructure.continuations.CAgent"/>
+          <attribute name="Class-Path"
+                     value="${ant.project.name}-thrift-${version}.jar" />
         <!-- </section> -->
         </manifest>
       </jar>
@@ -751,7 +779,8 @@
   <classpathentry kind="src" path="test/unit"/>
   <classpathentry kind="src" path="test/long"/>
   <classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
-  <classpathentry kind="output" path="${build.classes.main}"/>
+  <classpathentry kind="output" path="build/classes/main"/>
+  <classpathentry kind="lib" path="build/classes/thrift"/>
   <classpathentry kind="lib" path="build/test/classes"/>
   <classpathentry kind="lib" path="test/conf"/>
 ]]>

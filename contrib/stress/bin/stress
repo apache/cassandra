@@ -24,12 +24,14 @@ if [ "x$CLASSPATH" = "x" ]; then
     fi
 
     # Stress class files.
-    if [ ! -d `dirname $0`/../build/classes/main ]; then
+    if [ ! -d `dirname $0`/../build/classes ]; then
         echo "Unable to locate stress class files" >&2
         exit 1
     fi
 
-    CLASSPATH=`dirname $0`/../../../build/classes/main:`dirname $0`/../build/classes/main
+    CLASSPATH=`dirname $0`/../../../build/classes/main
+    CLASSPATH=$CLASSPATH:`dirname $0`/../../../build/classes/thrift
+    CLASSPATH=$CLASSPATH:`dirname $0`/../build/classes
     for jar in `dirname $0`/../../../lib/*.jar; do
         CLASSPATH=$CLASSPATH:$jar
     done

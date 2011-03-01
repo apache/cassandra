@@ -20,7 +20,7 @@
 <project default="jar" name="word_count" xmlns:ivy="antlib:org.apache.ivy.ant">
     <property name="cassandra.dir" value="../.." />
     <property name="cassandra.dir.lib" value="${cassandra.dir}/lib" />
-    <property name="cassandra.classes" value="${cassandra.dir}/build/classes/main" />
+    <property name="cassandra.classes" value="${cassandra.dir}/build/classes" />
     <property name="build.src" value="${basedir}/src" />
     <property name="build.dir" value="${basedir}/build" />
     <property name="ivy.lib.dir" value="${build.dir}/lib" />
@@ -52,7 +52,8 @@
         <fileset dir="${cassandra.dir}/build/lib/jars">
             <include name="**/*.jar" />
         </fileset>
-        <pathelement location="${cassandra.classes}" />
+        <pathelement location="${cassandra.classes}/main" />
+        <pathelement location="${cassandra.classes}/thrift" />
     </path>
 
     <target name="init">
@@ -70,7 +71,8 @@
         <mkdir dir="${build.classes}/META-INF" />
         <jar jarfile="${build.dir}/${final.name}.jar">
            <fileset dir="${build.classes}" />
-           <fileset dir="${cassandra.classes}" />
+           <fileset dir="${cassandra.classes}/main" />
+           <fileset dir="${cassandra.classes}/thrift" />
            <fileset dir="${cassandra.dir}">
                <include name="lib/**/*.jar" />
            </fileset>

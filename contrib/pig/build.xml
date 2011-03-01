@@ -22,7 +22,12 @@
     <property environment="env" />
     <property name="cassandra.dir" value="../.." />
     <property name="cassandra.lib" value="" />
-    <property name="cassandra.classes" value="${cassandra.dir}/build/classes/main" />
+    <property name="cassandra.classes"
+              value="${cassandra.dir}/build/classes" />
+    <property name="cassandra.classes.main"
+              value="${cassandra.classes}/main" />
+    <property name="cassandra.classes.thrift"
+              value="${cassandra.classes}/thrift" />
     <property name="build.src" value="${basedir}/src" />
     <property name="build.lib" value="${basedir}/lib" />
     <property name="build.out" value="${basedir}/build" />
@@ -41,7 +46,8 @@
 
     <path id="classpath">
         <path refid="pig.classpath" />
-        <pathelement location="${cassandra.classes}" />
+        <pathelement location="${cassandra.classes.main}" />
+        <pathelement location="${cassandra.classes.thrift}" />
     </path>
 
     <target name="init">
@@ -63,7 +69,8 @@
         <mkdir dir="${build.classes}/META-INF" />
         <jar jarfile="${build.out}/${final.name}.jar">
            <fileset dir="${build.classes}" />
-           <fileset dir="${cassandra.classes}" />
+           <fileset dir="${cassandra.classes.main}" />
+           <fileset dir="${cassandra.classes.thrift}" />
            <fileset file="${basedir}/storage-conf.xml" />
         </jar>
     </target>
