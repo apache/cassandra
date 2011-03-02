@@ -253,6 +253,25 @@ class TestCql(ThriftTester):
         assert ksdef.strategy_class == strategy_class
         assert ksdef.strategy_options['DC1'] == "1"
         
+    def test_drop_keyspace(self):
+        "removing a keyspace"
+        conn = init()
+        conn.execute("""
+        CREATE KEYSPACE Keyspace4Drop
+            WITH strategy_class = "SimpleStrategy" AND replication_factor = 1
+        """)
+        
+        # TODO: temporary (until this can be done with CQL).
+        thrift_client.describe_keyspace("Keyspace4Drop")
+        
+        conn.execute('DROP KEYSPACE Keyspace4Drop;')
+        
+        # Technically this should throw a ttypes.NotFound(), but this is
+        # temporary and so not worth requiring it on PYTHONPATH.
+        assert_raises(Exception,
+                      thrift_client.describe_keyspace,
+                      "Keyspace4Drop")
+        
     def test_create_column_family(self):
         "create a new column family"
         conn = init()
@@ -308,6 +327,25 @@ class TestCql(ThriftTester):
         for coldef in cfam.column_metadata:
             assert coldef.name in ("a", "b"), "Unknown column name"
             assert coldef.validation_class.endswith("marshal.IntegerType")
+            
+    def test_drop_columnfamily(self):
+        "removing a column family"
+        conn = init()
+        conn.execute("""
+            CREATE KEYSPACE Keyspace4CFDrop WITH replication_factor = 1
+                AND strategy_class = "SimpleStrategy";
+        """)
+        conn.execute('USE Keyspace4CFDrop;')
+        conn.execute('CREATE COLUMNFAMILY CF4Drop;')
+        
+        # TODO: temporary (until this can be done with CQL).
+        ksdef = thrift_client.describe_keyspace("Keyspace4CFDrop")
+        assert len(ksdef.cf_defs), "Column family not created!"
+        
+        conn.execute('DROP COLUMNFAMILY CF4Drop;')
+        
+        ksdef = thrift_client.describe_keyspace("Keyspace4CFDrop")
+        assert not len(ksdef.cf_defs), "Column family not deleted!"
             
     def test_create_indexs(self):
         "creating column indexes"
