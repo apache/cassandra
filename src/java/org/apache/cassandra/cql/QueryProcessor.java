@@ -574,6 +574,7 @@ public class QueryProcessor
                 CreateKeyspaceStatement create = (CreateKeyspaceStatement)statement.statement;
                 create.validate();
                 clientState.hasKeyspaceListAccess(Permission.WRITE);
+                validateSchemaAgreement();
                 
                 try
                 {
@@ -602,6 +603,7 @@ public class QueryProcessor
             case CREATE_COLUMNFAMILY:
                 CreateColumnFamilyStatement createCf = (CreateColumnFamilyStatement)statement.statement;
                 clientState.hasColumnFamilyListAccess(Permission.WRITE);
+                validateSchemaAgreement();
                 
                 try
                 {
@@ -626,6 +628,7 @@ public class QueryProcessor
             case CREATE_INDEX:
                 CreateIndexStatement createIdx = (CreateIndexStatement)statement.statement;
                 clientState.hasColumnFamilyListAccess(Permission.WRITE);
+                validateSchemaAgreement();
                 CFMetaData oldCfm = DatabaseDescriptor.getCFMetaData(CFMetaData.getId(keyspace,
                                                                                       createIdx.getColumnFamily()));
                 if (oldCfm == null)
