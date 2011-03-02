@@ -91,16 +91,16 @@ public class QueryProcessor
             for (Term column : select.getColumnNames())
                 columnNames.add(column.getByteBuffer());
             
-            validateColumns(keyspace, select.getColumnFamily(), columnNames);
+            validateColumnNames(keyspace, select.getColumnFamily(), columnNames);
             commands.add(new SliceByNamesReadCommand(keyspace, key, queryPath, columnNames));
         }
         // ...a range (slice) of column names
         else
         {
-            validateColumns(keyspace,
-                            select.getColumnFamily(),
-                            select.getColumnStart().getByteBuffer(),
-                            select.getColumnFinish().getByteBuffer());
+            validateColumnNames(keyspace,
+                                select.getColumnFamily(),
+                                select.getColumnStart().getByteBuffer(),
+                                select.getColumnFinish().getByteBuffer());
             commands.add(new SliceFromReadCommand(keyspace,
                                                   key,
                                                   queryPath,
@@ -228,7 +228,7 @@ public class QueryProcessor
             RowMutation rm = new RowMutation(keyspace, key);
             for (Map.Entry<Term, Term> column : update.getColumns().entrySet())
             {
-                validateColumn(keyspace, update.getColumnFamily(), column.getKey().getByteBuffer());
+                validateColumnName(keyspace, update.getColumnFamily(), column.getKey().getByteBuffer());
                 rm.add(new QueryPath(update.getColumnFamily(), null, column.getKey().getByteBuffer()),
                        column.getValue().getByteBuffer(),
                        System.currentTimeMillis());
@@ -347,7 +347,7 @@ public class QueryProcessor
         }
     }
 
-    private static void validateColumns(String keyspace, String columnFamily, Iterable<ByteBuffer> columns)
+    private static void validateColumnNames(String keyspace, String columnFamily, Iterable<ByteBuffer> columns)
     throws InvalidRequestException
     {
         AbstractType comparator = ColumnFamily.getComparatorFor(keyspace, columnFamily, null);
@@ -368,25 +368,25 @@ public class QueryProcessor
         }
     }
     
-    private static void validateColumns(String keyspace, String columnFamily, ByteBuffer start, ByteBuffer end)
+    private static void validateColumnNames(String keyspace, String columnFamily, ByteBuffer start, ByteBuffer end)
     throws InvalidRequestException
     {
-        validateColumns(keyspace, columnFamily, Arrays.asList(start, end));
+        validateColumnNames(keyspace, columnFamily, Arrays.asList(start, end));
     }
     
-    private static void validateColumn(String keyspace, String columnFamily, ByteBuffer column)
+    private static void validateColumnName(String keyspace, String columnFamily, ByteBuffer column)
     throws InvalidRequestException
     {
-        validateColumns(keyspace, columnFamily, Arrays.asList(column));
+        validateColumnNames(keyspace, columnFamily, Arrays.asList(column));
     }
     
     private static void validateSlicePredicate(String keyspace, String columnFamily, SlicePredicate predicate)
     throws InvalidRequestException
     {
         if (predicate.slice_range != null)
-            validateColumns(keyspace, columnFamily, predicate.slice_range.start, predicate.slice_range.finish);
+            validateColumnNames(keyspace, columnFamily, predicate.slice_range.start, predicate.slice_range.finish);
         else
-            validateColumns(keyspace, columnFamily, predicate.column_names);
+            validateColumnNames(keyspace, columnFamily, predicate.column_names);
     }
     
     // Copypasta from CassandraServer (where it is private).
@@ -550,7 +550,7 @@ public class QueryProcessor
                     {
                         for (Term column : delete.getColumns())
                         {
-                            validateColumn(keyspace, delete.getColumnFamily(), column.getByteBuffer());
+                            validateColumnName(keyspace, delete.getColumnFamily(), column.getByteBuffer());
                             rm.delete(new QueryPath(delete.getColumnFamily(), null, column.getByteBuffer()),
                                       System.currentTimeMillis());
                         }
