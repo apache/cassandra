@@ -61,6 +61,7 @@ import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.Column;
 import org.apache.cassandra.thrift.*;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 import com.google.common.base.Predicates;
 import com.google.common.collect.Maps;
@@ -228,7 +229,10 @@ public class QueryProcessor
             RowMutation rm = new RowMutation(keyspace, key);
             for (Map.Entry<Term, Term> column : update.getColumns().entrySet())
             {
-                validateColumnName(keyspace, update.getColumnFamily(), column.getKey().getByteBuffer());
+                validateColumn(keyspace,
+                               update.getColumnFamily(),
+                               column.getKey().getByteBuffer(),
+                               column.getValue().getByteBuffer());
                 rm.add(new QueryPath(update.getColumnFamily(), null, column.getKey().getByteBuffer()),
                        column.getValue().getByteBuffer(),
                        System.currentTimeMillis());
@@ -312,7 +316,7 @@ public class QueryProcessor
     // Copypasta from o.a.c.thrift.CassandraDaemon
     private static void applyMigrationOnStage(final Migration m) throws InvalidRequestException
     {
-        Future f = StageManager.getStage(Stage.MIGRATION).submit(new Callable()
+        Future<?> f = StageManager.getStage(Stage.MIGRATION).submit(new Callable<Object>()
         {
             public Object call() throws Exception
             {
@@ -378,6 +382,25 @@ public class QueryProcessor
     throws InvalidRequestException
     {
         validateColumnNames(keyspace, columnFamily, Arrays.asList(column));
+    }
+    
+    private static void validateColumn(String keyspace, String columnFamily, ByteBuffer name, ByteBuffer value)
+    throws InvalidRequestException
+    {
+        validateColumnName(keyspace, columnFamily, name);
+        AbstractType validator = DatabaseDescriptor.getValueValidator(keyspace, columnFamily, name);
+        
+        try
+        {
+            if (validator != null)
+                validator.validate(value);
+        }
+        catch (MarshalException me)
+        {
+            throw new InvalidRequestException(String.format("Invalid column value for column (name=%s); %s",
+                                                            ByteBufferUtil.bytesToHex(name),
+                                                            me.getMessage()));
+        }
     }
     
     private static void validateSlicePredicate(String keyspace, String columnFamily, SlicePredicate predicate)
