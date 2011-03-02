@@ -21,6 +21,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
+import java.nio.channels.ClosedChannelException;
 import java.nio.channels.FileChannel;
 
 import org.apache.cassandra.utils.CLibrary;
@@ -287,6 +288,9 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
     @Override
     public void write(byte[] buff, int offset, int length) throws IOException
     {
+        if (buffer == null)
+            throw new ClosedChannelException();
+
         while (length > 0)
         {
             int n = writeAtMost(buff, offset, length);
@@ -321,6 +325,9 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
     @Override
     public void seek(long newPosition) throws IOException
     {
+        if (newPosition < 0)
+            throw new IllegalArgumentException("new position should not be negative");
+
         current = newPosition;
 
         if (newPosition >= bufferOffset + validBufferBytes || newPosition < bufferOffset)
