@@ -153,6 +153,7 @@ public class NodeCmd {
         Collection<String> deadNodes = probe.getUnreachableNodes();
         Collection<String> joiningNodes = probe.getJoiningNodes();
         Collection<String> leavingNodes = probe.getLeavingNodes();
+        Collection<String> movingNodes = probe.getMovingNodes();
         Map<String, String> loadMap = probe.getLoadMap();
 
         outs.printf("%-16s%-7s%-8s%-16s%-8s%-44s%n", "Address", "Status", "State", "Load", "Owns", "Token");
@@ -172,11 +173,16 @@ public class NodeCmd {
                             : deadNodes.contains(primaryEndpoint)
                               ? "Down"
                               : "?";
-            String state = joiningNodes.contains(primaryEndpoint)
-                           ? "Joining"
-                           : leavingNodes.contains(primaryEndpoint)
-                             ? "Leaving"
-                             : "Normal";
+
+            String state = "Normal";
+
+            if (joiningNodes.contains(primaryEndpoint))
+                state = "Joining";
+            else if (leavingNodes.contains(primaryEndpoint))
+                state = "Leaving";
+            else if (movingNodes.contains(primaryEndpoint))
+                state = "Moving";
+
             String load = loadMap.containsKey(primaryEndpoint)
                           ? loadMap.get(primaryEndpoint)
                           : "?";

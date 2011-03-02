@@ -259,7 +259,45 @@ public class Range extends AbstractBounds implements Comparable<Range>, Serializ
         
         return compare(right,rhs.right);
     }
-    
+
+    /**
+     * Calculate set of the difference ranges of given two ranges
+     * (as current (A, B] and rhs is (C, D])
+     * which node will need to fetch when moving to a given new token
+     *
+     * @param rhs range to calculate difference
+     * @return set of difference ranges
+     */
+    public Set<Range> differenceToFetch(Range rhs)
+    {
+        Set<Range> difference = new HashSet<Range>();
+
+        int comparisonAC = Range.compare(left, rhs.left);
+
+        if (comparisonAC == 0) // (A, B] & (A, C]
+        {
+            if (Range.compare(right, rhs.right) < 0) // B < C
+            {
+                difference.add(new Range(right, rhs.right));
+            }
+        }
+        else if (comparisonAC > 0) // (A, B] & (C, D]  where C < A (A > C)
+        {
+            difference.add(new Range(rhs.left, left)); // first interval will be (C, A]
+
+            if (Range.compare(rhs.right, right) > 0) // D > B
+            {
+                difference.add(new Range(rhs.right, right)); // (D, B]
+            }
+        }
+        else // (A, B] & (C, D] where C > A (mean that comparisonAC < 0)
+        {
+            Token newLeft = (Range.compare(rhs.left, right) > 0) ? rhs.left : right; // C > B ? (C, D] : (B, D]
+            difference.add(new Range(newLeft, rhs.right));
+        }
+
+        return difference;
+    }
 
     public static boolean isTokenInRanges(Token token, Iterable<Range> ranges)
     {

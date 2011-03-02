@@ -225,7 +225,7 @@ public class BootStrapper
         return btc.getToken();
     }
 
-    static Multimap<InetAddress, Range> getWorkMap(Multimap<Range, InetAddress> rangesWithSourceTarget)
+    public static Multimap<InetAddress, Range> getWorkMap(Multimap<Range, InetAddress> rangesWithSourceTarget)
     {
         return getWorkMap(rangesWithSourceTarget, FailureDetector.instance);
     }

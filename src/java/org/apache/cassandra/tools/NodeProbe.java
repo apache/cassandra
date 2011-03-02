@@ -223,7 +223,12 @@ public class NodeProbe
     {
         return ssProxy.getLeavingNodes();
     }
-    
+
+    public List<String> getMovingNodes()
+    {
+        return ssProxy.getMovingNodes();
+    }
+
     public List<String> getUnreachableNodes()
     {
         return ssProxy.getUnreachableNodes();
@@ -339,7 +344,7 @@ public class NodeProbe
         ssProxy.decommission();
     }
 
-    public void loadBalance() throws IOException, InterruptedException
+    public void loadBalance() throws IOException
     {
         ssProxy.loadBalance();
     }

@@ -27,6 +27,7 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import com.google.common.collect.*;
+import org.apache.cassandra.utils.Pair;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -59,6 +60,10 @@ public class TokenMetadata
     private Set<InetAddress> leavingEndpoints = new HashSet<InetAddress>();
 
     private ConcurrentMap<String, Multimap<Range, InetAddress>> pendingRanges = new ConcurrentHashMap<String, Multimap<Range, InetAddress>>();
+
+    // nodes which are migrating to the new tokens in the ring
+    private Set<Pair<Token, InetAddress>> movingEndpoints = new HashSet<Pair<Token, InetAddress>>();
+
 
     /* Use this lock for manipulating the token map */
     private final ReadWriteLock lock = new ReentrantReadWriteLock(true);
@@ -116,6 +121,7 @@ public class TokenMetadata
                 sortedTokens = sortTokens();
             }
             leavingEndpoints.remove(endpoint);
+            removeFromMoving(endpoint); // also removing this endpoint from moving
             invalidateCaches();
         }
         finally
@@ -181,6 +187,27 @@ public class TokenMetadata
         }
     }
 
+    /**
+     * Add a new moving endpoint
+     * @param token token which is node moving to
+     * @param endpoint address of the moving node
+     */
+    public void addMovingEndpoint(Token token, InetAddress endpoint)
+    {
+        assert endpoint != null;
+
+        lock.writeLock().lock();
+
+        try
+        {
+            movingEndpoints.add(new Pair<Token, InetAddress>(token, endpoint));
+        }
+        finally
+        {
+            lock.writeLock().unlock();
+        }
+    }
+
     public void removeEndpoint(InetAddress endpoint)
     {
         assert endpoint != null;
@@ -192,6 +219,34 @@ public class TokenMetadata
             tokenToEndpointMap.inverse().remove(endpoint);
             leavingEndpoints.remove(endpoint);
             sortedTokens = sortTokens();
+            invalidateCaches();
+        }
+        finally
+        {
+            lock.writeLock().unlock();
+        }
+    }
+
+    /**
+     * Remove pair of token/address from moving endpoints
+     * @param endpoint address of the moving node
+     */
+    public void removeFromMoving(InetAddress endpoint)
+    {
+        assert endpoint != null;
+
+        lock.writeLock().lock();
+        try
+        {
+            for (Pair<Token, InetAddress> pair : movingEndpoints)
+            {
+                if (pair.right.equals(endpoint))
+                {
+                    movingEndpoints.remove(pair);
+                    break;
+                }
+            }
+
             invalidateCaches();
         }
         finally
@@ -246,6 +301,28 @@ public class TokenMetadata
         }
     }
 
+    public boolean isMoving(InetAddress endpoint)
+    {
+        assert endpoint != null;
+
+        lock.readLock().lock();
+
+        try
+        {
+            for (Pair<Token, InetAddress> pair : movingEndpoints)
+            {
+                if (pair.right.equals(endpoint))
+                    return true;
+            }
+
+            return false;
+        }
+        finally
+        {
+            lock.readLock().unlock();
+        }
+    }
+
     /**
      * Create a copy of TokenMetadata with only tokenToEndpointMap. That is, pending ranges,
      * bootstrap tokens and leaving endpoints are not included in the copy.
@@ -266,6 +343,8 @@ public class TokenMetadata
     /**
      * Create a copy of TokenMetadata with tokenToEndpointMap reflecting situation after all
      * current leave operations have finished.
+     *
+     * @return new token metadata
      */
     public TokenMetadata cloneAfterAllLeft()
     {
@@ -273,9 +352,40 @@ public class TokenMetadata
         try
         {
             TokenMetadata allLeftMetadata = cloneOnlyTokenMap();
+
             for (InetAddress endpoint : leavingEndpoints)
                 allLeftMetadata.removeEndpoint(endpoint);
+
             return allLeftMetadata;
+        }
+        finally
+        {
+            lock.readLock().unlock();
+        }
+    }
+
+    /**
+     * Create a copy of TokenMetadata with tokenToEndpointMap reflecting situation after all
+     * current leave and move operations have finished.
+     *
+     * @return new token metadata
+     */
+    public TokenMetadata cloneAfterAllSettled()
+    {
+        lock.readLock().lock();
+
+        try
+        {
+            TokenMetadata metadata = cloneOnlyTokenMap();
+
+            for (InetAddress endpoint : leavingEndpoints)
+                metadata.removeEndpoint(endpoint);
+
+
+            for (Pair<Token, InetAddress> pair : movingEndpoints)
+                metadata.updateNormalToken(pair.left, pair.right);
+
+            return metadata;
         }
         finally
         {
@@ -382,6 +492,15 @@ public class TokenMetadata
     public Set<InetAddress> getLeavingEndpoints()
     {
         return leavingEndpoints;
+    }
+
+    /**
+     * Endpoints which are migrating to the new tokens
+     * @return set of addresses of moving endpoints
+     */
+    public Set<Pair<Token, InetAddress>> getMovingEndpoints()
+    {
+        return movingEndpoints;
     }
 
     public static int firstTokenIndex(final ArrayList ring, Token start, boolean insertMin)
@@ -558,7 +677,7 @@ public class TokenMetadata
         if (ranges.isEmpty())
             return naturalEndpoints;
 
-        List<InetAddress> endpoints = new ArrayList<InetAddress>(naturalEndpoints);
+        Set<InetAddress> endpoints = new HashSet<InetAddress>(naturalEndpoints);
 
         for (Map.Entry<Range, Collection<InetAddress>> entry : ranges.entrySet())
         {

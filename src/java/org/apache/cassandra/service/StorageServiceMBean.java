@@ -66,6 +66,13 @@ public interface StorageServiceMBean
     public List<String> getLeavingNodes();
 
     /**
+     * Retrieve the list of nodes currently moving in the ring.
+     *
+     * @return set of IP addresses, as Strings
+     */
+    public List<String> getMovingNodes();
+
+    /**
      * Fetch a string representation of the token.
      *
      * @return a string token
@@ -196,10 +203,11 @@ public interface StorageServiceMBean
     public void move(String newToken) throws IOException, InterruptedException;
 
     /**
-     * This node will unload its data onto its neighbors, and bootstrap to share the range
-     * of the most-loaded node in the ring.
+     * Node will call BootStrapper.getBalancedToken then it will calculate ranges to
+     * transfer from other nodes, load the data and move to a new token
+     * @throws IOException on any I/O error.
      */
-    public void loadBalance() throws IOException, InterruptedException;
+    public void loadBalance() throws IOException;
 
     /**
      * removeToken removes token (and all data associated with
