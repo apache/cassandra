@@ -45,6 +45,8 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.migration.AddColumnFamily;
 import org.apache.cassandra.db.migration.AddKeyspace;
+import org.apache.cassandra.db.migration.DropColumnFamily;
+import org.apache.cassandra.db.migration.DropKeyspace;
 import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.db.migration.UpdateColumnFamily;
 import org.apache.cassandra.db.migration.avro.CfDef;
@@ -59,6 +61,9 @@ import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.Column;
 import org.apache.cassandra.thrift.*;
+
+import com.google.common.base.Predicates;
+import com.google.common.collect.Maps;
 
 import static org.apache.cassandra.thrift.ThriftValidation.validateKey;
 import static org.apache.cassandra.thrift.ThriftValidation.validateColumnFamily;
@@ -383,6 +388,16 @@ public class QueryProcessor
         else
             validateColumns(keyspace, columnFamily, predicate.column_names);
     }
+    
+    // Copypasta from CassandraServer (where it is private).
+    private static void validateSchemaAgreement() throws InvalidRequestException
+    {
+        // unreachable hosts don't count towards disagreement
+        Map<String, List<String>> versions = Maps.filterKeys(StorageProxy.describeSchemaVersions(),
+                                                             Predicates.not(Predicates.equalTo(StorageProxy.UNREACHABLE)));
+        if (versions.size() > 1)
+            throw new InvalidRequestException("Cluster schema does not yet agree");
+    }
 
     public static CqlResult process(String queryString, ClientState clientState)
     throws RecognitionException, UnavailableException, InvalidRequestException, TimedOutException
@@ -668,6 +683,57 @@ public class QueryProcessor
                 
                 avroResult.type = CqlResultType.VOID;
                 return avroResult;
+                
+            case DROP_KEYSPACE:
+                String deleteKeyspace = (String)statement.statement;
+                clientState.hasKeyspaceListAccess(Permission.WRITE);
+                validateSchemaAgreement();
+                
+                try
+                {
+                    applyMigrationOnStage(new DropKeyspace(deleteKeyspace));
+                }
+                catch (ConfigurationException e)
+                {
+                    InvalidRequestException ex = new InvalidRequestException(e.getMessage());
+                    ex.initCause(e);
+                    throw ex;
+                }
+                catch (IOException e)
+                {
+                    InvalidRequestException ex = new InvalidRequestException(e.getMessage());
+                    ex.initCause(e);
+                    throw ex;
+                }
+                
+                avroResult.type = CqlResultType.VOID;
+                return avroResult;
+            
+            case DROP_COLUMNFAMILY:
+                String deleteColumnFamily = (String)statement.statement;
+                clientState.hasColumnFamilyListAccess(Permission.WRITE);
+                validateSchemaAgreement();
+                    
+                try
+                {
+                    applyMigrationOnStage(new DropColumnFamily(keyspace, deleteColumnFamily));
+                }
+                catch (ConfigurationException e)
+                {
+                    InvalidRequestException ex = new InvalidRequestException(e.getMessage());
+                    ex.initCause(e);
+                    throw ex;
+                }
+                catch (IOException e)
+                {
+                    InvalidRequestException ex = new InvalidRequestException(e.getMessage());
+                    ex.initCause(e);
+                    throw ex;
+                }
+                
+                avroResult.type = CqlResultType.VOID;
+                return avroResult;
+                
         }
         
         return null;    // We should never get here.

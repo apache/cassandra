@@ -65,6 +65,8 @@ query returns [CQLStatement stmnt]
     | createKeyspaceStatement { $stmnt = new CQLStatement(StatementType.CREATE_KEYSPACE, $createKeyspaceStatement.expr); }
     | createColumnFamilyStatement { $stmnt = new CQLStatement(StatementType.CREATE_COLUMNFAMILY, $createColumnFamilyStatement.expr); }
     | createIndexStatement { $stmnt = new CQLStatement(StatementType.CREATE_INDEX, $createIndexStatement.expr); }
+    | dropKeyspaceStatement { $stmnt = new CQLStatement(StatementType.DROP_KEYSPACE, $dropKeyspaceStatement.ksp); }
+    | dropColumnFamilyStatement { $stmnt = new CQLStatement(StatementType.DROP_COLUMNFAMILY, $dropColumnFamilyStatement.cfam); }
     ;
 
 // USE <KEYSPACE>;
@@ -249,6 +251,16 @@ createIndexStatement returns [CreateIndexStatement expr]
       { $expr = new CreateIndexStatement($idxName.text, $cf.text, columnName); }
     ;
 
+/** DROP KEYSPACE <KSP>; */
+dropKeyspaceStatement returns [String ksp]
+    : K_DROP K_KEYSPACE IDENT endStmnt { $ksp = $IDENT.text; }
+    ;
+
+/** DROP COLUMNFAMILY <CF>; */
+dropColumnFamilyStatement returns [String cfam]
+    : K_DROP K_COLUMNFAMILY IDENT endStmnt { $cfam = $IDENT.text; }
+    ;
+
 comparatorType
     : 'bytes' | 'ascii' | 'utf8' | 'int' | 'long' | 'uuid' | 'timeuuid'
     ;
@@ -332,6 +344,7 @@ K_KEYSPACE:    K E Y S P A C E;
 K_COLUMNFAMILY: C O L U M N F A M I L Y;
 K_INDEX:       I N D E X;
 K_ON:          O N;
+K_DROP:        D R O P;
 
 // Case-insensitive alpha characters
 fragment A: ('a'|'A');
