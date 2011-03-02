@@ -235,6 +235,14 @@ bc. CREATE INDEX [index_name] ON <column_family> (column_name);
 
 A @CREATE INDEX@ statement is used to create a new, automatic secondary index for the named column.
 
+h2. DROP
+
+_Synopsis:_
+
+bc. DROP <KEYSPACE|COLUMNFAMILY> namespace;
+
+@DROP@ statements result in the immediate, irreversible removal of keyspace and column family namespaces.
+
 h2. Common Idioms
 
 h3(#consistency). Specifying Consistency
