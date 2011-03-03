@@ -685,8 +685,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             if (oldMemtable.isFrozen())
                 return null;
-            
-            if (DatabaseDescriptor.getCFMetaData(metadata.cfId) == null)
+
+            boolean isDropped = isIndex()
+                              ? DatabaseDescriptor.getCFMetaData(table.name, getParentColumnfamily()) == null
+                              : DatabaseDescriptor.getCFMetaData(metadata.cfId) == null;
+            if (isDropped)
                 return null; // column family was dropped. no point in flushing.
 
             assert memtable == oldMemtable;
@@ -2111,6 +2114,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public boolean isIndex()
     {
         return partitioner instanceof LocalPartitioner;
+    }
+
+    private String getParentColumnfamily()
+    {
+        assert isIndex();
+        return columnFamily.split("\\.")[0];
     }
 
     /**
