@@ -521,6 +521,107 @@ public class BufferedRandomAccessFileTest
         file.bytesPastMark();
     }
 
+    @Test
+    public void testReadOnly() throws IOException
+    {
+        BufferedRandomAccessFile file = createTempFile("brafReadOnlyTest");
+
+        byte[] data = new byte[20];
+        for (int i = 0; i < data.length; i++)
+            data[i] = 'c';
+
+        file.write(data);
+        file.sync(); // flushing file to the disk
+
+        // read-only copy of the file, with fixed file length
+        final BufferedRandomAccessFile copy = new BufferedRandomAccessFile(file.getPath(), "r");
+
+        copy.seek(copy.length());
+        assertTrue(copy.bytesRemaining() == 0 && copy.isEOF());
+
+        // can't seek past the end of the file for read-only files
+        expectEOF(new Callable<Object>()
+        {
+            public Object call() throws IOException
+            {
+                copy.seek(copy.length() + 1);
+                return null;
+            }
+        });
+
+        /* Any write() call should fail */
+        expectException(new Callable<Object>()
+        {
+            public Object call() throws IOException
+            {
+                copy.write(1);
+                return null;
+            }
+        }, IOException.class);
+
+        expectException(new Callable<Object>()
+        {
+            public Object call() throws IOException
+            {
+                copy.write(new byte[1]);
+                return null;
+            }
+        }, IOException.class);
+
+        expectException(new Callable<Object>()
+        {
+            public Object call() throws IOException
+            {
+                copy.write(new byte[3], 0, 2);
+                return null;
+            }
+        }, IOException.class);
+
+        copy.seek(0);
+        copy.skipBytes(5);
+
+        assertEquals(copy.bytesRemaining(), 15);
+        assertEquals(copy.getFilePointer(), 5);
+        assertTrue(!copy.isEOF());
+
+        copy.seek(0);
+        ByteBuffer contents = copy.readBytes((int) copy.length());
+
+        assertEquals(contents.limit(), copy.length());
+        assertTrue(ByteBufferUtil.compare(contents, data) == 0);
+
+        copy.seek(0);
+
+        int count = 0;
+        while (!copy.isEOF())
+        {
+            assertEquals((byte) copy.read(), 'c');
+            count++;
+        }
+
+        assertEquals(count, copy.length());
+
+        copy.seek(0);
+        byte[] content = new byte[10];
+        copy.read(content);
+
+        assertEquals(new String(content), "cccccccccc");
+
+        file.close();
+        copy.close();
+    }
+
+    @Test
+    public void testSeekPastEOF() throws IOException
+    {
+        BufferedRandomAccessFile file = createTempFile("brafTestSeekPastEOF");
+        file.seek(1);
+        file.write(1);
+        file.seek(0);
+        assertEquals(0, file.read());
+        assertEquals(1, file.read());
+    }
+
     private void expectException(Callable<?> callable, Class<?> exception)
     {
         boolean thrown = false;
