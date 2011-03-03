@@ -72,7 +72,7 @@ public class RemoveTest extends CleanupHelper
         Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, 6);
 
         MessagingService.instance().listen(FBUtilities.getLocalAddress());
-        Gossiper.instance.start(FBUtilities.getLocalAddress(), 1);
+        Gossiper.instance.start(1);
         for (int i = 0; i < 6; i++)
         {
             Gossiper.instance.initializeNodeUnsafe(hosts.get(i), 1);

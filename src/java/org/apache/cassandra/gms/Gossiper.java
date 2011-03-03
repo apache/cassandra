@@ -26,6 +26,7 @@ import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.*;
 
+import org.apache.cassandra.utils.FBUtilities;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -149,6 +150,7 @@ public class Gossiper implements IFailureDetectionEventListener
 
     private Gossiper()
     {
+        localEndpoint_ = FBUtilities.getLocalAddress();
         // 3 days
         aVeryLongTime_ = 259200 * 1000;
         // half of QUARATINE_DELAY, to ensure justRemovedEndpoints has enough leeway to prevent re-gossip
@@ -870,14 +872,13 @@ public class Gossiper implements IFailureDetectionEventListener
      * Start the gossiper with the generation # retrieved from the System
      * table
      */
-    public void start(InetAddress localEndpoint, int generationNbr)
+    public void start(int generationNbr)
     {
-        localEndpoint_ = localEndpoint;
         /* Get the seeds from the config and initialize them. */
         Set<InetAddress> seedHosts = DatabaseDescriptor.getSeeds();
         for (InetAddress seed : seedHosts)
         {
-            if (seed.equals(localEndpoint))
+            if (seed.equals(localEndpoint_))
                 continue;
             seeds_.add(seed);
         }
