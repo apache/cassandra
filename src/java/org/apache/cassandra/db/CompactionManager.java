@@ -20,6 +20,7 @@ package org.apache.cassandra.db;
 
 import java.io.DataOutput;
 import java.io.File;
+import java.io.IOError;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.nio.ByteBuffer;
@@ -515,11 +516,8 @@ public class CompactionManager implements CompactionManagerMBean
             String compactionFileLocation = cfs.table.getDataFileLocation(sstable.length());
             if (compactionFileLocation == null)
                 throw new IOException("disk full");
-
             int expectedBloomFilterSize = Math.max(DatabaseDescriptor.getIndexInterval(),
                                                    (int)(SSTableReader.getApproximateKeyCount(Arrays.asList(sstable))));
-            if (logger.isDebugEnabled())
-              logger.debug("Expected bloom filter size : " + expectedBloomFilterSize);
 
             // loop through each row, deserializing to check for damage.
             // we'll also loop through the index at the same time, using the position from the index to recover if the
@@ -529,64 +527,130 @@ public class CompactionManager implements CompactionManagerMBean
             String indexFilename = sstable.descriptor.filenameFor(Component.PRIMARY_INDEX);
             BufferedRandomAccessFile indexFile = BufferedRandomAccessFile.getUncachingReader(indexFilename);
             ByteBuffer nextIndexKey = ByteBufferUtil.readWithShortLength(indexFile);
-            assert indexFile.readLong() == 0;
+            {
+                // throw away variable so we don't have a side effect in the assert
+                long firstRowPositionFromIndex = indexFile.readLong();
+                assert firstRowPositionFromIndex == 0 : firstRowPositionFromIndex;
+            }
 
             SSTableWriter writer = maybeCreateWriter(cfs, compactionFileLocation, expectedBloomFilterSize, null);
             executor.beginCompaction(cfs.columnFamily, new ScrubInfo(dataFile, sstable));
+            int goodRows = 0, badRows = 0;
 
             while (!dataFile.isEOF())
             {
                 long rowStart = dataFile.getFilePointer();
-                DecoratedKey key = SSTableReader.decodeKey(sstable.partitioner, sstable.descriptor, ByteBufferUtil.readWithShortLength(dataFile));
+                if (logger.isDebugEnabled())
+                    logger.debug("Reading row at " + rowStart);
+
+                DecoratedKey key = null;
+                long dataSize = -1;
+                try
+                {
+                    key = SSTableReader.decodeKey(sstable.partitioner, sstable.descriptor, ByteBufferUtil.readWithShortLength(dataFile));
+                    dataSize = sstable.descriptor.hasIntRowSize ? dataFile.readInt() : dataFile.readLong();
+                    if (logger.isDebugEnabled())
+                        logger.debug(String.format("row %s is %s bytes", ByteBufferUtil.bytesToHex(key.key), dataSize));
+                }
+                catch (Throwable th)
+                {
+                    throwIfFatal(th);
+                    // check for null key below
+                }
+
                 ByteBuffer currentIndexKey = nextIndexKey;
-                nextIndexKey = indexFile.isEOF() ? null : ByteBufferUtil.readWithShortLength(indexFile);
-                long nextRowPositionFromIndex = indexFile.isEOF() ? dataFile.length() : indexFile.readLong();
+                long nextRowPositionFromIndex;
+                try
+                {
+                    nextIndexKey = indexFile.isEOF() ? null : ByteBufferUtil.readWithShortLength(indexFile);
+                    nextRowPositionFromIndex = indexFile.isEOF() ? dataFile.length() : indexFile.readLong();
+                }
+                catch (Throwable th)
+                {
+                    logger.warn("Error reading index file", th);
+                    nextIndexKey = null;
+                    nextRowPositionFromIndex = dataFile.length();
+                }
 
-                long dataSize = sstable.descriptor.hasIntRowSize ? dataFile.readInt() : dataFile.readLong();
                 long dataStart = dataFile.getFilePointer();
+                long dataStartFromIndex = currentIndexKey == null
+                                        ? -1
+                                        : rowStart + 2 + currentIndexKey.remaining() + (sstable.descriptor.hasIntRowSize ? 4 : 8);
+                long dataSizeFromIndex = nextRowPositionFromIndex - dataStartFromIndex;
+                assert currentIndexKey != null || indexFile.isEOF();
+                if (logger.isDebugEnabled() && currentIndexKey != null)
+                    logger.debug(String.format("Index doublecheck: row %s is %s bytes", ByteBufferUtil.bytesToHex(currentIndexKey),  dataSizeFromIndex));
 
-                SSTableIdentityIterator row = new SSTableIdentityIterator(sstable, dataFile, key, dataStart, dataSize, true);
                 writer.mark();
                 try
                 {
+                    if (key == null)
+                        throw new IOError(new IOException("Unable to read row key from data file"));
+                    if (dataSize > dataFile.length())
+                        throw new IOError(new IOException("Impossible row size " + dataSize));
+                    SSTableIdentityIterator row = new SSTableIdentityIterator(sstable, dataFile, key, dataStart, dataSize, true);
                     writer.append(getCompactedRow(row, cfs, sstable.descriptor, true));
-                }
-                catch (Exception e)
-                {
-                    logger.warn("Error reading row " + ByteBufferUtil.bytesToHex(key.key) + "(stacktrace follows)", e);
-                    writer.reset();
-                    
-                    long dataStartFromIndex = rowStart + 2 + currentIndexKey.remaining();
+                    goodRows++;
                     if (!key.key.equals(currentIndexKey) || dataStart != dataStartFromIndex)
+                        logger.warn("Row scrubbed successfully but index file contains a different key or row size; consider rebuilding the index as described in http://www.mail-archive.com/user@cassandra.apache.org/msg03325.html");
+                }
+                catch (Throwable th)
+                {
+                    throwIfFatal(th);
+                    logger.warn("Non-fatal error reading row (stacktrace follows)", th);
+                    writer.reset();
+
+                    if (currentIndexKey != null
+                        && (key == null || !key.key.equals(currentIndexKey) || dataStart != dataStartFromIndex || dataSize != dataSizeFromIndex))
                     {
-                        logger.info(String.format("Retrying %s as key %s from row index",
-                                                  ByteBufferUtil.bytesToHex(key.key), ByteBufferUtil.bytesToHex(currentIndexKey)));
+                        logger.info(String.format("Retrying from row index; data is %s bytes starting at %s",
+                                                  dataSizeFromIndex, dataStartFromIndex));
                         key = SSTableReader.decodeKey(sstable.partitioner, sstable.descriptor, currentIndexKey);
-                        long dataSizeFromIndex = nextRowPositionFromIndex - dataStartFromIndex;
-                        row = new SSTableIdentityIterator(sstable, dataFile, key, dataStartFromIndex, dataSizeFromIndex, true);
                         try
                         {
+                            SSTableIdentityIterator row = new SSTableIdentityIterator(sstable, dataFile, key, dataStartFromIndex, dataSizeFromIndex, true);
                             writer.append(getCompactedRow(row, cfs, sstable.descriptor, true));
+                            goodRows++;
                         }
-                        catch (Exception e2)
+                        catch (Throwable th2)
                         {
-                            logger.info("Retry failed too.  Skipping to next row (retry's stacktrace follows)", e2);
+                            throwIfFatal(th2);
+                            logger.warn("Retry failed too.  Skipping to next row (retry's stacktrace follows)", th2);
                             writer.reset();
                             dataFile.seek(nextRowPositionFromIndex);
+                            badRows++;
                         }
                     }
                     else
                     {
-                        logger.info("Skipping to next row");
-                        dataFile.seek(nextRowPositionFromIndex);
+                        logger.warn("Row is unreadable; skipping to next");
+                        if (currentIndexKey != null)
+                            dataFile.seek(nextRowPositionFromIndex);
+                        badRows++;
                     }
                 }
             }
 
-            SSTableReader newSstable = writer.closeAndOpenReader(sstable.maxDataAge);
-            cfs.replaceCompactedSSTables(Arrays.asList(sstable), Arrays.asList(newSstable));
-            logger.info("Scrub of " + sstable + " complete");
+            if (writer.getFilePointer() > 0)
+            {
+                SSTableReader newSstable = writer.closeAndOpenReader(sstable.maxDataAge);
+                cfs.replaceCompactedSSTables(Arrays.asList(sstable), Arrays.asList(newSstable));
+                logger.info("Scrub of " + sstable + " complete: " + goodRows + " rows in new sstable");
+                if (badRows > 0)
+                    logger.warn("Unable to recover " + badRows + " rows that were skipped.  You can attempt manual recovery from the pre-scrub snapshot.  You can also run nodetool repair to transfer the data from a healthy replica, if any");
+            }
+            else
+            {
+                cfs.markCompacted(Arrays.asList(sstable));
+                logger.warn("No valid rows found while scrubbing " + sstable + "; it is marked for deletion now. If you want to attempt manual recovery, you can find a copy in the pre-scrub snapshot");
+            }
         }
+    }
+
+    private void throwIfFatal(Throwable th)
+    {
+        if (th instanceof Error && !(th instanceof AssertionError || th instanceof IOError))
+            throw (Error) th;
     }
 
     /**

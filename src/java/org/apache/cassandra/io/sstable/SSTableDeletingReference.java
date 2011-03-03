@@ -67,7 +67,7 @@ public class SSTableDeletingReference extends PhantomReference<SSTableReader>
             // this is tricky because the mmapping might not have been finalized yet,
             // and delete will fail (on Windows) until it is.  additionally, we need to make sure to
             // delete the data file first, so on restart the others will be recognized as GCable
-            StorageService.scheduledTasks.schedule(new CleanupTask(), RETRY_DELAY, TimeUnit.MILLISECONDS);
+            StorageService.tasks.schedule(new CleanupTask(), RETRY_DELAY, TimeUnit.MILLISECONDS);
         }
     }
 
@@ -83,7 +83,7 @@ public class SSTableDeletingReference extends PhantomReference<SSTableReader>
             {
                 if (attempts++ < DeletionService.MAX_RETRIES)
                 {
-                    StorageService.scheduledTasks.schedule(this, RETRY_DELAY, TimeUnit.MILLISECONDS);
+                    StorageService.tasks.schedule(this, RETRY_DELAY, TimeUnit.MILLISECONDS);
                     return;
                 }
                 else

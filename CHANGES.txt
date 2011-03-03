@@ -10,6 +10,12 @@
  * check for null encryption in MessagingService (CASSANDRA-2152)
  * Fix for Cli to support updating replicate_on_write (CASSANDRA-2236)
 
+
+0.7.4
+ * add nodetool join command (CASSANDRA-2160)
+ * fix secondary indexes on pre-existing or streamed data (CASSANDRA-2244)
+
+
 0.7.3
  * Keep endpoint state until aVeryLongTime (CASSANDRA-2115)
  * lower-latency read repair (CASSANDRA-2069)
@@ -27,7 +33,7 @@
  * update memtable_throughput to be a long (CASSANDRA-2158)
  * fix for compaction and cleanup writing old-format data into new-version 
    sstable (CASSANDRA-2211, -2216)
- * add nodetool scrub (CASSANDRA-2217)
+ * add nodetool scrub (CASSANDRA-2217, -2240)
  * fix sstable2json large-row pagination (CASSANDRA-2188)
  * fix EOFing on requests for the last bytes in a file (CASSANDRA-2213)
  * fix BufferedRandomAccessFile bugs (CASSANDRA-2218, -2241)
@@ -45,6 +51,10 @@
    from supercolumn's (CASSANDRA-2104)
  * fix starting up on Windows when CASSANDRA_HOME contains whitespace
    (CASSANDRA-2237)
+ * add [get|set][row|key]cacheSavePeriod to JMX (CASSANDRA-2100)
+ * fix Hadoop ColumnFamilyOutputFormat dropping of mutations
+   when batch fills up (CASSANDRA-2255)
+ * move file deletions off of scheduledtasks executor (CASSANDRA-2253)
 
 
 0.7.2

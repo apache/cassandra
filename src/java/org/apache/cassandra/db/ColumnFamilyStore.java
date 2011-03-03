@@ -26,6 +26,7 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
+import javax.management.JMX;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
@@ -137,6 +138,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private volatile DefaultInteger memtime;
     private volatile DefaultInteger memsize;
     private volatile DefaultDouble memops;
+    private volatile DefaultInteger rowCacheSaveInSeconds;
+    private volatile DefaultInteger keyCacheSaveInSeconds;
+
+    // Locally held row/key cache scheduled tasks
+    private volatile ScheduledFuture<?> saveRowCacheTask;
+    private volatile ScheduledFuture<?> saveKeyCacheTask;
 
     public void reload()
     {
@@ -153,8 +160,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             memsize = new DefaultInteger(metadata.getMemtableThroughputInMb());
         if (!memops.isModified())
             memops = new DefaultDouble(metadata.getMemtableOperationsInMillions());
+        if (!rowCacheSaveInSeconds.isModified())
+            rowCacheSaveInSeconds = new DefaultInteger(metadata.getRowCacheSavePeriodInSeconds());
+        if (!keyCacheSaveInSeconds.isModified())
+            keyCacheSaveInSeconds = new DefaultInteger(metadata.getKeyCacheSavePeriodInSeconds());
         
         ssTables.updateCacheSizes();
+        scheduleCacheSaving(rowCacheSaveInSeconds.value(), keyCacheSaveInSeconds.value());
         
         // figure out what needs to be added and dropped.
         // future: if/when we have modifiable settings for secondary indexes, they'll need to be handled here.
@@ -190,6 +202,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         this.memtime = new DefaultInteger(metadata.getMemtableFlushAfterMins());
         this.memsize = new DefaultInteger(metadata.getMemtableThroughputInMb());
         this.memops = new DefaultDouble(metadata.getMemtableOperationsInMillions());
+        this.rowCacheSaveInSeconds = new DefaultInteger(metadata.getRowCacheSavePeriodInSeconds());
+        this.keyCacheSaveInSeconds = new DefaultInteger(metadata.getKeyCacheSavePeriodInSeconds());
         this.partitioner = partitioner;
         fileIndexGenerator.set(generation);
         memtable = new Memtable(this);
@@ -569,6 +583,16 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                                       ssTables.getRowCache().getSize(),
                                       table.name,
                                       columnFamily));
+        scheduleCacheSaving(rowCacheSavePeriodInSeconds, keyCacheSavePeriodInSeconds);
+    }
+
+    public void scheduleCacheSaving(int rowCacheSavePeriodInSeconds, int keyCacheSavePeriodInSeconds)
+    {
+        if (saveRowCacheTask != null)
+        {
+            saveRowCacheTask.cancel(false); // Do not interrupt an in-progress save
+            saveRowCacheTask = null;
+        }
         if (rowCacheSavePeriodInSeconds > 0)
         {
             Runnable runnable = new WrappedRunnable()
@@ -578,12 +602,17 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     submitRowCacheWrite();
                 }
             };
-            StorageService.scheduledTasks.scheduleWithFixedDelay(runnable,
-                                                                 rowCacheSavePeriodInSeconds,
-                                                                 rowCacheSavePeriodInSeconds,
-                                                                 TimeUnit.SECONDS);
+            saveRowCacheTask = StorageService.scheduledTasks.scheduleWithFixedDelay(runnable,
+                                                                                    rowCacheSavePeriodInSeconds,
+                                                                                    rowCacheSavePeriodInSeconds,
+                                                                                    TimeUnit.SECONDS);
         }
 
+        if (saveKeyCacheTask != null)
+        {
+            saveKeyCacheTask.cancel(false); // Do not interrupt an in-progress save
+            saveKeyCacheTask = null;
+        }
         if (keyCacheSavePeriodInSeconds > 0)
         {
             Runnable runnable = new WrappedRunnable()
@@ -593,10 +622,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     submitKeyCacheWrite();
                 }
             };
-            StorageService.scheduledTasks.scheduleWithFixedDelay(runnable,
-                                                                 keyCacheSavePeriodInSeconds,
-                                                                 keyCacheSavePeriodInSeconds,
-                                                                 TimeUnit.SECONDS);
+            saveKeyCacheTask = StorageService.scheduledTasks.scheduleWithFixedDelay(runnable,
+                                                                                    keyCacheSavePeriodInSeconds,
+                                                                                    keyCacheSavePeriodInSeconds,
+                                                                                    TimeUnit.SECONDS);
         }
     }
 
@@ -684,7 +713,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         if (oldMemtable.isPendingFlush())
             return null;
 
-        if (DatabaseDescriptor.getCFMetaData(metadata.cfId) == null)
+        boolean isDropped = isIndex()
+                          ? DatabaseDescriptor.getCFMetaData(table.name, getParentColumnfamily()) == null
+                          : DatabaseDescriptor.getCFMetaData(metadata.cfId) == null;
+        if (isDropped)
             return null; // column family was dropped. no point in flushing.
 
         // Only one thread will succeed in marking it as pending flush; the others can go back to processing writes
@@ -1959,6 +1991,22 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                ')';
     }
 
+    public void disableAutoCompaction()
+    {
+        minCompactionThreshold.set(0);
+        maxCompactionThreshold.set(0);
+    }
+
+    /*
+     JMX getters and setters for the Default<T>s.
+       - get/set minCompactionThreshold
+       - get/set maxCompactionThreshold
+       - get     memsize
+       - get     memops
+       - get/set memtime
+       - get/set rowCacheSavePeriodInSeconds
+       - get/set keyCacheSavePeriodInSeconds
+     */
     public int getMinimumCompactionThreshold()
     {
         return minCompactionThreshold.value();
@@ -1966,7 +2014,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     
     public void setMinimumCompactionThreshold(int minCompactionThreshold)
     {
-        if ((minCompactionThreshold > this.maxCompactionThreshold.value()) && this.maxCompactionThreshold.value() != 0) {
+        if ((minCompactionThreshold > this.maxCompactionThreshold.value()) && this.maxCompactionThreshold.value() != 0)
+        {
             throw new RuntimeException("The min_compaction_threshold cannot be larger than the max.");
         }
         this.minCompactionThreshold.set(minCompactionThreshold);
@@ -1979,16 +2028,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public void setMaximumCompactionThreshold(int maxCompactionThreshold)
     {
-        if (maxCompactionThreshold < this.minCompactionThreshold.value()) {
+        if (maxCompactionThreshold < this.minCompactionThreshold.value())
+        {
             throw new RuntimeException("The max_compaction_threshold cannot be smaller than the min.");
         }
         this.maxCompactionThreshold.set(maxCompactionThreshold);
-    }
-
-    public void disableAutoCompaction()
-    {
-        minCompactionThreshold.set(0);
-        maxCompactionThreshold.set(0);
     }
 
     public int getMemtableFlushAfterMins()
@@ -1997,7 +2041,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     }
     public void setMemtableFlushAfterMins(int time)
     {
-        if (time <= 0) {
+        if (time <= 0)
+        {
             throw new RuntimeException("MemtableFlushAfterMins must be greater than 0.");
         }
         this.memtime.set(time);
@@ -2022,6 +2067,35 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         DatabaseDescriptor.validateMemtableOperations(ops);
         memops.set(ops);
     }
+
+    public int getRowCacheSavePeriodInSeconds()
+    {
+        return rowCacheSaveInSeconds.value();
+    }
+    public void setRowCacheSavePeriodInSeconds(int rcspis)
+    {
+        if (rcspis < 0)
+        {
+            throw new RuntimeException("RowCacheSavePeriodInSeconds must be non-negative.");
+        }
+        this.rowCacheSaveInSeconds.set(rcspis);
+        scheduleCacheSaving(rowCacheSaveInSeconds.value(), keyCacheSaveInSeconds.value());
+    }
+
+    public int getKeyCacheSavePeriodInSeconds()
+    {
+        return keyCacheSaveInSeconds.value();
+    }
+    public void setKeyCacheSavePeriodInSeconds(int kcspis)
+    {
+        if (kcspis < 0)
+        {
+            throw new RuntimeException("KeyCacheSavePeriodInSeconds must be non-negative.");
+        }
+        this.keyCacheSaveInSeconds.set(kcspis);
+        scheduleCacheSaving(rowCacheSaveInSeconds.value(), keyCacheSaveInSeconds.value());
+    }
+    // End JMX get/set.
 
     public long estimateKeys()
     {
@@ -2090,6 +2164,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public boolean isIndex()
     {
         return partitioner instanceof LocalPartitioner;
+    }
+
+    private String getParentColumnfamily()
+    {
+        assert isIndex();
+        return columnFamily.split("\\.")[0];
     }
 
     /**

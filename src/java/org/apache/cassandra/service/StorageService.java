@@ -146,7 +146,16 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     }};
 
 
-    public static final RetryingScheduledThreadPoolExecutor scheduledTasks = new RetryingScheduledThreadPoolExecutor("ScheduledTasks");
+    /**
+     * This pool is used for periodic short time execution tasks.
+     */
+     public static final RetryingScheduledThreadPoolExecutor scheduledTasks = new RetryingScheduledThreadPoolExecutor("ScheduledTasks");
+
+    /**
+     * This pool is used by tasks that can have long execution, (and usually are non periodic).
+     */
+    public static final RetryingScheduledThreadPoolExecutor tasks = new RetryingScheduledThreadPoolExecutor("NonPeriodicTasks");
+
 
     /* This abstraction maintains the token/endpoint metadata information */
     private TokenMetadata tokenMetadata_ = new TokenMetadata();

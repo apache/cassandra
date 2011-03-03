@@ -17,10 +17,12 @@
  */
 package org.apache.cassandra.io.util;
 
+import java.io.EOFException;
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
+import java.nio.channels.ClosedChannelException;
 import java.nio.channels.FileChannel;
 
 import org.apache.cassandra.utils.CLibrary;
@@ -287,6 +289,12 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
     @Override
     public void write(byte[] buff, int offset, int length) throws IOException
     {
+        if (buffer == null)
+            throw new ClosedChannelException();
+
+        if (isReadOnly())
+            throw new IOException("Unable to write: file is in the read-only mode.");
+
         while (length > 0)
         {
             int n = writeAtMost(buff, offset, length);
@@ -295,6 +303,11 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
             isDirty = true;
             syncNeeded = true;
         }
+    }
+
+    private boolean isReadOnly()
+    {
+        return fileLength != -1;
     }
 
     /*
@@ -321,6 +334,12 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
     @Override
     public void seek(long newPosition) throws IOException
     {
+        if (newPosition < 0)
+            throw new IllegalArgumentException("new position should not be negative");
+
+        if (isReadOnly() && newPosition > fileLength)
+            throw new EOFException("unable to seek past the end of the file in read-only mode.");
+
         current = newPosition;
 
         if (newPosition >= bufferOffset + validBufferBytes || newPosition < bufferOffset)

@@ -307,7 +307,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
     }
 
     @Test
-    public void testIndexCreate() throws IOException, ConfigurationException, InterruptedException
+    public void testIndexCreate() throws IOException, ConfigurationException, InterruptedException, ExecutionException
     {
         Table table = Table.open("Keyspace1");
 
@@ -324,6 +324,9 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         while (!SystemTable.isIndexBuilt("Keyspace1", cfs.getIndexedColumnFamilyStore(ByteBufferUtil.bytes("birthdate")).columnFamily))
             TimeUnit.MILLISECONDS.sleep(100);
 
+        // we had a bug (CASSANDRA-2244) where index would get created but not flushed -- check for that  
+        assert cfs.getIndexedColumnFamilyStore(cd.name).getSSTables().size() > 0;
+
         IndexExpression expr = new IndexExpression(ByteBufferUtil.bytes("birthdate"), IndexOperator.EQ, ByteBufferUtil.bytes(1L));
         IndexClause clause = new IndexClause(Arrays.asList(expr), ByteBufferUtil.EMPTY_BYTE_BUFFER, 100);
         IFilter filter = new IdentityQueryFilter();
@@ -331,8 +334,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         Range range = new Range(p.getMinimumToken(), p.getMinimumToken());
         List<Row> rows = table.getColumnFamilyStore("Indexed2").scan(clause, range, filter);
         assert rows.size() == 1 : StringUtils.join(rows, ",");
-        String key = new String(rows.get(0).key.key.array(),rows.get(0).key.key.position(),rows.get(0).key.key.remaining()); 
-        assert "k1".equals( key );        
+        assertEquals("k1", ByteBufferUtil.string(rows.get(0).key.key));        
     }
     
     @Test

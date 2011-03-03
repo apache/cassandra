@@ -208,7 +208,7 @@ public class ThriftValidation
         if (range.count < 0)
             throw new InvalidRequestException("get_slice requires non-negative count");
 
-        Comparator<ByteBuffer> orderedComparator = range.isReversed() ? comparator.getReverseComparator() : comparator;
+        Comparator<ByteBuffer> orderedComparator = range.isReversed() ? comparator.reverseComparator : comparator;
         if (range.start.remaining() > 0
             && range.finish.remaining() > 0
             && orderedComparator.compare(range.start, range.finish) > 0)

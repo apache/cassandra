@@ -26,7 +26,6 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.SortedSet;
 
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.IColumnIterator;
 import org.apache.cassandra.db.columniterator.SSTableNamesIterator;
@@ -88,6 +87,6 @@ public class NamesQueryFilter implements IFilter
 
     public Comparator<IColumn> getColumnComparator(AbstractType comparator)
     {
-        return QueryFilter.getColumnComparator(comparator);
+        return comparator.columnComparator;
     }
 }
