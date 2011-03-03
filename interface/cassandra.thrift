@@ -300,7 +300,7 @@ service Cassandra {
   ColumnOrSuperColumn get(1:required string keyspace,
                           2:required string key,
                           3:required ColumnPath column_path,
-                          4:required ConsistencyLevel consistency_level=ONE)
+                          4:required ConsistencyLevel consistency_level=ConsistencyLevel.ONE)
                       throws (1:InvalidRequestException ire, 2:NotFoundException nfe, 3:UnavailableException ue, 4:TimedOutException te),
 
   /**
@@ -311,7 +311,7 @@ service Cassandra {
                                       2:required string key, 
                                       3:required ColumnParent column_parent, 
                                       4:required SlicePredicate predicate, 
-                                      5:required ConsistencyLevel consistency_level=ONE)
+                                      5:required ConsistencyLevel consistency_level=ConsistencyLevel.ONE)
                             throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
   /**
@@ -323,7 +323,7 @@ service Cassandra {
   map<string,ColumnOrSuperColumn> multiget(1:required string keyspace, 
                                            2:required list<string> keys, 
                                            3:required ColumnPath column_path, 
-                                           4:required ConsistencyLevel consistency_level=ONE)
+                                           4:required ConsistencyLevel consistency_level=ConsistencyLevel.ONE)
                                   throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
   /**
@@ -333,7 +333,7 @@ service Cassandra {
                                                        2:required list<string> keys, 
                                                        3:required ColumnParent column_parent, 
                                                        4:required SlicePredicate predicate, 
-                                                       5:required ConsistencyLevel consistency_level=ONE)
+                                                       5:required ConsistencyLevel consistency_level=ConsistencyLevel.ONE)
                                         throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
   /**
@@ -342,7 +342,7 @@ service Cassandra {
   i32 get_count(1:required string keyspace, 
                 2:required string key, 
                 3:required ColumnParent column_parent, 
-                4:required ConsistencyLevel consistency_level=ONE)
+                4:required ConsistencyLevel consistency_level=ConsistencyLevel.ONE)
       throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
   /**
@@ -355,7 +355,7 @@ service Cassandra {
                                  4:required string start_key="", 
                                  5:required string finish_key="", 
                                  6:required i32 row_count=100, 
-                                 7:required ConsistencyLevel consistency_level=ONE)
+                                 7:required ConsistencyLevel consistency_level=ConsistencyLevel.ONE)
                  throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
   /**
@@ -365,7 +365,7 @@ service Cassandra {
                                   2:required ColumnParent column_parent, 
                                   3:required SlicePredicate predicate,
                                   4:required KeyRange range,
-                                  5:required ConsistencyLevel consistency_level=ONE)
+                                  5:required ConsistencyLevel consistency_level=ConsistencyLevel.ONE)
                  throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
   # modification methods
@@ -380,7 +380,7 @@ service Cassandra {
               3:required ColumnPath column_path, 
               4:required binary value, 
               5:required i64 timestamp, 
-              6:required ConsistencyLevel consistency_level=ONE)
+              6:required ConsistencyLevel consistency_level=ConsistencyLevel.ONE)
        throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
   /**
@@ -392,7 +392,7 @@ service Cassandra {
   void batch_insert(1:required string keyspace, 
                     2:required string key, 
                     3:required map<string, list<ColumnOrSuperColumn>> cfmap,
-                    4:required ConsistencyLevel consistency_level=ONE)
+                    4:required ConsistencyLevel consistency_level=ConsistencyLevel.ONE)
        throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
   /**
@@ -404,7 +404,7 @@ service Cassandra {
               2:required string key,
               3:required ColumnPath column_path,
               4:required i64 timestamp,
-              5:ConsistencyLevel consistency_level=ONE)
+              5:ConsistencyLevel consistency_level=ConsistencyLevel.ONE)
        throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
   /**
@@ -414,7 +414,7 @@ service Cassandra {
   **/
   void batch_mutate(1:required string keyspace,
                     2:required map<string, map<string, list<Mutation>>> mutation_map,
-                    3:required ConsistencyLevel consistency_level=ONE)
+                    3:required ConsistencyLevel consistency_level=ConsistencyLevel.ONE)
        throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
        
   // Meta-APIs -- APIs to get information about the node or cluster,
