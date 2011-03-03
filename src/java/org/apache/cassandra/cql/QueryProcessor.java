@@ -432,8 +432,8 @@ public class QueryProcessor
         parser.throwLastRecognitionError();
         String keyspace = null;
         
-        // Chicken-and-egg; No keyspace to get when we're setting one. 
-        if (statement.type != StatementType.USE)
+        // Chicken-and-egg; No keyspace to get when we're setting (or creating) one. 
+        if ((statement.type != StatementType.USE) && (statement.type != StatementType.CREATE_KEYSPACE))
             keyspace = clientState.getKeyspace();
         
         CqlResult avroResult = new CqlResult();
