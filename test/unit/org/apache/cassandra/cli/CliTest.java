@@ -145,7 +145,7 @@ public class CliTest extends CleanupHelper
         "HELP",
         "?"
     };
-    
+   
     @Test
     public void testCli() throws IOException, TTransportException, ConfigurationException
     {
