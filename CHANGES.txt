@@ -2,6 +2,7 @@
  * add nodetool join command (CASSANDRA-2160)
  * fix secondary indexes on pre-existing or streamed data (CASSANDRA-2244)
  * initialize endpoing in gossiper earlier (CASSANDRA-2228)
+ * add ability to write to Cassandra from Pig (CASSANDRA-1828)
 
 0.7.3
  * Keep endpoint state until aVeryLongTime (CASSANDRA-2115)

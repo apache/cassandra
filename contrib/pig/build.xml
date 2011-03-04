@@ -21,7 +21,7 @@
     <!-- stores the environment for locating PIG_HOME -->
     <property environment="env" />
     <property name="cassandra.dir" value="../.." />
-    <property name="cassandra.lib" value="" />
+    <property name="cassandra.lib" value="${cassandra.dir}/lib" />
     <property name="cassandra.classes" value="${cassandra.dir}/build/classes" />
     <property name="build.src" value="${basedir}/src" />
     <property name="build.lib" value="${basedir}/lib" />
@@ -31,8 +31,9 @@
 
     <path id="pig.classpath">
         <fileset file="${env.PIG_HOME}/pig*.jar" />
-        <fileset dir="${cassandra.dir}/lib">
+        <fileset dir="${cassandra.lib}">
             <include name="libthrift*.jar" />
+            <include name="avro*.jar" />
         </fileset>
         <fileset dir="${cassandra.dir}/build/lib/jars">
             <include name="google-collections*.jar" />
