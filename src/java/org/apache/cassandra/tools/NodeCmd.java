@@ -49,7 +49,7 @@ public class NodeCmd
     private static final Pair<String, String> PORT_OPT = new Pair<String, String>("p", "port");
     private static final Pair<String, String> USERNAME_OPT = new Pair<String, String>("u",  "username");
     private static final Pair<String, String> PASSWORD_OPT = new Pair<String, String>("pw", "password");
-    private static final int DEFAULT_PORT = 8080;
+    private static final int DEFAULT_PORT = 7199;
 
     private static ToolOptions options = null;
 
