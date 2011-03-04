@@ -34,7 +34,7 @@ import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.thrift.UnavailableException;
 
 /**
- * Handles blocking writes for ONE, ANY, QUORUM, and ALL consistency levels.
+ * Handles blocking writes for ONE, ANY, TWO, THREE, QUORUM, and ALL consistency levels.
  */
 public class WriteResponseHandler extends AbstractWriteResponseHandler
 {
@@ -82,6 +82,12 @@ public class WriteResponseHandler extends AbstractWriteResponseHandler
                 break;
             case ANY:
                 blockFor = 1;
+                break;
+            case TWO:
+                blockFor = 2;
+                break;
+            case THREE:
+                blockFor = 3;
                 break;
             case QUORUM:
                 blockFor = (writeEndpoints.size() / 2) + 1;

@@ -167,6 +167,10 @@ public class ReadCallback<T> implements IAsyncCallback
             case ONE:
             case ANY:
                 return 1;
+            case TWO:
+                return 2;
+            case THREE:
+                return 3;
             case QUORUM:
                 return (Table.open(table).getReplicationStrategy().getReplicationFactor() / 2) + 1;
             case ALL:

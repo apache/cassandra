@@ -32,8 +32,8 @@ import java.util.HashMap;
 import org.apache.thrift.TEnum;
 
 /**
- * The ConsistencyLevel is an enum that controls both read and write behavior based on <ReplicationFactor> in your
- * storage-conf.xml. The different consistency levels have different meanings, depending on if you're doing a write or read
+ * The ConsistencyLevel is an enum that controls both read and write behavior based on the ReplicationFactor of the keyspace.
+ * The different consistency levels have different meanings, depending on if you're doing a write or read
  * operation. Note that if W + R > ReplicationFactor, where W is the number of nodes to block for on write, and R
  * the number to block for on reads, you will have strongly consistent behavior; that is, readers will always see the most
  * recent write. Of these, the most interesting is to do QUORUM reads and writes, which gives you consistency while still
@@ -43,18 +43,22 @@ import org.apache.thrift.TEnum;
  * Write consistency levels make the following guarantees before reporting success to the client:
  *   ANY          Ensure that the write has been written once somewhere, including possibly being hinted in a non-target node.
  *   ONE          Ensure that the write has been written to at least 1 node's commit log and memory table
+ *   TWO          Ensure that the write has been written to at least 2 node's commit log and memory table
+ *   THREE        Ensure that the write has been written to at least 3 node's commit log and memory table
  *   QUORUM       Ensure that the write has been written to <ReplicationFactor> / 2 + 1 nodes
  *   LOCAL_QUORUM Ensure that the write has been written to <ReplicationFactor> / 2 + 1 nodes, within the local datacenter (requires NetworkTopologyStrategy)
  *   EACH_QUORUM  Ensure that the write has been written to <ReplicationFactor> / 2 + 1 nodes in each datacenter (requires NetworkTopologyStrategy)
  *   ALL          Ensure that the write is written to <code>&lt;ReplicationFactor&gt;</code> nodes before responding to the client.
  * 
- * Read:
+ * Read consistency levels make the following guarantees before returning successful results to the client:
  *   ANY          Not supported. You probably want ONE instead.
- *   ONE          Will return the record returned by the first node to respond. A consistency check is always done in a background thread to fix any consistency issues when ConsistencyLevel.ONE is used. This means subsequent calls will have correct data even if the initial read gets an older value. (This is called 'read repair'.)
- *   QUORUM       Will query all storage nodes and return the record with the most recent timestamp once it has at least a majority of replicas reported. Again, the remaining replicas will be checked in the background.
+ *   ONE          Returns the record obtained from a single replica.
+ *   TWO          Returns the record with the most recent timestamp once two replicas have replied.
+ *   THREE        Returns the record with the most recent timestamp once three replicas have replied.
+ *   QUORUM       Returns the record with the most recent timestamp once a majority of replicas have replied.
  *   LOCAL_QUORUM Returns the record with the most recent timestamp once a majority of replicas within the local datacenter have replied.
  *   EACH_QUORUM  Returns the record with the most recent timestamp once a majority of replicas within each datacenter have replied.
- *   ALL          Queries all storage nodes and returns the record with the most recent timestamp.
+ *   ALL          Returns the record with the most recent timestamp once all replicas have replied (implies no replica may be down)..
  */
 public enum ConsistencyLevel implements TEnum {
   ONE(1),
@@ -62,7 +66,9 @@ public enum ConsistencyLevel implements TEnum {
   LOCAL_QUORUM(3),
   EACH_QUORUM(4),
   ALL(5),
-  ANY(6);
+  ANY(6),
+  TWO(7),
+  THREE(8);
 
   private final int value;
 
@@ -95,6 +101,10 @@ public enum ConsistencyLevel implements TEnum {
         return ALL;
       case 6:
         return ANY;
+      case 7:
+        return TWO;
+      case 8:
+        return THREE;
       default:
         return null;
     }
