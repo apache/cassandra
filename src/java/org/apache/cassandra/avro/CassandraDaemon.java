@@ -25,6 +25,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.avro.ipc.ResponderServlet;
 import org.apache.avro.specific.SpecificResponder;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.mortbay.jetty.servlet.Context;
 import org.mortbay.jetty.servlet.ServletHolder;
 
@@ -48,8 +49,8 @@ public class CassandraDaemon extends org.apache.cassandra.service.AbstractCassan
         // FIXME: This isn't actually binding to listenAddr (it should).
         server = new org.mortbay.jetty.Server(listenPort);
         server.setThreadPool(new CleaningThreadPool(cassandraServer.clientState,
-                                                    MIN_WORKER_THREADS,
-                                                    Integer.MAX_VALUE));
+                                                    DatabaseDescriptor.getRpcMinThreads(),
+                                                    DatabaseDescriptor.getRpcMaxThreads()));
         try
         {
             // see CASSANDRA-1440

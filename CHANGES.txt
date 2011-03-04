@@ -3,6 +3,8 @@
  * fix secondary indexes on pre-existing or streamed data (CASSANDRA-2244)
  * initialize endpoing in gossiper earlier (CASSANDRA-2228)
  * add ability to write to Cassandra from Pig (CASSANDRA-1828)
+ * add rpc_[min|max]_threads (CASSANDRA-2176)
+
 
 0.7.3
  * Keep endpoint state until aVeryLongTime (CASSANDRA-2115)

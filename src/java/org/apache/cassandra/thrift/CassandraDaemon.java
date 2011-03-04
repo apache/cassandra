@@ -133,7 +133,8 @@ public class CassandraDaemon extends org.apache.cassandra.service.AbstractCassan
 
             // ThreadPool Server
             CustomTThreadPoolServer.Options options = new CustomTThreadPoolServer.Options();
-            options.minWorkerThreads = MIN_WORKER_THREADS;
+            options.minWorkerThreads = DatabaseDescriptor.getRpcMinThreads();
+            options.maxWorkerThreads = DatabaseDescriptor.getRpcMaxThreads();
 
             ExecutorService executorService = new CleaningThreadPool(cassandraServer.clientState,
                     options.minWorkerThreads,

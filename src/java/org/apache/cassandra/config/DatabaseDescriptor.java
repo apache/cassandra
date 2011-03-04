@@ -1033,6 +1033,16 @@ public class    DatabaseDescriptor
         return conf.rpc_keepalive;
     }
 
+    public static Integer getRpcMinThreads()
+    {
+        return conf.rpc_min_threads;
+    }
+    
+    public static Integer getRpcMaxThreads()
+    {
+        return conf.rpc_max_threads;
+    }
+    
     public static Integer getRpcSendBufferSize()
     {
         return conf.rpc_send_buff_size_in_bytes;
