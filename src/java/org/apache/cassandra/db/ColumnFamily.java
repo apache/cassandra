@@ -212,25 +212,23 @@ public class ColumnFamily implements IColumnContainer, IIterableColumns
     public void addColumn(IColumn column)
     {
         ByteBuffer name = column.name();
-        IColumn oldColumn = columns.putIfAbsent(name, column);
-        if (oldColumn != null)
+        IColumn oldColumn;
+        while ((oldColumn = columns.putIfAbsent(name, column)) != null)
         {
             if (oldColumn instanceof SuperColumn)
             {
                 ((SuperColumn) oldColumn).putColumn(column);
+                break;  // Delegated to SuperColumn
             }
             else
             {
                 // calculate reconciled col from old (existing) col and new col
                 IColumn reconciledColumn = column.reconcile(oldColumn);
-                while (!columns.replace(name, oldColumn, reconciledColumn))
-                {
-                    // if unable to replace, then get updated old (existing) col
-                    oldColumn = columns.get(name);
-                    // re-calculate reconciled col from updated old col and original new col
-                    reconciledColumn = column.reconcile(oldColumn);
-                    // try to re-update value, again
-                }
+                if (columns.replace(name, oldColumn, reconciledColumn))
+                    break;
+
+                // We failed to replace column due to a concurrent update or a concurrent removal. Keep trying.
+                // (Currently, concurrent removal should not happen (only updates), but let us support that anyway.)
             }
         }
     }
