@@ -19,6 +19,7 @@ package org.apache.cassandra.contrib.stress.util;
 
 import java.io.IOException;
 import java.math.BigInteger;
+import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 
 import java.util.ArrayList;
@@ -29,6 +30,7 @@ import org.apache.cassandra.contrib.stress.Session;
 import org.apache.cassandra.contrib.stress.Stress;
 import org.apache.cassandra.thrift.Cassandra;
 import org.apache.cassandra.thrift.InvalidRequestException;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
 public abstract class Operation
@@ -54,26 +56,21 @@ public abstract class Operation
     // Utility methods
 
     /**
-     * def generate_values():
-     *   values = []
-     *   for i in xrange(0, options.cardinality):
-     *       h = md5(str(i)).hexdigest()
-     *       values.append(h * int(options.column_size/len(h)) + h[:options.column_size % len(h)])
-     *   return values
-     *
+     * Generate values of average size specified by -S, up to cardinality specified by -C
      * @return Collection of the values
      */
     protected List<String> generateValues()
     {
         List<String> values = new ArrayList<String>();
 
+        int limit = 2 * session.getColumnSize();
+
         for (int i = 0; i < session.getCardinality(); i++)
         {
-            String hash = getMD5(Integer.toString(i));
-            int times = session.getColumnSize() / hash.length();
-            int sumReminder = session.getColumnSize() % hash.length();
+            byte[] value = new byte[Stress.randomizer.nextInt(limit)];
+            Stress.randomizer.nextBytes(value);
 
-            values.add(new StringBuilder(multiplyString(hash, times)).append(hash.substring(0, sumReminder)).toString());
+            values.add(FBUtilities.bytesToHex(value));
         }
 
         return values;
