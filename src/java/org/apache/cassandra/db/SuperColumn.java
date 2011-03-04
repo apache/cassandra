@@ -167,19 +167,16 @@ public class SuperColumn implements IColumn, IColumnContainer
         assert column instanceof Column : "A super column can only contain simple columns";
 
         ByteBuffer name = column.name();
-        IColumn oldColumn = columns_.putIfAbsent(name, column);
-        if (oldColumn != null)
+        IColumn oldColumn;
+        while ((oldColumn = columns_.putIfAbsent(name, column)) != null)
         {
             IColumn reconciledColumn = column.reconcile(oldColumn);
-            while (!columns_.replace(name, oldColumn, reconciledColumn))
-            {
-                // if unable to replace, then get updated old (existing) col
-                oldColumn = columns_.get(name);
-                // re-calculate reconciled col from updated old col and original new col
-                reconciledColumn = column.reconcile(oldColumn);
-                // try to re-update value, again
-            }
-    	}
+            if (columns_.replace(name, oldColumn, reconciledColumn))
+                break;
+
+            // We failed to replace column due to a concurrent update or a concurrent removal. Keep trying.
+            // (Currently, concurrent removal should not happen (only updates), but let us support that anyway.)
+        }
     }
 
     /*

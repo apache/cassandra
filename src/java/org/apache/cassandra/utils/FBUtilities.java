@@ -289,7 +289,7 @@ public class FBUtilities
         MessageDigest messageDigest = localMD5Digest.get();
         for(ByteBuffer block : data)
         {
-            messageDigest.update(ByteBufferUtil.clone(block));
+            messageDigest.update(block.duplicate());
         }
 
         return messageDigest.digest();

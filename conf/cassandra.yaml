@@ -190,6 +190,20 @@ rpc_port: 9160
 # enable or disable keepalive on rpc connections
 rpc_keepalive: true
 
+# Cassandra uses thread-per-client for client RPC.  This can
+# be expensive in memory used for thread stack for a large
+# enough number of clients.  (Hence, connection pooling is
+# very, very strongly recommended.)
+# 
+# Uncomment rpc_min|max|thread to set request pool size.
+# You would primarily set max as a safeguard against misbehaved
+# clients; if you do hit the max, Cassandra will block until
+# one disconnects before accepting more.  The defaults are
+# min of 16 and max unlimited.
+#
+# rpc_min_threads: 16
+# rpc_max_threads: 2048
+
 # uncomment to set socket buffer sizes on rpc connections
 # rpc_send_buff_size_in_bytes:
 # rpc_recv_buff_size_in_bytes:

@@ -301,7 +301,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
                 long dataPosition = input.readLong();
                 if (key != null)
                 {
-                    DecoratedKey decoratedKey = decodeKey(partitioner, descriptor, ByteBufferUtil.clone(key));
+                    DecoratedKey decoratedKey = decodeKey(partitioner, descriptor, key);
                     if (recreatebloom)
                         bf.add(decoratedKey.key);
                     if (shouldAddEntry)

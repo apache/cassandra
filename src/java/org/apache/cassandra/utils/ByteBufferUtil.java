@@ -188,23 +188,28 @@ public class ByteBufferUtil
            throw new RuntimeException(e);
         } 
     }
-    
-    public static ByteBuffer clone(ByteBuffer o)
+
+    /**
+     * @return a new copy of the data in @param buffer
+     * USUALLY YOU SHOULD USE ByteBuffer.duplicate() INSTEAD, which creates a new Buffer
+     * (so you can mutate its position without affecting the original) without copying the underlying array.
+     */
+    public static ByteBuffer clone(ByteBuffer buffer)
     {
-        assert o != null;
+        assert buffer != null;
         
-        if (o.remaining() == 0)
+        if (buffer.remaining() == 0)
             return EMPTY_BYTE_BUFFER;
           
-        ByteBuffer clone = ByteBuffer.allocate(o.remaining());
+        ByteBuffer clone = ByteBuffer.allocate(buffer.remaining());
 
-        if (o.hasArray())
+        if (buffer.hasArray())
         {
-            System.arraycopy(o.array(), o.arrayOffset() + o.position(), clone.array(), 0, o.remaining());
+            System.arraycopy(buffer.array(), buffer.arrayOffset() + buffer.position(), clone.array(), 0, buffer.remaining());
         }
         else
         {
-            clone.put(o.duplicate());
+            clone.put(buffer.duplicate());
             clone.flip();
         }
 

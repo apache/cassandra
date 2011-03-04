@@ -82,8 +82,6 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
     protected int listenPort;
     protected volatile boolean isRunning = false;
     
-    public static final int MIN_WORKER_THREADS = 64;
-
     /**
      * This is a hook for concrete daemons to initialize themselves suitably.
      *

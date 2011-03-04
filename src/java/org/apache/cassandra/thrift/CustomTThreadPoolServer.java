@@ -21,6 +21,7 @@ package org.apache.cassandra.thrift;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,10 +32,7 @@ import org.apache.thrift.TProcessorFactory;
 import org.apache.thrift.protocol.TProtocol;
 import org.apache.thrift.protocol.TProtocolFactory;
 import org.apache.thrift.server.TServer;
-import org.apache.thrift.transport.TServerSocket;
-import org.apache.thrift.transport.TTransport;
-import org.apache.thrift.transport.TTransportException;
-import org.apache.thrift.transport.TTransportFactory;
+import org.apache.thrift.transport.*;
 
 
 /**
@@ -59,6 +57,9 @@ public class CustomTThreadPoolServer extends TServer
     // Server options
     private Options options_;
 
+    //Track and Limit the number of connected clients
+    private final AtomicInteger activeClients = new AtomicInteger(0);
+    
     // Customizable server options
     public static class Options
     {
@@ -101,10 +102,24 @@ public class CustomTThreadPoolServer extends TServer
         stopped_ = false;
         while (!stopped_)
         {
+            // block until we are under max clients
+            while (activeClients.get() >= options_.maxWorkerThreads)
+            {
+                try
+                {
+                    Thread.sleep(100);
+                }
+                catch (InterruptedException e)
+                {
+                    throw new AssertionError(e);
+                }
+            }
+
             int failureCount = 0;
             try
             {
                 TTransport client = serverTransport_.accept();
+                activeClients.incrementAndGet();
                 WorkerProcess wp = new WorkerProcess(client);
                 executorService_.execute(wp);
             }
@@ -116,6 +131,9 @@ public class CustomTThreadPoolServer extends TServer
                     LOGGER.warn("Transport error occurred during acceptance of message.", ttx);
                 }
             }
+
+            if (activeClients.get() >= options_.maxWorkerThreads)
+                LOGGER.warn("Maximum number of clients " + options_.maxWorkerThreads + " reached");
         }
 
         executorService_.shutdown();
@@ -202,6 +220,10 @@ public class CustomTThreadPoolServer extends TServer
             catch (Exception x)
             {
                 LOGGER.error("Error occurred during processing of message.", x);
+            }
+            finally
+            {
+                activeClients.decrementAndGet();
             }
 
             if (inputTransport != null)
