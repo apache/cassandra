@@ -17,6 +17,7 @@
  * initialize endpoing in gossiper earlier (CASSANDRA-2228)
  * add ability to write to Cassandra from Pig (CASSANDRA-1828)
  * add rpc_[min|max]_threads (CASSANDRA-2176)
+ * add CL.TWO, CL.THREE (CASSANDRA-2013)
 
 
 0.7.3

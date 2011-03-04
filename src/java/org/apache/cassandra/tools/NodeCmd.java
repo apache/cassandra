@@ -215,11 +215,15 @@ public class NodeCmd
      */
     public void printInfo(PrintStream outs)
     {
+        boolean gossipInitialized = probe.isInitialized();
         outs.println(probe.getToken());
-        outs.printf("%-17s: %s%n", "Gossip active", probe.isInitialized());
+        outs.printf("%-17s: %s%n", "Gossip active", gossipInitialized);
         outs.printf("%-17s: %s%n", "Load", probe.getLoadString());
-        outs.printf("%-17s: %s%n", "Generation No", probe.getCurrentGenerationNumber());
-        
+        if (gossipInitialized)
+            outs.printf("%-17s: %s%n", "Generation No", probe.getCurrentGenerationNumber());
+        else
+            outs.printf("%-17s: %s%n", "Generation No", 0);
+
         // Uptime
         long secondsUp = probe.getUptime() / 1000;
         outs.printf("%-17s: %d%n", "Uptime (seconds)", secondsUp);

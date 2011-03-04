@@ -145,6 +145,18 @@ public class ConsistencyLevelTest extends CleanupHelper
                             else
                                 assertTrue(hintedNodes.size() > 0);
                             break;
+                        case TWO:
+                            if (isWriteUnavailable)
+                                assertTrue(hintedNodes.size() < 2);
+                            else
+                                assertTrue(hintedNodes.size() >= 2);
+                            break;
+                        case THREE:
+                            if (isWriteUnavailable)
+                                assertTrue(hintedNodes.size() < 3);
+                            else
+                                assertTrue(hintedNodes.size() >= 3);
+                            break;
                         case QUORUM:
                             if (isWriteUnavailable)
                                 assertTrue(hintedNodes.size() < (replicationFactor / 2 + 1));
