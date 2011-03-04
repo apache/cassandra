@@ -29,9 +29,9 @@ import org.apache.cassandra.db.SuperColumn;
 import org.apache.cassandra.hadoop.*;
 import org.apache.cassandra.thrift.SlicePredicate;
 import org.apache.cassandra.thrift.SliceRange;
-import org.apache.cassandra.avro.Mutation;
-import org.apache.cassandra.avro.Deletion;
-import org.apache.cassandra.avro.ColumnOrSuperColumn;
+import org.apache.cassandra.hadoop.avro.Mutation;
+import org.apache.cassandra.hadoop.avro.Deletion;
+import org.apache.cassandra.hadoop.avro.ColumnOrSuperColumn;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import org.apache.hadoop.conf.Configuration;
@@ -57,7 +57,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
     public final static String PIG_INITIAL_ADDRESS = "PIG_INITIAL_ADDRESS";
     public final static String PIG_PARTITIONER = "PIG_PARTITIONER";
 
-    private final static ByteBuffer BOUND = FBUtilities.EMPTY_BYTE_BUFFER;
+    private final static ByteBuffer BOUND = ByteBufferUtil.EMPTY_BYTE_BUFFER;
     private final static int LIMIT = 1024;
     private static final Log logger = LogFactory.getLog(CassandraStorage.class);
 
@@ -237,12 +237,12 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
                Mutation mutation = new Mutation();
                if (DataType.findType(pair.get(1)) == DataType.BAG) // supercolumn
                {
-                   org.apache.cassandra.avro.SuperColumn sc = new org.apache.cassandra.avro.SuperColumn();
+                   org.apache.cassandra.hadoop.avro.SuperColumn sc = new org.apache.cassandra.hadoop.avro.SuperColumn();
                    sc.name = objToBB(pair.get(0));
-                   ArrayList<org.apache.cassandra.avro.Column> columns = new ArrayList<org.apache.cassandra.avro.Column>();
+                   ArrayList<org.apache.cassandra.hadoop.avro.Column> columns = new ArrayList<org.apache.cassandra.hadoop.avro.Column>();
                    for (Tuple subcol : (DefaultDataBag) pair.get(1))
                    {
-                       org.apache.cassandra.avro.Column column = new org.apache.cassandra.avro.Column();
+                       org.apache.cassandra.hadoop.avro.Column column = new org.apache.cassandra.hadoop.avro.Column();
                        column.name = objToBB(subcol.get(0));
                        column.value = objToBB(subcol.get(1));
                        column.timestamp = System.currentTimeMillis() * 1000;
@@ -266,13 +266,13 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
                    if (pair.get(1) == null)
                    {
                        mutation.deletion = new Deletion();
-                       mutation.deletion.predicate = new org.apache.cassandra.avro.SlicePredicate();
+                       mutation.deletion.predicate = new org.apache.cassandra.hadoop.avro.SlicePredicate();
                        mutation.deletion.predicate.column_names = Arrays.asList(objToBB(pair.get(0)));
                        mutation.deletion.timestamp = System.currentTimeMillis() * 1000;
                    }
                    else
                    {
-                       org.apache.cassandra.avro.Column column = new org.apache.cassandra.avro.Column();
+                       org.apache.cassandra.hadoop.avro.Column column = new org.apache.cassandra.hadoop.avro.Column();
                        column.name = objToBB(pair.get(0));
                        column.value = objToBB(pair.get(1));
                        column.timestamp = System.currentTimeMillis() * 1000;
