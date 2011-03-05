@@ -283,10 +283,8 @@ public class SSTableExport
 
         IPartitioner<?> partitioner = StorageService.getPartitioner();
 
-        for (String toExclude : excludes)
-        {
-            toExport.remove(toExclude); // excluding key from export
-        }
+        if (excludes != null)
+            toExport.removeAll(Arrays.asList(excludes));
 
         outs.println("{");
 
@@ -309,7 +307,11 @@ public class SSTableExport
             if (!scanner.hasNext())
                 continue;
 
-            serializeRow(reader, (SSTableIdentityIterator) scanner.next(), decoratedKey, outs);
+            SSTableIdentityIterator row = (SSTableIdentityIterator) scanner.next();
+            if (!row.getKey().equals(decoratedKey))
+                continue;
+
+            serializeRow(reader, row, decoratedKey, outs);
 
             if (i != 0)
                 outs.println(",");
