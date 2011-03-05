@@ -447,6 +447,8 @@
         <fileset dir="${build.lib}"/>
         <fileset dir="${build.dir}">
           <include name="${final.name}.jar" />
+          <include name="${ant.project.name}-thrift-${version}.jar" />
+          <include name="${ant.project.name}-cql-${version}.jar" />
         </fileset>
       </copy>
       <copy todir="${dist.dir}/javadoc">
