@@ -548,7 +548,8 @@ class TestMutations(ThriftTester):
                 _assert_columnpath_exists(key, ColumnPath('Super1', super_column='sc1', column=c))
                 _assert_columnpath_exists(key, ColumnPath('Super2', super_column='sc1', column=c))
 
-    def test_batch_mutate_does_not_accept_cosc_and_deletion_in_same_mutation(self):
+    def test_bad_batch_calls(self):
+        # mutate_does_not_accept_cosc_and_deletion_in_same_mutation
         def too_full():
             _set_keyspace('Keyspace1')
             col = ColumnOrSuperColumn(column=Column("foo", 'bar', 0))
@@ -557,7 +558,7 @@ class TestMutations(ThriftTester):
                                  ConsistencyLevel.ONE)
         _expect_exception(too_full, InvalidRequestException)
 
-    def test_batch_mutate_does_not_yet_accept_slice_ranges(self):
+        # test_batch_mutate_does_not_yet_accept_slice_ranges
         def send_range():
             _set_keyspace('Keyspace1')
             sp = SlicePredicate(slice_range=SliceRange(start='0', finish="", count=10))
@@ -566,7 +567,7 @@ class TestMutations(ThriftTester):
                                  ConsistencyLevel.ONE)
         _expect_exception(send_range, InvalidRequestException)
 
-    def test_batch_mutate_does_not_accept_cosc_on_undefined_cf(self):
+        # test_batch_mutate_does_not_accept_cosc_on_undefined_cf:
         def bad_cf():
             _set_keyspace('Keyspace1')
             col = ColumnOrSuperColumn(column=Column("foo", 'bar', 0))
@@ -574,7 +575,7 @@ class TestMutations(ThriftTester):
                                  ConsistencyLevel.ONE)
         _expect_exception(bad_cf, InvalidRequestException)
 
-    def test_batch_mutate_does_not_accept_deletion_on_undefined_cf(self):
+        # test_batch_mutate_does_not_accept_deletion_on_undefined_cf
         def bad_cf():
             _set_keyspace('Keyspace1')
             d = Deletion(2, predicate=SlicePredicate(column_names=['baz']))
