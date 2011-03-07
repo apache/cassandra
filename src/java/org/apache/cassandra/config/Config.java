@@ -115,6 +115,8 @@ public class Config
     // TODO: remove in 0.8
     public Boolean enable_page_cache_migration = false;
 
+    public boolean incremental_backups = false;
+
     public static enum CommitLogSync {
         periodic,
         batch

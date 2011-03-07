@@ -24,6 +24,7 @@ endpoint_snitch: org.apache.cassandra.locator.SimpleSnitch
 dynamic_snitch: true
 request_scheduler: org.apache.cassandra.scheduler.RoundRobinScheduler
 request_scheduler_id: keyspace
+incremental_backups: true
 keyspaces:
     - name: Keyspace1
       replica_placement_strategy: org.apache.cassandra.locator.SimpleStrategy

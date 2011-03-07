@@ -18,6 +18,7 @@
 */
 package org.apache.cassandra.db;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
@@ -39,6 +40,7 @@ import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.dht.IPartitioner;
@@ -52,6 +54,7 @@ import org.apache.cassandra.thrift.IndexType;
 import org.apache.cassandra.utils.WrappedRunnable;
 
 import static junit.framework.Assert.assertEquals;
+import static junit.framework.Assert.assertTrue;
 import static org.apache.cassandra.Util.column;
 import static org.apache.cassandra.Util.getBytes;
 import static org.junit.Assert.assertNull;
@@ -514,5 +517,18 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes("Column1")), ByteBufferUtil.bytes("asdf"), 0);
         rms.add(rm);
         return Util.writeColumnFamily(rms);
+    }
+    
+    @Test
+    public void testBackupAfterFlush() throws Throwable
+    {
+        insertKey1Key2();
+
+        File backupDir = new File(DatabaseDescriptor.getDataFileLocationForTable("Keyspace2", 0), "backups");
+        for (String f : Arrays.asList("Standard1-f-1-Data.db", "Standard1-f-1-Index.db", "Standard1-f-2-Data.db", "Standard1-f-2-Index.db",
+                                      "Standard1-f-1-Filter.db", "Standard1-f-1-Statistics.db", "Standard1-f-2-Filter.db", "Standard1-f-2-Statistics.db"))
+        {
+            assertTrue("can not find backedup file:" + f, new File(backupDir, f).exists());
+        }
     }
 }
