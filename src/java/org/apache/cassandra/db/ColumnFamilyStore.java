@@ -962,6 +962,21 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         assert sstable.getColumnFamilyName().equals(columnFamily);
         ssTables.add(Arrays.asList(sstable));
+        if (DatabaseDescriptor.incrementalBackupsEnabled())
+        {
+            File keyspaceDir = new File(sstable.getFilename()).getParentFile();
+            File backupsDir = new File(keyspaceDir, "backups");
+            try
+            {
+                if (!backupsDir.exists() && !backupsDir.mkdirs())
+                    throw new IOException("Unable to create " + backupsDir);
+                sstable.createLinks(backupsDir.getCanonicalPath());
+            }
+            catch (IOException e)
+            {
+                throw new IOError(e);
+            }
+        }
         CompactionManager.instance.submitMinorIfNeeded(this);
     }
 

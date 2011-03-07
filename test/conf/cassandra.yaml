@@ -32,6 +32,7 @@ encryption_options:
     keystore_password: cassandra
     truststore: conf/.truststore
     truststore_password: cassandra
+incremental_backups: true
 keyspaces:
     - name: Keyspace1
       replica_placement_strategy: org.apache.cassandra.locator.SimpleStrategy

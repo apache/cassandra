@@ -37,7 +37,6 @@ import org.apache.cassandra.config.Config.RequestSchedulerId;
 import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.db.DefsTable;
 import org.apache.cassandra.db.Table;
-import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.dht.IPartitioner;
@@ -1239,5 +1238,10 @@ public class DatabaseDescriptor
     public static boolean isPageCaheMigrationEnabled()
     {
         return conf.enable_page_cache_migration;
+    }
+
+    public static boolean incrementalBackupsEnabled()
+    {
+        return conf.incremental_backups;
     }
 }

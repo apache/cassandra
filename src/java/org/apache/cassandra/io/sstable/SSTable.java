@@ -183,7 +183,7 @@ public abstract class SSTable
     /**
      * Discovers existing components for the descriptor. Slow: only intended for use outside the critical path.
      */
-    static Set<Component> componentsFor(final Descriptor desc) throws IOException
+    static Set<Component> componentsFor(final Descriptor desc) 
     {
         final Set<Component> components = new HashSet<Component>();
         desc.directory.list(new FilenameFilter()
