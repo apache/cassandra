@@ -55,4 +55,12 @@ public interface IColumn
      * supercolumn deleted-at time.
      */
     boolean isLive();
+
+    /**
+     * Used to identify columns during compaction that are in the os page cache
+     * so that they can be re-cached in new SSTables
+     * @return
+     */
+    boolean isInPageCache();
+    void setIsInPageCache(boolean isInPageCache);
 }

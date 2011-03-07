@@ -38,8 +38,7 @@ import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
-import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.io.util.IIterableColumns;
+import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.utils.ReducingIterator;
 
 /**
@@ -94,7 +93,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements IIterabl
         iter = null;
     }
 
-    public void write(DataOutput out) throws IOException
+    public void write(PageCacheInformer out) throws IOException
     {
         if (rows.size() == 1 && !shouldPurge && rows.get(0).sstable.descriptor.isLatestVersion && !forceDeserialize)
         {

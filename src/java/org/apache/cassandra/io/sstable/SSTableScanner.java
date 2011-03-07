@@ -19,10 +19,7 @@
 
 package org.apache.cassandra.io.sstable;
 
-import java.io.Closeable;
-import java.io.File;
-import java.io.IOError;
-import java.io.IOException;
+import java.io.*;
 import java.util.Arrays;
 import java.util.Iterator;
 
@@ -34,6 +31,8 @@ import org.apache.cassandra.db.columniterator.IColumnIterator;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.CLibrary;
+import org.apache.cassandra.utils.PageCacheMetrics;
 
 
 public class SSTableScanner implements Iterator<IColumnIterator>, Closeable
@@ -42,6 +41,9 @@ public class SSTableScanner implements Iterator<IColumnIterator>, Closeable
 
     private final BufferedRandomAccessFile file;
     private final SSTableReader sstable;
+
+    private final PageCacheMetrics pageCacheMetrics;
+
     private IColumnIterator row;
     private boolean exhausted = false;
     private Iterator<IColumnIterator> iterator;
@@ -52,15 +54,25 @@ public class SSTableScanner implements Iterator<IColumnIterator>, Closeable
      */
     SSTableScanner(SSTableReader sstable, int bufferSize, boolean skipCache)
     {
+        PageCacheMetrics pageCacheMetrics = null;
+
         try
         {
-            this.file = new BufferedRandomAccessFile(new File(sstable.getFilename()), "r", bufferSize, skipCache);
+            File sstableFile = new File(sstable.getFilename());
+            file = new BufferedRandomAccessFile(sstableFile, "r", bufferSize, skipCache, false);
+
+            if (skipCache)
+            {
+                pageCacheMetrics = CLibrary.getCachedPages(file);
+            }
         }
         catch (IOException e)
         {
             throw new IOError(e);
         }
+
         this.sstable = sstable;
+        this.pageCacheMetrics = pageCacheMetrics;
     }
 
     /**
@@ -79,6 +91,7 @@ public class SSTableScanner implements Iterator<IColumnIterator>, Closeable
         }
         this.sstable = sstable;
         this.filter = filter;
+        this.pageCacheMetrics = null;
     }
 
     public void close() throws IOException
@@ -176,8 +189,7 @@ public class SSTableScanner implements Iterator<IColumnIterator>, Closeable
 
                 if (filter == null)
                 {
-                    row = new SSTableIdentityIterator(sstable, file, key, dataStart, dataSize);
-                    return row;
+                    return row = new SSTableIdentityIterator(sstable, file, key, dataStart, dataSize, pageCacheMetrics);
                 }
                 else
                 {

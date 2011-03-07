@@ -19,14 +19,20 @@
 package org.apache.cassandra.io.util;
 
 import java.io.DataOutputStream;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.apache.cassandra.utils.Pair;
 
 
 /**
  * An implementation of the DataOutputStream interface. This class is completely thread
  * unsafe.
  */
-public final class DataOutputBuffer extends DataOutputStream
+public final class DataOutputBuffer extends DataOutputStream implements PageCacheInformer
 {
+    private List<Pair<Integer, Integer>> pageCacheMarkers;
+
     public DataOutputBuffer()
     {
         this(128);
@@ -70,6 +76,32 @@ public final class DataOutputBuffer extends DataOutputStream
     {
         this.written = 0;
         buffer().reset();
+        pageCacheMarkers = null;
+
         return this;
+    }
+
+    /** {@InheritDoc} */
+    public void keepCacheWindow(long startAt)
+    {
+        if (pageCacheMarkers == null)
+            pageCacheMarkers = new ArrayList<Pair<Integer,Integer>>();
+
+        long endAt = getCurrentPosition();
+
+        assert startAt <= endAt;
+
+        pageCacheMarkers.add(new Pair<Integer,Integer>((int) startAt, (int) (endAt - startAt)));
+    }
+
+    /** {@InheritDoc} */
+    public long getCurrentPosition()
+    {
+        return getLength();
+    }
+
+    public final List<Pair<Integer,Integer>> getPageCacheMarkers()
+    {
+        return pageCacheMarkers;
     }
 }

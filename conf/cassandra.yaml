@@ -245,6 +245,10 @@ in_memory_compaction_limit_in_mb: 64
 # key caches.
 compaction_preheat_key_cache: true
 
+# When set to true, this setting lets cassandra inform the OS to pre-cache
+# popular data in newly compacted files. This requires Linux and JNA be installed.
+enable_page_cache_migration: false
+
 # Time to wait for a reply from other nodes before failing the command 
 rpc_timeout_in_ms: 10000
 

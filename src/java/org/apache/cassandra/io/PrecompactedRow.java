@@ -21,7 +21,6 @@ package org.apache.cassandra.io;
  */
 
 
-import java.io.DataOutput;
 import java.io.IOError;
 import java.io.IOException;
 import java.security.MessageDigest;
@@ -38,6 +37,8 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.io.util.PageCacheInformer;
+import org.apache.cassandra.utils.Pair;
 
 /**
  * PrecompactedRow merges its rows in its constructor in memory.
@@ -90,7 +91,11 @@ public class PrecompactedRow extends AbstractCompactedRow
                 {
                     cf.addAll(thisCF);
                 }
+
+                if (row.hasColumnsInPageCache())
+                    this.hasColumnsInPageCache = true;
             }
+
             ColumnFamily cfPurged = shouldPurge ? ColumnFamilyStore.removeDeleted(cf, gcBefore) : cf;
             if (cfPurged == null)
                 return;
@@ -111,10 +116,46 @@ public class PrecompactedRow extends AbstractCompactedRow
         }
     }
 
-    public void write(DataOutput out) throws IOException
+    public void write(PageCacheInformer out) throws IOException
     {
         out.writeLong(buffer.getLength());
-        out.write(buffer.getData(), 0, buffer.getLength());
+
+        List<Pair<Integer, Integer>> pageCacheMarkers = buffer.getPageCacheMarkers();
+
+        if(pageCacheMarkers == null)
+        {
+             out.write(buffer.getData(), 0, buffer.getLength());
+             return;
+        }
+
+        // Step through each page cache window and inform the
+        // output writer to respect these...
+        long startingPosition = out.getCurrentPosition();
+        int bufferOffset = 0;
+        for (Pair<Integer,Integer> window : pageCacheMarkers)
+        {
+            // write out any data before the window
+            if (window.left > (out.getCurrentPosition() - startingPosition))
+            {
+                out.write(buffer.getData(), bufferOffset, window.left - bufferOffset);
+                bufferOffset = window.left;
+            }
+
+            long startingAt = out.getCurrentPosition();
+
+            assert (bufferOffset + window.right) <= buffer.getLength() : ""+(bufferOffset + window.right)+" > "+buffer.getLength();
+
+            out.write(buffer.getData(), bufferOffset, window.right);
+            out.keepCacheWindow(startingAt);
+
+            bufferOffset += window.right;
+        }
+
+        // Write everything else
+        if (bufferOffset < buffer.getLength())
+        {
+            out.write(buffer.getData(), bufferOffset, buffer.getLength() - bufferOffset);
+        }
     }
 
     public void update(MessageDigest digest)

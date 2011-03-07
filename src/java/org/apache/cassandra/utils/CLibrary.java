@@ -18,16 +18,24 @@
  */
 package org.apache.cassandra.utils;
 
-import java.io.File;
-import java.io.FileDescriptor;
-import java.io.IOException;
+import java.io.*;
 import java.lang.reflect.Field;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel.MapMode;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.sun.jna.LastErrorException;
 import com.sun.jna.Native;
+
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.io.util.BufferedRandomAccessFile;
+import org.apache.cassandra.io.util.FileUtils;
 
 public final class CLibrary
 {
@@ -50,11 +58,28 @@ public final class CLibrary
     private static final int POSIX_FADV_DONTNEED   = 4; /* fadvise.h */
     private static final int POSIX_FADV_NOREUSE    = 5; /* fadvise.h */
 
+    private static native int mlockall(int flags) throws LastErrorException;
+    private static native int munlockall() throws LastErrorException;
+
+    private static native int link(String from, String to) throws LastErrorException;
+
+    // fcntl - manipulate file descriptor, `man 2 fcntl`
+    public static native int fcntl(int fd, int command, long flags) throws LastErrorException;
+
+    // fadvice
+    public static native int posix_fadvise(int fd, long offset, long len, int flag) throws LastErrorException;
+
+    public static native int mincore(ByteBuffer buf, int length, char[] vec) throws LastErrorException;
+
+    private static native int getpagesize() throws LastErrorException;
+    public  static Integer pageSize = null;
+
     static
     {
         try
         {
             Native.register("c");
+            pageSize = CLibrary.getPageSize();
         }
         catch (NoClassDefFoundError e)
         {
@@ -68,19 +93,38 @@ public final class CLibrary
         {
             logger.warn("Obsolete version of JNA present; unable to register C library. Upgrade to JNA 3.2.7 or later");
         }
+
     }
 
-    private static native int mlockall(int flags) throws LastErrorException;
-    private static native int munlockall() throws LastErrorException;
+    private static Integer getPageSize()
+    {
+        int ps = -1;
 
-    private static native int link(String from, String to) throws LastErrorException;
+        if (!DatabaseDescriptor.isPageCaheMigrationEnabled())
+            return null;
 
-    // fcntl - manipulate file descriptor, `man 2 fcntl`
-    public static native int fcntl(int fd, int command, long flags) throws LastErrorException;
+        try
+        {
+            ps = CLibrary.getpagesize();
+            assert ps >= 0; // on error a value of -1 is returned and errno is set to indicate the error.
 
-    // fadvice
-    public static native int posix_fadvise(int fd, int offset, int len, int flag) throws LastErrorException;
-        
+            logger.info("PageSize = " + ps);
+        }
+        catch (RuntimeException e)
+        {
+            if (!(e instanceof LastErrorException))
+                throw e;
+
+            logger.warn(String.format("getpagesize failed, errno (%d).", CLibrary.errno(e)));
+        }
+        catch (UnsatisfiedLinkError e)
+        {
+            // this will have already been logged by CLibrary, no need to repeat it
+        }
+
+        return ps > 0 ? ps : null;
+    }
+
     private static int errno(RuntimeException e)
     {
         assert e instanceof LastErrorException;
@@ -189,9 +233,9 @@ public final class CLibrary
         }
     }
 
-    public static void trySkipCache(int fd, int offset, int len)
+    public static void trySkipCache(int fd, long offset, long len)
     {
-        if (fd < 0)
+        if (fd < 0 || !DatabaseDescriptor.isPageCaheMigrationEnabled())
             return;
 
         try
@@ -210,6 +254,63 @@ public final class CLibrary
             // if JNA is unavailable just skipping Direct I/O
             // instance of this class will act like normal RandomAccessFile
         }
+    }
+
+    public static PageCacheMetrics getCachedPages(BufferedRandomAccessFile braf) throws IOException
+    {
+        if (pageSize == null || pageSize == 0 || !DatabaseDescriptor.isPageCaheMigrationEnabled())
+            return null;
+
+        long length = braf.length();
+
+        PageCacheMetrics pageCacheMetrics = new PageCacheMetrics(pageSize, length);
+
+        try
+        {
+            char[] pages = null;
+
+            // MMap 2G chunks
+            for (long offset = 0; offset < length; offset += Integer.MAX_VALUE)
+            {
+                long limit = (offset + Integer.MAX_VALUE) > length ? (length - offset) : Integer.MAX_VALUE;
+
+                ByteBuffer buf = braf.getChannel().map(MapMode.READ_ONLY, offset, limit);
+
+                int numPages = (int) ((limit + pageSize - 1) / pageSize);
+
+                if (pages == null || pages.length < numPages)
+                    pages = new char[numPages];
+
+                int rc = mincore(buf, (int) limit, pages);
+
+                if (rc != 0)
+                {
+                    logger.warn(String.format("mincore failed, rc (%d).", rc));
+                    break;
+                }
+
+                for (long i = 0, position = offset; position < limit; position += pageSize, i++)
+                {
+                    if ((pages[(int) i] & 1) == 1)
+                    {
+                        pageCacheMetrics.setPage(position);
+                    }
+                }
+            }
+        }
+        catch (RuntimeException e)
+        {
+            if (!(e instanceof LastErrorException))
+                throw e;
+
+            logger.warn(String.format("mincore failed, errno (%d).", CLibrary.errno(e)));
+        }
+        catch (UnsatisfiedLinkError e)
+        {
+            // this will have already been logged by CLibrary, no need to repeat it
+        }
+
+        return pageCacheMetrics;
     }
 
     public static int tryFcntl(int fd, int command, int flags)
