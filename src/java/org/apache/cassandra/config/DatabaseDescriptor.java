@@ -1235,4 +1235,9 @@ public class DatabaseDescriptor
         if (minutes <= 0)
             throw new ConfigurationException("memtable_flush_after_mins must be greater than 0.");
     }
+
+    public static boolean isPageCaheMigrationEnabled()
+    {
+        return conf.enable_page_cache_migration;
+    }
 }

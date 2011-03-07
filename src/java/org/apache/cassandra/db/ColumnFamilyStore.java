@@ -2225,11 +2225,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public SSTableWriter createFlushWriter(long estimatedRows) throws IOException
     {
-        return new SSTableWriter(getFlushPath(), estimatedRows, metadata, partitioner);
+        return new SSTableWriter(getFlushPath(), estimatedRows, metadata, partitioner, false);
     }
 
-    public SSTableWriter createCompactionWriter(long estimatedRows, String location) throws IOException
+    public SSTableWriter createCompactionWriter(long estimatedRows, String location, boolean migratePageCache) throws IOException
     {
-        return new SSTableWriter(getTempSSTablePath(location), estimatedRows, metadata, partitioner);
+        return new SSTableWriter(getTempSSTablePath(location), estimatedRows, metadata, partitioner, migratePageCache);
     }
 }

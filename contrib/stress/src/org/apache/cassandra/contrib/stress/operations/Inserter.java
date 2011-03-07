@@ -46,13 +46,12 @@ public class Inserter extends Operation
         // format used for keys
         String format = "%0" + session.getTotalKeysLength() + "d";
 
-        // columns = [Column('C' + str(j), 'unset', time.time() * 1000000) for j in xrange(columns_per_key)]
         for (int i = 0; i < session.getColumnsPerKey(); i++)
         {
-            String columnName  = ("C" + Integer.toString(i));
-            String columnValue = values.get(index % values.size());
+            String columnName = ("C" + Integer.toString(i));
+            ByteBuffer columnValue = ByteBufferUtil.bytes(values.get(i % values.size()));
 
-            columns.add(new Column(ByteBufferUtil.bytes(columnName), ByteBufferUtil.bytes(columnValue), System.currentTimeMillis()));
+            columns.add(new Column(ByteBufferUtil.bytes(columnName), columnValue, System.currentTimeMillis()));
         }
 
         if (session.getColumnFamilyType() == ColumnFamilyType.Super)

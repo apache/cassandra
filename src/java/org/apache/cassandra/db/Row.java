@@ -30,7 +30,7 @@ public class Row
 {
     private static RowSerializer serializer = new RowSerializer();
 
-    static RowSerializer serializer()
+    public static RowSerializer serializer()
     {
         return serializer;
     }

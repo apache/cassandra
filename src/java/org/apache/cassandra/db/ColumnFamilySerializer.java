@@ -21,10 +21,7 @@ package org.apache.cassandra.db;
  */
 
 
-import java.io.DataInput;
-import java.io.DataInputStream;
-import java.io.DataOutput;
-import java.io.IOException;
+import java.io.*;
 import java.util.Collection;
 
 import org.slf4j.Logger;
@@ -32,7 +29,12 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.io.ICompactSerializer2;
-import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.io.util.PageCacheInformer;
+import org.apache.cassandra.utils.PageCacheMetrics;
+
+import org.apache.cassandra.io.util.PageCacheInformer;
+import org.apache.cassandra.utils.PageCacheMetrics;
+
 
 public class ColumnFamilySerializer implements ICompactSerializer2<ColumnFamily>
 {
@@ -72,11 +74,16 @@ public class ColumnFamilySerializer implements ICompactSerializer2<ColumnFamily>
         {
             throw new RuntimeException(e);
         }
+
         serializeForSSTable(columnFamily, dos);
     }
 
     public int serializeForSSTable(ColumnFamily columnFamily, DataOutput dos)
     {
+        PageCacheInformer pci = dos instanceof PageCacheInformer
+                                ? (PageCacheInformer) dos
+                                : null;
+
         try
         {
             serializeCFInfo(columnFamily, dos);
@@ -86,8 +93,16 @@ public class ColumnFamilySerializer implements ICompactSerializer2<ColumnFamily>
             dos.writeInt(count);
             for (IColumn column : columns)
             {
+                long startAt = pci != null ? pci.getCurrentPosition() : -1;
+
                 columnFamily.getColumnSerializer().serialize(column, dos);
+
+                //Track the section of serialized data that should
+                //be included in the page cache (compaction)
+                if (column.isInPageCache() && pci != null)
+                    pci.keepCacheWindow(startAt);
             }
+
             return count;
         }
         catch (IOException e)
@@ -124,19 +139,50 @@ public class ColumnFamilySerializer implements ICompactSerializer2<ColumnFamily>
             throw new UnserializableColumnFamilyException("Couldn't find cfId=" + cfId, cfId);
         ColumnFamily cf = ColumnFamily.create(cfId);
         deserializeFromSSTableNoColumns(cf, dis);
-        deserializeColumns(dis, cf, intern);
+        deserializeColumns(dis, cf, intern, null);
+
         return cf;
     }
 
-    public void deserializeColumns(DataInput dis, ColumnFamily cf, boolean intern) throws IOException
+
+    public boolean deserializeColumns(DataInput dis, ColumnFamily cf, boolean intern, PageCacheMetrics pageCacheMetrics) throws IOException
     {
+
         int size = dis.readInt();
+
         ColumnFamilyStore interner = intern ? Table.open(CFMetaData.getCF(cf.id()).left).getColumnFamilyStore(cf.id()) : null;
-        for (int i = 0; i < size; ++i)
-        {
-            IColumn column = cf.getColumnSerializer().deserialize(dis, interner);
-            cf.addColumn(column);
+        boolean hasColumnsInPageCache = false;
+
+        if (pageCacheMetrics != null && dis instanceof RandomAccessFile)
+	{
+            RandomAccessFile raf = (RandomAccessFile) dis;
+
+            for (int i = 0; i < size; ++i)
+            {
+                long startAt = raf.getFilePointer();
+
+                IColumn column = cf.getColumnSerializer().deserialize(dis, interner);
+
+                long endAt = raf.getFilePointer();
+
+                column.setIsInPageCache(pageCacheMetrics.isRangeInCache(startAt, endAt));
+
+                if(!hasColumnsInPageCache)
+                    hasColumnsInPageCache = column.isInPageCache();
+
+                cf.addColumn(column);
+            }
         }
+        else
+	{
+            for (int i = 0; i < size; ++i)
+            {
+	        IColumn column = cf.getColumnSerializer().deserialize(dis, interner);
+                cf.addColumn(column);
+            }
+	}
+
+        return hasColumnsInPageCache;
     }
 
     public ColumnFamily deserializeFromSSTableNoColumns(ColumnFamily cf, DataInput input) throws IOException

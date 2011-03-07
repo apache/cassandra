@@ -75,7 +75,7 @@ public class CacheWriter<K, V> implements ICompactionInfo
         logger.debug("Saving {}", path);
         File tmpFile = File.createTempFile(path.getName(), null, path.getParentFile());
 
-        BufferedRandomAccessFile out = new BufferedRandomAccessFile(tmpFile, "rw", BufferedRandomAccessFile.DEFAULT_BUFFER_SIZE, true);
+        BufferedRandomAccessFile out = new BufferedRandomAccessFile(tmpFile, "rw", BufferedRandomAccessFile.DEFAULT_BUFFER_SIZE, true, false);
         try
         {
             for (K key : keys)

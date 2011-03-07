@@ -49,7 +49,7 @@ public class IndexedRangeSlicer extends Operation
         int received = 0;
 
         String startOffset = "0";
-        ByteBuffer value = ByteBuffer.wrap(values.get(index % values.size()).getBytes());
+        ByteBuffer value = ByteBufferUtil.bytes(values.get(index % values.size()));
 
         IndexExpression expression = new IndexExpression(columnName, IndexOperator.EQ, value);
 

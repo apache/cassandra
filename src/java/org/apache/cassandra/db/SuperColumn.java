@@ -48,6 +48,7 @@ public class SuperColumn implements IColumn, IColumnContainer
     private ConcurrentSkipListMap<ByteBuffer, IColumn> columns_;
     private AtomicInteger localDeletionTime = new AtomicInteger(Integer.MIN_VALUE);
     private AtomicLong markedForDeleteAt = new AtomicLong(Long.MIN_VALUE);
+    private boolean isInPageCache = false;
 
     public SuperColumn(ByteBuffer name, AbstractType comparator)
     {
@@ -320,6 +321,16 @@ public class SuperColumn implements IColumn, IColumnContainer
     public int serializationFlags()
     {
         throw new UnsupportedOperationException("Super columns don't have a serialization mask");
+    }
+
+    public boolean isInPageCache()
+    {
+        return isInPageCache;
+    }
+
+    public void setIsInPageCache(boolean isInPageCache)
+    {
+        this.isInPageCache = isInPageCache;
     }
 }
 

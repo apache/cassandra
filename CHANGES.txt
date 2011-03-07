@@ -18,7 +18,9 @@
  * add ability to write to Cassandra from Pig (CASSANDRA-1828)
  * add rpc_[min|max]_threads (CASSANDRA-2176)
  * add CL.TWO, CL.THREE (CASSANDRA-2013)
-
+ * avoid exporting an un-requested row in sstable2json, when exporting 
+   a key that does not exist (CASSANDRA-2168)
+ * track and migrate cached pages during compaction (CASSANDRA-1902)
 
 0.7.3
  * Keep endpoint state until aVeryLongTime (CASSANDRA-2115)
