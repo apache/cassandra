@@ -1303,16 +1303,20 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             IColumnIterator iter;
 
             int sstablesToIterate = 0;
-            if (!reverseReadWriteOrder())
+            if (reverseReadWriteOrder())
             {
-                //XXX: race condition: may allow double reconcile; but never misses an MT
+                // XXX: race condition: may miss an MT, but no double counts
 
-                /* add the current memtable */
-                iter = filter.getMemtableColumnIterator(getMemtableThreadSafe(), getComparator());
-                if (iter != null)
+                /* add the SSTables on disk */
+                for (SSTableReader sstable : ssTables)
                 {
-                    returnCF.delete(iter.getColumnFamily());
-                    iterators.add(iter);
+                    iter = filter.getSSTableColumnIterator(sstable);
+                    if (iter.getColumnFamily() != null)
+                    {
+                        returnCF.delete(iter.getColumnFamily());
+                        iterators.add(iter);
+                        sstablesToIterate++;
+                    }
                 }
 
                 /* add the memtables being flushed */
@@ -1325,33 +1329,25 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                         iterators.add(iter);
                     }
                 }
-                
-                /* add the SSTables on disk */
-                for (SSTableReader sstable : ssTables)
+
+                /* add the current memtable */
+                iter = filter.getMemtableColumnIterator(getMemtableThreadSafe(), getComparator());
+                if (iter != null)
                 {
-                    iter = filter.getSSTableColumnIterator(sstable);
-                    if (iter.getColumnFamily() != null)
-                    {
-                        returnCF.delete(iter.getColumnFamily());
-                        iterators.add(iter);
-                        sstablesToIterate++;
-                    }
+                    returnCF.delete(iter.getColumnFamily());
+                    iterators.add(iter);
                 }
             }
             else
             {
-                //XXX: race condition: may miss an MT, but no double counts
+                // XXX: race condition: may allow double reconcile; but never misses an MT
 
-                /* add the SSTables on disk */
-                for (SSTableReader sstable : ssTables)
+                /* add the current memtable */
+                iter = filter.getMemtableColumnIterator(getMemtableThreadSafe(), getComparator());
+                if (iter != null)
                 {
-                    iter = filter.getSSTableColumnIterator(sstable);
-                    if (iter.getColumnFamily() != null)
-                    {
-                        returnCF.delete(iter.getColumnFamily());
-                        iterators.add(iter);
-                        sstablesToIterate++;
-                    }
+                    returnCF.delete(iter.getColumnFamily());
+                    iterators.add(iter);
                 }
 
                 /* add the memtables being flushed */
@@ -1365,12 +1361,16 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     }
                 }
 
-                /* add the current memtable */
-                iter = filter.getMemtableColumnIterator(getMemtableThreadSafe(), getComparator());
-                if (iter != null)
+                /* add the SSTables on disk */
+                for (SSTableReader sstable : ssTables)
                 {
-                    returnCF.delete(iter.getColumnFamily());
-                    iterators.add(iter);
+                    iter = filter.getSSTableColumnIterator(sstable);
+                    if (iter.getColumnFamily() != null)
+                    {
+                        returnCF.delete(iter.getColumnFamily());
+                        iterators.add(iter);
+                        sstablesToIterate++;
+                    }
                 }
             }
             recentSSTablesPerRead.add(sstablesToIterate);
