@@ -700,7 +700,7 @@ public class CompactionManager implements CompactionManagerMBean
                     if (Range.isTokenInRanges(row.getKey().token, ranges))
                     {
                         writer = maybeCreateWriter(cfs, compactionFileLocation, expectedBloomFilterSize, writer, row.hasRowsInPageCache());
-                        writer.append(getCompactedRow(row, cfs, sstable.descriptor, true));
+                        writer.append(getCompactedRow(row, cfs, sstable.descriptor, false));
                         totalkeysWritten++;
                     }
                     else
