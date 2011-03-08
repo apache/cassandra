@@ -99,7 +99,7 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>
 
     /** get a byte representation of the given string.
      *  defaults to unsupportedoperation so people deploying custom Types can update at their leisure. */
-    public ByteBuffer fromString(String source)
+    public ByteBuffer fromString(String source) throws MarshalException
     {
         throw new UnsupportedOperationException();
     }

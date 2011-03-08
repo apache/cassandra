@@ -64,9 +64,16 @@ public class LexicalUUIDType extends AbstractType<UUID>
         return UUIDGen.getUUID(bytes).toString();
     }
 
-    public ByteBuffer fromString(String source)
+    public ByteBuffer fromString(String source) throws MarshalException
     {
-        return ByteBuffer.wrap(UUIDGen.decompose(UUID.fromString(source)));
+        try
+        {
+            return ByteBuffer.wrap(UUIDGen.decompose(UUID.fromString(source)));
+        }
+        catch (IllegalArgumentException e)
+        {
+            throw new MarshalException(String.format("unable to make UUID from '%s'", source), e);
+        }
     }
 
     public void validate(ByteBuffer bytes) throws MarshalException

@@ -100,12 +100,20 @@ public class TimeUUIDType extends AbstractType<UUID>
         return uuid.toString();
     }
 
-    public ByteBuffer fromString(String source)
+    public ByteBuffer fromString(String source) throws MarshalException
     {
-        UUID uuid = UUID.fromString(source);
+        UUID uuid = null;
+        try
+        {
+            uuid = UUID.fromString(source);
+        }
+        catch (IllegalArgumentException e)
+        {
+            throw new MarshalException(String.format("unable to make UUID from '%s'", source), e);
+        }
 
         if (uuid.version() != 1)
-            throw new IllegalArgumentException("TimeUUID supports only version 1 UUIDs");
+            throw new MarshalException("TimeUUID supports only version 1 UUIDs");
 
         return ByteBuffer.wrap(UUIDGen.decompose(uuid));
     }

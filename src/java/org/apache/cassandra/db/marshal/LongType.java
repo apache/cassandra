@@ -70,7 +70,7 @@ public class LongType extends AbstractType<Long>
         return String.valueOf(bytes.getLong(bytes.position()));
     }
 
-    public ByteBuffer fromString(String source)
+    public ByteBuffer fromString(String source) throws MarshalException
     {
         long longType;
 
@@ -80,7 +80,7 @@ public class LongType extends AbstractType<Long>
         }
         catch (Exception e)
         {
-            throw new RuntimeException("'" + source + "' could not be translated into a LongType.");
+            throw new MarshalException(String.format("unable to make long from '%s'", source), e);
         }
 
         return ByteBufferUtil.bytes(longType);

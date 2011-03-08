@@ -130,7 +130,7 @@ public final class IntegerType extends AbstractType<BigInteger>
         return new java.math.BigInteger(TBaseHelper.byteBufferToByteArray(bytes)).toString(10);
     }
 
-    public ByteBuffer fromString(String source)
+    public ByteBuffer fromString(String source) throws MarshalException
     {
         BigInteger integerType;
 
@@ -140,7 +140,7 @@ public final class IntegerType extends AbstractType<BigInteger>
         }
         catch (Exception e)
         {
-            throw new RuntimeException("'" + source + "' could not be translated into an IntegerType.");
+            throw new MarshalException(String.format("unable to make int from '%s'", source), e);
         }
 
         return ByteBuffer.wrap(integerType.toByteArray());
