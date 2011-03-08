@@ -87,6 +87,7 @@ public class RoundTripTest
         c.set(Calendar.MINUTE, 0);
         c.set(Calendar.SECOND, 0);
         c.set(Calendar.MILLISECOND, 0);
+        c.set(Calendar.ZONE_OFFSET, -6 * 1000 * 60 * 60);
         Long ts = new Long(1299564000000L);
         assert ts.equals(c.getTimeInMillis()) : c.getTimeInMillis();
         
