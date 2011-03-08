@@ -1334,8 +1334,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     {
                         returnCF.delete(iter.getColumnFamily());
                         iterators.add(iter);
+                        sstablesToIterate++;
                     }
-                    sstablesToIterate++;
                 }
             }
             else
@@ -1350,8 +1350,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     {
                         returnCF.delete(iter.getColumnFamily());
                         iterators.add(iter);
+                        sstablesToIterate++;
                     }
-                    sstablesToIterate++;
                 }
 
                 /* add the memtables being flushed */
