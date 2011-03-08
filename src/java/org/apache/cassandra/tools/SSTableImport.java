@@ -25,6 +25,7 @@ import java.util.*;
 
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.commons.cli.*;
 
 import org.apache.cassandra.config.CFMetaData;
@@ -514,7 +515,14 @@ public class SSTableImport
      */
     private static ByteBuffer stringAsType(String content, AbstractType type)
     {
-        return (type == BytesType.instance) ? hexToBytes(content) : type.fromString(content);
+        try
+        {
+            return (type == BytesType.instance) ? hexToBytes(content) : type.fromString(content);
+        }
+        catch (MarshalException e)
+        {
+            throw new RuntimeException(e.getMessage());
+        }
     }
 
 }

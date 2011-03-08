@@ -1641,7 +1641,14 @@ public class CliClient extends CliUserHelp
         if (comparator == null) // default comparator is BytesType
             comparator = BytesType.instance;
 
-        return comparator.fromString(object);
+        try
+        {
+            return comparator.fromString(object);
+        }
+        catch (MarshalException e)
+        {
+            throw new RuntimeException(e.toString());
+        }
     }
     
     /**
