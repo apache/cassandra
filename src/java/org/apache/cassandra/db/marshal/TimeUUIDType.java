@@ -22,13 +22,31 @@ package org.apache.cassandra.db.marshal;
 
 
 import java.nio.ByteBuffer;
+import java.text.ParseException;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
+import org.apache.commons.lang.time.DateUtils;
 
 public class TimeUUIDType extends AbstractType<UUID>
 {
+    
     public static final TimeUUIDType instance = new TimeUUIDType();
+    private Pattern regexPattern = Pattern.compile("[A-Fa-f0-9]{8}\\-[A-Fa-f0-9]{4}\\-[A-Fa-f0-9]{4}\\-[A-Fa-f0-9]{4}\\-[A-Fa-f0-9]{12}");
+    private static String[] iso8601Patterns = new String[] {
+        "yyyy-MM-dd HH:mm",
+        "yyyy-MM-dd HH:mm:ss",
+        "yyyy-MM-dd HH:mmZ",
+        "yyyy-MM-dd HH:mm:ssZ",
+        "yyyy-MM-dd'T'HH:mm",
+        "yyyy-MM-dd'T'HH:mmZ",
+        "yyyy-MM-dd'T'HH:mm:ss",
+        "yyyy-MM-dd'T'HH:mm:ssZ",
+        "yyyy-MM-dd",
+        "yyyy-MM-ddZ"
+    };
 
     TimeUUIDType() {} // singleton
 
@@ -102,20 +120,56 @@ public class TimeUUIDType extends AbstractType<UUID>
 
     public ByteBuffer fromString(String source) throws MarshalException
     {
-        UUID uuid = null;
-        try
+        ByteBuffer idBytes = null;
+        
+        // ffffffff-ffff-ffff-ffff-ffffffffff
+        if (regexPattern.matcher(source).matches())
         {
-            uuid = UUID.fromString(source);
+            UUID uuid = null;
+            try
+            {
+                uuid = UUID.fromString(source);
+                idBytes = ByteBuffer.wrap(UUIDGen.decompose(uuid));
+            }
+            catch (IllegalArgumentException e)
+            {
+                throw new MarshalException(String.format("unable to make UUID from '%s'", source), e);
+            }
+            
+            if (uuid.version() != 1)
+                throw new MarshalException("TimeUUID supports only version 1 UUIDs");
         }
-        catch (IllegalArgumentException e)
+        else if (source.equals("") || source.toLowerCase().equals("now"))
         {
-            throw new MarshalException(String.format("unable to make UUID from '%s'", source), e);
+            idBytes = ByteBuffer.wrap(UUIDGen.decompose(UUIDGen.makeType1UUIDFromHost(FBUtilities.getLocalAddress())));
         }
-
-        if (uuid.version() != 1)
-            throw new MarshalException("TimeUUID supports only version 1 UUIDs");
-
-        return ByteBuffer.wrap(UUIDGen.decompose(uuid));
+        // Milliseconds since epoch?
+        else if (source.matches("^\\d+$"))
+        {
+            try
+            {
+                idBytes = ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes(Long.parseLong(source)));
+            }
+            catch (NumberFormatException e)
+            {
+                throw new MarshalException(String.format("unable to make version 1 UUID from '%s'"), e);
+            }
+        }
+        // Last chance, attempt to parse as date-time string
+        else
+        {
+            try
+            {
+                long timestamp = DateUtils.parseDate(source, iso8601Patterns).getTime();
+                idBytes = ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes(timestamp));
+            }
+            catch (ParseException e1)
+            {
+                throw new MarshalException(String.format("unable to coherce '%s' to version 1 UUID"), e1);
+            }
+        }
+            
+        return idBytes;
     }
 
     public void validate(ByteBuffer bytes) throws MarshalException
