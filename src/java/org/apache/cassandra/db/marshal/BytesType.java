@@ -24,6 +24,7 @@ package org.apache.cassandra.db.marshal;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class BytesType extends AbstractType
 {
@@ -48,7 +49,7 @@ public class BytesType extends AbstractType
 
     public ByteBuffer fromString(String source)
     {
-        return ByteBuffer.wrap(source.getBytes());
+        return ByteBuffer.wrap(FBUtilities.hexToBytes(source));
     }
 
     public void validate(ByteBuffer bytes) throws MarshalException
