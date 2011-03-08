@@ -37,8 +37,8 @@
     <target depends="init" name="build">
         <javac destdir="${build.classes}">
             <src path="${build.src}" />
-            <path refid="cassandra.classes" />
             <classpath>
+                <path refid="cassandra.classes" />
                 <path>
                     <fileset dir="${cassandra.lib}">
                         <include name="**/*.jar" />
