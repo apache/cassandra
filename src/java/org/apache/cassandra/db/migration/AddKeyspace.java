@@ -51,7 +51,6 @@ public class AddKeyspace extends Migration
         rm = makeDefinitionMutation(ksm, null, newVersion);
     }
 
-    @Override
     public void applyModels() throws IOException
     {
         for (CFMetaData cfm : ksm.cfMetaData().values())

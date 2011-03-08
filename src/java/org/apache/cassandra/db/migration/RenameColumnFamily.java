@@ -79,7 +79,6 @@ public class RenameColumnFamily extends Migration
         return new KSMetaData(ksm.name, ksm.strategyClass, ksm.strategyOptions, ksm.replicationFactor, newCfs.toArray(new CFMetaData[newCfs.size()]));
     }
 
-    @Override
     public void applyModels() throws IOException
     {
         // leave it up to operators to ensure there are no writes going on durng the file rename. Just know that

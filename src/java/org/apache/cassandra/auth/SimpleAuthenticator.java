@@ -46,14 +46,12 @@ public class SimpleAuthenticator implements IAuthenticator
         PLAIN, MD5,
     };
 
-    @Override
     public AuthenticatedUser defaultUser()
     {
         // users must log in
         return null;
     }
 
-    @Override
     public AuthenticatedUser authenticate(Map<? extends CharSequence,? extends CharSequence> credentials) throws AuthenticationException
     {
         String pmode_plain = System.getProperty(PMODE_PROPERTY);
@@ -134,8 +132,7 @@ public class SimpleAuthenticator implements IAuthenticator
         return new AuthenticatedUser(username);
     }
 
-    @Override
-    public void validateConfiguration() throws ConfigurationException 
+    public void validateConfiguration() throws ConfigurationException
     {
         String pfilename = System.getProperty(SimpleAuthenticator.PASSWD_FILENAME_PROPERTY);
         if (pfilename == null)

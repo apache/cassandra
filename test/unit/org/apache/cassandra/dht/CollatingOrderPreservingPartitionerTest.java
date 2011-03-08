@@ -26,7 +26,6 @@ import org.apache.cassandra.utils.FBUtilities;
 
 public class CollatingOrderPreservingPartitionerTest extends PartitionerTestCase<BytesToken>
 {
-    @Override
     public void initPartitioner()
     {
         partitioner = new CollatingOrderPreservingPartitioner();

@@ -38,7 +38,6 @@ public class LocalToken extends Token<ByteBuffer>
         return comparator.getString(token);
     }
 
-    @Override
     public int compareTo(Token<ByteBuffer> o)
     {
         return comparator.compare(token, o.token);

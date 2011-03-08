@@ -45,7 +45,6 @@ public class SliceByNamesReadCommand extends ReadCommand
         this.columnNames.addAll(columnNames);
     }
 
-    @Override
     public ReadCommand copy()
     {
         ReadCommand readCommand= new SliceByNamesReadCommand(table, key, queryPath, columnNames);
@@ -53,7 +52,6 @@ public class SliceByNamesReadCommand extends ReadCommand
         return readCommand;
     }
     
-    @Override
     public Row getRow(Table table) throws IOException
     {
         DecoratedKey<?> dk = StorageService.getPartitioner().decorateKey(key);

@@ -603,7 +603,6 @@ public class MerkleTreeTest
             this.tokens = Arrays.asList(tokens).iterator();
         }
     
-        @Override
         public RowHash computeNext()
         {
             if (tokens.hasNext())

@@ -78,7 +78,6 @@ public class RenameKeyspace extends Migration
         return new KSMetaData(newName, ksm.strategyClass, ksm.strategyOptions, ksm.replicationFactor, newCfs.toArray(new CFMetaData[newCfs.size()]));
     }
 
-    @Override
     public void applyModels() throws IOException
     {
         if (!clientMode)

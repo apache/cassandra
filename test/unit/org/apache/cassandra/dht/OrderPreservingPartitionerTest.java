@@ -26,7 +26,6 @@ import org.junit.Test;
 import org.apache.cassandra.utils.FBUtilities;
 
 public class OrderPreservingPartitionerTest extends PartitionerTestCase<StringToken> {
-    @Override
     public void initPartitioner()
     {
         partitioner = new OrderPreservingPartitioner();

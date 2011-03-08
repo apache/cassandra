@@ -53,7 +53,6 @@ public class DropKeyspace extends Migration
             Table.open(name).snapshot(null);
     }
 
-    @Override
     public void applyModels() throws IOException
     {
         acquireLocks();

@@ -60,7 +60,6 @@ public class ExpiringMap<K, V>
             this.expiration = expiration;
         }
 
-        @Override
         public void run()
         {
             for (Map.Entry<K, CacheableObject<V>> entry : cache.entrySet())

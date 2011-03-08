@@ -53,7 +53,6 @@ public class MappedFileDataInput extends AbstractDataInput implements FileDataIn
         position = pos;
     }
 
-    @Override
     protected int getPosition()
     {
         return position;

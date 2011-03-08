@@ -138,7 +138,6 @@ public class RangeSliceResponseResolver implements IResponseResolver<List<Row>>
             this.source = source;
         }
 
-        @Override
         protected Pair<Row,InetAddress> computeNext()
         {
             return iter.hasNext() ? new Pair<Row, InetAddress>(iter.next(), source) : endOfData();

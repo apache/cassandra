@@ -36,7 +36,6 @@ public class SimpleAuthority implements IAuthority
     public final static String KEYSPACES_WRITE_PROPERTY = "<modify-keyspaces>";
     private Properties accessProperties = null;
 
-    @Override
     public EnumSet<Permission> authorize(AuthenticatedUser user, List<Object> resource)
     {
         if (resource.size() < 2 || !Resources.ROOT.equals(resource.get(0)) || !Resources.KEYSPACES.equals(resource.get(1)))
@@ -143,8 +142,7 @@ public class SimpleAuthority implements IAuthority
         return authorized;
     }
 
-    @Override
-    public void validateConfiguration() throws ConfigurationException 
+    public void validateConfiguration() throws ConfigurationException
     {
         String afilename = System.getProperty(ACCESS_FILENAME_PROPERTY);
         if (afilename == null)

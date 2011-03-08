@@ -114,7 +114,6 @@ public final class IntegerType extends AbstractType
         return 0;
     }
 
-    @Override
     public String getString(ByteBuffer bytes)
     {
         if (bytes == null)

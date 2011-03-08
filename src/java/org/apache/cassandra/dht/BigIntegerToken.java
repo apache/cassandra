@@ -32,7 +32,6 @@ public class BigIntegerToken extends Token<BigInteger>
         this(new BigInteger(token));
     }
 
-    @Override
     public int compareTo(Token<BigInteger> o)
     {
         return token.compareTo(o.token);

@@ -269,7 +269,6 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
             return totalRead;
         }
 
-        @Override
         protected Pair<ByteBuffer, SortedMap<ByteBuffer, IColumn>> computeNext()
         {
             maybeInit();

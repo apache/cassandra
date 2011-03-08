@@ -56,7 +56,6 @@ public class Bounds extends AbstractBounds
         return Collections.<AbstractBounds>singletonList(this);
     }
 
-    @Override
     public boolean equals(Object o)
     {
         if (!(o instanceof Bounds))

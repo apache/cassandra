@@ -48,7 +48,6 @@ public class SliceFromReadCommand extends ReadCommand
         this.count = count;
     }
 
-    @Override
     public ReadCommand copy()
     {
         ReadCommand readCommand = new SliceFromReadCommand(table, key, queryPath, start, finish, reversed, count);
@@ -56,7 +55,6 @@ public class SliceFromReadCommand extends ReadCommand
         return readCommand;
     }
 
-    @Override
     public Row getRow(Table table) throws IOException
     {
         DecoratedKey<?> dk = StorageService.getPartitioner().decorateKey(key);

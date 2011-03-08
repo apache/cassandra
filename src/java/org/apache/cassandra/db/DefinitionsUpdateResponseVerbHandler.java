@@ -58,7 +58,6 @@ public class DefinitionsUpdateResponseVerbHandler implements IVerbHandler
                     assert m.getVersion().equals(version);
                     StageManager.getStage(Stage.MIGRATION).submit(new WrappedRunnable()
                     {
-                        @Override
                         protected void runMayThrow() throws Exception
                         {
                             // check to make sure the current version is before this one.

@@ -112,7 +112,6 @@ public class MmappedSegmentedFile extends SegmentedFile
             boundaries.add(0L);
         }
 
-        @Override
         public void addPotentialBoundary(long boundary)
         {
             if (boundary - currentStart <= MAX_SEGMENT_SIZE)
@@ -139,7 +138,6 @@ public class MmappedSegmentedFile extends SegmentedFile
             }
         }
 
-        @Override
         public SegmentedFile complete(String path)
         {
             long length = new File(path).length();

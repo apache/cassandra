@@ -75,7 +75,6 @@ public class DropColumnFamily extends Migration
         cfs.snapshot(Table.getTimestampedSnapshotName(null));
     }
 
-    @Override
     public void applyModels() throws IOException
     {
         acquireLocks();

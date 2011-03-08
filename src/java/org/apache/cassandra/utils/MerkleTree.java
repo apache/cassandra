@@ -542,7 +542,6 @@ public class MerkleTree implements Serializable
          *
          * @return The next TreeRange.
          */
-        @Override
         public TreeRange computeNext()
         {
             while (!tovisit.isEmpty())
@@ -621,7 +620,6 @@ public class MerkleTree implements Serializable
         /**
          * Recursive toString.
          */
-        @Override
         public void toString(StringBuilder buff, int maxdepth)
         {
             buff.append("#<").append(getClass().getSimpleName());
@@ -686,7 +684,6 @@ public class MerkleTree implements Serializable
             super(Hashable.binaryHash(lefthash, righthash));
         }
 
-        @Override
         public void toString(StringBuilder buff, int maxdepth)
         {
             buff.append(toString());

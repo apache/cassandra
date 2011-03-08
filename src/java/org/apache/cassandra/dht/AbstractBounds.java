@@ -79,7 +79,6 @@ public abstract class AbstractBounds implements Serializable
         return 31 * left.hashCode() + right.hashCode();
     }
 
-    @Override
     public abstract boolean equals(Object obj);
 
     public abstract boolean contains(Token start);
