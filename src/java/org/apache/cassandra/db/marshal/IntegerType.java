@@ -22,9 +22,10 @@ package org.apache.cassandra.db.marshal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.thrift.TBaseHelper;
 
-public final class IntegerType extends AbstractType
+public final class IntegerType extends AbstractType<BigInteger>
 {
     public static final IntegerType instance = new IntegerType();
 
@@ -55,6 +56,11 @@ public final class IntegerType extends AbstractType
     }
 
     IntegerType() {/* singleton */}
+
+    public BigInteger compose(ByteBuffer bytes)
+    {
+        return new BigInteger(ByteBufferUtil.getArray(bytes));
+    }
 
     public int compare(ByteBuffer lhs, ByteBuffer rhs)
     {

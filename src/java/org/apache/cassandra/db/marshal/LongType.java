@@ -25,11 +25,16 @@ import java.nio.ByteBuffer;
 
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-public class LongType extends AbstractType
+public class LongType extends AbstractType<Long>
 {
     public static final LongType instance = new LongType();
 
     LongType() {} // singleton
+
+    public Long compose(ByteBuffer bytes)
+    {
+        return ByteBufferUtil.toLong(bytes);
+    }
 
     public int compare(ByteBuffer o1, ByteBuffer o2)
     {

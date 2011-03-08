@@ -25,12 +25,18 @@ import java.nio.ByteBuffer;
 
 import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.IColumnContainer;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
-public abstract class AbstractCommutativeType extends AbstractType
+public abstract class AbstractCommutativeType extends AbstractType<Long>
 {
     public boolean isCommutative()
     {
         return true;
+    }
+
+    public Long compose(ByteBuffer bytes)
+    {
+        return ByteBufferUtil.toLong(bytes);
     }
 
     /**

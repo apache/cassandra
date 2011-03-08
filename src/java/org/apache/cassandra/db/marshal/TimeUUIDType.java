@@ -26,11 +26,16 @@ import java.util.UUID;
 
 import org.apache.cassandra.utils.UUIDGen;
 
-public class TimeUUIDType extends AbstractType
+public class TimeUUIDType extends AbstractType<UUID>
 {
     public static final TimeUUIDType instance = new TimeUUIDType();
 
     TimeUUIDType() {} // singleton
+
+    public UUID compose(ByteBuffer bytes)
+    {
+        return UUIDGen.getUUID(bytes);
+    }
 
     public int compare(ByteBuffer o1, ByteBuffer o2)
     {

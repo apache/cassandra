@@ -21,6 +21,7 @@ public class RoundTripTest
         assert IntegerType.instance.getString(IntegerType.instance.fromString("1")).equals("1");
         assert IntegerType.instance.fromString(IntegerType.instance.getString(ByteBuffer.wrap(bi.toByteArray())))
                 .equals(ByteBuffer.wrap(bi.toByteArray()));
+        assert IntegerType.instance.compose(ByteBuffer.wrap(bi.toByteArray())).equals(bi);
     }
     
     @Test
@@ -30,6 +31,7 @@ public class RoundTripTest
         assert LongType.instance.getString(LongType.instance.fromString("1")).equals("1");
         assert LongType.instance.fromString(LongType.instance.getString(ByteBuffer.wrap(v)))
                 .equals(ByteBuffer.wrap(v));
+        assert LongType.instance.compose(ByteBuffer.wrap(v)) == 1L;
     }
     
     @Test
@@ -39,6 +41,7 @@ public class RoundTripTest
         assert AsciiType.instance.getString(AsciiType.instance.fromString("abc")).equals("abc");
         assert AsciiType.instance.fromString(AsciiType.instance.getString(ByteBuffer.wrap(abc)))
                 .equals(ByteBuffer.wrap(abc));
+        assert AsciiType.instance.compose(ByteBuffer.wrap(abc)).equals("abc");
     }
     
     @Test
@@ -49,6 +52,7 @@ public class RoundTripTest
                 .equals(FBUtilities.bytesToHex(v));
         assert BytesType.instance.fromString(BytesType.instance.getString(ByteBuffer.wrap(v)))
                 .equals(ByteBuffer.wrap(v));
+        assert BytesType.instance.compose(ByteBuffer.wrap(v)).equals(ByteBuffer.wrap(v));
     }
     
     @Test
@@ -59,6 +63,7 @@ public class RoundTripTest
                 .equals(uuid.toString());
         assert LexicalUUIDType.instance.fromString(LexicalUUIDType.instance.getString(ByteBuffer.wrap(UUIDGen.decompose(uuid))))
                 .equals(ByteBuffer.wrap(UUIDGen.decompose(uuid)));
+        assert LexicalUUIDType.instance.compose(ByteBuffer.wrap(UUIDGen.decompose(uuid))).equals(uuid);
     }
     
     @Test
@@ -69,6 +74,7 @@ public class RoundTripTest
                 .equals(uuid.toString());
         assert TimeUUIDType.instance.fromString(TimeUUIDType.instance.getString(ByteBuffer.wrap(UUIDGen.decompose(uuid))))
                 .equals(ByteBuffer.wrap(UUIDGen.decompose(uuid)));
+        assert TimeUUIDType.instance.compose(ByteBuffer.wrap(UUIDGen.decompose(uuid))).equals(uuid);
     }
     
     @Test
@@ -78,5 +84,6 @@ public class RoundTripTest
         assert UTF8Type.instance.getString(UTF8Type.instance.fromString(v)).equals(v);
         assert UTF8Type.instance.fromString(UTF8Type.instance.getString(ByteBuffer.wrap(v.getBytes(Charsets.UTF_8))))
                 .equals(ByteBuffer.wrap(v.getBytes(Charsets.UTF_8)));
+        assert UTF8Type.instance.compose(ByteBuffer.wrap(v.getBytes(Charsets.UTF_8))).equals(v);
     }
 }

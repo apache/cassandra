@@ -27,11 +27,21 @@ import com.google.common.base.Charsets;
 
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-public class UTF8Type extends BytesType
+public class UTF8Type extends AbstractType<String>
 {
     public static final UTF8Type instance = new UTF8Type();
 
     UTF8Type() {} // singleton
+
+    public String compose(ByteBuffer bytes)
+    {
+        return getString(bytes);
+    }
+
+    public int compare(ByteBuffer o1, ByteBuffer o2)
+    {
+        return BytesType.bytesCompare(o1, o2);
+    }
 
     public String getString(ByteBuffer bytes)
     {

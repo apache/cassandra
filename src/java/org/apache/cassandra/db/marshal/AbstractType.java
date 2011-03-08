@@ -36,7 +36,7 @@ import static org.apache.cassandra.io.sstable.IndexHelper.IndexInfo;
  * should always handle those values even if they normally do not
  * represent a valid ByteBuffer for the type being compared.
  */
-public abstract class AbstractType implements Comparator<ByteBuffer>
+public abstract class AbstractType<T> implements Comparator<ByteBuffer>
 {
     public final Comparator<IndexInfo> indexComparator;
     public final Comparator<IndexInfo> indexReverseComparator;
@@ -91,12 +91,8 @@ public abstract class AbstractType implements Comparator<ByteBuffer>
             }
         };
     }
-
-    /** @deprecated; use reverseComparator field instead */
-    public Comparator<ByteBuffer> getReverseComparator()
-    {
-        return reverseComparator;
-    }
+    
+    public abstract T compose(ByteBuffer bytes);
 
     /** get a string representation of the bytes suitable for log messages */
     public abstract String getString(ByteBuffer bytes);
@@ -110,6 +106,12 @@ public abstract class AbstractType implements Comparator<ByteBuffer>
 
     /* validate that the byte array is a valid sequence for the type we are supposed to be comparing */
     public abstract void validate(ByteBuffer bytes) throws MarshalException;
+
+    /** @deprecated; use reverseComparator field instead */
+    public Comparator<ByteBuffer> getReverseComparator()
+    {
+        return reverseComparator;
+    }
 
     /* convenience method */
     public String getString(Collection<ByteBuffer> names)

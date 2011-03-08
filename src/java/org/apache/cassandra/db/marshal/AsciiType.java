@@ -28,7 +28,7 @@ import com.google.common.base.Charsets;
 
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-public class AsciiType extends BytesType
+public class AsciiType extends AbstractType<String>
 {
     public static final AsciiType instance = new AsciiType();
 
@@ -45,6 +45,16 @@ public class AsciiType extends BytesType
         {
             throw new MarshalException("Invalid ascii bytes " + ByteBufferUtil.bytesToHex(bytes));
         }
+    }
+
+    public int compare(ByteBuffer o1, ByteBuffer o2)
+    {
+        return BytesType.bytesCompare(o1, o2);
+    }
+
+    public String compose(ByteBuffer bytes)
+    {
+        return getString(bytes);
     }
 
     public ByteBuffer fromString(String source)

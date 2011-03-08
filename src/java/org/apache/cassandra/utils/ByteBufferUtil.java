@@ -367,6 +367,11 @@ public class ByteBufferUtil
     {
         return bytes.getInt(bytes.position());
     }
+    
+    public static long toLong(ByteBuffer bytes)
+    {
+        return bytes.getLong(bytes.position());
+    }
 
     public static ByteBuffer bytes(int i)
     {

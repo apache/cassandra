@@ -26,13 +26,25 @@ import java.nio.ByteBuffer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
-public class BytesType extends AbstractType
+public class BytesType extends AbstractType<ByteBuffer>
 {
     public static final BytesType instance = new BytesType();
 
     BytesType() {} // singleton
+
+    public ByteBuffer compose(ByteBuffer bytes)
+    {
+        return bytes.duplicate();
+    }
     
     public int compare(ByteBuffer o1, ByteBuffer o2)
+    {
+        return BytesType.bytesCompare(o1, o2);
+ 
+    }
+
+    
+    public static int bytesCompare(ByteBuffer o1, ByteBuffer o2)
     {
         if(null == o1){
             if(null == o2) return 0;
