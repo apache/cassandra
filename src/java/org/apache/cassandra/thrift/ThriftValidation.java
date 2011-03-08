@@ -41,6 +41,14 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
+/**
+ * This has a lot of building blocks for CassandraServer to call to make sure it has valid input
+ * -- ensuring column names conform to the declared comparator, for instance.
+ *
+ * The methods here mostly try to do just one part of the validation so they can be combined
+ * for different needs -- supercolumns vs regular, range slices vs named, batch vs single-column.
+ * (ValidateColumnPath is the main exception in that it includes table and CF validation.)
+ */
 public class ThriftValidation
 {
     private static final Logger logger = LoggerFactory.getLogger(ThriftValidation.class);
@@ -81,6 +89,9 @@ public class ThriftValidation
         return cfType;
     }
 
+    /**
+     * validates the tablename and all parts of the path to the column, including the column name
+     */
     static void validateColumnPath(String tablename, ColumnPath column_path) throws InvalidRequestException
     {
         validateTable(tablename);
@@ -103,11 +114,11 @@ public class ThriftValidation
         }
         if (column_path.column != null)
         {
-            validateColumns(tablename, column_path.column_family, column_path.super_column, Arrays.asList(column_path.column));
+            validateColumnNames(tablename, column_path.column_family, column_path.super_column, Arrays.asList(column_path.column));
         }
         if (column_path.super_column != null)
         {
-            validateColumns(tablename, column_path.column_family, null, Arrays.asList(column_path.super_column));
+            validateColumnNames(tablename, column_path.column_family, null, Arrays.asList(column_path.super_column));
         }
     }
 
@@ -124,7 +135,7 @@ public class ThriftValidation
         }
         if (column_parent.super_column != null)
         {
-            validateColumns(tablename, column_parent.column_family, null, Arrays.asList(column_parent.super_column));
+            validateColumnNames(tablename, column_parent.column_family, null, Arrays.asList(column_parent.super_column));
         }
     }
 
@@ -149,15 +160,18 @@ public class ThriftValidation
         }
         if (column_path_or_parent.column != null)
         {
-            validateColumns(tablename, column_path_or_parent.column_family, column_path_or_parent.super_column, Arrays.asList(column_path_or_parent.column));
+            validateColumnNames(tablename, column_path_or_parent.column_family, column_path_or_parent.super_column, Arrays.asList(column_path_or_parent.column));
         }
         if (column_path_or_parent.super_column != null)
         {
-            validateColumns(tablename, column_path_or_parent.column_family, null, Arrays.asList(column_path_or_parent.super_column));
+            validateColumnNames(tablename, column_path_or_parent.column_family, null, Arrays.asList(column_path_or_parent.super_column));
         }
     }
 
-    private static void validateColumns(String keyspace, String columnFamilyName, ByteBuffer superColumnName, Iterable<ByteBuffer> column_names)
+    /**
+     * Validates the column names but not the parent path or data
+     */
+    private static void validateColumnNames(String keyspace, String columnFamilyName, ByteBuffer superColumnName, Iterable<ByteBuffer> column_names)
             throws InvalidRequestException
     {
         if (superColumnName != null)
@@ -187,9 +201,9 @@ public class ThriftValidation
         }
     }
 
-    public static void validateColumns(String keyspace, ColumnParent column_parent, Iterable<ByteBuffer> column_names) throws InvalidRequestException
+    public static void validateColumnNames(String keyspace, ColumnParent column_parent, Iterable<ByteBuffer> column_names) throws InvalidRequestException
     {
-        validateColumns(keyspace, column_parent.column_family, column_parent.super_column, column_names);
+        validateColumnNames(keyspace, column_parent.column_family, column_parent.super_column, column_names);
     }
 
     public static void validateRange(String keyspace, ColumnParent column_parent, SliceRange range) throws InvalidRequestException
@@ -224,14 +238,16 @@ public class ThriftValidation
         {
             validateTtl(cosc.column);
             ThriftValidation.validateColumnPath(keyspace, new ColumnPath(cfName).setSuper_column((ByteBuffer)null).setColumn(cosc.column.name));
+            validateColumnData(keyspace, cfName, cosc.column);
         }
 
         if (cosc.super_column != null)
         {
+            ColumnParent cp = new ColumnParent(cfName).setSuper_column(cosc.super_column.name);
             for (Column c : cosc.super_column.columns)
             {
-                validateTtl(c);
                 ThriftValidation.validateColumnPath(keyspace, new ColumnPath(cfName).setSuper_column(cosc.super_column.name).setColumn(c.name));
+                validateColumnData(keyspace, cp.column_family, c);
             }
         }
 
@@ -298,16 +314,18 @@ public class ThriftValidation
             validateRange(keyspace, new ColumnParent(cfName).setSuper_column(scName), predicate.slice_range);
 
         if (predicate.column_names != null)
-            validateColumns(keyspace, cfName, scName, predicate.column_names);
+            validateColumnNames(keyspace, cfName, scName, predicate.column_names);
     }
 
-    public static void validateColumn(String keyspace, ColumnParent column_parent, Column column) throws InvalidRequestException
+    /**
+     * Validates the data part of the column (everything in the Column object but the name)
+     */
+    public static void validateColumnData(String keyspace, String column_family, Column column) throws InvalidRequestException
     {
         validateTtl(column);
-        validateColumns(keyspace, column_parent, Arrays.asList(column.name));
         try
         {
-            AbstractType validator = DatabaseDescriptor.getValueValidator(keyspace, column_parent.column_family, column.name);
+            AbstractType validator = DatabaseDescriptor.getValueValidator(keyspace, column_family, column.name);
             if (validator != null)
                 validator.validate(column.value);
         }
@@ -315,7 +333,7 @@ public class ThriftValidation
         {
             throw new InvalidRequestException(String.format("[%s][%s][%s] = [%s] failed validation (%s)",
                                                             keyspace,
-                                                            column_parent.getColumn_family(),
+                                                            column_family,
                                                             ByteBufferUtil.bytesToHex(column.name),
                                                             ByteBufferUtil.bytesToHex(column.value),
                                                             me.getMessage()));
@@ -333,7 +351,7 @@ public class ThriftValidation
         if (predicate.getSlice_range() != null)
             validateRange(keyspace, column_parent, predicate.slice_range);
         else
-            validateColumns(keyspace, column_parent, predicate.column_names);
+            validateColumnNames(keyspace, column_parent, predicate.column_names);
     }
 
     public static void validateKeyRange(KeyRange range) throws InvalidRequestException

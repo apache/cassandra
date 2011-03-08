@@ -349,7 +349,8 @@ public class CassandraServer implements Cassandra.Iface
 
         ThriftValidation.validateKey(key);
         ThriftValidation.validateColumnParent(state().getKeyspace(), column_parent);
-        ThriftValidation.validateColumn(state().getKeyspace(), column_parent, column);
+        ThriftValidation.validateColumnNames(state().getKeyspace(), column_parent, Arrays.asList(column.name));
+        ThriftValidation.validateColumnData(state().getKeyspace(), column_parent.column_family, column);
 
         RowMutation rm = new RowMutation(state().getKeyspace(), key);
         try

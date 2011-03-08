@@ -58,14 +58,33 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
     public final static String PIG_PARTITIONER = "PIG_PARTITIONER";
 
     private final static ByteBuffer BOUND = ByteBufferUtil.EMPTY_BYTE_BUFFER;
-    private final static int LIMIT = 1024;
     private static final Log logger = LogFactory.getLog(CassandraStorage.class);
 
     private Configuration conf;
     private RecordReader reader;
     private RecordWriter writer;
+    private final int limit;
 
-    @Override
+    public CassandraStorage() 
+    { 
+        this(1024);
+    }
+
+    /**
+     * @param limit: number of rows to fetch at a time
+     */
+    public CassandraStorage(int limit)
+    {
+        super();
+        this.limit = limit;
+    }
+
+    public int getLimit() 
+    {
+        return limit;
+    }
+
+	@Override
     public Tuple getNext() throws IOException
     {
         try
@@ -167,7 +186,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
     @Override
     public void setLocation(String location, Job job) throws IOException
     {
-        SliceRange range = new SliceRange(BOUND, BOUND, false, LIMIT);
+        SliceRange range = new SliceRange(BOUND, BOUND, false, limit);
         SlicePredicate predicate = new SlicePredicate().setSlice_range(range);
         conf = job.getConfiguration();
         ConfigHelper.setInputSlicePredicate(conf, predicate);
