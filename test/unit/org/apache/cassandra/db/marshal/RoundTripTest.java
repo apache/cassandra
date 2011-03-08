@@ -9,6 +9,7 @@ import org.junit.Test;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Calendar;
 import java.util.UUID;
 
 public class RoundTripTest
@@ -75,6 +76,33 @@ public class RoundTripTest
         assert TimeUUIDType.instance.fromString(TimeUUIDType.instance.getString(ByteBuffer.wrap(UUIDGen.decompose(uuid))))
                 .equals(ByteBuffer.wrap(UUIDGen.decompose(uuid)));
         assert TimeUUIDType.instance.compose(ByteBuffer.wrap(UUIDGen.decompose(uuid))).equals(uuid);
+        
+        assert uuid.equals(TimeUUIDType.instance.compose(TimeUUIDType.instance.fromString(uuid.toString())));
+        
+        Calendar c = Calendar.getInstance();
+        c.set(Calendar.YEAR, 2011);
+        c.set(Calendar.MONTH, Calendar.MARCH);
+        c.set(Calendar.DAY_OF_MONTH, 8);
+        c.set(Calendar.HOUR_OF_DAY, 0);
+        c.set(Calendar.MINUTE, 0);
+        c.set(Calendar.SECOND, 0);
+        c.set(Calendar.MILLISECOND, 0);
+        Long ts = new Long(1299564000000L);
+        assert ts.equals(c.getTimeInMillis()) : c.getTimeInMillis();
+        
+        // create a uuid with a known time.
+        uuid = TimeUUIDType.instance.compose(TimeUUIDType.instance.fromString(ts.toString()));
+        assert uuid.equals(TimeUUIDType.instance.compose(TimeUUIDType.instance.fromString(uuid.toString())));
+        assert uuid.equals(TimeUUIDType.instance.compose(TimeUUIDType.instance.fromString("2011-03-08 00:00")));
+        assert uuid.equals(TimeUUIDType.instance.compose(TimeUUIDType.instance.fromString("2011-03-08 00:00:00")));
+        assert uuid.equals(TimeUUIDType.instance.compose(TimeUUIDType.instance.fromString("2011-03-08 00:00-0600")));
+        assert uuid.equals(TimeUUIDType.instance.compose(TimeUUIDType.instance.fromString("2011-03-08 00:00:00-0600")));
+        assert uuid.equals(TimeUUIDType.instance.compose(TimeUUIDType.instance.fromString("2011-03-08T00:00")));
+        assert uuid.equals(TimeUUIDType.instance.compose(TimeUUIDType.instance.fromString("2011-03-08T00:00-0600")));
+        assert uuid.equals(TimeUUIDType.instance.compose(TimeUUIDType.instance.fromString("2011-03-08T00:00:00")));
+        assert uuid.equals(TimeUUIDType.instance.compose(TimeUUIDType.instance.fromString("2011-03-08T00:00:00-0600")));
+        assert uuid.equals(TimeUUIDType.instance.compose(TimeUUIDType.instance.fromString("2011-03-08")));
+        assert uuid.equals(TimeUUIDType.instance.compose(TimeUUIDType.instance.fromString("2011-03-08-0600")));  
     }
     
     @Test

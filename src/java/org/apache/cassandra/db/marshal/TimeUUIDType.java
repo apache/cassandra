@@ -152,7 +152,7 @@ public class TimeUUIDType extends AbstractType<UUID>
             }
             catch (NumberFormatException e)
             {
-                throw new MarshalException(String.format("unable to make version 1 UUID from '%s'"), e);
+                throw new MarshalException(String.format("unable to make version 1 UUID from '%s'", source), e);
             }
         }
         // Last chance, attempt to parse as date-time string
@@ -165,7 +165,7 @@ public class TimeUUIDType extends AbstractType<UUID>
             }
             catch (ParseException e1)
             {
-                throw new MarshalException(String.format("unable to coherce '%s' to version 1 UUID"), e1);
+                throw new MarshalException(String.format("unable to coerce '%s' to version 1 UUID", source), e1);
             }
         }
             
