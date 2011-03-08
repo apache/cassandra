@@ -61,8 +61,10 @@ public class ReadCallback<T> implements IAsyncCallback
     protected final SimpleCondition condition = new SimpleCondition();
     private final long startTime;
     protected final int blockfor;
-    final List<InetAddress> endpoints;
     private final IReadCommand command;
+
+    /** the list of endpoints that StorageProxy should send requests to */
+    final List<InetAddress> endpoints;
 
     /**
      * Constructor when response count has to be calculated and blocked for.
@@ -124,7 +126,7 @@ public class ReadCallback<T> implements IAsyncCallback
     public void response(Message message)
     {
         resolver.preprocess(message);
-        assert resolver.getMessageCount() <= endpoints.size();
+        assert resolver.getMessageCount() <= endpoints.size() : "Got " + resolver.getMessageCount() + " replies but requests were only sent to " + endpoints.size() + " endpoints";
         if (resolver.getMessageCount() < blockfor)
             return;
         if (resolver.isDataPresent())

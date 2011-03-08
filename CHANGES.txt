@@ -12,6 +12,8 @@
  * add configurable row limit to Pig loadfunc (CASSANDRA-2276)
  * validate column values in batches as well as single-Column inserts
    (CASSANDRA-2259)
+ * move sample schema from cassandra.yaml to schema-sample.txt,
+   a cli scripts (CASSANDRA-2007)
 
 
 0.7.3

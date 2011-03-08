@@ -500,7 +500,8 @@ public class    DatabaseDescriptor
     public static Collection<KSMetaData> readTablesFromYaml() throws ConfigurationException
     {
         List<KSMetaData> defs = new ArrayList<KSMetaData>();
-        
+        if (conf.keyspaces == null)
+            return defs;
         
         /* Read the table related stuff from config */
         for (RawKeyspace keyspace : conf.keyspaces)

@@ -1969,6 +1969,9 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     { 
         // validate
         final Collection<KSMetaData> tables = DatabaseDescriptor.readTablesFromYaml();
+        if (tables.isEmpty())
+            return;
+
         for (KSMetaData table : tables)
         {
             if (!table.name.matches(Migration.NAME_VALIDATOR_REGEX))
