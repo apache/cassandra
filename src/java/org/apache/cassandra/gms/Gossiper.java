@@ -630,6 +630,12 @@ public class Gossiper implements IFailureDetectionEventListener
         if (logger.isTraceEnabled())
             logger.trace("Adding endpoint state for " + ep);
         endpointStateMap.put(ep, epState);
+        if (epState.isAlive())
+        {
+            // the node restarted before we ever marked it down, so we'll report it as dead briefly so maintenance like resetting the connection pool can occur 
+            for (IEndpointStateChangeSubscriber subscriber : subscribers)
+                subscriber.onDead(ep, epState);
+        }
         markAlive(ep, epState);
         for (IEndpointStateChangeSubscriber subscriber : subscribers)
             subscriber.onJoin(ep, epState);
