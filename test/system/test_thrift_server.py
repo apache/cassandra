@@ -583,6 +583,14 @@ class TestMutations(ThriftTester):
                                  ConsistencyLevel.ONE)
         _expect_exception(bad_cf, InvalidRequestException)
 
+        # a column value that does not match the declared validator
+        def send_string_instead_of_long():
+            _set_keyspace('Keyspace1')
+            col = ColumnOrSuperColumn(column=Column('birthdate', 'bar', 0))
+            client.batch_mutate({'key_38': {'Indexed1': [Mutation(col)]}},
+                                 ConsistencyLevel.ONE)
+        _expect_exception(send_string_instead_of_long, InvalidRequestException)
+
     def test_column_name_lengths(self):
         _set_keyspace('Keyspace1')
         _expect_exception(lambda: client.insert('key1', ColumnParent('Standard1'), Column('', 'value', 0), ConsistencyLevel.ONE), InvalidRequestException)

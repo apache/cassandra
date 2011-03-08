@@ -10,6 +10,8 @@
  * track and migrate cached pages during compaction (CASSANDRA-1902)
  * add incremental_backups option (CASSANDRA-1872)
  * add configurable row limit to Pig loadfunc (CASSANDRA-2276)
+ * validate column values in batches as well as single-Column inserts
+   (CASSANDRA-2259)
 
 
 0.7.3
