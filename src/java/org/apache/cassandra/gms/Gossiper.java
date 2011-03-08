@@ -613,6 +613,13 @@ public class Gossiper implements IFailureDetectionEventListener
 
     private void handleGenerationChange(InetAddress ep, EndpointState epState)
     {
+        // the node has rebooted so quickly that we never marked it dead, so we will do that now so that things like resetting the connection pool can happen
+        // afterwards, handleMajorStateChange will mark them alive again
+        if (epState.isAlive())
+        {
+            for (IEndpointStateChangeSubscriber subscriber : subscribers_)
+                subscriber.onDead(ep, epState);
+        }
         logger_.info("Node {} has restarted, now UP again", ep);
         handleMajorStateChange(ep, epState, true);
     }
