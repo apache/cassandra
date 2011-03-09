@@ -1122,6 +1122,7 @@ public class CompactionManager implements CompactionManagerMBean
 
         public void write(PageCacheInformer out) throws IOException
         {
+            assert row.dataSize != 0;
             out.writeLong(row.dataSize);
             row.echoData(out);
         }

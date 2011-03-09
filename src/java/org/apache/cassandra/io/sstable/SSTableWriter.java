@@ -147,7 +147,9 @@ public class SSTableWriter extends SSTable
         // seek back and write the row size (not including the size Long itself)
         long endPosition = dataFile.getFilePointer();
         dataFile.seek(sizePosition);
-        dataFile.writeLong(endPosition - (sizePosition + 8));
+        long dataSize = endPosition - (sizePosition + 8);
+        assert dataSize != 0;
+        dataFile.writeLong(dataSize);
         // finally, reset for next row
         dataFile.seek(endPosition);
         afterAppend(decoratedKey, startPosition);
