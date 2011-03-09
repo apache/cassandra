@@ -46,6 +46,7 @@ public class ScrubTest extends CleanupHelper
     public String TABLE = "Keyspace1";
     public String CF = "Standard1";
     public String CF2 = "Super5";
+    public String CF3 = "Standard2";
     public String  corruptSSTableName;
 
     
@@ -126,6 +127,25 @@ public class ScrubTest extends CleanupHelper
         // check data is still there
         rows = cfs.getRangeSlice(null, Util.range("", ""), 1000, new IdentityQueryFilter());
         assertEquals(1, rows.size());
+    }
+
+    @Test
+    public void testScrubDeletedRow() throws IOException, ExecutionException, InterruptedException, ConfigurationException
+    {
+        CompactionManager.instance.disableAutoCompaction();
+        Table table = Table.open(TABLE);
+        ColumnFamilyStore cfs = table.getColumnFamilyStore(CF3);
+
+        RowMutation rm;
+        rm = new RowMutation(TABLE, ByteBufferUtil.bytes(1));
+        ColumnFamily cf = ColumnFamily.create(TABLE, CF3);
+        cf.delete(0, 1); // expired tombstone
+        rm.add(cf);
+        rm.applyUnsafe();
+        cfs.forceBlockingFlush();
+
+        CompactionManager.instance.performScrub(cfs);
+        assert cfs.getSSTables().isEmpty();
     }
 
     @Test

@@ -657,7 +657,10 @@ public class CompactionManager implements CompactionManagerMBean
             else
             {
                 cfs.markCompacted(Arrays.asList(sstable));
-                logger.warn("No valid rows found while scrubbing " + sstable + "; it is marked for deletion now. If you want to attempt manual recovery, you can find a copy in the pre-scrub snapshot");
+                if (badRows > 0)
+                    logger.warn("No valid rows found while scrubbing " + sstable + "; it is marked for deletion now. If you want to attempt manual recovery, you can find a copy in the pre-scrub snapshot");
+                else
+                    logger.info("Scrub of " + sstable + " complete; looks like all " + emptyRows + " rows were tombstoned");
             }
         }
     }
