@@ -61,7 +61,14 @@ public class BytesType extends AbstractType<ByteBuffer>
 
     public ByteBuffer fromString(String source)
     {
-        return ByteBuffer.wrap(FBUtilities.hexToBytes(source));
+        try
+        {
+            return ByteBuffer.wrap(FBUtilities.hexToBytes(source));
+        }
+        catch (NumberFormatException e)
+        {
+            throw new MarshalException(String.format("cannot parse '%s' as hex bytes", source), e);
+        }
     }
 
     public void validate(ByteBuffer bytes) throws MarshalException
