@@ -13,6 +13,7 @@
    (CASSANDRA-2259)
  * move sample schema from cassandra.yaml to schema-sample.txt,
    a cli scripts (CASSANDRA-2007)
+ * avoid writing empty rows when scrubbing tombstoned rows (CASSANDRA-2296)
 
 
 0.7.3
