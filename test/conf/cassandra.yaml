@@ -144,6 +144,12 @@ keyspaces:
           default_validation_class: AsciiType
         
 
+        - name: Standard5
+          rows_cached: 0
+          keys_cached: 0
+          compare_with: AsciiType
+          default_validation_class: AsciiType
+
     - name: Keyspace2
       replica_placement_strategy: org.apache.cassandra.locator.SimpleStrategy
       replication_factor: 1
