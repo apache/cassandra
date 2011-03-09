@@ -126,7 +126,7 @@ public class CounterMutation implements IMutation
         {
             Table table = Table.open(readCommand.table);
             Row row = readCommand.getRow(table);
-            if (null == row)
+            if (row == null || row.cf == null)
                 continue;
             AbstractType defaultValidator = row.cf.metadata().getDefaultValidator();
             if (defaultValidator.isCommutative())
