@@ -190,11 +190,14 @@ public class CommitLog
                     logger.info(headerPath + " incomplete, missing or corrupt.  Everything is ok, don't panic.  CommitLog will be replayed from the beginning");
                     logger.debug("exception was", ioe);
                 }
-                if (replayPosition < 0)
+                if (replayPosition < 0 || replayPosition > reader.length())
                 {
+                    // replayPosition > reader.length() can happen if some data gets flushed before it is written to the commitlog
+                    // (see https://issues.apache.org/jira/browse/CASSANDRA-2285)
                     logger.debug("skipping replay of fully-flushed {}", file);
                     continue;
                 }
+
                 reader.seek(replayPosition);
 
                 if (logger.isDebugEnabled())

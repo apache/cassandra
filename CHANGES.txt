@@ -16,6 +16,8 @@
  * avoid writing empty rows when scrubbing tombstoned rows (CASSANDRA-2296)
  * fix assertion error in range and index scans for CL < ALL
    (CASSANDRA-2282)
+ * fix commitlog replay when flush position refers to data that didn't
+   get synced before server died (CASSANDRA-2285)
 
 
 0.7.3
