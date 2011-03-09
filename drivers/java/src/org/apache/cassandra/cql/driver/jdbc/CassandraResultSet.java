@@ -45,6 +45,10 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
+
+import org.apache.cassandra.cql.driver.Col;
+import org.apache.cassandra.cql.driver.Results;
+import org.apache.cassandra.cql.driver.SchemaDecoder;
 import org.apache.cassandra.thrift.Column;
 import org.apache.cassandra.thrift.CqlResult;
 import org.apache.cassandra.thrift.CqlRow;
@@ -56,16 +60,20 @@ class CassandraResultSet implements ResultSet
 {
     
     /** The r set. */
-    private CqlResult rSet;
+    private final CqlResult rSet; 
+    
+    private final SchemaDecoder decoder;
+    private final String keyspace;
+    private final String columnFamily;
     
     /** The r set iter. */
     private Iterator<CqlRow> rSetIter;
     
-    /** The row. */
-    private CqlRow row;
+//    /** The row. */
+//    private CqlRow row;
     
     /** The values. */
-    private List<Object> values = new ArrayList<Object>();
+    private List<Col> values = new ArrayList<Col>();
     
     /** The value map. */
     private Map<String, Object> valueMap = new WeakHashMap<String, Object>();
@@ -75,9 +83,12 @@ class CassandraResultSet implements ResultSet
      *
      * @param resultSet the result set
      */
-    CassandraResultSet(CqlResult resultSet)
+    CassandraResultSet(CqlResult resultSet, SchemaDecoder decoder, String keyspace, String columnFamily)
     {
         this.rSet = resultSet;
+        this.decoder = decoder;
+        this.keyspace = keyspace;
+        this.columnFamily = columnFamily;
         rSetIter = rSet.getRowsIterator();
     }
 
@@ -787,7 +798,7 @@ class CassandraResultSet implements ResultSet
      */
     public String getString(int index) throws SQLException 
     {
-        return values.get(index) != null ? values.get(index).toString() : null;
+        return values.get(index) != null ? values.get(index).getValue().toString() : null;
     }
 
     /**
@@ -797,7 +808,8 @@ class CassandraResultSet implements ResultSet
      */
     public String getString(String name) throws SQLException
     {
-        return valueMap.get(name) != null ? valueMap.get(name).toString() : null;
+        String nameAsString = this.decoder.colNameAsString(this.keyspace, this.columnFamily, name);
+        return valueMap.get(nameAsString) != null ? valueMap.get(nameAsString).toString() : null;
     }
 
     /**
@@ -1033,14 +1045,15 @@ class CassandraResultSet implements ResultSet
         }
         if (rSetIter != null && rSetIter.hasNext())
         {
-            row = rSetIter.next();
+            CqlRow row = rSetIter.next();
             List<Column> cols = row.getColumns();
             for (Column col : cols)
             {
-                String name = new String(col.getName());
-                String value = new String(col.getValue());
-                values.add(value);
-                valueMap.put(name, value);
+                byte[] name = col.getName();
+                byte[] value = col.getValue();
+                Col c = decoder.makeCol(keyspace, columnFamily, name, value);
+                values.add(c);
+                valueMap.put(decoder.colNameAsString(keyspace, columnFamily, name), c.getValue());
             }
             return !(values.isEmpty() && valueMap.isEmpty());
         } 

@@ -23,6 +23,8 @@ package org.apache.cassandra.cql.driver;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.apache.cassandra.thrift.AuthenticationException;
 import org.apache.cassandra.thrift.AuthenticationRequest;
@@ -46,6 +48,9 @@ import org.slf4j.LoggerFactory;
 /** CQL connection object. */
 public class Connection
 {
+    private static final Pattern KeyspacePattern = Pattern.compile("USE (\\w+);?", Pattern.CASE_INSENSITIVE | Pattern.MULTILINE);
+    private static final Pattern SelectPattern = Pattern.compile("SELECT\\s+.+\\s+FROM\\s+(\\w+).*", Pattern.CASE_INSENSITIVE | Pattern.MULTILINE);
+    
     public static Compression defaultCompression = Compression.GZIP;
     public final String hostName;
     public final int portNo;
@@ -55,6 +60,11 @@ public class Connection
     protected int numFailures = 0;
     private Cassandra.Client client;
     private TTransport transport;
+    
+    // todo: encapsulate.
+    public String curKeyspace;
+    public String curColumnFamily;
+    public SchemaDecoder decoder;
     
     /**
      * Create a new <code>Connection</code> instance.
@@ -67,7 +77,6 @@ public class Connection
     {
         this.hostName = hostName;
         this.portNo = portNo;
-        
         TSocket socket = new TSocket(hostName, portNo);
         transport = new TFramedTransport(socket);
         TProtocol protocol = new TBinaryProtocol(transport);
@@ -127,6 +136,15 @@ public class Connection
     public CqlResult execute(String queryStr, Compression compress)
     throws InvalidRequestException, UnavailableException, TimedOutException, TException
     {
+        if (decoder == null)
+            decoder = new SchemaDecoder(client.describe_keyspaces());
+        
+        Matcher isKeyspace = KeyspacePattern.matcher(queryStr);
+        if (isKeyspace.matches())
+            curKeyspace = isKeyspace.group(1);
+        Matcher isSelect = SelectPattern.matcher(queryStr);
+        if (isSelect.matches())
+            curColumnFamily = isSelect.group(1);
         try
         {
             return client.execute_cql_query(Utils.compressQuery(queryStr, compress), compress);

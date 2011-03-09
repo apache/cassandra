@@ -43,6 +43,7 @@ import java.sql.Time;
 import java.sql.Timestamp;
 import java.util.Calendar;
 
+import org.apache.cassandra.cql.driver.Results;
 import org.apache.cassandra.thrift.CqlResult;
 import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.thrift.TimedOutException;
@@ -243,7 +244,8 @@ class CassandraStatement implements PreparedStatement
         try
         {
             CqlResult rSet = connection.execute(query);
-            return new CassandraResultSet(rSet);
+            // todo: encapsulate.
+            return new CassandraResultSet(rSet, connection.decoder, connection.curKeyspace, connection.curColumnFamily);
         }
         catch (InvalidRequestException e)
         {
