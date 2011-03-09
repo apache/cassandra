@@ -276,9 +276,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         BufferedRandomAccessFile input = new BufferedRandomAccessFile(new File(descriptor.filenameFor(Component.PRIMARY_INDEX)),
                                                                       "r",
                                                                       BufferedRandomAccessFile.DEFAULT_BUFFER_SIZE,
-                                                                      true,
-                                                                      false);
-
+                                                                      true);
         try
         {
             if (keyCache != null && keyCache.getCapacity() - keyCache.getSize() < keysToLoadInCache.size())
@@ -297,11 +295,9 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
                     break;
 
                 boolean shouldAddEntry = indexSummary.shouldAddEntry();
-
                 ByteBuffer key = (shouldAddEntry || cacheLoading || recreatebloom)
-                                 ? ByteBufferUtil.readWithShortLength(input)
-                                 : ByteBufferUtil.skipShortLength(input);
-
+                             ? ByteBufferUtil.readWithShortLength(input)
+                             : ByteBufferUtil.skipShortLength(input);
                 long dataPosition = input.readLong();
                 if (key != null)
                 {
@@ -553,7 +549,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
     }
 
    /**
-    * SSTableScanner that avoids polluting the page cache
+    * Direct I/O SSTableScanner
     * @param bufferSize Buffer size in bytes for this Scanner.
     * @return A Scanner for seeking over the rows of the SSTable.
     */

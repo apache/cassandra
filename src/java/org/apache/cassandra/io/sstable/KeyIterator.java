@@ -47,8 +47,7 @@ public class KeyIterator extends AbstractIterator<DecoratedKey> implements Itera
             in = new BufferedRandomAccessFile(new File(desc.filenameFor(SSTable.COMPONENT_INDEX)),
                                               "r",
                                               BufferedRandomAccessFile.DEFAULT_BUFFER_SIZE,
-                                              true,
-                                              false);
+                                              true);
         }
         catch (IOException e)
         {

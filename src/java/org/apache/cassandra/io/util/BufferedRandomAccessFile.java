@@ -26,7 +26,6 @@ import java.nio.channels.ClosedChannelException;
 import java.nio.channels.FileChannel;
 
 import org.apache.cassandra.utils.CLibrary;
-import org.apache.log4j.Logger;
 
 /**
  * A <code>BufferedRandomAccessFile</code> is like a
@@ -39,9 +38,9 @@ import org.apache.log4j.Logger;
  * overridden here relies on the implementation of those methods in the
  * superclass.
  */
-public class BufferedRandomAccessFile extends RandomAccessFile implements FileDataInput, PageCacheInformer
+public class BufferedRandomAccessFile extends RandomAccessFile implements FileDataInput
 {
-    private static final Logger logger = Logger.getLogger(BufferedRandomAccessFile.class);
+    private static final long MAX_BYTES_IN_PAGE_CACHE = (long) Math.pow(2, 27); // 128mb
     
     // absolute filesystem path to the file
     private final String filePath;
@@ -73,22 +72,11 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
     // file descriptor
     private int fd;
 
-    // keep *at most* this much data in the page cache from this file at a time
-    private static final long MAX_BYTES_IN_PAGE_CACHE = (long) Math.pow(2, 27); // 128mb
-
     // skip cache - used for commit log and sstable writing w/ posix_fadvise
     private final boolean skipCache;
 
-    // used for page cache migration in compaction
-    private final boolean pageCacheMigrate;
-
-    // tracks the number of bytes read or written since last page cache flush
     private long bytesSinceCacheFlush = 0;
-
-    // tracks the lowest seen file position since the last page cache flush
-    // this is needed because the posix_fadvise call takes a offset and length
     private long minBufferOffset = Long.MAX_VALUE;
-
 
     /*
      * Open a new <code>BufferedRandomAccessFile</code> on the file named
@@ -117,15 +105,14 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
 
     public BufferedRandomAccessFile(File file, String mode, int bufferSize) throws IOException
     {
-        this(file, mode, bufferSize, false, false);
+        this(file, mode, bufferSize, false);
     }
 
-    public BufferedRandomAccessFile(File file, String mode, int bufferSize, boolean skipCache, boolean pageCacheMigrate) throws IOException
+    public BufferedRandomAccessFile(File file, String mode, int bufferSize, boolean skipCache) throws IOException
     {
         super(file, mode);
 
         this.skipCache = skipCache;
-        this.pageCacheMigrate = pageCacheMigrate;
 
         channel = super.getChannel();
         filePath = file.getAbsolutePath();
@@ -150,15 +137,10 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
             channel.force(true); // true, because file length counts as
                                  // "meta-data"
 
-            if (skipCache && bytesSinceCacheFlush > 0)
+            if (skipCache)
             {
-                // clear remaining file from page cache
-                long startAt = 0;
-
-                if (pageCacheMigrate)
-                    startAt = minBufferOffset;
-
-                CLibrary.trySkipCache(this.fd, startAt, 0);
+                // clear entire file from page cache
+                CLibrary.trySkipCache(this.fd, 0, 0);
 
                 minBufferOffset = Long.MAX_VALUE;
                 bytesSinceCacheFlush = 0;
@@ -167,34 +149,6 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
             syncNeeded = false;
         }
     }
-
-    /** {@InheritDoc} */
-    public long getCurrentPosition()
-    {
-        return getFilePointer();
-    }
-
-    /** @{InheritDoc} */
-    public void keepCacheWindow(long startingOffset)
-    {
-
-        if (!pageCacheMigrate)
-            return;
-
-        if (minBufferOffset < startingOffset)
-        {
-            //Flush anything before start offset
-            CLibrary.trySkipCache(this.fd, minBufferOffset, startingOffset - 1);
-
-            //jump ahead to position() so it doesn't get flushed in the range
-            minBufferOffset = bufferOffset;
-            bytesSinceCacheFlush = 0;
-        }
-
-        if(logger.isDebugEnabled())
-            logger.debug("Kept " + (getFilePointer() - startingOffset) + " bytes in page cache");
-    }
-
 
     public void flush() throws IOException
     {
@@ -208,8 +162,10 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
             if (skipCache)
             {
 
-                // we don't know when the data reaches disk since we aren't calling flush
-                // so we continue to clear pages we don't need from the first offset we see
+                // we don't know when the data reaches disk since we aren't
+                // calling flush
+                // so we continue to clear pages we don't need from the first
+                // offset we see
                 // periodically we update this starting offset
                 bytesSinceCacheFlush += validBufferBytes;
 
@@ -218,7 +174,7 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
 
                 if (bytesSinceCacheFlush >= MAX_BYTES_IN_PAGE_CACHE)
                 {
-                    CLibrary.trySkipCache(this.fd, minBufferOffset, 0);
+                    CLibrary.trySkipCache(this.fd, (int) minBufferOffset, 0);
                     minBufferOffset = bufferOffset;
                     bytesSinceCacheFlush = 0;
                 }
@@ -257,7 +213,7 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
         bytesSinceCacheFlush += read;
         if (skipCache && bytesSinceCacheFlush >= MAX_BYTES_IN_PAGE_CACHE)
         {
-            CLibrary.trySkipCache(this.fd, minBufferOffset, 0);
+            CLibrary.trySkipCache(this.fd, (int) minBufferOffset, 0);
             bytesSinceCacheFlush = 0;
             minBufferOffset = Long.MAX_VALUE;
         }
@@ -441,12 +397,7 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
 
         if (skipCache && bytesSinceCacheFlush > 0)
         {
-            long startAt = 0;
-
-            if(pageCacheMigrate)
-                startAt = minBufferOffset;
-
-            CLibrary.trySkipCache(this.fd, startAt, 0);
+            CLibrary.trySkipCache(this.fd, 0, 0);
         }
 
         super.close();
@@ -492,7 +443,7 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
 
     public static BufferedRandomAccessFile getUncachingReader(String filename) throws IOException
     {
-        return new BufferedRandomAccessFile(new File(filename), "r", 8 * 1024 * 1024, true, false);
+        return new BufferedRandomAccessFile(new File(filename), "r", 8 * 1024 * 1024, true);
     }
 
     /**

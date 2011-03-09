@@ -56,16 +56,16 @@ public class SSTableWriter extends SSTable
 
     private IndexWriter iwriter;
     private SegmentedFile.Builder dbuilder;
-    public  final BufferedRandomAccessFile dataFile;
+    private final BufferedRandomAccessFile dataFile;
     private DecoratedKey lastWrittenKey;
     private FileMark dataMark;
 
     public SSTableWriter(String filename, long keyCount) throws IOException
     {
-        this(filename, keyCount, DatabaseDescriptor.getCFMetaData(Descriptor.fromFilename(filename)), StorageService.getPartitioner(), false);
+        this(filename, keyCount, DatabaseDescriptor.getCFMetaData(Descriptor.fromFilename(filename)), StorageService.getPartitioner());
     }
 
-    public SSTableWriter(String filename, long keyCount, CFMetaData metadata, IPartitioner partitioner, boolean migratePageCache) throws IOException
+    public SSTableWriter(String filename, long keyCount, CFMetaData metadata, IPartitioner partitioner) throws IOException
     {
         super(Descriptor.fromFilename(filename),
               new HashSet<Component>(Arrays.asList(Component.DATA, Component.FILTER, Component.PRIMARY_INDEX, Component.STATS)),
@@ -73,10 +73,9 @@ public class SSTableWriter extends SSTable
               partitioner,
               SSTable.defaultRowHistogram(),
               SSTable.defaultColumnHistogram());
-
-        iwriter = new IndexWriter(descriptor, partitioner, keyCount, !migratePageCache); //when we migrate pages we cache the index
+        iwriter = new IndexWriter(descriptor, partitioner, keyCount);
         dbuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode());
-        dataFile = new BufferedRandomAccessFile(new File(getFilename()), "rw", DatabaseDescriptor.getInMemoryCompactionLimit(), true, migratePageCache);
+        dataFile = new BufferedRandomAccessFile(new File(getFilename()), "rw", DatabaseDescriptor.getInMemoryCompactionLimit(), true);
     }
     
     public void mark()
@@ -255,7 +254,7 @@ public class SSTableWriter extends SSTable
             cfs = Table.open(desc.ksname).getColumnFamilyStore(desc.cfname);
             try
             {
-                dfile = new BufferedRandomAccessFile(new File(desc.filenameFor(SSTable.COMPONENT_DATA)), "r", 8 * 1024 * 1024, true, false);
+                dfile = new BufferedRandomAccessFile(new File(desc.filenameFor(SSTable.COMPONENT_DATA)), "r", 8 * 1024 * 1024, true);
             }
             catch (IOException e)
             {
@@ -280,7 +279,7 @@ public class SSTableWriter extends SSTable
             try
             {
                 estimatedRows = SSTable.estimateRowsFromData(desc, dfile);
-                iwriter = new IndexWriter(desc, StorageService.getPartitioner(), estimatedRows, true);
+                iwriter = new IndexWriter(desc, StorageService.getPartitioner(), estimatedRows);
             }
             catch(IOException e)
             {
@@ -367,11 +366,11 @@ public class SSTableWriter extends SSTable
         public final BloomFilter bf;
         private FileMark mark;
 
-        IndexWriter(Descriptor desc, IPartitioner part, long keyCount, boolean skipCache) throws IOException
+        IndexWriter(Descriptor desc, IPartitioner part, long keyCount) throws IOException
         {
             this.desc = desc;
             this.partitioner = part;
-            indexFile = new BufferedRandomAccessFile(new File(desc.filenameFor(SSTable.COMPONENT_INDEX)), "rw", 8 * 1024 * 1024, skipCache, false);
+            indexFile = new BufferedRandomAccessFile(new File(desc.filenameFor(SSTable.COMPONENT_INDEX)), "rw", 8 * 1024 * 1024, true);
             builder = SegmentedFile.getBuilder(DatabaseDescriptor.getIndexAccessMode());
             summary = new IndexSummary(keyCount);
             bf = BloomFilter.getFilter(keyCount, 15);

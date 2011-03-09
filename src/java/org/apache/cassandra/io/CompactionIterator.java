@@ -48,7 +48,6 @@ implements Closeable, ICompactionInfo
     public static final int FILE_BUFFER_SIZE = 1024 * 1024;
 
     protected final List<SSTableIdentityIterator> rows = new ArrayList<SSTableIdentityIterator>();
-
     private final ColumnFamilyStore cfs;
     private final int gcBefore;
     private final boolean major;
@@ -56,7 +55,6 @@ implements Closeable, ICompactionInfo
     private long totalBytes;
     private long bytesRead;
     private long row;
-    private boolean hasRowsInPageCache;
 
     public CompactionIterator(ColumnFamilyStore cfs, Iterable<SSTableReader> sstables, int gcBefore, boolean major) throws IOException
     {
@@ -99,9 +97,6 @@ implements Closeable, ICompactionInfo
     public void reduce(SSTableIdentityIterator current)
     {
         rows.add(current);
-
-        if(current.hasRowsInPageCache())
-            hasRowsInPageCache = true;
     }
 
     protected AbstractCompactedRow getReduced()
@@ -130,7 +125,6 @@ implements Closeable, ICompactionInfo
     protected AbstractCompactedRow getCompactedRow()
     {
         long rowSize = 0;
-
         for (SSTableIdentityIterator row : rows)
         {
             rowSize += row.dataSize;
@@ -166,11 +160,6 @@ implements Closeable, ICompactionInfo
     public long getBytesComplete()
     {
         return bytesRead;
-    }
-
-    public boolean hasRowsInPageCache()
-    {
-        return hasRowsInPageCache;
     }
 
     public String getTaskType()

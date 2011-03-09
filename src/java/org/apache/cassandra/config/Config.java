@@ -111,10 +111,6 @@ public class Config
     public int hinted_handoff_throttle_delay_in_ms = 0;
     public boolean compaction_preheat_key_cache = true;
 
-    // make this configurable as its being releases in a maintenance release
-    // TODO: remove in 0.8
-    public Boolean enable_page_cache_migration = false;
-
     public boolean incremental_backups = false;
 
     public static enum CommitLogSync {

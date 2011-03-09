@@ -1214,11 +1214,6 @@ public class    DatabaseDescriptor
             throw new ConfigurationException("memtable_flush_after_mins must be greater than 0.");
     }
 
-    public static boolean isPageCaheMigrationEnabled()
-    {
-        return conf.enable_page_cache_migration;
-    }
-
     public static boolean incrementalBackupsEnabled()
     {
         return conf.incremental_backups;

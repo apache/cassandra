@@ -215,13 +215,6 @@ public class ColumnFamily implements IColumnContainer, IIterableColumns
         IColumn oldColumn;
         while ((oldColumn = columns.putIfAbsent(name, column)) != null)
         {
-            // migrate any page cache info (prefer cached)
-            if (oldColumn.isInPageCache() || column.isInPageCache())
-            {
-                oldColumn.setIsInPageCache(true);
-                column.setIsInPageCache(true);
-            }
-
             if (oldColumn instanceof SuperColumn)
             {
                 ((SuperColumn) oldColumn).putColumn(column);

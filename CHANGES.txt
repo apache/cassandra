@@ -7,7 +7,6 @@
  * add CL.TWO, CL.THREE (CASSANDRA-2013)
  * avoid exporting an un-requested row in sstable2json, when exporting 
    a key that does not exist (CASSANDRA-2168)
- * track and migrate cached pages during compaction (CASSANDRA-1902)
  * add incremental_backups option (CASSANDRA-1872)
  * add configurable row limit to Pig loadfunc (CASSANDRA-2276)
  * validate column values in batches as well as single-Column inserts
