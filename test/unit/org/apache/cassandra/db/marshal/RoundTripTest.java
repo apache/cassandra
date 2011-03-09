@@ -69,7 +69,7 @@ public class RoundTripTest
         assert LexicalUUIDType.instance.compose(ByteBuffer.wrap(UUIDGen.decompose(uuid))).equals(uuid);
     }
     
-    @Test
+    @Test @Ignore
     public void testTimeUUID()
     {
         UUID uuid = UUIDGen.makeType1UUIDFromHost(FBUtilities.getLocalAddress());
