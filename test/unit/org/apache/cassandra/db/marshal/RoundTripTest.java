@@ -81,8 +81,7 @@ public class RoundTripTest
         
         assert uuid.equals(TimeUUIDType.instance.compose(TimeUUIDType.instance.fromString(uuid.toString())));
         
-        Calendar c = Calendar.getInstance();
-        Calendar.getInstance(TimeZone.getTimeZone("America/Chicago"));
+        Calendar c = Calendar.getInstance(TimeZone.getTimeZone("America/Chicago"));
         c.set(Calendar.YEAR, 2011);
         c.set(Calendar.MONTH, Calendar.MARCH);
         c.set(Calendar.DAY_OF_MONTH, 8);
