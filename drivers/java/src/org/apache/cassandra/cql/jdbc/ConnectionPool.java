@@ -19,7 +19,7 @@
  * 
  */
 
-package org.apache.cassandra.cql.driver;
+package org.apache.cassandra.cql.jdbc;
 
 import java.util.Date;
 import java.util.Timer;
@@ -42,13 +42,13 @@ import org.slf4j.LoggerFactory;
  * <p>Example usage:</p>
  * 
  * <code>
- * IConnectionPool pool = new ConnectionPool("localhost", 9160);<br />
+ * ConnectionPool pool = new ConnectionPool("localhost", 9160);<br />
  * Connection conn = pool.borrowConnection();<br />
  * conn.execute(...);<br />
  * pool.returnConnection(pool);<br />
  * </code>
  */
-public class ConnectionPool implements IConnectionPool
+class ConnectionPool
 {
     public static final int DEFAULT_MAX_CONNECTIONS = 25;
     public static final int DEFAULT_PORT = 9160;

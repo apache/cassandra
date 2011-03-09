@@ -18,7 +18,7 @@
  * under the License.
  * 
  */
-package org.apache.cassandra.cql.driver.jdbc;
+package org.apache.cassandra.cql.jdbc;
 
 import java.sql.Connection;
 import java.sql.Driver;

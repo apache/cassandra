@@ -18,15 +18,14 @@
  * under the License.
  * 
  */
-package org.apache.cassandra.cql.driver.jdbc;
-
+package org.apache.cassandra.cql.jdbc;
 /**
- * Runtime exception handling during incorrect connection url provided.
+ * Runtime exception handling in case of runtime error during Driver resolving. 
  */
-public class InvalidUrlException extends RuntimeException {
-	
+public class DriverResolverException extends RuntimeException {
+
 	/**
-	 *  Default serial version UID
+	 * Default serial version UID. 
 	 */
 	private static final long serialVersionUID = 1L;
 
@@ -34,8 +33,7 @@ public class InvalidUrlException extends RuntimeException {
 	 * Constructor using fields.
 	 * @param errMsg error message.
 	 */
-	public InvalidUrlException(String errMsg) {
+	public DriverResolverException(String errMsg) {
 		super(errMsg);
 	}
-
 }

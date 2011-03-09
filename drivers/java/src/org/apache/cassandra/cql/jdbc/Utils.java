@@ -19,7 +19,7 @@
  * 
  */
 
-package org.apache.cassandra.cql.driver;
+package org.apache.cassandra.cql.jdbc;
 
 import java.io.ByteArrayOutputStream;
 import java.nio.ByteBuffer;
@@ -29,7 +29,7 @@ import org.apache.cassandra.thrift.Compression;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class Utils
+class Utils
 {
     private static final Logger logger = LoggerFactory.getLogger(Utils.class);
     

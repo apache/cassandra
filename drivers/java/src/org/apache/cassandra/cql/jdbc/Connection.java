@@ -19,7 +19,7 @@
  * 
  */
 
-package org.apache.cassandra.cql.driver;
+package org.apache.cassandra.cql.jdbc;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -46,7 +46,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** CQL connection object. */
-public class Connection
+class Connection
 {
     private static final Pattern KeyspacePattern = Pattern.compile("USE (\\w+);?", Pattern.CASE_INSENSITIVE | Pattern.MULTILINE);
     private static final Pattern SelectPattern = Pattern.compile("SELECT\\s+.+\\s+FROM\\s+(\\w+).*", Pattern.CASE_INSENSITIVE | Pattern.MULTILINE);

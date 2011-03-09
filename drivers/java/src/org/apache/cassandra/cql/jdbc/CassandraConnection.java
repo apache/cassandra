@@ -18,7 +18,7 @@
  * under the License.
  * 
  */
-package org.apache.cassandra.cql.driver.jdbc;
+package org.apache.cassandra.cql.jdbc;
 
 import java.sql.Array;
 import java.sql.Blob;
@@ -53,7 +53,7 @@ public class CassandraConnection implements Connection
 {
     
     /** The cassandra con. */
-    private org.apache.cassandra.cql.driver.Connection cassandraCon;
+    private org.apache.cassandra.cql.jdbc.Connection cassandraCon;
     
     /**
      * Instantiates a new cassandra connection.
@@ -76,7 +76,7 @@ public class CassandraConnection implements Connection
             final int host_backwardIdx = host_port.indexOf('/');
             final String port = host_port.substring(host_colonIdx + 1, host_backwardIdx);
             final String keyspace = host_port.substring(host_backwardIdx + 1);
-            cassandraCon = new org.apache.cassandra.cql.driver.Connection(hostName, Integer.valueOf(port), userName,
+            cassandraCon = new org.apache.cassandra.cql.jdbc.Connection(hostName, Integer.valueOf(port), userName,
                                                                                                                              password);
             final String useQ = "USE " + keyspace;
             cassandraCon.execute(useQ);

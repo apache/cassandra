@@ -18,7 +18,7 @@
  * under the License.
  * 
  */
-package org.apache.cassandra.cql.driver.jdbc;
+package org.apache.cassandra.cql.jdbc;
 
 import java.io.InputStream;
 import java.io.Reader;
@@ -43,7 +43,6 @@ import java.sql.Time;
 import java.sql.Timestamp;
 import java.util.Calendar;
 
-import org.apache.cassandra.cql.driver.Results;
 import org.apache.cassandra.thrift.CqlResult;
 import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.thrift.TimedOutException;
@@ -58,7 +57,7 @@ class CassandraStatement implements PreparedStatement
 {
     
     /** The connection. */
-    private org.apache.cassandra.cql.driver.Connection connection;
+    private org.apache.cassandra.cql.jdbc.Connection connection;
     
     /** The cql. */
     private String cql;
@@ -67,7 +66,7 @@ class CassandraStatement implements PreparedStatement
      * Constructor using fields.
      * @param con     cassandra connection.
      */
-    CassandraStatement(org.apache.cassandra.cql.driver.Connection con)
+    CassandraStatement(org.apache.cassandra.cql.jdbc.Connection con)
     {
         this.connection = con;
     }
@@ -78,7 +77,7 @@ class CassandraStatement implements PreparedStatement
      * @param con     cassandra connection
      * @param cql the cql
      */
-    CassandraStatement(org.apache.cassandra.cql.driver.Connection con, String cql)
+    CassandraStatement(org.apache.cassandra.cql.jdbc.Connection con, String cql)
     {
         this.connection = con;
         this.cql = cql;

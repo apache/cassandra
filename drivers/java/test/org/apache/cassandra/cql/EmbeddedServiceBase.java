@@ -1,4 +1,4 @@
-package org.apache.cassandra.cql.driver.jdbc;
+package org.apache.cassandra.cql;
 
 import java.io.IOException;
 import java.net.Socket;

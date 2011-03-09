@@ -1,4 +1,4 @@
-package org.apache.cassandra.cql.driver.jdbc;
+package org.apache.cassandra.cql;
 /*
  * 
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -51,7 +51,7 @@ public class JdbcDriverTest extends EmbeddedServiceBase
     public static void startServer() throws Exception
     {
         startCassandraServer();
-        Class.forName("org.apache.cassandra.cql.driver.jdbc.CassandraDriver");
+        Class.forName("org.apache.cassandra.cql.jdbc.CassandraDriver");
         con = DriverManager.getConnection("jdbc:cassandra:root/root@localhost:9170/Keyspace1");
         String[] inserts = 
         {

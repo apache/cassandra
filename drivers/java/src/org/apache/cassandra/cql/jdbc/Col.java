@@ -1,6 +1,6 @@
-package org.apache.cassandra.cql.driver;
+package org.apache.cassandra.cql.jdbc;
 
-public class Col<N, V>
+class Col<N, V>
 {
     public final N name;
     public final V value;

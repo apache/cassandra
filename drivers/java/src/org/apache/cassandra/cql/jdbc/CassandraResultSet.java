@@ -18,7 +18,7 @@
  * under the License.
  * 
  */
-package org.apache.cassandra.cql.driver.jdbc;
+package org.apache.cassandra.cql.jdbc;
 
 import java.io.InputStream;
 import java.io.Reader;
@@ -47,8 +47,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
 
-import org.apache.cassandra.cql.driver.Col;
-import org.apache.cassandra.cql.driver.ColumnDecoder;
 import org.apache.cassandra.thrift.Column;
 import org.apache.cassandra.thrift.CqlResult;
 import org.apache.cassandra.thrift.CqlRow;
