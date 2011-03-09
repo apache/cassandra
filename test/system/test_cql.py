@@ -20,50 +20,84 @@ def uuid1bytes_to_millis(uuidbytes):
     return (uuid.UUID(bytes=uuidbytes).get_time() / 10000) - 12219292800000L
 
 def load_sample(dbconn):
-    query = "UPDATE Standard1 SET ? = ?, ? = ? WHERE KEY = ?"
+    dbconn.execute("""
+        CREATE COLUMNFAMILY StandardString1 WITH comparator = ascii
+            AND default_validation = ascii;
+    """)
+    dbconn.execute("""
+        CREATE COLUMNFAMILY StandardUtf82 WITH comparator = utf8
+            AND default_validation = ascii;
+    """)
+    dbconn.execute("""
+        CREATE COLUMNFAMILY StandardLongA WITH comparator = long
+            AND default_validation = ascii;
+    """)
+    dbconn.execute("""
+        CREATE COLUMNFAMILY StandardIntegerA WITH comparator = int
+            AND default_validation = ascii;
+    """)
+    dbconn.execute("""
+        CREATE COLUMNFAMILY StandardUUID WITH comparator = uuid
+            AND default_validation = ascii;
+    """)
+    dbconn.execute("""
+        CREATE COLUMNFAMILY StandardTimeUUID WITH comparator = timeuuid
+            AND default_validation = ascii;
+    """)
+    dbconn.execute("""
+        CREATE COLUMNFAMILY StandardTimeUUIDValues WITH comparator = ascii
+            AND default_validation = timeuuid;
+    """)
+    dbconn.execute("""
+        CREATE COLUMNFAMILY IndexedA ('birthdate' long) WITH comparator = ascii
+            AND default_validation = ascii;
+    """)
+    dbconn.execute("CREATE INDEX ON IndexedA ('birthdate');")
+    
+    query = "UPDATE StandardString1 SET ? = ?, ? = ? WHERE KEY = ?"
     dbconn.execute(query, "ca1", "va1", "col", "val", "ka")
     dbconn.execute(query, "cb1", "vb1", "col", "val", "kb")
     dbconn.execute(query, "cc1", "vc1", "col", "val", "kc")
     dbconn.execute(query, "cd1", "vd1", "col", "val", "kd")
 
     dbconn.execute("""
-        UPDATE Standard2 SET u'%s' = 've1', 'col' = 'val' WHERE KEY = 'kd'
+        UPDATE StandardUtf82 SET u'%s' = 've1', 'col' = 'val' WHERE KEY = 'kd'
     """ % u'\xa9'.encode('utf8'))
     dbconn.execute("""
-        UPDATE Standard2 SET u'cf1' = 'vf1', 'col' = 'val' WHERE KEY = 'kd'
+        UPDATE StandardUtf82 SET u'cf1' = 'vf1', 'col' = 'val' WHERE KEY = 'kd'
     """)
 
     dbconn.execute("""
     BEGIN BATCH USING CONSISTENCY ONE
-     UPDATE StandardLong1 SET 1='1', 2='2', 3='3', 4L='4' WHERE KEY='aa';
-     UPDATE StandardLong1 SET 5='5', 6='6', 7='8', 9L='9' WHERE KEY='ab';
-     UPDATE StandardLong1 SET 9='9', 8='8', 7='7', 6L='6' WHERE KEY='ac';
-     UPDATE StandardLong1 SET 5='5', 4='4', 3='3', 2L='2' WHERE KEY='ad';
-     UPDATE StandardLong1 SET 1='1', 2='2', 3='3', 4L='4' WHERE KEY='ae';
-     UPDATE StandardLong1 SET 1='1', 2='2', 3='3', 4L='4' WHERE KEY='af';
-     UPDATE StandardLong1 SET 5='5', 6='6', 7='8', 9L='9' WHERE KEY='ag';
+     UPDATE StandardLongA SET 1='1', 2='2', 3='3', 4='4' WHERE KEY='aa';
+     UPDATE StandardLongA SET 5='5', 6='6', 7='8', 9='9' WHERE KEY='ab';
+     UPDATE StandardLongA SET 9='9', 8='8', 7='7', 6='6' WHERE KEY='ac';
+     UPDATE StandardLongA SET 5='5', 4='4', 3='3', 2='2' WHERE KEY='ad';
+     UPDATE StandardLongA SET 1='1', 2='2', 3='3', 4='4' WHERE KEY='ae';
+     UPDATE StandardLongA SET 1='1', 2='2', 3='3', 4='4' WHERE KEY='af';
+     UPDATE StandardLongA SET 5='5', 6='6', 7='8', 9='9' WHERE KEY='ag';
     APPLY BATCH
     """)
     
     dbconn.execute("""
     BEGIN BATCH USING CONSISTENCY ONE
-      UPDATE StandardInteger1 SET 10='a', 20='b', 30='c', 40='d' WHERE KEY='k1';
-      UPDATE StandardInteger1 SET 10='e', 20='f', 30='g', 40='h' WHERE KEY='k2';
-      UPDATE StandardInteger1 SET 10='i', 20='j', 30='k', 40='l' WHERE KEY='k3';
-      UPDATE StandardInteger1 SET 10='m', 20='n', 30='o', 40='p' WHERE KEY='k4';
-      UPDATE StandardInteger1 SET 10='q', 20='r', 30='s', 40='t' WHERE KEY='k5';
-      UPDATE StandardInteger1 SET 10='u', 20='v', 30='w', 40='x' WHERE KEY='k6';
-      UPDATE StandardInteger1 SET 10='y', 20='z', 30='A', 40='B' WHERE KEY='k7';
+      UPDATE StandardIntegerA SET 10='a', 20='b', 30='c', 40='d' WHERE KEY='k1';
+      UPDATE StandardIntegerA SET 10='e', 20='f', 30='g', 40='h' WHERE KEY='k2';
+      UPDATE StandardIntegerA SET 10='i', 20='j', 30='k', 40='l' WHERE KEY='k3';
+      UPDATE StandardIntegerA SET 10='m', 20='n', 30='o', 40='p' WHERE KEY='k4';
+      UPDATE StandardIntegerA SET 10='q', 20='r', 30='s', 40='t' WHERE KEY='k5';
+      UPDATE StandardIntegerA SET 10='u', 20='v', 30='w', 40='x' WHERE KEY='k6';
+      UPDATE StandardIntegerA SET 10='y', 20='z', 30='A', 40='B' WHERE KEY='k7';
     APPLY BATCH
     """)
 
     dbconn.execute("""
     BEGIN BATCH
-    UPDATE Indexed1 SET 'birthdate'=100, 'unindexed'=250 WHERE KEY='asmith';
-    UPDATE Indexed1 SET 'birthdate'=100, 'unindexed'=200 WHERE KEY='dozer';
-    UPDATE Indexed1 SET 'birthdate'=175, 'unindexed'=200 WHERE KEY='morpheus';
-    UPDATE Indexed1 SET 'birthdate'=150, 'unindexed'=250 WHERE KEY='neo';
-    UPDATE Indexed1 SET 'birthdate'=125, 'unindexed'=200 WHERE KEY='trinity';
+    UPDATE IndexedA SET 'birthdate'=100, 'unindexed'=250 WHERE KEY='asmith';
+    UPDATE IndexedA SET 'birthdate'=100, 'unindexed'=200 WHERE KEY='dozer';
+    UPDATE IndexedA SET 'birthdate'=175, 'unindexed'=200 WHERE KEY='morpheus';
+    UPDATE IndexedA SET 'birthdate'=150, 'unindexed'=250 WHERE KEY='neo';
+    UPDATE IndexedA SET 'birthdate'=125, 'unindexed'=200 WHERE KEY='trinity';
     APPLY BATCH
     """)
 
@@ -76,7 +110,7 @@ class TestCql(ThriftTester):
     def test_select_simple(self):
         "retrieve a column"
         conn = init()
-        r = conn.execute("SELECT 'ca1' FROM Standard1 WHERE KEY='ka'")
+        r = conn.execute("SELECT 'ca1' FROM StandardString1 WHERE KEY='ka'")
         assert r[0].key == 'ka'
         assert r[0].columns[0].name == 'ca1'
         assert r[0].columns[0].value == 'va1'
@@ -84,14 +118,18 @@ class TestCql(ThriftTester):
     def test_select_columns(self):
         "retrieve multiple columns"
         conn = init()
-        r = conn.execute("SELECT 'cd1', 'col' FROM Standard1 WHERE KEY = 'kd'")
+        r = conn.execute("""
+            SELECT 'cd1', 'col' FROM StandardString1 WHERE KEY = 'kd'
+        """)
         assert "cd1" in [i.name for i in r[0].columns]
         assert "col" in [i.name for i in r[0].columns]
 
     def test_select_row_range(self):
         "retrieve a range of rows with columns"
         conn = init()
-        r = conn.execute("SELECT 4 FROM StandardLong1 WHERE KEY > 'ad' AND KEY < 'ag';")
+        r = conn.execute("""
+            SELECT 4 FROM StandardLongA WHERE KEY > 'ad' AND KEY < 'ag';
+        """)
         assert len(r) == 3
         assert r[0].key == "ad"
         assert r[1].key == "ae"
@@ -104,12 +142,13 @@ class TestCql(ThriftTester):
         "retrieve a limited range of rows with columns"
         conn = init()
         r = conn.execute("""
-            SELECT 1,5,9 FROM StandardLong1 WHERE KEY > 'aa' AND KEY < 'ag' LIMIT 3
+            SELECT 1,5,9 FROM StandardLongA WHERE KEY > 'aa'
+                    AND KEY < 'ag' LIMIT 3
         """)
         assert len(r) == 3
         
         r = conn.execute("""
-            SELECT 20,40 FROM StandardInteger1 WHERE KEY > 'k1'
+            SELECT 20,40 FROM StandardIntegerA WHERE KEY > 'k1'
                     AND KEY < 'k7' LIMIT 5
         """)
         assert len(r) == 5
@@ -119,13 +158,13 @@ class TestCql(ThriftTester):
     def test_select_columns_slice(self):
         "range of columns (slice) by row"
         conn = init()
-        r = conn.execute("SELECT 1..3 FROM StandardLong1 WHERE KEY = 'aa';")
+        r = conn.execute("SELECT 1..3 FROM StandardLongA WHERE KEY = 'aa';")
         assert len(r) == 1
         assert r[0].columns[0].value == "1"
         assert r[0].columns[1].value == "2"
         assert r[0].columns[2].value == "3"
         
-        r = conn.execute("SELECT 10..30 FROM StandardInteger1 WHERE KEY='k1'")
+        r = conn.execute("SELECT 10..30 FROM StandardIntegerA WHERE KEY='k1'")
         assert len(r) == 1
         assert r[0].columns[0].value == "a"
         assert r[0].columns[1].value == "b"
@@ -135,7 +174,7 @@ class TestCql(ThriftTester):
         "range of columns (slice) by row with limit"
         conn = init()
         r = conn.execute("""
-            SELECT FIRST 1 1..3 FROM StandardLong1 WHERE KEY = 'aa';
+            SELECT FIRST 1 1..3 FROM StandardLongA WHERE KEY = 'aa';
         """)
         assert len(r) == 1
         assert len(r[0].columns) == 1
@@ -145,7 +184,7 @@ class TestCql(ThriftTester):
         "range of columns (slice) by row reversed"
         conn = init()
         r = conn.execute("""
-            SELECT FIRST 2 REVERSED 3..1 FROM StandardLong1 WHERE KEY = 'aa';
+            SELECT FIRST 2 REVERSED 3..1 FROM StandardLongA WHERE KEY = 'aa';
         """)
         assert len(r) == 1, "%d != 1" % len(r)
         assert len(r[0].columns) == 2
@@ -155,13 +194,16 @@ class TestCql(ThriftTester):
     def test_error_on_multiple_key_by(self):
         "ensure multiple key-bys in where clause excepts"
         conn = init()
-        query = "SELECT 'col' FROM Standard1 WHERE KEY = 'ka' AND KEY = 'kb';"
-        assert_raises(CQLException, conn.execute, query)
+        assert_raises(CQLException, conn.execute, """
+            SELECT 'col' FROM StandardString1 WHERE KEY = 'ka' AND KEY = 'kb';
+        """)
 
     def test_index_scan_equality(self):
         "indexed scan where column equals value"
         conn = init()
-        r = conn.execute("SELECT 'birthdate' FROM Indexed1 WHERE 'birthdate' = 100")
+        r = conn.execute("""
+            SELECT 'birthdate' FROM IndexedA WHERE 'birthdate' = 100
+        """)
         assert len(r) == 2
         assert r[0].key == "asmith"
         assert r[1].key == "dozer"
@@ -172,7 +214,8 @@ class TestCql(ThriftTester):
         "indexed scan where a column is greater than a value"
         conn = init()
         r = conn.execute("""
-            SELECT 'birthdate' FROM Indexed1 WHERE 'birthdate' = 100 AND 'unindexed' > 200
+            SELECT 'birthdate' FROM IndexedA WHERE 'birthdate' = 100
+                    AND 'unindexed' > 200
         """)
         assert len(r) == 1
         assert r[0].key == "asmith"
@@ -181,7 +224,8 @@ class TestCql(ThriftTester):
         "indexed scan with a starting key"
         conn = init()
         r = conn.execute("""
-            SELECT 'birthdate' FROM Indexed1 WHERE 'birthdate' = 100 AND KEY > 'asmithZ'
+            SELECT 'birthdate' FROM IndexedA WHERE 'birthdate' = 100
+                    AND KEY > 'asmithZ'
         """)
         assert len(r) == 1
         assert r[0].key == "dozer"
@@ -189,7 +233,7 @@ class TestCql(ThriftTester):
     def test_no_where_clause(self):
         "empty where clause (range query w/o start key)"
         conn = init()
-        r = conn.execute("SELECT 'col' FROM Standard1 LIMIT 3")
+        r = conn.execute("SELECT 'col' FROM StandardString1 LIMIT 3")
         assert len(r) == 3
         assert r[0].key == "ka"
         assert r[1].key == "kb"
@@ -198,48 +242,62 @@ class TestCql(ThriftTester):
     def test_column_count(self):
         "getting a result count instead of results"
         conn = init()
-        r = conn.execute("SELECT COUNT(1..4) FROM StandardLong1 WHERE KEY = 'aa';")
+        r = conn.execute("""
+            SELECT COUNT(1..4) FROM StandardLongA WHERE KEY = 'aa';
+        """)
         assert r == 4, "expected 4 results, got %d" % (r and r or 0)
 
     def test_truncate_columnfamily(self):
         "truncating a column family"
         conn = init()
-        conn.execute('TRUNCATE Standard1;')
-        r = conn.execute("SELECT 'cd1' FROM Standard1 WHERE KEY = 'kd'")
+        conn.execute('TRUNCATE StandardString1;')
+        r = conn.execute("SELECT 'cd1' FROM StandardString1 WHERE KEY = 'kd'")
         assert len(r) == 0
 
     def test_delete_columns(self):
         "delete columns from a row"
         conn = init()
-        r = conn.execute("SELECT 'cd1', 'col' FROM Standard1 WHERE KEY = 'kd'")
+        r = conn.execute("""
+            SELECT 'cd1', 'col' FROM StandardString1 WHERE KEY = 'kd'
+        """)
         assert "cd1" in [i.name for i in r[0].columns]
         assert "col" in [i.name for i in r[0].columns]
-        conn.execute("DELETE 'cd1', 'col' FROM Standard1 WHERE KEY = 'kd'")
-        r = conn.execute("SELECT 'cd1', 'col' FROM Standard1 WHERE KEY = 'kd'")
+        conn.execute("""
+            DELETE 'cd1', 'col' FROM StandardString1 WHERE KEY = 'kd'
+        """)
+        r = conn.execute("""
+            SELECT 'cd1', 'col' FROM StandardString1 WHERE KEY = 'kd'
+        """)
         assert len(r[0].columns) == 0
 
     def test_delete_columns_multi_rows(self):
         "delete columns from multiple rows"
         conn = init()
-        r = conn.execute("SELECT 'col' FROM Standard1 WHERE KEY = 'kc'")
+        r = conn.execute("SELECT 'col' FROM StandardString1 WHERE KEY = 'kc'")
         assert len(r[0].columns) == 1
-        r = conn.execute("SELECT 'col' FROM Standard1 WHERE KEY = 'kd'")
+        r = conn.execute("SELECT 'col' FROM StandardString1 WHERE KEY = 'kd'")
         assert len(r[0].columns) == 1
 
-        conn.execute("DELETE 'col' FROM Standard1 WHERE KEY IN ('kc', 'kd')")
-        r = conn.execute("SELECT 'col' FROM Standard1 WHERE KEY = 'kc'")
+        conn.execute("""
+            DELETE 'col' FROM StandardString1 WHERE KEY IN ('kc', 'kd')
+        """)
+        r = conn.execute("SELECT 'col' FROM StandardString1 WHERE KEY = 'kc'")
         assert len(r[0].columns) == 0
-        r = conn.execute("SELECT 'col' FROM Standard1 WHERE KEY = 'kd'")
+        r = conn.execute("SELECT 'col' FROM StandardString1 WHERE KEY = 'kd'")
         assert len(r[0].columns) == 0
 
     def test_delete_rows(self):
         "delete entire rows"
         conn = init()
-        r = conn.execute("SELECT 'cd1', 'col' FROM Standard1 WHERE KEY = 'kd'")
+        r = conn.execute("""
+            SELECT 'cd1', 'col' FROM StandardString1 WHERE KEY = 'kd'
+        """)
         assert "cd1" in [i.name for i in r[0].columns]
         assert "col" in [i.name for i in r[0].columns]
-        conn.execute("DELETE FROM Standard1 WHERE KEY = 'kd'")
-        r = conn.execute("SELECT 'cd1', 'col' FROM Standard1 WHERE KEY = 'kd'")
+        conn.execute("DELETE FROM StandardString1 WHERE KEY = 'kd'")
+        r = conn.execute("""
+            SELECT 'cd1', 'col' FROM StandardString1 WHERE KEY = 'kd'
+        """)
         assert len(r[0].columns) == 0
         
     def test_create_keyspace(self):
@@ -321,7 +379,7 @@ class TestCql(ThriftTester):
         assert cfam.comparator_type == "org.apache.cassandra.db.marshal.LongType"
         
         # Column defs, defaults otherwise
-        conn.execute("CREATE COLUMNFAMILY NewCf4 ('a' int, 'b' int)")
+        conn.execute("CREATE COLUMNFAMILY NewCf4 ('a' int, 'b' int);")
         ksdef = thrift_client.describe_keyspace("CreateCFKeyspace")
         assert len(ksdef.cf_defs) == 4, \
             "expected 4 column families total, found %d" % len(ksdef.cf_defs)
@@ -381,30 +439,37 @@ class TestCql(ThriftTester):
         # Store and retrieve a timeuuid using it's hex-formatted string
         timeuuid = uuid.uuid1()
         conn.execute("""
-            UPDATE Standard2 SET timeuuid('%s') = 10 WHERE KEY = 'uuidtest'
+            UPDATE StandardTimeUUID SET timeuuid('%s') = 10
+                    WHERE KEY = 'uuidtest'
         """ % str(timeuuid))
         
         r = conn.execute("""
-            SELECT timeuuid('%s') FROM Standard2 WHERE KEY = 'uuidtest'
+            SELECT timeuuid('%s') FROM StandardTimeUUID WHERE KEY = 'uuidtest'
         """ % str(timeuuid))
         assert r[0].columns[0].name == timeuuid.bytes
         
         # Tests a node-side conversion from long to UUID.
         ms = uuid1bytes_to_millis(uuid.uuid1().bytes)
         conn.execute("""
-            UPDATE Standard2 SET 'id' = timeuuid(%d) WHERE KEY = 'uuidtest'
+            UPDATE StandardTimeUUIDValues SET 'id' = timeuuid(%d)
+                WHERE KEY = 'uuidtest'
         """ % ms)
         
-        r = conn.execute("SELECT 'id' FROM Standard2 WHERE KEY = 'uuidtest'")
+        r = conn.execute("""
+            SELECT 'id' FROM StandardTimeUUIDValues WHERE KEY = 'uuidtest'
+        """)
         assert uuid1bytes_to_millis(r[0].columns[0].value) == ms
         
         # Tests a node-side conversion from ISO8601 to UUID.
         conn.execute("""
-            UPDATE Standard2 SET 'id2' = timeuuid('2011-01-31 17:00:00-0000')
-                    WHERE KEY = 'uuidtest'
+            UPDATE StandardTimeUUIDValues
+            SET 'id2' = timeuuid('2011-01-31 17:00:00-0000') 
+            WHERE KEY = 'uuidtest'
         """)
         
-        r = conn.execute("SELECT 'id2' FROM Standard2 WHERE KEY = 'uuidtest'")
+        r = conn.execute("""
+            SELECT 'id2' FROM StandardTimeUUIDValues WHERE KEY = 'uuidtest'
+        """)
         # 2011-01-31 17:00:00-0000 == 1296493200000ms
         ms = uuid1bytes_to_millis(r[0].columns[0].value)
         assert ms == 1296493200000, \
@@ -412,20 +477,26 @@ class TestCql(ThriftTester):
 
         # Tests node-side conversion of empty term to UUID
         conn.execute("""
-            UPDATE Standard2 SET 'id3' = timeuuid() WHERE KEY = 'uuidtest'
+            UPDATE StandardTimeUUIDValues SET 'id3' = timeuuid()
+                    WHERE KEY = 'uuidtest'
         """)
         
-        r = conn.execute("SELECT 'id3' FROM Standard2 WHERE KEY = 'uuidtest'")
+        r = conn.execute("""
+            SELECT 'id3' FROM StandardTimeUUIDValues WHERE KEY = 'uuidtest'
+        """)
         ms = uuid1bytes_to_millis(r[0].columns[0].value)
         assert ((time.time() * 1e3) - ms) < 100, \
             "timeuuid() not within 100ms of now (UPDATE vs. SELECT)"
             
         # Tests node-side conversion of timeuuid("now") to UUID
         conn.execute("""
-            UPDATE Standard2 SET 'id4' = timeuuid('now') WHERE KEY = 'uuidtest'
+            UPDATE StandardTimeUUIDValues SET 'id4' = timeuuid('now')
+                    WHERE KEY = 'uuidtest'
         """)
         
-        r = conn.execute("SELECT 'id4' FROM Standard2 WHERE KEY = 'uuidtest'")
+        r = conn.execute("""
+            SELECT 'id4' FROM StandardTimeUUIDValues WHERE KEY = 'uuidtest'
+        """)
         ms = uuid1bytes_to_millis(r[0].columns[0].value)
         assert ((time.time() * 1e3) - ms) < 100, \
             "timeuuid(\"now\") not within 100ms of now (UPDATE vs. SELECT)"
@@ -436,9 +507,11 @@ class TestCql(ThriftTester):
         "store and retrieve lexical uuids"
         conn = init()
         uid = uuid.uuid4()
-        conn.execute("UPDATE Standard2 SET ? = 10 WHERE KEY = 'uuidtest'", uid)
+        conn.execute("UPDATE StandardUUID SET ? = 10 WHERE KEY = 'uuidtest'",
+                     uid)
         
-        r = conn.execute("SELECT ? FROM Standard2 WHERE KEY = 'uuidtest'", uid)
+        r = conn.execute("SELECT ? FROM StandardUUID WHERE KEY = 'uuidtest'",
+                         uid)
         assert r[0].columns[0].name == uid.bytes
         
         # TODO: slices of uuids from cf w/ LexicalUUIDType comparator
