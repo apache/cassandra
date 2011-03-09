@@ -11,6 +11,7 @@ import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Calendar;
+import java.util.TimeZone;
 import java.util.UUID;
 
 public class RoundTripTest
@@ -68,7 +69,7 @@ public class RoundTripTest
         assert LexicalUUIDType.instance.compose(ByteBuffer.wrap(UUIDGen.decompose(uuid))).equals(uuid);
     }
     
-    @Test @Ignore
+    @Test
     public void testTimeUUID()
     {
         UUID uuid = UUIDGen.makeType1UUIDFromHost(FBUtilities.getLocalAddress());
@@ -81,6 +82,7 @@ public class RoundTripTest
         assert uuid.equals(TimeUUIDType.instance.compose(TimeUUIDType.instance.fromString(uuid.toString())));
         
         Calendar c = Calendar.getInstance();
+        Calendar.getInstance(TimeZone.getTimeZone("America/Chicago"));
         c.set(Calendar.YEAR, 2011);
         c.set(Calendar.MONTH, Calendar.MARCH);
         c.set(Calendar.DAY_OF_MONTH, 8);
@@ -88,7 +90,6 @@ public class RoundTripTest
         c.set(Calendar.MINUTE, 0);
         c.set(Calendar.SECOND, 0);
         c.set(Calendar.MILLISECOND, 0);
-        c.set(Calendar.ZONE_OFFSET, -6 * 1000 * 60 * 60);
         Long ts = new Long(1299564000000L);
         assert ts.equals(c.getTimeInMillis()) : c.getTimeInMillis();
         
