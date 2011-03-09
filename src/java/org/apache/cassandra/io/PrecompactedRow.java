@@ -118,7 +118,7 @@ public class PrecompactedRow extends AbstractCompactedRow
 
     public void write(PageCacheInformer out) throws IOException
     {
-        assert buffer.getLength() != 0;
+        assert buffer.getLength() > 0;
         out.writeLong(buffer.getLength());
 
         List<Pair<Integer, Integer>> pageCacheMarkers = buffer.getPageCacheMarkers();

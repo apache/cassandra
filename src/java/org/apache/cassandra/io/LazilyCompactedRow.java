@@ -98,7 +98,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements IIterabl
         if (rows.size() == 1 && !shouldPurge && rows.get(0).sstable.descriptor.isLatestVersion && !forceDeserialize)
         {
             SSTableIdentityIterator row = rows.get(0);
-            assert row.dataSize != 0;
+            assert row.dataSize > 0;
             out.writeLong(row.dataSize);
             row.echoData(out);
             return;
@@ -108,7 +108,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements IIterabl
         ColumnFamily.serializer().serializeCFInfo(emptyColumnFamily, clockOut);
 
         long dataSize = headerBuffer.getLength() + clockOut.getLength() + columnSerializedSize;
-        assert dataSize != 0;
+        assert dataSize > 0;
         out.writeLong(dataSize);
         out.write(headerBuffer.getData(), 0, headerBuffer.getLength());
         out.write(clockOut.getData(), 0, clockOut.getLength());
