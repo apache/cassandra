@@ -25,6 +25,7 @@ import java.io.Reader;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.URL;
+import java.nio.ByteBuffer;
 import java.sql.Array;
 import java.sql.Blob;
 import java.sql.Clob;
@@ -360,7 +361,7 @@ class CassandraResultSet implements ResultSet
      */
     public byte[] getBytes(int index) throws SQLException
     {
-        return values.get(index) != null ? (byte[])values.get(index).getValue() : null;
+        return values.get(index) != null ? ((ByteBuffer)values.get(index).getValue()).array() : null;
     }
 
     /**
@@ -371,7 +372,7 @@ class CassandraResultSet implements ResultSet
     public byte[] getBytes(String name) throws SQLException
     {
         String nameAsString = decoder.colNameAsString(keyspace, columnFamily, name);
-        return valueMap.get(nameAsString) != null ? (byte[])valueMap.get(nameAsString) : null;
+        return valueMap.get(nameAsString) != null ? ((ByteBuffer)valueMap.get(nameAsString)).array() : null;
     }
 
     /**

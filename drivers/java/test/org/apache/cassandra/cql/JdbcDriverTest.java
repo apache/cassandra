@@ -55,13 +55,13 @@ public class JdbcDriverTest extends EmbeddedServiceBase
         con = DriverManager.getConnection("jdbc:cassandra:root/root@localhost:9170/Keyspace1");
         String[] inserts = 
         {
-//            String.format("UPDATE Standard1 SET \"%s\" = \"%s\", \"%s\" = \"%s\" WHERE KEY = \"jsmith\"", first, firstrec, last, lastrec),    
-            "UPDATE JdbcInteger SET 1 = 11, 2 = 22 WHERE KEY = \"jsmith\"",
-            "UPDATE JdbcInteger SET 3 = 33, 4 = 44 WHERE KEY = \"jsmith\"",
-            "UPDATE JdbcLong SET 1L = 11L, 2L = 22L WHERE KEY = \"jsmith\"",
-            "UPDATE JdbcAscii SET \"first\" = \"firstrec\", \"last\" = \"lastrec\" WHERE key = \"jsmith\"",
-//            String.format("UPDATE JdbcBytes SET \"%s\" = \"%s\", \"%s\" = \"%s\" WHERE key = \"jsmith\"", first, firstrec, last, lastrec),
-            "UPDATE JdbcUtf8 SET \"first\" = \"firstrec\", \"last\" = \"lastrec\" WHERE key = \"jsmith\"",
+            String.format("UPDATE Standard1 SET '%s' = '%s', '%s' = '%s' WHERE KEY = 'jsmith'", first, firstrec, last, lastrec),    
+            "UPDATE JdbcInteger SET 1 = 11, 2 = 22 WHERE KEY = 'jsmith'",
+            "UPDATE JdbcInteger SET 3 = 33, 4 = 44 WHERE KEY = 'jsmith'",
+            "UPDATE JdbcLong SET 1 = 11, 2 = 22 WHERE KEY = 'jsmith'",
+            "UPDATE JdbcAscii SET 'first' = 'firstrec', 'last' = 'lastrec' WHERE key = 'jsmith'",
+            String.format("UPDATE JdbcBytes SET '%s' = '%s', '%s' = '%s' WHERE key = 'jsmith'", first, firstrec, last, lastrec),
+            "UPDATE JdbcUtf8 SET 'first' = 'firstrec', 'last' = 'lastrec' WHERE key = 'jsmith'",
         };
         for (String q : inserts)
             executeNoResults(con, q);
@@ -73,28 +73,28 @@ public class JdbcDriverTest extends EmbeddedServiceBase
     {
         Statement stmt = con.createStatement();
         
-//        String selectQ = String.format("SELECT \"%s\", \"%s\" FROM Standard1 WHERE KEY=\"jsmith\"", first, last);
+//        String selectQ = String.format("SELECT '%s', '%s' FROM Standard1 WHERE KEY='jsmith'", first, last);
 //        checkResultSet(stmt.executeQuery(selectQ), "Bytes", 1, first, last);
         
-        String selectQ = "SELECT 1, 2 FROM JdbcInteger WHERE KEY=\"jsmith\"";
+        String selectQ = "SELECT 1, 2 FROM JdbcInteger WHERE KEY='jsmith'";
         checkResultSet(stmt.executeQuery(selectQ), "Int", 1, "1", "2");
         
-        selectQ = "SELECT 3, 4 FROM JdbcInteger WHERE KEY=\"jsmith\"";
+        selectQ = "SELECT 3, 4 FROM JdbcInteger WHERE KEY='jsmith'";
         checkResultSet(stmt.executeQuery(selectQ), "Int", 1, "3", "4");
         
-        selectQ = "SELECT 1, 2, 3, 4 FROM JdbcInteger WHERE KEY=\"jsmith\"";
+        selectQ = "SELECT 1, 2, 3, 4 FROM JdbcInteger WHERE KEY='jsmith'";
         checkResultSet(stmt.executeQuery(selectQ), "Int", 1, "1", "2", "3", "4");
         
-        selectQ = "SELECT 1L, 2L FROM JdbcLong WHERE KEY=\"jsmith\"";
+        selectQ = "SELECT 1, 2 FROM JdbcLong WHERE KEY='jsmith'";
         checkResultSet(stmt.executeQuery(selectQ), "Long", 1, "1", "2");
         
-        selectQ = "SELECT \"first\", \"last\" FROM JdbcAscii WHERE KEY=\"jsmith\"";
+        selectQ = "SELECT 'first', 'last' FROM JdbcAscii WHERE KEY='jsmith'";
         checkResultSet(stmt.executeQuery(selectQ), "String", 1, "first", "last");
         
-//        selectQ = String.format("SELECT \"%s\", \"%s\" FROM JdbcBytes WHERE KEY=\"jsmith\"", first, last);
+//        selectQ = String.format("SELECT '%s', '%s' FROM JdbcBytes WHERE KEY='jsmith'", first, last);
 //        checkResultSet(stmt.executeQuery(selectQ), "Bytes", 1, first, last);
         
-        selectQ = "SELECT \"first\", \"last\" FROM JdbcUtf8 WHERE KEY=\"jsmith\"";
+        selectQ = "SELECT 'first', 'last' FROM JdbcUtf8 WHERE KEY='jsmith'";
         checkResultSet(stmt.executeQuery(selectQ), "String", 1, "first", "last");
     }
 
@@ -102,28 +102,28 @@ public class JdbcDriverTest extends EmbeddedServiceBase
    @Test
     public void testWithPreparedStatement() throws SQLException
     {
-//        String selectQ = "SELECT \"first\", \"last\" FROM Standard1 WHERE KEY=\"jsmith\"";
-//        checkResultSet(executePreparedStatementWithResults(con, selectQ), "Bytes", 1, "first", "last");
+        String selectQ = String.format("SELECT '%s', '%s' FROM Standard1 WHERE KEY='jsmith'", first, last);
+        checkResultSet(executePreparedStatementWithResults(con, selectQ), "Bytes", 1, first, last);
         
-        String selectQ = "SELECT 1, 2 FROM JdbcInteger WHERE KEY=\"jsmith\"";
+        selectQ = "SELECT 1, 2 FROM JdbcInteger WHERE KEY='jsmith'";
         checkResultSet(executePreparedStatementWithResults(con, selectQ), "Int", 1, "1", "2");
         
-        selectQ = "SELECT 3, 4 FROM JdbcInteger WHERE KEY=\"jsmith\"";
+        selectQ = "SELECT 3, 4 FROM JdbcInteger WHERE KEY='jsmith'";
         checkResultSet(executePreparedStatementWithResults(con, selectQ), "Int", 1, "3", "4");
         
-        selectQ = "SELECT 1, 2, 3, 4 FROM JdbcInteger WHERE KEY=\"jsmith\"";
+        selectQ = "SELECT 1, 2, 3, 4 FROM JdbcInteger WHERE KEY='jsmith'";
         checkResultSet(executePreparedStatementWithResults(con, selectQ), "Int", 1, "1", "2", "3", "4");
         
-        selectQ = "SELECT 1L, 2L FROM JdbcLong WHERE KEY=\"jsmith\"";
+        selectQ = "SELECT 1, 2 FROM JdbcLong WHERE KEY='jsmith'";
         checkResultSet(executePreparedStatementWithResults(con, selectQ), "Long", 1, "1", "2");
         
-        selectQ = "SELECT \"first\", \"last\" FROM JdbcAscii WHERE KEY=\"jsmith\"";
+        selectQ = "SELECT 'first', 'last' FROM JdbcAscii WHERE KEY='jsmith'";
         checkResultSet(executePreparedStatementWithResults(con, selectQ), "String", 1, "first", "last");
         
-//        selectQ = "SELECT \"first\", \"last\" FROM JdbcBytes WHERE KEY=\"jsmith\"";
-//        checkResultSet(executePreparedStatementWithResults(con, selectQ), "Bytes", 1, "first", "last");
+        selectQ = String.format("SELECT '%s', '%s' FROM JdbcBytes WHERE KEY='jsmith'", first, last);
+        checkResultSet(executePreparedStatementWithResults(con, selectQ), "Bytes", 1, first, last);
         
-        selectQ = "SELECT \"first\", \"last\" FROM JdbcUtf8 WHERE KEY=\"jsmith\"";
+        selectQ = "SELECT 'first', 'last' FROM JdbcUtf8 WHERE KEY='jsmith'";
         checkResultSet(executePreparedStatementWithResults(con, selectQ), "String", 1, "first", "last");
     }
 
@@ -134,29 +134,34 @@ public class JdbcDriverTest extends EmbeddedServiceBase
         // the pattern: 0) a deltion, 1) ensure deletion 2) ensure deletion wasn't over-eager.
         String[] statements = 
         {
-//                "DELETE \"firstN\", \"lastN\" FROM Standard1 WHERE KEY=\"jsmith\"",
-//                "SELECT \"firstN\", \"lastN\" FROM Standard1 WHERE KEY=\"jsmith\"",
-//                "SELECT \"first\" FROM Standard1 WHERE KEY=\"jsmith\"",
+                String.format("DELETE '%s', '%s' FROM Standard1 WHERE KEY='jsmith'",
+                              FBUtilities.bytesToHex("firstN".getBytes()),
+                              FBUtilities.bytesToHex("lastN".getBytes())),
+                String.format("SELECT '%s', '%s' FROM Standard1 WHERE KEY='jsmith'",
+                              FBUtilities.bytesToHex("firstN".getBytes()),
+                              FBUtilities.bytesToHex("lastN".getBytes())),
+                String.format("SELECT '%s' FROM Standard1 WHERE KEY='jsmith'",
+                              first),
                 
-                "DELETE 1, 3 FROM JdbcInteger WHERE KEY=\"jsmith\"",
-                "SELECT 1, 3 FROM JdbcInteger WHERE KEY=\"jsmith\"", // fails.
-                "SELECT 2, 4 FROM JdbcInteger WHERE KEY=\"jsmith\"",
+                "DELETE 1, 3 FROM JdbcInteger WHERE KEY='jsmith'",
+                "SELECT 1, 3 FROM JdbcInteger WHERE KEY='jsmith'", // fails.
+                "SELECT 2, 4 FROM JdbcInteger WHERE KEY='jsmith'",
                 
-                "DELETE 1L FROM JdbcLong WHERE KEY=\"jsmith\"",
-                "SELECT 1L FROM JdbcLong WHERE KEY=\"jsmith\"",
-                "SELECT 2L FROM JdbcLong WHERE KEY=\"jsmith\"",
+                "DELETE 1 FROM JdbcLong WHERE KEY='jsmith'",
+                "SELECT 1 FROM JdbcLong WHERE KEY='jsmith'",
+                "SELECT 2 FROM JdbcLong WHERE KEY='jsmith'",
                 
-                "DELETE \"first\" FROM JdbcAscii WHERE KEY=\"jsmith\"",
-                "SELECT \"first\" FROM JdbcAscii WHERE KEY=\"jsmith\"",
-                "SELECT \"last\" FROM JdbcAscii WHERE KEY=\"jsmith\"",
+                "DELETE 'first' FROM JdbcAscii WHERE KEY='jsmith'",
+                "SELECT 'first' FROM JdbcAscii WHERE KEY='jsmith'",
+                "SELECT 'last' FROM JdbcAscii WHERE KEY='jsmith'",
                 
-//                "DELETE \"first\" FROM JdbcBytes WHERE KEY=\"jsmith\"",
-//                "SELECT \"first\" FROM JdbcBytes WHERE KEY=\"jsmith\"",
-//                "SELECT \"last\" FROM JdbcBytes WHERE KEY=\"jsmith\"",
+                String.format("DELETE '%s' FROM JdbcBytes WHERE KEY='jsmith'", first),
+                String.format("SELECT '%s' FROM JdbcBytes WHERE KEY='jsmith'", first),
+                String.format("SELECT '%s' FROM JdbcBytes WHERE KEY='jsmith'", last),
                 
-                "DELETE \"first\" FROM JdbcUtf8 WHERE KEY=\"jsmith\"",
-                "SELECT \"first\" FROM JdbcUtf8 WHERE KEY=\"jsmith\"",
-                "SELECT \"last\" FROM JdbcUtf8 WHERE KEY=\"jsmith\"",
+                "DELETE 'first' FROM JdbcUtf8 WHERE KEY='jsmith'",
+                "SELECT 'first' FROM JdbcUtf8 WHERE KEY='jsmith'",
+                "SELECT 'last' FROM JdbcUtf8 WHERE KEY='jsmith'",
         };
         
         for (int i = 0; i < statements.length/3; i++) 
@@ -243,7 +248,7 @@ public class JdbcDriverTest extends EmbeddedServiceBase
             }
         }
         
-        assert actualRows == expectedRows;
+        assert actualRows == expectedRows : String.format("expected %d rows, got %d", expectedRows, actualRows);
     }
     
     /** executes a prepared statement */
