@@ -244,7 +244,7 @@ public class SSTableWriter extends SSTable
     public static class Builder implements ICompactionInfo
     {
         private final Descriptor desc;
-        private final ColumnFamilyStore cfs;
+        public final ColumnFamilyStore cfs;
         private BufferedRandomAccessFile dfile;
 
         public Builder(Descriptor desc)
@@ -252,14 +252,6 @@ public class SSTableWriter extends SSTable
 
             this.desc = desc;
             cfs = Table.open(desc.ksname).getColumnFamilyStore(desc.cfname);
-        }
-
-        // lazy-initialize the file to avoid opening it until it's actually executing on the CompactionManager,
-        // since the 8MB buffers can use up heap quickly
-        private void maybeOpenFile()
-        {
-            if (dfile != null)
-                return;
             try
             {
                 dfile = new BufferedRandomAccessFile(new File(desc.filenameFor(SSTable.COMPONENT_DATA)), "r", 8 * 1024 * 1024, true);
@@ -274,8 +266,6 @@ public class SSTableWriter extends SSTable
         {
             if (cfs.isInvalid())
                 return null;
-            maybeOpenFile();
-
             File ifile = new File(desc.filenameFor(SSTable.COMPONENT_INDEX));
             File ffile = new File(desc.filenameFor(SSTable.COMPONENT_FILTER));
             assert !ifile.exists();
@@ -342,10 +332,8 @@ public class SSTableWriter extends SSTable
 
         public long getTotalBytes()
         {
-            maybeOpenFile();
             try
             {
-                // (length is still valid post-close)
                 return dfile.length();
             }
             catch (IOException e)
@@ -356,8 +344,6 @@ public class SSTableWriter extends SSTable
 
         public long getBytesComplete()
         {
-            maybeOpenFile();
-            // (getFilePointer is still valid post-close)
             return dfile.getFilePointer();
         }
 
