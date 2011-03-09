@@ -375,12 +375,12 @@ fragment Y: ('y'|'Y');
 fragment Z: ('z'|'Z');
     
 STRING_LITERAL
-    : '"'
+    : '\''
       { StringBuilder b = new StringBuilder(); }
-      ( c=~('"'|'\r'|'\n') { b.appendCodePoint(c);}
-      | '"' '"'            { b.appendCodePoint('"');}
+      ( c=~('\''|'\r'|'\n') { b.appendCodePoint(c);}
+      | '\'' '\''            { b.appendCodePoint('"');}
       )*
-      '"'
+      '\''
       { setText(b.toString()); }
     ;
 

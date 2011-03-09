@@ -51,9 +51,9 @@ def marshal(term):
     elif isinstance(term, int):
         return "%d" % term
     elif isinstance(term, unicode):
-        return "u\"%s\"" % term
+        return "u'%s'" % term
     elif isinstance(term, str):
-        return "\"%s\"" % term
+        return "'%s'" % term
     elif isinstance(term, UUID):
         if term.version == 1:
             return "timeuuid(\"%s\")" % str(term)
