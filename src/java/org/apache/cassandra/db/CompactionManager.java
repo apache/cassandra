@@ -629,7 +629,7 @@ public class CompactionManager implements CompactionManagerMBean
                     }
                     else
                     {
-                        logger.warn("Row is unreadable; skipping to next");
+                        logger.warn("Row at " + dataStart + " is unreadable; skipping to next");
                         if (currentIndexKey != null)
                             dataFile.seek(nextRowPositionFromIndex);
                         badRows++;
