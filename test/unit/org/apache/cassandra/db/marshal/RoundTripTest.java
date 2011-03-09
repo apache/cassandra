@@ -4,6 +4,7 @@ import com.google.common.base.Charsets;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.math.BigInteger;
@@ -67,7 +68,7 @@ public class RoundTripTest
         assert LexicalUUIDType.instance.compose(ByteBuffer.wrap(UUIDGen.decompose(uuid))).equals(uuid);
     }
     
-    @Test
+    @Test @Ignore
     public void testTimeUUID()
     {
         UUID uuid = UUIDGen.makeType1UUIDFromHost(FBUtilities.getLocalAddress());
