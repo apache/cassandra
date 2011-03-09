@@ -14,6 +14,8 @@
  * move sample schema from cassandra.yaml to schema-sample.txt,
    a cli scripts (CASSANDRA-2007)
  * avoid writing empty rows when scrubbing tombstoned rows (CASSANDRA-2296)
+ * fix assertion error in range and index scans for CL < ALL
+   (CASSANDRA-2282)
 
 
 0.7.3
