@@ -24,8 +24,13 @@ import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
 import java.text.ParseException;
 
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.AsciiType;
+import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.db.marshal.LexicalUUIDType;
+import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -87,6 +92,25 @@ public class Term
     }
     
     /**
+     * Returns the typed value, serialized to a ByteBuffer according to a
+     * comparator/validator.
+     * 
+     * @return a ByteBuffer of the value.
+     * @throws InvalidRequestException if unable to coerce the string to its type.
+     */
+    public ByteBuffer getByteBuffer(AbstractType<?> validator) throws InvalidRequestException
+    {
+        try
+        {
+            return validator.fromString(text);
+        }
+        catch (MarshalException e)
+        {
+            throw new InvalidRequestException(e.getMessage());
+        }
+    }
+    
+    /**
      * Returns the typed value, serialized to a ByteBuffer.
      * 
      * @return a ByteBuffer of the value.
@@ -97,72 +121,15 @@ public class Term
         switch (type)
         {
             case STRING:
-                return ByteBuffer.wrap(text.getBytes());
+                return AsciiType.instance.fromString(text);
             case INTEGER: 
-                try
-                {
-                    return ByteBufferUtil.bytes(Integer.parseInt(text));
-                }
-                catch (NumberFormatException e)
-                {
-                    throw new InvalidRequestException(text + " is not valid for type int");
-                }
+                return IntegerType.instance.fromString(text);
             case UNICODE:
-                try
-                {
-                    return ByteBuffer.wrap(text.getBytes("UTF-8"));
-                }
-                catch (UnsupportedEncodingException e)
-                {
-                   throw new RuntimeException(e);
-                }
+                return UTF8Type.instance.fromString(text);
             case UUID:
-                try
-                {
-                    return LexicalUUIDType.instance.fromString(text);
-                }
-                catch (IllegalArgumentException e)
-                {
-                    throw new InvalidRequestException(text + " is not valid for type uuid");
-                }
+                return LexicalUUIDType.instance.fromString(text);
             case TIMEUUID:
-                if (text.equals("") || text.toLowerCase().equals("now"))
-                {
-                    return ByteBuffer.wrap(UUIDGen.decompose(UUIDGen.makeType1UUIDFromHost(FBUtilities.getLocalAddress())));
-                }
-                
-                // Milliseconds since epoch?
-                if (text.matches("^\\d+$"))
-                {
-                    try
-                    {
-                        return ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes(Long.parseLong(text)));
-                    }
-                    catch (NumberFormatException e)
-                    {
-                        throw new InvalidRequestException(text + " is not valid for type timeuuid");
-                    }
-                }
-                
-                try
-                {
-                    long timestamp = DateUtils.parseDate(text, iso8601Patterns).getTime();
-                    return ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes(timestamp));
-                }
-                catch (ParseException e1)
-                {
-                    // Ignore failures; we'll move onto the Next Thing.
-                }
-                
-                // Last chance, a UUID string (i.e. f79326be-2d7b-11e0-b074-0026c650d722)
-                try
-                {
-                    return TimeUUIDType.instance.fromString(text);
-                }
-                catch (IllegalArgumentException e)
-                {
-                    throw new InvalidRequestException(text + " is not valid for type timeuuid");
-                }
+                return TimeUUIDType.instance.fromString(text);
         }
         
         // FIXME: handle scenario that should never happen

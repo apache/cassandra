@@ -51,6 +51,7 @@ import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.db.migration.UpdateColumnFamily;
 import org.apache.cassandra.db.migration.avro.CfDef;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
@@ -78,11 +79,12 @@ public class QueryProcessor
     {
         List<org.apache.cassandra.db.Row> rows = null;
         QueryPath queryPath = new QueryPath(select.getColumnFamily());
+        AbstractType<?> comparator = select.getComparator(keyspace);
         List<ReadCommand> commands = new ArrayList<ReadCommand>();
         
         assert select.getKeys().size() == 1;
         
-        ByteBuffer key = select.getKeys().get(0).getByteBuffer();
+        ByteBuffer key = select.getKeys().get(0).getByteBuffer(AsciiType.instance);
         validateKey(key);
         
         // ...of a list of column names
@@ -90,7 +92,7 @@ public class QueryProcessor
         {
             Collection<ByteBuffer> columnNames = new ArrayList<ByteBuffer>();
             for (Term column : select.getColumnNames())
-                columnNames.add(column.getByteBuffer());
+                columnNames.add(column.getByteBuffer(comparator));
             
             validateColumnNames(keyspace, select.getColumnFamily(), columnNames);
             commands.add(new SliceByNamesReadCommand(keyspace, key, queryPath, columnNames));
@@ -100,13 +102,13 @@ public class QueryProcessor
         {
             validateColumnNames(keyspace,
                                 select.getColumnFamily(),
-                                select.getColumnStart().getByteBuffer(),
-                                select.getColumnFinish().getByteBuffer());
+                                select.getColumnStart().getByteBuffer(comparator),
+                                select.getColumnFinish().getByteBuffer(comparator));
             commands.add(new SliceFromReadCommand(keyspace,
                                                   key,
                                                   queryPath,
-                                                  select.getColumnStart().getByteBuffer(),
-                                                  select.getColumnFinish().getByteBuffer(),
+                                                  select.getColumnStart().getByteBuffer(comparator),
+                                                  select.getColumnFinish().getByteBuffer(comparator),
                                                   select.isColumnsReversed(),
                                                   select.getColumnsLimit()));
         }
@@ -132,13 +134,14 @@ public class QueryProcessor
     {
         List<org.apache.cassandra.db.Row> rows = null;
         
-        ByteBuffer startKey = (select.getKeyStart() != null) ? select.getKeyStart().getByteBuffer() : (new Term()).getByteBuffer();
-        ByteBuffer finishKey = (select.getKeyFinish() != null) ? select.getKeyFinish().getByteBuffer() : (new Term()).getByteBuffer();
+        ByteBuffer startKey = (select.getKeyStart() != null) ? select.getKeyStart().getByteBuffer(AsciiType.instance) : (new Term()).getByteBuffer();
+        ByteBuffer finishKey = (select.getKeyFinish() != null) ? select.getKeyFinish().getByteBuffer(AsciiType.instance) : (new Term()).getByteBuffer();
         IPartitioner<?> p = StorageService.getPartitioner();
         AbstractBounds bounds = new Bounds(p.getToken(startKey), p.getToken(finishKey));
         
+        AbstractType<?> comparator = select.getComparator(keyspace);
         // XXX: Our use of Thrift structs internally makes me Sad. :(
-        SlicePredicate thriftSlicePredicate = slicePredicateFromSelect(select);
+        SlicePredicate thriftSlicePredicate = slicePredicateFromSelect(select, comparator);
         validateSlicePredicate(keyspace, select.getColumnFamily(), thriftSlicePredicate);
 
         try
@@ -170,19 +173,25 @@ public class QueryProcessor
     private static List<org.apache.cassandra.db.Row> getIndexedSlices(String keyspace, SelectStatement select)
     throws TimedOutException, UnavailableException, InvalidRequestException
     {
+        AbstractType<?> comparator = select.getComparator(keyspace);
         // XXX: Our use of Thrift structs internally (still) makes me Sad. :~(
-        SlicePredicate thriftSlicePredicate = slicePredicateFromSelect(select);
+        SlicePredicate thriftSlicePredicate = slicePredicateFromSelect(select, comparator);
         validateSlicePredicate(keyspace, select.getColumnFamily(), thriftSlicePredicate);
         
         List<IndexExpression> expressions = new ArrayList<IndexExpression>();
         for (Relation columnRelation : select.getColumnRelations())
         {
-            expressions.add(new IndexExpression(columnRelation.getEntity().getByteBuffer(),
+            // Left and right side of relational expression encoded according to comparator/validator.
+            ByteBuffer entity = columnRelation.getEntity().getByteBuffer(comparator);
+            ByteBuffer value = columnRelation.getValue().getByteBuffer(select.getValueValidator(keyspace, entity));
+            
+            expressions.add(new IndexExpression(entity,
                                                 IndexOperator.valueOf(columnRelation.operator().toString()),
-                                                columnRelation.getValue().getByteBuffer()));
+                                                value));
         }
         
-        ByteBuffer startKey = (!select.isKeyRange()) ? (new Term()).getByteBuffer() : select.getKeyStart().getByteBuffer();
+        // FIXME: keys as ascii is not a Real Solution
+        ByteBuffer startKey = (!select.isKeyRange()) ? (new Term()).getByteBuffer() : select.getKeyStart().getByteBuffer(AsciiType.instance);
         IndexClause thriftIndexClause = new IndexClause(expressions, startKey, select.getNumRecords());
         
         List<org.apache.cassandra.db.Row> rows;
@@ -222,20 +231,20 @@ public class QueryProcessor
                 cfamsSeen.add(update.getColumnFamily());
             }
             
-            ByteBuffer key = update.getKey().getByteBuffer();
+            // FIXME: keys as ascii is not a Real Solution
+            ByteBuffer key = update.getKey().getByteBuffer(AsciiType.instance);
             validateKey(key);
             validateColumnFamily(keyspace, update.getColumnFamily());
+            AbstractType<?> comparator = update.getComparator(keyspace);
             
             RowMutation rm = new RowMutation(keyspace, key);
             for (Map.Entry<Term, Term> column : update.getColumns().entrySet())
             {
-                validateColumn(keyspace,
-                               update.getColumnFamily(),
-                               column.getKey().getByteBuffer(),
-                               column.getValue().getByteBuffer());
-                rm.add(new QueryPath(update.getColumnFamily(), null, column.getKey().getByteBuffer()),
-                       column.getValue().getByteBuffer(),
-                       System.currentTimeMillis());
+                ByteBuffer colName = column.getKey().getByteBuffer(comparator);
+                ByteBuffer colValue = column.getValue().getByteBuffer(update.getValueValidator(keyspace, colName));
+                
+                validateColumn(keyspace, update.getColumnFamily(), colName, colValue);
+                rm.add(new QueryPath(update.getColumnFamily(), null, colName), colValue, System.currentTimeMillis());
             }
             
             rowMutations.add(rm);
@@ -255,15 +264,16 @@ public class QueryProcessor
         }
     }
     
-    private static SlicePredicate slicePredicateFromSelect(SelectStatement select) throws InvalidRequestException
+    private static SlicePredicate slicePredicateFromSelect(SelectStatement select, AbstractType<?> comparator)
+    throws InvalidRequestException
     {
         SlicePredicate thriftSlicePredicate = new SlicePredicate();
         
         if (select.isColumnRange() || select.getColumnNames().size() == 0)
         {
             SliceRange sliceRange = new SliceRange();
-            sliceRange.start = select.getColumnStart().getByteBuffer();
-            sliceRange.finish = select.getColumnFinish().getByteBuffer();
+            sliceRange.start = select.getColumnStart().getByteBuffer(comparator);
+            sliceRange.finish = select.getColumnFinish().getByteBuffer(comparator);
             sliceRange.reversed = select.isColumnsReversed();
             sliceRange.count = select.getColumnsLimit();
             thriftSlicePredicate.slice_range = sliceRange;
@@ -272,7 +282,7 @@ public class QueryProcessor
         {
             List<ByteBuffer> columnNames = new ArrayList<ByteBuffer>();
             for (Term column : select.getColumnNames())
-                columnNames.add(column.getByteBuffer());
+                columnNames.add(column.getByteBuffer(comparator));
             thriftSlicePredicate.column_names = columnNames;
         }
         
@@ -301,12 +311,14 @@ public class QueryProcessor
         if (select.getKeys().size() > 1)
             throw new InvalidRequestException("SELECTs can contain only by by-key clause");
         
+        AbstractType<?> comparator = select.getComparator(keyspace);
+        
         if (select.getColumnRelations().size() > 0)
         {
             Set<ByteBuffer> indexed = Table.open(keyspace).getColumnFamilyStore(select.getColumnFamily()).getIndexedColumns();
             for (Relation relation : select.getColumnRelations())
             {
-                if ((relation.operator().equals(RelationType.EQ)) && indexed.contains(relation.getEntity().getByteBuffer()))
+                if ((relation.operator().equals(RelationType.EQ)) && indexed.contains(relation.getEntity().getByteBuffer(comparator)))
                     return;
             }
             throw new InvalidRequestException("No indexed columns present in by-columns clause with \"equals\" operator");
@@ -354,7 +366,7 @@ public class QueryProcessor
     private static void validateColumnNames(String keyspace, String columnFamily, Iterable<ByteBuffer> columns)
     throws InvalidRequestException
     {
-        AbstractType comparator = ColumnFamily.getComparatorFor(keyspace, columnFamily, null);
+        AbstractType<?> comparator = ColumnFamily.getComparatorFor(keyspace, columnFamily, null);
         for (ByteBuffer name : columns)
         {
             if (name.remaining() > IColumn.MAX_NAME_LENGTH)
@@ -388,7 +400,7 @@ public class QueryProcessor
     throws InvalidRequestException
     {
         validateColumnName(keyspace, columnFamily, name);
-        AbstractType validator = DatabaseDescriptor.getValueValidator(keyspace, columnFamily, name);
+        AbstractType<?> validator = DatabaseDescriptor.getValueValidator(keyspace, columnFamily, name);
         
         try
         {
@@ -562,19 +574,20 @@ public class QueryProcessor
             case DELETE:
                 DeleteStatement delete = (DeleteStatement)statement.statement;
                 clientState.hasColumnFamilyAccess(delete.getColumnFamily(), Permission.WRITE);
+                AbstractType<?> comparator = DatabaseDescriptor.getComparator(keyspace, delete.getColumnFamily());
                 
                 List<RowMutation> rowMutations = new ArrayList<RowMutation>();
                 for (Term key : delete.getKeys())
                 {
-                    RowMutation rm = new RowMutation(keyspace, key.getByteBuffer());
+                    RowMutation rm = new RowMutation(keyspace, key.getByteBuffer(AsciiType.instance));
                     if (delete.getColumns().size() < 1)     // No columns, delete the row
                         rm.delete(new QueryPath(delete.getColumnFamily()), System.currentTimeMillis());
                     else    // Delete specific columns
                     {
                         for (Term column : delete.getColumns())
                         {
-                            validateColumnName(keyspace, delete.getColumnFamily(), column.getByteBuffer());
-                            rm.delete(new QueryPath(delete.getColumnFamily(), null, column.getByteBuffer()),
+                            validateColumnName(keyspace, delete.getColumnFamily(), column.getByteBuffer(comparator));
+                            rm.delete(new QueryPath(delete.getColumnFamily(), null, column.getByteBuffer(comparator)),
                                       System.currentTimeMillis());
                         }
                     }

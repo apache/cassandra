@@ -20,8 +20,11 @@
  */
 package org.apache.cassandra.cql;
 
+import java.nio.ByteBuffer;
 import java.util.Map;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.thrift.ConsistencyLevel;
 
 /**
@@ -109,5 +112,15 @@ public class UpdateStatement
                              key,
                              columns,
                              cLevel);
+    }
+    
+    public AbstractType getComparator(String keyspace)
+    {
+        return DatabaseDescriptor.getComparator(keyspace, columnFamily);
+    }
+    
+    public AbstractType getValueValidator(String keyspace, ByteBuffer column)
+    {
+        return DatabaseDescriptor.getValueValidator(keyspace, columnFamily, column);
     }
 }

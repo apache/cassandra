@@ -31,6 +31,7 @@ import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyType;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.thrift.InvalidRequestException;
 
 /** A <code>CREATE COLUMNFAMILY</code> parsed from a CQL query statement. */
@@ -165,7 +166,7 @@ public class CreateColumnFamilyStatement
     }
     
     // Column definitions
-    private Map<ByteBuffer, ColumnDefinition> getColumns() throws InvalidRequestException
+    private Map<ByteBuffer, ColumnDefinition> getColumns(AbstractType<?> comparator) throws InvalidRequestException
     {
         Map<ByteBuffer, ColumnDefinition> columnDefs = new HashMap<ByteBuffer, ColumnDefinition>();
         
@@ -173,7 +174,7 @@ public class CreateColumnFamilyStatement
         {
             try
             {
-                ByteBuffer columnName = col.getKey().getByteBuffer();
+                ByteBuffer columnName = col.getKey().getByteBuffer(comparator);
                 String validator = comparators.containsKey(col.getValue()) ? comparators.get(col.getValue()) : col.getValue();
                 columnDefs.put(columnName, new ColumnDefinition(columnName, validator, null, null));
             }
@@ -202,10 +203,14 @@ public class CreateColumnFamilyStatement
         
         try
         {
+            // RPC uses BytesType as the default validator/comparator but BytesType expects hex for string terms, (not convenient).
+            AbstractType<?> comparator = DatabaseDescriptor.getComparator(comparators.get(getPropertyString(KW_COMPARATOR, "ascii")));
+            String validator = getPropertyString(KW_DEFAULTVALIDATION, "ascii");
+            
             return new CFMetaData(keyspace,
                                   name,
                                   ColumnFamilyType.create("Standard"),
-                                  DatabaseDescriptor.getComparator(comparators.get(properties.get(KW_COMPARATOR))),
+                                  comparator,
                                   null,
                                   properties.get(KW_COMMENT),
                                   getPropertyDouble(KW_ROWCACHESIZE, CFMetaData.DEFAULT_ROW_CACHE_SIZE),
@@ -213,7 +218,7 @@ public class CreateColumnFamilyStatement
                                   getPropertyDouble(KW_READREPAIRCHANCE, CFMetaData.DEFAULT_READ_REPAIR_CHANCE),
                                   getPropertyBoolean(KW_REPLICATEONWRITE, false),
                                   getPropertyInt(KW_GCGRACESECONDS, CFMetaData.DEFAULT_GC_GRACE_SECONDS),
-                                  DatabaseDescriptor.getComparator(comparators.get(properties.get(KW_DEFAULTVALIDATION))),
+                                  DatabaseDescriptor.getComparator(comparators.get(validator)),
                                   getPropertyInt(KW_MINCOMPACTIONTHRESHOLD, CFMetaData.DEFAULT_MIN_COMPACTION_THRESHOLD),
                                   getPropertyInt(KW_MAXCOMPACTIONTHRESHOLD, CFMetaData.DEFAULT_MAX_COMPACTION_THRESHOLD),
                                   getPropertyInt(KW_ROWCACHESAVEPERIODSECS, CFMetaData.DEFAULT_ROW_CACHE_SAVE_PERIOD_IN_SECONDS),
@@ -221,12 +226,18 @@ public class CreateColumnFamilyStatement
                                   getPropertyInt(KW_MEMTABLEFLUSHINMINS, CFMetaData.DEFAULT_MEMTABLE_LIFETIME_IN_MINS),
                                   getPropertyInt(KW_MEMTABLESIZEINMB, CFMetaData.DEFAULT_MEMTABLE_THROUGHPUT_IN_MB),
                                   getPropertyDouble(KW_MEMTABLEOPSINMILLIONS, CFMetaData.DEFAULT_MEMTABLE_OPERATIONS_IN_MILLIONS),
-                                  getColumns());
+                                  getColumns(comparator));
         }
         catch (ConfigurationException e)
         {
             throw new InvalidRequestException(e.toString());
         }
+    }
+    
+    private String getPropertyString(String key, String defaultValue)
+    {
+        String value = properties.get(key);
+        return value != null ? value : defaultValue;
     }
     
     // Return a property value, typed as a Boolean
