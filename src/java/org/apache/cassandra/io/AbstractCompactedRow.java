@@ -21,11 +21,11 @@ package org.apache.cassandra.io;
  */
 
 
+import java.io.DataOutput;
 import java.io.IOException;
 import java.security.MessageDigest;
 
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.io.util.PageCacheInformer;
 
 /**
  * a CompactedRow is an object that takes a bunch of rows (keys + columnfamilies)
@@ -35,7 +35,6 @@ import org.apache.cassandra.io.util.PageCacheInformer;
 public abstract class AbstractCompactedRow
 {
     public final DecoratedKey key;
-    protected boolean hasColumnsInPageCache = false;
 
     public AbstractCompactedRow(DecoratedKey key)
     {
@@ -45,7 +44,7 @@ public abstract class AbstractCompactedRow
     /**
      * write the row (size + column index + filter + column data, but NOT row key) to @param out
      */
-    public abstract void write(PageCacheInformer out) throws IOException;
+    public abstract void write(DataOutput out) throws IOException;
 
     /**
      * update @param digest with the data bytes of the row (not including row key or row size)
@@ -61,18 +60,4 @@ public abstract class AbstractCompactedRow
      * @return the number of columns in the row
      */
     public abstract int columnCount();
-
-    /**
-     * @return if any columns in this row are in the OS Page Cache
-     */
-    public boolean hasColumnsInPageCache()
-    {
-        return hasColumnsInPageCache;
-    }
-
-    public void setHasColumnsInPageCache(boolean hasColumnsInPageCache)
-    {
-        this.hasColumnsInPageCache = hasColumnsInPageCache;
-    }
-
 }

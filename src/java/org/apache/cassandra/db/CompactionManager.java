@@ -46,7 +46,6 @@ import org.apache.cassandra.io.*;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.io.util.PageCacheInformer;
 import org.apache.cassandra.service.AntiEntropyService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.OperationType;
@@ -391,7 +390,6 @@ public class CompactionManager implements CompactionManagerMBean
         assert sstables != null;
 
         Table table = cfs.table;
-
         if (DatabaseDescriptor.isSnapshotBeforeCompaction())
             table.snapshot("compact-" + cfs.columnFamily);
 
@@ -401,11 +399,9 @@ public class CompactionManager implements CompactionManagerMBean
             assert sstable.descriptor.cfname.equals(cfs.columnFamily);
 
         String compactionFileLocation = table.getDataFileLocation(cfs.getExpectedCompactedFileSize(sstables));
-
         // If the compaction file path is null that means we have no space left for this compaction.
         // try again w/o the largest one.
         List<SSTableReader> smallerSSTables = new ArrayList<SSTableReader>(sstables);
-
         while (compactionFileLocation == null && smallerSSTables.size() > 1)
         {
             logger.warn("insufficient space to compact all requested files " + StringUtils.join(smallerSSTables, ", "));
@@ -417,7 +413,6 @@ public class CompactionManager implements CompactionManagerMBean
             logger.error("insufficient space to compact even the two smallest files, aborting");
             return 0;
         }
-
         sstables = smallerSSTables;
 
         // new sstables from flush can be added during a compaction, but only the compaction can remove them,
@@ -429,9 +424,9 @@ public class CompactionManager implements CompactionManagerMBean
         long totalkeysWritten = 0;
 
         // TODO the int cast here is potentially buggy
-        int expectedBloomFilterSize = Math.max(DatabaseDescriptor.getIndexInterval(), (int) SSTableReader.getApproximateKeyCount(sstables));
+        int expectedBloomFilterSize = Math.max(DatabaseDescriptor.getIndexInterval(), (int)SSTableReader.getApproximateKeyCount(sstables));
         if (logger.isDebugEnabled())
-            logger.debug("Expected bloom filter size : " + expectedBloomFilterSize);
+          logger.debug("Expected bloom filter size : " + expectedBloomFilterSize);
 
         SSTableWriter writer;
         CompactionIterator ci = new CompactionIterator(cfs, sstables, gcBefore, major); // retain a handle so we can call close()
@@ -451,13 +446,11 @@ public class CompactionManager implements CompactionManagerMBean
                 return 0;
             }
 
-            writer = cfs.createCompactionWriter(expectedBloomFilterSize, compactionFileLocation, ci.hasRowsInPageCache());
+            writer = cfs.createCompactionWriter(expectedBloomFilterSize, compactionFileLocation);
             while (nni.hasNext())
             {
                 AbstractCompactedRow row = nni.next();
-
                 long position = writer.append(row);
-
                 totalkeysWritten++;
 
                 if (DatabaseDescriptor.getPreheatKeyCache())
@@ -487,7 +480,7 @@ public class CompactionManager implements CompactionManagerMBean
         long dTime = System.currentTimeMillis() - startTime;
         long startsize = SSTable.getTotalBytes(sstables);
         long endsize = ssTable.length();
-        double ratio = (double) endsize / (double) startsize;
+        double ratio = (double)endsize / (double)startsize;
         logger.info(String.format("Compacted to %s.  %,d to %,d (~%d%% of original) bytes for %,d keys.  Time: %,dms.",
                                   writer.getFilename(), startsize, endsize, (int) (ratio * 100), totalkeysWritten, dTime));
         return sstables.size();
@@ -540,9 +533,9 @@ public class CompactionManager implements CompactionManagerMBean
                 assert firstRowPositionFromIndex == 0 : firstRowPositionFromIndex;
             }
 
-            SSTableWriter writer = maybeCreateWriter(cfs, compactionFileLocation, expectedBloomFilterSize, null, false);
+            SSTableWriter writer = maybeCreateWriter(cfs, compactionFileLocation, expectedBloomFilterSize, null);
             executor.beginCompaction(cfs.columnFamily, new ScrubInfo(dataFile, sstable));
-            int goodRows = 0, badRows = 0;
+            int goodRows = 0, badRows = 0, emptyRows = 0;
 
             while (!dataFile.isEOF())
             {
@@ -595,9 +588,17 @@ public class CompactionManager implements CompactionManagerMBean
                         throw new IOError(new IOException("Unable to read row key from data file"));
                     if (dataSize > dataFile.length())
                         throw new IOError(new IOException("Impossible row size " + dataSize));
-                    SSTableIdentityIterator row = new SSTableIdentityIterator(sstable, dataFile, key, dataStart, dataSize, null, true);
-                    writer.append(getCompactedRow(row, cfs, sstable.descriptor, true));
-                    goodRows++;
+                    SSTableIdentityIterator row = new SSTableIdentityIterator(sstable, dataFile, key, dataStart, dataSize, true);
+                    AbstractCompactedRow compactedRow = getCompactedRow(row, cfs, sstable.descriptor, true);
+                    if (compactedRow.isEmpty())
+                    {
+                        emptyRows++;
+                    }
+                    else
+                    {
+                        writer.append(compactedRow);
+                        goodRows++;
+                    }
                     if (!key.key.equals(currentIndexKey) || dataStart != dataStartFromIndex)
                         logger.warn("Row scrubbed successfully but index file contains a different key or row size; consider rebuilding the index as described in http://www.mail-archive.com/user@cassandra.apache.org/msg03325.html");
                 }
@@ -615,9 +616,17 @@ public class CompactionManager implements CompactionManagerMBean
                         key = SSTableReader.decodeKey(sstable.partitioner, sstable.descriptor, currentIndexKey);
                         try
                         {
-                            SSTableIdentityIterator row = new SSTableIdentityIterator(sstable, dataFile, key, dataStartFromIndex, dataSizeFromIndex, null, true);
-                            writer.append(getCompactedRow(row, cfs, sstable.descriptor, true));
-                            goodRows++;
+                            SSTableIdentityIterator row = new SSTableIdentityIterator(sstable, dataFile, key, dataStartFromIndex, dataSizeFromIndex, true);
+                            AbstractCompactedRow compactedRow = getCompactedRow(row, cfs, sstable.descriptor, true);
+                            if (compactedRow.isEmpty())
+                            {
+                                emptyRows++;
+                            }
+                            else
+                            {
+                                writer.append(compactedRow);
+                                goodRows++;
+                            }
                         }
                         catch (Throwable th2)
                         {
@@ -630,7 +639,7 @@ public class CompactionManager implements CompactionManagerMBean
                     }
                     else
                     {
-                        logger.warn("Row is unreadable; skipping to next");
+                        logger.warn("Row at " + dataStart + " is unreadable; skipping to next");
                         if (currentIndexKey != null)
                             dataFile.seek(nextRowPositionFromIndex);
                         badRows++;
@@ -642,14 +651,17 @@ public class CompactionManager implements CompactionManagerMBean
             {
                 SSTableReader newSstable = writer.closeAndOpenReader(sstable.maxDataAge);
                 cfs.replaceCompactedSSTables(Arrays.asList(sstable), Arrays.asList(newSstable));
-                logger.info("Scrub of " + sstable + " complete: " + goodRows + " rows in new sstable");
+                logger.info("Scrub of " + sstable + " complete: " + goodRows + " rows in new sstable and " + emptyRows + " empty (tombstoned) rows dropped");
                 if (badRows > 0)
                     logger.warn("Unable to recover " + badRows + " rows that were skipped.  You can attempt manual recovery from the pre-scrub snapshot.  You can also run nodetool repair to transfer the data from a healthy replica, if any");
             }
             else
             {
                 cfs.markCompacted(Arrays.asList(sstable));
-                logger.warn("No valid rows found while scrubbing " + sstable + "; it is marked for deletion now. If you want to attempt manual recovery, you can find a copy in the pre-scrub snapshot");
+                if (badRows > 0)
+                    logger.warn("No valid rows found while scrubbing " + sstable + "; it is marked for deletion now. If you want to attempt manual recovery, you can find a copy in the pre-scrub snapshot");
+                else
+                    logger.info("Scrub of " + sstable + " complete; looks like all " + emptyRows + " rows were tombstoned");
             }
         }
     }
@@ -700,7 +712,7 @@ public class CompactionManager implements CompactionManagerMBean
                     SSTableIdentityIterator row = (SSTableIdentityIterator) scanner.next();
                     if (Range.isTokenInRanges(row.getKey().token, ranges))
                     {
-                        writer = maybeCreateWriter(cfs, compactionFileLocation, expectedBloomFilterSize, writer, row.hasRowsInPageCache());
+                        writer = maybeCreateWriter(cfs, compactionFileLocation, expectedBloomFilterSize, writer);
                         writer.append(getCompactedRow(row, cfs, sstable.descriptor, false));
                         totalkeysWritten++;
                     }
@@ -769,13 +781,13 @@ public class CompactionManager implements CompactionManagerMBean
                : new PrecompactedRow(cfs, Arrays.asList(row), false, getDefaultGcBefore(cfs), forceDeserialize);
     }
 
-    private SSTableWriter maybeCreateWriter(ColumnFamilyStore cfs, String compactionFileLocation, int expectedBloomFilterSize, SSTableWriter writer, boolean migrateCachedPages)
+    private SSTableWriter maybeCreateWriter(ColumnFamilyStore cfs, String compactionFileLocation, int expectedBloomFilterSize, SSTableWriter writer)
             throws IOException
     {
         if (writer == null)
         {
             FileUtils.createDirectory(compactionFileLocation);
-            writer = cfs.createCompactionWriter(expectedBloomFilterSize, compactionFileLocation, migrateCachedPages);
+            writer = cfs.createCompactionWriter(expectedBloomFilterSize, compactionFileLocation);
         }
         return writer;
     }
@@ -1121,8 +1133,9 @@ public class CompactionManager implements CompactionManagerMBean
             this.row = row;
         }
 
-        public void write(PageCacheInformer out) throws IOException
+        public void write(DataOutput out) throws IOException
         {
+            assert row.dataSize > 0;
             out.writeLong(row.dataSize);
             row.echoData(out);
         }

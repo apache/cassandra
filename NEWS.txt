@@ -1,4 +1,3 @@
-<<<<<<< .working
 Whatever
 ========
 
@@ -25,7 +24,19 @@ JMX
     - By default, JMX now listens on port 7199.
 
 
-=======
+0.7.4
+=====
+
+Upgrading
+---------
+    - Nothing specific to 0.7.4, but see 0.7.3 Upgrading if upgrading
+      from earlier than 0.7.1.
+
+Features
+--------
+    - Output to Pig is now supported as well as input
+
+
 0.7.3
 =====
 

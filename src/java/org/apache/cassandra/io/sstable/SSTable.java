@@ -174,7 +174,7 @@ public abstract class SSTable
         }
         catch (Exception e)
         {
-            if (!"snapshots".equals(name))
+            if (!"snapshots".equals(name) && !"backups".equals(name))
                 logger.warn("Invalid file '{}' in data directory {}.", name, dir);
             return null;
         }

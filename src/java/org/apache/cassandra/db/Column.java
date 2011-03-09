@@ -46,7 +46,6 @@ public class Column implements IColumn
         return new ColumnSerializer();
     }
 
-    protected boolean isInPageCache;
     protected final ByteBuffer name;
     protected final ByteBuffer value;
     protected final long timestamp;
@@ -69,7 +68,6 @@ public class Column implements IColumn
         this.name = name;
         this.value = value;
         this.timestamp = timestamp;
-        isInPageCache = false;
     }
 
     public ByteBuffer name()
@@ -238,16 +236,6 @@ public class Column implements IColumn
     public boolean isLive()
     {
         return !isMarkedForDelete();
-    }
-
-    public boolean isInPageCache()
-    {
-        return isInPageCache;
-    }
-
-    public void setIsInPageCache(boolean isInPageCache)
-    {
-        this.isInPageCache = isInPageCache;
     }
 }
 

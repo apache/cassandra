@@ -110,7 +110,7 @@ public class IndexHelper
     {
         int size = file.readInt();
         if (size > maxSize || size <= 0)
-            throw new EOFException("bloom filter claims to be longer than entire row size");
+            throw new EOFException("bloom filter claims to be " + size + " bytes, longer than entire row size " + maxSize);
         ByteBuffer bytes = file.readBytes(size);
 
         DataInputStream stream = new DataInputStream(ByteBufferUtil.inputStream(bytes));

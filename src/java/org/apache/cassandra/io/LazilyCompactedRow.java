@@ -38,7 +38,8 @@ import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
-import org.apache.cassandra.io.util.*;
+import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.io.util.IIterableColumns;
 import org.apache.cassandra.utils.ReducingIterator;
 
 /**
@@ -93,11 +94,12 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements IIterabl
         iter = null;
     }
 
-    public void write(PageCacheInformer out) throws IOException
+    public void write(DataOutput out) throws IOException
     {
         if (rows.size() == 1 && !shouldPurge && rows.get(0).sstable.descriptor.isLatestVersion && !forceDeserialize)
         {
             SSTableIdentityIterator row = rows.get(0);
+            assert row.dataSize > 0;
             out.writeLong(row.dataSize);
             row.echoData(out);
             return;
@@ -106,7 +108,9 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements IIterabl
         DataOutputBuffer clockOut = new DataOutputBuffer();
         ColumnFamily.serializer().serializeCFInfo(emptyColumnFamily, clockOut);
 
-        out.writeLong(headerBuffer.getLength() + clockOut.getLength() + columnSerializedSize);
+        long dataSize = headerBuffer.getLength() + clockOut.getLength() + columnSerializedSize;
+        assert dataSize > 0;
+        out.writeLong(dataSize);
         out.write(headerBuffer.getData(), 0, headerBuffer.getLength());
         out.write(clockOut.getData(), 0, clockOut.getLength());
         out.writeInt(columnCount);

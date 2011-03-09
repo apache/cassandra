@@ -14,17 +14,19 @@
 0.7.4
  * add nodetool join command (CASSANDRA-2160)
  * fix secondary indexes on pre-existing or streamed data (CASSANDRA-2244)
- * initialize endpoing in gossiper earlier (CASSANDRA-2228)
+ * initialize endpoint in gossiper earlier (CASSANDRA-2228)
  * add ability to write to Cassandra from Pig (CASSANDRA-1828)
  * add rpc_[min|max]_threads (CASSANDRA-2176)
  * add CL.TWO, CL.THREE (CASSANDRA-2013)
  * avoid exporting an un-requested row in sstable2json, when exporting 
    a key that does not exist (CASSANDRA-2168)
- * track and migrate cached pages during compaction (CASSANDRA-1902)
  * add incremental_backups option (CASSANDRA-1872)
  * add configurable row limit to Pig loadfunc (CASSANDRA-2276)
  * validate column values in batches as well as single-Column inserts
    (CASSANDRA-2259)
+ * avoid writing empty rows when scrubbing tombstoned rows (CASSANDRA-2296)
+ * fix assertion error in range and index scans for CL < ALL
+   (CASSANDRA-2282)
 
 
 0.7.3
