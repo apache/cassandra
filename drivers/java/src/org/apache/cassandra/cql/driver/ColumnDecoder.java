@@ -24,11 +24,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/** Decodes columns from bytes into instances of their respective expected types. */
 public class ColumnDecoder 
 {
     private static final Logger logger = LoggerFactory.getLogger(ColumnDecoder.class);
     private static final String MapFormatString = "%s.%s.%s";
     
+    // basically denotes column or value.
     enum Specifier
     {
         Comparator,
@@ -40,6 +42,7 @@ public class ColumnDecoder
     // cache the comparators for efficiency.
     private Map<String, AbstractType> comparators = new HashMap<String, AbstractType>();
     
+    /** is specific per set of keyspace definitions. */
     public ColumnDecoder(List<KsDef> defs)
     {
         for (KsDef ks : defs) 
@@ -51,7 +54,7 @@ public class ColumnDecoder
      * @param keyspace ALWAYS specify
      * @param columnFamily ALWAYS specify
      * @param specifier ALWAYS specify
-     * @param def avoids additional map lookup if specified. null is ok. though.
+     * @param def avoids additional map lookup if specified. null is ok though.
      * @return
      */
     private AbstractType getComparator(String keyspace, String columnFamily, Specifier specifier, CfDef def) 
@@ -86,20 +89,39 @@ public class ColumnDecoder
         }
         return comparator;
     }
-    
+
+    /**
+     * uses the AbstractType to map a column name to a string.  Relies on AT.fromString() and AT.getString()
+     * @param keyspace
+     * @param columnFamily
+     * @param name
+     * @return
+     */
     public String colNameAsString(String keyspace, String columnFamily, String name) 
     {
         AbstractType comparator = getComparator(keyspace, columnFamily, Specifier.Comparator, null);
         ByteBuffer bb = comparator.fromString(name);
         return comparator.getString(bb);
     }
-    
+
+    /**
+     * uses the AbstractType to map a column name to a string.
+     * @param keyspace
+     * @param columnFamily
+     * @param name
+     * @return
+     */
     public String colNameAsString(String keyspace, String columnFamily, byte[] name) 
     {
         AbstractType comparator = getComparator(keyspace, columnFamily, Specifier.Comparator, null);
         return comparator.getString(ByteBuffer.wrap(name));
     }
-    
+
+    /**
+     * converts a column value to a string.
+     * @param value
+     * @return
+     */
     public static String colValueAsString(Object value) {
         if (value instanceof String)
             return (String)value;
@@ -109,6 +131,7 @@ public class ColumnDecoder
             return value.toString();
     }
     
+    /** constructs a typed column */
     public Col makeCol(String keyspace, String columnFamily, byte[] name, byte[] value)
     {
         CfDef cfDef = cfDefs.get(String.format("%s.%s", keyspace, columnFamily));
