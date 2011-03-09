@@ -3,11 +3,11 @@ package org.apache.cassandra.cql.driver;
 
 public class Results
 {
-    private final SchemaDecoder decoder;
+    private final ColumnDecoder decoder;
     private final String keyspace;
     private final String columnFamily;
     
-    public Results(SchemaDecoder decoder, String keyspace, String columnFamily) 
+    public Results(ColumnDecoder decoder, String keyspace, String columnFamily) 
     {
         this.decoder = decoder;
         this.keyspace = keyspace;

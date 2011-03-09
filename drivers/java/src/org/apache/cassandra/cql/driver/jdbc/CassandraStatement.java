@@ -171,11 +171,11 @@ class CassandraStatement implements PreparedStatement
         } 
         catch (InvalidRequestException e)
         {
-            throw new SQLException(e.getMessage());
+            throw new SQLException(e.getWhy());
         }
         catch (UnavailableException e)
         {
-            throw new SQLException(e.getMessage());
+            throw new SQLException("Cassandra was unavialable", e);
         }
         catch (TimedOutException e)
         {

@@ -64,7 +64,7 @@ public class Connection
     // todo: encapsulate.
     public String curKeyspace;
     public String curColumnFamily;
-    public SchemaDecoder decoder;
+    public ColumnDecoder decoder;
     
     /**
      * Create a new <code>Connection</code> instance.
@@ -137,7 +137,7 @@ public class Connection
     throws InvalidRequestException, UnavailableException, TimedOutException, TException
     {
         if (decoder == null)
-            decoder = new SchemaDecoder(client.describe_keyspaces());
+            decoder = new ColumnDecoder(client.describe_keyspaces());
         
         Matcher isKeyspace = KeyspacePattern.matcher(queryStr);
         if (isKeyspace.matches())

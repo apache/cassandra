@@ -11,6 +11,7 @@ import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.thrift.CfDef;
 import org.apache.cassandra.thrift.KsDef;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 import org.slf4j.Logger;
@@ -23,9 +24,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class SchemaDecoder 
+public class ColumnDecoder 
 {
-    private static final Logger logger = LoggerFactory.getLogger(SchemaDecoder.class);
+    private static final Logger logger = LoggerFactory.getLogger(ColumnDecoder.class);
     private static final String MapFormatString = "%s.%s.%s";
     
     enum Specifier
@@ -39,7 +40,7 @@ public class SchemaDecoder
     // cache the comparators for efficiency.
     private Map<String, AbstractType> comparators = new HashMap<String, AbstractType>();
     
-    public SchemaDecoder(List<KsDef> defs)
+    public ColumnDecoder(List<KsDef> defs)
     {
         for (KsDef ks : defs) 
             for (CfDef cf : ks.getCf_defs())
@@ -97,6 +98,15 @@ public class SchemaDecoder
     {
         AbstractType comparator = getComparator(keyspace, columnFamily, Specifier.Comparator, null);
         return comparator.getString(ByteBuffer.wrap(name));
+    }
+    
+    public static String colValueAsString(Object value) {
+        if (value instanceof String)
+            return (String)value;
+        else if (value instanceof byte[])
+            return ByteBufferUtil.bytesToHex(ByteBuffer.wrap((byte[])value));
+        else
+            return value.toString();
     }
     
     public Col makeCol(String keyspace, String columnFamily, byte[] name, byte[] value)

@@ -23,6 +23,7 @@ package org.apache.cassandra.cql.driver.jdbc;
 import java.io.InputStream;
 import java.io.Reader;
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.net.URL;
 import java.sql.Array;
 import java.sql.Blob;
@@ -47,8 +48,7 @@ import java.util.Map;
 import java.util.WeakHashMap;
 
 import org.apache.cassandra.cql.driver.Col;
-import org.apache.cassandra.cql.driver.Results;
-import org.apache.cassandra.cql.driver.SchemaDecoder;
+import org.apache.cassandra.cql.driver.ColumnDecoder;
 import org.apache.cassandra.thrift.Column;
 import org.apache.cassandra.thrift.CqlResult;
 import org.apache.cassandra.thrift.CqlRow;
@@ -62,7 +62,7 @@ class CassandraResultSet implements ResultSet
     /** The r set. */
     private final CqlResult rSet; 
     
-    private final SchemaDecoder decoder;
+    private final ColumnDecoder decoder;
     private final String keyspace;
     private final String columnFamily;
     
@@ -83,7 +83,7 @@ class CassandraResultSet implements ResultSet
      *
      * @param resultSet the result set
      */
-    CassandraResultSet(CqlResult resultSet, SchemaDecoder decoder, String keyspace, String columnFamily)
+    CassandraResultSet(CqlResult resultSet, ColumnDecoder decoder, String keyspace, String columnFamily)
     {
         this.rSet = resultSet;
         this.decoder = decoder;
@@ -356,23 +356,24 @@ class CassandraResultSet implements ResultSet
     }
 
     /**
-     * @param arg0
+     * @param index
      * @return
      * @throws SQLException
      */
-    public byte[] getBytes(int arg0) throws SQLException
+    public byte[] getBytes(int index) throws SQLException
     {
-        throw new UnsupportedOperationException("method not supported");
+        return values.get(index) != null ? (byte[])values.get(index).getValue() : null;
     }
 
     /**
-     * @param arg0
+     * @param name
      * @return
      * @throws SQLException
      */
-    public byte[] getBytes(String arg0) throws SQLException
+    public byte[] getBytes(String name) throws SQLException
     {
-        throw new UnsupportedOperationException("method not supported");
+        String nameAsString = decoder.colNameAsString(keyspace, columnFamily, name);
+        return valueMap.get(nameAsString) != null ? (byte[])valueMap.get(nameAsString) : null;
     }
 
     /**
@@ -543,43 +544,45 @@ class CassandraResultSet implements ResultSet
     }
 
     /**
-     * @param arg0
+     * @param index
      * @return
      * @throws SQLException
      */
-    public int getInt(int arg0) throws SQLException
+    public int getInt(int index) throws SQLException
     {
-        throw new UnsupportedOperationException("method not supported");
+        return values.get(index) != null ? ((BigInteger)values.get(index).getValue()).intValue() : null;
     }
 
     /**
-     * @param arg0
+     * @param name
      * @return
      * @throws SQLException
      */
-    public int getInt(String arg0) throws SQLException
+    public int getInt(String name) throws SQLException
     {
-        throw new UnsupportedOperationException("method not supported");
+        String nameAsString = decoder.colNameAsString(keyspace, columnFamily, name);
+        return valueMap.get(nameAsString) != null ? ((BigInteger)valueMap.get(nameAsString)).intValue() : null;
     }
 
     /**
-     * @param arg0
+     * @param index
      * @return
      * @throws SQLException
      */
-    public long getLong(int arg0) throws SQLException
+    public long getLong(int index) throws SQLException
     {
-        throw new UnsupportedOperationException("method not supported");
+        return values.get(index) != null ? (Long)values.get(index).getValue() : null;
     }
 
     /**
-     * @param arg0
+     * @param name
      * @return
      * @throws SQLException
      */
-    public long getLong(String arg0) throws SQLException
+    public long getLong(String name) throws SQLException
     {
-        throw new UnsupportedOperationException("method not supported");
+        String nameAsString = decoder.colNameAsString(keyspace, columnFamily, name);
+        return valueMap.get(nameAsString) != null ? (Long)valueMap.get(nameAsString) : null;
     }
 
     /**
@@ -652,23 +655,24 @@ class CassandraResultSet implements ResultSet
     }
 
     /**
-     * @param arg0
+     * @param index
      * @return
      * @throws SQLException
      */
-    public Object getObject(int arg0) throws SQLException
+    public Object getObject(int index) throws SQLException
     {
-        throw new UnsupportedOperationException("method not supported");
+        return values.get(index) == null ? null : values.get(index).getValue();
     }
 
     /**
-     * @param arg0
+     * @param name
      * @return
      * @throws SQLException
      */
-    public Object getObject(String arg0) throws SQLException
+    public Object getObject(String name) throws SQLException
     {
-        throw new UnsupportedOperationException("method not supported");
+        String nameAsString = decoder.colNameAsString(keyspace, columnFamily, name);
+        return valueMap.get(nameAsString);
     }
 
     /**
@@ -798,7 +802,7 @@ class CassandraResultSet implements ResultSet
      */
     public String getString(int index) throws SQLException 
     {
-        return values.get(index) != null ? values.get(index).getValue().toString() : null;
+        return values.get(index) != null ? ColumnDecoder.colValueAsString(values.get(index).getValue()) : null;
     }
 
     /**
@@ -809,7 +813,7 @@ class CassandraResultSet implements ResultSet
     public String getString(String name) throws SQLException
     {
         String nameAsString = this.decoder.colNameAsString(this.keyspace, this.columnFamily, name);
-        return valueMap.get(nameAsString) != null ? valueMap.get(nameAsString).toString() : null;
+        return valueMap.get(nameAsString) != null ? ColumnDecoder.colValueAsString(valueMap.get(nameAsString)) : null;
     }
 
     /**

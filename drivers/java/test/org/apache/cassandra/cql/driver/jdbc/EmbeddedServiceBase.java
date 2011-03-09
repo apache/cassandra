@@ -4,8 +4,6 @@ import java.io.IOException;
 import java.net.Socket;
 import java.net.UnknownHostException;
 
-import junit.framework.TestCase;
-
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -15,7 +13,7 @@ import org.apache.cassandra.service.EmbeddedCassandraService;
 /**
  * The abstract BaseClass.
  */
-public abstract class EmbeddedServiceBase extends TestCase
+public abstract class EmbeddedServiceBase
 {
 
     /** The embedded server cassandra. */
@@ -27,11 +25,10 @@ public abstract class EmbeddedServiceBase extends TestCase
      *
      * @throws Exception the exception
      */
-    protected void startCassandraServer() throws IOException, ConfigurationException
+    static void startCassandraServer() throws IOException, ConfigurationException
     {
         if (!checkIfServerRunning())
         {
-            System.setProperty("cassandra.config", "cassandra.yaml");
             loadData();
             cassandra = new EmbeddedCassandraService();
             cassandra.start();
@@ -44,7 +41,7 @@ public abstract class EmbeddedServiceBase extends TestCase
      *
      * @throws ConfigurationException the configuration exception
      */
-    private void loadData() throws ConfigurationException
+    static void loadData() throws ConfigurationException
     {
         for (KSMetaData table : DatabaseDescriptor.readTablesFromYaml())
         {
@@ -60,7 +57,7 @@ public abstract class EmbeddedServiceBase extends TestCase
      *
      * @return true, if successful
      */
-    private boolean checkIfServerRunning()
+    static boolean checkIfServerRunning()
     {
         try
         {

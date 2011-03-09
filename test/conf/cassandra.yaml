@@ -33,6 +33,9 @@ encryption_options:
     truststore: conf/.truststore
     truststore_password: cassandra
 incremental_backups: true
+    
+# Big Fat Note: as you add new colum families, be sure to append only (no insertions please), lest you break the 
+# serialization tests which expect columnfamily ids to be constant over time.
 keyspaces:
     - name: Keyspace1
       replica_placement_strategy: org.apache.cassandra.locator.SimpleStrategy
@@ -66,7 +69,7 @@ keyspaces:
           rows_cached: 0
           keys_cached: 0
           compare_with: IntegerType
-
+          
         - name: Super1
           column_type: Super
           compare_subcolumns_with: LongType
@@ -119,6 +122,27 @@ keyspaces:
               # index will be added dynamically
           rows_cached: 0
           keys_cached: 0
+        
+        - name: JdbcInteger
+          compare_with: IntegerType
+          default_validation_class: IntegerType
+          
+        - name: JdbcUtf8
+          compare_with: UTF8Type
+          default_validation_class: UTF8Type
+          
+        - name: JdbcLong
+          compare_with: LongType
+          default_validation_class: LongType
+          
+        - name: JdbcBytes
+          compare_with: BytesType
+          default_validation_class: BytesType
+          
+        - name: JdbcAscii
+          compare_with: AsciiType
+          default_validation_class: AsciiType
+        
 
     - name: Keyspace2
       replica_placement_strategy: org.apache.cassandra.locator.SimpleStrategy
