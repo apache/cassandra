@@ -266,11 +266,11 @@ comparatorType
     ;
 
 term returns [Term item]
-    : ( t=timeuuid | t=uuid | t=literal ) { $item = t; }
+    : ( t=timeuuid | t=literal ) { $item = t; }
     ;
 
 literal returns [Term term]
-    : ( t=STRING_LITERAL | t=LONG | t=INTEGER | t=UNICODE ) { $term = new Term($t.text, $t.type); }
+    : ( t=STRING_LITERAL | t=LONG | t=INTEGER | t=UNICODE | t=UUID ) { $term = new Term($t.text, $t.type); }
     ;
 
 termList returns [List<Term> items]
@@ -297,10 +297,6 @@ truncateStatement returns [String cfam]
 
 endStmnt
     : (EOF | ';')
-    ;
-
-uuid returns [Term term]
-    : 'uuid(' uuidstr=STRING_LITERAL ')' { return new Term($uuidstr.text, TermType.UUID); }
     ;
     
 timeuuid returns [Term term]
@@ -391,6 +387,10 @@ fragment DIGIT
 fragment LETTER
     : ('A'..'Z' | 'a'..'z')
     ;
+    
+fragment HEX
+    : ('A'..'F' | 'a'..'f' | '0'..'9')
+    ;
 
 RANGEOP
     : '..'
@@ -428,6 +428,14 @@ COMPIDENT
 
 UNICODE
     : 'u' STRING_LITERAL
+    ;
+    
+UUID
+    : HEX HEX HEX HEX HEX HEX HEX HEX '-'
+      HEX HEX HEX HEX '-'
+      HEX HEX HEX HEX '-'
+      HEX HEX HEX HEX '-'
+      HEX HEX HEX HEX HEX HEX HEX HEX HEX HEX HEX HEX
     ;
 
 WS

@@ -58,7 +58,7 @@ def marshal(term):
         if term.version == 1:
             return "timeuuid(\"%s\")" % str(term)
         else:
-            return "uuid(\"%s\")" % str(term)
+            return str(term)
     else:
         return str(term)
         

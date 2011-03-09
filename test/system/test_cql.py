@@ -436,13 +436,9 @@ class TestCql(ThriftTester):
         "store and retrieve lexical uuids"
         conn = init()
         uid = uuid.uuid4()
-        conn.execute("""
-            UPDATE Standard2 SET uuid('%s') = 10 WHERE KEY = 'uuidtest'
-        """ % str(uid))
+        conn.execute("UPDATE Standard2 SET ? = 10 WHERE KEY = 'uuidtest'", uid)
         
-        r = conn.execute("""
-            SELECT uuid('%s') FROM Standard2 WHERE KEY = 'uuidtest'
-        """ % str(uid))
+        r = conn.execute("SELECT ? FROM Standard2 WHERE KEY = 'uuidtest'", uid)
         assert r[0].columns[0].name == uid.bytes
         
         # TODO: slices of uuids from cf w/ LexicalUUIDType comparator

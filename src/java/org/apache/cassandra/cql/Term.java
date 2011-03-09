@@ -209,6 +209,8 @@ enum TermType
             return INTEGER;
         else if (type == CqlParser.UNICODE)
             return UNICODE;
+        else if (type == CqlParser.UUID)
+            return UUID;
         
         // FIXME: handled scenario that should never occur.
         return null;
