@@ -559,7 +559,16 @@
           <fileset dir="@{inputdir}" includes="@{filter}" />
         </batchtest>
       </junit>
-      <fail if="testfailed" message="Some @{suitename} test(s) failed."/>
+      <fail message="Some @{suitename} test(s) failed.">
+        <condition>
+            <and>
+            <isset property="testfailed"/>
+            <not>
+              <isset property="ant.test.failure.ignore"/>
+            </not>
+          </and>
+        </condition>
+      </fail>
     </sequential>
   </macrodef>
 
