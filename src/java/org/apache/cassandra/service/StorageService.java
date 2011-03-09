@@ -31,7 +31,6 @@ import javax.management.ObjectName;
 
 import com.google.common.base.Charsets;
 import com.google.common.collect.HashMultimap;
-import com.google.common.collect.Iterables;
 import com.google.common.collect.Multimap;
 
 import org.apache.cassandra.db.commitlog.CommitLog;
@@ -2196,28 +2195,14 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         ColumnFamilyStore largestByThroughput = null;
         for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
         {
-            long ops = 0;
-            long throughput = 0;
-            for (ColumnFamilyStore subordinate : Iterables.concat(Collections.singleton(cfs), cfs.getIndexColumnFamilyStores()))
-            {
-                ops += subordinate.getMemtableColumnsCount();
-                throughput = subordinate.getMemtableThroughputInMB();
-            }
-
-            if (ops > 0 && (largestByOps == null || ops > largestByOps.getMemtableColumnsCount()))
-            {
-                logger_.debug(ops + " total ops in " + cfs);
+            if (largestByOps == null || cfs.getMemtableColumnsCount() > largestByOps.getMemtableColumnsCount())
                 largestByOps = cfs;
-            }
-            if (throughput > 0 && (largestByThroughput == null || throughput > largestByThroughput.getMemtableThroughputInMB()))
-            {
-                logger_.debug(throughput + " total throughput in " + cfs);
+            if (largestByThroughput == null || cfs.getMemtableThroughputInMB() > largestByThroughput.getMemtableThroughputInMB())
                 largestByThroughput = cfs;
-            }
         }
         if (largestByOps == null)
         {
-            logger_.info("Unable to reduce heap usage since there are no dirty column families");
+            logger_.error("Unable to reduce heap usage since there are no column families defined");
             return;
         }
 
