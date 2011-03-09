@@ -35,13 +35,13 @@ def load_sample(dbconn):
 
     dbconn.execute("""
     BEGIN BATCH USING CONSISTENCY ONE
-     UPDATE StandardLong1 SET 1L='1', 2L='2', 3L='3', 4L='4' WHERE KEY='aa';
-     UPDATE StandardLong1 SET 5L='5', 6L='6', 7L='8', 9L='9' WHERE KEY='ab';
-     UPDATE StandardLong1 SET 9L='9', 8L='8', 7L='7', 6L='6' WHERE KEY='ac';
-     UPDATE StandardLong1 SET 5L='5', 4L='4', 3L='3', 2L='2' WHERE KEY='ad';
-     UPDATE StandardLong1 SET 1L='1', 2L='2', 3L='3', 4L='4' WHERE KEY='ae';
-     UPDATE StandardLong1 SET 1L='1', 2L='2', 3L='3', 4L='4' WHERE KEY='af';
-     UPDATE StandardLong1 SET 5L='5', 6L='6', 7L='8', 9L='9' WHERE KEY='ag';
+     UPDATE StandardLong1 SET 1='1', 2='2', 3='3', 4L='4' WHERE KEY='aa';
+     UPDATE StandardLong1 SET 5='5', 6='6', 7='8', 9L='9' WHERE KEY='ab';
+     UPDATE StandardLong1 SET 9='9', 8='8', 7='7', 6L='6' WHERE KEY='ac';
+     UPDATE StandardLong1 SET 5='5', 4='4', 3='3', 2L='2' WHERE KEY='ad';
+     UPDATE StandardLong1 SET 1='1', 2='2', 3='3', 4L='4' WHERE KEY='ae';
+     UPDATE StandardLong1 SET 1='1', 2='2', 3='3', 4L='4' WHERE KEY='af';
+     UPDATE StandardLong1 SET 5='5', 6='6', 7='8', 9L='9' WHERE KEY='ag';
     APPLY BATCH
     """)
     
@@ -59,11 +59,11 @@ def load_sample(dbconn):
 
     dbconn.execute("""
     BEGIN BATCH
-    UPDATE Indexed1 SET 'birthdate'=100L, 'unindexed'=250L WHERE KEY='asmith';
-    UPDATE Indexed1 SET 'birthdate'=100L, 'unindexed'=200L WHERE KEY='dozer';
-    UPDATE Indexed1 SET 'birthdate'=175L, 'unindexed'=200L WHERE KEY='morpheus';
-    UPDATE Indexed1 SET 'birthdate'=150L, 'unindexed'=250L WHERE KEY='neo';
-    UPDATE Indexed1 SET 'birthdate'=125L, 'unindexed'=200L WHERE KEY='trinity';
+    UPDATE Indexed1 SET 'birthdate'=100, 'unindexed'=250 WHERE KEY='asmith';
+    UPDATE Indexed1 SET 'birthdate'=100, 'unindexed'=200 WHERE KEY='dozer';
+    UPDATE Indexed1 SET 'birthdate'=175, 'unindexed'=200 WHERE KEY='morpheus';
+    UPDATE Indexed1 SET 'birthdate'=150, 'unindexed'=250 WHERE KEY='neo';
+    UPDATE Indexed1 SET 'birthdate'=125, 'unindexed'=200 WHERE KEY='trinity';
     APPLY BATCH
     """)
 
@@ -91,7 +91,7 @@ class TestCql(ThriftTester):
     def test_select_row_range(self):
         "retrieve a range of rows with columns"
         conn = init()
-        r = conn.execute("SELECT 4L FROM StandardLong1 WHERE KEY > 'ad' AND KEY < 'ag';")
+        r = conn.execute("SELECT 4 FROM StandardLong1 WHERE KEY > 'ad' AND KEY < 'ag';")
         assert len(r) == 3
         assert r[0].key == "ad"
         assert r[1].key == "ae"
@@ -104,7 +104,7 @@ class TestCql(ThriftTester):
         "retrieve a limited range of rows with columns"
         conn = init()
         r = conn.execute("""
-            SELECT 1L,5L,9L FROM StandardLong1 WHERE KEY > 'aa' AND KEY < 'ag' LIMIT 3
+            SELECT 1,5,9 FROM StandardLong1 WHERE KEY > 'aa' AND KEY < 'ag' LIMIT 3
         """)
         assert len(r) == 3
         
@@ -119,7 +119,7 @@ class TestCql(ThriftTester):
     def test_select_columns_slice(self):
         "range of columns (slice) by row"
         conn = init()
-        r = conn.execute("SELECT 1L..3L FROM StandardLong1 WHERE KEY = 'aa';")
+        r = conn.execute("SELECT 1..3 FROM StandardLong1 WHERE KEY = 'aa';")
         assert len(r) == 1
         assert r[0].columns[0].value == "1"
         assert r[0].columns[1].value == "2"
@@ -135,7 +135,7 @@ class TestCql(ThriftTester):
         "range of columns (slice) by row with limit"
         conn = init()
         r = conn.execute("""
-            SELECT FIRST 1 1L..3L FROM StandardLong1 WHERE KEY = 'aa';
+            SELECT FIRST 1 1..3 FROM StandardLong1 WHERE KEY = 'aa';
         """)
         assert len(r) == 1
         assert len(r[0].columns) == 1
@@ -145,7 +145,7 @@ class TestCql(ThriftTester):
         "range of columns (slice) by row reversed"
         conn = init()
         r = conn.execute("""
-            SELECT FIRST 2 REVERSED 3L..1L FROM StandardLong1 WHERE KEY = 'aa';
+            SELECT FIRST 2 REVERSED 3..1 FROM StandardLong1 WHERE KEY = 'aa';
         """)
         assert len(r) == 1, "%d != 1" % len(r)
         assert len(r[0].columns) == 2
@@ -161,7 +161,7 @@ class TestCql(ThriftTester):
     def test_index_scan_equality(self):
         "indexed scan where column equals value"
         conn = init()
-        r = conn.execute("SELECT 'birthdate' FROM Indexed1 WHERE 'birthdate' = 100L")
+        r = conn.execute("SELECT 'birthdate' FROM Indexed1 WHERE 'birthdate' = 100")
         assert len(r) == 2
         assert r[0].key == "asmith"
         assert r[1].key == "dozer"
@@ -172,7 +172,7 @@ class TestCql(ThriftTester):
         "indexed scan where a column is greater than a value"
         conn = init()
         r = conn.execute("""
-            SELECT 'birthdate' FROM Indexed1 WHERE 'birthdate' = 100L AND 'unindexed' > 200L
+            SELECT 'birthdate' FROM Indexed1 WHERE 'birthdate' = 100 AND 'unindexed' > 200
         """)
         assert len(r) == 1
         assert r[0].key == "asmith"
@@ -181,7 +181,7 @@ class TestCql(ThriftTester):
         "indexed scan with a starting key"
         conn = init()
         r = conn.execute("""
-            SELECT 'birthdate' FROM Indexed1 WHERE 'birthdate' = 100L AND KEY > 'asmithZ'
+            SELECT 'birthdate' FROM Indexed1 WHERE 'birthdate' = 100 AND KEY > 'asmithZ'
         """)
         assert len(r) == 1
         assert r[0].key == "dozer"
@@ -198,7 +198,7 @@ class TestCql(ThriftTester):
     def test_column_count(self):
         "getting a result count instead of results"
         conn = init()
-        r = conn.execute("SELECT COUNT(1L..4L) FROM StandardLong1 WHERE KEY = 'aa';")
+        r = conn.execute("SELECT COUNT(1..4) FROM StandardLong1 WHERE KEY = 'aa';")
         assert r == 4, "expected 4 results, got %d" % (r and r or 0)
 
     def test_truncate_columnfamily(self):

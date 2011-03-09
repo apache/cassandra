@@ -270,7 +270,7 @@ term returns [Term item]
     ;
 
 literal returns [Term term]
-    : ( t=STRING_LITERAL | t=LONG | t=INTEGER | t=UNICODE | t=UUID ) { $term = new Term($t.text, $t.type); }
+    : ( t=STRING_LITERAL | t=INTEGER | t=UNICODE | t=UUID ) { $term = new Term($t.text, $t.type); }
     ;
 
 termList returns [List<Term> items]
@@ -300,7 +300,7 @@ endStmnt
     ;
     
 timeuuid returns [Term term]
-    : 'timeuuid(' uuidstr=( STRING_LITERAL | INTEGER | LONG )? ')' { return new Term($uuidstr.text, TermType.TIMEUUID); }
+    : 'timeuuid(' uuidstr=( STRING_LITERAL | INTEGER )? ')' { return new Term($uuidstr.text, TermType.TIMEUUID); }
     ;
 
 
@@ -398,10 +398,6 @@ RANGEOP
 
 INTEGER
     : DIGIT+
-    ;
-    
-LONG
-    : INTEGER 'L' { setText($INTEGER.text); }
     ;
 
 /* Normally a lexer only emits one token at a time, but ours is tricked out

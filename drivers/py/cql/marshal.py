@@ -46,9 +46,7 @@ def prepare(query, *args):
     return result.getvalue()
 
 def marshal(term):
-    if isinstance(term, long):
-        return "%dL" % term
-    elif isinstance(term, int):
+    if isinstance(term, (long,int)):
         return "%d" % term
     elif isinstance(term, unicode):
         return "u'%s'" % term

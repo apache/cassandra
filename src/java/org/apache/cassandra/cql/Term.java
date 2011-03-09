@@ -98,15 +98,6 @@ public class Term
         {
             case STRING:
                 return ByteBuffer.wrap(text.getBytes());
-            case LONG:
-                try
-                {
-                    return ByteBufferUtil.bytes(Long.parseLong(text));
-                }
-                catch (NumberFormatException e)
-                {
-                    throw new InvalidRequestException(text + " is not valid for type long");
-                }
             case INTEGER: 
                 try
                 {
@@ -197,14 +188,12 @@ public class Term
 
 enum TermType
 {
-    STRING, LONG, INTEGER, UNICODE, UUID, TIMEUUID;
+    STRING, INTEGER, UNICODE, UUID, TIMEUUID;
     
     static TermType forInt(int type)
     {
         if (type == CqlParser.STRING_LITERAL)
             return STRING;
-        else if (type == CqlParser.LONG)
-            return LONG;
         else if (type == CqlParser.INTEGER)
             return INTEGER;
         else if (type == CqlParser.UNICODE)
