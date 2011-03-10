@@ -61,10 +61,10 @@ def load_sample(dbconn):
     dbconn.execute(query, "cd1", "vd1", "col", "val", "kd")
 
     dbconn.execute("""
-        UPDATE StandardUtf82 SET u'%s' = 've1', 'col' = 'val' WHERE KEY = 'kd'
+        UPDATE StandardUtf82 SET '%s' = 've1', 'col' = 'val' WHERE KEY = 'kd'
     """ % u'\xa9'.encode('utf8'))
     dbconn.execute("""
-        UPDATE StandardUtf82 SET u'cf1' = 'vf1', 'col' = 'val' WHERE KEY = 'kd'
+        UPDATE StandardUtf82 SET 'cf1' = 'vf1', 'col' = 'val' WHERE KEY = 'kd'
     """)
 
     dbconn.execute("""

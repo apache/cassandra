@@ -270,7 +270,7 @@ term returns [Term item]
     ;
 
 literal returns [Term term]
-    : ( t=STRING_LITERAL | t=INTEGER | t=UNICODE | t=UUID ) { $term = new Term($t.text, $t.type); }
+    : ( t=STRING_LITERAL | t=INTEGER | t=UUID ) { $term = new Term($t.text, $t.type); }
     ;
 
 termList returns [List<Term> items]
@@ -421,11 +421,7 @@ IDENT
 COMPIDENT
     : IDENT ( ':' IDENT)*
     ;
-
-UNICODE
-    : 'u' STRING_LITERAL
-    ;
-    
+   
 UUID
     : HEX HEX HEX HEX HEX HEX HEX HEX '-'
       HEX HEX HEX HEX '-'

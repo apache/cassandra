@@ -124,8 +124,6 @@ public class Term
                 return AsciiType.instance.fromString(text);
             case INTEGER: 
                 return IntegerType.instance.fromString(text);
-            case UNICODE:
-                return UTF8Type.instance.fromString(text);
             case UUID:
                 return LexicalUUIDType.instance.fromString(text);
             case TIMEUUID:
@@ -155,7 +153,7 @@ public class Term
 
 enum TermType
 {
-    STRING, INTEGER, UNICODE, UUID, TIMEUUID;
+    STRING, INTEGER, UUID, TIMEUUID;
     
     static TermType forInt(int type)
     {
@@ -163,8 +161,6 @@ enum TermType
             return STRING;
         else if (type == CqlParser.INTEGER)
             return INTEGER;
-        else if (type == CqlParser.UNICODE)
-            return UNICODE;
         else if (type == CqlParser.UUID)
             return UUID;
         
