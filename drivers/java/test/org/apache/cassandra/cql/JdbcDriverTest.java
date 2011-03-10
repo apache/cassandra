@@ -73,10 +73,10 @@ public class JdbcDriverTest extends EmbeddedServiceBase
     {
         Statement stmt = con.createStatement();
         
-//        String selectQ = String.format("SELECT '%s', '%s' FROM Standard1 WHERE KEY='jsmith'", first, last);
-//        checkResultSet(stmt.executeQuery(selectQ), "Bytes", 1, first, last);
+        String selectQ = String.format("SELECT '%s', '%s' FROM Standard1 WHERE KEY='jsmith'", first, last);
+        checkResultSet(stmt.executeQuery(selectQ), "Bytes", 1, first, last);
         
-        String selectQ = "SELECT 1, 2 FROM JdbcInteger WHERE KEY='jsmith'";
+        selectQ = "SELECT 1, 2 FROM JdbcInteger WHERE KEY='jsmith'";
         checkResultSet(stmt.executeQuery(selectQ), "Int", 1, "1", "2");
         
         selectQ = "SELECT 3, 4 FROM JdbcInteger WHERE KEY='jsmith'";
@@ -91,8 +91,8 @@ public class JdbcDriverTest extends EmbeddedServiceBase
         selectQ = "SELECT 'first', 'last' FROM JdbcAscii WHERE KEY='jsmith'";
         checkResultSet(stmt.executeQuery(selectQ), "String", 1, "first", "last");
         
-//        selectQ = String.format("SELECT '%s', '%s' FROM JdbcBytes WHERE KEY='jsmith'", first, last);
-//        checkResultSet(stmt.executeQuery(selectQ), "Bytes", 1, first, last);
+        selectQ = String.format("SELECT '%s', '%s' FROM JdbcBytes WHERE KEY='jsmith'", first, last);
+        checkResultSet(stmt.executeQuery(selectQ), "Bytes", 1, first, last);
         
         selectQ = "SELECT 'first', 'last' FROM JdbcUtf8 WHERE KEY='jsmith'";
         checkResultSet(stmt.executeQuery(selectQ), "String", 1, "first", "last");
@@ -182,11 +182,11 @@ public class JdbcDriverTest extends EmbeddedServiceBase
         {
             String[] stmts = 
             {
-//                "TRUNCATE Standard1",
-//                "TRUNCATE JcbcAscii", // todo: this one is broken for some reason.
+                "TRUNCATE Standard1",
+                "TRUNCATE JdbcAscii", // todo: this one is broken for some reason.
                 "TRUNCATE JdbcInteger",
                 "TRUNCATE JdbcLong",
-//                "TRUNCATE JdbcBytes",
+                "TRUNCATE JdbcBytes",
                 "TRUNCATE JdbcUtf8",
             };
             for (String stmt : stmts)
