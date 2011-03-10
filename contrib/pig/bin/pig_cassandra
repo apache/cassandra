@@ -24,13 +24,13 @@ for jar in $cassandra_home/lib/*.jar $cassandra_home/build/lib/jars/*.jar; do
     CLASSPATH=$CLASSPATH:$jar
 done
 
-# cassandra_loadfunc jar.
-LOADFUNC_JAR=`ls -1 $cwd/../build/*.jar`
-if [ ! -e $LOADFUNC_JAR ]; then
-    echo "Unable to locate cassandra_loadfunc jar: please run ant." >&2
+# cassandra_storage jar.
+STORAGE_JAR=`ls -1 $cwd/../build/*.jar`
+if [ ! -e $STORAGE_JAR ]; then
+    echo "Unable to locate cassandra_storage jar: please run ant." >&2
     exit 1
 fi
-CLASSPATH=$CLASSPATH:$LOADFUNC_JAR
+CLASSPATH=$CLASSPATH:$STORAGE_JAR
 
 if [ "x$PIG_HOME" = "x" ]; then
     echo "PIG_HOME not set: requires Pig >= 0.7.0" >&2
