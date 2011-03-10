@@ -139,7 +139,7 @@ public class TimeUUIDType extends AbstractType<UUID>
             if (uuid.version() != 1)
                 throw new MarshalException("TimeUUID supports only version 1 UUIDs");
         }
-        else if (source.equals("") || source.toLowerCase().equals("now"))
+        else if (source.toLowerCase().equals("now"))
         {
             idBytes = ByteBuffer.wrap(UUIDGen.decompose(UUIDGen.makeType1UUIDFromHost(FBUtilities.getLocalAddress())));
         }
