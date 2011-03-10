@@ -266,11 +266,7 @@ comparatorType
     ;
 
 term returns [Term item]
-    : ( t=timeuuid | t=literal ) { $item = t; }
-    ;
-
-literal returns [Term term]
-    : ( t=STRING_LITERAL | t=INTEGER | t=UUID ) { $term = new Term($t.text, $t.type); }
+    : ( t=STRING_LITERAL | t=INTEGER | t=UUID ) { $item = new Term($t.text, $t.type); }
     ;
 
 termList returns [List<Term> items]
@@ -297,10 +293,6 @@ truncateStatement returns [String cfam]
 
 endStmnt
     : (EOF | ';')
-    ;
-    
-timeuuid returns [Term term]
-    : 'timeuuid(' uuidstr=( STRING_LITERAL | INTEGER )? ')' { return new Term($uuidstr.text, TermType.TIMEUUID); }
     ;
 
 

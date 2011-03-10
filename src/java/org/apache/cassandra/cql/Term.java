@@ -27,7 +27,6 @@ import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.db.marshal.LexicalUUIDType;
 import org.apache.cassandra.db.marshal.MarshalException;
-import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.thrift.InvalidRequestException;
 
 /** A term parsed from a CQL statement. */
@@ -106,8 +105,6 @@ public class Term
                 return IntegerType.instance.fromString(text);
             case UUID:
                 return LexicalUUIDType.instance.fromString(text);
-            case TIMEUUID:
-                return TimeUUIDType.instance.fromString(text);
         }
         
         // FIXME: handle scenario that should never happen
@@ -133,7 +130,7 @@ public class Term
 
 enum TermType
 {
-    STRING, INTEGER, UUID, TIMEUUID;
+    STRING, INTEGER, UUID;
     
     static TermType forInt(int type)
     {

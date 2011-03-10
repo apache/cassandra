@@ -439,20 +439,18 @@ class TestCql(ThriftTester):
         # Store and retrieve a timeuuid using it's hex-formatted string
         timeuuid = uuid.uuid1()
         conn.execute("""
-            UPDATE StandardTimeUUID SET timeuuid('%s') = 10
-                    WHERE KEY = 'uuidtest'
+            UPDATE StandardTimeUUID SET '%s' = 10 WHERE KEY = 'uuidtest'
         """ % str(timeuuid))
         
         r = conn.execute("""
-            SELECT timeuuid('%s') FROM StandardTimeUUID WHERE KEY = 'uuidtest'
+            SELECT '%s' FROM StandardTimeUUID WHERE KEY = 'uuidtest'
         """ % str(timeuuid))
         assert r[0].columns[0].name == timeuuid.bytes
         
         # Tests a node-side conversion from long to UUID.
         ms = uuid1bytes_to_millis(uuid.uuid1().bytes)
         conn.execute("""
-            UPDATE StandardTimeUUIDValues SET 'id' = timeuuid(%d)
-                WHERE KEY = 'uuidtest'
+            UPDATE StandardTimeUUIDValues SET 'id' = %d WHERE KEY = 'uuidtest'
         """ % ms)
         
         r = conn.execute("""
@@ -462,8 +460,7 @@ class TestCql(ThriftTester):
         
         # Tests a node-side conversion from ISO8601 to UUID.
         conn.execute("""
-            UPDATE StandardTimeUUIDValues
-            SET 'id2' = timeuuid('2011-01-31 17:00:00-0000') 
+            UPDATE StandardTimeUUIDValues SET 'id2' = '2011-01-31 17:00:00-0000'
             WHERE KEY = 'uuidtest'
         """)
         
@@ -475,9 +472,9 @@ class TestCql(ThriftTester):
         assert ms == 1296493200000, \
                 "%d != 1296493200000 (2011-01-31 17:00:00-0000)" % ms
 
-        # Tests node-side conversion of empty term to UUID
+        # Tests node-side conversion of timeuuid("now") to UUID
         conn.execute("""
-            UPDATE StandardTimeUUIDValues SET 'id3' = timeuuid()
+            UPDATE StandardTimeUUIDValues SET 'id3' = 'now'
                     WHERE KEY = 'uuidtest'
         """)
         
@@ -486,20 +483,7 @@ class TestCql(ThriftTester):
         """)
         ms = uuid1bytes_to_millis(r[0].columns[0].value)
         assert ((time.time() * 1e3) - ms) < 100, \
-            "timeuuid() not within 100ms of now (UPDATE vs. SELECT)"
-            
-        # Tests node-side conversion of timeuuid("now") to UUID
-        conn.execute("""
-            UPDATE StandardTimeUUIDValues SET 'id4' = timeuuid('now')
-                    WHERE KEY = 'uuidtest'
-        """)
-        
-        r = conn.execute("""
-            SELECT 'id4' FROM StandardTimeUUIDValues WHERE KEY = 'uuidtest'
-        """)
-        ms = uuid1bytes_to_millis(r[0].columns[0].value)
-        assert ((time.time() * 1e3) - ms) < 100, \
-            "timeuuid(\"now\") not within 100ms of now (UPDATE vs. SELECT)"
+            "new timeuuid not within 100ms of now (UPDATE vs. SELECT)"
         
         # TODO: slices of timeuuids from cf w/ TimeUUIDType comparator
         
