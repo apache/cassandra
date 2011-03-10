@@ -266,7 +266,7 @@ comparatorType
     ;
 
 term returns [Term item]
-    : ( t=STRING_LITERAL | t=INTEGER | t=UUID ) { $item = new Term($t.text, $t.type); }
+    : ( t=STRING_LITERAL | t=INTEGER | t=UUID | t=IDENT ) { $item = new Term($t.text, $t.type); }
     ;
 
 termList returns [List<Term> items]

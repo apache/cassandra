@@ -134,7 +134,7 @@ enum TermType
     
     static TermType forInt(int type)
     {
-        if (type == CqlParser.STRING_LITERAL)
+        if ((type == CqlParser.STRING_LITERAL) || (type == CqlParser.IDENT))
             return STRING;
         else if (type == CqlParser.INTEGER)
             return INTEGER;
