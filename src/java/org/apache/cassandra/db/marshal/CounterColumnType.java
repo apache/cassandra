@@ -53,38 +53,6 @@ public class CounterColumnType extends AbstractCommutativeType
         return new CounterUpdateColumn(name, value, timestamp);
     }
 
-    /**
-     * remove target node from commutative columns
-     */
-    public void cleanContext(IColumnContainer cc, InetAddress node)
-    {
-        if ((cc instanceof ColumnFamily) && ((ColumnFamily)cc).isSuper())
-        {
-            for (IColumn column : cc.getSortedColumns())
-            {
-                SuperColumn supercol = (SuperColumn)column;
-                cleanContext(supercol, node);
-                if (0 == supercol.getSubColumns().size())
-                    cc.remove(supercol.name());
-            }
-            return;
-        }
-
-        for (IColumn column : cc.getSortedColumns())
-        {
-            if (!(column instanceof CounterColumn)) // DeletedColumn
-                continue;
-            CounterColumn counterColumn = (CounterColumn)column;
-            CounterColumn cleanedColumn = counterColumn.cleanNodeCounts(node);
-            if (cleanedColumn == counterColumn)
-                continue;
-            cc.remove(counterColumn.name());
-            //XXX: on "clean," must copy-and-replace
-            if (null != cleanedColumn)
-                cc.addColumn(cleanedColumn);
-        }
-    }
-
     public ByteBuffer fromString(String source)
     {
         return ByteBufferUtil.hexToBytes(source);
@@ -96,4 +64,3 @@ public class CounterColumnType extends AbstractCommutativeType
             throw new MarshalException(String.format("Expected 8 or 0 byte long (%d)", bytes.remaining()));
     }
 }
-

@@ -47,4 +47,5 @@ public class RawColumnFamily
     public int memtable_flush_after_mins = CFMetaData.DEFAULT_MEMTABLE_LIFETIME_IN_MINS;
     public Integer memtable_throughput_in_mb;
     public Double memtable_operations_in_millions;
+    public double merge_shards_chance = CFMetaData.DEFAULT_MERGE_SHARDS_CHANCE;
 }

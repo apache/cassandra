@@ -60,6 +60,7 @@ public final class CFMetaData
     public final static int DEFAULT_MEMTABLE_LIFETIME_IN_MINS = 60 * 24;
     public final static int DEFAULT_MEMTABLE_THROUGHPUT_IN_MB = sizeMemtableThroughput();
     public final static double DEFAULT_MEMTABLE_OPERATIONS_IN_MILLIONS = sizeMemtableOperations(DEFAULT_MEMTABLE_THROUGHPUT_IN_MB);
+    public final static double DEFAULT_MERGE_SHARDS_CHANCE = 0.1;
 
     private static final int MIN_CF_ID = 1000;
 
@@ -72,6 +73,7 @@ public final class CFMetaData
     public static final CFMetaData MigrationsCf = newSystemTable(Migration.MIGRATIONS_CF, 2, "individual schema mutations", TimeUUIDType.instance, null, DEFAULT_SYSTEM_MEMTABLE_THROUGHPUT_IN_MB);
     public static final CFMetaData SchemaCf = newSystemTable(Migration.SCHEMA_CF, 3, "current state of the schema", UTF8Type.instance, null, DEFAULT_SYSTEM_MEMTABLE_THROUGHPUT_IN_MB);
     public static final CFMetaData IndexCf = newSystemTable(SystemTable.INDEX_CF, 5, "indexes that have been completed", UTF8Type.instance, null, DEFAULT_SYSTEM_MEMTABLE_THROUGHPUT_IN_MB);
+    public static final CFMetaData NodeIdCf = newSystemTable(SystemTable.NODE_ID_CF, 6, "nodeId and their metadata", TimeUUIDType.instance, null, DEFAULT_SYSTEM_MEMTABLE_THROUGHPUT_IN_MB);
 
     private static CFMetaData newSystemTable(String cfName, int cfId, String comment, AbstractType comparator, AbstractType subComparator, int memtableThroughPutInMB)
     {
@@ -94,6 +96,7 @@ public final class CFMetaData
                               DEFAULT_MEMTABLE_LIFETIME_IN_MINS,
                               memtableThroughPutInMB,
                               sizeMemtableOperations(memtableThroughPutInMB),
+                              0,
                               cfId,
                               Collections.<ByteBuffer, ColumnDefinition>emptyMap());
     }
@@ -160,6 +163,7 @@ public final class CFMetaData
     private int memtableFlushAfterMins;               // default 60 
     private int memtableThroughputInMb;               // default based on heap size
     private double memtableOperationsInMillions;      // default based on throughput
+    private double mergeShardsChance;                 // default 0.1, chance [0.0, 1.0] of merging old shards during replication
     // NOTE: if you find yourself adding members to this class, make sure you keep the convert methods in lockstep.
 
     private final Map<ByteBuffer, ColumnDefinition> column_metadata;
@@ -183,6 +187,7 @@ public final class CFMetaData
                        int memtableFlushAfterMins,
                        Integer memtableThroughputInMb,
                        Double memtableOperationsInMillions,
+                       double mergeShardsChance,
                        Integer cfId,
                        Map<ByteBuffer, ColumnDefinition> column_metadata)
 
@@ -216,6 +221,7 @@ public final class CFMetaData
         this.memtableOperationsInMillions = memtableOperationsInMillions == null
                                             ? DEFAULT_MEMTABLE_OPERATIONS_IN_MILLIONS
                                             : memtableOperationsInMillions;
+        this.mergeShardsChance = mergeShardsChance;
         this.cfId = cfId;
         this.column_metadata = new HashMap<ByteBuffer, ColumnDefinition>(column_metadata);
     }
@@ -251,6 +257,7 @@ public final class CFMetaData
                       int memTime,
                       Integer memSize,
                       Double memOps,
+                      double mergeShardsChance,
                       //This constructor generates the id!
                       Map<ByteBuffer, ColumnDefinition> column_metadata)
     {
@@ -273,6 +280,7 @@ public final class CFMetaData
              memTime,
              memSize,
              memOps,
+             mergeShardsChance,
              nextId(),
              column_metadata);
     }
@@ -298,6 +306,7 @@ public final class CFMetaData
                               DEFAULT_MEMTABLE_LIFETIME_IN_MINS,
                               DEFAULT_MEMTABLE_THROUGHPUT_IN_MB,
                               DEFAULT_MEMTABLE_OPERATIONS_IN_MILLIONS,
+                              0,
                               Collections.<ByteBuffer, ColumnDefinition>emptyMap());
     }
 
@@ -323,6 +332,7 @@ public final class CFMetaData
                               cfm.memtableFlushAfterMins,
                               cfm.memtableThroughputInMb,
                               cfm.memtableOperationsInMillions,
+                              cfm.mergeShardsChance,
                               cfm.cfId,
                               cfm.column_metadata);
     }
@@ -349,6 +359,7 @@ public final class CFMetaData
                               cfm.memtableFlushAfterMins,
                               cfm.memtableThroughputInMb,
                               cfm.memtableOperationsInMillions,
+                              cfm.mergeShardsChance,
                               cfm.cfId,
                               cfm.column_metadata);
     }
@@ -389,6 +400,7 @@ public final class CFMetaData
         cf.memtable_flush_after_mins = memtableFlushAfterMins;
         cf.memtable_throughput_in_mb = memtableThroughputInMb;
         cf.memtable_operations_in_millions = memtableOperationsInMillions;
+        cf.merge_shards_chance = mergeShardsChance;
         cf.column_metadata = SerDeUtils.createArray(column_metadata.size(),
                                                     org.apache.cassandra.db.migration.avro.ColumnDef.SCHEMA$);
         for (ColumnDefinition cd : column_metadata.values())
@@ -429,6 +441,7 @@ public final class CFMetaData
         Integer memtable_flush_after_mins = cf.memtable_flush_after_mins == null ? DEFAULT_MEMTABLE_LIFETIME_IN_MINS : cf.memtable_flush_after_mins;
         Integer memtable_throughput_in_mb = cf.memtable_throughput_in_mb == null ? DEFAULT_MEMTABLE_THROUGHPUT_IN_MB : cf.memtable_throughput_in_mb;
         Double memtable_operations_in_millions = cf.memtable_operations_in_millions == null ? DEFAULT_MEMTABLE_OPERATIONS_IN_MILLIONS : cf.memtable_operations_in_millions;
+        double merge_shards_chance = cf.merge_shards_chance == null ? DEFAULT_MERGE_SHARDS_CHANCE : cf.merge_shards_chance;
 
         return new CFMetaData(cf.keyspace.toString(),
                               cf.name.toString(),
@@ -449,6 +462,7 @@ public final class CFMetaData
                               memtable_flush_after_mins,
                               memtable_throughput_in_mb,
                               memtable_operations_in_millions,
+                              merge_shards_chance,
                               cf.id,
                               column_metadata);
     }
@@ -469,6 +483,11 @@ public final class CFMetaData
     }
     
     public double getReadRepairChance()
+    {
+        return readRepairChance;
+    }
+
+    public double getMergeShardsChance()
     {
         return readRepairChance;
     }
@@ -561,6 +580,7 @@ public final class CFMetaData
             .append(memtableFlushAfterMins, rhs.memtableFlushAfterMins)
             .append(memtableThroughputInMb, rhs.memtableThroughputInMb)
             .append(memtableOperationsInMillions, rhs.memtableOperationsInMillions)
+            .append(mergeShardsChance, rhs.mergeShardsChance)
             .isEquals();
     }
 
@@ -588,6 +608,7 @@ public final class CFMetaData
             .append(memtableFlushAfterMins)
             .append(memtableThroughputInMb)
             .append(memtableOperationsInMillions)
+            .append(mergeShardsChance)
             .toHashCode();
     }
 
@@ -622,6 +643,8 @@ public final class CFMetaData
             cf_def.memtable_throughput_in_mb = CFMetaData.DEFAULT_MEMTABLE_THROUGHPUT_IN_MB;
         if (cf_def.memtable_operations_in_millions == null)
             cf_def.memtable_operations_in_millions = CFMetaData.DEFAULT_MEMTABLE_OPERATIONS_IN_MILLIONS; 
+        if (cf_def.merge_shards_chance == null)
+            cf_def.merge_shards_chance = CFMetaData.DEFAULT_MERGE_SHARDS_CHANCE;
     }
     
     /** applies implicit defaults to cf definition. useful in updates */
@@ -641,6 +664,8 @@ public final class CFMetaData
             cf_def.setMemtable_throughput_in_mb(CFMetaData.DEFAULT_MEMTABLE_THROUGHPUT_IN_MB);
         if (!cf_def.isSetMemtable_operations_in_millions())
             cf_def.setMemtable_operations_in_millions(CFMetaData.DEFAULT_MEMTABLE_OPERATIONS_IN_MILLIONS);
+        if (!cf_def.isSetMerge_shards_chance())
+            cf_def.setMerge_shards_chance(CFMetaData.DEFAULT_MERGE_SHARDS_CHANCE);
     }
     
     // merges some final fields from this CFM with modifiable fields from CfDef into a new CFMetaData.
@@ -683,6 +708,7 @@ public final class CFMetaData
         memtableFlushAfterMins = cf_def.memtable_flush_after_mins;
         memtableThroughputInMb = cf_def.memtable_throughput_in_mb;
         memtableOperationsInMillions = cf_def.memtable_operations_in_millions;
+        mergeShardsChance = cf_def.merge_shards_chance;
         
         // adjust secondary indexes. figure out who is coming and going.
         Set<ByteBuffer> toRemove = new HashSet<ByteBuffer>();
@@ -746,6 +772,7 @@ public final class CFMetaData
         def.setMemtable_flush_after_mins(cfm.memtableFlushAfterMins);
         def.setMemtable_throughput_in_mb(cfm.memtableThroughputInMb);
         def.setMemtable_operations_in_millions(cfm.memtableOperationsInMillions);
+        def.setMerge_shards_chance(cfm.mergeShardsChance);
         List<org.apache.cassandra.thrift.ColumnDef> column_meta = new ArrayList< org.apache.cassandra.thrift.ColumnDef>(cfm.column_metadata.size());
         for (ColumnDefinition cd : cfm.column_metadata.values())
         {
@@ -788,6 +815,7 @@ public final class CFMetaData
         def.memtable_flush_after_mins = cfm.memtableFlushAfterMins;
         def.memtable_throughput_in_mb = cfm.memtableThroughputInMb;
         def.memtable_operations_in_millions = cfm.memtableOperationsInMillions;
+        def.merge_shards_chance = cfm.mergeShardsChance;
         List<org.apache.cassandra.db.migration.avro.ColumnDef> column_meta = new ArrayList<org.apache.cassandra.db.migration.avro.ColumnDef>(cfm.column_metadata.size());
         for (ColumnDefinition cd : cfm.column_metadata.values())
         {
@@ -825,7 +853,8 @@ public final class CFMetaData
         newDef.row_cache_save_period_in_seconds = def.getRow_cache_save_period_in_seconds();
         newDef.row_cache_size = def.getRow_cache_size();
         newDef.subcomparator_type = def.getSubcomparator_type();
-        
+        newDef.merge_shards_chance = def.getMerge_shards_chance();
+
         List<org.apache.cassandra.db.migration.avro.ColumnDef> columnMeta = new ArrayList<org.apache.cassandra.db.migration.avro.ColumnDef>();
         if (def.isSetColumn_metadata())
         {
@@ -947,6 +976,7 @@ public final class CFMetaData
             .append("memtableFlushAfterMins", memtableFlushAfterMins)
             .append("memtableThroughputInMb", memtableThroughputInMb)
             .append("memtableOperationsInMillions", memtableOperationsInMillions)
+            .append("mergeShardsChance", mergeShardsChance)
             .append("column_metadata", column_metadata)
             .toString();
     }

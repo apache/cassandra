@@ -108,10 +108,10 @@ public class ColumnFamilySerializer implements ICompactSerializer2<ColumnFamily>
 
     public ColumnFamily deserialize(DataInput dis) throws IOException
     {
-        return deserialize(dis, false);
+        return deserialize(dis, false, false);
     }
 
-    public ColumnFamily deserialize(DataInput dis, boolean intern) throws IOException
+    public ColumnFamily deserialize(DataInput dis, boolean intern, boolean fromRemote) throws IOException
     {
         if (!dis.readBoolean())
             return null;
@@ -122,23 +122,23 @@ public class ColumnFamilySerializer implements ICompactSerializer2<ColumnFamily>
             throw new UnserializableColumnFamilyException("Couldn't find cfId=" + cfId, cfId);
         ColumnFamily cf = ColumnFamily.create(cfId);
         deserializeFromSSTableNoColumns(cf, dis);
-        deserializeColumns(dis, cf, intern);
+        deserializeColumns(dis, cf, intern, fromRemote);
         return cf;
     }
 
-    public void deserializeColumns(DataInput dis, ColumnFamily cf, boolean intern) throws IOException
+    public void deserializeColumns(DataInput dis, ColumnFamily cf, boolean intern, boolean fromRemote) throws IOException
     {
         int size = dis.readInt();
         ColumnFamilyStore interner = intern ? Table.open(CFMetaData.getCF(cf.id()).left).getColumnFamilyStore(cf.id()) : null;
         for (int i = 0; i < size; ++i)
         {
-            IColumn column = cf.getColumnSerializer().deserialize(dis, interner);
+            IColumn column = cf.getColumnSerializer().deserialize(dis, interner, fromRemote);
             cf.addColumn(column);
         }
     }
 
     public ColumnFamily deserializeFromSSTableNoColumns(ColumnFamily cf, DataInput input) throws IOException
-    {        
+    {
         cf.delete(input.readInt(), input.readLong());
         return cf;
     }

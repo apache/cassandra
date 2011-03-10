@@ -31,6 +31,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.io.IColumnSerializer;
+import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.io.ICompactSerializer2;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -70,10 +71,15 @@ public class ColumnSerializer implements IColumnSerializer
 
     public Column deserialize(DataInput dis) throws IOException
     {
-        return deserialize(dis, null);
+        return deserialize(dis, null, false);
     }
 
-    public Column deserialize(DataInput dis, ColumnFamilyStore interner) throws IOException
+    /*
+     * For counter columns, we must know when we deserialize them if what we
+     * deserialize comes from a remote host. If it does, then we must clear
+     * the delta.
+     */
+    public Column deserialize(DataInput dis, ColumnFamilyStore interner, boolean fromRemote) throws IOException
     {
         ByteBuffer name = ByteBufferUtil.readWithShortLength(dis);
         if (name.remaining() <= 0)
@@ -87,6 +93,8 @@ public class ColumnSerializer implements IColumnSerializer
             long timestampOfLastDelete = dis.readLong();
             long ts = dis.readLong();
             ByteBuffer value = ByteBufferUtil.readWithLength(dis);
+            if (fromRemote)
+                value = CounterContext.instance().clearAllDelta(value);
             return new CounterColumn(name, value, ts, timestampOfLastDelete);
         }
         else if ((b & EXPIRATION_MASK) != 0)

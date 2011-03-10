@@ -945,6 +945,7 @@ public class CassandraServer implements Cassandra.Iface
                               cf_def.isSetMemtable_flush_after_mins() ? cf_def.memtable_flush_after_mins : CFMetaData.DEFAULT_MEMTABLE_LIFETIME_IN_MINS,
                               cf_def.isSetMemtable_throughput_in_mb() ? cf_def.memtable_throughput_in_mb : CFMetaData.DEFAULT_MEMTABLE_THROUGHPUT_IN_MB,
                               cf_def.isSetMemtable_operations_in_millions() ? cf_def.memtable_operations_in_millions : CFMetaData.DEFAULT_MEMTABLE_OPERATIONS_IN_MILLIONS,
+                              cf_def.isSetMerge_shards_chance() ? cf_def.merge_shards_chance : CFMetaData.DEFAULT_MERGE_SHARDS_CHANCE,
                               ColumnDefinition.fromColumnDef(cf_def.column_metadata));
     }
 

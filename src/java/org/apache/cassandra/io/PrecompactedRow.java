@@ -35,6 +35,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ColumnIndexer;
+import org.apache.cassandra.db.CounterColumn;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
@@ -47,22 +48,17 @@ public class PrecompactedRow extends AbstractCompactedRow
 {
     private static Logger logger = LoggerFactory.getLogger(PrecompactedRow.class);
 
-    private final DataOutputBuffer buffer;
-    private final DataOutputBuffer headerBuffer;
-    private int columnCount = 0;
+    private final ColumnFamily compactedCf;
 
-    public PrecompactedRow(DecoratedKey key, DataOutputBuffer buffer)
+    public PrecompactedRow(DecoratedKey key, ColumnFamily compacted)
     {
         super(key);
-        this.buffer = buffer;
-        this.headerBuffer = new DataOutputBuffer();
+        this.compactedCf = compacted;
     }
 
     public PrecompactedRow(ColumnFamilyStore cfStore, List<SSTableIdentityIterator> rows, boolean major, int gcBefore, boolean forceDeserialize)
     {
         super(rows.get(0).getKey());
-        buffer = new DataOutputBuffer();
-        headerBuffer = new DataOutputBuffer();
 
         Set<SSTable> sstables = new HashSet<SSTable>();
         for (SSTableIdentityIterator row : rows)
@@ -71,73 +67,75 @@ public class PrecompactedRow extends AbstractCompactedRow
         }
         boolean shouldPurge = major || !cfStore.isKeyInRemainingSSTables(key, sstables);
 
-        if (rows.size() > 1 || shouldPurge || !rows.get(0).sstable.descriptor.isLatestVersion || forceDeserialize)
+        ColumnFamily cf = null;
+        for (SSTableIdentityIterator row : rows)
         {
-            ColumnFamily cf = null;
-            for (SSTableIdentityIterator row : rows)
-            {
-                ColumnFamily thisCF;
-                try
-                {
-                    thisCF = row.getColumnFamilyWithColumns();
-                }
-                catch (IOException e)
-                {
-                    logger.error("Skipping row " + key + " in " + row.getPath(), e);
-                    continue;
-                }
-                if (cf == null)
-                {
-                    cf = thisCF;
-                }
-                else
-                {
-                    cf.addAll(thisCF);
-                }
-            }
-            ColumnFamily cfPurged = shouldPurge ? ColumnFamilyStore.removeDeleted(cf, gcBefore) : cf;
-            if (cfPurged == null)
-                return;
-            
-            ColumnIndexer.serialize(cfPurged, headerBuffer);
-            columnCount = ColumnFamily.serializer().serializeForSSTable(cfPurged, buffer);
-        }
-        else
-        {
-            assert rows.size() == 1;
+            ColumnFamily thisCF;
             try
             {
-                rows.get(0).echoData(buffer);
-                columnCount = rows.get(0).columnCount;
+                thisCF = row.getColumnFamilyWithColumns();
             }
             catch (IOException e)
             {
-                throw new IOError(e);
+                logger.error("Skipping row " + key + " in " + row.getPath(), e);
+                continue;
             }
+            if (cf == null)
+            {
+                cf = thisCF;
+            }
+            else
+            {
+                cf.addAll(thisCF);
+            }
+        }
+        compactedCf = shouldPurge ? ColumnFamilyStore.removeDeleted(cf, gcBefore) : cf;
+        if (compactedCf != null && compactedCf.metadata().getDefaultValidator().isCommutative())
+        {
+            CounterColumn.removeOldShards(compactedCf, gcBefore);
         }
     }
 
     public void write(DataOutput out) throws IOException
     {
-        long dataSize = headerBuffer.getLength() + buffer.getLength();
-        assert dataSize > 0;
-        out.writeLong(dataSize);
-        out.write(headerBuffer.getData(), 0, headerBuffer.getLength());
-        out.write(buffer.getData(), 0, buffer.getLength());
+        if (compactedCf != null)
+        {
+            DataOutputBuffer buffer = new DataOutputBuffer();
+            DataOutputBuffer headerBuffer = new DataOutputBuffer();
+            ColumnIndexer.serialize(compactedCf, headerBuffer);
+            ColumnFamily.serializer().serializeForSSTable(compactedCf, buffer);
+            out.writeLong(headerBuffer.getLength() + buffer.getLength());
+            out.write(headerBuffer.getData(), 0, headerBuffer.getLength());
+            out.write(buffer.getData(), 0, buffer.getLength());
+        }
     }
 
     public void update(MessageDigest digest)
     {
-        digest.update(buffer.getData(), 0, buffer.getLength());
+        if (compactedCf != null)
+        {
+            DataOutputBuffer buffer = new DataOutputBuffer();
+            try
+            {
+                ColumnFamily.serializer().serializeCFInfo(compactedCf, buffer);
+                buffer.writeInt(compactedCf.getColumnCount());
+                digest.update(buffer.getData(), 0, buffer.getLength());
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
+            compactedCf.updateDigest(digest);
+        }
     }
 
     public boolean isEmpty()
     {
-        return buffer.getLength() == 0;
+        return compactedCf == null || compactedCf.getColumnCount() == 0;
     }
 
     public int columnCount()
     {
-        return columnCount;
+        return compactedCf == null ? 0 : compactedCf.getColumnCount();
     }
 }

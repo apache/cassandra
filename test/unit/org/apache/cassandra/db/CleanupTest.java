@@ -44,6 +44,7 @@ import org.apache.cassandra.thrift.IndexClause;
 import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.thrift.IndexOperator;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.NodeId;
 
 public class CleanupTest extends CleanupHelper
 {
@@ -75,7 +76,7 @@ public class CleanupTest extends CleanupHelper
         assertEquals(LOOPS, rows.size());
 
         // with one token in the ring, owned by the local node, cleanup should be a no-op
-        CompactionManager.instance.performCleanup(cfs);
+        CompactionManager.instance.performCleanup(cfs, new NodeId.OneShotRenewer());
 
         // check data is still there
         rows = cfs.getRangeSlice(null, Util.range("", ""), 1000, new IdentityQueryFilter());
@@ -113,7 +114,7 @@ public class CleanupTest extends CleanupHelper
         tmd.clearUnsafe();
         assert StorageService.instance.getLocalRanges(TABLE1).isEmpty();
 
-        CompactionManager.instance.performCleanup(cfs);
+        CompactionManager.instance.performCleanup(cfs, new NodeId.OneShotRenewer());
 
         // row data should be gone
         rows = cfs.getRangeSlice(null, Util.range("", ""), 1000, new IdentityQueryFilter());

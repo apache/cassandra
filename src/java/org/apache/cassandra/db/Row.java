@@ -64,9 +64,14 @@ class RowSerializer implements ICompactSerializer<Row>
         ColumnFamily.serializer().serialize(row.cf, dos);
     }
 
-    public Row deserialize(DataInputStream dis, int version) throws IOException
+    public Row deserialize(DataInputStream dis, int version, boolean fromRemote) throws IOException
     {
         return new Row(StorageService.getPartitioner().decorateKey(ByteBufferUtil.readWithShortLength(dis)),
-                       ColumnFamily.serializer().deserialize(dis));
+                       ColumnFamily.serializer().deserialize(dis, false, fromRemote));
+    }
+
+    public Row deserialize(DataInputStream dis, int version) throws IOException
+    {
+        return deserialize(dis, version, false);
     }
 }

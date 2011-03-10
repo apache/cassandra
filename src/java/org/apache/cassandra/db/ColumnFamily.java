@@ -134,15 +134,12 @@ public class ColumnFamily implements IColumnContainer, IIterableColumns
         delete(cf);
     }
 
-    /**
-     * FIXME: Gross.
-     */
     public IColumnSerializer getColumnSerializer()
     {
         return columnSerializer;
     }
 
-    int getColumnCount()
+    public int getColumnCount()
     {
         return columns.size();
     }

@@ -22,12 +22,14 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.lang.ThreadLocal;
 import java.nio.ByteBuffer;
 import java.net.InetAddress;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.LinkedList;
+import java.util.Random;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,6 +51,15 @@ public class CounterMutation implements IMutation
 
     private final RowMutation rowMutation;
     private final ConsistencyLevel consistency;
+
+    private static final ThreadLocal<Random> random = new ThreadLocal<Random>()
+    {
+        @Override
+        protected Random initialValue()
+        {
+            return new Random();
+        }
+    };
 
     public CounterMutation(RowMutation rowMutation, ConsistencyLevel consistency)
     {
@@ -88,16 +99,34 @@ public class CounterMutation implements IMutation
         {
             if (!columnFamily.metadata().getReplicateOnWrite())
                 continue;
+            addReadCommandFromColumnFamily(rowMutation.getTable(), rowMutation.key(), columnFamily, readCommands);
+        }
 
-            // CF type: regular
-            if (!columnFamily.isSuper())
-            {
-                QueryPath queryPath = new QueryPath(columnFamily.metadata().cfName);
-                ReadCommand readCommand = new SliceByNamesReadCommand(rowMutation.getTable(), rowMutation.key(), queryPath, columnFamily.getColumnNames());
-                readCommands.add(readCommand);
+        // create a replication RowMutation
+        RowMutation replicationMutation = new RowMutation(rowMutation.getTable(), rowMutation.key());
+        for (ReadCommand readCommand : readCommands)
+        {
+            Table table = Table.open(readCommand.table);
+            Row row = readCommand.getRow(table);
+            if (row == null || row.cf == null)
                 continue;
-            }
 
+            row = mergeOldShards(readCommand.table, row);
+            replicationMutation.add(row.cf);
+        }
+        return replicationMutation;
+    }
+
+    private void addReadCommandFromColumnFamily(String table, ByteBuffer key, ColumnFamily columnFamily, List<ReadCommand> commands)
+    {
+        // CF type: regular
+        if (!columnFamily.isSuper())
+        {
+            QueryPath queryPath = new QueryPath(columnFamily.metadata().cfName);
+            commands.add(new SliceByNamesReadCommand(table, key, queryPath, columnFamily.getColumnNames()));
+        }
+        else
+        {
             // CF type: super
             for (IColumn superColumn : columnFamily.getSortedColumns())
             {
@@ -111,41 +140,76 @@ public class CounterMutation implements IMutation
                     subColNames.add(subCol.name());
                 }
 
-                ReadCommand readCommand = new SliceByNamesReadCommand(rowMutation.getTable(), rowMutation.key(), queryPath, subColNames);
-                readCommands.add(readCommand);
+                commands.add(new SliceByNamesReadCommand(table, key, queryPath, subColNames));
             }
         }
+    }
 
-        // replicate to non-local replicas
-        List<InetAddress> foreignReplicas = StorageService.instance.getLiveNaturalEndpoints(rowMutation.getTable(), rowMutation.key());
-        foreignReplicas.remove(FBUtilities.getLocalAddress()); // remove local replica
-
-        // create a replication RowMutation
-        RowMutation replicationMutation = new RowMutation(rowMutation.getTable(), rowMutation.key());
-        for (ReadCommand readCommand : readCommands)
+    private Row mergeOldShards(String table, Row row) throws IOException
+    {
+        ColumnFamily cf = row.cf;
+        // random check for merging to allow lessening the performance impact
+        if (cf.metadata().getMergeShardsChance() > random.get().nextDouble())
         {
-            Table table = Table.open(readCommand.table);
-            Row row = readCommand.getRow(table);
-            if (row == null || row.cf == null)
-                continue;
-            AbstractType defaultValidator = row.cf.metadata().getDefaultValidator();
-            if (defaultValidator.isCommutative())
+            ColumnFamily merger = computeShardMerger(cf);
+            if (merger != null)
             {
-                /**
-                 * Clean out contexts for all nodes we're sending the repair to, otherwise,
-                 * we could send a context which is local to one of the foreign replicas,
-                 * which would then incorrectly add that to its own count, because
-                 * local resolution aggregates.
-                 */
-                // note: the following logic could be optimized
-                for (InetAddress foreignNode : foreignReplicas)
+                RowMutation localMutation = new RowMutation(table, row.key.key);
+                localMutation.add(merger);
+                localMutation.apply();
+
+                cf.addAll(merger);
+            }
+        }
+        return row;
+    }
+
+    private ColumnFamily computeShardMerger(ColumnFamily cf)
+    {
+        ColumnFamily merger = null;
+
+        // CF type: regular
+        if (!cf.isSuper())
+        {
+            for (IColumn column : cf.getSortedColumns())
+            {
+                if (!(column instanceof CounterColumn))
+                    continue;
+                IColumn c = ((CounterColumn)column).computeOldShardMerger();
+                if (c != null)
                 {
-                    ((AbstractCommutativeType)defaultValidator).cleanContext(row.cf, foreignNode);
+                    if (merger == null)
+                        merger = cf.cloneMeShallow();
+                    merger.addColumn(c);
                 }
             }
-            replicationMutation.add(row.cf);
         }
-        return replicationMutation;
+        else // CF type: super
+        {
+            for (IColumn superColumn : cf.getSortedColumns())
+            {
+                IColumn mergerSuper = null;
+                for (IColumn column : superColumn.getSubColumns())
+                {
+                    if (!(column instanceof CounterColumn))
+                        continue;
+                    IColumn c = ((CounterColumn)column).computeOldShardMerger();
+                    if (c != null)
+                    {
+                        if (mergerSuper == null)
+                            mergerSuper = ((SuperColumn)superColumn).cloneMeShallow();
+                        mergerSuper.addColumn(c);
+                    }
+                }
+                if (mergerSuper != null)
+                {
+                    if (merger == null)
+                        merger = cf.cloneMeShallow();
+                    merger.addColumn(mergerSuper);
+                }
+            }
+        }
+        return merger;
     }
 
     public Message makeMutationMessage(int version) throws IOException

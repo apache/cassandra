@@ -173,7 +173,7 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
     {
         file.seek(columnPosition - 4); // seek to before column count int
         ColumnFamily cf = columnFamily.cloneMeShallow();
-        ColumnFamily.serializer().deserializeColumns(file, cf, false);
+        ColumnFamily.serializer().deserializeColumns(file, cf, false, false);
         return cf;
     }
 

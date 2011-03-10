@@ -72,6 +72,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
   private static final TField MEMTABLE_THROUGHPUT_IN_MB_FIELD_DESC = new TField("memtable_throughput_in_mb", TType.I32, (short)22);
   private static final TField MEMTABLE_OPERATIONS_IN_MILLIONS_FIELD_DESC = new TField("memtable_operations_in_millions", TType.DOUBLE, (short)23);
   private static final TField REPLICATE_ON_WRITE_FIELD_DESC = new TField("replicate_on_write", TType.BOOL, (short)24);
+  private static final TField MERGE_SHARDS_CHANCE_FIELD_DESC = new TField("merge_shards_chance", TType.DOUBLE, (short)25);
 
   public String keyspace;
   public String name;
@@ -94,6 +95,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
   public int memtable_throughput_in_mb;
   public double memtable_operations_in_millions;
   public boolean replicate_on_write;
+  public double merge_shards_chance;
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
   public enum _Fields implements TFieldIdEnum {
@@ -117,7 +119,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     MEMTABLE_FLUSH_AFTER_MINS((short)21, "memtable_flush_after_mins"),
     MEMTABLE_THROUGHPUT_IN_MB((short)22, "memtable_throughput_in_mb"),
     MEMTABLE_OPERATIONS_IN_MILLIONS((short)23, "memtable_operations_in_millions"),
-    REPLICATE_ON_WRITE((short)24, "replicate_on_write");
+    REPLICATE_ON_WRITE((short)24, "replicate_on_write"),
+    MERGE_SHARDS_CHANCE((short)25, "merge_shards_chance");
 
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -174,6 +177,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
           return MEMTABLE_OPERATIONS_IN_MILLIONS;
         case 24: // REPLICATE_ON_WRITE
           return REPLICATE_ON_WRITE;
+        case 25: // MERGE_SHARDS_CHANCE
+          return MERGE_SHARDS_CHANCE;
         default:
           return null;
       }
@@ -227,7 +232,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
   private static final int __MEMTABLE_THROUGHPUT_IN_MB_ISSET_ID = 10;
   private static final int __MEMTABLE_OPERATIONS_IN_MILLIONS_ISSET_ID = 11;
   private static final int __REPLICATE_ON_WRITE_ISSET_ID = 12;
-  private BitSet __isset_bit_vector = new BitSet(13);
+  private static final int __MERGE_SHARDS_CHANCE_ISSET_ID = 13;
+  private BitSet __isset_bit_vector = new BitSet(14);
 
   public static final Map<_Fields, FieldMetaData> metaDataMap;
   static {
@@ -275,6 +281,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
         new FieldValueMetaData(TType.DOUBLE)));
     tmpMap.put(_Fields.REPLICATE_ON_WRITE, new FieldMetaData("replicate_on_write", TFieldRequirementType.OPTIONAL, 
         new FieldValueMetaData(TType.BOOL)));
+    tmpMap.put(_Fields.MERGE_SHARDS_CHANCE, new FieldMetaData("merge_shards_chance", TFieldRequirementType.OPTIONAL, 
+        new FieldValueMetaData(TType.DOUBLE)));
     metaDataMap = Collections.unmodifiableMap(tmpMap);
     FieldMetaData.addStructMetaDataMap(CfDef.class, metaDataMap);
   }
@@ -350,6 +358,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     this.memtable_throughput_in_mb = other.memtable_throughput_in_mb;
     this.memtable_operations_in_millions = other.memtable_operations_in_millions;
     this.replicate_on_write = other.replicate_on_write;
+    this.merge_shards_chance = other.merge_shards_chance;
   }
 
   public CfDef deepCopy() {
@@ -394,6 +403,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     this.memtable_operations_in_millions = 0.0;
     this.replicate_on_write = false;
 
+    setMerge_shards_chanceIsSet(false);
+    this.merge_shards_chance = 0.0;
   }
 
   public String getKeyspace() {
@@ -902,6 +913,29 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     __isset_bit_vector.set(__REPLICATE_ON_WRITE_ISSET_ID, value);
   }
 
+  public double getMerge_shards_chance() {
+    return this.merge_shards_chance;
+  }
+
+  public CfDef setMerge_shards_chance(double merge_shards_chance) {
+    this.merge_shards_chance = merge_shards_chance;
+    setMerge_shards_chanceIsSet(true);
+    return this;
+  }
+
+  public void unsetMerge_shards_chance() {
+    __isset_bit_vector.clear(__MERGE_SHARDS_CHANCE_ISSET_ID);
+  }
+
+  /** Returns true if field merge_shards_chance is set (has been asigned a value) and false otherwise */
+  public boolean isSetMerge_shards_chance() {
+    return __isset_bit_vector.get(__MERGE_SHARDS_CHANCE_ISSET_ID);
+  }
+
+  public void setMerge_shards_chanceIsSet(boolean value) {
+    __isset_bit_vector.set(__MERGE_SHARDS_CHANCE_ISSET_ID, value);
+  }
+
   public void setFieldValue(_Fields field, Object value) {
     switch (field) {
     case KEYSPACE:
@@ -1072,6 +1106,14 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       }
       break;
 
+    case MERGE_SHARDS_CHANCE:
+      if (value == null) {
+        unsetMerge_shards_chance();
+      } else {
+        setMerge_shards_chance((Double)value);
+      }
+      break;
+
     }
   }
 
@@ -1140,6 +1182,9 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     case REPLICATE_ON_WRITE:
       return new Boolean(isReplicate_on_write());
 
+    case MERGE_SHARDS_CHANCE:
+      return new Double(getMerge_shards_chance());
+
     }
     throw new IllegalStateException();
   }
@@ -1193,6 +1238,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       return isSetMemtable_operations_in_millions();
     case REPLICATE_ON_WRITE:
       return isSetReplicate_on_write();
+    case MERGE_SHARDS_CHANCE:
+      return isSetMerge_shards_chance();
     }
     throw new IllegalStateException();
   }
@@ -1399,6 +1446,15 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
         return false;
     }
 
+    boolean this_present_merge_shards_chance = true && this.isSetMerge_shards_chance();
+    boolean that_present_merge_shards_chance = true && that.isSetMerge_shards_chance();
+    if (this_present_merge_shards_chance || that_present_merge_shards_chance) {
+      if (!(this_present_merge_shards_chance && that_present_merge_shards_chance))
+        return false;
+      if (this.merge_shards_chance != that.merge_shards_chance)
+        return false;
+    }
+
     return true;
   }
 
@@ -1510,6 +1566,11 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     builder.append(present_replicate_on_write);
     if (present_replicate_on_write)
       builder.append(replicate_on_write);
+
+    boolean present_merge_shards_chance = true && (isSetMerge_shards_chance());
+    builder.append(present_merge_shards_chance);
+    if (present_merge_shards_chance)
+      builder.append(merge_shards_chance);
 
     return builder.toHashCode();
   }
@@ -1732,6 +1793,16 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
         return lastComparison;
       }
     }
+    lastComparison = Boolean.valueOf(isSetMerge_shards_chance()).compareTo(typedOther.isSetMerge_shards_chance());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    if (isSetMerge_shards_chance()) {
+      lastComparison = TBaseHelper.compareTo(this.merge_shards_chance, typedOther.merge_shards_chance);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
     return 0;
   }
 
@@ -1920,6 +1991,14 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
             TProtocolUtil.skip(iprot, field.type);
           }
           break;
+        case 25: // MERGE_SHARDS_CHANCE
+          if (field.type == TType.DOUBLE) {
+            this.merge_shards_chance = iprot.readDouble();
+            setMerge_shards_chanceIsSet(true);
+          } else { 
+            TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
         default:
           TProtocolUtil.skip(iprot, field.type);
       }
@@ -2057,6 +2136,11 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     if (isSetReplicate_on_write()) {
       oprot.writeFieldBegin(REPLICATE_ON_WRITE_FIELD_DESC);
       oprot.writeBool(this.replicate_on_write);
+      oprot.writeFieldEnd();
+    }
+    if (isSetMerge_shards_chance()) {
+      oprot.writeFieldBegin(MERGE_SHARDS_CHANCE_FIELD_DESC);
+      oprot.writeDouble(this.merge_shards_chance);
       oprot.writeFieldEnd();
     }
     oprot.writeFieldStop();
@@ -2219,6 +2303,12 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       if (!first) sb.append(", ");
       sb.append("replicate_on_write:");
       sb.append(this.replicate_on_write);
+      first = false;
+    }
+    if (isSetMerge_shards_chance()) {
+      if (!first) sb.append(", ");
+      sb.append("merge_shards_chance:");
+      sb.append(this.merge_shards_chance);
       first = false;
     }
     sb.append(")");

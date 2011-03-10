@@ -226,6 +226,7 @@ public class CreateColumnFamilyStatement
                                   getPropertyInt(KW_MEMTABLEFLUSHINMINS, CFMetaData.DEFAULT_MEMTABLE_LIFETIME_IN_MINS),
                                   getPropertyInt(KW_MEMTABLESIZEINMB, CFMetaData.DEFAULT_MEMTABLE_THROUGHPUT_IN_MB),
                                   getPropertyDouble(KW_MEMTABLEOPSINMILLIONS, CFMetaData.DEFAULT_MEMTABLE_OPERATIONS_IN_MILLIONS),
+                                  0,
                                   getColumns(comparator));
         }
         catch (ConfigurationException e)

@@ -123,6 +123,7 @@ public class DefsTest extends CleanupHelper
                 500,
                 500,
                 500.0,
+                0,
                 indexes);
         
         // we'll be adding this one later. make sure it's not already there.
@@ -779,6 +780,7 @@ public class DefsTest extends CleanupHelper
                               CFMetaData.DEFAULT_MEMTABLE_LIFETIME_IN_MINS,
                               CFMetaData.DEFAULT_MEMTABLE_THROUGHPUT_IN_MB,
                               CFMetaData.DEFAULT_MEMTABLE_OPERATIONS_IN_MILLIONS,
+                              0,
                               Collections.<ByteBuffer, ColumnDefinition>emptyMap());
     }
 }

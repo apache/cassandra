@@ -1306,9 +1306,10 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         if (tableName.equals("system"))
             throw new RuntimeException("Cleanup of the system table is neither necessary nor wise");
 
+        NodeId.OneShotRenewer nodeIdRenewer = new NodeId.OneShotRenewer();
         for (ColumnFamilyStore cfStore : getValidColumnFamilies(tableName, columnFamilies))
         {
-            cfStore.forceCleanup();
+            cfStore.forceCleanup(nodeIdRenewer);
         }
     }
 

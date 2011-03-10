@@ -377,12 +377,14 @@ public class DatabaseDescriptor
                                                    CFMetaData.HintsCf,
                                                    CFMetaData.MigrationsCf,
                                                    CFMetaData.SchemaCf,
-                                                   CFMetaData.IndexCf);
+                                                   CFMetaData.IndexCf,
+                                                   CFMetaData.NodeIdCf);
             CFMetaData.map(CFMetaData.StatusCf);
             CFMetaData.map(CFMetaData.HintsCf);
             CFMetaData.map(CFMetaData.MigrationsCf);
             CFMetaData.map(CFMetaData.SchemaCf);
             CFMetaData.map(CFMetaData.IndexCf);
+            CFMetaData.map(CFMetaData.NodeIdCf);
             tables.put(Table.SYSTEM_TABLE, systemMeta);
             
             /* Load the seeds for node contact points */
@@ -605,6 +607,11 @@ public class DatabaseDescriptor
                     throw new ConfigurationException("memtable_operations_in_millions must be a positive double");
                 }
 
+                if (cf.merge_shards_chance < 0.0 || cf.merge_shards_chance > 1.0)
+                {
+                    throw new ConfigurationException("merge_shards_chance must be between 0.0 and 1.0 (0% and 100%)");
+                }
+
                  Map<ByteBuffer, ColumnDefinition> metadata = new TreeMap<ByteBuffer, ColumnDefinition>();
 
                 for (RawColumnDefinition rcd : cf.column_metadata)
@@ -646,6 +653,7 @@ public class DatabaseDescriptor
                                              cf.memtable_flush_after_mins,
                                              cf.memtable_throughput_in_mb,
                                              cf.memtable_operations_in_millions,
+                                             cf.merge_shards_chance,
                                              metadata);
             }
             defs.add(new KSMetaData(keyspace.name,

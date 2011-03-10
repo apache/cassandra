@@ -151,12 +151,10 @@ public abstract class AntiEntropyServiceTestAbstract extends CleanupHelper
         validator.prepare(store);
 
         // add a row with the minimum token
-        validator.add(new PrecompactedRow(new DecoratedKey(min, ByteBufferUtil.bytes("nonsense!")),
-                                       new DataOutputBuffer()));
+        validator.add(new PrecompactedRow(new DecoratedKey(min, ByteBufferUtil.bytes("nonsense!")), null));
 
         // and a row after it
-        validator.add(new PrecompactedRow(new DecoratedKey(mid, ByteBufferUtil.bytes("inconceivable!")),
-                                       new DataOutputBuffer()));
+        validator.add(new PrecompactedRow(new DecoratedKey(mid, ByteBufferUtil.bytes("inconceivable!")), null));
         validator.complete();
 
         // confirm that the tree was validated

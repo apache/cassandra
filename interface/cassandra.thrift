@@ -397,6 +397,7 @@ struct CfDef {
     22: optional i32 memtable_throughput_in_mb,
     23: optional double memtable_operations_in_millions,
     24: optional bool replicate_on_write=0,
+    25: optional double merge_shards_chance,
 }
 
 /* describes a keyspace. */

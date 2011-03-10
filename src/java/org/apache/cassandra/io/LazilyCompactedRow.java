@@ -34,6 +34,7 @@ import org.apache.commons.collections.iterators.CollatingIterator;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ColumnIndexer;
+import org.apache.cassandra.db.CounterColumn;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.sstable.SSTable;
@@ -143,17 +144,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements IIterabl
         Iterator<IColumn> iter = iterator();
         while (iter.hasNext())
         {
-            IColumn column = iter.next();
-            out.reset();
-            try
-            {
-                emptyColumnFamily.getColumnSerializer().serialize(column, out);
-            }
-            catch (IOException e)
-            {
-                throw new IOError(e);
-            }
-            digest.update(out.getData(), 0, out.getLength());
+            iter.next().updateDigest(digest);
         }
     }
 
@@ -225,6 +216,10 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements IIterabl
             assert container != null;
             IColumn reduced = container.iterator().next();
             ColumnFamily purged = shouldPurge ? ColumnFamilyStore.removeDeleted(container, gcBefore) : container;
+            if (purged != null && purged.metadata().getDefaultValidator().isCommutative())
+            {
+                CounterColumn.removeOldShards(purged, gcBefore);
+            }
             if (purged == null || !purged.iterator().hasNext())
             {
                 container.clear();

@@ -33,315 +33,279 @@ import org.junit.Test;
 
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.context.IContext.ContextRelationship;
-import org.apache.cassandra.utils.FBUtilities;
+import static org.apache.cassandra.db.context.CounterContext.ContextState;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.NodeId;
 
-/**
- * Note: these tests assume IPv4 (4 bytes) is used for id.
- *       if IPv6 (16 bytes) is used, tests will fail (but the code will work).
- *       however, it might be pragmatic to modify the code to just use
- *       the IPv4 portion of the IPv6 address-space.
- */
 public class CounterContextTest
 {
     private static final CounterContext cc = new CounterContext();
 
-    private static final InetAddress idAddress;
-    private static final byte[] id;
     private static final int idLength;
     private static final int clockLength;
     private static final int countLength;
 
     private static final int stepLength;
-    private static final int defaultEntries;
 
     static
     {
-        idAddress      = FBUtilities.getLocalAddress();
-        id             = idAddress.getAddress();
-        idLength       = 4; // size of int
+        idLength       = NodeId.LENGTH; // size of int
         clockLength    = 8; // size of long
         countLength    = 8; // size of long
         stepLength     = idLength + clockLength + countLength;
-
-        defaultEntries = 10;
     }
 
     @Test
     public void testCreate()
     {
         ByteBuffer context = cc.create(4);
-        assert context.remaining() == stepLength;
+        assert context.remaining() == stepLength + 4;
     }
 
     @Test
     public void testDiff()
     {
-        ByteBuffer left = ByteBuffer.allocate(3 * stepLength);
-        ByteBuffer right;
+        ContextState left = ContextState.allocate(3, 0);
+        ContextState right;
 
         // equality: equal nodes, all counts same
-        cc.writeElementAtOffset(left, 0 * stepLength, FBUtilities.toByteArray(3), 3L, 0L);
-        cc.writeElementAtOffset(left, 1 * stepLength, FBUtilities.toByteArray(6), 2L, 0L);
-        cc.writeElementAtOffset(left, 2 * stepLength, FBUtilities.toByteArray(9), 1L, 0L);
-        right = ByteBufferUtil.clone(left);
+        left.writeElement(NodeId.fromInt(3), 3L, 0L);
+        left.writeElement(NodeId.fromInt(6), 2L, 0L);
+        left.writeElement(NodeId.fromInt(9), 1L, 0L);
+        right = new ContextState(ByteBufferUtil.clone(left.context), left.headerLength);
 
         assert ContextRelationship.EQUAL ==
-            cc.diff(left, right);
+            cc.diff(left.context, right.context);
 
         // greater than: left has superset of nodes (counts equal)
-        left = ByteBuffer.allocate(4 * stepLength);
-        cc.writeElementAtOffset(left, 0 * stepLength, FBUtilities.toByteArray(3),  3L, 0L);
-        cc.writeElementAtOffset(left, 1 * stepLength, FBUtilities.toByteArray(6),  2L, 0L);
-        cc.writeElementAtOffset(left, 2 * stepLength, FBUtilities.toByteArray(9),  1L, 0L);
-        cc.writeElementAtOffset(left, 3 * stepLength, FBUtilities.toByteArray(12), 0L, 0L);
+        left = ContextState.allocate(4, 0);
+        left.writeElement(NodeId.fromInt(3),  3L, 0L);
+        left.writeElement(NodeId.fromInt(6),  2L, 0L);
+        left.writeElement(NodeId.fromInt(9),  1L, 0L);
+        left.writeElement(NodeId.fromInt(12), 0L, 0L);
 
-        right = ByteBuffer.allocate(3 * stepLength);
-        cc.writeElementAtOffset(right, 0 * stepLength, FBUtilities.toByteArray(3), 3L, 0L);
-        cc.writeElementAtOffset(right, 1 * stepLength, FBUtilities.toByteArray(6), 2L, 0L);
-        cc.writeElementAtOffset(right, 2 * stepLength, FBUtilities.toByteArray(9), 1L, 0L);
+        right = ContextState.allocate(3, 0);
+        right.writeElement(NodeId.fromInt(3), 3L, 0L);
+        right.writeElement(NodeId.fromInt(6), 2L, 0L);
+        right.writeElement(NodeId.fromInt(9), 1L, 0L);
 
         assert ContextRelationship.GREATER_THAN ==
-            cc.diff(left, right);
+            cc.diff(left.context, right.context);
         
         // less than: left has subset of nodes (counts equal)
-        left = ByteBuffer.allocate(3 * stepLength);
-        cc.writeElementAtOffset(left, 0 * stepLength, FBUtilities.toByteArray(3), 3L, 0L);
-        cc.writeElementAtOffset(left, 1 * stepLength, FBUtilities.toByteArray(6), 2L, 0L);
-        cc.writeElementAtOffset(left, 2 * stepLength, FBUtilities.toByteArray(9), 1L, 0L);
+        left = ContextState.allocate(3, 0);
+        left.writeElement(NodeId.fromInt(3), 3L, 0L);
+        left.writeElement(NodeId.fromInt(6), 2L, 0L);
+        left.writeElement(NodeId.fromInt(9), 1L, 0L);
 
-        right = ByteBuffer.allocate(4 * stepLength);
-        cc.writeElementAtOffset(right, 0 * stepLength, FBUtilities.toByteArray(3),  3L, 0L);
-        cc.writeElementAtOffset(right, 1 * stepLength, FBUtilities.toByteArray(6),  2L, 0L);
-        cc.writeElementAtOffset(right, 2 * stepLength, FBUtilities.toByteArray(9),  1L, 0L);
-        cc.writeElementAtOffset(right, 3 * stepLength, FBUtilities.toByteArray(12), 0L, 0L);
+        right = ContextState.allocate(4, 0);
+        right.writeElement(NodeId.fromInt(3),  3L, 0L);
+        right.writeElement(NodeId.fromInt(6),  2L, 0L);
+        right.writeElement(NodeId.fromInt(9),  1L, 0L);
+        right.writeElement(NodeId.fromInt(12), 0L, 0L);
 
         assert ContextRelationship.LESS_THAN ==
-            cc.diff(left, right);
+            cc.diff(left.context, right.context);
 
         // greater than: equal nodes, but left has higher counts
-        left = ByteBuffer.allocate(3 * stepLength);
-        cc.writeElementAtOffset(left, 0 * stepLength, FBUtilities.toByteArray(3), 3L, 0L);
-        cc.writeElementAtOffset(left, 1 * stepLength, FBUtilities.toByteArray(6), 2L, 0L);
-        cc.writeElementAtOffset(left, 2 * stepLength, FBUtilities.toByteArray(9), 3L, 0L);
+        left = ContextState.allocate(3, 0);
+        left.writeElement(NodeId.fromInt(3), 3L, 0L);
+        left.writeElement(NodeId.fromInt(6), 2L, 0L);
+        left.writeElement(NodeId.fromInt(9), 3L, 0L);
 
-        right = ByteBuffer.allocate(3 * stepLength);
-        cc.writeElementAtOffset(right, 0 * stepLength, FBUtilities.toByteArray(3), 3L, 0L);
-        cc.writeElementAtOffset(right, 1 * stepLength, FBUtilities.toByteArray(6), 2L, 0L);
-        cc.writeElementAtOffset(right, 2 * stepLength, FBUtilities.toByteArray(9), 1L, 0L);
+        right = ContextState.allocate(3, 0);
+        right.writeElement(NodeId.fromInt(3), 3L, 0L);
+        right.writeElement(NodeId.fromInt(6), 2L, 0L);
+        right.writeElement(NodeId.fromInt(9), 1L, 0L);
 
         assert ContextRelationship.GREATER_THAN ==
-            cc.diff(left, right);
+            cc.diff(left.context, right.context);
 
         // less than: equal nodes, but right has higher counts
-        left = ByteBuffer.allocate(3 * stepLength);
-        cc.writeElementAtOffset(left, 0 * stepLength, FBUtilities.toByteArray(3), 3L, 0L);
-        cc.writeElementAtOffset(left, 1 * stepLength, FBUtilities.toByteArray(6), 2L, 0L);
-        cc.writeElementAtOffset(left, 2 * stepLength, FBUtilities.toByteArray(9), 3L, 0L);
+        left = ContextState.allocate(3, 0);
+        left.writeElement(NodeId.fromInt(3), 3L, 0L);
+        left.writeElement(NodeId.fromInt(6), 2L, 0L);
+        left.writeElement(NodeId.fromInt(9), 3L, 0L);
 
-        right = ByteBuffer.allocate(3 * stepLength);
-        cc.writeElementAtOffset(right, 0 * stepLength, FBUtilities.toByteArray(3), 3L, 0L);
-        cc.writeElementAtOffset(right, 1 * stepLength, FBUtilities.toByteArray(6), 9L, 0L);
-        cc.writeElementAtOffset(right, 2 * stepLength, FBUtilities.toByteArray(9), 3L, 0L);
+        right = ContextState.allocate(3, 0);
+        right.writeElement(NodeId.fromInt(3), 3L, 0L);
+        right.writeElement(NodeId.fromInt(6), 9L, 0L);
+        right.writeElement(NodeId.fromInt(9), 3L, 0L);
 
         assert ContextRelationship.LESS_THAN ==
-            cc.diff(left, right);
+            cc.diff(left.context, right.context);
 
         // disjoint: right and left have disjoint node sets
-        left = ByteBuffer.allocate(3 * stepLength);
-        cc.writeElementAtOffset(left, 0 * stepLength, FBUtilities.toByteArray(3), 1L, 0L);
-        cc.writeElementAtOffset(left, 1 * stepLength, FBUtilities.toByteArray(4), 1L, 0L);
-        cc.writeElementAtOffset(left, 2 * stepLength, FBUtilities.toByteArray(9), 1L, 0L);
+        left = ContextState.allocate(3, 0);
+        left.writeElement(NodeId.fromInt(3), 1L, 0L);
+        left.writeElement(NodeId.fromInt(4), 1L, 0L);
+        left.writeElement(NodeId.fromInt(9), 1L, 0L);
 
-        right = ByteBuffer.allocate(3 * stepLength);
-        cc.writeElementAtOffset(right, 0 * stepLength, FBUtilities.toByteArray(3), 1L, 0L);
-        cc.writeElementAtOffset(right, 1 * stepLength, FBUtilities.toByteArray(6), 1L, 0L);
-        cc.writeElementAtOffset(right, 2 * stepLength, FBUtilities.toByteArray(9), 1L, 0L);
-
-        assert ContextRelationship.DISJOINT ==
-            cc.diff(left, right);
-
-        left = ByteBuffer.allocate(3 * stepLength);
-        cc.writeElementAtOffset(left, 0 * stepLength, FBUtilities.toByteArray(3), 1L, 0L);
-        cc.writeElementAtOffset(left, 1 * stepLength, FBUtilities.toByteArray(4), 1L, 0L);
-        cc.writeElementAtOffset(left, 2 * stepLength, FBUtilities.toByteArray(9), 1L, 0L);
-
-        right = ByteBuffer.allocate(3 * stepLength);
-        cc.writeElementAtOffset(right, 0 * stepLength, FBUtilities.toByteArray(2),  1L, 0L);
-        cc.writeElementAtOffset(right, 1 * stepLength, FBUtilities.toByteArray(6),  1L, 0L);
-        cc.writeElementAtOffset(right, 2 * stepLength, FBUtilities.toByteArray(12), 1L, 0L);
+        right = ContextState.allocate(3, 0);
+        right.writeElement(NodeId.fromInt(3), 1L, 0L);
+        right.writeElement(NodeId.fromInt(6), 1L, 0L);
+        right.writeElement(NodeId.fromInt(9), 1L, 0L);
 
         assert ContextRelationship.DISJOINT ==
-            cc.diff(left, right);
+            cc.diff(left.context, right.context);
+
+        left = ContextState.allocate(3, 0);
+        left.writeElement(NodeId.fromInt(3), 1L, 0L);
+        left.writeElement(NodeId.fromInt(4), 1L, 0L);
+        left.writeElement(NodeId.fromInt(9), 1L, 0L);
+
+        right = ContextState.allocate(3, 0);
+        right.writeElement(NodeId.fromInt(2),  1L, 0L);
+        right.writeElement(NodeId.fromInt(6),  1L, 0L);
+        right.writeElement(NodeId.fromInt(12), 1L, 0L);
+
+        assert ContextRelationship.DISJOINT ==
+            cc.diff(left.context, right.context);
 
         // disjoint: equal nodes, but right and left have higher counts in differing nodes
-        left = ByteBuffer.allocate(3 * stepLength);
-        cc.writeElementAtOffset(left, 0 * stepLength, FBUtilities.toByteArray(3), 1L, 0L);
-        cc.writeElementAtOffset(left, 1 * stepLength, FBUtilities.toByteArray(6), 3L, 0L);
-        cc.writeElementAtOffset(left, 2 * stepLength, FBUtilities.toByteArray(9), 1L, 0L);
+        left = ContextState.allocate(3, 0);
+        left.writeElement(NodeId.fromInt(3), 1L, 0L);
+        left.writeElement(NodeId.fromInt(6), 3L, 0L);
+        left.writeElement(NodeId.fromInt(9), 1L, 0L);
 
-        right = ByteBuffer.allocate(3 * stepLength);
-        cc.writeElementAtOffset(right, 0 * stepLength, FBUtilities.toByteArray(3), 1L, 0L);
-        cc.writeElementAtOffset(right, 1 * stepLength, FBUtilities.toByteArray(6), 1L, 0L);
-        cc.writeElementAtOffset(right, 2 * stepLength, FBUtilities.toByteArray(9), 5L, 0L);
-
-        assert ContextRelationship.DISJOINT ==
-            cc.diff(left, right);
-
-        left = ByteBuffer.allocate(3 * stepLength);
-        cc.writeElementAtOffset(left, 0 * stepLength, FBUtilities.toByteArray(3), 2L, 0L);
-        cc.writeElementAtOffset(left, 1 * stepLength, FBUtilities.toByteArray(6), 3L, 0L);
-        cc.writeElementAtOffset(left, 2 * stepLength, FBUtilities.toByteArray(9), 1L, 0L);
-
-        right = ByteBuffer.allocate(3 * stepLength);
-        cc.writeElementAtOffset(right, 0 * stepLength, FBUtilities.toByteArray(3), 1L, 0L);
-        cc.writeElementAtOffset(right, 1 * stepLength, FBUtilities.toByteArray(6), 9L, 0L);
-        cc.writeElementAtOffset(right, 2 * stepLength, FBUtilities.toByteArray(9), 5L, 0L);
+        right = ContextState.allocate(3, 0);
+        right.writeElement(NodeId.fromInt(3), 1L, 0L);
+        right.writeElement(NodeId.fromInt(6), 1L, 0L);
+        right.writeElement(NodeId.fromInt(9), 5L, 0L);
 
         assert ContextRelationship.DISJOINT ==
-            cc.diff(left, right);
+            cc.diff(left.context, right.context);
+
+        left = ContextState.allocate(3, 0);
+        left.writeElement(NodeId.fromInt(3), 2L, 0L);
+        left.writeElement(NodeId.fromInt(6), 3L, 0L);
+        left.writeElement(NodeId.fromInt(9), 1L, 0L);
+
+        right = ContextState.allocate(3, 0);
+        right.writeElement(NodeId.fromInt(3), 1L, 0L);
+        right.writeElement(NodeId.fromInt(6), 9L, 0L);
+        right.writeElement(NodeId.fromInt(9), 5L, 0L);
+
+        assert ContextRelationship.DISJOINT ==
+            cc.diff(left.context, right.context);
 
         // disjoint: left has more nodes, but lower counts
-        left = ByteBuffer.allocate(4 * stepLength);
-        cc.writeElementAtOffset(left, 0 * stepLength, FBUtilities.toByteArray(3),  2L, 0L);
-        cc.writeElementAtOffset(left, 1 * stepLength, FBUtilities.toByteArray(6),  3L, 0L);
-        cc.writeElementAtOffset(left, 2 * stepLength, FBUtilities.toByteArray(9),  1L, 0L);
-        cc.writeElementAtOffset(left, 3 * stepLength, FBUtilities.toByteArray(12), 1L, 0L);
+        left = ContextState.allocate(4, 0);
+        left.writeElement(NodeId.fromInt(3),  2L, 0L);
+        left.writeElement(NodeId.fromInt(6),  3L, 0L);
+        left.writeElement(NodeId.fromInt(9),  1L, 0L);
+        left.writeElement(NodeId.fromInt(12), 1L, 0L);
 
-        right = ByteBuffer.allocate(3 * stepLength);
-        cc.writeElementAtOffset(right, 0 * stepLength, FBUtilities.toByteArray(3), 4L, 0L);
-        cc.writeElementAtOffset(right, 1 * stepLength, FBUtilities.toByteArray(6), 9L, 0L);
-        cc.writeElementAtOffset(right, 2 * stepLength, FBUtilities.toByteArray(9), 5L, 0L);
+        right = ContextState.allocate(3, 0);
+        right.writeElement(NodeId.fromInt(3), 4L, 0L);
+        right.writeElement(NodeId.fromInt(6), 9L, 0L);
+        right.writeElement(NodeId.fromInt(9), 5L, 0L);
 
         assert ContextRelationship.DISJOINT ==
-            cc.diff(left, right);
+            cc.diff(left.context, right.context);
         
         // disjoint: left has less nodes, but higher counts
-        left = ByteBuffer.allocate(3 * stepLength);
-        cc.writeElementAtOffset(left, 0 * stepLength, FBUtilities.toByteArray(3), 5L, 0L);
-        cc.writeElementAtOffset(left, 1 * stepLength, FBUtilities.toByteArray(6), 3L, 0L);
-        cc.writeElementAtOffset(left, 2 * stepLength, FBUtilities.toByteArray(9), 2L, 0L);
+        left = ContextState.allocate(3, 0);
+        left.writeElement(NodeId.fromInt(3), 5L, 0L);
+        left.writeElement(NodeId.fromInt(6), 3L, 0L);
+        left.writeElement(NodeId.fromInt(9), 2L, 0L);
 
-        right = ByteBuffer.allocate(4 * stepLength);
-        cc.writeElementAtOffset(right, 0 * stepLength, FBUtilities.toByteArray(3),  4L, 0L);
-        cc.writeElementAtOffset(right, 1 * stepLength, FBUtilities.toByteArray(6),  3L, 0L);
-        cc.writeElementAtOffset(right, 2 * stepLength, FBUtilities.toByteArray(9),  2L, 0L);
-        cc.writeElementAtOffset(right, 3 * stepLength, FBUtilities.toByteArray(12), 1L, 0L);
+        right = ContextState.allocate(4, 0);
+        right.writeElement(NodeId.fromInt(3),  4L, 0L);
+        right.writeElement(NodeId.fromInt(6),  3L, 0L);
+        right.writeElement(NodeId.fromInt(9),  2L, 0L);
+        right.writeElement(NodeId.fromInt(12), 1L, 0L);
 
         assert ContextRelationship.DISJOINT ==
-            cc.diff(left, right);
+            cc.diff(left.context, right.context);
 
         // disjoint: mixed nodes and counts
-        left = ByteBuffer.allocate(3 * stepLength);
-        cc.writeElementAtOffset(left, 0 * stepLength, FBUtilities.toByteArray(3), 5L, 0L);
-        cc.writeElementAtOffset(left, 1 * stepLength, FBUtilities.toByteArray(6), 2L, 0L);
-        cc.writeElementAtOffset(left, 2 * stepLength, FBUtilities.toByteArray(9), 2L, 0L);
+        left = ContextState.allocate(3, 0);
+        left.writeElement(NodeId.fromInt(3), 5L, 0L);
+        left.writeElement(NodeId.fromInt(6), 2L, 0L);
+        left.writeElement(NodeId.fromInt(9), 2L, 0L);
 
-        right = ByteBuffer.allocate(4 * stepLength);
-        cc.writeElementAtOffset(right, 0 * stepLength, FBUtilities.toByteArray(3),  4L, 0L);
-        cc.writeElementAtOffset(right, 1 * stepLength, FBUtilities.toByteArray(6),  3L, 0L);
-        cc.writeElementAtOffset(right, 2 * stepLength, FBUtilities.toByteArray(9),  2L, 0L);
-        cc.writeElementAtOffset(right, 3 * stepLength, FBUtilities.toByteArray(12), 1L, 0L);
-
-        assert ContextRelationship.DISJOINT ==
-            cc.diff(left, right);
-
-        left = ByteBuffer.allocate(4 * stepLength);
-        cc.writeElementAtOffset(left, 0 * stepLength, FBUtilities.toByteArray(3), 5L, 0L);
-        cc.writeElementAtOffset(left, 1 * stepLength, FBUtilities.toByteArray(6), 2L, 0L);
-        cc.writeElementAtOffset(left, 2 * stepLength, FBUtilities.toByteArray(7), 2L, 0L);
-        cc.writeElementAtOffset(left, 3 * stepLength, FBUtilities.toByteArray(9), 2L, 0L);
-
-        right = ByteBuffer.allocate(3 * stepLength);
-        cc.writeElementAtOffset(right, 0 * stepLength, FBUtilities.toByteArray(3), 4L, 0L);
-        cc.writeElementAtOffset(right, 1 * stepLength, FBUtilities.toByteArray(6), 3L, 0L);
-        cc.writeElementAtOffset(right, 2 * stepLength, FBUtilities.toByteArray(9), 2L, 0L);
+        right = ContextState.allocate(4, 0);
+        right.writeElement(NodeId.fromInt(3),  4L, 0L);
+        right.writeElement(NodeId.fromInt(6),  3L, 0L);
+        right.writeElement(NodeId.fromInt(9),  2L, 0L);
+        right.writeElement(NodeId.fromInt(12), 1L, 0L);
 
         assert ContextRelationship.DISJOINT ==
-            cc.diff(left, right);
+            cc.diff(left.context, right.context);
+
+        left = ContextState.allocate(4, 0);
+        left.writeElement(NodeId.fromInt(3), 5L, 0L);
+        left.writeElement(NodeId.fromInt(6), 2L, 0L);
+        left.writeElement(NodeId.fromInt(7), 2L, 0L);
+        left.writeElement(NodeId.fromInt(9), 2L, 0L);
+
+        right = ContextState.allocate(3, 0);
+        right.writeElement(NodeId.fromInt(3), 4L, 0L);
+        right.writeElement(NodeId.fromInt(6), 3L, 0L);
+        right.writeElement(NodeId.fromInt(9), 2L, 0L);
+
+        assert ContextRelationship.DISJOINT ==
+            cc.diff(left.context, right.context);
     }
 
     @Test
     public void testMerge()
     {
         // note: local counts aggregated; remote counts are reconciled (i.e. take max)
-        ByteBuffer left = ByteBuffer.allocate(4 * stepLength);
-        cc.writeElementAtOffset(left, 0 * stepLength, FBUtilities.toByteArray(1), 1L, 1L);
-        cc.writeElementAtOffset(left, 1 * stepLength, FBUtilities.toByteArray(2), 2L, 2L);
-        cc.writeElementAtOffset(left, 2 * stepLength, FBUtilities.toByteArray(4), 6L, 3L);
-        cc.writeElementAtOffset(
-            left,
-            3 * stepLength,
-            FBUtilities.getLocalAddress().getAddress(),
-            7L,
-            3L);
+        ContextState left = ContextState.allocate(4, 1);
+        left.writeElement(NodeId.fromInt(1), 1L, 1L);
+        left.writeElement(NodeId.fromInt(2), 2L, 2L);
+        left.writeElement(NodeId.fromInt(4), 6L, 3L);
+        left.writeElement(NodeId.getLocalId(), 7L, 3L, true);
 
-        ByteBuffer right = ByteBuffer.allocate(3 * stepLength);
-        cc.writeElementAtOffset(right, 0 * stepLength, FBUtilities.toByteArray(4), 4L, 4L);
-        cc.writeElementAtOffset(right, 1 * stepLength, FBUtilities.toByteArray(5), 5L, 5L);
-        cc.writeElementAtOffset(
-            right,
-            2 * stepLength,
-            FBUtilities.getLocalAddress().getAddress(),
-            2L,
-            9L);
+        ContextState right = ContextState.allocate(3, 1);
+        right.writeElement(NodeId.fromInt(4), 4L, 4L);
+        right.writeElement(NodeId.fromInt(5), 5L, 5L);
+        right.writeElement(NodeId.getLocalId(), 2L, 9L, true);
 
-        ByteBuffer merged = cc.merge(left, right);
+        ByteBuffer merged = cc.merge(left.context, right.context);
+        int hd = 4;
 
-        assertEquals(5 * stepLength, merged.remaining());
+        assertEquals(hd + 5 * stepLength, merged.remaining());
         // local node id's counts are aggregated
-        assertEquals(0, ByteBufferUtil.compareSubArrays(
-            ByteBuffer.wrap(FBUtilities.getLocalAddress().getAddress()),
-            0,
-            merged,
-            4*stepLength,
-            4));
-        assertEquals(  9L, merged.getLong(4*stepLength + idLength));
-        assertEquals(12L,  merged.getLong(4*stepLength + idLength + clockLength));
+        assert Util.equalsNodeId(NodeId.getLocalId(), merged, hd + 4*stepLength);
+        assertEquals(  9L, merged.getLong(hd + 4*stepLength + idLength));
+        assertEquals(12L,  merged.getLong(hd + 4*stepLength + idLength + clockLength));
 
         // remote node id counts are reconciled (i.e. take max)
-        assertEquals( 4,   merged.getInt( 2*stepLength));
-        assertEquals( 6L,  merged.getLong(2*stepLength + idLength));
-        assertEquals( 3L,  merged.getLong(2*stepLength + idLength + clockLength));
+        assert Util.equalsNodeId(NodeId.fromInt(4), merged, hd + 2*stepLength);
+        assertEquals( 6L,  merged.getLong(hd + 2*stepLength + idLength));
+        assertEquals( 3L,  merged.getLong(hd + 2*stepLength + idLength + clockLength));
 
-        assertEquals( 5,   merged.getInt( 3*stepLength));
-        assertEquals( 5L,  merged.getLong(3*stepLength + idLength));
-        assertEquals( 5L,  merged.getLong(3*stepLength + idLength + clockLength));
+        assert Util.equalsNodeId(NodeId.fromInt(5), merged, hd + 3*stepLength);
+        assertEquals( 5L,  merged.getLong(hd + 3*stepLength + idLength));
+        assertEquals( 5L,  merged.getLong(hd + 3*stepLength + idLength + clockLength));
 
-        assertEquals( 2,   merged.getInt( 1*stepLength));
-        assertEquals( 2L,  merged.getLong(1*stepLength + idLength));
-        assertEquals( 2L,  merged.getLong(1*stepLength + idLength + clockLength));
+        assert Util.equalsNodeId(NodeId.fromInt(2), merged, hd + 1*stepLength);
+        assertEquals( 2L,  merged.getLong(hd + 1*stepLength + idLength));
+        assertEquals( 2L,  merged.getLong(hd + 1*stepLength + idLength + clockLength));
 
-        assertEquals( 1,   merged.getInt( 0*stepLength));
-        assertEquals( 1L,  merged.getLong(0*stepLength + idLength));
-        assertEquals( 1L,  merged.getLong(0*stepLength + idLength + clockLength));
+        assert Util.equalsNodeId(NodeId.fromInt(1), merged, hd + 0*stepLength);
+        assertEquals( 1L,  merged.getLong(hd + 0*stepLength + idLength));
+        assertEquals( 1L,  merged.getLong(hd + 0*stepLength + idLength + clockLength));
     }
 
     @Test
     public void testTotal()
     {
-        ByteBuffer left = ByteBuffer.allocate(4 * stepLength);
-        cc.writeElementAtOffset(left, 0 * stepLength, FBUtilities.toByteArray(1), 1L, 1L);
-        cc.writeElementAtOffset(left, 1 * stepLength, FBUtilities.toByteArray(2), 2L, 2L);
-        cc.writeElementAtOffset(left, 2 * stepLength, FBUtilities.toByteArray(4), 3L, 3L);
-        cc.writeElementAtOffset(
-            left,
-            3 * stepLength,
-            FBUtilities.getLocalAddress().getAddress(),
-            3L,
-            3L);
+        ContextState left = ContextState.allocate(4, 1);
+        left.writeElement(NodeId.fromInt(1), 1L, 1L);
+        left.writeElement(NodeId.fromInt(2), 2L, 2L);
+        left.writeElement(NodeId.fromInt(4), 3L, 3L);
+        left.writeElement(NodeId.getLocalId(), 3L, 3L, true);
 
-        ByteBuffer right = ByteBuffer.allocate(3 * stepLength);
-        cc.writeElementAtOffset(right, 0 * stepLength, FBUtilities.toByteArray(4), 4L, 4L);
-        cc.writeElementAtOffset(right, 1 * stepLength, FBUtilities.toByteArray(5), 5L, 5L);
-        cc.writeElementAtOffset(
-            right,
-            2 * stepLength,
-            FBUtilities.getLocalAddress().getAddress(),
-            9L,
-            9L);
+        ContextState right = ContextState.allocate(3, 1);
+        right.writeElement(NodeId.fromInt(4), 4L, 4L);
+        right.writeElement(NodeId.fromInt(5), 5L, 5L);
+        right.writeElement(NodeId.getLocalId(), 9L, 9L, true);
 
-        ByteBuffer merged = cc.merge(left, right);
+        ByteBuffer merged = cc.merge(left.context, right.context);
 
         // 127.0.0.1: 12 (3+9)
         // 0.0.0.1:    1
@@ -353,30 +317,100 @@ public class CounterContextTest
     }
 
     @Test
-    public void testCleanNodeCounts() throws UnknownHostException
+    public void testMergeOldShards()
     {
-        ByteBuffer bytes = ByteBuffer.allocate(4 * stepLength);
-        cc.writeElementAtOffset(bytes, 0 * stepLength, FBUtilities.toByteArray(1), 1L, 1L);
-        cc.writeElementAtOffset(bytes, 1 * stepLength, FBUtilities.toByteArray(2), 2L, 2L);
-        cc.writeElementAtOffset(bytes, 2 * stepLength, FBUtilities.toByteArray(4), 3L, 3L);
-        cc.writeElementAtOffset(bytes, 3 * stepLength, FBUtilities.toByteArray(8), 4L, 4L);
+        long now = System.currentTimeMillis();
+        NodeId id1 = NodeId.fromInt(1);
+        NodeId id3 = NodeId.fromInt(3);
+        List<NodeId.NodeIdRecord> records = new ArrayList<NodeId.NodeIdRecord>();
+        records.add(new NodeId.NodeIdRecord(id1, 2L));
+        records.add(new NodeId.NodeIdRecord(id3, 4L));
 
-        assertEquals(4, bytes.getInt( 2*stepLength));
-        assertEquals(3L, bytes.getLong(2*stepLength + idLength));
+        // Destination of merge is a delta
+        ContextState ctx = ContextState.allocate(5, 2);
+        ctx.writeElement(id1, 1L, 1L);
+        ctx.writeElement(NodeId.fromInt(2), 2L, 2L);
+        ctx.writeElement(id3, 3L, 3L, true);
+        ctx.writeElement(NodeId.fromInt(4), 6L, 3L);
+        ctx.writeElement(NodeId.fromInt(5), 7L, 3L, true);
 
-        bytes = cc.cleanNodeCounts(bytes, InetAddress.getByAddress(FBUtilities.toByteArray(4)));
+        ByteBuffer merger = cc.computeOldShardMerger(ctx.context, records);
+        ContextState m = new ContextState(merger);
 
-        // node: 0.0.0.4 should be removed
-        assertEquals(3 * stepLength, bytes.remaining());
+        assert m.getNodeId().equals(id1);
+        assert m.getClock() <= -now;
+        assert m.getCount() == 0;
+        m.moveToNext();
+        assert m.getNodeId().equals(id3);
+        assert m.getClock() == 4L;
+        assert m.getCount() == 1L;
+        assert cc.total(ctx.context) == cc.total(cc.merge(ctx.context, merger));
 
-        // other nodes should be unaffected
-        assertEquals(1, bytes.getInt( 0*stepLength));
-        assertEquals(1L, bytes.getLong(0*stepLength + idLength));
+        // Source of merge is a delta
+        ctx = ContextState.allocate(4, 1);
+        ctx.writeElement(id1, 1L, 1L, true);
+        ctx.writeElement(NodeId.fromInt(2), 2L, 2L);
+        ctx.writeElement(id3, 3L, 3L);
+        ctx.writeElement(NodeId.fromInt(4), 6L, 3L);
 
-        assertEquals(2, bytes.getInt( 1*stepLength));
-        assertEquals(2L, bytes.getLong(1*stepLength + idLength));
+        merger = cc.computeOldShardMerger(ctx.context, records);
+        assert cc.total(ctx.context) == cc.total(cc.merge(ctx.context, merger));
 
-        assertEquals(8, bytes.getInt( 2*stepLength));
-        assertEquals(4L, bytes.getLong(2*stepLength + idLength));
+        // source and destination of merge are deltas
+        ctx = ContextState.allocate(4, 2);
+        ctx.writeElement(id1, 1L, 1L, true);
+        ctx.writeElement(NodeId.fromInt(2), 2L, 2L);
+        ctx.writeElement(id3, 3L, 3L, true);
+        ctx.writeElement(NodeId.fromInt(4), 6L, 3L);
+
+        merger = cc.computeOldShardMerger(ctx.context, records);
+        assert cc.total(ctx.context) == cc.total(cc.merge(ctx.context, merger));
+
+        // none of source and destination of merge are deltas
+        ctx = ContextState.allocate(4, 0);
+        ctx.writeElement(id1, 1L, 1L);
+        ctx.writeElement(NodeId.fromInt(2), 2L, 2L);
+        ctx.writeElement(id3, 3L, 3L);
+        ctx.writeElement(NodeId.fromInt(4), 6L, 3L);
+
+        merger = cc.computeOldShardMerger(ctx.context, records);
+        assert cc.total(ctx.context) == cc.total(cc.merge(ctx.context, merger));
+    }
+
+    @Test
+    public void testRemoveOldShards()
+    {
+        NodeId id1 = NodeId.fromInt(1);
+        NodeId id3 = NodeId.fromInt(3);
+        NodeId id6 = NodeId.fromInt(6);
+        List<NodeId.NodeIdRecord> records = new ArrayList<NodeId.NodeIdRecord>();
+        records.add(new NodeId.NodeIdRecord(id1, 2L));
+        records.add(new NodeId.NodeIdRecord(id3, 4L));
+        records.add(new NodeId.NodeIdRecord(id6, 10L));
+
+        ContextState ctx = ContextState.allocate(6, 2);
+        ctx.writeElement(id1, 1L, 1L);
+        ctx.writeElement(NodeId.fromInt(2), 2L, 2L);
+        ctx.writeElement(id3, 3L, 3L, true);
+        ctx.writeElement(NodeId.fromInt(4), 6L, 3L);
+        ctx.writeElement(NodeId.fromInt(5), 7L, 3L, true);
+        ctx.writeElement(id6, 5L, 6L);
+
+        ByteBuffer merger = cc.computeOldShardMerger(ctx.context, records);
+        ByteBuffer merged = cc.merge(ctx.context, merger);
+        assert cc.total(ctx.context) == cc.total(merged);
+
+        ByteBuffer cleaned = cc.removeOldShards(merged, (int)(System.currentTimeMillis() / 1000) + 1);
+        assert cc.total(ctx.context) == cc.total(cleaned);
+        assert cleaned.remaining() == ctx.context.remaining() - stepLength;
+
+        merger = cc.computeOldShardMerger(cleaned, records);
+        merged = cc.merge(cleaned, merger);
+        assert cc.total(ctx.context) == cc.total(merged);
+
+        cleaned = cc.removeOldShards(merged, (int)(System.currentTimeMillis() / 1000) + 1);
+        assert cc.total(ctx.context) == cc.total(cleaned);
+        assert cleaned.remaining() == ctx.context.remaining() - 2 * stepLength - 2;
+
     }
 }

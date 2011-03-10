@@ -43,9 +43,4 @@ public abstract class AbstractCommutativeType extends AbstractType<Long>
      * create commutative column
      */
     public abstract Column createColumn(ByteBuffer name, ByteBuffer value, long timestamp);
-
-    /**
-     * remove target node from commutative columns
-     */
-    public abstract void cleanContext(IColumnContainer cc, InetAddress node);
 }

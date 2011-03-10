@@ -43,16 +43,17 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.OperationType;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.NodeId;
 import org.junit.Test;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-public class SSTableWriterAESCommutativeTest extends CleanupHelper
+public class SSTableWriterCommutativeTest extends CleanupHelper
 {
     private static final CounterContext cc = new CounterContext();
     private static final CounterColumnType ctype = CounterColumnType.instance;
 
     @Test
-    public void testRecoverAndOpenAESCommutative() throws IOException, ExecutionException, InterruptedException, UnknownHostException
+    public void testRecoverAndOpenCommutative() throws IOException, ExecutionException, InterruptedException, UnknownHostException
     {
         String keyspace = "Keyspace1";
         String cfname   = "Counter1";
@@ -63,33 +64,25 @@ public class SSTableWriterAESCommutativeTest extends CleanupHelper
         DataOutputBuffer buffer;
 
         ColumnFamily cf = ColumnFamily.create(keyspace, cfname);
-        byte[] context;
+        ColumnFamily cfCleaned = ColumnFamily.create(keyspace, cfname);
+        CounterContext.ContextState state;
 
         // key: k
-        context = Util.concatByteArrays(
-            FBUtilities.getLocalAddress().getAddress(),
-                FBUtilities.toByteArray(9L),
-                FBUtilities.toByteArray(3L),
-            FBUtilities.toByteArray(2),  FBUtilities.toByteArray(4L), FBUtilities.toByteArray(2L),
-            FBUtilities.toByteArray(4),  FBUtilities.toByteArray(3L), FBUtilities.toByteArray(3L),
-            FBUtilities.toByteArray(8),  FBUtilities.toByteArray(2L), FBUtilities.toByteArray(4L)
-            );
-        cf.addColumn(new CounterColumn(
-            ByteBufferUtil.bytes("x"),
-            ByteBuffer.wrap(context),
-            0L));
-        context = Util.concatByteArrays(
-            FBUtilities.toByteArray(1),  FBUtilities.toByteArray(7L), FBUtilities.toByteArray(12L),
-            FBUtilities.getLocalAddress().getAddress(),
-                FBUtilities.toByteArray(5L),
-                FBUtilities.toByteArray(3L),
-            FBUtilities.toByteArray(3),  FBUtilities.toByteArray(2L), FBUtilities.toByteArray(33L),
-            FBUtilities.toByteArray(9),  FBUtilities.toByteArray(1L), FBUtilities.toByteArray(24L)
-            );
-        cf.addColumn(new CounterColumn(
-            ByteBufferUtil.bytes("y"),
-            ByteBuffer.wrap(context),
-            0L));
+        state = CounterContext.ContextState.allocate(4, 1);
+        state.writeElement(NodeId.fromInt(2), 9L, 3L, true);
+        state.writeElement(NodeId.fromInt(4), 4L, 2L);
+        state.writeElement(NodeId.fromInt(6), 3L, 3L);
+        state.writeElement(NodeId.fromInt(8), 2L, 4L);
+        cf.addColumn(new CounterColumn( ByteBufferUtil.bytes("x"), state.context, 0L));
+        cfCleaned.addColumn(new CounterColumn( ByteBufferUtil.bytes("x"), cc.clearAllDelta(state.context), 0L));
+
+        state = CounterContext.ContextState.allocate(4, 1);
+        state.writeElement(NodeId.fromInt(1), 7L, 12L);
+        state.writeElement(NodeId.fromInt(2), 5L, 3L, true);
+        state.writeElement(NodeId.fromInt(3), 2L, 33L);
+        state.writeElement(NodeId.fromInt(9), 1L, 24L);
+        cf.addColumn(new CounterColumn( ByteBufferUtil.bytes("y"), state.context, 0L));
+        cfCleaned.addColumn(new CounterColumn( ByteBufferUtil.bytes("y"), cc.clearAllDelta(state.context), 0L));
 
         buffer = new DataOutputBuffer();
         ColumnFamily.serializer().serializeWithIndexes(cf, buffer);
@@ -98,38 +91,31 @@ public class SSTableWriterAESCommutativeTest extends CleanupHelper
             ByteBuffer.wrap(Arrays.copyOf(buffer.getData(), buffer.getLength()))
             );
 
-        ctype.cleanContext(cf, FBUtilities.getLocalAddress());
         buffer = new DataOutputBuffer();
-        ColumnFamily.serializer().serializeWithIndexes(cf, buffer);
+        ColumnFamily.serializer().serializeWithIndexes(cfCleaned, buffer);
         cleanedEntries.put(
             ByteBufferUtil.bytes("k"),
             ByteBuffer.wrap(Arrays.copyOf(buffer.getData(), buffer.getLength()))
             );
-        
+
         cf.clear();
+        cfCleaned.clear();
 
         // key: l
-        context = Util.concatByteArrays(
-            FBUtilities.getLocalAddress().getAddress(),
-                FBUtilities.toByteArray(9L),
-                FBUtilities.toByteArray(3L),
-            FBUtilities.toByteArray(2),  FBUtilities.toByteArray(4L), FBUtilities.toByteArray(2L),
-            FBUtilities.toByteArray(4),  FBUtilities.toByteArray(3L), FBUtilities.toByteArray(3L),
-            FBUtilities.toByteArray(8),  FBUtilities.toByteArray(2L), FBUtilities.toByteArray(4L)
-            );
-        cf.addColumn(new CounterColumn(
-            ByteBufferUtil.bytes("x"),
-            ByteBuffer.wrap(context),
-            0L));
-        context = Util.concatByteArrays(
-            FBUtilities.toByteArray(1),  FBUtilities.toByteArray(7L), FBUtilities.toByteArray(12L),
-            FBUtilities.toByteArray(3),  FBUtilities.toByteArray(2L), FBUtilities.toByteArray(33L),
-            FBUtilities.toByteArray(9),  FBUtilities.toByteArray(1L), FBUtilities.toByteArray(24L)
-            );
-        cf.addColumn(new CounterColumn(
-            ByteBufferUtil.bytes("y"),
-            ByteBuffer.wrap(context),
-            0L));
+        state = CounterContext.ContextState.allocate(4, 1);
+        state.writeElement(NodeId.fromInt(2), 9L, 3L, true);
+        state.writeElement(NodeId.fromInt(4), 4L, 2L);
+        state.writeElement(NodeId.fromInt(6), 3L, 3L);
+        state.writeElement(NodeId.fromInt(8), 2L, 4L);
+        cf.addColumn(new CounterColumn( ByteBufferUtil.bytes("x"), state.context, 0L));
+        cfCleaned.addColumn(new CounterColumn( ByteBufferUtil.bytes("x"), cc.clearAllDelta(state.context), 0L));
+
+        state = CounterContext.ContextState.allocate(3, 0);
+        state.writeElement(NodeId.fromInt(1), 7L, 12L);
+        state.writeElement(NodeId.fromInt(3), 2L, 33L);
+        state.writeElement(NodeId.fromInt(9), 1L, 24L);
+        cf.addColumn(new CounterColumn( ByteBufferUtil.bytes("y"), state.context, 0L));
+        cfCleaned.addColumn(new CounterColumn( ByteBufferUtil.bytes("y"), cc.clearAllDelta(state.context), 0L));
 
         buffer = new DataOutputBuffer();
         ColumnFamily.serializer().serializeWithIndexes(cf, buffer);
@@ -138,15 +124,15 @@ public class SSTableWriterAESCommutativeTest extends CleanupHelper
             ByteBuffer.wrap(Arrays.copyOf(buffer.getData(), buffer.getLength()))
             );
 
-        ctype.cleanContext(cf, FBUtilities.getLocalAddress());
         buffer = new DataOutputBuffer();
-        ColumnFamily.serializer().serializeWithIndexes(cf, buffer);
+        ColumnFamily.serializer().serializeWithIndexes(cfCleaned, buffer);
         cleanedEntries.put(
             ByteBufferUtil.bytes("l"),
             ByteBuffer.wrap(Arrays.copyOf(buffer.getData(), buffer.getLength()))
             );
 
         cf.clear();
+        cfCleaned.clear();
 
         // write out unmodified CF
         SSTableReader orig = SSTableUtils.prepare().ks(keyspace).cf(cfname).generation(0).writeRaw(entries);

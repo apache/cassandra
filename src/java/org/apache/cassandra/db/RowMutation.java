@@ -1,20 +1,20 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+* Licensed to the Apache Software Foundation (ASF) under one
+* or more contributor license agreements.  See the NOTICE file
+* distributed with this work for additional information
+* regarding copyright ownership.  The ASF licenses this file
+* to you under the Apache License, Version 2.0 (the
+* "License"); you may not use this file except in compliance
+* with the License.  You may obtain a copy of the License at
+*
+*     http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
 
 package org.apache.cassandra.db;
 
@@ -53,7 +53,7 @@ public class RowMutation implements IMutation, MessageProducer
     private ByteBuffer key_;
     // map of column family id to mutations for that column family.
     protected Map<Integer, ColumnFamily> modifications_ = new HashMap<Integer, ColumnFamily>();
-    
+
     private Map<Integer, byte[]> preserializedBuffers = new HashMap<Integer, byte[]>();
 
     public RowMutation(String table, ByteBuffer key)
@@ -106,7 +106,7 @@ public class RowMutation implements IMutation, MessageProducer
      * family object.
      * param @ cf - column family name
      * param @ columnFamily - the column family.
-    */
+     */
     public void add(ColumnFamily columnFamily)
     {
         assert columnFamily != null;
@@ -133,7 +133,7 @@ public class RowMutation implements IMutation, MessageProducer
      * param @ value - value associated with the column
      * param @ timestamp - timestamp associated with this data.
      * param @ timeToLive - ttl for the column, 0 for standard (non expiring) columns
-    */
+     */
     public void add(QueryPath path, ByteBuffer value, long timestamp, int timeToLive)
     {
         Integer id = CFMetaData.getId(table_, path.columnFamilyName);
@@ -183,15 +183,12 @@ public class RowMutation implements IMutation, MessageProducer
     /*
      * This is equivalent to calling commit. Applies the changes to
      * to the table that is obtained by calling Table.open().
-    */
+     */
     public void apply() throws IOException
     {
         Table.open(table_).apply(this, true);
     }
 
-    /**
-     * Apply without touching the commitlog. For testing.
-     */
     public void applyUnsafe() throws IOException
     {
         Table.open(table_).apply(this, false);
@@ -200,7 +197,7 @@ public class RowMutation implements IMutation, MessageProducer
     /*
      * This is equivalent to calling commit. Applies the changes to
      * to the table that is obtained by calling Table.open().
-    */
+     */
     void applyBinary() throws IOException, ExecutionException, InterruptedException
     {
         Table.open(table_).load(this);
@@ -364,7 +361,8 @@ public class RowMutation implements IMutation, MessageProducer
             for (int i = 0; i < size; ++i)
             {
                 Integer cfid = Integer.valueOf(dis.readInt());
-                ColumnFamily cf = ColumnFamily.serializer().deserialize(dis, true);
+                // This is coming from a remote host
+                ColumnFamily cf = ColumnFamily.serializer().deserialize(dis, true, true);
                 modifications.put(cfid, cf);
             }
             return new RowMutation(table, key, modifications);

@@ -41,6 +41,7 @@ import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.NodeId;
 
 import static com.google.common.base.Charsets.UTF_8;
 
@@ -147,6 +148,11 @@ public class Util
         }
 
         return result;
+    }
+
+    public static boolean equalsNodeId(NodeId n, ByteBuffer context, int offset)
+    {
+        return NodeId.wrap(context, context.position() + offset).equals(n);
     }
 
     public static ColumnFamily cloneAndRemoveDeleted(ColumnFamily cf, int gcBefore)

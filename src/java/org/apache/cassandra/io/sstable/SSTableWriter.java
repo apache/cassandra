@@ -255,8 +255,8 @@ public class SSTableWriter extends SSTable
             cfs = Table.open(desc.ksname).getColumnFamilyStore(desc.cfname);
             try
             {
-                if (OperationType.AES == type && cfs.metadata.getDefaultValidator().isCommutative())
-                    indexer = new AESCommutativeRowIndexer(desc, cfs.metadata);
+                if (cfs.metadata.getDefaultValidator().isCommutative())
+                    indexer = new CommutativeRowIndexer(desc, cfs.metadata);
                 else
                     indexer = new RowIndexer(desc, cfs.metadata);
             }
@@ -395,9 +395,20 @@ public class SSTableWriter extends SSTable
         }
     }
 
-    static class AESCommutativeRowIndexer extends RowIndexer
+    /*
+     * When a sstable for a counter column family is streamed, we must ensure
+     * that on the receiving node all counter column goes through the
+     * deserialization from remote code path (i.e, it must be cleared from its
+     * delta) to maintain the invariant that on a given node, only increments
+     * that the node originated are delta (and copy of those must not be delta).
+     *
+     * Since after streaming row indexation goes through every streamed
+     * sstable, we use this opportunity to ensure this property. This is the
+     * goal of this specific CommutativeRowIndexer.
+     */
+    static class CommutativeRowIndexer extends RowIndexer
     {
-        AESCommutativeRowIndexer(Descriptor desc, CFMetaData metadata) throws IOException
+        CommutativeRowIndexer(Descriptor desc, CFMetaData metadata) throws IOException
         {
             super(desc, new BufferedRandomAccessFile(new File(desc.filenameFor(SSTable.COMPONENT_DATA)), "rw", 8 * 1024 * 1024, true), metadata);
         }
@@ -427,20 +438,16 @@ public class SSTableWriter extends SSTable
                 // deserialize CF
                 ColumnFamily cf = ColumnFamily.create(desc.ksname, desc.cfname);
                 ColumnFamily.serializer().deserializeFromSSTableNoColumns(cf, dfile);
-                ColumnFamily.serializer().deserializeColumns(dfile, cf, false);
+                // The data is coming from another host
+                ColumnFamily.serializer().deserializeColumns(dfile, cf, false, true);
                 rowSizes.add(dataSize);
                 columnCounts.add(cf.getEstimatedColumnCount());
 
-                // remove source node from CF's commutative columns
-                ((AbstractCommutativeType)cf.metadata().getDefaultValidator()).cleanContext(cf, FBUtilities.getLocalAddress());
-
                 readRowPosition = dfile.getFilePointer();
-
 
                 // update index writer
                 key = SSTableReader.decodeKey(StorageService.getPartitioner(), desc, diskKey);
                 iwriter.afterAppend(key, writeRowPosition);
-
 
                 // write key
                 dfile.seek(writeRowPosition);

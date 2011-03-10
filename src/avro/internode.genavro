@@ -59,6 +59,7 @@ protocol InterNode {
         union { int, null } memtable_flush_after_mins = 60;
         union { null, int } memtable_throughput_in_mb = null;
         union { null, double} memtable_operations_in_millions = null;
+        union { null, double} merge_shards_chance = null;
         union { int, null } id;
         union { array<ColumnDef>, null } column_metadata;
     }

@@ -26,8 +26,11 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
+import java.util.List;
+import java.util.ArrayList;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.ExecutionException;
 
 import org.slf4j.Logger;
@@ -43,6 +46,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.NodeId;
 
 import static com.google.common.base.Charsets.UTF_8;
 
@@ -51,6 +55,7 @@ public class SystemTable
     private static Logger logger = LoggerFactory.getLogger(SystemTable.class);
     public static final String STATUS_CF = "LocationInfo"; // keep the old CF string for backwards-compatibility
     public static final String INDEX_CF = "IndexInfo";
+    public static final String NODE_ID_CF = "NodeIdInfo";
     private static final ByteBuffer LOCATION_KEY = ByteBufferUtil.bytes("L");
     private static final ByteBuffer RING_KEY = ByteBufferUtil.bytes("Ring");
     private static final ByteBuffer BOOTSTRAP_KEY = ByteBufferUtil.bytes("Bootstrap");
@@ -60,6 +65,8 @@ public class SystemTable
     private static final ByteBuffer GENERATION = ByteBufferUtil.bytes("Generation");
     private static final ByteBuffer CLUSTERNAME = ByteBufferUtil.bytes("ClusterName");
     private static final ByteBuffer PARTITIONER = ByteBufferUtil.bytes("Partioner");
+    private static final ByteBuffer CURRENT_LOCAL_NODE_ID_KEY = ByteBufferUtil.bytes("CurrentLocal");
+    private static final ByteBuffer ALL_LOCAL_NODE_ID_KEY = ByteBufferUtil.bytes("Local");
 
     private static DecoratedKey decorate(ByteBuffer key)
     {
@@ -369,5 +376,89 @@ public class SystemTable
         }
 
         forceBlockingFlush(INDEX_CF);
+    }
+
+    /**
+     * Read the current local node id from the system table or null if no
+     * such node id is recorded.
+     */
+    public static NodeId getCurrentLocalNodeId()
+    {
+        ByteBuffer id = null;
+        Table table = Table.open(Table.SYSTEM_TABLE);
+        QueryFilter filter = QueryFilter.getIdentityFilter(decorate(CURRENT_LOCAL_NODE_ID_KEY),
+                new QueryPath(NODE_ID_CF));
+        ColumnFamily cf = table.getColumnFamilyStore(NODE_ID_CF).getColumnFamily(filter);
+        if (cf != null)
+        {
+            assert cf.getColumnCount() <= 1;
+            if (cf.getColumnCount() > 0)
+                id = cf.iterator().next().name();
+        }
+        if (id != null)
+        {
+            return NodeId.wrap(id);
+        }
+        else
+        {
+            return null;
+        }
+    }
+
+    /**
+     * Write a new current local node id to the system table.
+     *
+     * @param oldNodeId the previous local node id (that {@code newNodeId}
+     * replace) or null if no such node id exists (new node or removed system
+     * table)
+     * @param newNodeId the new current local node id to record
+     */
+    public static void writeCurrentLocalNodeId(NodeId oldNodeId, NodeId newNodeId)
+    {
+        long now = System.currentTimeMillis();
+        ByteBuffer ip = ByteBuffer.wrap(FBUtilities.getLocalAddress().getAddress());
+
+        ColumnFamily cf = ColumnFamily.create(Table.SYSTEM_TABLE, NODE_ID_CF);
+        cf.addColumn(new Column(newNodeId.bytes(), ip, now));
+        ColumnFamily cf2 = cf.cloneMe();
+        if (oldNodeId != null)
+        {
+            cf2.addColumn(new DeletedColumn(oldNodeId.bytes(), (int) (now / 1000), now));
+        }
+        RowMutation rmCurrent = new RowMutation(Table.SYSTEM_TABLE, CURRENT_LOCAL_NODE_ID_KEY);
+        RowMutation rmAll = new RowMutation(Table.SYSTEM_TABLE, ALL_LOCAL_NODE_ID_KEY);
+        rmCurrent.add(cf2);
+        rmAll.add(cf);
+        try
+        {
+            rmCurrent.apply();
+            rmAll.apply();
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static List<NodeId.NodeIdRecord> getOldLocalNodeIds()
+    {
+        List<NodeId.NodeIdRecord> l = new ArrayList<NodeId.NodeIdRecord>();
+
+        Table table = Table.open(Table.SYSTEM_TABLE);
+        QueryFilter filter = QueryFilter.getIdentityFilter(decorate(ALL_LOCAL_NODE_ID_KEY),
+                new QueryPath(NODE_ID_CF));
+        ColumnFamily cf = table.getColumnFamilyStore(NODE_ID_CF).getColumnFamily(filter);
+
+        NodeId previous = null;
+        for (IColumn c : cf.getReverseSortedColumns())
+        {
+            if (previous != null)
+                l.add(new NodeId.NodeIdRecord(previous, c.timestamp()));
+
+            // this will ignore the last column on purpose since it is the
+            // current local node id
+            previous = NodeId.wrap(c.name());
+        }
+        return l;
     }
 }
