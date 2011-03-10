@@ -20,6 +20,7 @@ package org.apache.cassandra.cql;
  * 
  */
 
+import java.io.File;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.FloatBuffer;
@@ -203,6 +204,10 @@ public class JdbcDriverTest extends EmbeddedServiceBase
             con.close();
             con = null;
         }
+        
+        // Cleanup backup links
+        for (String fname : new File("build/test/cassandra/data/Keyspace1/backups").list())
+            new File("build/test/cassandra/data/Keyspace1/backups" + File.separator + fname).delete();
     }
     
     // todo: check expected values as well.
