@@ -19,6 +19,7 @@
 package org.apache.cassandra.tools;
 
 import java.io.File;
+import java.io.IOError;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.ByteBuffer;
@@ -39,6 +40,7 @@ import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.sstable.*;
+import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.utils.ByteBufferUtil.bytesToHex;
 import static org.apache.cassandra.utils.ByteBufferUtil.hexToBytes;
@@ -101,28 +103,23 @@ public class SSTableExport
      * @param out output stream
      * @param comparator columns comparator
      * @param cfMetaData Column Family metadata (to get validator)
+     * @return pair of (number of columns serialized, last column serialized)
      */
-    private static void serializeColumns(Iterator<IColumn> columns, PrintStream out, AbstractType comparator, CFMetaData cfMetaData)
+    private static Pair<Integer, ByteBuffer> serializeColumns(Iterator<IColumn> columns, PrintStream out, AbstractType comparator, CFMetaData cfMetaData)
     {
+        int n = 0;
+        IColumn column = null;
         while (columns.hasNext())
         {
-            serializeColumn(columns.next(), out, comparator, cfMetaData);
+            column = columns.next();
+            n++;
+            serializeColumn(column, out, comparator, cfMetaData);
 
             if (columns.hasNext())
                 out.print(", ");
         }
-    }
 
-    /**
-     * Serialize a collection of the columns
-     * @param columns collection of the columns to serialize
-     * @param out output stream
-     * @param comparator columns comparator
-     * @param cfMetaData Column Family metadata (to get validator)
-     */
-    private static void serializeColumns(Collection<IColumn> columns, PrintStream out, AbstractType comparator, CFMetaData cfMetaData)
-    {
-        serializeColumns(columns.iterator(), out, comparator, cfMetaData);
+        return new Pair<Integer, ByteBuffer>(n, column == null ? null : column.name());
     }
 
     /**
@@ -198,25 +195,29 @@ public class SSTableExport
 
             IColumnIterator columns = filter.getSSTableColumnIterator(reader);
 
-            int columnCount = 0;
-            while (columns.hasNext())
-            {
-                // setting new start column to the last of the current columns
-                startColumn = columns.next().name();
-                columnCount++;
-            }
-
+            Pair<Integer, ByteBuffer> serialized;
             try
             {
-                columns = filter.getSSTableColumnIterator(reader); // iterator reset
-                serializeRow(columns, isSuperCF, out);
+                serialized = serializeRow(columns, isSuperCF, out);
             }
             catch (IOException e)
             {
                 System.err.println("WARNING: Corrupt row " + key + " (skipping).");
+                continue;
+            }
+            finally
+            {
+                try
+                {
+                    columns.close();
+                }
+                catch (IOException e)
+                {
+                    throw new IOError(e);
+                }
             }
 
-            if (columnCount < PAGE_SIZE)
+            if (serialized.left < PAGE_SIZE)
                 break;
 
             out.print(",");
@@ -231,10 +232,11 @@ public class SSTableExport
      * @param columns columns of the row
      * @param isSuper true if wrapping Column Family is Super
      * @param out output stream
+     * @return pair of (number of columns serialized, last column serialized)
      *
      * @throws IOException on any I/O error.
      */
-    private static void serializeRow(IColumnIterator columns, boolean isSuper, PrintStream out) throws IOException
+    private static Pair<Integer, ByteBuffer> serializeRow(IColumnIterator columns, boolean isSuper, PrintStream out) throws IOException
     {
         ColumnFamily columnFamily = columns.getColumnFamily();
         CFMetaData cfMetaData = columnFamily.metadata();
@@ -243,9 +245,12 @@ public class SSTableExport
 
         if (isSuper)
         {
+            int n = 0;
+            IColumn column = null;
             while (columns.hasNext())
             {
-                IColumn column = columns.next();
+                column = columns.next();
+                n++;
 
                 out.print(asKey(comparator.getString(column.name())));
                 out.print("{");
@@ -254,17 +259,19 @@ public class SSTableExport
                 out.print(", ");
                 out.print(asKey("subColumns"));
                 out.print("[");
-                serializeColumns(column.getSubColumns(), out, columnFamily.getSubComparator(), cfMetaData);
+                serializeColumns(column.getSubColumns().iterator(), out, columnFamily.getSubComparator(), cfMetaData);
                 out.print("]");
                 out.print("}");
 
                 if (columns.hasNext())
                     out.print(", ");
             }
+
+            return new Pair<Integer, ByteBuffer>(n, column == null ? null : column.name());
         }
         else
         {
-            serializeColumns(columns, out, comparator, cfMetaData);
+            return serializeColumns(columns, out, comparator, cfMetaData);
         }
     }
 

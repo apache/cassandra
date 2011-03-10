@@ -17,7 +17,7 @@
  ~ specific language governing permissions and limitations
  ~ under the License.
  -->
-<project basedir="." default="jar" name="cassandra_loadfunc">
+<project basedir="." default="jar" name="cassandra_storage">
     <!-- stores the environment for locating PIG_HOME -->
     <property environment="env" />
     <property name="cassandra.dir" value="../.." />
@@ -32,7 +32,7 @@
     <property name="build.lib" value="${basedir}/lib" />
     <property name="build.out" value="${basedir}/build" />
     <property name="build.classes" value="${build.out}/classes" />
-    <property name="final.name" value="cassandra_loadfunc" />
+    <property name="final.name" value="cassandra_storage" />
 
     <path id="pig.classpath">
         <fileset file="${env.PIG_HOME}/pig*.jar" />

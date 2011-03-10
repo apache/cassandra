@@ -87,7 +87,7 @@ commitlog_rotation_threshold_in_mb: 128
 # performing the sync.
 commitlog_sync: periodic
 
-# the other option is "timed," where writes may be acked immediately
+# the other option is "periodic" where writes may be acked immediately
 # and the CommitLog is simply synced every commitlog_sync_period_in_ms
 # milliseconds.
 commitlog_sync_period_in_ms: 10000

@@ -108,6 +108,30 @@ public class CommitLogTest extends CleanupHelper
         testRecoveryWithBadSizeArgument(-10, 10); // negative size, but no EOF
     }
 
+    @Test
+    public void testRecoveryWithHeaderPositionGreaterThanLogLength() throws Exception
+    {
+        // Note: this can actually happen (in periodic mode) when data is flushed
+        // before it had time to hit the commitlog (since the header is flushed by the system)
+        // see https://issues.apache.org/jira/browse/CASSANDRA-2285
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        DataOutputStream dos = new DataOutputStream(out);
+        Checksum checksum = new CRC32();
+
+        // write the first checksum after the fixed-size part, so we won't read garbage lastFlushedAt data.
+        dos.writeInt(1);
+        checksum.update(1);
+        dos.writeLong(checksum.getValue());
+        dos.writeInt(0);
+        checksum.update(0);
+        dos.writeInt(200);
+        checksum.update(200);
+        dos.writeLong(checksum.getValue());
+        dos.close();
+
+        testRecovery(out.toByteArray(), new byte[0]);
+    }
+
     protected void testRecoveryWithBadSizeArgument(int size, int dataSize) throws Exception
     {
         Checksum checksum = new CRC32();
