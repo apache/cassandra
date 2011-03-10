@@ -29,18 +29,17 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class Inserter extends Operation
+public class CounterAdder extends Operation
 {
-    public Inserter(int index)
+    public CounterAdder(int index)
     {
         super(index);
     }
 
     public void run(Cassandra.Client client) throws IOException
     {
-        List<String> values  = generateValues();
-        List<Column> columns = new ArrayList<Column>();
-        List<SuperColumn> superColumns = new ArrayList<SuperColumn>();
+        List<CounterColumn> columns = new ArrayList<CounterColumn>();
+        List<CounterSuperColumn> superColumns = new ArrayList<CounterSuperColumn>();
 
         // format used for keys
         String format = "%0" + session.getTotalKeysLength() + "d";
@@ -48,9 +47,8 @@ public class Inserter extends Operation
         for (int i = 0; i < session.getColumnsPerKey(); i++)
         {
             String columnName = ("C" + Integer.toString(i));
-            ByteBuffer columnValue = ByteBufferUtil.bytes(values.get(i % values.size()));
 
-            columns.add(new Column(ByteBufferUtil.bytes(columnName), columnValue, System.currentTimeMillis()));
+            columns.add(new CounterColumn(ByteBufferUtil.bytes(columnName), 1L));
         }
 
         if (session.getColumnFamilyType() == ColumnFamilyType.Super)
@@ -59,12 +57,12 @@ public class Inserter extends Operation
             for (int i = 0; i < session.getSuperColumns(); i++)
             {
                 String superColumnName = "S" + Integer.toString(i);
-                superColumns.add(new SuperColumn(ByteBuffer.wrap(superColumnName.getBytes()), columns));
+                superColumns.add(new CounterSuperColumn(ByteBuffer.wrap(superColumnName.getBytes()), columns));
             }
         }
 
         String rawKey = String.format(format, index);
-        Map<ByteBuffer, Map<String, List<Mutation>>> record = new HashMap<ByteBuffer, Map<String, List<Mutation>>>();
+        Map<ByteBuffer, Map<String, List<CounterMutation>>> record = new HashMap<ByteBuffer, Map<String, List<CounterMutation>>>();
 
         record.put(ByteBufferUtil.bytes(rawKey), session.getColumnFamilyType() == ColumnFamilyType.Super
                                                                                 ? getSuperColumnsMutationMap(superColumns)
@@ -82,7 +80,7 @@ public class Inserter extends Operation
 
             try
             {
-                client.batch_mutate(record, session.getConsistencyLevel());
+                client.batch_add(record, session.getConsistencyLevel());
                 success = true;
             }
             catch (Exception e)
@@ -94,7 +92,7 @@ public class Inserter extends Operation
 
         if (!success)
         {
-            error(String.format("Operation [%d] retried %d times - error inserting key %s %s%n",
+            error(String.format("Operation [%d] retried %d times - error incrementing key %s %s%n",
                                 index,
                                 session.getRetryTimes(),
                                 rawKey,
@@ -106,34 +104,34 @@ public class Inserter extends Operation
         session.latency.getAndAdd(System.currentTimeMillis() - start);
     }
 
-    private Map<String, List<Mutation>> getSuperColumnsMutationMap(List<SuperColumn> superColumns)
+    private Map<String, List<CounterMutation>> getSuperColumnsMutationMap(List<CounterSuperColumn> superColumns)
     {
-        List<Mutation> mutations = new ArrayList<Mutation>();
-        Map<String, List<Mutation>> mutationMap = new HashMap<String, List<Mutation>>();
+        List<CounterMutation> mutations = new ArrayList<CounterMutation>();
+        Map<String, List<CounterMutation>> mutationMap = new HashMap<String, List<CounterMutation>>();
 
-        for (SuperColumn s : superColumns)
+        for (CounterSuperColumn s : superColumns)
         {
-            ColumnOrSuperColumn superColumn = new ColumnOrSuperColumn().setSuper_column(s);
-            mutations.add(new Mutation().setColumn_or_supercolumn(superColumn));
+            Counter counter = new Counter().setSuper_column(s);
+            mutations.add(new CounterMutation().setCounter(counter));
         }
 
-        mutationMap.put("Super1", mutations);
+        mutationMap.put("SuperCounter1", mutations);
 
         return mutationMap;
     }
 
-    private Map<String, List<Mutation>> getColumnsMutationMap(List<Column> columns)
+    private Map<String, List<CounterMutation>> getColumnsMutationMap(List<CounterColumn> columns)
     {
-        List<Mutation> mutations = new ArrayList<Mutation>();
-        Map<String, List<Mutation>> mutationMap = new HashMap<String, List<Mutation>>();
+        List<CounterMutation> mutations = new ArrayList<CounterMutation>();
+        Map<String, List<CounterMutation>> mutationMap = new HashMap<String, List<CounterMutation>>();
 
-        for (Column c : columns)
+        for (CounterColumn c : columns)
         {
-            ColumnOrSuperColumn column = new ColumnOrSuperColumn().setColumn(c);
-            mutations.add(new Mutation().setColumn_or_supercolumn(column));
+            Counter counter = new Counter().setColumn(c);
+            mutations.add(new CounterMutation().setCounter(counter));
         }
 
-        mutationMap.put("Standard1", mutations);
+        mutationMap.put("Counter1", mutations);
 
         return mutationMap;
     }

@@ -31,7 +31,7 @@ public final class Stress
 {
     public static enum Operations
     {
-        INSERT, READ, RANGE_SLICE, INDEXED_RANGE_SLICE, MULTI_GET
+        INSERT, READ, RANGE_SLICE, INDEXED_RANGE_SLICE, MULTI_GET, COUNTER_ADD, COUNTER_GET
     }
 
     public static Session session;
@@ -58,7 +58,7 @@ public final class Stress
         }
 
         // creating keyspace and column families
-        if (session.getOperation() == Stress.Operations.INSERT)
+        if (session.getOperation() == Operations.INSERT || session.getOperation() == Operations.COUNTER_ADD)
         {
             session.createKeySpaces();
         }
@@ -142,8 +142,14 @@ public final class Stress
             case READ:
                 return new Reader(index);
 
+            case COUNTER_GET:
+                return new CounterGetter(index);
+
             case INSERT:
                 return new Inserter(index);
+
+            case COUNTER_ADD:
+                return new CounterAdder(index);
 
             case RANGE_SLICE:
                 return new RangeSlicer(index);
@@ -185,7 +191,7 @@ public final class Stress
             {
                 try
                 {
-                    operations.put(createOperation(i));
+                    operations.put(createOperation(i % session.getNumDifferentKeys()));
                 }
                 catch (InterruptedException e)
                 {

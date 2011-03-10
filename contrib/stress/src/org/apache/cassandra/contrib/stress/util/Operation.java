@@ -92,7 +92,7 @@ public abstract class Operation
     private static byte[] generateRandomKey()
     {
         String format = "%0" + Stress.session.getTotalKeysLength() + "d";
-        return String.format(format, Stress.randomizer.nextInt(Stress.session.getNumKeys() - 1)).getBytes();
+        return String.format(format, Stress.randomizer.nextInt(Stress.session.getNumDifferentKeys() - 1)).getBytes();
     }
 
     /**
@@ -108,7 +108,7 @@ public abstract class Operation
         {
             double token = nextGaussian(session.getMean(), session.getSigma());
 
-            if (0 <= token && token < session.getNumKeys())
+            if (0 <= token && token < session.getNumDifferentKeys())
             {
                 return String.format(format, (int) token).getBytes();
             }

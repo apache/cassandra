@@ -46,6 +46,7 @@ public class Session
     {
         availableOptions.addOption("h",  "help",                 false,  "Show this help message and exit");
         availableOptions.addOption("n",  "num-keys",             true,   "Number of keys, default:1000000");
+        availableOptions.addOption("F",  "num-different-keys",   true,   "Number of different keys (if < NUM-KEYS, the same key will re-used multiple times), default:NUM-KEYS");
         availableOptions.addOption("N",  "skip-keys",            true,   "Fraction of keys to skip initially, default:0");
         availableOptions.addOption("t",  "threads",              true,   "Number of threads to use, default:50");
         availableOptions.addOption("c",  "columns",              true,   "Number of columns per key, default:5");
@@ -58,7 +59,7 @@ public class Session
         availableOptions.addOption("f",  "file",                 true,   "Write output to given file");
         availableOptions.addOption("p",  "port",                 true,   "Thrift port, default:9160");
         availableOptions.addOption("m",  "unframed",             false,  "Use unframed transport, default:false");
-        availableOptions.addOption("o",  "operation",            true,   "Operation to perform (INSERT, READ, RANGE_SLICE, INDEXED_RANGE_SLICE, MULTI_GET), default:INSERT");
+        availableOptions.addOption("o",  "operation",            true,   "Operation to perform (INSERT, READ, RANGE_SLICE, INDEXED_RANGE_SLICE, MULTI_GET, COUNTER_ADD, COUNTER_GET), default:INSERT");
         availableOptions.addOption("u",  "supercolumns",         true,   "Number of super columns per key, default:1");
         availableOptions.addOption("y",  "family-type",          true,   "Column Family Type (Super, Standard), default:Standard");
         availableOptions.addOption("K",  "keep-trying",          true,   "Retry on-going operation N times (in case of failure). positive integer, default:10");
@@ -70,9 +71,11 @@ public class Session
         availableOptions.addOption("x",  "create-index",         true,   "Type of index to create on needed column families (KEYS)");
         availableOptions.addOption("R",  "replication-strategy", true,   "Replication strategy to use (only on insert if keyspace does not exist), default:org.apache.cassandra.locator.SimpleStrategy");
         availableOptions.addOption("O",  "strategy-properties",  true,   "Replication strategy properties in the following format <dc_name>:<num>,<dc_name>:<num>,...");
+        availableOptions.addOption("W",  "no-replicate-on-write",false,  "Set replicate_on_write to false for counters. Only counter add with CL=ONE will work");
     }
 
     private int numKeys          = 1000 * 1000;
+    private int numDifferentKeys = numKeys;
     private float skipKeys       = 0;
     private int threads          = 50;
     private int columns          = 5;
@@ -88,6 +91,7 @@ public class Session
     private int progressInterval  = 10;
     private int keysPerCall       = 1000;
     private int replicationFactor = 1;
+    private boolean replicateOnWrite = true;
     private boolean ignoreErrors  = false;
 
     private PrintStream out = System.out;
@@ -118,6 +122,11 @@ public class Session
 
             if (cmd.hasOption("n"))
                 numKeys = Integer.parseInt(cmd.getOptionValue("n"));
+
+            if (cmd.hasOption("F"))
+                numDifferentKeys = Integer.parseInt(cmd.getOptionValue("F"));
+            else
+                numDifferentKeys = numKeys;
 
             if (cmd.hasOption("N"))
                 skipKeys = Float.parseFloat(cmd.getOptionValue("N"));
@@ -207,6 +216,7 @@ public class Session
                 ignoreErrors = true;
             }
 
+
             if (cmd.hasOption("i"))
                 progressInterval = Integer.parseInt(cmd.getOptionValue("i"));
 
@@ -239,14 +249,17 @@ public class Session
                     replicationStrategyOptions.put(keyAndValue[0], keyAndValue[1]);
                 }
             }
+
+            if (cmd.hasOption("W"))
+                replicateOnWrite = false;
         }
         catch (ParseException e)
         {
             throw new IllegalArgumentException(e.getMessage(), e);
         }
 
-        mean  = numKeys / 2;
-        sigma = numKeys * STDev;
+        mean  = numDifferentKeys / 2;
+        sigma = numDifferentKeys * STDev;
 
         operations = new AtomicInteger();
         keys = new AtomicInteger();
@@ -283,6 +296,11 @@ public class Session
         return numKeys;
     }
 
+    public int getNumDifferentKeys()
+    {
+        return numDifferentKeys;
+    }
+
     public int getThreads()
     {
         return threads;
@@ -305,7 +323,7 @@ public class Session
 
     public int getTotalKeysLength()
     {
-        return Integer.toString(numKeys).length();
+        return Integer.toString(numDifferentKeys).length();
     }
 
     public ConsistencyLevel getConsistencyLevel()
@@ -378,6 +396,12 @@ public class Session
         // column family with super columns
         CfDef superCfDef = new CfDef("Keyspace1", "Super1").setColumn_metadata(Arrays.asList(superSubColumn)).setColumn_type("Super");
 
+        // column family for standard counters
+        CfDef counterCfDef = new CfDef("Keyspace1", "Counter1").setDefault_validation_class("CounterColumnType").setReplicate_on_write(replicateOnWrite);
+
+        // column family with counter super columns
+        CfDef counterSuperCfDef = new CfDef("Keyspace1", "SuperCounter1").setDefault_validation_class("CounterColumnType").setReplicate_on_write(replicateOnWrite).setColumn_type("Super");
+
         keyspace.setName("Keyspace1");
         keyspace.setStrategy_class(replicationStrategy);
         keyspace.setReplication_factor(replicationFactor);
@@ -387,7 +411,8 @@ public class Session
             keyspace.setStrategy_options(replicationStrategyOptions);
         }
 
-        keyspace.setCf_defs(new ArrayList<CfDef>(Arrays.asList(standardCfDef, superCfDef)));
+        keyspace.setCf_defs(new ArrayList<CfDef>(Arrays.asList(standardCfDef, superCfDef, counterCfDef, counterSuperCfDef)));
+
 
         Cassandra.Client client = getClient(false);
 
