@@ -18,6 +18,7 @@
    (CASSANDRA-2282)
  * fix commitlog replay when flush position refers to data that didn't
    get synced before server died (CASSANDRA-2285)
+ * fix fd leak in sstable2json with non-mmap'd i/o (CASSANDRA-2304)
 
 
 0.7.3

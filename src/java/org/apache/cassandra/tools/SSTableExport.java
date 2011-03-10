@@ -19,6 +19,7 @@
 package org.apache.cassandra.tools;
 
 import java.io.File;
+import java.io.IOError;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.ByteBuffer;
@@ -37,6 +38,7 @@ import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.sstable.*;
+import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.utils.ByteBufferUtil.bytesToHex;
 import static org.apache.cassandra.utils.ByteBufferUtil.hexToBytes;
@@ -97,16 +99,23 @@ public class SSTableExport
      * Serialize columns using given column iterator
      * @param columns column iterator
      * @param out output stream
+     * @return pair of (number of columns serialized, last column serialized)
      */
-    private static void serializeColumns(Iterator<IColumn> columns, PrintStream out)
+    private static Pair<Integer, ByteBuffer> serializeColumns(Iterator<IColumn> columns, PrintStream out)
     {
+        int n = 0;
+        IColumn column = null;
         while (columns.hasNext())
         {
-            serializeColumn(columns.next(), out);
+            column = columns.next();
+            n++;
+            serializeColumn(column, out);
 
             if (columns.hasNext())
                 out.print(", ");
         }
+
+        return new Pair<Integer, ByteBuffer>(n, column == null ? null : column.name());
     }
 
     /**
@@ -174,25 +183,29 @@ public class SSTableExport
 
             IColumnIterator columns = filter.getSSTableColumnIterator(reader);
 
-            int columnCount = 0;
-            while (columns.hasNext())
-            {
-                // setting new start column to the last of the current columns
-                startColumn = columns.next().name();
-                columnCount++;
-            }
-
+            Pair<Integer, ByteBuffer> serialized;
             try
             {
-                columns = filter.getSSTableColumnIterator(reader); // iterator reset
-                serializeRow(columns, isSuperCF, out);
+                serialized = serializeRow(columns, isSuperCF, out);
             }
             catch (IOException e)
             {
                 System.err.println("WARNING: Corrupt row " + key + " (skipping).");
+                continue;
+            }
+            finally
+            {
+                try
+                {
+                    columns.close();
+                }
+                catch (IOException e)
+                {
+                    throw new IOError(e);
+                }
             }
 
-            if (columnCount < PAGE_SIZE)
+            if (serialized.left < PAGE_SIZE)
                 break;
 
             out.print(",");
@@ -207,16 +220,20 @@ public class SSTableExport
      * @param columns columns of the row
      * @param isSuper true if wrapping Column Family is Super
      * @param out output stream
+     * @return pair of (number of columns serialized, last column serialized)
      *
      * @throws IOException on any I/O error.
      */
-    private static void serializeRow(IColumnIterator columns, boolean isSuper, PrintStream out) throws IOException
+    private static Pair<Integer, ByteBuffer> serializeRow(IColumnIterator columns, boolean isSuper, PrintStream out) throws IOException
     {
         if (isSuper)
         {
+            int n = 0;
+            IColumn column = null;
             while (columns.hasNext())
             {
-                IColumn column = columns.next();
+                column = columns.next();
+                n++;
 
                 out.print(asKey(bytesToHex(column.name())));
                 out.print("{");
@@ -232,10 +249,12 @@ public class SSTableExport
                 if (columns.hasNext())
                     out.print(", ");
             }
+
+            return new Pair<Integer, ByteBuffer>(n, column == null ? null : column.name());
         }
         else
         {
-            serializeColumns(columns, out);
+            return serializeColumns(columns, out);
         }
     }
 
