@@ -20,9 +20,7 @@
  */
 package org.apache.cassandra.cql;
 
-import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
-import java.text.ParseException;
 
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.AsciiType;
@@ -30,29 +28,11 @@ import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.db.marshal.LexicalUUIDType;
 import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
-import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.thrift.InvalidRequestException;
-import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.UUIDGen;
-import org.apache.commons.lang.time.DateUtils;
 
 /** A term parsed from a CQL statement. */
 public class Term
-{
-    private static String[] iso8601Patterns = new String[] {
-            "yyyy-MM-dd HH:mm",
-            "yyyy-MM-dd HH:mm:ss",
-            "yyyy-MM-dd HH:mmZ",
-            "yyyy-MM-dd HH:mm:ssZ",
-            "yyyy-MM-dd'T'HH:mm",
-            "yyyy-MM-dd'T'HH:mmZ",
-            "yyyy-MM-dd'T'HH:mm:ss",
-            "yyyy-MM-dd'T'HH:mm:ssZ",
-            "yyyy-MM-dd",
-            "yyyy-MM-ddZ"
-    };
-    
+{   
     private final String text;
     private final TermType type;
     
