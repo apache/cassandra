@@ -38,7 +38,7 @@ public interface FileDataInput extends DataInput, Closeable
 
     public void reset(FileMark mark) throws IOException;
 
-    public int bytesPastMark(FileMark mark);
+    public long bytesPastMark(FileMark mark);
 
     /**
      * Read length bytes from current file position

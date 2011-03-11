@@ -425,18 +425,6 @@ public class BufferedRandomAccessFileTest
 
         // Expect this call to succeed.
         rw.bytesPastMark(mark);
-
-        // Seek 4gb
-        rw.seek(4L*1024L*1024L*1024L*1024L);
-
-        // Expect this call to fail -- the distance from mark to current file pointer > 2gb.
-        expectException(new Callable<Object>()
-        {
-            public Object call() throws IOException
-            {
-                return rw.bytesPastMark(mark);
-            }
-        }, UnsupportedOperationException.class);
     }
 
     @Test

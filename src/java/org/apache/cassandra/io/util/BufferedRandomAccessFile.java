@@ -408,14 +408,11 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
         seek(markedPointer);
     }
 
-    public int bytesPastMark()
+    public long bytesPastMark()
     {
         long bytes = getFilePointer() - markedPointer;
-
         assert bytes >= 0;
-        if (bytes > Integer.MAX_VALUE)
-            throw new UnsupportedOperationException("Overflow: " + bytes);
-        return (int) bytes;
+        return bytes;
     }
 
     public FileMark mark()
@@ -430,15 +427,12 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
         seek(((BufferedRandomAccessFileMark) mark).pointer);
     }
 
-    public int bytesPastMark(FileMark mark)
+    public long bytesPastMark(FileMark mark)
     {
         assert mark instanceof BufferedRandomAccessFileMark;
         long bytes = getFilePointer() - ((BufferedRandomAccessFileMark) mark).pointer;
-
         assert bytes >= 0;
-        if (bytes > Integer.MAX_VALUE)
-            throw new UnsupportedOperationException("Overflow: " + bytes);
-        return (int) bytes;
+        return bytes;
     }
 
     public static BufferedRandomAccessFile getUncachingReader(String filename) throws IOException
