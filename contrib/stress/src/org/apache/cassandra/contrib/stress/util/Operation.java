@@ -59,9 +59,9 @@ public abstract class Operation
      * Generate values of average size specified by -S, up to cardinality specified by -C
      * @return Collection of the values
      */
-    protected List<String> generateValues()
+    protected List<ByteBuffer> generateValues()
     {
-        List<String> values = new ArrayList<String>();
+        List<ByteBuffer> values = new ArrayList<ByteBuffer>();
 
         int limit = 2 * session.getColumnSize();
 
@@ -69,8 +69,7 @@ public abstract class Operation
         {
             byte[] value = new byte[Stress.randomizer.nextInt(limit)];
             Stress.randomizer.nextBytes(value);
-
-            values.add(FBUtilities.bytesToHex(value));
+            values.add(ByteBuffer.wrap(value));
         }
 
         return values;
