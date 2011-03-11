@@ -228,10 +228,6 @@ snapshot_before_compaction: false
 # lowest priority and that is our default.
 # compaction_thread_priority: 1
 
-# The threshold size in megabytes the binary memtable must grow to,
-# before it's submitted for flushing to disk.
-binary_memtable_throughput_in_mb: 256
-
 # Add column indexes to a row after its contents reach this size.
 # Increase if your column values are large, or if you have a very large
 # number of columns.  The competing causes are, Cassandra has to
