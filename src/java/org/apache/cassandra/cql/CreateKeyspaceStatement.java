@@ -34,7 +34,11 @@ public class CreateKeyspaceStatement
      * @throws InvalidRequestException if arguments are missing or unacceptable
      */
     public void validate() throws InvalidRequestException
-    {   
+    {
+        // keyspace name
+        if (!name.matches("\\w+"))
+            throw new InvalidRequestException(String.format("\"%s\" is not a valid keyspace name", name));
+        
         // required
         if (!attrs.containsKey("strategy_class"))
             throw new InvalidRequestException("missing required argument \"strategy_class\"");

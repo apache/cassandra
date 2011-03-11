@@ -95,7 +95,7 @@ selectStatement returns [SelectStatement expr]
           ( s1=selectExpression                 { expression = s1; }
           | K_COUNT '(' s2=selectExpression ')' { expression = s2; isCountOp = true; }
           )
-          K_FROM columnFamily=IDENT
+          K_FROM columnFamily=( IDENT | STRING_LITERAL | INTEGER )
           ( K_USING K_CONSISTENCY K_LEVEL { cLevel = ConsistencyLevel.valueOf($K_LEVEL.text); } )?
           ( K_WHERE whereClause )?
           ( K_LIMIT rows=INTEGER { numRecords = Integer.parseInt($rows.text); } )?
@@ -167,7 +167,7 @@ updateStatement returns [UpdateStatement expr]
           ConsistencyLevel cLevel = null;
           Map<Term, Term> columns = new HashMap<Term, Term>();
       }
-      K_UPDATE columnFamily=IDENT
+      K_UPDATE columnFamily=( IDENT | STRING_LITERAL | INTEGER )
           (K_USING K_CONSISTENCY K_LEVEL { cLevel = ConsistencyLevel.valueOf($K_LEVEL.text); })?
           K_SET termPair[columns] (',' termPair[columns])*
           K_WHERE K_KEY '=' key=term endStmnt
@@ -194,7 +194,7 @@ deleteStatement returns [DeleteStatement expr]
       }
       K_DELETE
           ( cols=termList { columnsList = $cols.items; })?
-          K_FROM columnFamily=IDENT ( K_USING K_CONSISTENCY K_LEVEL )?
+          K_FROM columnFamily=( IDENT | STRING_LITERAL | INTEGER ) ( K_USING K_CONSISTENCY K_LEVEL )?
           K_WHERE ( K_KEY '=' key=term           { keyList = Collections.singletonList(key); }
                   | K_KEY K_IN '(' keys=termList { keyList = $keys.items; } ')'
                   )?
@@ -208,7 +208,7 @@ createKeyspaceStatement returns [CreateKeyspaceStatement expr]
     : {
           Map<String, String> attrs = new HashMap<String, String>();
       }
-      K_CREATE K_KEYSPACE keyspace=IDENT
+      K_CREATE K_KEYSPACE keyspace=( IDENT | STRING_LITERAL | INTEGER )
           K_WITH  a1=( COMPIDENT | IDENT ) '=' v1=( STRING_LITERAL | INTEGER ) { attrs.put($a1.text, $v1.text); }
           ( K_AND aN=( COMPIDENT | IDENT ) '=' vN=( STRING_LITERAL | INTEGER ) { attrs.put($aN.text, $vN.text); } )*
           endStmnt
@@ -225,7 +225,8 @@ createKeyspaceStatement returns [CreateKeyspaceStatement expr]
  * ) WITH comparator = <type> [AND ...];
  */
 createColumnFamilyStatement returns [CreateColumnFamilyStatement expr]
-    : K_CREATE K_COLUMNFAMILY name=IDENT { $expr = new CreateColumnFamilyStatement($name.text); } ( '('
+    : K_CREATE K_COLUMNFAMILY name=( IDENT | STRING_LITERAL | INTEGER ) { $expr = new CreateColumnFamilyStatement($name.text); }
+      ( '('
           col1=term v1=createCfamColumnValidator { $expr.addColumn(col1, $v1.validator); } ( ','
           colN=term vN=createCfamColumnValidator { $expr.addColumn(colN, $vN.validator); } )*
       ')' )?
@@ -247,18 +248,18 @@ createCfamKeywordArgument returns [String arg]
 
 /** CREATE INDEX [indexName] ON columnFamily (columnName); */
 createIndexStatement returns [CreateIndexStatement expr]
-    : K_CREATE K_INDEX (idxName=IDENT)? K_ON cf=IDENT '(' columnName=term ')' endStmnt
+    : K_CREATE K_INDEX (idxName=IDENT)? K_ON cf=( IDENT | STRING_LITERAL | INTEGER ) '(' columnName=term ')' endStmnt
       { $expr = new CreateIndexStatement($idxName.text, $cf.text, columnName); }
     ;
 
 /** DROP KEYSPACE <KSP>; */
 dropKeyspaceStatement returns [String ksp]
-    : K_DROP K_KEYSPACE IDENT endStmnt { $ksp = $IDENT.text; }
+    : K_DROP K_KEYSPACE name=( IDENT | STRING_LITERAL | INTEGER ) endStmnt { $ksp = $name.text; }
     ;
 
 /** DROP COLUMNFAMILY <CF>; */
 dropColumnFamilyStatement returns [String cfam]
-    : K_DROP K_COLUMNFAMILY IDENT endStmnt { $cfam = $IDENT.text; }
+    : K_DROP K_COLUMNFAMILY name=( IDENT | STRING_LITERAL | INTEGER ) endStmnt { $cfam = $name.text; }
     ;
 
 comparatorType
@@ -288,7 +289,7 @@ relation returns [Relation rel]
 
 // TRUNCATE <CF>;
 truncateStatement returns [String cfam]
-    : K_TRUNCATE columnFamily=IDENT { $cfam = $columnFamily.text; } endStmnt
+    : K_TRUNCATE columnFamily=( IDENT | STRING_LITERAL | INTEGER ) { $cfam = $columnFamily.text; } endStmnt
     ;
 
 endStmnt

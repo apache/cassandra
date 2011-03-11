@@ -96,6 +96,10 @@ public class CreateColumnFamilyStatement
     /** Perform validation of parsed params */
     private void validate() throws InvalidRequestException
     {
+        // Column family name
+        if (!name.matches("\\w+"))
+            throw new InvalidRequestException(String.format("\"%s\" is not a valid column family name", name));
+        
         // Catch the case where someone passed a kwarg that is not recognized.
         Set<String> keywordsFound = new HashSet<String>(properties.keySet());
         keywordsFound.removeAll(keywords);
