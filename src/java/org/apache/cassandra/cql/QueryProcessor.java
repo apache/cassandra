@@ -439,9 +439,7 @@ public class QueryProcessor
     {
         logger.trace("CQL QUERY: {}", queryString);
         
-        CqlParser parser = getParser(queryString);
-        CQLStatement statement = parser.query();
-        parser.throwLastRecognitionError();
+        CQLStatement statement = getStatement(queryString);
         String keyspace = null;
         
         // Chicken-and-egg; No keyspace to get when we're setting (or creating) one. 
@@ -778,11 +776,22 @@ public class QueryProcessor
         return null;    // We should never get here.
     }
     
-    private static CqlParser getParser(String queryStr)
+    private static CQLStatement getStatement(String queryStr) throws InvalidRequestException, RecognitionException
     {
+        // Lexer and parser
         CharStream stream = new ANTLRStringStream(queryStr);
         CqlLexer lexer = new CqlLexer(stream);
         TokenStream tokenStream = new CommonTokenStream(lexer);
-        return new CqlParser(tokenStream);
+        CqlParser parser = new CqlParser(tokenStream);
+        
+        // Parse the query string to a statement instance
+        CQLStatement statement = parser.query();
+        
+        // The lexer and parser queue up any errors they may have encountered
+        // along the way, if necessary, we turn them into exceptions here.
+        lexer.throwLastRecognitionError();
+        parser.throwLastRecognitionError();
+        
+        return statement;
     }
 }

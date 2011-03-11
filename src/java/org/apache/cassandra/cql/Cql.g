@@ -37,6 +37,7 @@ options {
 
 @lexer::header {
     package org.apache.cassandra.cql;
+    import org.apache.cassandra.thrift.InvalidRequestException;
 }
 
 @lexer::members {
@@ -52,6 +53,26 @@ options {
         if (tokens.size() == 0)
             return Token.EOF_TOKEN;
         return tokens.remove(0);
+    }
+    
+    private List<String> recognitionErrors = new ArrayList<String>();
+    
+    public void displayRecognitionError(String[] tokenNames, RecognitionException e)
+    {
+        String hdr = getErrorHeader(e);
+        String msg = getErrorMessage(e, tokenNames);
+        recognitionErrors.add(hdr + " " + msg);
+    }
+    
+    public List<String> getRecognitionErrors()
+    {
+        return recognitionErrors;
+    }
+    
+    public void throwLastRecognitionError() throws InvalidRequestException
+    {
+        if (recognitionErrors.size() > 0)
+            throw new InvalidRequestException(recognitionErrors.get((recognitionErrors.size()-1)));
     }
 }
 
