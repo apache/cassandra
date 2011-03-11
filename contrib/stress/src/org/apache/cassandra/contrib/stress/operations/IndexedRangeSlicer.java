@@ -40,7 +40,7 @@ public class IndexedRangeSlicer extends Operation
                                                                                       ByteBuffer.wrap(new byte[] {}),
                                                                                       false, session.getColumnsPerKey()));
 
-        List<String> values = super.generateValues();
+        List<ByteBuffer> values = super.generateValues();
         ColumnParent parent = new ColumnParent("Standard1");
         int expectedPerValue = session.getNumKeys() / values.size();
 
@@ -49,7 +49,7 @@ public class IndexedRangeSlicer extends Operation
         int received = 0;
 
         String startOffset = "0";
-        ByteBuffer value = ByteBufferUtil.bytes(values.get(index % values.size()));
+        ByteBuffer value = values.get(index % values.size());
 
         IndexExpression expression = new IndexExpression(columnName, IndexOperator.EQ, value);
 
