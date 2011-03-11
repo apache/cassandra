@@ -24,6 +24,8 @@
  * allow zero replicas in a NTS datacenter (CASSANDRA-1924)
  * make range queries respect snitch for local replicas (CASSANDRA-2286)
  * fix HH delivery when column index is larger than 2GB (CASSANDRA-2297)
+ * make 2ary indexes use parent CF flush thresholds during initial build
+   (CASSANDRA-2294)
 
 
 0.7.3

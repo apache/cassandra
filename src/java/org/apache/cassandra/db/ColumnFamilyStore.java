@@ -148,15 +148,20 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         
         // only update these runtime-modifiable settings if they have not been modified.
         if (!minCompactionThreshold.isModified())
-            minCompactionThreshold = new DefaultInteger(metadata.getMinCompactionThreshold());
+            for (ColumnFamilyStore cfs : concatWithIndexes())
+                cfs.minCompactionThreshold = new DefaultInteger(metadata.getMinCompactionThreshold());
         if (!maxCompactionThreshold.isModified())
-            maxCompactionThreshold = new DefaultInteger(metadata.getMaxCompactionThreshold());
+            for (ColumnFamilyStore cfs : concatWithIndexes())
+                cfs.maxCompactionThreshold = new DefaultInteger(metadata.getMaxCompactionThreshold());
         if (!memtime.isModified())
-            memtime = new DefaultInteger(metadata.getMemtableFlushAfterMins());
+            for (ColumnFamilyStore cfs : concatWithIndexes())
+                cfs.memtime = new DefaultInteger(metadata.getMemtableFlushAfterMins());
         if (!memsize.isModified())
-            memsize = new DefaultInteger(metadata.getMemtableThroughputInMb());
+            for (ColumnFamilyStore cfs : concatWithIndexes())
+                cfs.memsize = new DefaultInteger(metadata.getMemtableThroughputInMb());
         if (!memops.isModified())
-            memops = new DefaultDouble(metadata.getMemtableOperationsInMillions());
+            for (ColumnFamilyStore cfs : concatWithIndexes())
+                cfs.memops = new DefaultDouble(metadata.getMemtableOperationsInMillions());
         if (!rowCacheSaveInSeconds.isModified())
             rowCacheSaveInSeconds = new DefaultInteger(metadata.getRowCacheSavePeriodInSeconds());
         if (!keyCacheSaveInSeconds.isModified())
@@ -313,7 +318,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         AbstractType columnComparator = (rowPartitioner instanceof OrderPreservingPartitioner || rowPartitioner instanceof ByteOrderedPartitioner)
                                         ? BytesType.instance
                                         : new LocalByPartionerType(StorageService.getPartitioner());
-        final CFMetaData indexedCfMetadata = CFMetaData.newIndexMetadata(table.name, columnFamily, info, columnComparator);
+        final CFMetaData indexedCfMetadata = CFMetaData.newIndexMetadata(metadata, info, columnComparator);
         ColumnFamilyStore indexedCfs = ColumnFamilyStore.createColumnFamilyStore(table,
                                                                                  indexedCfMetadata.cfName,
                                                                                  new LocalPartitioner(metadata.getColumn_metadata().get(info.name).validator),
@@ -706,7 +711,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             // submit the memtable for any indexed sub-cfses, and our own.
             List<ColumnFamilyStore> icc = new ArrayList<ColumnFamilyStore>(indexedColumns.size());
             // don't assume that this.memtable is dirty; forceFlush can bring us here during index build even if it is not
-            for (ColumnFamilyStore cfs : Iterables.concat(Collections.singleton(this), indexedColumns.values()))
+            for (ColumnFamilyStore cfs : concatWithIndexes())
             {
                 if (!cfs.memtable.isClean())
                     icc.add(cfs);
@@ -767,7 +772,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         // during index build, 2ary index memtables can be dirty even if parent is not.  if so,
         // we want flushLargestMemtables to flush the 2ary index ones too.
         boolean clean = true;
-        for (ColumnFamilyStore cfs : Iterables.concat(Collections.singleton(this), getIndexColumnFamilyStores()))
+        for (ColumnFamilyStore cfs : concatWithIndexes())
             clean &= cfs.memtable.isClean();
 
         if (clean)
@@ -1852,7 +1857,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             {
                 // putting markCompacted on the commitlogUpdater thread ensures it will run
                 // after any compactions that were in progress when truncate was called, are finished
-                for (ColumnFamilyStore cfs : Iterables.concat(indexedColumns.values(), Arrays.asList(ColumnFamilyStore.this)))
+                for (ColumnFamilyStore cfs : concatWithIndexes())
                 {
                     List<SSTableReader> truncatedSSTables = new ArrayList<SSTableReader>();
                     for (SSTableReader sstable : cfs.getSSTables())
@@ -1954,11 +1959,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public ColumnFamilyStore getIndexedColumnFamilyStore(ByteBuffer column)
     {
         return indexedColumns.get(column);
-    }
-
-    public Collection<ColumnFamilyStore> getIndexColumnFamilyStores()
-    {
-        return indexedColumns.values();
     }
 
     public ColumnFamily newIndexedColumnFamily(ByteBuffer column)
@@ -2191,5 +2191,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public SSTableWriter createCompactionWriter(long estimatedRows, String location) throws IOException
     {
         return new SSTableWriter(getTempSSTablePath(location), estimatedRows, metadata, partitioner);
+    }
+
+    public Iterable<ColumnFamilyStore> concatWithIndexes()
+    {
+        return Iterables.concat(Collections.singleton(this), indexedColumns.values());
     }
 }

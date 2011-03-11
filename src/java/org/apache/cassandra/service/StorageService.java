@@ -2198,7 +2198,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         {
             long ops = 0;
             long throughput = 0;
-            for (ColumnFamilyStore subordinate : Iterables.concat(Collections.singleton(cfs), cfs.getIndexColumnFamilyStores()))
+            for (ColumnFamilyStore subordinate : cfs.concatWithIndexes())
             {
                 ops += subordinate.getMemtableColumnsCount();
                 throughput = subordinate.getMemtableThroughputInMB();
