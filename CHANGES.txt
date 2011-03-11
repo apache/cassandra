@@ -26,6 +26,7 @@
  * fix HH delivery when column index is larger than 2GB (CASSANDRA-2297)
  * make 2ary indexes use parent CF flush thresholds during initial build
    (CASSANDRA-2294)
+ * update memtable_throughput to be a long (CASSANDRA-2158)
 
 
 0.7.3
@@ -42,7 +43,6 @@
  * validate index names for \w+ (CASSANDRA-2196)
  * Fix Cassandra cli to respect timeout if schema does not settle 
    (CASSANDRA-2187)
- * update memtable_throughput to be a long (CASSANDRA-2158)
  * fix for compaction and cleanup writing old-format data into new-version 
    sstable (CASSANDRA-2211, -2216)
  * add nodetool scrub (CASSANDRA-2217, -2240)
