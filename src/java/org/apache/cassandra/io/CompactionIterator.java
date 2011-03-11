@@ -106,7 +106,15 @@ implements Closeable, ICompactionInfo
         try
         {
             AbstractCompactedRow compactedRow = getCompactedRow();
-            return compactedRow.isEmpty() ? null : compactedRow;
+            if (compactedRow.isEmpty())
+            {
+                cfs.invalidateCachedRow(compactedRow.key);
+                return null;
+            }
+            else
+            {
+                return compactedRow;
+            }
         }
         finally
         {

@@ -20,6 +20,7 @@
    get synced before server died (CASSANDRA-2285)
  * fix fd leak in sstable2json with non-mmap'd i/o (CASSANDRA-2304)
  * reduce memory use during streaming of multiple sstables (CASSANDRA-2301)
+ * purge tombstoned rows from cache after GCGraceSeconds (CASSANDRA-2305)
 
 
 0.7.3

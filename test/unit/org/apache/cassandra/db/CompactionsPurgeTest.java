@@ -178,4 +178,53 @@ public class CompactionsPurgeTest extends CleanupHelper
         ColumnFamily cf = table.getColumnFamilyStore(cfName).getColumnFamily(QueryFilter.getIdentityFilter(key, new QueryPath(cfName)));
         assert cf == null : cf;
     }
+
+    @Test
+    public void testCompactionPurgeTombstonedRow() throws IOException, ExecutionException, InterruptedException
+    {
+        CompactionManager.instance.disableAutoCompaction();
+
+        String tableName = "RowCacheSpace";
+        String cfName = "CachedCF";
+        Table table = Table.open(tableName);
+        ColumnFamilyStore cfs = table.getColumnFamilyStore(cfName);
+
+        DecoratedKey key = Util.dk("key3");
+        RowMutation rm;
+
+        // inserts
+        rm = new RowMutation(tableName, key.key);
+        for (int i = 0; i < 10; i++)
+        {
+            rm.add(new QueryPath(cfName, null, ByteBuffer.wrap(String.valueOf(i).getBytes())), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
+        }
+        rm.apply();
+
+        // move the key up in row cache
+        cfs.getColumnFamily(QueryFilter.getIdentityFilter(key, new QueryPath(cfName)));
+
+        // deletes row
+        rm = new RowMutation(tableName, key.key);
+        rm.delete(new QueryPath(cfName, null, null), 1);
+        rm.apply();
+
+        // flush and major compact
+        cfs.forceBlockingFlush();
+        CompactionManager.instance.submitMajor(cfs, 0, Integer.MAX_VALUE).get();
+        //cfs.invalidateCachedRow(key);
+
+        // re-inserts with timestamp lower than delete
+        rm = new RowMutation(tableName, key.key);
+        for (int i = 0; i < 10; i++)
+        {
+            rm.add(new QueryPath(cfName, null, ByteBuffer.wrap(String.valueOf(i).getBytes())), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
+        }
+        rm.apply();
+
+        // Check that the second insert did went in
+        ColumnFamily cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(key, new QueryPath(cfName)));
+        assert cf.getColumnCount() == 10;
+        for (IColumn c : cf)
+            assert !c.isMarkedForDelete();
+    }
 }
