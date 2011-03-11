@@ -484,8 +484,9 @@ public class StorageProxy implements StorageProxyMBean
             for (AbstractBounds range : ranges)
             {
                 List<InetAddress> liveEndpoints = StorageService.instance.getLiveNaturalEndpoints(command.keyspace, range.right);
+                DatabaseDescriptor.getEndpointSnitch().sortByProximity(FBUtilities.getLocalAddress(), liveEndpoints);
 
-                if (consistency_level == ConsistencyLevel.ONE && liveEndpoints.contains(FBUtilities.getLocalAddress())) 
+                if (consistency_level == ConsistencyLevel.ONE && !liveEndpoints.isEmpty() && liveEndpoints.get(0).equals(FBUtilities.getLocalAddress())) 
                 {
                     if (logger.isDebugEnabled())
                         logger.debug("local range slice");
@@ -508,7 +509,6 @@ public class StorageProxy implements StorageProxyMBean
                 }
                 else 
                 {
-                    DatabaseDescriptor.getEndpointSnitch().sortByProximity(FBUtilities.getLocalAddress(), liveEndpoints);
                     RangeSliceCommand c2 = new RangeSliceCommand(command.keyspace, command.column_family, command.super_column, command.predicate, range, command.max_keys);
                     Message message = c2.getMessage();
 
