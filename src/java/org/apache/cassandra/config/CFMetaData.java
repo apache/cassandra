@@ -270,10 +270,10 @@ public final class CFMetaData
              column_metadata);
     }
     
-    public static CFMetaData newIndexMetadata(CFMetaData parent, ColumnDefinition info, AbstractType columnComparator)
+    public static CFMetaData newIndexMetadata(String table, String parentCf, ColumnDefinition info, AbstractType columnComparator)
     {
-        return new CFMetaData(parent.tableName,
-                              indexName(parent.cfName, info),
+        return new CFMetaData(table,
+                              indexName(parentCf, info),
                               ColumnFamilyType.Standard,
                               columnComparator,
                               null,
@@ -281,15 +281,15 @@ public final class CFMetaData
                               0,
                               0,
                               0,
-                              parent.gcGraceSeconds,
+                              DEFAULT_GC_GRACE_SECONDS,
                               BytesType.instance,
-                              parent.minCompactionThreshold,
-                              parent.maxCompactionThreshold,
-                              0,
-                              0,
-                              parent.memtableFlushAfterMins,
-                              parent.memtableThroughputInMb,
-                              parent.memtableOperationsInMillions,
+                              DEFAULT_MIN_COMPACTION_THRESHOLD,
+                              DEFAULT_MAX_COMPACTION_THRESHOLD,
+                              DEFAULT_ROW_CACHE_SAVE_PERIOD_IN_SECONDS,
+                              DEFAULT_KEY_CACHE_SAVE_PERIOD_IN_SECONDS,
+                              DEFAULT_MEMTABLE_LIFETIME_IN_MINS,
+                              DEFAULT_MEMTABLE_THROUGHPUT_IN_MB,
+                              DEFAULT_MEMTABLE_OPERATIONS_IN_MILLIONS,
                               Collections.<ByteBuffer, ColumnDefinition>emptyMap());
     }
 
