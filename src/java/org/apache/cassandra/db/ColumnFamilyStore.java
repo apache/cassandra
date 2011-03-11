@@ -1795,7 +1795,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return ssTables.getRowCache().getCapacity() == 0 ? null : ssTables.getRowCache().getInternal(key);
     }
 
-    void invalidateCachedRow(DecoratedKey key)
+    public void invalidateCachedRow(DecoratedKey key)
     {
         ssTables.getRowCache().remove(key);
     }

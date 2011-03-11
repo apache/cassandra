@@ -171,15 +171,15 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
     {
         if (System.getenv(PIG_RPC_PORT) != null)
             ConfigHelper.setRpcPort(conf, System.getenv(PIG_RPC_PORT));
-        else
+        else if (ConfigHelper.getRpcPort(conf) == 0) 
             throw new IOException("PIG_RPC_PORT environment variable not set");
         if (System.getenv(PIG_INITIAL_ADDRESS) != null)
             ConfigHelper.setInitialAddress(conf, System.getenv(PIG_INITIAL_ADDRESS));
-        else
+        else if (ConfigHelper.getInitialAddress(conf) == null) 
             throw new IOException("PIG_INITIAL_ADDRESS environment variable not set");
         if (System.getenv(PIG_PARTITIONER) != null)
             ConfigHelper.setPartitioner(conf, System.getenv(PIG_PARTITIONER));
-        else
+        else if (ConfigHelper.getPartitioner(conf) == null) 
             throw new IOException("PIG_PARTITIONER environment variable not set");
     }
 

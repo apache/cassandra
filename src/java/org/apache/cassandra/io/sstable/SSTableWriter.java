@@ -246,13 +246,23 @@ public class SSTableWriter extends SSTable
     public static class Builder implements ICompactionInfo
     {
         private final Descriptor desc;
-        public final ColumnFamilyStore cfs;
-        private final RowIndexer indexer;
+        private final OperationType type;
+        private final ColumnFamilyStore cfs;
+        private RowIndexer indexer;
 
         public Builder(Descriptor desc, OperationType type)
         {
             this.desc = desc;
+            this.type = type;
             cfs = Table.open(desc.ksname).getColumnFamilyStore(desc.cfname);
+        }
+
+        // lazy-initialize the file to avoid opening it until it's actually executing on the CompactionManager,
+        // since the 8MB buffers can use up heap quickly
+        private void maybeOpenIndexer()
+        {
+            if (indexer != null)
+                return;
             try
             {
                 if (cfs.metadata.getDefaultValidator().isCommutative())
@@ -270,6 +280,8 @@ public class SSTableWriter extends SSTable
         {
             if (cfs.isInvalid())
                 return null;
+            maybeOpenIndexer();
+
             File ifile = new File(desc.filenameFor(SSTable.COMPONENT_INDEX));
             File ffile = new File(desc.filenameFor(SSTable.COMPONENT_FILTER));
             assert !ifile.exists();
@@ -286,8 +298,10 @@ public class SSTableWriter extends SSTable
 
         public long getTotalBytes()
         {
+            maybeOpenIndexer();
             try
             {
+                // (length is still valid post-close)
                 return indexer.dfile.length();
             }
             catch (IOException e)
@@ -298,6 +312,8 @@ public class SSTableWriter extends SSTable
 
         public long getBytesComplete()
         {
+            maybeOpenIndexer();
+            // (getFilePointer is still valid post-close)
             return indexer.dfile.getFilePointer();
         }
 

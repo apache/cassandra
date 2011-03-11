@@ -935,7 +935,7 @@ public class CompactionManager implements CompactionManagerMBean
             return executor.submit(runnable);
     }
 
-    public Future<SSTableReader> submitSSTableBuild(Descriptor desc, OperationType type)
+    public Future<SSTableReader> submitSSTableBuild(final Descriptor desc, OperationType type)
     {
         // invalid descriptions due to missing or dropped CFS are handled by SSTW and StreamInSession.
         final SSTableWriter.Builder builder = SSTableWriter.createBuilder(desc, type);
@@ -946,7 +946,7 @@ public class CompactionManager implements CompactionManagerMBean
                 compactionLock.lock();
                 try
                 {
-                    executor.beginCompaction(builder.cfs.columnFamily, builder);
+                    executor.beginCompaction(desc.cfname, builder);
                     return builder.build();
                 }
                 finally
