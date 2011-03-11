@@ -44,7 +44,7 @@ public class NetworkTopologyStrategyTest
     {
         IEndpointSnitch snitch = new PropertyFileSnitch();
         TokenMetadata metadata = new TokenMetadata();
-        createDummyTokens(metadata);
+        createDummyTokens(metadata, true);
 
         Map<String, String> configOptions = new HashMap<String, String>();
         configOptions.put("DC1", "3");
@@ -62,7 +62,30 @@ public class NetworkTopologyStrategyTest
         assert 6 == new HashSet<InetAddress>(endpoints).size(); // ensure uniqueness
     }
 
-    public void createDummyTokens(TokenMetadata metadata) throws UnknownHostException
+    @Test
+    public void testPropertiesWithEmptyDC() throws IOException, ParserConfigurationException, SAXException, ConfigurationException
+    {
+        IEndpointSnitch snitch = new PropertyFileSnitch();
+        TokenMetadata metadata = new TokenMetadata();
+        createDummyTokens(metadata, false);
+
+        Map<String, String> configOptions = new HashMap<String, String>();
+        configOptions.put("DC1", "3");
+        configOptions.put("DC2", "3");
+        configOptions.put("DC3", "0");
+
+        // Set the localhost to the tokenmetadata. Embedded cassandra way?
+        NetworkTopologyStrategy strategy = new NetworkTopologyStrategy(table, metadata, snitch, configOptions);
+        assert strategy.getReplicationFactor("DC1") == 3;
+        assert strategy.getReplicationFactor("DC2") == 3;
+        assert strategy.getReplicationFactor("DC3") == 0;
+        // Query for the natural hosts
+        ArrayList<InetAddress> endpoints = strategy.getNaturalEndpoints(new StringToken("123"));
+        assert 6 == endpoints.size();
+        assert 6 == new HashSet<InetAddress>(endpoints).size(); // ensure uniqueness
+    }
+
+    public void createDummyTokens(TokenMetadata metadata, boolean populateDC3) throws UnknownHostException
     {
         // DC 1
         tokenFactory(metadata, "123", new byte[]{ 10, 0, 0, 10 });
@@ -72,11 +95,15 @@ public class NetworkTopologyStrategyTest
         tokenFactory(metadata, "789", new byte[]{ 10, 20, 114, 10 });
         tokenFactory(metadata, "890", new byte[]{ 10, 20, 114, 11 });
         //tokens for DC3
-        tokenFactory(metadata, "456", new byte[]{ 10, 21, 119, 13 });
-        tokenFactory(metadata, "567", new byte[]{ 10, 21, 119, 10 });
+        if (populateDC3)
+        {
+            tokenFactory(metadata, "456", new byte[]{ 10, 21, 119, 13 });
+            tokenFactory(metadata, "567", new byte[]{ 10, 21, 119, 10 });
+        }
         // Extra Tokens
         tokenFactory(metadata, "90A", new byte[]{ 10, 0, 0, 13 });
-        tokenFactory(metadata, "0AB", new byte[]{ 10, 21, 119, 14 });
+        if (populateDC3)
+            tokenFactory(metadata, "0AB", new byte[]{ 10, 21, 119, 14 });
         tokenFactory(metadata, "ABC", new byte[]{ 10, 20, 114, 15 });
     }
 

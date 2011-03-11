@@ -77,4 +77,11 @@ public class TokenMetadataTest
         testRingIterator("0", true, "1", "6", "");
         testRingIterator("", true, "1", "6", "");
     }
+
+    @Test
+    public void testRingIteratorEmptyRing()
+    {
+        RING.clear();
+        testRingIterator("2", false);
+    }
 }
