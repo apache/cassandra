@@ -185,6 +185,41 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
         }
     }
 
+    @Override
+    public void setLength(long newLength) throws IOException
+    {
+        if (newLength < 0)
+            throw new IllegalArgumentException();
+
+        // account for dirty data in buffers
+        if (isDirty)
+        {
+            if (newLength < bufferOffset)
+            {
+                // buffer is garbage
+                validBufferBytes = 0;
+            }
+            else if (newLength > (bufferOffset + validBufferBytes))
+            {
+                // flush everything in buffer
+                flush();
+            }
+            else // buffer within range
+            {
+                // truncate buffer and flush
+                validBufferBytes = (int)(newLength - bufferOffset);
+                flush();
+            }
+        }
+
+        // at this point all dirty buffer data is flushed
+        super.setLength(newLength);
+
+        validBufferBytes = 0;
+        current = newLength;
+        reBuffer();
+    }
+
     private void reBuffer() throws IOException
     {
         flush(); // synchronizing buffer and file on disk

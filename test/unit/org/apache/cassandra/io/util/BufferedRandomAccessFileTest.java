@@ -662,4 +662,56 @@ public class BufferedRandomAccessFileTest
         fout.close();
         return f;
     }
+
+    public void assertSetLength(BufferedRandomAccessFile file, long length) throws IOException
+    {
+        assert file.getFilePointer() == length;
+        assert file.length() == file.getFilePointer();
+        assert file.getChannel().size() == file.length();
+    }
+
+    @Test
+    public void testSetLength() throws IOException
+    {
+        File tmpFile = File.createTempFile("set_length", "bin");
+        BufferedRandomAccessFile file = new BufferedRandomAccessFile(tmpFile, "rw", 8*1024*1024);
+
+        // test that data in buffer is truncated
+        file.writeLong(1L);
+        file.writeLong(2L);
+        file.writeLong(3L);
+        file.writeLong(4L);
+        file.setLength(16L);
+        assertSetLength(file, 16L);
+
+        // seek back and truncate within file
+        file.writeLong(3L);
+        file.seek(8L);
+        file.setLength(24L);
+        assertSetLength(file, 24L);
+
+        // seek back and truncate past end of file
+        file.setLength(64L);
+        assertSetLength(file, 64L);
+
+        // make sure file is consistent after sync
+        file.sync();
+        assertSetLength(file, 64L);
+    }
+
+    @Test (expected=IllegalArgumentException.class)
+    public void testSetNegativeLength() throws IOException, IllegalArgumentException
+    {
+        File tmpFile = File.createTempFile("set_negative_length", "bin");
+        BufferedRandomAccessFile file = new BufferedRandomAccessFile(tmpFile, "rw", 8*1024*1024);
+        file.setLength(-8L);
+    }
+
+    @Test (expected=IOException.class)
+    public void testSetLengthDuringReadMode() throws IOException
+    {
+        File tmpFile = File.createTempFile("set_length_during_read_mode", "bin");
+        BufferedRandomAccessFile file = new BufferedRandomAccessFile(tmpFile, "r", 8*1024*1024);
+        file.setLength(4L);
+    }
 }

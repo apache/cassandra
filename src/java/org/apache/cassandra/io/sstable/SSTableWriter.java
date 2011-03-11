@@ -369,14 +369,19 @@ public class SSTableWriter extends SSTable
             {
                 try
                 {
-                    dfile.close();
-                    iwriter.close();
+                    close();
                 }
                 catch (IOException e)
                 {
                     throw new IOError(e);
                 }
             }
+        }
+
+        void close() throws IOException
+        {
+            dfile.close();
+            iwriter.close();
         }
 
         protected long doIndexing() throws IOException
@@ -424,9 +429,12 @@ public class SSTableWriter extends SSTable
      */
     static class CommutativeRowIndexer extends RowIndexer
     {
+        protected BufferedRandomAccessFile writerDfile;
+
         CommutativeRowIndexer(Descriptor desc, CFMetaData metadata) throws IOException
         {
-            super(desc, new BufferedRandomAccessFile(new File(desc.filenameFor(SSTable.COMPONENT_DATA)), "rw", 8 * 1024 * 1024, true), metadata);
+            super(desc, new BufferedRandomAccessFile(new File(desc.filenameFor(SSTable.COMPONENT_DATA)), "r", 8 * 1024 * 1024, true), metadata);
+            writerDfile = new BufferedRandomAccessFile(new File(desc.filenameFor(SSTable.COMPONENT_DATA)), "rw", 8 * 1024 * 1024, true);
         }
 
         @Override
@@ -440,10 +448,14 @@ public class SSTableWriter extends SSTable
 
             long readRowPosition  = 0L;
             long writeRowPosition = 0L;
-            while (readRowPosition < dfile.length())
+
+            writerDfile.seek(writeRowPosition);
+            dfile.seek(readRowPosition);
+
+            long dfileLength = dfile.length();
+            while (readRowPosition < dfileLength)
             {
                 // read key
-                dfile.seek(readRowPosition);
                 diskKey = ByteBufferUtil.readWithShortLength(dfile);
 
                 // skip data size, bloom filter, column index
@@ -466,33 +478,39 @@ public class SSTableWriter extends SSTable
                 iwriter.afterAppend(key, writeRowPosition);
 
                 // write key
-                dfile.seek(writeRowPosition);
-                ByteBufferUtil.writeWithShortLength(diskKey, dfile);
+                ByteBufferUtil.writeWithShortLength(diskKey, writerDfile);
 
                 // write data size; serialize CF w/ bloom filter, column index
-                long writeSizePosition = dfile.getFilePointer();
-                dfile.writeLong(-1L);
-                ColumnFamily.serializer().serializeWithIndexes(cf, dfile);
-                long writeEndPosition = dfile.getFilePointer();
-                dfile.seek(writeSizePosition);
-                dfile.writeLong(writeEndPosition - (writeSizePosition + 8L));
+                long writeSizePosition = writerDfile.getFilePointer();
+                writerDfile.writeLong(-1L);
+                ColumnFamily.serializer().serializeWithIndexes(cf, writerDfile);
+                long writeEndPosition = writerDfile.getFilePointer();
+                writerDfile.seek(writeSizePosition);
+                writerDfile.writeLong(writeEndPosition - (writeSizePosition + 8L));
 
                 writeRowPosition = writeEndPosition;
+                writerDfile.seek(writeRowPosition);
 
                 rows++;
-
-                dfile.sync();
             }
             writeStatistics(desc, rowSizes, columnCounts);
 
             if (writeRowPosition != readRowPosition)
             {
                 // truncate file to new, reduced length
-                dfile.setLength(writeRowPosition);
-                dfile.sync();
+                writerDfile.setLength(writeRowPosition);
             }
+            writerDfile.sync();
 
             return rows;
+        }
+
+
+        @Override
+        void close() throws IOException
+        {
+            super.close();
+            writerDfile.close();
         }
     }
 
