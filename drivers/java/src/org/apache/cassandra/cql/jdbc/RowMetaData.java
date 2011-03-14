@@ -8,13 +8,20 @@ package org.apache.cassandra.cql.jdbc;
  * methods for both column names and values a la ResultSetMetaData.  If we did want that, I recommend an optional
  * method in AbstractType called getSqlType() or something like that.
  */
-public interface RowMetaData
+public interface RowMetaData<N, V>
 {
     /** number of columns in a row of data */
     public int getColumnCount();
     
-    /** column name and value */
-    public TypedColumn getColumn(int index);
+    /** get typed column name */
+    public N getColumnName(int index);
+    
+    /** get typed column value */
+    public V getColumnValue(int index);
+    
+    public Class<N> getColumnNameClass();
+    
+    public Class<V> getColumnValueClass();
     
     /** key */
     public byte[] getKey(); // todo: update when typed keys are available.

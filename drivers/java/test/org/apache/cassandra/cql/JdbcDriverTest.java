@@ -80,12 +80,12 @@ public class JdbcDriverTest extends EmbeddedServiceBase
         assert rs.next();
         assert rs.getInt("1") == 111;
         assert rs.getInt("2") == 222;
-        RowMetaData rd = rs.unwrap(RowMetaData.class);
+        RowMetaData<BigInteger, BigInteger> rd = rs.unwrap(RowMetaData.class);
         assert rd.getColumnCount() == 2;
-        assert rd.getColumn(0).getName().equals(new BigInteger("1"));
-        assert rd.getColumn(0).getValue().equals(new BigInteger("111"));
-        assert rd.getColumn(1).getName().equals(new BigInteger("2"));
-        assert rd.getColumn(1).getValue().equals(new BigInteger("222"));
+        assert rd.getColumnName(0).equals(new BigInteger("1"));
+        assert rd.getColumnValue(0).equals(new BigInteger("111"));
+        assert rd.getColumnName(1).equals(new BigInteger("2"));
+        assert rd.getColumnValue(1).equals(new BigInteger("222"));
     }
     
     @Test
@@ -97,16 +97,16 @@ public class JdbcDriverTest extends EmbeddedServiceBase
         assert rs.next();
         assert rs.getLong("1") == 111;
         assert rs.getLong("2") == 222;
-        RowMetaData rd = rs.unwrap(RowMetaData.class);
+        RowMetaData<Long, Long> rd = rs.unwrap(RowMetaData.class);
         assert rd.getColumnCount() == 2;
-        assert rd.getColumn(0).getName().equals(new Long("1"));
-        assert rd.getColumn(0).getValue().equals(new Long("111"));
-        assert rd.getColumn(1).getName().equals(new Long("2"));
-        assert rd.getColumn(1).getValue().equals(new Long("222"));
-        assert (Long)rd.getColumn(0).getName() == 1L;
-        assert (Long)rd.getColumn(0).getValue() == 111L;
-        assert (Long)rd.getColumn(1).getName() == 2L;
-        assert (Long)rd.getColumn(1).getValue() == 222L;
+        assert rd.getColumnName(0).equals(new Long("1"));
+        assert rd.getColumnValue(0).equals(new Long("111"));
+        assert rd.getColumnName(1).equals(new Long("2"));
+        assert rd.getColumnValue(1).equals(new Long("222"));
+        assert rd.getColumnName(0) == 1L;
+        assert rd.getColumnValue(0) == 111L;
+        assert rd.getColumnName(1) == 2L;
+        assert rd.getColumnValue(1) == 222L;
     }
     
     @Test
@@ -122,12 +122,12 @@ public class JdbcDriverTest extends EmbeddedServiceBase
             assert rs.next();
             assert rs.getString("a").equals("aa");
             assert rs.getString("b").equals("bb");
-            RowMetaData rd = rs.unwrap(RowMetaData.class);
+            RowMetaData<String, String> rd = rs.unwrap(RowMetaData.class);
             assert rd.getColumnCount() == 2;
-            assert rd.getColumn(0).getName().equals("a");
-            assert rd.getColumn(0).getValue().equals("aa");
-            assert rd.getColumn(1).getName().equals("b");
-            assert rd.getColumn(1).getValue().equals("bb");
+            assert rd.getColumnName(0).equals("a");
+            assert rd.getColumnValue(0).equals("aa");
+            assert rd.getColumnName(1).equals("b");
+            assert rd.getColumnValue(1).equals("bb");
         }
     }
     
@@ -154,11 +154,11 @@ public class JdbcDriverTest extends EmbeddedServiceBase
         assert Arrays.equals(bb, rs.getBytes(1));
         assert Arrays.equals(aa, rs.getBytes(FBUtilities.bytesToHex(a)));
         assert Arrays.equals(bb, rs.getBytes(FBUtilities.bytesToHex(b)));
-        RowMetaData rd = rs.unwrap(RowMetaData.class);
-        assert rd.getColumn(0).getName().equals(ByteBuffer.wrap(a));
-        assert rd.getColumn(1).getName().equals(ByteBuffer.wrap(b));
-        assert rd.getColumn(0).getValue().equals(ByteBuffer.wrap(aa));
-        assert rd.getColumn(1).getValue().equals(ByteBuffer.wrap(bb));
+        RowMetaData<ByteBuffer, ByteBuffer> rd = rs.unwrap(RowMetaData.class);
+        assert rd.getColumnName(0).equals(ByteBuffer.wrap(a));
+        assert rd.getColumnName(1).equals(ByteBuffer.wrap(b));
+        assert rd.getColumnValue(0).equals(ByteBuffer.wrap(aa));
+        assert rd.getColumnValue(1).equals(ByteBuffer.wrap(bb));
     }
     
     /** Method to test statement. */

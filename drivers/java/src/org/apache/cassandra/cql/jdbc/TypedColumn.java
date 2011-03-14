@@ -1,6 +1,6 @@
 package org.apache.cassandra.cql.jdbc;
 
-public class TypedColumn<N, V>
+class TypedColumn<N, V>
 {
     public final N name;
     public final V value;

@@ -55,7 +55,7 @@ import org.apache.cassandra.thrift.CqlRow;
 /**
  * The Class CassandraResultSet.
  */
-class CassandraResultSet implements ResultSet
+class CassandraResultSet<N, V> implements ResultSet
 {
     
     /** The r set. */
@@ -72,7 +72,7 @@ class CassandraResultSet implements ResultSet
     private byte[] curRowKey = null;
     
     /** The values. */
-    private List<TypedColumn> values = new ArrayList<TypedColumn>();
+    private List<TypedColumn<N, V>> values = new ArrayList<TypedColumn<N, V>>();
     
     /** The value map. */
     private Map<String, Object> valueMap = new WeakHashMap<String, Object>();
@@ -2000,19 +2000,44 @@ class CassandraResultSet implements ResultSet
         throw new UnsupportedOperationException("method not supported");
     }
 
-    private class CassandraRowMetaData implements RowMetaData
+    private class CassandraRowMetaData<N, V> implements RowMetaData<N, V>
     {
-        private final List<TypedColumn> cols;
+        private final List<TypedColumn<N, V>> cols;
         private final byte[] key;
+        private final Class colClass;
+        private final Class valClass;
         
         private CassandraRowMetaData(CassandraResultSet rs) {
-            cols = new ArrayList<TypedColumn>(rs.values);
+            cols = new ArrayList<TypedColumn<N, V>>(rs.values);
+            assert rs.values.size() > 0;
+            colClass = rs.values.get(0).getClass();
+            valClass = rs.values.get(0).getClass();
             key = curRowKey;
         }
 
         public int getColumnCount()
         {
             return cols.size();
+        }
+
+        public N getColumnName(int index)
+        {
+            return cols.get(index).getName();
+        }
+
+        public V getColumnValue(int index)
+        {
+            return cols.get(index).getValue();
+        }
+
+        public Class getColumnNameClass()
+        {
+            return colClass;
+        }
+
+        public Class getColumnValueClass()
+        {
+            return valClass;
         }
 
         public TypedColumn getColumn(int index)
