@@ -26,7 +26,6 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
-import javax.management.JMX;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
@@ -172,25 +171,28 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         
         // figure out what needs to be added and dropped.
         // future: if/when we have modifiable settings for secondary indexes, they'll need to be handled here.
-        for (ByteBuffer indexName : indexedColumns.keySet())
+        for (ByteBuffer indexedColumn : indexedColumns.keySet())
         {
-            if (!metadata.getColumn_metadata().containsKey(indexName))
-            {
-                ColumnFamilyStore indexCfs = indexedColumns.remove(indexName);
-                if (indexCfs == null)
-                {
-                    logger.debug("index {} already removed; ignoring", ByteBufferUtil.bytesToHex(indexName));
-                    continue;
-                }
-                indexCfs.unregisterMBean();
-                SystemTable.setIndexRemoved(metadata.tableName, metadata.cfName);
-                indexCfs.removeAllSSTables();
-            }
+            if (!metadata.getColumn_metadata().containsKey(indexedColumn))
+                removeIndex(indexedColumn);
         }
 
         for (ColumnDefinition cdef : metadata.getColumn_metadata().values())
             if (cdef.getIndexType() != null && !indexedColumns.containsKey(cdef.name))
                 addIndex(cdef);
+    }
+
+    void removeIndex(ByteBuffer indexedColumn)
+    {
+        ColumnFamilyStore indexCfs = indexedColumns.remove(indexedColumn);
+        if (indexCfs == null)
+        {
+            logger.debug("index {} already removed; ignoring", ByteBufferUtil.bytesToHex(indexedColumn));
+            return;
+        }
+        indexCfs.unregisterMBean();
+        SystemTable.setIndexRemoved(metadata.tableName, indexCfs.columnFamily);
+        indexCfs.removeAllSSTables();
     }
 
     private ColumnFamilyStore(Table table, String columnFamilyName, IPartitioner partitioner, int generation, CFMetaData metadata)
@@ -309,7 +311,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return keys;
     }
 
-    public void addIndex(final ColumnDefinition info)
+    public Future<?> addIndex(final ColumnDefinition info)
     {
         assert info.getIndexType() != null;
 
@@ -328,11 +330,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         // so we don't have to lock everything while we do the build.  it's up to the operator to wait
         // until the index is actually built before using in queries.
         if (indexedColumns.putIfAbsent(info.name, indexedCfs) != null)
-            return;
+            return null;
 
         // if we're just linking in the index to indexedColumns on an already-built index post-restart, we're done
         if (indexedCfs.isIndexBuilt())
-            return;
+            return null;
 
         // build it asynchronously; addIndex gets called by CFS open and schema update, neither of which
         // we want to block for a long period.  (actual build is serialized on CompactionManager.)
@@ -356,7 +358,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 SystemTable.setIndexBuilt(table.name, indexedCfMetadata.cfName);
             }
         };
-        new Thread(runnable, "Create index " + indexedCfMetadata.cfName).start();
+        FutureTask<?> f = new FutureTask<Object>(runnable, null);
+        new Thread(f, "Create index " + indexedCfMetadata.cfName).start();
+        return f;
     }
 
     public void buildSecondaryIndexes(Collection<SSTableReader> sstables, SortedSet<ByteBuffer> columns)
