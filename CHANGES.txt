@@ -1,3 +1,7 @@
+0.7.5
+ * Avoid seeking when sstable2json exports the entire file (CASSANDRA-2318)
+
+
 0.7.4
  * add nodetool join command (CASSANDRA-2160)
  * fix secondary indexes on pre-existing or streamed data (CASSANDRA-2244)

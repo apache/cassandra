@@ -19,19 +19,15 @@
 package org.apache.cassandra.tools;
 
 import java.io.File;
-import java.io.IOError;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.columniterator.IColumnIterator;
-import org.apache.cassandra.db.filter.QueryFilter;
-import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.ByteBufferUtil;
+
 import org.apache.commons.cli.*;
 
 import org.apache.cassandra.config.ConfigurationException;
@@ -119,16 +115,6 @@ public class SSTableExport
     }
 
     /**
-     * Serialize a collection of the columns
-     * @param columns collection of the columns to serialize
-     * @param out output stream
-     */
-    private static void serializeColumns(Collection<IColumn> columns, PrintStream out)
-    {
-        serializeColumns(columns.iterator(), out);
-    }
-
-    /**
      * Serialize a given column to the JSON format
      * @param column column presentation
      * @param out output stream
@@ -157,83 +143,23 @@ public class SSTableExport
 
     /**
      * Get portion of the columns and serialize in loop while not more columns left in the row
-     * @param reader SSTableReader for given SSTable
      * @param row SSTableIdentityIterator row representation with Column Family
      * @param key Decorated Key for the required row
      * @param out output stream
      */
-    private static void serializeRow(SSTableReader reader, SSTableIdentityIterator row, DecoratedKey key, PrintStream out)
+    private static void serializeRow(SSTableIdentityIterator row, DecoratedKey key, PrintStream out)
     {
         ColumnFamily columnFamily = row.getColumnFamily();
         boolean isSuperCF = columnFamily.isSuper();
-        ByteBuffer startColumn = ByteBufferUtil.EMPTY_BYTE_BUFFER; // initial column name, "blank" for first
 
         out.print(asKey(bytesToHex(key.key)));
-
         out.print(isSuperCF ? "{" : "[");
 
-        while (true)
+        if (isSuperCF)
         {
-            QueryFilter filter = QueryFilter.getSliceFilter(key,
-                                                            new QueryPath(columnFamily.metadata().tableName),
-                                                            startColumn,
-                                                            ByteBufferUtil.EMPTY_BYTE_BUFFER,
-                                                            false,
-                                                            PAGE_SIZE);
-
-            IColumnIterator columns = filter.getSSTableColumnIterator(reader);
-
-            Pair<Integer, ByteBuffer> serialized;
-            try
+            while (row.hasNext())
             {
-                serialized = serializeRow(columns, isSuperCF, out);
-            }
-            catch (IOException e)
-            {
-                System.err.println("WARNING: Corrupt row " + key + " (skipping).");
-                continue;
-            }
-            finally
-            {
-                try
-                {
-                    columns.close();
-                }
-                catch (IOException e)
-                {
-                    throw new IOError(e);
-                }
-            }
-
-            if (serialized.left < PAGE_SIZE)
-                break;
-
-            out.print(",");
-        }
-
-        out.print(isSuperCF ? "}" : "]");
-    }
-
-    /**
-     * Serialize a row with already given column iterator
-     *
-     * @param columns columns of the row
-     * @param isSuper true if wrapping Column Family is Super
-     * @param out output stream
-     * @return pair of (number of columns serialized, last column serialized)
-     *
-     * @throws IOException on any I/O error.
-     */
-    private static Pair<Integer, ByteBuffer> serializeRow(IColumnIterator columns, boolean isSuper, PrintStream out) throws IOException
-    {
-        if (isSuper)
-        {
-            int n = 0;
-            IColumn column = null;
-            while (columns.hasNext())
-            {
-                column = columns.next();
-                n++;
+                IColumn column = row.next();
 
                 out.print(asKey(bytesToHex(column.name())));
                 out.print("{");
@@ -242,20 +168,20 @@ public class SSTableExport
                 out.print(", ");
                 out.print(asKey("subColumns"));
                 out.print("[");
-                serializeColumns(column.getSubColumns(), out);
+                serializeColumns(column.getSubColumns().iterator(), out);
                 out.print("]");
                 out.print("}");
 
-                if (columns.hasNext())
+                if (row.hasNext())
                     out.print(", ");
             }
-
-            return new Pair<Integer, ByteBuffer>(n, column == null ? null : column.name());
         }
         else
         {
-            return serializeColumns(columns, out);
+            serializeColumns(row, out);
         }
+
+        out.print(isSuperCF ? "}" : "]");
     }
 
     /**
@@ -330,7 +256,7 @@ public class SSTableExport
             if (!row.getKey().equals(decoratedKey))
                 continue;
 
-            serializeRow(reader, row, decoratedKey, outs);
+            serializeRow(row, decoratedKey, outs);
 
             if (i != 0)
                 outs.println(",");
@@ -373,7 +299,7 @@ public class SSTableExport
             else if (i != 0)
                 outs.println(",");
 
-            serializeRow(reader, row, row.getKey(), outs);
+            serializeRow(row, row.getKey(), outs);
 
             i++;
         }
