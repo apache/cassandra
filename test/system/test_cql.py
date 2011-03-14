@@ -338,7 +338,7 @@ class TestCql(ThriftTester):
         conn = init()
         conn.execute("""
         CREATE KEYSPACE Keyspace4Drop
-            WITH strategy_class = 'SimpleStrategy' AND replication_factor = 1
+            WITH strategy_class = SimpleStrategy AND replication_factor = 1
         """)
         
         # TODO: temporary (until this can be done with CQL).

@@ -230,8 +230,8 @@ createKeyspaceStatement returns [CreateKeyspaceStatement expr]
           Map<String, String> attrs = new HashMap<String, String>();
       }
       K_CREATE K_KEYSPACE keyspace=( IDENT | STRING_LITERAL | INTEGER )
-          K_WITH  a1=( COMPIDENT | IDENT ) '=' v1=( STRING_LITERAL | INTEGER ) { attrs.put($a1.text, $v1.text); }
-          ( K_AND aN=( COMPIDENT | IDENT ) '=' vN=( STRING_LITERAL | INTEGER ) { attrs.put($aN.text, $vN.text); } )*
+          K_WITH  a1=( COMPIDENT | IDENT ) '=' v1=( STRING_LITERAL | INTEGER | IDENT ) { attrs.put($a1.text, $v1.text); }
+          ( K_AND aN=( COMPIDENT | IDENT ) '=' vN=( STRING_LITERAL | INTEGER | IDENT ) { attrs.put($aN.text, $vN.text); } )*
           endStmnt
       {
           return new CreateKeyspaceStatement($keyspace.text, attrs);
@@ -264,7 +264,7 @@ createCfamColumnValidator returns [String validator]
 
 createCfamKeywordArgument returns [String arg]
     : comparatorType { $arg = $comparatorType.text; }
-    | value=( STRING_LITERAL | INTEGER | FLOAT ) { $arg = $value.text; }
+    | value=( STRING_LITERAL | IDENT | INTEGER | FLOAT ) { $arg = $value.text; }
     ;
 
 /** CREATE INDEX [indexName] ON columnFamily (columnName); */
