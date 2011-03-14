@@ -68,11 +68,11 @@ class CassandraResultSet implements ResultSet
     /** The r set iter. */
     private Iterator<CqlRow> rSetIter;
     
-//    /** The row. */
-//    private CqlRow row;
+    // the current row key when iterating through results.
+    private byte[] curRowKey = null;
     
     /** The values. */
-    private List<Col> values = new ArrayList<Col>();
+    private List<TypedColumn> values = new ArrayList<TypedColumn>();
     
     /** The value map. */
     private Map<String, Object> valueMap = new WeakHashMap<String, Object>();
@@ -97,17 +97,6 @@ class CassandraResultSet implements ResultSet
      * @throws SQLException
      */
     public boolean isWrapperFor(Class<?> iface) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    /**
-     * @param <T>
-     * @param iface
-     * @return
-     * @throws SQLException
-     */
-    public <T> T unwrap(Class<T> iface) throws SQLException
     {
         throw new UnsupportedOperationException("method not supported");
     }
@@ -1034,7 +1023,22 @@ class CassandraResultSet implements ResultSet
     {
         throw new UnsupportedOperationException("method not supported");
     }
-
+    
+    /**
+     * @param <T>
+     * @param iface
+     * @return
+     * @throws SQLException
+     */
+    public <T> T unwrap(Class<T> iface) throws SQLException
+    {
+        // exposes the current row only.
+        if (iface.equals(RowMetaData.class))
+            return (T)new CassandraRowMetaData(this);
+        else
+            throw new SQLException("Unsupported unwrap interface: " + iface.getSimpleName());
+    }
+    
     /**
      * @return
      * @throws SQLException
@@ -1049,12 +1053,13 @@ class CassandraResultSet implements ResultSet
         if (rSetIter != null && rSetIter.hasNext())
         {
             CqlRow row = rSetIter.next();
+            curRowKey = row.getKey();
             List<Column> cols = row.getColumns();
             for (Column col : cols)
             {
                 byte[] name = col.getName();
                 byte[] value = col.getValue();
-                Col c = decoder.makeCol(keyspace, columnFamily, name, value);
+                TypedColumn c = decoder.makeCol(keyspace, columnFamily, name, value);
                 values.add(c);
                 valueMap.put(decoder.colNameAsString(keyspace, columnFamily, name), c.getValue());
             }
@@ -1995,4 +2000,29 @@ class CassandraResultSet implements ResultSet
         throw new UnsupportedOperationException("method not supported");
     }
 
+    private class CassandraRowMetaData implements RowMetaData
+    {
+        private final List<TypedColumn> cols;
+        private final byte[] key;
+        
+        private CassandraRowMetaData(CassandraResultSet rs) {
+            cols = new ArrayList<TypedColumn>(rs.values);
+            key = curRowKey;
+        }
+
+        public int getColumnCount()
+        {
+            return cols.size();
+        }
+
+        public TypedColumn getColumn(int index)
+        {
+            return cols.get(index);
+        }
+
+        public byte[] getKey()
+        {
+            return key;
+        }
+    }
 }

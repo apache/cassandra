@@ -42,8 +42,10 @@ import java.sql.SQLXML;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.util.Calendar;
+import java.util.regex.Pattern;
 
 import org.apache.cassandra.thrift.CqlResult;
+import org.apache.cassandra.thrift.CqlResultType;
 import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.thrift.TimedOutException;
 import org.apache.cassandra.thrift.UnavailableException;
@@ -55,6 +57,7 @@ import org.apache.thrift.TException;
 
 class CassandraStatement implements PreparedStatement
 {
+    private static final Pattern UpdatePattern = Pattern.compile("UPDATE .*", Pattern.CASE_INSENSITIVE);
     
     /** The connection. */
     private org.apache.cassandra.cql.jdbc.Connection connection;
@@ -148,12 +151,11 @@ class CassandraStatement implements PreparedStatement
 
     
     /**
+     * This is a no-op.
      * @throws SQLException
      */
     public void close() throws SQLException
     {
-        throw new UnsupportedOperationException("method not supported");
-
     }
 
     
@@ -264,15 +266,38 @@ class CassandraStatement implements PreparedStatement
         }
     }
 
-    
     /**
-     * @param arg0
+     * @param query
      * @return
      * @throws SQLException
      */
-    public int executeUpdate(String arg0) throws SQLException
+    public int executeUpdate(String query) throws SQLException
     {
-        throw new UnsupportedOperationException("method not supported");
+        if (!UpdatePattern.matcher(query).matches())
+            throw new SQLException("Not an update statement.");
+        try
+        {
+            CqlResult rSet = connection.execute(query);
+            assert rSet.getType().equals(CqlResultType.VOID);
+            // if only we knew how many rows were updated.
+            return 0;
+        }
+        catch (InvalidRequestException e)
+        {
+            throw new SQLException(e.getWhy());
+        }
+        catch (UnavailableException e)
+        {
+            throw new SQLException(e.getMessage());
+        }
+        catch (TimedOutException e)
+        {
+            throw new SQLException(e.getMessage());
+        }
+        catch (TException e)
+        {
+            throw new SQLException(e.getMessage());
+        }
     }
 
     

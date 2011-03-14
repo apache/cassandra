@@ -1,11 +1,11 @@
 package org.apache.cassandra.cql.jdbc;
 
-class Col<N, V>
+public class TypedColumn<N, V>
 {
     public final N name;
     public final V value;
     
-    public Col(N name, V value)
+    public TypedColumn(N name, V value)
     {
         this.name = name;
         this.value = value;

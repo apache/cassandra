@@ -122,12 +122,12 @@ class ColumnDecoder
     }
     
     /** constructs a typed column */
-    public Col makeCol(String keyspace, String columnFamily, byte[] name, byte[] value)
+    public TypedColumn makeCol(String keyspace, String columnFamily, byte[] name, byte[] value)
     {
         CfDef cfDef = cfDefs.get(String.format("%s.%s", keyspace, columnFamily));
         AbstractType comparator = getComparator(keyspace, columnFamily, Specifier.Comparator, cfDef);
         AbstractType validator = getComparator(keyspace, columnFamily, Specifier.Validator, null);
         // todo: generate less garbage.
-        return new Col(comparator.compose(ByteBuffer.wrap(name)), validator.compose(ByteBuffer.wrap(value)));
+        return new TypedColumn(comparator.compose(ByteBuffer.wrap(name)), validator.compose(ByteBuffer.wrap(value)));
     }
 }

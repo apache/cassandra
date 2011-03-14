@@ -23,14 +23,17 @@ package org.apache.cassandra.cql;
 import java.io.File;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.nio.FloatBuffer;
+import java.math.BigInteger;
+import java.nio.ByteBuffer;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.Arrays;
 
+import org.apache.cassandra.cql.jdbc.RowMetaData;
 import org.apache.cassandra.utils.FBUtilities;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -66,6 +69,96 @@ public class JdbcDriverTest extends EmbeddedServiceBase
         };
         for (String q : inserts)
             executeNoResults(con, q);
+    }
+    
+    @Test 
+    public void testIntegerMetadata() throws SQLException
+    {
+        Statement stmt = con.createStatement();
+        stmt.executeUpdate("UPDATE JdbcInteger SET 1=111, 2=222 WHERE KEY = 'Integer'");
+        ResultSet rs = stmt.executeQuery("SELECT 1, 2 from JdbcInteger WHERE KEY = 'Integer'");
+        assert rs.next();
+        assert rs.getInt("1") == 111;
+        assert rs.getInt("2") == 222;
+        RowMetaData rd = rs.unwrap(RowMetaData.class);
+        assert rd.getColumnCount() == 2;
+        assert rd.getColumn(0).getName().equals(new BigInteger("1"));
+        assert rd.getColumn(0).getValue().equals(new BigInteger("111"));
+        assert rd.getColumn(1).getName().equals(new BigInteger("2"));
+        assert rd.getColumn(1).getValue().equals(new BigInteger("222"));
+    }
+    
+    @Test
+    public void testLongMetadata() throws SQLException
+    {
+        Statement stmt = con.createStatement();
+        stmt.executeUpdate("UPDATE JdbcLong SET 1=111, 2=222 WHERE KEY = 'Long'");
+        ResultSet rs = stmt.executeQuery("SELECT 1, 2 from JdbcLong WHERE KEY = 'Long'");
+        assert rs.next();
+        assert rs.getLong("1") == 111;
+        assert rs.getLong("2") == 222;
+        RowMetaData rd = rs.unwrap(RowMetaData.class);
+        assert rd.getColumnCount() == 2;
+        assert rd.getColumn(0).getName().equals(new Long("1"));
+        assert rd.getColumn(0).getValue().equals(new Long("111"));
+        assert rd.getColumn(1).getName().equals(new Long("2"));
+        assert rd.getColumn(1).getValue().equals(new Long("222"));
+        assert (Long)rd.getColumn(0).getName() == 1L;
+        assert (Long)rd.getColumn(0).getValue() == 111L;
+        assert (Long)rd.getColumn(1).getName() == 2L;
+        assert (Long)rd.getColumn(1).getValue() == 222L;
+    }
+    
+    @Test
+    public void testStringMetadata() throws SQLException
+    {
+        Statement stmt = con.createStatement();
+        stmt.executeUpdate("UPDATE JdbcAscii SET 'a'='aa', 'b'='bb' WHERE KEY = 'ascii'");
+        stmt.executeUpdate("UPDATE JdbcUtf8 SET 'a'='aa', 'b'='bb' WHERE KEY = 'utf8'");
+        ResultSet rs0 = stmt.executeQuery("SELECT 'a', 'b' FROM JdbcAscii WHERE KEY = 'ascii'");
+        ResultSet rs1 = stmt.executeQuery("SELECT 'a', 'b' FROM JdbcUtf8 WHERE KEY = 'utf8'");
+        for (ResultSet rs : new ResultSet[] { rs0, rs1 }) 
+        {
+            assert rs.next();
+            assert rs.getString("a").equals("aa");
+            assert rs.getString("b").equals("bb");
+            RowMetaData rd = rs.unwrap(RowMetaData.class);
+            assert rd.getColumnCount() == 2;
+            assert rd.getColumn(0).getName().equals("a");
+            assert rd.getColumn(0).getValue().equals("aa");
+            assert rd.getColumn(1).getName().equals("b");
+            assert rd.getColumn(1).getValue().equals("bb");
+        }
+    }
+    
+    @Test
+    public void testBytesMetadata() throws SQLException 
+    {
+        Statement stmt = con.createStatement();
+        byte[] a = "a_".getBytes();
+        byte[] b = "b_".getBytes();
+        byte[] aa = "_aa_".getBytes();
+        byte[] bb = "_bb_".getBytes();
+        stmt.executeUpdate(String.format(
+                "UPDATE JdbcBytes set '%s'='%s', '%s'='%s' WHERE KEY = 'bytes'",
+                FBUtilities.bytesToHex(a),
+                FBUtilities.bytesToHex(aa),
+                FBUtilities.bytesToHex(b),
+                FBUtilities.bytesToHex(bb)));
+        ResultSet rs = stmt.executeQuery(String.format(
+                "SELECT '%s', '%s' from JdbcBytes WHERE KEY = 'bytes'",
+                FBUtilities.bytesToHex(a),
+                FBUtilities.bytesToHex(b)));
+        assert rs.next();
+        assert Arrays.equals(aa, rs.getBytes(0));
+        assert Arrays.equals(bb, rs.getBytes(1));
+        assert Arrays.equals(aa, rs.getBytes(FBUtilities.bytesToHex(a)));
+        assert Arrays.equals(bb, rs.getBytes(FBUtilities.bytesToHex(b)));
+        RowMetaData rd = rs.unwrap(RowMetaData.class);
+        assert rd.getColumn(0).getName().equals(ByteBuffer.wrap(a));
+        assert rd.getColumn(1).getName().equals(ByteBuffer.wrap(b));
+        assert rd.getColumn(0).getValue().equals(ByteBuffer.wrap(aa));
+        assert rd.getColumn(1).getValue().equals(ByteBuffer.wrap(bb));
     }
     
     /** Method to test statement. */
