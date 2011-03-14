@@ -62,4 +62,51 @@ public class RowIterationTest extends CleanupHelper
         store.forceBlockingFlush();
         assertEquals(inserted.toString(), inserted.size(), Util.getRangeSlice(store).size());
     }
+
+    @Test
+    public void testRowIterationDeletionTime() throws IOException, ExecutionException, InterruptedException
+    {
+        Table table = Table.open(TABLE1);
+        String CF_NAME = "Standard3";
+        ColumnFamilyStore store = table.getColumnFamilyStore(CF_NAME);
+        DecoratedKey key = Util.dk("key");
+
+        // Delete row in first sstable
+        RowMutation rm = new RowMutation(TABLE1, key.key);
+        rm.delete(new QueryPath(CF_NAME, null, null), 0);
+        rm.add(new QueryPath(CF_NAME, null, ByteBufferUtil.bytes("c")), ByteBufferUtil.bytes("values"), 0L);
+        int tstamp1 = rm.getColumnFamilies().iterator().next().getLocalDeletionTime();
+        rm.apply();
+        store.forceBlockingFlush();
+
+        // Delete row in second sstable with higher timestamp
+        rm = new RowMutation(TABLE1, key.key);
+        rm.delete(new QueryPath(CF_NAME, null, null), 1);
+        rm.add(new QueryPath(CF_NAME, null, ByteBufferUtil.bytes("c")), ByteBufferUtil.bytes("values"), 1L);
+        int tstamp2 = rm.getColumnFamilies().iterator().next().getLocalDeletionTime();
+        rm.apply();
+        store.forceBlockingFlush();
+
+        ColumnFamily cf = Util.getRangeSlice(store).iterator().next().cf;
+        assert cf.getMarkedForDeleteAt() == 1L;
+        assert cf.getLocalDeletionTime() == tstamp2;
+    }
+
+    @Test
+    public void testRowIterationDeletion() throws IOException, ExecutionException, InterruptedException
+    {
+        Table table = Table.open(TABLE1);
+        String CF_NAME = "Standard3";
+        ColumnFamilyStore store = table.getColumnFamilyStore(CF_NAME);
+        DecoratedKey key = Util.dk("key");
+
+        // Delete a row in first sstable
+        RowMutation rm = new RowMutation(TABLE1, key.key);
+        rm.delete(new QueryPath(CF_NAME, null, null), 0);
+        rm.apply();
+        store.forceBlockingFlush();
+
+        ColumnFamily cf = Util.getRangeSlice(store).iterator().next().cf;
+        assert cf != null;
+    }
 }

@@ -1,5 +1,6 @@
 0.7.5
  * Avoid seeking when sstable2json exports the entire file (CASSANDRA-2318)
+ * fix tombstone handling in repair and sstable2json (CASSANDRA-2279)
 
 
 0.7.4

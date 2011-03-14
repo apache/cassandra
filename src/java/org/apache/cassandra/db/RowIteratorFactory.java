@@ -99,7 +99,6 @@ public class RowIteratorFactory
         }
 
         Iterator<IColumnIterator> collated = IteratorUtils.collatedIterator(COMPARE_BY_KEY, iterators);
-        final Memtable firstMemtable = memtables.iterator().next();
 
         // reduce rows from all sources into a single row
         ReducingIterator<IColumnIterator, Row> reduced = new ReducingIterator<IColumnIterator, Row>(collated)
@@ -107,11 +106,26 @@ public class RowIteratorFactory
             private final int gcBefore = (int) (System.currentTimeMillis() / 1000) - cfs.metadata.getGcGraceSeconds();
             private final List<IColumnIterator> colIters = new ArrayList<IColumnIterator>();
             private DecoratedKey key;
+            private ColumnFamily returnCF;
+
+            @Override
+            protected void onKeyChange()
+            {
+                this.returnCF = ColumnFamily.create(cfs.metadata);
+            }
 
             public void reduce(IColumnIterator current)
             {
                 this.colIters.add(current);
                 this.key = current.getKey();
+                try
+                {
+                    this.returnCF.delete(current.getColumnFamily());
+                }
+                catch (IOException e)
+                {
+                    throw new IOError(e);
+                }
             }
 
             @Override
@@ -125,7 +139,6 @@ public class RowIteratorFactory
                 Comparator<IColumn> colComparator = filter.filter.getColumnComparator(comparator);
                 Iterator<IColumn> colCollated = IteratorUtils.collatedIterator(colComparator, colIters);
 
-                ColumnFamily returnCF;
                 // First check if this row is in the rowCache. If it is we can skip the rest
                 ColumnFamily cached = cfs.getRawCachedRow(key);
                 if (cached != null)
@@ -135,32 +148,7 @@ public class RowIteratorFactory
                 }
                 else if (colCollated.hasNext())
                 {
-                    returnCF = firstMemtable.getColumnFamily(key);
-                    // TODO this is a little subtle: the Memtable ColumnIterator has to be a shallow clone of the source CF,
-                    // with deletion times set correctly, so we can use it as the "base" CF to add query results to.
-                    // (for sstable ColumnIterators we do not care if it is a shallow clone or not.)
-                    returnCF = returnCF == null ? ColumnFamily.create(firstMemtable.getTableName(), filter.getColumnFamilyName())
-                                                : returnCF.cloneMeShallow();
-                    long lastDeletedAt = Long.MIN_VALUE;
-                    for (IColumnIterator columns : colIters)
-                    {
-                        columns.hasNext(); // force cf initializtion
-                        try
-                        {
-                            if (columns.getColumnFamily().isMarkedForDelete())
-                                lastDeletedAt = Math.max(lastDeletedAt, columns.getColumnFamily().getMarkedForDeleteAt());
-                        }
-                        catch (IOException e)
-                        {
-                            throw new IOError(e);
-                        }
-                    }
-                    returnCF.markedForDeleteAt.set(lastDeletedAt);
                     filter.collectCollatedColumns(returnCF, colCollated, gcBefore);
-                }
-                else
-                {
-                    returnCF = null;
                 }
 
                 Row rv = new Row(key, returnCF);

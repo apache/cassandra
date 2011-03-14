@@ -31,9 +31,11 @@ import org.apache.cassandra.db.IColumn;
 public interface IColumnIterator extends Iterator<IColumn>
 {
     /**
-     * returns the CF of the column being iterated.  Do not modify the returned CF; clone first.
-     * The CF is only guaranteed to be available after a call to next() or hasNext().
-     * Guaranteed to be non-null.
+     * returns the CF of the column being iterated.
+     * Do not modify the returned CF; clone first.
+     * This is guaranteed to be non-null and that the returned CF have the correct metadata
+     * (markedForDeleteAt and localDeletionTime). The full CF is however only guaranteed to 
+     * be available after a call to next() or hasNext().
      * @throws IOException 
      */
     public abstract ColumnFamily getColumnFamily() throws IOException;
