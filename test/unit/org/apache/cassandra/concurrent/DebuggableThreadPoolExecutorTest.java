@@ -35,7 +35,6 @@ public class DebuggableThreadPoolExecutorTest
     {
         LinkedBlockingQueue<Runnable> q = new LinkedBlockingQueue<Runnable>(1);
         DebuggableThreadPoolExecutor executor = new DebuggableThreadPoolExecutor(1,
-                                                                                 1,
                                                                                  Integer.MAX_VALUE,
                                                                                  TimeUnit.MILLISECONDS,
                                                                                  q,

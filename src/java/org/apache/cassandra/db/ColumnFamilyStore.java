@@ -79,19 +79,17 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * called, all data up to the given context has been persisted to SSTables.
      */
     private static final ExecutorService flushSorter
-            = new JMXEnabledThreadPoolExecutor(1,
-                                               Runtime.getRuntime().availableProcessors(),
+            = new JMXEnabledThreadPoolExecutor(Runtime.getRuntime().availableProcessors(),
                                                StageManager.KEEPALIVE,
                                                TimeUnit.SECONDS,
                                                new LinkedBlockingQueue<Runnable>(Runtime.getRuntime().availableProcessors()),
                                                new NamedThreadFactory("FlushSorter"),
                                                "internal");
     private static final ExecutorService flushWriter
-            = new JMXEnabledThreadPoolExecutor(1,
-                                               DatabaseDescriptor.getFlushWriters(),
+            = new JMXEnabledThreadPoolExecutor(DatabaseDescriptor.getFlushWriters(),
                                                StageManager.KEEPALIVE,
                                                TimeUnit.SECONDS,
-                                               new SynchronousQueue<Runnable>(),
+                                               new LinkedBlockingQueue<Runnable>(DatabaseDescriptor.getFlushQueueSize()),
                                                new NamedThreadFactory("FlushWriter"),
                                                "internal");
     public static final ExecutorService postFlushExecutor = new JMXEnabledThreadPoolExecutor("MemtablePostFlusher");

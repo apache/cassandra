@@ -74,36 +74,23 @@ public class WriteResponseHandler extends AbstractWriteResponseHandler
 
     protected int determineBlockFor(String table)
     {
-        int blockFor = 0;
         switch (consistencyLevel)
         {
             case ONE:
-                blockFor = 1;
-                break;
+                return 1;
             case ANY:
-                blockFor = 1;
-                break;
+                return 1;
             case TWO:
-                blockFor = 2;
-                break;
+                return 2;
             case THREE:
-                blockFor = 3;
-                break;
+                return 3;
             case QUORUM:
-                blockFor = (writeEndpoints.size() / 2) + 1;
-                break;
+                return (writeEndpoints.size() / 2) + 1;
             case ALL:
-                blockFor = writeEndpoints.size();
-                break;
+                return writeEndpoints.size();
             default:
                 throw new UnsupportedOperationException("invalid consistency level: " + consistencyLevel.toString());
         }
-        // at most one node per range can bootstrap at a time, and these will be added to the write until
-        // bootstrap finishes (at which point we no longer need to write to the old ones).
-        assert 1 <= blockFor && blockFor <= 2 * Table.open(table).getReplicationStrategy().getReplicationFactor()
-            : String.format("invalid response count %d for replication factor %d",
-                            blockFor, Table.open(table).getReplicationStrategy().getReplicationFactor());
-        return blockFor;
     }
 
     public void assureSufficientLiveNodes() throws UnavailableException

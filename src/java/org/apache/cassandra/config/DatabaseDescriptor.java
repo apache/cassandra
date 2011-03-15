@@ -1248,4 +1248,9 @@ public class DatabaseDescriptor
     {
         return conf.incremental_backups;
     }
+
+    public static int getFlushQueueSize()
+    {
+        return conf.memtable_flush_queue_size;
+    }
 }

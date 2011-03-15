@@ -148,6 +148,11 @@ concurrent_writes: 32
 # By default this will be set to the amount of data directories defined.
 #memtable_flush_writers: 1
 
+# the number of full memtables to allow pending flush, that is,
+# waiting for a writer thread.  At a minimum, this should be set to
+# the maximum number of secondary indexes created on a single CF.
+memtable_flush_queue_size: 4
+
 # Buffer size to use when performing contiguous column slices. 
 # Increase this to the size of the column slices you typically perform
 sliced_buffer_size_in_kb: 64
