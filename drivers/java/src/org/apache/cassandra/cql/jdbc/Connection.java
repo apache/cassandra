@@ -33,6 +33,7 @@ import org.apache.cassandra.thrift.Cassandra;
 import org.apache.cassandra.thrift.Compression;
 import org.apache.cassandra.thrift.CqlResult;
 import org.apache.cassandra.thrift.InvalidRequestException;
+import org.apache.cassandra.thrift.SchemaDisagreementException;
 import org.apache.cassandra.thrift.TimedOutException;
 import org.apache.cassandra.thrift.UnavailableException;
 import org.apache.thrift.TException;
@@ -117,7 +118,7 @@ class Connection
      * @throws TException
      */
     public CqlResult execute(String queryStr)
-    throws InvalidRequestException, UnavailableException, TimedOutException, TException
+    throws InvalidRequestException, UnavailableException, TimedOutException, SchemaDisagreementException, TException
     {
         return execute(queryStr, defaultCompression);
     }
@@ -134,7 +135,7 @@ class Connection
      * @throws TException
      */
     public CqlResult execute(String queryStr, Compression compress)
-    throws InvalidRequestException, UnavailableException, TimedOutException, TException
+    throws InvalidRequestException, UnavailableException, TimedOutException, SchemaDisagreementException, TException
     {
         if (decoder == null)
             decoder = new ColumnDecoder(client.describe_keyspaces());

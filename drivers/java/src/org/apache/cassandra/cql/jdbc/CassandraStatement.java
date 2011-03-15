@@ -47,6 +47,7 @@ import java.util.regex.Pattern;
 import org.apache.cassandra.thrift.CqlResult;
 import org.apache.cassandra.thrift.CqlResultType;
 import org.apache.cassandra.thrift.InvalidRequestException;
+import org.apache.cassandra.thrift.SchemaDisagreementException;
 import org.apache.cassandra.thrift.TimedOutException;
 import org.apache.cassandra.thrift.UnavailableException;
 import org.apache.thrift.TException;
@@ -182,6 +183,10 @@ class CassandraStatement implements PreparedStatement
         {
             throw new SQLException(e.getMessage());
         }
+        catch (SchemaDisagreementException e)
+        {
+            throw new SQLException("schema does not match across nodes, (try again later).");
+        }
         catch (TException e)
         {
             throw new SQLException(e.getMessage());
@@ -260,6 +265,10 @@ class CassandraStatement implements PreparedStatement
         {
             throw new SQLException(e.getMessage());
         }
+        catch (SchemaDisagreementException e)
+        {
+            throw new SQLException("schema does not match across nodes, (try again later).");
+        }
         catch (TException e)
         {
             throw new SQLException(e.getMessage());
@@ -293,6 +302,10 @@ class CassandraStatement implements PreparedStatement
         catch (TimedOutException e)
         {
             throw new SQLException(e.getMessage());
+        }
+        catch (SchemaDisagreementException e)
+        {
+            throw new SQLException("schema does not match across nodes, (try again later).");
         }
         catch (TException e)
         {

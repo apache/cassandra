@@ -41,6 +41,7 @@ import java.util.Properties;
 import org.apache.cassandra.thrift.AuthenticationException;
 import org.apache.cassandra.thrift.AuthorizationException;
 import org.apache.cassandra.thrift.InvalidRequestException;
+import org.apache.cassandra.thrift.SchemaDisagreementException;
 import org.apache.cassandra.thrift.TimedOutException;
 import org.apache.cassandra.thrift.UnavailableException;
 import org.apache.thrift.TException;
@@ -112,6 +113,10 @@ public class CassandraConnection implements Connection
         catch (TimedOutException e)
         {
             throw new DriverResolverException(e.getMessage());
+        }
+        catch (SchemaDisagreementException e)
+        {
+            throw new DriverResolverException("schema does not match across nodes, (try again later).");
         }
 
     }
