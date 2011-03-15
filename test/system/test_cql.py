@@ -148,7 +148,7 @@ class TestCql(ThriftTester):
         r = conn.execute("""
             SELECT 4 FROM StandardLongA WHERE KEY > 'ad' AND KEY < 'ag';
         """)
-        assert len(r) == 3
+        assert len(r) == 4
         assert r[0].key == "ad"
         assert r[1].key == "ae"
         assert r[2].key == "af"
