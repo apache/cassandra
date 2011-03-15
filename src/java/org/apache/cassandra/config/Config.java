@@ -112,6 +112,7 @@ public class Config
     public boolean compaction_preheat_key_cache = true;
 
     public boolean incremental_backups = false;
+    public int memtable_flush_queue_size = 4;
 
     public static enum CommitLogSync {
         periodic,
