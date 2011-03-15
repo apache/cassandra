@@ -678,6 +678,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     /** flush the given memtable and swap in a new one for its CFS, if it hasn't been frozen already.  threadsafe. */
     Future<?> maybeSwitchMemtable(Memtable oldMemtable, final boolean writeCommitLog)
     {
+        if (oldMemtable.isFrozen())
+        {
+            logger.debug("memtable is already frozen; another thread must be flushing it");
+            return null;
+        }
+
         /*
          * If we can get the writelock, that means no new updates can come in and
          * all ongoing updates to memtables have completed. We can get the tail
@@ -729,6 +735,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             if (!icc.contains(this))
                 memtable = new Memtable(this);
 
+            if (memtableSwitchCount == Integer.MAX_VALUE)
+                memtableSwitchCount = 0;
+            memtableSwitchCount++;
+
             // when all the memtables have been written, including for indexes, mark the flush in the commitlog header.
             // a second executor makes sure the onMemtableFlushes get called in the right order,
             // while keeping the wait-for-flush (future.get) out of anything latency-sensitive.
@@ -749,11 +759,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         finally
         {
             Table.flusherLock.writeLock().unlock();
-            if (memtableSwitchCount == Integer.MAX_VALUE)
-            {
-                memtableSwitchCount = 0;
-            }
-            memtableSwitchCount++;
         }
     }
 

@@ -52,7 +52,7 @@ public class Memtable implements Comparable<Memtable>, IFlushable
 {
     private static final Logger logger = LoggerFactory.getLogger(Memtable.class);
 
-    private boolean isFrozen;
+    private volatile boolean isFrozen;
 
     private final AtomicLong currentThroughput = new AtomicLong(0);
     private final AtomicLong currentOperations = new AtomicLong(0);
