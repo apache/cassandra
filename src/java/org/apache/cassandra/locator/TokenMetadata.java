@@ -529,6 +529,10 @@ public class TokenMetadata
      */
     public static Iterator<Token> ringIterator(final ArrayList<Token> ring, Token start, boolean includeMin)
     {
+        if (ring.isEmpty())
+            return includeMin ? Iterators.singletonIterator(StorageService.getPartitioner().getMinimumToken())
+                              : Iterators.<Token>emptyIterator();
+
         final boolean insertMin = (includeMin && !ring.get(0).equals(StorageService.getPartitioner().getMinimumToken())) ? true : false;
         final int startIndex = firstTokenIndex(ring, start, insertMin);
         return new AbstractIterator<Token>()

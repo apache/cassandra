@@ -75,7 +75,7 @@ public class MappedFileDataInput extends AbstractDataInput implements FileDataIn
         return new MappedFileDataInputMark(position);
     }
 
-    public int bytesPastMark(FileMark mark)
+    public long bytesPastMark(FileMark mark)
     {
         assert mark instanceof MappedFileDataInputMark;
         assert position >= ((MappedFileDataInputMark) mark).position;

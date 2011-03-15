@@ -384,17 +384,20 @@ public class Session
     public void createKeySpaces()
     {
         KsDef keyspace = new KsDef();
-        ColumnDef standardColumn = new ColumnDef(ByteBuffer.wrap("C1".getBytes()), "UTF8Type");
-        ColumnDef superSubColumn = new ColumnDef(ByteBuffer.wrap("S1".getBytes()), "UTF8Type");
-
-        if (indexType != null)
-            standardColumn.setIndex_type(indexType).setIndex_name("Idx1");
 
         // column family for standard columns
-        CfDef standardCfDef = new CfDef("Keyspace1", "Standard1").setColumn_metadata(Arrays.asList(standardColumn));
+        CfDef standardCfDef = new CfDef("Keyspace1", "Standard1");
+        standardCfDef.setComparator_type("AsciiType").setDefault_validation_class("BytesType");
+        if (indexType != null)
+        {
+            ColumnDef standardColumn = new ColumnDef(ByteBuffer.wrap("C1".getBytes()), "BytesType");
+            standardColumn.setIndex_type(indexType).setIndex_name("Idx1");
+            standardCfDef.setColumn_metadata(Arrays.asList(standardColumn));
+        }
 
         // column family with super columns
-        CfDef superCfDef = new CfDef("Keyspace1", "Super1").setColumn_metadata(Arrays.asList(superSubColumn)).setColumn_type("Super");
+        CfDef superCfDef = new CfDef("Keyspace1", "Super1").setColumn_type("Super");
+        superCfDef.setComparator_type("AsciiType").setSubcomparator_type("AsciiType").setDefault_validation_class("BytesType");
 
         // column family for standard counters
         CfDef counterCfDef = new CfDef("Keyspace1", "Counter1").setDefault_validation_class("CounterColumnType").setReplicate_on_write(replicateOnWrite);

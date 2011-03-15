@@ -38,7 +38,7 @@ public class Inserter extends Operation
 
     public void run(Cassandra.Client client) throws IOException
     {
-        List<String> values  = generateValues();
+        List<ByteBuffer> values = generateValues();
         List<Column> columns = new ArrayList<Column>();
         List<SuperColumn> superColumns = new ArrayList<SuperColumn>();
 
@@ -48,8 +48,7 @@ public class Inserter extends Operation
         for (int i = 0; i < session.getColumnsPerKey(); i++)
         {
             String columnName = ("C" + Integer.toString(i));
-            ByteBuffer columnValue = ByteBufferUtil.bytes(values.get(i % values.size()));
-
+            ByteBuffer columnValue = values.get(i % values.size());
             columns.add(new Column(ByteBufferUtil.bytes(columnName), columnValue, System.currentTimeMillis()));
         }
 

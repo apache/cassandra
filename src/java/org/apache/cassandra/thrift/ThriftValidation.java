@@ -21,9 +21,7 @@ package org.apache.cassandra.thrift;
  */
 
 import java.nio.ByteBuffer;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.Set;
+import java.util.*;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,6 +29,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.MarshalException;
@@ -423,8 +422,16 @@ public class ThriftValidation
             AbstractType comparator = cfType == ColumnFamilyType.Standard
                                     ? DatabaseDescriptor.getComparator(cf_def.comparator_type)
                                     : DatabaseDescriptor.getComparator(cf_def.subcomparator_type);
+
+            Set<String> indexNames = new HashSet<String>();
             for (ColumnDef c : cf_def.column_metadata)
             {
+                // Ensure that given idx_names and auto_generated idx_names cannot collide
+                String idxName = CFMetaData.indexName(cf_def.name, ColumnDefinition.fromColumnDef(c));
+                if (indexNames.contains(idxName))
+                    throw new InvalidRequestException("Duplicate index names " + idxName);
+                indexNames.add(idxName);
+
                 DatabaseDescriptor.getComparator(c.validation_class);
 
                 try

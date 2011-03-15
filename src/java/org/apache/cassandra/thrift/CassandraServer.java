@@ -678,7 +678,7 @@ public class CassandraServer implements Cassandra.Iface
     
     // helper method to apply migration on the migration stage. typical migration failures will throw an 
     // InvalidRequestException. atypical failures will throw a RuntimeException.
-    private static void applyMigrationOnStage(final Migration m) throws InvalidRequestException
+    private static void applyMigrationOnStage(final Migration m)
     {
         Future f = StageManager.getStage(Stage.MIGRATION).submit(new Callable()
         {
@@ -695,23 +695,11 @@ public class CassandraServer implements Cassandra.Iface
         }
         catch (InterruptedException e)
         {
-            throw new RuntimeException(e);
+            throw new AssertionError(e);
         }
         catch (ExecutionException e)
         {
-            // this means call() threw an exception. deal with it directly.
-            if (e.getCause() != null)
-            {
-                InvalidRequestException ex = new InvalidRequestException(e.getCause().getMessage());
-                ex.initCause(e.getCause());
-                throw ex;
-            }
-            else
-            {
-                InvalidRequestException ex = new InvalidRequestException(e.getMessage());
-                ex.initCause(e);
-                throw ex;
-            }
+            throw new RuntimeException(e);
         }
     }
 
@@ -875,6 +863,7 @@ public class CassandraServer implements Cassandra.Iface
     {
         logger.debug("update_column_family");
         state().hasColumnFamilyListAccess(Permission.WRITE);
+        ThriftValidation.validateCfDef(cf_def);
         if (cf_def.keyspace == null || cf_def.name == null)
             throw new InvalidRequestException("Keyspace and CF name must be set.");
         CFMetaData oldCfm = DatabaseDescriptor.getCFMetaData(CFMetaData.getId(cf_def.keyspace, cf_def.name));

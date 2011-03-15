@@ -21,17 +21,11 @@ package org.apache.cassandra.db;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Random;
+import java.nio.charset.CharacterCodingException;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.Future;
 
-import org.apache.cassandra.db.marshal.LongType;
-import org.apache.cassandra.thrift.SlicePredicate;
-import org.apache.cassandra.thrift.SliceRange;
 import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.lang.StringUtils;
 import org.junit.Test;
@@ -43,14 +37,13 @@ import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.filter.*;
+import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.thrift.IndexClause;
-import org.apache.cassandra.thrift.IndexExpression;
-import org.apache.cassandra.thrift.IndexOperator;
-import org.apache.cassandra.thrift.IndexType;
+import org.apache.cassandra.thrift.*;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.WrappedRunnable;
 
 import static junit.framework.Assert.assertEquals;
@@ -58,7 +51,6 @@ import static junit.framework.Assert.assertTrue;
 import static org.apache.cassandra.Util.column;
 import static org.apache.cassandra.Util.getBytes;
 import static org.junit.Assert.assertNull;
-import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class ColumnFamilyStoreTest extends CleanupHelper
 {
@@ -323,13 +315,26 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         ColumnFamilyStore cfs = table.getColumnFamilyStore("Indexed2");
         ColumnDefinition old = cfs.metadata.getColumn_metadata().get(ByteBufferUtil.bytes("birthdate"));
         ColumnDefinition cd = new ColumnDefinition(old.name, old.validator.getClass().getName(), IndexType.KEYS, "birthdate_index");
-        cfs.addIndex(cd);
-        while (!SystemTable.isIndexBuilt("Keyspace1", cfs.getIndexedColumnFamilyStore(ByteBufferUtil.bytes("birthdate")).columnFamily))
-            TimeUnit.MILLISECONDS.sleep(100);
-
-        // we had a bug (CASSANDRA-2244) where index would get created but not flushed -- check for that  
+        Future<?> future = cfs.addIndex(cd);
+        future.get();
+        // we had a bug (CASSANDRA-2244) where index would get created but not flushed -- check for that
         assert cfs.getIndexedColumnFamilyStore(cd.name).getSSTables().size() > 0;
 
+        queryBirthdate(table);
+
+        // validate that drop clears it out & rebuild works (CASSANDRA-2320)
+        ColumnFamilyStore indexedCfs = cfs.getIndexedColumnFamilyStore(ByteBufferUtil.bytes("birthdate"));
+        cfs.removeIndex(ByteBufferUtil.bytes("birthdate"));
+        assert !indexedCfs.isIndexBuilt();
+
+        // rebuild & re-query
+        future = cfs.addIndex(cd);
+        future.get();
+        queryBirthdate(table);
+    }
+
+    private void queryBirthdate(Table table) throws CharacterCodingException
+    {
         IndexExpression expr = new IndexExpression(ByteBufferUtil.bytes("birthdate"), IndexOperator.EQ, ByteBufferUtil.bytes(1L));
         IndexClause clause = new IndexClause(Arrays.asList(expr), ByteBufferUtil.EMPTY_BYTE_BUFFER, 100);
         IFilter filter = new IdentityQueryFilter();
@@ -337,9 +342,9 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         Range range = new Range(p.getMinimumToken(), p.getMinimumToken());
         List<Row> rows = table.getColumnFamilyStore("Indexed2").scan(clause, range, filter);
         assert rows.size() == 1 : StringUtils.join(rows, ",");
-        assertEquals("k1", ByteBufferUtil.string(rows.get(0).key.key));        
+        assertEquals("k1", ByteBufferUtil.string(rows.get(0).key.key));
     }
-    
+
     @Test
     public void testDeleteSuperRowSticksAfterFlush() throws Throwable
     {

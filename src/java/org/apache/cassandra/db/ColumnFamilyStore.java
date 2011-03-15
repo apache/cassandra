@@ -26,7 +26,6 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
-import javax.management.JMX;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
@@ -152,15 +151,20 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         
         // only update these runtime-modifiable settings if they have not been modified.
         if (!minCompactionThreshold.isModified())
-            minCompactionThreshold = new DefaultInteger(metadata.getMinCompactionThreshold());
+            for (ColumnFamilyStore cfs : concatWithIndexes())
+                cfs.minCompactionThreshold = new DefaultInteger(metadata.getMinCompactionThreshold());
         if (!maxCompactionThreshold.isModified())
-            maxCompactionThreshold = new DefaultInteger(metadata.getMaxCompactionThreshold());
+            for (ColumnFamilyStore cfs : concatWithIndexes())
+                cfs.maxCompactionThreshold = new DefaultInteger(metadata.getMaxCompactionThreshold());
         if (!memtime.isModified())
-            memtime = new DefaultInteger(metadata.getMemtableFlushAfterMins());
+            for (ColumnFamilyStore cfs : concatWithIndexes())
+                cfs.memtime = new DefaultInteger(metadata.getMemtableFlushAfterMins());
         if (!memsize.isModified())
-            memsize = new DefaultInteger(metadata.getMemtableThroughputInMb());
+            for (ColumnFamilyStore cfs : concatWithIndexes())
+                cfs.memsize = new DefaultInteger(metadata.getMemtableThroughputInMb());
         if (!memops.isModified())
-            memops = new DefaultDouble(metadata.getMemtableOperationsInMillions());
+            for (ColumnFamilyStore cfs : concatWithIndexes())
+                cfs.memops = new DefaultDouble(metadata.getMemtableOperationsInMillions());
         if (!rowCacheSaveInSeconds.isModified())
             rowCacheSaveInSeconds = new DefaultInteger(metadata.getRowCacheSavePeriodInSeconds());
         if (!keyCacheSaveInSeconds.isModified())
@@ -171,25 +175,28 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         
         // figure out what needs to be added and dropped.
         // future: if/when we have modifiable settings for secondary indexes, they'll need to be handled here.
-        for (ByteBuffer indexName : indexedColumns.keySet())
+        for (ByteBuffer indexedColumn : indexedColumns.keySet())
         {
-            if (!metadata.getColumn_metadata().containsKey(indexName))
-            {
-                ColumnFamilyStore indexCfs = indexedColumns.remove(indexName);
-                if (indexCfs == null)
-                {
-                    logger.debug("index {} already removed; ignoring", ByteBufferUtil.bytesToHex(indexName));
-                    continue;
-                }
-                indexCfs.unregisterMBean();
-                SystemTable.setIndexRemoved(metadata.tableName, metadata.cfName);
-                indexCfs.removeAllSSTables();
-            }
+            if (!metadata.getColumn_metadata().containsKey(indexedColumn))
+                removeIndex(indexedColumn);
         }
 
         for (ColumnDefinition cdef : metadata.getColumn_metadata().values())
             if (cdef.getIndexType() != null && !indexedColumns.containsKey(cdef.name))
                 addIndex(cdef);
+    }
+
+    void removeIndex(ByteBuffer indexedColumn)
+    {
+        ColumnFamilyStore indexCfs = indexedColumns.remove(indexedColumn);
+        if (indexCfs == null)
+        {
+            logger.debug("index {} already removed; ignoring", ByteBufferUtil.bytesToHex(indexedColumn));
+            return;
+        }
+        indexCfs.unregisterMBean();
+        SystemTable.setIndexRemoved(metadata.tableName, indexCfs.columnFamily);
+        indexCfs.removeAllSSTables();
     }
 
     private ColumnFamilyStore(Table table, String columnFamilyName, IPartitioner partitioner, int generation, CFMetaData metadata)
@@ -344,7 +351,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return metadata.getDefaultValidator().isCommutative();
     }
 
-    public void addIndex(final ColumnDefinition info)
+    public Future<?> addIndex(final ColumnDefinition info)
     {
         assert info.getIndexType() != null;
 
@@ -353,7 +360,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         AbstractType columnComparator = (rowPartitioner instanceof OrderPreservingPartitioner || rowPartitioner instanceof ByteOrderedPartitioner)
                                         ? BytesType.instance
                                         : new LocalByPartionerType(StorageService.getPartitioner());
-        final CFMetaData indexedCfMetadata = CFMetaData.newIndexMetadata(table.name, columnFamily, info, columnComparator);
+        final CFMetaData indexedCfMetadata = CFMetaData.newIndexMetadata(metadata, info, columnComparator);
         ColumnFamilyStore indexedCfs = ColumnFamilyStore.createColumnFamilyStore(table,
                                                                                  indexedCfMetadata.cfName,
                                                                                  new LocalPartitioner(metadata.getColumn_metadata().get(info.name).validator),
@@ -363,11 +370,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         // so we don't have to lock everything while we do the build.  it's up to the operator to wait
         // until the index is actually built before using in queries.
         if (indexedColumns.putIfAbsent(info.name, indexedCfs) != null)
-            return;
+            return null;
 
         // if we're just linking in the index to indexedColumns on an already-built index post-restart, we're done
         if (indexedCfs.isIndexBuilt())
-            return;
+            return null;
 
         // build it asynchronously; addIndex gets called by CFS open and schema update, neither of which
         // we want to block for a long period.  (actual build is serialized on CompactionManager.)
@@ -391,7 +398,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 SystemTable.setIndexBuilt(table.name, indexedCfMetadata.cfName);
             }
         };
-        new Thread(runnable, "Create index " + indexedCfMetadata.cfName).start();
+        FutureTask<?> f = new FutureTask<Object>(runnable, null);
+        new Thread(f, "Create index " + indexedCfMetadata.cfName).start();
+        return f;
     }
 
     public void buildSecondaryIndexes(Collection<SSTableReader> sstables, SortedSet<ByteBuffer> columns)
@@ -738,7 +747,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             // submit the memtable for any indexed sub-cfses, and our own.
             List<ColumnFamilyStore> icc = new ArrayList<ColumnFamilyStore>(indexedColumns.size());
             // don't assume that this.memtable is dirty; forceFlush can bring us here during index build even if it is not
-            for (ColumnFamilyStore cfs : Iterables.concat(Collections.singleton(this), indexedColumns.values()))
+            for (ColumnFamilyStore cfs : concatWithIndexes())
             {
                 if (!cfs.memtable.isClean())
                     icc.add(cfs);
@@ -810,7 +819,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         // during index build, 2ary index memtables can be dirty even if parent is not.  if so,
         // we want flushLargestMemtables to flush the 2ary index ones too.
         boolean clean = true;
-        for (ColumnFamilyStore cfs : Iterables.concat(Collections.singleton(this), getIndexColumnFamilyStores()))
+        for (ColumnFamilyStore cfs : concatWithIndexes())
             clean &= cfs.memtable.isClean();
 
         if (clean)
@@ -1900,7 +1909,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             {
                 // putting markCompacted on the commitlogUpdater thread ensures it will run
                 // after any compactions that were in progress when truncate was called, are finished
-                for (ColumnFamilyStore cfs : Iterables.concat(indexedColumns.values(), Arrays.asList(ColumnFamilyStore.this)))
+                for (ColumnFamilyStore cfs : concatWithIndexes())
                 {
                     List<SSTableReader> truncatedSSTables = new ArrayList<SSTableReader>();
                     for (SSTableReader sstable : cfs.getSSTables())
@@ -2002,11 +2011,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public ColumnFamilyStore getIndexedColumnFamilyStore(ByteBuffer column)
     {
         return indexedColumns.get(column);
-    }
-
-    public Collection<ColumnFamilyStore> getIndexColumnFamilyStores()
-    {
-        return indexedColumns.values();
     }
 
     public ColumnFamily newIndexedColumnFamily(ByteBuffer column)
@@ -2268,5 +2272,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public SSTableWriter createCompactionWriter(long estimatedRows, String location) throws IOException
     {
         return new SSTableWriter(getTempSSTablePath(location), estimatedRows, metadata, partitioner);
+    }
+
+    public Iterable<ColumnFamilyStore> concatWithIndexes()
+    {
+        return Iterables.concat(Collections.singleton(this), indexedColumns.values());
     }
 }

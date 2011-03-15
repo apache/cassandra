@@ -55,6 +55,7 @@ public abstract class ReducingIterator<T1, T2> extends AbstractIterator<T2> impl
         if (last == null && !source.hasNext())
             return endOfData();
 
+        onKeyChange();
         boolean keyChanged = false;
         while (!keyChanged)
         {
@@ -72,6 +73,12 @@ public abstract class ReducingIterator<T1, T2> extends AbstractIterator<T2> impl
         }
         return getReduced();
     }
+
+    /**
+     * Called at the begining of each new key, before any reduce is called.
+     * To be overriden by implementing classes.
+     */
+    protected void onKeyChange() {}
 
     public Iterator<T2> iterator()
     {
