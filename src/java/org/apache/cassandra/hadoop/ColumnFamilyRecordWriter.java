@@ -78,6 +78,9 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<org.apache.cass
     // handles for clients for each range running in the threadpool
     private final Map<Range,RangeClient> clients;
     private final long batchThreshold;
+    
+    private final ConsistencyLevel consistencyLevel;
+
 
     /**
      * Upon construction, obtain the map that this writer will use to collect
@@ -101,6 +104,7 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<org.apache.cass
         this.queueSize = conf.getInt(ColumnFamilyOutputFormat.QUEUE_SIZE, 32 * Runtime.getRuntime().availableProcessors());
         this.clients = new HashMap<Range,RangeClient>();
         batchThreshold = conf.getLong(ColumnFamilyOutputFormat.BATCH_THRESHOLD, 32);
+        consistencyLevel = ConsistencyLevel.valueOf(ConfigHelper.getWriteConsistencyLevel(conf));
     }
 
     /**
@@ -347,7 +351,7 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<org.apache.cass
                     // send the mutation to the last-used endpoint.  first time through, this will NPE harmlessly.
                     try
                     {
-                        thriftClient.batch_mutate(batch, ConsistencyLevel.ONE);
+                        thriftClient.batch_mutate(batch, consistencyLevel);
                         break;
                     }
                     catch (Exception e)

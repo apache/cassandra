@@ -49,6 +49,8 @@ public class ConfigHelper
     private static final int DEFAULT_RANGE_BATCH_SIZE = 4096;
     private static final String THRIFT_PORT = "cassandra.thrift.port";
     private static final String INITIAL_THRIFT_ADDRESS = "cassandra.thrift.address";
+    private static final String READ_CONSISTENCY_LEVEL = "cassandra.consistencylevel.read";
+    private static final String WRITE_CONSISTENCY_LEVEL = "cassandra.consistencylevel.write";
 
     /**
      * Set the keyspace and column family for the input of this job.
@@ -222,10 +224,20 @@ public class ConfigHelper
     {
         return conf.get(INPUT_COLUMNFAMILY_CONFIG);
     }
-
+    
     public static String getOutputColumnFamily(Configuration conf)
     {
         return conf.get(OUTPUT_COLUMNFAMILY_CONFIG);
+    }
+
+    public static String getReadConsistencyLevel(Configuration conf)
+    {
+        return conf.get(READ_CONSISTENCY_LEVEL, "ONE");
+    }
+
+    public static String getWriteConsistencyLevel(Configuration conf)
+    {
+        return conf.get(WRITE_CONSISTENCY_LEVEL, "ONE");
     }
 
     public static int getRpcPort(Configuration conf)

@@ -102,21 +102,16 @@ public class SSTableExport
      * @param cfMetaData Column Family metadata (to get validator)
      * @return pair of (number of columns serialized, last column serialized)
      */
-    private static Pair<Integer, ByteBuffer> serializeColumns(Iterator<IColumn> columns, PrintStream out, AbstractType comparator, CFMetaData cfMetaData)
+    private static void serializeColumns(Iterator<IColumn> columns, PrintStream out, AbstractType comparator, CFMetaData cfMetaData)
     {
-        int n = 0;
-        IColumn column = null;
         while (columns.hasNext())
         {
-            column = columns.next();
-            n++;
+            IColumn column = columns.next();
             serializeColumn(column, out, comparator, cfMetaData);
 
             if (columns.hasNext())
                 out.print(", ");
         }
-
-        return new Pair<Integer, ByteBuffer>(n, column == null ? null : column.name());
     }
 
     /**
