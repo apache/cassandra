@@ -30,6 +30,7 @@ import java.util.concurrent.TimeUnit;
 import org.apache.log4j.Logger;
 import org.apache.log4j.PropertyConfigurator;
 
+import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.CompactionManager;
@@ -170,6 +171,7 @@ public class CassandraDaemon
             protected void afterExecute(Runnable r, Throwable t)
             {
                 super.afterExecute(r, t);
+                DebuggableThreadPoolExecutor.logExceptionsAfterExecute(r, t);
                 cassandraServer.logout();
             }
         };

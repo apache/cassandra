@@ -1,3 +1,7 @@
+0.6.13
+ * shut down server for OOM on a Thrift thread (CASSANDRA-2269)
+
+
 0.6.12
  * include digest responses in dynamic snitch latencies (CASSANDRA-2085)
  * fix range slice ConsistencyLevel > ONE (CASSANDRA-2081)
