@@ -425,17 +425,17 @@ public class QueryProcessor
     }
     
     // Copypasta from CassandraServer (where it is private).
-    private static void validateSchemaAgreement() throws InvalidRequestException
+    private static void validateSchemaAgreement() throws SchemaDisagreementException
     {
         // unreachable hosts don't count towards disagreement
         Map<String, List<String>> versions = Maps.filterKeys(StorageProxy.describeSchemaVersions(),
                                                              Predicates.not(Predicates.equalTo(StorageProxy.UNREACHABLE)));
         if (versions.size() > 1)
-            throw new InvalidRequestException("Cluster schema does not yet agree");
+            throw new SchemaDisagreementException();
     }
 
     public static CqlResult process(String queryString, ClientState clientState)
-    throws RecognitionException, UnavailableException, InvalidRequestException, TimedOutException
+    throws RecognitionException, UnavailableException, InvalidRequestException, TimedOutException, SchemaDisagreementException
     {
         logger.trace("CQL QUERY: {}", queryString);
         

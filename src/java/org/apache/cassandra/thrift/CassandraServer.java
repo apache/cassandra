@@ -703,7 +703,8 @@ public class CassandraServer implements Cassandra.Iface
         }
     }
 
-    public synchronized String system_add_column_family(CfDef cf_def) throws InvalidRequestException, TException
+    public synchronized String system_add_column_family(CfDef cf_def)
+    throws InvalidRequestException, SchemaDisagreementException, TException
     {
         logger.debug("add_column_family");
         state().hasColumnFamilyListAccess(Permission.WRITE);
@@ -729,7 +730,8 @@ public class CassandraServer implements Cassandra.Iface
         }
     }
 
-    public synchronized String system_drop_column_family(String column_family) throws InvalidRequestException, TException
+    public synchronized String system_drop_column_family(String column_family)
+    throws InvalidRequestException, SchemaDisagreementException, TException
     {
         logger.debug("drop_column_family");
         state().hasColumnFamilyListAccess(Permission.WRITE);
@@ -754,7 +756,8 @@ public class CassandraServer implements Cassandra.Iface
         }
     }
 
-    public synchronized String system_add_keyspace(KsDef ks_def) throws InvalidRequestException, TException
+    public synchronized String system_add_keyspace(KsDef ks_def)
+    throws InvalidRequestException, SchemaDisagreementException, TException
     {
         logger.debug("add_keyspace");
         state().hasKeyspaceListAccess(Permission.WRITE);
@@ -800,7 +803,8 @@ public class CassandraServer implements Cassandra.Iface
         }
     }
     
-    public synchronized String system_drop_keyspace(String keyspace) throws InvalidRequestException, TException
+    public synchronized String system_drop_keyspace(String keyspace)
+    throws InvalidRequestException, SchemaDisagreementException, TException
     {
         logger.debug("drop_keyspace");
         state().hasKeyspaceListAccess(Permission.WRITE);
@@ -825,8 +829,10 @@ public class CassandraServer implements Cassandra.Iface
         }
     }
 
-    /** update an existing keyspace, but do not allow column family modifications. */
-    public synchronized String system_update_keyspace(KsDef ks_def) throws InvalidRequestException, TException
+    /** update an existing keyspace, but do not allow column family modifications. 
+     * @throws SchemaDisagreementException */
+    public synchronized String system_update_keyspace(KsDef ks_def)
+    throws InvalidRequestException, SchemaDisagreementException, TException
     {
         logger.debug("update_keyspace");
         state().hasKeyspaceListAccess(Permission.WRITE);
@@ -859,7 +865,8 @@ public class CassandraServer implements Cassandra.Iface
         }
     }
 
-    public synchronized String system_update_column_family(CfDef cf_def) throws InvalidRequestException, TException
+    public synchronized String system_update_column_family(CfDef cf_def)
+    throws InvalidRequestException, SchemaDisagreementException, TException
     {
         logger.debug("update_column_family");
         state().hasColumnFamilyListAccess(Permission.WRITE);
@@ -893,13 +900,13 @@ public class CassandraServer implements Cassandra.Iface
         }
     }
 
-    private void validateSchemaAgreement() throws InvalidRequestException
+    private void validateSchemaAgreement() throws SchemaDisagreementException
     {
         // unreachable hosts don't count towards disagreement
         Map<String, List<String>> versions = Maps.filterKeys(StorageProxy.describeSchemaVersions(),
                                                              Predicates.not(Predicates.equalTo(StorageProxy.UNREACHABLE)));
         if (versions.size() > 1)
-            throw new InvalidRequestException("Cluster schema does not yet agree");
+            throw new SchemaDisagreementException();
     }
 
     // @see CFMetaData.applyImplicitDefaults().
@@ -1150,7 +1157,7 @@ public class CassandraServer implements Cassandra.Iface
     }
 
     public CqlResult execute_cql_query(ByteBuffer query, Compression compression)
-            throws InvalidRequestException, UnavailableException, TimedOutException, TException
+    throws InvalidRequestException, UnavailableException, TimedOutException, SchemaDisagreementException, TException
     {
         String queryString = null;
         
