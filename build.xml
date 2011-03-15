@@ -627,6 +627,10 @@
         <exclude name="**/*Test.class"/>
         <exclude name="**/*TestCase.class"/>
         <exclude name="**/test/*.class"/>
+        <!-- cobertura modifies the serialVersionUID of classes. Some of our unit tests rely on backward
+        wire compatability of these classes.  It was easier to exlude them from instrumentation than to
+        force their serialVersinUIDs. -->
+        <exclude name="**/*Token.class"/>
         <exclude name="${cobertura.excludes}"/>
       </fileset>
 
