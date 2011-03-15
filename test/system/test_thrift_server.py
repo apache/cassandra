@@ -548,6 +548,15 @@ class TestMutations(ThriftTester):
                 _assert_columnpath_exists(key, ColumnPath('Super1', super_column='sc1', column=c))
                 _assert_columnpath_exists(key, ColumnPath('Super2', super_column='sc1', column=c))
 
+    def test_bad_system_calls(self):
+        def duplicate_index_names():
+            _set_keyspace('Keyspace1')
+            cd1 = ColumnDef('foo', 'BytesType', IndexType.KEYS, 'i')
+            cd2 = ColumnDef('bar', 'BytesType', IndexType.KEYS, 'i')
+            cf = CfDef('Keyspace1', 'BadCF', column_metadata=[cd1, cd2])
+            client.system_add_column_family(cf)
+        _expect_exception(duplicate_index_names, InvalidRequestException)
+
     def test_bad_batch_calls(self):
         # mutate_does_not_accept_cosc_and_deletion_in_same_mutation
         def too_full():
