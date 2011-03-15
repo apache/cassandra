@@ -57,6 +57,7 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
     private String keyspace;
     private TSocket socket;
     private Cassandra.Client client;
+    private ConsistencyLevel consistencyLevel;
 
     public void close() 
     {
@@ -92,6 +93,9 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
         totalRowCount = ConfigHelper.getInputSplitSize(conf);
         batchRowCount = ConfigHelper.getRangeBatchSize(conf);
         cfName = ConfigHelper.getInputColumnFamily(conf);
+        consistencyLevel = ConsistencyLevel.valueOf(ConfigHelper.getReadConsistencyLevel(conf));
+        
+        
         keyspace = ConfigHelper.getInputKeyspace(conf);
         
         try
@@ -238,7 +242,7 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
                 rows = client.get_range_slices(new ColumnParent(cfName),
                                                predicate,
                                                keyRange,
-                                               ConsistencyLevel.ONE);
+                                               consistencyLevel);
                   
                 // nothing new? reached the end
                 if (rows.isEmpty())
