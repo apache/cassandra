@@ -207,6 +207,10 @@ public class CliClient extends CliUserHelp
         {
             throw new RuntimeException(e.getWhy());
         }
+        catch (SchemaDisagreementException e)
+        {
+            throw new RuntimeException("schema does not match across nodes, (try again later).");
+        }
         catch (Exception e)
         {
             throw new RuntimeException(e.getMessage());
@@ -958,9 +962,10 @@ public class CliClient extends CliUserHelp
      * @throws TException - exception
      * @throws InvalidRequestException - exception
      * @throws NotFoundException - exception
+     * @throws SchemaDisagreementException 
      */
     private void executeDelKeySpace(Tree statement)
-            throws TException, InvalidRequestException, NotFoundException
+            throws TException, InvalidRequestException, NotFoundException, SchemaDisagreementException
     {
         if (!CliMain.isConnected())
             return;
@@ -977,9 +982,10 @@ public class CliClient extends CliUserHelp
      * @throws TException - exception
      * @throws InvalidRequestException - exception
      * @throws NotFoundException - exception
+     * @throws SchemaDisagreementException 
      */
     private void executeDelColumnFamily(Tree statement) 
-            throws TException, InvalidRequestException, NotFoundException
+            throws TException, InvalidRequestException, NotFoundException, SchemaDisagreementException
     {
         if (!CliMain.isConnected() || !hasKeySpace())
             return;
