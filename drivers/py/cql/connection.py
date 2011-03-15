@@ -28,7 +28,8 @@ import zlib, re
 try:
     from cassandra import Cassandra
     from cassandra.ttypes import Compression, InvalidRequestException, \
-                                 CqlResultType, AuthenticationRequest
+                                 CqlResultType, AuthenticationRequest, \
+                                 SchemaDisagreementException
 except ImportError:
     # Hack to run from a source tree
     import sys
@@ -41,7 +42,8 @@ except ImportError:
                          'gen-py'))
     from cassandra import Cassandra
     from cassandra.ttypes import Compression, InvalidRequestException, \
-                          CqlResultType, AuthenticationRequest
+                                 CqlResultType, AuthenticationRequest, \
+                                 SchemaDisagreementException
     
 COMPRESSION_SCHEMES = ['GZIP']
 DEFAULT_COMPRESSION = 'GZIP'
@@ -156,6 +158,8 @@ class Connection(object):
                                                      request_compression)
         except InvalidRequestException, ire:
             raise CQLException("Bad Request: %s" % ire.why)
+        except SchemaDisagreementException, sde:
+            raise CQLException("schema versions disagree, (try again later).")
         except TApplicationException, tapp:
             raise CQLException("Internal application error")
         except Exception, exc:
