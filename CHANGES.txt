@@ -6,6 +6,7 @@
  * add memtable_flush_queue_size defaulting to 4 (CASSANDRA-2333)
  * allow job configuration to set the CL used in Hadoop jobs (CASSANDRA-2331)
  * queue secondary indexes for flush before the parent (CASSANDRA-2330)
+ * shut down server for OOM on a Thrift thread (CASSANDRA-2269)
 
 
 0.7.4

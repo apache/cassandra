@@ -33,6 +33,7 @@ import org.apache.log4j.PropertyConfigurator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -364,6 +365,7 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
         protected void afterExecute(Runnable r, Throwable t)
         {
             super.afterExecute(r, t);
+            DebuggableThreadPoolExecutor.logExceptionsAfterExecute(r, t);
             state.get().logout();
         }
 
