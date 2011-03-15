@@ -97,21 +97,16 @@ public class SSTableExport
      * @param out output stream
      * @return pair of (number of columns serialized, last column serialized)
      */
-    private static Pair<Integer, ByteBuffer> serializeColumns(Iterator<IColumn> columns, PrintStream out)
+    private static void serializeColumns(Iterator<IColumn> columns, PrintStream out)
     {
-        int n = 0;
-        IColumn column = null;
         while (columns.hasNext())
         {
-            column = columns.next();
-            n++;
+            IColumn column = columns.next();
             serializeColumn(column, out);
 
             if (columns.hasNext())
                 out.print(", ");
         }
-
-        return new Pair<Integer, ByteBuffer>(n, column == null ? null : column.name());
     }
 
     /**
