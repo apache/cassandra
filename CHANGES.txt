@@ -4,6 +4,7 @@
  * clear Built flag in system table when dropping an index (CASSANDRA-2320)
  * validate index names (CASSANDRA-1761)
  * allow job configuration to set the CL used in Hadoop jobs (CASSANDRA-2331)
+ * queue secondary indexes for flush before the parent (CASSANDRA-2330)
 
 
 0.7.4

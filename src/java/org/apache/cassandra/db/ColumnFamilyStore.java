@@ -2199,6 +2199,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public Iterable<ColumnFamilyStore> concatWithIndexes()
     {
-        return Iterables.concat(Collections.singleton(this), indexedColumns.values());
+        return Iterables.concat(indexedColumns.values(), Collections.singleton(this));
     }
 }
