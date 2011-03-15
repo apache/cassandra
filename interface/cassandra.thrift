@@ -126,6 +126,10 @@ exception AuthorizationException {
     1: required string why
 }
 
+/** schemas are not in agreement across all nodes */
+exception SchemaDisagreementException {
+}
+
 
 #
 # service api
@@ -659,32 +663,35 @@ service Cassandra {
 
   /** adds a column family. returns the new schema id. */
   string system_add_column_family(1:required CfDef cf_def)
-    throws (1:InvalidRequestException ire),
+    throws (1:InvalidRequestException ire, 2:SchemaDisagreementException sde),
     
   /** drops a column family. returns the new schema id. */
   string system_drop_column_family(1:required string column_family)
-    throws (1:InvalidRequestException ire), 
+    throws (1:InvalidRequestException ire, 2:SchemaDisagreementException sde), 
   
   /** adds a keyspace and any column families that are part of it. returns the new schema id. */
   string system_add_keyspace(1:required KsDef ks_def)
-    throws (1:InvalidRequestException ire),
+    throws (1:InvalidRequestException ire, 2:SchemaDisagreementException sde),
   
   /** drops a keyspace and any column families that are part of it. returns the new schema id. */
   string system_drop_keyspace(1:required string keyspace)
-    throws (1:InvalidRequestException ire),
+    throws (1:InvalidRequestException ire, 2:SchemaDisagreementException sde),
   
   /** updates properties of a keyspace. returns the new schema id. */
   string system_update_keyspace(1:required KsDef ks_def)
-    throws (1:InvalidRequestException ire),
+    throws (1:InvalidRequestException ire, 2:SchemaDisagreementException sde),
         
   /** updates properties of a column family. returns the new schema id. */
   string system_update_column_family(1:required CfDef cf_def)
-    throws (1:InvalidRequestException ire),
+    throws (1:InvalidRequestException ire, 2:SchemaDisagreementException sde),
   
   /**
    * Executes a CQL (Cassandra Query Language) statement and returns a
    * CqlResult containing the results.
    */
   CqlResult execute_cql_query(1:required binary query, 2:required Compression compression)
-    throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te)
+    throws (1:InvalidRequestException ire,
+            2:UnavailableException ue,
+            3:TimedOutException te,
+            4:SchemaDisagreementException sde)
 }
