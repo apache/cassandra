@@ -1,0 +1,9 @@
+# Maven2 Repository Locations (you can override these to point to a local proxy, e.g. Nexus)
+artifact.remoteRepository.central:          http://repo1.maven.org/maven2
+artifact.remoteRepository.java.net2:        http://download.java.net/maven/2
+artifact.remoteRepository.java.apache:      https://repository.apache.org/content/repositories/releases
+artifact.remoteRepository.java.cloudera:    https://repository.cloudera.com/content/repositories/releases
+artifact.remoteRepository.java.jclouds:     http://jclouds.googlecode.com/svn/repo
+artifact.remoteRepository.java.oauth:       http://oauth.googlecode.com/svn/code/maven
+artifact.remoteRepository.java.twttr:       http://maven.twttr.com
+

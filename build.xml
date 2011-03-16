@@ -21,6 +21,7 @@
          xmlns:artifact="antlib:org.apache.maven.artifact.ant">
     <property environment="env"/>
     <property file="build.properties" />
+    <property file="build.properties.default" />
     <property name="debuglevel" value="source,lines,vars"/>
 
     <property name="basedir" value="."/>
@@ -184,14 +185,14 @@
       <typedef uri="antlib:org.apache.maven.artifact.ant" classpathref="maven-ant-tasks.classpath" />
 
       <!-- define the remote repositories we use -->
-      <artifact:remoteRepository id="central" url="http://repo1.maven.org/maven2"/>
-      <artifact:remoteRepository id="java.net2" url="http://download.java.net/maven/2"/>
-      <artifact:remoteRepository id="apache"    url="https://repository.apache.org/content/repositories/releases"/>
-      <artifact:remoteRepository id="cloudera"  url="https://repository.cloudera.com/content/repositories/releases"/>
+      <artifact:remoteRepository id="central"   url="${artifact.remoteRepository.central}"/>
+      <artifact:remoteRepository id="java.net2" url="${artifact.remoteRepository.java.net2}"/>
+      <artifact:remoteRepository id="apache"    url="${artifact.remoteRepository.apache}"/>
+      <artifact:remoteRepository id="cloudera"  url="${artifact.remoteRepository.cloudera}"/>
       <!-- for distributed tests -->
-      <artifact:remoteRepository id="jclouds"   url="http://jclouds.googlecode.com/svn/repo"/>
-      <artifact:remoteRepository id="oauth"     url="http://oauth.googlecode.com/svn/code/maven"/>
-      <artifact:remoteRepository id="twttr"     url="http://maven.twttr.com"/>
+      <artifact:remoteRepository id="jclouds"   url="${artifact.remoteRepository.jclouds}"/>
+      <artifact:remoteRepository id="oauth"     url="${artifact.remoteRepository.oauth}"/>
+      <artifact:remoteRepository id="twttr"     url="${artifact.remoteRepository.twttr}"/>
 
       <property name="maven-ant-tasks.initialized" value="true"/>
     </target>
