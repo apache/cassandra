@@ -25,25 +25,10 @@ from decoders import SchemaDecoder
 from results import RowsProxy
 import zlib, re
 
-try:
-    from cassandra import Cassandra
-    from cassandra.ttypes import Compression, InvalidRequestException, \
-                                 CqlResultType, AuthenticationRequest, \
-                                 SchemaDisagreementException
-except ImportError:
-    # Hack to run from a source tree
-    import sys
-    sys.path.append(join(abspath(dirname(__file__)),
-                         '..',
-                         '..',
-                         '..',
-                         'interface',
-                         'thrift',
-                         'gen-py'))
-    from cassandra import Cassandra
-    from cassandra.ttypes import Compression, InvalidRequestException, \
-                                 CqlResultType, AuthenticationRequest, \
-                                 SchemaDisagreementException
+from cassandra import Cassandra
+from cassandra.ttypes import Compression, InvalidRequestException, \
+                             CqlResultType, AuthenticationRequest, \
+                             SchemaDisagreementException
     
 COMPRESSION_SCHEMES = ['GZIP']
 DEFAULT_COMPRESSION = 'GZIP'
