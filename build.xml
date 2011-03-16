@@ -337,6 +337,11 @@
         <arg line="-o ${interface.thrift.dir}" />
         <arg line="cassandra.thrift" />
       </exec>
+      <exec executable="thrift" dir="${basedir}/interface" failonerror="true">
+        <arg line="--gen py:twisted" />
+        <arg line="-o ${interface.thrift.dir}" />
+        <arg line="cassandra.thrift" />
+      </exec>
     </target>
 
     <!-- create properties file with C version -->
