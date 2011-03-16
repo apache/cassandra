@@ -6,7 +6,7 @@ from cql.errors import InvalidQueryFormat
 # TESTS[i] ARGUMENTS[i] -> STANDARDS[i]
 TESTS = (
 """
-SELECT ?,?,?,? FROM ColumnFamily WHERE KEY = ? AND "col" = ?;
+SELECT ?,?,?,? FROM ColumnFamily WHERE KEY = ? AND 'col' = ?;
 """,
 """
 USE Keyspace;
@@ -20,7 +20,7 @@ ARGUMENTS = (
 
 STANDARDS = (
 """
-SELECT 1,3,1000L,3000L FROM ColumnFamily WHERE KEY = "key" AND "col" = u"val";
+SELECT 1,3,1000,3000 FROM ColumnFamily WHERE KEY = 'key' AND 'col' = 'val';
 """,
 """
 USE Keyspace;

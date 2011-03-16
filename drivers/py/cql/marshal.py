@@ -49,7 +49,7 @@ def marshal(term):
     if isinstance(term, (long,int)):
         return "%d" % term
     elif isinstance(term, unicode):
-        return "u'%s'" % term
+        return "'%s'" % term.encode('utf8')
     elif isinstance(term, str):
         return "'%s'" % term
     elif isinstance(term, UUID):
