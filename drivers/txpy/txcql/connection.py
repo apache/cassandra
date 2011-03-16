@@ -20,11 +20,12 @@ from thrift.transport import TTwisted
 from thrift.protocol import TBinaryProtocol
 from thrift.Thrift import TApplicationException
 from twisted.internet import defer, reactor
+from cassandra import Cassandra
+from cassandra.ttypes import Compression, InvalidRequestException, \
+			 CqlResultType, AuthenticationRequest, \
+			 SchemaDisagreementException
+
 try:
-    from cassandra import Cassandra
-    from cassandra.ttypes import Compression, InvalidRequestException, \
-                                 CqlResultType, AuthenticationRequest, \
-                                 SchemaDisagreementException
     from cql.errors import CQLException, InvalidCompressionScheme
     from cql.marshal import prepare
     from cql.decoders import SchemaDecoder
@@ -36,18 +37,7 @@ except ImportError:
     sys.path.append(join(abspath(dirname(__file__)),
                          '..',
                          '..',
-                         '..',
-                         'interface',
-                         'thrift',
-                         'gen-py.twisted'))
-    sys.path.append(join(abspath(dirname(__file__)),
-                         '..',
-                         '..',
                          'py'))
-    from cassandra import Cassandra
-    from cassandra.ttypes import Compression, InvalidRequestException, \
-                                 CqlResultType, AuthenticationRequest, \
-                                 SchemaDisagreementException
     from cql.errors import CQLException, InvalidCompressionScheme
     from cql.marshal import prepare
     from cql.decoders import SchemaDecoder

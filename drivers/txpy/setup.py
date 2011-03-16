@@ -24,7 +24,7 @@ setup(
     description="Cassandra Query Language driver",
     long_description=open(abspath(join(dirname(__file__), 'README'))).read(),
     url="http://cassandra.apache.org",
-    packages=["txcql"],
+    packages=["txcql", "txcql.cassandra"],
     requires=["thrift"],
     provides=["txcql"],
     classifiers=[
