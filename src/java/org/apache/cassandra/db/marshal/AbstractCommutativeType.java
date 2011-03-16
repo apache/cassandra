@@ -20,12 +20,10 @@
  */
 package org.apache.cassandra.db.marshal;
 
-import java.net.InetAddress;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.db.Column;
-import org.apache.cassandra.db.IColumnContainer;
-import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.db.context.CounterContext;
 
 public abstract class AbstractCommutativeType extends AbstractType<Long>
 {
@@ -36,7 +34,7 @@ public abstract class AbstractCommutativeType extends AbstractType<Long>
 
     public Long compose(ByteBuffer bytes)
     {
-        return ByteBufferUtil.toLong(bytes);
+        return CounterContext.instance().total(bytes);
     }
 
     /**

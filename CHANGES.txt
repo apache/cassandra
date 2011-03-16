@@ -1,4 +1,3 @@
-<<<<<<< .working
 0.8-dev
  * avoid double RowMutation serialization on write path (CASSANDRA-1800)
  * adds support for columns that act as incr/decr counters 
@@ -12,7 +11,6 @@
  * Fix for Cli to support updating replicate_on_write (CASSANDRA-2236)
 
 
-=======
 0.7.5
  * Avoid seeking when sstable2json exports the entire file (CASSANDRA-2318)
  * fix tombstone handling in repair and sstable2json (CASSANDRA-2279)
@@ -24,7 +22,6 @@
  * shut down server for OOM on a Thrift thread (CASSANDRA-2269)
 
 
->>>>>>> .merge-right.r1081840
 0.7.4
  * add nodetool join command (CASSANDRA-2160)
  * fix secondary indexes on pre-existing or streamed data (CASSANDRA-2244)
