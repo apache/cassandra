@@ -114,7 +114,7 @@ public class Table
 
                     //table has to be constructed and in the cache before cacheRow can be called
                     for (ColumnFamilyStore cfs : tableInstance.getColumnFamilyStores())
-                        cfs.initRowCache();
+                        cfs.initCaches();
                 }
             }
         }

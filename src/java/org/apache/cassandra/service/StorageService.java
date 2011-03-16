@@ -34,18 +34,16 @@ import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Multimap;
-
-import org.apache.cassandra.db.commitlog.CommitLog;
-import org.apache.cassandra.locator.*;
-import org.apache.cassandra.utils.*;
-import org.apache.log4j.Level;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.concurrent.*;
+import org.apache.cassandra.concurrent.RetryingScheduledThreadPoolExecutor;
+import org.apache.cassandra.concurrent.Stage;
+import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.migration.AddKeyspace;
 import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.dht.BootStrapper;
@@ -55,6 +53,10 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.*;
 import org.apache.cassandra.io.DeletionService;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.locator.AbstractReplicationStrategy;
+import org.apache.cassandra.locator.DynamicEndpointSnitch;
+import org.apache.cassandra.locator.IEndpointSnitch;
+import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.net.IAsyncResult;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -63,6 +65,8 @@ import org.apache.cassandra.service.AntiEntropyService.TreeRequestVerbHandler;
 import org.apache.cassandra.streaming.*;
 import org.apache.cassandra.thrift.Constants;
 import org.apache.cassandra.thrift.UnavailableException;
+import org.apache.cassandra.utils.*;
+import org.apache.log4j.Level;
 import org.yaml.snakeyaml.Dumper;
 import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.Yaml;
@@ -2273,8 +2277,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         logger_.debug("submitting cache saves");
         for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
         {
-            futures.add(cfs.submitKeyCacheWrite());
-            futures.add(cfs.submitRowCacheWrite());
+            futures.add(cfs.keyCache.submitWrite());
+            futures.add(cfs.rowCache.submitWrite());
         }
         FBUtilities.waitOnFutures(futures);
         logger_.debug("cache saves completed");

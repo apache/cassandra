@@ -19,18 +19,15 @@
 
 package org.apache.cassandra.io.sstable;
 
-import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
-
-import com.google.common.base.Function;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cache.JMXInstrumentedCache;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.utils.Pair;
 
@@ -42,43 +39,12 @@ public class SSTableTracker implements Iterable<SSTableReader>
     private final AtomicLong liveSize = new AtomicLong();
     private final AtomicLong totalSize = new AtomicLong();
 
-    private final String ksname;
-    private final String cfname;
+    private final ColumnFamilyStore cfs;
 
-    private final JMXInstrumentedCache<Pair<Descriptor,DecoratedKey>,Long> keyCache;
-    private final JMXInstrumentedCache<DecoratedKey, ColumnFamily> rowCache;
-
-    public SSTableTracker(String ksname, String cfname)
+    public SSTableTracker(ColumnFamilyStore cfs)
     {
-        this.ksname = ksname;
-        this.cfname = cfname;
+        this.cfs = cfs;
         sstables = Collections.emptySet();
-        keyCache = new JMXInstrumentedCache<Pair<Descriptor,DecoratedKey>,Long>(ksname, cfname + "KeyCache", 0);
-        rowCache = new JMXInstrumentedCache<DecoratedKey, ColumnFamily>(ksname, cfname + "RowCache", 3);
-    }
-
-    public CacheWriter<Pair<Descriptor, DecoratedKey>, Long> getKeyCacheWriter()
-    {
-        Function<Pair<Descriptor, DecoratedKey>, ByteBuffer> function = new Function<Pair<Descriptor, DecoratedKey>, ByteBuffer>()
-        {
-            public ByteBuffer apply(Pair<Descriptor, DecoratedKey> key)
-            {
-                return key.right.key;
-            }
-        };
-        return new CacheWriter<Pair<Descriptor, DecoratedKey>, Long>(cfname, keyCache, DatabaseDescriptor.getSerializedKeyCachePath(ksname, cfname), function);
-    }
-
-    public CacheWriter<DecoratedKey, ColumnFamily> getRowCacheWriter()
-    {
-        Function<DecoratedKey, ByteBuffer> function = new Function<DecoratedKey, ByteBuffer>()
-        {
-            public ByteBuffer apply(DecoratedKey key)
-            {
-                return key.key;
-            }
-        };
-        return new CacheWriter<DecoratedKey, ColumnFamily>(cfname, rowCache, DatabaseDescriptor.getSerializedRowCachePath(ksname, cfname), function);
     }
 
     public synchronized void replace(Collection<SSTableReader> oldSSTables, Iterable<SSTableReader> replacements)
@@ -90,7 +56,7 @@ public class SSTableTracker implements Iterable<SSTableReader>
             assert sstable.getKeySamples() != null;
             if (logger.isDebugEnabled())
                 logger.debug(String.format("adding %s to list of files tracked for %s.%s",
-                                           sstable.descriptor, ksname, cfname));
+                                           sstable.descriptor, cfs.table.name, cfs.getColumnFamilyName()));
             sstablesNew.add(sstable);
             long size = sstable.bytesOnDisk();
             liveSize.addAndGet(size);
@@ -103,7 +69,7 @@ public class SSTableTracker implements Iterable<SSTableReader>
         {
             if (logger.isDebugEnabled())
                 logger.debug(String.format("removing %s from list of files tracked for %s.%s",
-                                           sstable.descriptor, ksname, cfname));
+                                           sstable.descriptor, cfs.table.name, cfs.getColumnFamilyName()));
             boolean removed = sstablesNew.remove(sstable);
             assert removed;
             sstable.markCompacted();
@@ -132,29 +98,8 @@ public class SSTableTracker implements Iterable<SSTableReader>
     public synchronized void updateCacheSizes()
     {
         long keys = estimatedKeys();
-
-        if (!keyCache.isCapacitySetManually())
-        {
-            int keyCacheSize = DatabaseDescriptor.getKeysCachedFor(ksname, cfname, keys);
-            if (keyCacheSize != keyCache.getCapacity())
-            {
-                // update cache size for the new key volume
-                if (logger.isDebugEnabled())
-                    logger.debug("key cache capacity for " + cfname + " is " + keyCacheSize);
-                keyCache.updateCapacity(keyCacheSize);
-            }
-        }
-
-        if (!rowCache.isCapacitySetManually())
-        {
-            int rowCacheSize = DatabaseDescriptor.getRowsCachedFor(ksname, cfname, keys);
-            if (rowCacheSize != rowCache.getCapacity())
-            {
-                if (logger.isDebugEnabled())
-                    logger.debug("row cache capacity for " + cfname + " is " + rowCacheSize);
-                rowCache.updateCapacity(rowCacheSize);
-            }
-        }
+        cfs.keyCache.updateCacheSize(keys);
+        cfs.rowCache.updateCacheSize(keys);
     }
 
     // the modifiers create new, unmodifiable objects each time; the volatile fences the assignment
@@ -179,9 +124,14 @@ public class SSTableTracker implements Iterable<SSTableReader>
         sstables = Collections.emptySet();
     }
 
+    public JMXInstrumentedCache<Pair<Descriptor, DecoratedKey>, Long> getKeyCache()
+    {
+        return cfs.keyCache;
+    }
+
     public JMXInstrumentedCache<DecoratedKey, ColumnFamily> getRowCache()
     {
-        return rowCache;
+        return cfs.rowCache;
     }
 
     public long estimatedKeys()
@@ -207,11 +157,6 @@ public class SSTableTracker implements Iterable<SSTableReader>
     public void spaceReclaimed(long size)
     {
         totalSize.addAndGet(-size);
-    }
-
-    public JMXInstrumentedCache<Pair<Descriptor, DecoratedKey>, Long> getKeyCache()
-    {
-        return keyCache;
     }
 }
 

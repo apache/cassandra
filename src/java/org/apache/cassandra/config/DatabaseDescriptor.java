@@ -34,6 +34,7 @@ import org.apache.cassandra.auth.AllowAllAuthority;
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.auth.IAuthority;
 import org.apache.cassandra.config.Config.RequestSchedulerId;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.db.DefsTable;
 import org.apache.cassandra.db.Table;
@@ -997,26 +998,6 @@ public class DatabaseDescriptor
         return getCFMetaData(tableName, cfName).subcolumnComparator;
     }
 
-    /**
-     * @return The absolute number of keys that should be cached per table.
-     */
-    public static int getKeysCachedFor(String tableName, String columnFamilyName, long expectedKeys)
-    {
-        CFMetaData cfm = getCFMetaData(tableName, columnFamilyName);
-        double v = (cfm == null) ? CFMetaData.DEFAULT_KEY_CACHE_SIZE : cfm.getKeyCacheSize();
-        return (int)Math.min(FBUtilities.absoluteFromFraction(v, expectedKeys), Integer.MAX_VALUE);
-    }
-
-    /**
-     * @return The absolute number of rows that should be cached for the columnfamily.
-     */
-    public static int getRowsCachedFor(String tableName, String columnFamilyName, long expectedRows)
-    {
-        CFMetaData cfm = getCFMetaData(tableName, columnFamilyName);
-        double v = (cfm == null) ? CFMetaData.DEFAULT_ROW_CACHE_SIZE : cfm.getRowCacheSize();
-        return (int)Math.min(FBUtilities.absoluteFromFraction(v, expectedRows), Integer.MAX_VALUE);
-    }
-
     public static KSMetaData getTableDefinition(String table)
     {
         return tables.get(table);
@@ -1156,14 +1137,9 @@ public class DatabaseDescriptor
         return conf.index_interval;
     }
 
-    public static File getSerializedRowCachePath(String ksName, String cfName)
+    public static File getSerializedCachePath(String ksName, String cfName, ColumnFamilyStore.CacheType cacheType)
     {
-        return new File(conf.saved_caches_directory + File.separator + ksName + "-" + cfName + "-RowCache");
-    }
-
-    public static File getSerializedKeyCachePath(String ksName, String cfName)
-    {
-        return new File(conf.saved_caches_directory + File.separator + ksName + "-" + cfName + "-KeyCache");
+        return new File(conf.saved_caches_directory + File.separator + ksName + "-" + cfName + "-" + cacheType);
     }
 
     public static int getDynamicUpdateInterval()

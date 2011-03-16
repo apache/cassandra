@@ -39,6 +39,7 @@ import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.cache.AutoSavingCache;
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Range;
@@ -50,9 +51,9 @@ import org.apache.cassandra.service.AntiEntropyService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.OperationType;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.NodeId;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.WrappedRunnable;
-import org.apache.cassandra.utils.NodeId;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 public class CompactionManager implements CompactionManagerMBean
@@ -958,7 +959,7 @@ public class CompactionManager implements CompactionManagerMBean
         return executor.submit(callable);
     }
 
-    public Future<?> submitCacheWrite(final CacheWriter writer)
+    public Future<?> submitCacheWrite(final AutoSavingCache.Writer writer)
     {
         Runnable runnable = new WrappedRunnable()
         {

@@ -360,14 +360,6 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
     }
 
     /**
-     * @return The key cache: for monitoring purposes.
-     */
-    public InstrumentedCache getKeyCache()
-    {
-        return keyCache;
-    }
-
-    /**
      * @return An estimate of the number of keys in this SSTable.
      */
     public long estimatedKeys()
@@ -677,5 +669,10 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
     public long getRecentBloomFilterTruePositiveCount()
     {
         return bloomFilterTracker.getRecentTruePositiveCount();
+    }
+
+    public InstrumentedCache<Pair<Descriptor,DecoratedKey>, Long> getKeyCache()
+    {
+        return keyCache;
     }
 }
