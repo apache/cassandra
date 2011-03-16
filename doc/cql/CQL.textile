@@ -165,7 +165,7 @@ h2. CREATE KEYSPACE
 _Synopsis:_
 
 bc. 
-CREATE KEYSPACE <NAME> WITH replication_factor = <NUM> AND strategy_class = "<STRATEGY>"
+CREATE KEYSPACE <NAME> WITH replication_factor = <NUM> AND strategy_class = <STRATEGY>
     [AND strategy_options.<OPTION> = <VALUE> [AND strategy_options.<OPTION> = <VALUE>]];
 
 The @CREATE KEYSPACE@ statement creates a new top-level namespace (aka "keyspace"). Valid names are any string constructed of alphanumeric characters and underscores, but must begin with a letter.  Properties such as replication strategy and count are specified during creation using the following accepted keyword arguments:
@@ -173,7 +173,7 @@ The @CREATE KEYSPACE@ statement creates a new top-level namespace (aka "keyspace
 |_. keyword|_. required|_. description|
 |replication_factor|yes|Numeric argument that specifies the number of replicas for this keyspace.|
 |strategy_class|yes|Class name to use for managing replica placement.  Any of the shipped strategies can be used by specifying the class name relative to org.apache.cassandra.locator, others will need to be fully-qualified and located on the classpath.|
-|strategy_options|no|Some strategies require additional arguments which can be supplied by appending the option name to the @strategy_options@ keyword, separated by a colon (@:@).  For example, a strategy option of "DC1" with a value of "1" would be specified as @strategy_options:DC1 = "1"@.|
+|strategy_options|no|Some strategies require additional arguments which can be supplied by appending the option name to the @strategy_options@ keyword, separated by a colon (@:@).  For example, a strategy option of "DC1" with a value of "1" would be specified as @strategy_options:DC1 = 1@.|
 
 h2. CREATE COLUMNFAMILY
 
@@ -261,31 +261,25 @@ Consistency level specifications are made up the keyword @USING@, followed by a 
 
 h3(#terms). Term specification
 
-Where possible, the type of terms are inferred; the following term types are supported:
+Terms are used in statements to specify things such as keyspaces, column families, indexes, column names and values, and keyword arguments.  The rules governing term specification are as follows:
 
-h4(#string_literals). String Literals
+* Any single quoted string literal (example: @'apple'@).
+* Unquoted alpha-numeric strings that begin with a letter (example: @carrot@).
+* Unquoted numeric literals (example: @100@).
+* UUID strings in hyphen-delimited hex notation (example: @1438fc5c-4ff6-11e0-b97f-0026c650d722@). 
 
-String literals are any value enclosed in double-quotes, (`"`).  String literals are treated as raw bytes; no interpolation is performed.
+Terms which do not conform to these rules result in an exception.
 
-h4. Unicode
+How column name/value terms are interpreted is determined by the configured type.
 
-Unicode terms are any double-quoted string prefixed with a lower-case @u@, for example @u"© 2011 The Apache Software Foundation"@.  Unicode terms are identical to standard "string literals":#string_literals, with the exception that they are encoded to bytes using the UTF-8 charset.
-
-h4. Integers / longs
-
-Integers are any term consisting soley of unquoted numericals, longs are any otherwise valid integer term followed by an upper case "L", (e.g. 100L).  It is an error to specify an integer term that will not fit in 4 bytes unsigned, or a long that will not fit in 8 bytes unsigned.
-
-h4. UUIDs
-
-There are two types of UUIDs supported by the CQL specification, time-based (version 1) and randomly generated (version 4). These are specified in statements using the @timeuuid(<UUID STRING>)@ and @uuid(<UUID STRING>)@ notations respectively.
-
-In addition to the hex-based string representation, @timeuuid()@ terms also accept arguments to specify the data-time component. The full list of @timeuuid()@ arguments are:
-
-|_. argument|_. example|_. behavior|
-|none|timeuuid()|Results in the creation of a new UUID based on system time of the node parsing the query.|
-|now|timeuuid("now")|Results in the creation of a new UUID based on system time of the node parsing the query.|
-|milliseconds since epoch|timeuuid(1296755320376)|Creates a UUID with a time component that is based on the supplied time-stamp.|
-|"iso8601 timestamp":http://en.wikipedia.org/wiki/8601|timeuuid("2011-02-01T14:00-0600")|Creates a UUID with a time component that is based on the supplied time-stamp.|
-|"string representation (hex)":http://tools.ietf.org/html/rfc4122|timeuuid("e9229b24-2fbe-11e0-a4de-0026c650d722")|Reproduces the specified version 1 UUID node-side.|
-
-
+|_. type|_. term|
+|ascii|Any string which can be decoded using ASCII charset|
+|utf8|Any string which can be decoded using UTF8 charset|
+|uuid|Standard UUID string format (hyphen-delimited hex notation)|
+|timeuuid|Standard UUID string format (hyphen-delimited hex notation)|
+|timeuuid|The string @now@, to represent a type-1 (time-based) UUID with a date-time component based on the current time|
+|timeuuid|Numeric value representing milliseconds since epoch|
+|timeuuid|An "iso8601 timestamp":http://en.wikipedia.org/wiki/8601|
+|long|Numeric value capable of fitting in 8 bytes|
+|int|Numeric value of arbitrary size|
+|bytes|Hex-encoded strings (converted directly to the corresponding bytes)|
