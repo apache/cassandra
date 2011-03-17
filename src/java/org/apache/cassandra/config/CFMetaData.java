@@ -171,17 +171,7 @@ public final class CFMetaData
 
     public CFMetaData(String keyspace, String name, ColumnFamilyType type, AbstractType comp, AbstractType subcc)
     {
-        // Final fields must be set in constructor
-        ksName = keyspace;
-        cfName = name;
-        cfType = type;
-        comparator = comp;
-        subcolumnComparator = enforceSubccDefault(type, subcc);
-
-        // Default new CFMDs get an id chosen for them
-        cfId = nextId();
-
-        this.init();
+        this(keyspace, name, type, comp, subcc, nextId());
     }
 
     private CFMetaData(String keyspace, String name, ColumnFamilyType type, AbstractType comp, AbstractType subcc, int id)
