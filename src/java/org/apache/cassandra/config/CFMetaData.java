@@ -152,7 +152,7 @@ public final class CFMetaData
 
     private Map<ByteBuffer, ColumnDefinition> column_metadata;
 
-    public CFMetaData comment(String prop) {comment = prop; return this;}
+    public CFMetaData comment(String prop) { comment = enforceCommentNotNull(prop); return this;}
     public CFMetaData rowCacheSize(double prop) {rowCacheSize = prop; return this;}
     public CFMetaData keyCacheSize(double prop) {keyCacheSize = prop; return this;}
     public CFMetaData readRepairChance(double prop) {readRepairChance = prop; return this;}
@@ -193,6 +193,11 @@ public final class CFMetaData
     private AbstractType enforceSubccDefault(ColumnFamilyType cftype, AbstractType subcc)
     {
         return (subcc == null) && (cftype == ColumnFamilyType.Super) ? BytesType.instance : subcc;
+    }
+
+    private static String enforceCommentNotNull (CharSequence comment)
+    {
+        return (comment == null) ? "" : comment.toString();
     }
 
     private void init()
@@ -533,29 +538,6 @@ public final class CFMetaData
     }
     
     /** applies implicit defaults to cf definition. useful in updates */
-    public static void applyImplicitDefaults(org.apache.cassandra.db.migration.avro.CfDef cf_def)
-    {
-        if (cf_def.comment == null)
-            cf_def.comment = "";
-        if (cf_def.min_compaction_threshold == null)
-            cf_def.min_compaction_threshold = CFMetaData.DEFAULT_MIN_COMPACTION_THRESHOLD;
-        if (cf_def.max_compaction_threshold == null)
-            cf_def.max_compaction_threshold = CFMetaData.DEFAULT_MAX_COMPACTION_THRESHOLD;
-        if (cf_def.row_cache_save_period_in_seconds == null)
-            cf_def.row_cache_save_period_in_seconds = CFMetaData.DEFAULT_ROW_CACHE_SAVE_PERIOD_IN_SECONDS;
-        if (cf_def.key_cache_save_period_in_seconds == null)
-            cf_def.key_cache_save_period_in_seconds = CFMetaData.DEFAULT_KEY_CACHE_SAVE_PERIOD_IN_SECONDS;
-        if (cf_def.memtable_flush_after_mins == null)
-            cf_def.memtable_flush_after_mins = CFMetaData.DEFAULT_MEMTABLE_LIFETIME_IN_MINS;
-        if (cf_def.memtable_throughput_in_mb == null)
-            cf_def.memtable_throughput_in_mb = CFMetaData.DEFAULT_MEMTABLE_THROUGHPUT_IN_MB;
-        if (cf_def.memtable_operations_in_millions == null)
-            cf_def.memtable_operations_in_millions = CFMetaData.DEFAULT_MEMTABLE_OPERATIONS_IN_MILLIONS; 
-        if (cf_def.merge_shards_chance == null)
-            cf_def.merge_shards_chance = CFMetaData.DEFAULT_MERGE_SHARDS_CHANCE;
-    }
-    
-    /** applies implicit defaults to cf definition. useful in updates */
     public static void applyImplicitDefaults(org.apache.cassandra.thrift.CfDef cf_def) 
     {
         if (!cf_def.isSetComment())
@@ -604,7 +586,7 @@ public final class CFMetaData
         validateMinMaxCompactionThresholds(cf_def);
         validateMemtableSettings(cf_def);
 
-        comment = cf_def.comment == null ? "" : cf_def.comment.toString();
+        comment = enforceCommentNotNull(cf_def.comment);
         rowCacheSize = cf_def.row_cache_size;
         keyCacheSize = cf_def.key_cache_size;
         readRepairChance = cf_def.read_repair_chance;
@@ -669,7 +651,7 @@ public final class CFMetaData
             def.setSubcomparator_type(cfm.subcolumnComparator.getClass().getName());
             def.setColumn_type("Super");
         }
-        def.setComment(cfm.comment == null ? "" : cfm.comment);
+        def.setComment(enforceCommentNotNull(cfm.comment));
         def.setRow_cache_size(cfm.rowCacheSize);
         def.setKey_cache_size(cfm.keyCacheSize);
         def.setRead_repair_chance(cfm.readRepairChance);
@@ -712,7 +694,7 @@ public final class CFMetaData
             def.subcomparator_type = cfm.subcolumnComparator.getClass().getName();
             def.column_type = "Super";
         }
-        def.comment = cfm.comment == null ? "" : cfm.comment;
+        def.comment = enforceCommentNotNull(cfm.comment);
         def.row_cache_size = cfm.rowCacheSize;
         def.key_cache_size = cfm.keyCacheSize;
         def.read_repair_chance = cfm.readRepairChance;

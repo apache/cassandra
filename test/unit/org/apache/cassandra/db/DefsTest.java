@@ -254,6 +254,22 @@ public class DefsTest extends CleanupHelper
         assert m2.serialize().equals(reconstituded[1].serialize());
         assert m3.serialize().equals(reconstituded[2].serialize());
     }
+    
+    @Test
+    public void addNewCfWithNullComment() throws ConfigurationException, IOException, ExecutionException, InterruptedException
+    {
+        final String ks = "Keyspace1";
+        final String cf = "BrandNewCfWithNull";
+        KSMetaData original = DatabaseDescriptor.getTableDefinition(ks);
+
+        CFMetaData newCf = addTestCF(original.name, cf, null);
+
+        assert !DatabaseDescriptor.getTableDefinition(ks).cfMetaData().containsKey(newCf.cfName);
+        new AddColumnFamily(newCf).apply();
+
+        assert DatabaseDescriptor.getTableDefinition(ks).cfMetaData().containsKey(newCf.cfName);
+        assert DatabaseDescriptor.getTableDefinition(ks).cfMetaData().get(newCf.cfName).equals(newCf);  
+    }
 
     @Test
     public void addNewCF() throws ConfigurationException, IOException, ExecutionException, InterruptedException
