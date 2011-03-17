@@ -386,12 +386,6 @@ public class QueryProcessor
         }
     }
     
-    private static void validateColumnNames(String keyspace, String columnFamily, ByteBuffer start, ByteBuffer end)
-    throws InvalidRequestException
-    {
-        validateColumnNames(keyspace, columnFamily, Arrays.asList(start, end));
-    }
-    
     private static void validateColumnName(String keyspace, String columnFamily, ByteBuffer column)
     throws InvalidRequestException
     {
