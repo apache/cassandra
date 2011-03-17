@@ -143,6 +143,7 @@ selectExpression returns [SelectExpression expr]
       ( first=term { $expr = new SelectExpression(first, count, reversed); }
             (',' next=term { $expr.and(next); })*
       | start=term RANGEOP finish=term { $expr = new SelectExpression(start, finish, count, reversed); }
+      | '\*' { $expr = new SelectExpression(new Term(), new Term(), count, reversed); }
       )
     ;
 

@@ -100,15 +100,15 @@ public class QueryProcessor
         // ...a range (slice) of column names
         else
         {
-            validateColumnNames(keyspace,
-                                select.getColumnFamily(),
-                                select.getColumnStart().getByteBuffer(comparator),
-                                select.getColumnFinish().getByteBuffer(comparator));
+            ByteBuffer start = select.getColumnStart().getByteBuffer(comparator);
+            ByteBuffer finish = select.getColumnFinish().getByteBuffer(comparator);
+            
+            validateSliceRange(keyspace, select.getColumnFamily(), start, finish, select.isColumnsReversed());
             commands.add(new SliceFromReadCommand(keyspace,
                                                   key,
                                                   queryPath,
-                                                  select.getColumnStart().getByteBuffer(comparator),
-                                                  select.getColumnFinish().getByteBuffer(comparator),
+                                                  start,
+                                                  finish,
                                                   select.isColumnsReversed(),
                                                   select.getColumnsLimit()));
         }
@@ -370,9 +370,11 @@ public class QueryProcessor
         for (ByteBuffer name : columns)
         {
             if (name.remaining() > IColumn.MAX_NAME_LENGTH)
-                throw new InvalidRequestException();
+                throw new InvalidRequestException(String.format("column name is too long (%s > %s)",
+                                                                name.remaining(),
+                                                                IColumn.MAX_NAME_LENGTH));
             if (name.remaining() == 0)
-                throw new InvalidRequestException();
+                throw new InvalidRequestException("zero-length column name");
             try
             {
                 comparator.validate(name);
@@ -419,9 +421,34 @@ public class QueryProcessor
     throws InvalidRequestException
     {
         if (predicate.slice_range != null)
-            validateColumnNames(keyspace, columnFamily, predicate.slice_range.start, predicate.slice_range.finish);
+            validateSliceRange(keyspace, columnFamily, predicate.slice_range);
         else
             validateColumnNames(keyspace, columnFamily, predicate.column_names);
+    }
+    
+    private static void validateSliceRange(String keyspace, String columnFamily, SliceRange range)
+    throws InvalidRequestException
+    {
+        validateSliceRange(keyspace, columnFamily, range.start, range.finish, range.reversed);
+    }
+    
+    private static void validateSliceRange(String keyspace, String columnFamily, ByteBuffer start, ByteBuffer finish, boolean reversed)
+    throws InvalidRequestException
+    {
+        AbstractType<?> comparator = ColumnFamily.getComparatorFor(keyspace, columnFamily, null);
+        try
+        {
+            comparator.validate(start);
+            comparator.validate(finish);
+        }
+        catch (MarshalException e)
+        {
+            throw new InvalidRequestException(e.getMessage());
+        }
+        
+        Comparator<ByteBuffer> orderedComparator = reversed ? comparator.reverseComparator: comparator;
+        if (start.remaining() > 0 && finish.remaining() > 0 && orderedComparator.compare(start, finish) > 0)
+            throw new InvalidRequestException("range finish must come after start in traversal order");
     }
     
     // Copypasta from CassandraServer (where it is private).

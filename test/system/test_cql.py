@@ -187,6 +187,14 @@ class TestCql(ThriftTester):
         assert r[0].columns[0].value == "a"
         assert r[0].columns[1].value == "b"
         assert r[0].columns[2].value == "c"
+        
+    def test_select_columns_slice_all(self):
+        "slice all columns in a row"
+        conn = init()
+        r = conn.execute("SELECT * FROM StandardString1 WHERE KEY = 'ka';")
+        assert len(r[0].columns) == 2
+        r = conn.execute("SELECT ''..'' FROM StandardString1 WHERE KEY = 'ka';")
+        assert len(r[0].columns) == 2
 
     def test_select_columns_slice_with_limit(self):
         "range of columns (slice) by row with limit"
