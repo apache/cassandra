@@ -238,18 +238,6 @@ public interface StorageServiceMBean
     public void drain() throws IOException, InterruptedException, ExecutionException;
 
     /**
-     * Introduced in 0.7 to allow nodes to load their existing yaml defined schemas.
-     * @todo: deprecate in 0.7+1, remove in 0.7+2.
-     */ 
-    public void loadSchemaFromYAML() throws ConfigurationException, IOException;
-
-    /**
-     * Introduced in 0.7 to allow schema yaml to be exported.
-     * @todo: deprecate in 0.7+1, remove in 0.7+2.
-     */
-    public String exportSchema() throws IOException;
-
-    /**
      * Truncates (deletes) the given columnFamily from the provided keyspace.
      * Calling truncate results in actual deletion of all data in the cluster
      * under the given columnFamily and it will fail unless all hosts are up.

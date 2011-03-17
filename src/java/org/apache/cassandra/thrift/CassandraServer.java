@@ -922,27 +922,29 @@ public class CassandraServer implements Cassandra.Iface
         CFMetaData.validateMinMaxCompactionThresholds(cf_def);
         CFMetaData.validateMemtableSettings(cf_def);
 
-        return new CFMetaData(cf_def.keyspace,
-                              cf_def.name,
-                              cfType,
-                              DatabaseDescriptor.getComparator(cf_def.comparator_type),
-                              cf_def.subcomparator_type == null ? null : DatabaseDescriptor.getComparator(cf_def.subcomparator_type),
-                              cf_def.comment,
-                              cf_def.row_cache_size,
-                              cf_def.key_cache_size,
-                              cf_def.read_repair_chance,
-                              cf_def.replicate_on_write,
-                              cf_def.isSetGc_grace_seconds() ? cf_def.gc_grace_seconds : CFMetaData.DEFAULT_GC_GRACE_SECONDS,
-                              DatabaseDescriptor.getComparator(cf_def.default_validation_class),
-                              cf_def.isSetMin_compaction_threshold() ? cf_def.min_compaction_threshold : CFMetaData.DEFAULT_MIN_COMPACTION_THRESHOLD,
-                              cf_def.isSetMax_compaction_threshold() ? cf_def.max_compaction_threshold : CFMetaData.DEFAULT_MAX_COMPACTION_THRESHOLD,
-                              cf_def.isSetRow_cache_save_period_in_seconds() ? cf_def.row_cache_save_period_in_seconds : CFMetaData.DEFAULT_ROW_CACHE_SAVE_PERIOD_IN_SECONDS,
-                              cf_def.isSetKey_cache_save_period_in_seconds() ? cf_def.key_cache_save_period_in_seconds : CFMetaData.DEFAULT_KEY_CACHE_SAVE_PERIOD_IN_SECONDS,
-                              cf_def.isSetMemtable_flush_after_mins() ? cf_def.memtable_flush_after_mins : CFMetaData.DEFAULT_MEMTABLE_LIFETIME_IN_MINS,
-                              cf_def.isSetMemtable_throughput_in_mb() ? cf_def.memtable_throughput_in_mb : CFMetaData.DEFAULT_MEMTABLE_THROUGHPUT_IN_MB,
-                              cf_def.isSetMemtable_operations_in_millions() ? cf_def.memtable_operations_in_millions : CFMetaData.DEFAULT_MEMTABLE_OPERATIONS_IN_MILLIONS,
-                              cf_def.isSetMerge_shards_chance() ? cf_def.merge_shards_chance : CFMetaData.DEFAULT_MERGE_SHARDS_CHANCE,
-                              ColumnDefinition.fromColumnDef(cf_def.column_metadata));
+        CFMetaData newCFMD = new CFMetaData(cf_def.keyspace,
+                                            cf_def.name,
+                                            cfType,
+                                            DatabaseDescriptor.getComparator(cf_def.comparator_type),
+                                            cf_def.subcomparator_type == null ? null : DatabaseDescriptor.getComparator(cf_def.subcomparator_type));
+
+        if (cf_def.isSetGc_grace_seconds()) { newCFMD.gcGraceSeconds(cf_def.gc_grace_seconds); }
+        if (cf_def.isSetMin_compaction_threshold()) { newCFMD.minCompactionThreshold(cf_def.min_compaction_threshold); }
+        if (cf_def.isSetMax_compaction_threshold()) { newCFMD.maxCompactionThreshold(cf_def.max_compaction_threshold); }
+        if (cf_def.isSetRow_cache_save_period_in_seconds()) { newCFMD.rowCacheSavePeriod(cf_def.row_cache_save_period_in_seconds); }
+        if (cf_def.isSetKey_cache_save_period_in_seconds()) { newCFMD.keyCacheSavePeriod(cf_def.key_cache_save_period_in_seconds); }
+        if (cf_def.isSetMemtable_flush_after_mins()) { newCFMD.memTime(cf_def.memtable_flush_after_mins); }
+        if (cf_def.isSetMemtable_throughput_in_mb()) { newCFMD.memSize(cf_def.memtable_throughput_in_mb); }
+        if (cf_def.isSetMemtable_operations_in_millions()) { newCFMD.memOps(cf_def.memtable_operations_in_millions); }
+        if (cf_def.isSetMerge_shards_chance()) { newCFMD.mergeShardsChance(cf_def.merge_shards_chance); }
+
+        return newCFMD.comment(cf_def.comment)
+                      .rowCacheSize(cf_def.row_cache_size)
+                      .keyCacheSize(cf_def.key_cache_size)
+                      .readRepairChance(cf_def.read_repair_chance)
+                      .replicateOnWrite(cf_def.replicate_on_write)
+                      .defaultValidator(DatabaseDescriptor.getComparator(cf_def.default_validation_class))
+                      .columnMetadata(ColumnDefinition.fromColumnDef(cf_def.column_metadata));
     }
 
     public void truncate(String cfname) throws InvalidRequestException, UnavailableException, TException

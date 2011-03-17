@@ -215,7 +215,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             return;
         }
         indexCfs.unregisterMBean();
-        SystemTable.setIndexRemoved(metadata.tableName, indexCfs.columnFamily);
+        SystemTable.setIndexRemoved(metadata.ksName, indexCfs.columnFamily);
         indexCfs.removeAllSSTables();
     }
 

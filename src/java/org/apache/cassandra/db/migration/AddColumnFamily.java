@@ -41,14 +41,14 @@ public class AddColumnFamily extends Migration
     {
         super(UUIDGen.makeType1UUIDFromHost(FBUtilities.getLocalAddress()), DatabaseDescriptor.getDefsVersion());
         this.cfm = cfm;
-        KSMetaData ksm = DatabaseDescriptor.getTableDefinition(cfm.tableName);
+        KSMetaData ksm = DatabaseDescriptor.getTableDefinition(cfm.ksName);
         
         if (ksm == null)
-            throw new ConfigurationException("No such keyspace: " + cfm.tableName);
+            throw new ConfigurationException("No such keyspace: " + cfm.ksName);
         else if (ksm.cfMetaData().containsKey(cfm.cfName))
             throw new ConfigurationException(String.format("%s already exists in keyspace %s",
                                                            cfm.cfName,
-                                                           cfm.tableName));
+                                                           cfm.ksName));
         else if (!Migration.isLegalName(cfm.cfName))
             throw new ConfigurationException("Invalid column family name: " + cfm.cfName);
         for (Map.Entry<ByteBuffer, ColumnDefinition> entry : cfm.getColumn_metadata().entrySet())
@@ -74,7 +74,7 @@ public class AddColumnFamily extends Migration
     public void applyModels() throws IOException
     {
         // reinitialize the table.
-        KSMetaData ksm = DatabaseDescriptor.getTableDefinition(cfm.tableName);
+        KSMetaData ksm = DatabaseDescriptor.getTableDefinition(cfm.ksName);
         ksm = makeNewKeyspaceDefinition(ksm);
         try
         {
@@ -84,7 +84,7 @@ public class AddColumnFamily extends Migration
         {
             throw new IOException(ex);
         }
-        Table.open(cfm.tableName); // make sure it's init-ed w/ the old definitions first, since we're going to call initCf on the new one manually
+        Table.open(cfm.ksName); // make sure it's init-ed w/ the old definitions first, since we're going to call initCf on the new one manually
         DatabaseDescriptor.setTableDefinition(ksm, newVersion);
         // these definitions could have come from somewhere else.
         CFMetaData.fixMaxId();

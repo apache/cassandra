@@ -46,7 +46,6 @@ import org.apache.cassandra.utils.Pair;
 
 public final class CFMetaData
 {
-
     public final static double DEFAULT_ROW_CACHE_SIZE = 0.0;
     public final static double DEFAULT_KEY_CACHE_SIZE = 200000;
     public final static double DEFAULT_READ_REPAIR_CHANCE = 1.0;
@@ -63,43 +62,16 @@ public final class CFMetaData
     public final static double DEFAULT_MERGE_SHARDS_CHANCE = 0.1;
 
     private static final int MIN_CF_ID = 1000;
-
     private static final AtomicInteger idGen = new AtomicInteger(MIN_CF_ID);
     
     private static final BiMap<Pair<String, String>, Integer> cfIdMap = HashBiMap.create();
     
-    public static final CFMetaData StatusCf = newSystemTable(SystemTable.STATUS_CF, 0, "persistent metadata for the local node", BytesType.instance, null, DEFAULT_SYSTEM_MEMTABLE_THROUGHPUT_IN_MB);
-    public static final CFMetaData HintsCf = newSystemTable(HintedHandOffManager.HINTS_CF, 1, "hinted handoff data", BytesType.instance, BytesType.instance, Math.min(256, Math.max(32, DEFAULT_MEMTABLE_THROUGHPUT_IN_MB / 2)));
-    public static final CFMetaData MigrationsCf = newSystemTable(Migration.MIGRATIONS_CF, 2, "individual schema mutations", TimeUUIDType.instance, null, DEFAULT_SYSTEM_MEMTABLE_THROUGHPUT_IN_MB);
-    public static final CFMetaData SchemaCf = newSystemTable(Migration.SCHEMA_CF, 3, "current state of the schema", UTF8Type.instance, null, DEFAULT_SYSTEM_MEMTABLE_THROUGHPUT_IN_MB);
-    public static final CFMetaData IndexCf = newSystemTable(SystemTable.INDEX_CF, 5, "indexes that have been completed", UTF8Type.instance, null, DEFAULT_SYSTEM_MEMTABLE_THROUGHPUT_IN_MB);
-    public static final CFMetaData NodeIdCf = newSystemTable(SystemTable.NODE_ID_CF, 6, "nodeId and their metadata", TimeUUIDType.instance, null, DEFAULT_SYSTEM_MEMTABLE_THROUGHPUT_IN_MB);
-
-    private static CFMetaData newSystemTable(String cfName, int cfId, String comment, AbstractType comparator, AbstractType subComparator, int memtableThroughPutInMB)
-    {
-        return new CFMetaData(Table.SYSTEM_TABLE,
-                              cfName,
-                              subComparator == null ? ColumnFamilyType.Standard : ColumnFamilyType.Super,
-                              comparator,
-                              subComparator,
-                              comment,
-                              0,
-                              0.01,
-                              0,
-                              false,
-                              0,
-                              BytesType.instance,
-                              DEFAULT_MIN_COMPACTION_THRESHOLD,
-                              DEFAULT_MAX_COMPACTION_THRESHOLD,
-                              DEFAULT_ROW_CACHE_SAVE_PERIOD_IN_SECONDS,
-                              DEFAULT_KEY_CACHE_SAVE_PERIOD_IN_SECONDS,
-                              DEFAULT_MEMTABLE_LIFETIME_IN_MINS,
-                              memtableThroughPutInMB,
-                              sizeMemtableOperations(memtableThroughPutInMB),
-                              0,
-                              cfId,
-                              Collections.<ByteBuffer, ColumnDefinition>emptyMap());
-    }
+    public static final CFMetaData StatusCf = newSystemMetadata(SystemTable.STATUS_CF, 0, "persistent metadata for the local node", BytesType.instance, null, DEFAULT_SYSTEM_MEMTABLE_THROUGHPUT_IN_MB);
+    public static final CFMetaData HintsCf = newSystemMetadata(HintedHandOffManager.HINTS_CF, 1, "hinted handoff data", BytesType.instance, BytesType.instance, Math.min(256, Math.max(32, DEFAULT_MEMTABLE_THROUGHPUT_IN_MB / 2)));
+    public static final CFMetaData MigrationsCf = newSystemMetadata(Migration.MIGRATIONS_CF, 2, "individual schema mutations", TimeUUIDType.instance, null, DEFAULT_SYSTEM_MEMTABLE_THROUGHPUT_IN_MB);
+    public static final CFMetaData SchemaCf = newSystemMetadata(Migration.SCHEMA_CF, 3, "current state of the schema", UTF8Type.instance, null, DEFAULT_SYSTEM_MEMTABLE_THROUGHPUT_IN_MB);
+    public static final CFMetaData IndexCf = newSystemMetadata(SystemTable.INDEX_CF, 5, "indexes that have been completed", UTF8Type.instance, null, DEFAULT_SYSTEM_MEMTABLE_THROUGHPUT_IN_MB);
+    public static final CFMetaData NodeIdCf = newSystemMetadata(SystemTable.NODE_ID_CF, 6, "nodeId and their metadata", TimeUUIDType.instance, null, DEFAULT_SYSTEM_MEMTABLE_THROUGHPUT_IN_MB);
 
     /**
      * @return A calculated memtable throughput size for this machine.
@@ -128,9 +100,9 @@ public final class CFMetaData
     /**
      * @return The id for the given (ksname,cfname) pair, or null if it has been dropped.
      */
-    public static Integer getId(String table, String cfName)
+    public static Integer getId(String ksName, String cfName)
     {
-        return cfIdMap.get(new Pair<String, String>(table, cfName));
+        return cfIdMap.get(new Pair<String, String>(ksName, cfName));
     }
     
     // this gets called after initialization to make sure that id generation happens properly.
@@ -140,9 +112,21 @@ public final class CFMetaData
         idGen.set(cfIdMap.size() == 0 ? MIN_CF_ID : Math.max(Collections.max(cfIdMap.values()) + 1, MIN_CF_ID));
     }
 
+    /** adds this cfm to the map. */
+    public static void map(CFMetaData cfm) throws ConfigurationException
+    {
+        Pair<String, String> key = new Pair<String, String>(cfm.ksName, cfm.cfName);
+        if (cfIdMap.containsKey(key))
+            throw new ConfigurationException("Attempt to assign id to existing column family.");
+        else
+        {
+            cfIdMap.put(key, cfm.cfId);
+        }
+    }
+
     //REQUIRED
     public final Integer cfId;                        // internal id, never exposed to user
-    public final String tableName;                    // name of keyspace
+    public final String ksName;                    // name of keyspace
     public final String cfName;                       // name of this column family
     public final ColumnFamilyType cfType;             // standard, super
     public final AbstractType comparator;             // bytes, long, timeuuid, utf8, etc.
@@ -155,9 +139,9 @@ public final class CFMetaData
     private double readRepairChance;                  // default 1.0 (always), chance [0.0,1.0] of read repair
     private boolean replicateOnWrite;                 // default false
     private int gcGraceSeconds;                       // default 864000 (ten days)
-    private AbstractType defaultValidator;            // default none, use comparator types
-    private Integer minCompactionThreshold;           // default 4
-    private Integer maxCompactionThreshold;           // default 32
+    private AbstractType defaultValidator;            // default BytesType (no-op), use comparator types
+    private int minCompactionThreshold;               // default 4
+    private int maxCompactionThreshold;               // default 32
     private int rowCacheSavePeriodInSeconds;          // default 0 (off)
     private int keyCacheSavePeriodInSeconds;          // default 3600 (1 hour)
     private int memtableFlushAfterMins;               // default 60 
@@ -166,208 +150,144 @@ public final class CFMetaData
     private double mergeShardsChance;                 // default 0.1, chance [0.0, 1.0] of merging old shards during replication
     // NOTE: if you find yourself adding members to this class, make sure you keep the convert methods in lockstep.
 
-    private final Map<ByteBuffer, ColumnDefinition> column_metadata;
+    private Map<ByteBuffer, ColumnDefinition> column_metadata;
 
-    private CFMetaData(String tableName,
-                       String cfName,
-                       ColumnFamilyType cfType,
-                       AbstractType comparator,
-                       AbstractType subcolumnComparator,
-                       String comment,
-                       double rowCacheSize,
-                       double keyCacheSize,
-                       double readRepairChance,
-                       boolean replicateOnWrite,
-                       int gcGraceSeconds,
-                       AbstractType defaultValidator,
-                       int minCompactionThreshold,
-                       int maxCompactionThreshold,
-                       int rowCacheSavePeriodInSeconds,
-                       int keyCacheSavePeriodInSeconds,
-                       int memtableFlushAfterMins,
-                       Integer memtableThroughputInMb,
-                       Double memtableOperationsInMillions,
-                       double mergeShardsChance,
-                       Integer cfId,
-                       Map<ByteBuffer, ColumnDefinition> column_metadata)
+    public CFMetaData comment(String prop) {comment = prop; return this;}
+    public CFMetaData rowCacheSize(double prop) {rowCacheSize = prop; return this;}
+    public CFMetaData keyCacheSize(double prop) {keyCacheSize = prop; return this;}
+    public CFMetaData readRepairChance(double prop) {readRepairChance = prop; return this;}
+    public CFMetaData replicateOnWrite(boolean prop) {replicateOnWrite = prop; return this;}
+    public CFMetaData gcGraceSeconds(int prop) {gcGraceSeconds = prop; return this;}
+    public CFMetaData defaultValidator(AbstractType prop) {defaultValidator = prop; return this;}
+    public CFMetaData minCompactionThreshold(int prop) {minCompactionThreshold = prop; return this;}
+    public CFMetaData maxCompactionThreshold(int prop) {maxCompactionThreshold = prop; return this;}
+    public CFMetaData rowCacheSavePeriod(int prop) {rowCacheSavePeriodInSeconds = prop; return this;}
+    public CFMetaData keyCacheSavePeriod(int prop) {keyCacheSavePeriodInSeconds = prop; return this;}
+    public CFMetaData memTime(int prop) {memtableFlushAfterMins = prop; return this;}
+    public CFMetaData memSize(int prop) {memtableThroughputInMb = prop; return this;}
+    public CFMetaData memOps(double prop) {memtableOperationsInMillions = prop; return this;}
+    public CFMetaData mergeShardsChance(double prop) {mergeShardsChance = prop; return this;}
+    public CFMetaData columnMetadata(Map<ByteBuffer,ColumnDefinition> prop) {column_metadata = prop; return this;}
 
+    public CFMetaData(String keyspace, String name, ColumnFamilyType type, AbstractType comp, AbstractType subcc)
     {
-        assert column_metadata != null;
-        this.tableName = tableName;
-        this.cfName = cfName;
-        this.cfType = cfType;
-        this.comparator = comparator;
-        // the default subcolumncomparator is null per thrift spec, but only should be null if cfType == Standard. If
-        // cfType == Super, subcolumnComparator should default to BytesType if not set.
-        this.subcolumnComparator = subcolumnComparator == null && cfType == ColumnFamilyType.Super
-                                   ? BytesType.instance
-                                   : subcolumnComparator;
-        this.comment = comment == null ? "" : comment;
-        this.rowCacheSize = rowCacheSize;
-        this.keyCacheSize = keyCacheSize;
-        this.readRepairChance = readRepairChance;
-        this.replicateOnWrite = replicateOnWrite;
-        this.gcGraceSeconds = gcGraceSeconds;
-        this.defaultValidator = defaultValidator;
-        this.minCompactionThreshold = minCompactionThreshold;
-        this.maxCompactionThreshold = maxCompactionThreshold;
-        this.rowCacheSavePeriodInSeconds = rowCacheSavePeriodInSeconds;
-        this.keyCacheSavePeriodInSeconds = keyCacheSavePeriodInSeconds;
-        this.memtableFlushAfterMins = memtableFlushAfterMins;
-        this.memtableThroughputInMb = memtableThroughputInMb == null
-                                      ? DEFAULT_MEMTABLE_THROUGHPUT_IN_MB
-                                      : memtableThroughputInMb;
+        // Final fields must be set in constructor
+        ksName = keyspace;
+        cfName = name;
+        cfType = type;
+        comparator = comp;
+        subcolumnComparator = enforceSubccDefault(type, subcc);
 
-        this.memtableOperationsInMillions = memtableOperationsInMillions == null
-                                            ? DEFAULT_MEMTABLE_OPERATIONS_IN_MILLIONS
-                                            : memtableOperationsInMillions;
-        this.mergeShardsChance = mergeShardsChance;
-        this.cfId = cfId;
-        this.column_metadata = new HashMap<ByteBuffer, ColumnDefinition>(column_metadata);
-    }
-    
-    /** adds this cfm to the map. */
-    public static void map(CFMetaData cfm) throws ConfigurationException
-    {
-        Pair<String, String> key = new Pair<String, String>(cfm.tableName, cfm.cfName);
-        if (cfIdMap.containsKey(key))
-            throw new ConfigurationException("Attempt to assign id to existing column family.");
-        else
-        {
-            cfIdMap.put(key, cfm.cfId);
-        }
+        // Default new CFMDs get an id chosen for them
+        cfId = nextId();
+
+        this.init();
     }
 
-    public CFMetaData(String tableName,
-                      String cfName,
-                      ColumnFamilyType cfType,
-                      AbstractType comparator,
-                      AbstractType subcolumnComparator,
-                      String comment,
-                      double rowCacheSize,
-                      double keyCacheSize,
-                      double readRepairChance,
-                      boolean replicateOnWrite,
-                      int gcGraceSeconds,
-                      AbstractType defaultValidator,
-                      int minCompactionThreshold,
-                      int maxCompactionThreshold,
-                      int rowCacheSavePeriodInSeconds,
-                      int keyCacheSavePeriodInSeconds,
-                      int memTime,
-                      Integer memSize,
-                      Double memOps,
-                      double mergeShardsChance,
-                      //This constructor generates the id!
-                      Map<ByteBuffer, ColumnDefinition> column_metadata)
+    private CFMetaData(String keyspace, String name, ColumnFamilyType type, AbstractType comp, AbstractType subcc, int id)
     {
-        this(tableName,
-             cfName,
-             cfType,
-             comparator,
-             subcolumnComparator,
-             comment,
-             rowCacheSize,
-             keyCacheSize,
-             readRepairChance,
-             replicateOnWrite,
-             gcGraceSeconds,
-             defaultValidator,
-             minCompactionThreshold,
-             maxCompactionThreshold,
-             rowCacheSavePeriodInSeconds,
-             keyCacheSavePeriodInSeconds,
-             memTime,
-             memSize,
-             memOps,
-             mergeShardsChance,
-             nextId(),
-             column_metadata);
+        // Final fields must be set in constructor
+        ksName = keyspace;
+        cfName = name;
+        cfType = type;
+        comparator = comp;
+        subcolumnComparator = enforceSubccDefault(type, subcc);
+
+        // System cfs have specific ids, and copies of old CFMDs need
+        //  to copy over the old id.
+        cfId = id;
+
+        this.init();
     }
-    
+
+    private AbstractType enforceSubccDefault(ColumnFamilyType cftype, AbstractType subcc)
+    {
+        return (subcc == null) && (cftype == ColumnFamilyType.Super) ? BytesType.instance : subcc;
+    }
+
+    private void init()
+    {
+        // Set a bunch of defaults
+        rowCacheSize                 = DEFAULT_ROW_CACHE_SIZE;
+        keyCacheSize                 = DEFAULT_KEY_CACHE_SIZE;
+        readRepairChance             = DEFAULT_READ_REPAIR_CHANCE;
+        replicateOnWrite             = DEFAULT_REPLICATE_ON_WRITE;
+        gcGraceSeconds               = DEFAULT_GC_GRACE_SECONDS;
+        minCompactionThreshold       = DEFAULT_MIN_COMPACTION_THRESHOLD;
+        maxCompactionThreshold       = DEFAULT_MAX_COMPACTION_THRESHOLD;
+        memtableFlushAfterMins       = DEFAULT_MEMTABLE_LIFETIME_IN_MINS;
+        memtableThroughputInMb       = DEFAULT_MEMTABLE_THROUGHPUT_IN_MB;
+        memtableOperationsInMillions = DEFAULT_MEMTABLE_OPERATIONS_IN_MILLIONS;
+        mergeShardsChance            = DEFAULT_MERGE_SHARDS_CHANCE;
+
+        // Defaults strange or simple enough to not need a DEFAULT_T for
+        defaultValidator = BytesType.instance;
+        comment = "";
+        column_metadata = new HashMap<ByteBuffer,ColumnDefinition>();
+    }
+
+    private static CFMetaData newSystemMetadata(String cfName, int cfId, String comment, AbstractType comparator, AbstractType subcc, int memtableThroughPutInMB)
+    {
+        ColumnFamilyType type = subcc == null ? ColumnFamilyType.Standard : ColumnFamilyType.Super;
+        CFMetaData newCFMD = new CFMetaData(Table.SYSTEM_TABLE, cfName, type, comparator,  subcc, cfId);
+
+        return newCFMD.comment(comment)
+                      .keyCacheSize(0.01)
+                      .readRepairChance(0)
+                      .gcGraceSeconds(0)
+                      .memSize(memtableThroughPutInMB)
+                      .memOps(sizeMemtableOperations(memtableThroughPutInMB))
+                      .mergeShardsChance(0.0);
+    }
+
     public static CFMetaData newIndexMetadata(CFMetaData parent, ColumnDefinition info, AbstractType columnComparator)
     {
-        return new CFMetaData(parent.tableName,
-                              indexName(parent.cfName, info),
-                              ColumnFamilyType.Standard,
-                              columnComparator,
-                              null,
-                              "",
-                              0,
-                              0,
-                              0,
-                              false,
-                              parent.gcGraceSeconds,
-                              BytesType.instance,
-                              parent.minCompactionThreshold,
-                              parent.maxCompactionThreshold,
-                              0,
-                              0,
-                              parent.memtableFlushAfterMins,
-                              parent.memtableThroughputInMb,
-                              parent.memtableOperationsInMillions,
-                              0,
-                              Collections.<ByteBuffer, ColumnDefinition>emptyMap());
+        return new CFMetaData(parent.ksName, indexName(parent.cfName, info), ColumnFamilyType.Standard, columnComparator, null)
+                             .keyCacheSize(0.0)
+                             .readRepairChance(0.0)
+                             .gcGraceSeconds(parent.gcGraceSeconds)
+                             .minCompactionThreshold(parent.minCompactionThreshold)
+                             .maxCompactionThreshold(parent.maxCompactionThreshold)
+                             .memTime(parent.memtableFlushAfterMins)
+                             .memSize(parent.memtableThroughputInMb)
+                             .memOps(parent.memtableOperationsInMillions);
     }
 
-    /** clones an existing CFMetaData using the same id. */
+    // Create a new CFMD by changing just the cfName
     public static CFMetaData rename(CFMetaData cfm, String newName)
     {
-        return new CFMetaData(cfm.tableName,
-                              newName,
-                              cfm.cfType,
-                              cfm.comparator,
-                              cfm.subcolumnComparator,
-                              cfm.comment,
-                              cfm.rowCacheSize,
-                              cfm.keyCacheSize,
-                              cfm.readRepairChance,
-                              cfm.replicateOnWrite,
-                              cfm.gcGraceSeconds,
-                              cfm.defaultValidator,
-                              cfm.minCompactionThreshold,
-                              cfm.maxCompactionThreshold,
-                              cfm.rowCacheSavePeriodInSeconds,
-                              cfm.keyCacheSavePeriodInSeconds,
-                              cfm.memtableFlushAfterMins,
-                              cfm.memtableThroughputInMb,
-                              cfm.memtableOperationsInMillions,
-                              cfm.mergeShardsChance,
-                              cfm.cfId,
-                              cfm.column_metadata);
+        return copyOpts(new CFMetaData(cfm.ksName, newName, cfm.cfType, cfm.comparator, cfm.subcolumnComparator, cfm.cfId), cfm);
     }
-    
-    /** clones existing CFMetaData. keeps the id but changes the table name.*/
-    public static CFMetaData renameTable(CFMetaData cfm, String tableName)
+
+    // Create a new CFMD by changing just the ksName
+    public static CFMetaData renameTable(CFMetaData cfm, String ksName)
     {
-        return new CFMetaData(tableName,
-                              cfm.cfName,
-                              cfm.cfType,
-                              cfm.comparator,
-                              cfm.subcolumnComparator,
-                              cfm.comment,
-                              cfm.rowCacheSize,
-                              cfm.keyCacheSize,
-                              cfm.readRepairChance,
-                              cfm.replicateOnWrite,
-                              cfm.gcGraceSeconds,
-                              cfm.defaultValidator,
-                              cfm.minCompactionThreshold,
-                              cfm.maxCompactionThreshold,
-                              cfm.rowCacheSavePeriodInSeconds,
-                              cfm.keyCacheSavePeriodInSeconds,
-                              cfm.memtableFlushAfterMins,
-                              cfm.memtableThroughputInMb,
-                              cfm.memtableOperationsInMillions,
-                              cfm.mergeShardsChance,
-                              cfm.cfId,
-                              cfm.column_metadata);
+        return copyOpts(new CFMetaData(ksName, cfm.cfName, cfm.cfType, cfm.comparator, cfm.subcolumnComparator, cfm.cfId), cfm);
     }
-    
+
+    private static CFMetaData copyOpts(CFMetaData newCFMD, CFMetaData oldCFMD)
+    {
+        return newCFMD.comment(oldCFMD.comment)
+                      .rowCacheSize(oldCFMD.rowCacheSize)
+                      .keyCacheSize(oldCFMD.keyCacheSize)
+                      .readRepairChance(oldCFMD.readRepairChance)
+                      .replicateOnWrite(oldCFMD.replicateOnWrite)
+                      .gcGraceSeconds(oldCFMD.gcGraceSeconds)
+                      .defaultValidator(oldCFMD.defaultValidator)
+                      .minCompactionThreshold(oldCFMD.minCompactionThreshold)
+                      .maxCompactionThreshold(oldCFMD.maxCompactionThreshold)
+                      .rowCacheSavePeriod(oldCFMD.rowCacheSavePeriodInSeconds)
+                      .keyCacheSavePeriod(oldCFMD.keyCacheSavePeriodInSeconds)
+                      .memTime(oldCFMD.memtableFlushAfterMins)
+                      .memSize(oldCFMD.memtableThroughputInMb)
+                      .memOps(oldCFMD.memtableOperationsInMillions)
+                      .columnMetadata(oldCFMD.column_metadata);
+    }
+
     /** used for evicting cf data out of static tracking collections. */
     public static void purge(CFMetaData cfm)
     {
-        cfIdMap.remove(new Pair<String, String>(cfm.tableName, cfm.cfName));
+        cfIdMap.remove(new Pair<String, String>(cfm.ksName, cfm.cfName));
     }
     
     /** convention for nameing secondary indexes. */
@@ -380,7 +300,7 @@ public final class CFMetaData
     {
         org.apache.cassandra.db.migration.avro.CfDef cf = new org.apache.cassandra.db.migration.avro.CfDef();
         cf.id = cfId;
-        cf.keyspace = new Utf8(tableName);
+        cf.keyspace = new Utf8(ksName);
         cf.name = new Utf8(cfName);
         cf.column_type = new Utf8(cfType.name());
         cf.comparator_type = new Utf8(comparator.getClass().getName());
@@ -433,38 +353,34 @@ public final class CFMetaData
             column_metadata.put(cd.name, cd);
         }
 
-        //isn't AVRO supposed to handle stuff like this?
-        Integer minct = cf.min_compaction_threshold == null ? DEFAULT_MIN_COMPACTION_THRESHOLD : cf.min_compaction_threshold;
-        Integer maxct = cf.max_compaction_threshold == null ? DEFAULT_MAX_COMPACTION_THRESHOLD : cf.max_compaction_threshold;
-        Integer row_cache_save_period_in_seconds = cf.row_cache_save_period_in_seconds == null ? DEFAULT_ROW_CACHE_SAVE_PERIOD_IN_SECONDS : cf.row_cache_save_period_in_seconds;
-        Integer key_cache_save_period_in_seconds = cf.key_cache_save_period_in_seconds == null ? DEFAULT_KEY_CACHE_SAVE_PERIOD_IN_SECONDS : cf.key_cache_save_period_in_seconds;
-        Integer memtable_flush_after_mins = cf.memtable_flush_after_mins == null ? DEFAULT_MEMTABLE_LIFETIME_IN_MINS : cf.memtable_flush_after_mins;
-        Integer memtable_throughput_in_mb = cf.memtable_throughput_in_mb == null ? DEFAULT_MEMTABLE_THROUGHPUT_IN_MB : cf.memtable_throughput_in_mb;
-        Double memtable_operations_in_millions = cf.memtable_operations_in_millions == null ? DEFAULT_MEMTABLE_OPERATIONS_IN_MILLIONS : cf.memtable_operations_in_millions;
-        double merge_shards_chance = cf.merge_shards_chance == null ? DEFAULT_MERGE_SHARDS_CHANCE : cf.merge_shards_chance;
+        CFMetaData newCFMD = new CFMetaData(cf.keyspace.toString(),
+                                            cf.name.toString(),
+                                            ColumnFamilyType.create(cf.column_type.toString()),
+                                            comparator,
+                                            subcolumnComparator,
+                                            cf.id);
 
-        return new CFMetaData(cf.keyspace.toString(),
-                              cf.name.toString(),
-                              ColumnFamilyType.create(cf.column_type.toString()),
-                              comparator,
-                              subcolumnComparator,
-                              cf.comment.toString(),
-                              cf.row_cache_size,
-                              cf.key_cache_size,
-                              cf.read_repair_chance,
-                              cf.replicate_on_write,
-                              cf.gc_grace_seconds,
-                              validator,
-                              minct,
-                              maxct,
-                              row_cache_save_period_in_seconds,
-                              key_cache_save_period_in_seconds,
-                              memtable_flush_after_mins,
-                              memtable_throughput_in_mb,
-                              memtable_operations_in_millions,
-                              merge_shards_chance,
-                              cf.id,
-                              column_metadata);
+        // When we pull up an old avro CfDef which doesn't have these arguments,
+        //  it doesn't default them correctly. Without explicit defaulting,
+        //  grandfathered metadata becomes wrong or causes crashes.
+        //  Isn't AVRO supposed to handle stuff like this?
+        if (cf.min_compaction_threshold != null) { newCFMD.minCompactionThreshold(cf.min_compaction_threshold); }
+        if (cf.max_compaction_threshold != null) { newCFMD.maxCompactionThreshold(cf.max_compaction_threshold); }
+        if (cf.row_cache_save_period_in_seconds != null) { newCFMD.rowCacheSavePeriod(cf.row_cache_save_period_in_seconds); }
+        if (cf.key_cache_save_period_in_seconds != null) { newCFMD.keyCacheSavePeriod(cf.key_cache_save_period_in_seconds); }
+        if (cf.memtable_flush_after_mins != null) { newCFMD.memTime(cf.memtable_flush_after_mins); }
+        if (cf.memtable_throughput_in_mb != null) { newCFMD.memSize(cf.memtable_throughput_in_mb); }
+        if (cf.memtable_operations_in_millions != null) { newCFMD.memOps(cf.memtable_operations_in_millions); }
+        if (cf.merge_shards_chance != null) { newCFMD.mergeShardsChance(cf.merge_shards_chance); }
+
+        return newCFMD.comment(cf.comment.toString())
+                      .rowCacheSize(cf.row_cache_size)
+                      .keyCacheSize(cf.key_cache_size)
+                      .readRepairChance(cf.read_repair_chance)
+                      .replicateOnWrite(cf.replicate_on_write)
+                      .gcGraceSeconds(cf.gc_grace_seconds)
+                      .defaultValidator(validator)
+                      .columnMetadata(column_metadata);
     }
     
     public String getComment()
@@ -560,7 +476,7 @@ public final class CFMetaData
 
         CFMetaData rhs = (CFMetaData) obj;
         return new EqualsBuilder()
-            .append(tableName, rhs.tableName)
+            .append(ksName, rhs.ksName)
             .append(cfName, rhs.cfName)
             .append(cfType, rhs.cfType)
             .append(comparator, rhs.comparator)
@@ -587,7 +503,7 @@ public final class CFMetaData
     public int hashCode()
     {
         return new HashCodeBuilder(29, 1597)
-            .append(tableName)
+            .append(ksName)
             .append(cfName)
             .append(cfType)
             .append(comparator)
@@ -629,6 +545,8 @@ public final class CFMetaData
     /** applies implicit defaults to cf definition. useful in updates */
     public static void applyImplicitDefaults(org.apache.cassandra.db.migration.avro.CfDef cf_def)
     {
+        if (cf_def.comment == null)
+            cf_def.comment = "";
         if (cf_def.min_compaction_threshold == null)
             cf_def.min_compaction_threshold = CFMetaData.DEFAULT_MIN_COMPACTION_THRESHOLD;
         if (cf_def.max_compaction_threshold == null)
@@ -650,6 +568,8 @@ public final class CFMetaData
     /** applies implicit defaults to cf definition. useful in updates */
     public static void applyImplicitDefaults(org.apache.cassandra.thrift.CfDef cf_def) 
     {
+        if (!cf_def.isSetComment())
+            cf_def.setComment("");
         if (!cf_def.isSetMin_compaction_threshold())
             cf_def.setMin_compaction_threshold(CFMetaData.DEFAULT_MIN_COMPACTION_THRESHOLD);
         if (!cf_def.isSetMax_compaction_threshold())
@@ -674,7 +594,7 @@ public final class CFMetaData
         // validate
         if (!cf_def.id.equals(cfId))
             throw new ConfigurationException("ids do not match.");
-        if (!cf_def.keyspace.toString().equals(tableName))
+        if (!cf_def.keyspace.toString().equals(ksName))
             throw new ConfigurationException("keyspaces do not match.");
         if (!cf_def.name.toString().equals(cfName))
             throw new ConfigurationException("names do not match.");
@@ -738,8 +658,9 @@ public final class CFMetaData
         // add the new ones coming in.
         for (org.apache.cassandra.db.migration.avro.ColumnDef def : toAdd)
         {
+            AbstractType dValidClass = DatabaseDescriptor.getComparator(def.validation_class);
             ColumnDefinition cd = new ColumnDefinition(def.name, 
-                                                       def.validation_class.toString(), 
+                                                       dValidClass,
                                                        def.index_type == null ? null : org.apache.cassandra.thrift.IndexType.valueOf(def.index_type.toString()), 
                                                        def.index_name == null ? null : def.index_name.toString());
             column_metadata.put(cd.name, cd);
@@ -749,7 +670,7 @@ public final class CFMetaData
     // converts CFM to thrift CfDef
     public static org.apache.cassandra.thrift.CfDef convertToThrift(CFMetaData cfm)
     {
-        org.apache.cassandra.thrift.CfDef def = new org.apache.cassandra.thrift.CfDef(cfm.tableName, cfm.cfName);
+        org.apache.cassandra.thrift.CfDef def = new org.apache.cassandra.thrift.CfDef(cfm.ksName, cfm.cfName);
         def.setId(cfm.cfId);
         def.setColumn_type(cfm.cfType.name());
         def.setComparator_type(cfm.comparator.getClass().getName());
@@ -792,7 +713,7 @@ public final class CFMetaData
     {
         org.apache.cassandra.db.migration.avro.CfDef def = new org.apache.cassandra.db.migration.avro.CfDef();
         def.name = cfm.cfName;
-        def.keyspace = cfm.tableName;
+        def.keyspace = cfm.ksName;
         def.id = cfm.cfId;
         def.column_type = cfm.cfType.name();
         def.comparator_type = cfm.comparator.getClass().getName();
@@ -957,7 +878,7 @@ public final class CFMetaData
     {
         return new ToStringBuilder(this)
             .append("cfId", cfId)
-            .append("tableName", tableName)
+            .append("ksName", ksName)
             .append("cfName", cfName)
             .append("cfType", cfType)
             .append("comparator", comparator)

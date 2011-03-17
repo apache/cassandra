@@ -131,17 +131,9 @@ public class DatabaseDescriptor
                 throw new AssertionError(e);
             }
             org.yaml.snakeyaml.constructor.Constructor constructor = new org.yaml.snakeyaml.constructor.Constructor(Config.class);
-            TypeDescription desc = new TypeDescription(Config.class);
-            desc.putListPropertyType("keyspaces", RawKeyspace.class);
-            TypeDescription ksDesc = new TypeDescription(RawKeyspace.class);
-            ksDesc.putListPropertyType("column_families", RawColumnFamily.class);
-            TypeDescription cfDesc = new TypeDescription(RawColumnFamily.class);
-            cfDesc.putListPropertyType("column_metadata", RawColumnDefinition.class);
             TypeDescription seedDesc = new TypeDescription(SeedProviderDef.class);
             seedDesc.putMapPropertyType("parameters", String.class, String.class);
-            constructor.addTypeDescription(desc);
-            constructor.addTypeDescription(ksDesc);
-            constructor.addTypeDescription(cfDesc);
+            constructor.addTypeDescription(seedDesc);
             Yaml yaml = new Yaml(new Loader(constructor));
             conf = (Config)yaml.load(input);
             
@@ -463,10 +455,9 @@ public class DatabaseDescriptor
             }
             
             if (hasExistingTables)
-                logger.info("Found table data in data directories. Consider using JMX to call org.apache.cassandra.service.StorageService.loadSchemaFromYaml().");
+                logger.info("Found table data in data directories. Consider using the CLI to define your schema.");
             else
-                logger.info("Consider using JMX to org.apache.cassandra.service.StorageService.loadSchemaFromYaml() or set up a schema using the system_* calls provided via thrift.");
-            
+                logger.info("To create keyspaces and column families, see 'help create keyspace' in the CLI, or set up a schema using the thrift system_* calls.");
         }
         else
         {
@@ -499,172 +490,8 @@ public class DatabaseDescriptor
                 // set defsVersion so that migrations leading up to emptiness aren't replayed.
                 defsVersion = uuid;
             }
-            
-            // since we loaded definitions from local storage, log a warning if definitions exist in yaml.
-            if (conf.keyspaces != null && conf.keyspaces.size() > 0)
-                logger.warn("Schema definitions were defined both locally and in " + DEFAULT_CONFIGURATION +
-                    ". Definitions in " + DEFAULT_CONFIGURATION + " were ignored.");
-            
         }
         CFMetaData.fixMaxId();
-    }
-
-    /** reads xml. doesn't populate any internal structures. */
-    public static Collection<KSMetaData> readTablesFromYaml() throws ConfigurationException
-    {
-        List<KSMetaData> defs = new ArrayList<KSMetaData>();
-        if (conf.keyspaces == null)
-            return defs;
-        
-        /* Read the table related stuff from config */
-        for (RawKeyspace keyspace : conf.keyspaces)
-        {
-            /* parsing out the table name */
-            if (keyspace.name == null)
-            {
-                throw new ConfigurationException("Keyspace name attribute is required");
-            }
-            
-            if (keyspace.name.equalsIgnoreCase(Table.SYSTEM_TABLE))
-            {
-                throw new ConfigurationException("'system' is a reserved table name for Cassandra internals");
-            }
-            
-            /* See which replica placement strategy to use */
-            if (keyspace.replica_placement_strategy == null)
-            {
-                throw new ConfigurationException("Missing replica_placement_strategy directive for " + keyspace.name);
-            }
-            String strategyClassName = KSMetaData.convertOldStrategyName(keyspace.replica_placement_strategy);
-            Class<AbstractReplicationStrategy> strategyClass = FBUtilities.classForName(strategyClassName, "replication-strategy");
-            
-            /* Data replication factor */
-            if (keyspace.replication_factor == null)
-            {
-                throw new ConfigurationException("Missing replication_factor directory for keyspace " + keyspace.name);
-            }
-            
-            int size2 = keyspace.column_families.length;
-            CFMetaData[] cfDefs = new CFMetaData[size2];
-            int j = 0;
-            for (RawColumnFamily cf : keyspace.column_families)
-            {
-                if (cf.name == null)
-                {
-                    throw new ConfigurationException("ColumnFamily name attribute is required");
-                }
-                if (!cf.name.matches(Migration.NAME_VALIDATOR_REGEX))
-                {
-                    throw new ConfigurationException("ColumnFamily name contains invalid characters.");
-                }
-                
-                // Parse out the column comparators and validators
-                AbstractType comparator = getComparator(cf.compare_with);
-                AbstractType subcolumnComparator = null;
-                AbstractType default_validator = getComparator(cf.default_validation_class);
-
-                ColumnFamilyType cfType = cf.column_type == null ? ColumnFamilyType.Standard : cf.column_type;
-                if (cfType == ColumnFamilyType.Super)
-                {
-                    subcolumnComparator = getComparator(cf.compare_subcolumns_with);
-                }
-                else if (cf.compare_subcolumns_with != null)
-                {
-                    throw new ConfigurationException("compare_subcolumns_with is only a valid attribute on super columnfamilies (not regular columnfamily " + cf.name + ")");
-                }
-
-                if (cf.read_repair_chance < 0.0 || cf.read_repair_chance > 1.0)
-                {                        
-                    throw new ConfigurationException("read_repair_chance must be between 0.0 and 1.0 (0% and 100%)");
-                }
-
-                if (conf.dynamic_snitch_badness_threshold < 0.0 || conf.dynamic_snitch_badness_threshold > 1.0)
-                {
-                    throw new ConfigurationException("dynamic_snitch_badness_threshold must be between 0.0 and 1.0 (0% and 100%)");
-                }
-                
-                if (cf.min_compaction_threshold < 0 || cf.max_compaction_threshold < 0)
-                {
-                    throw new ConfigurationException("min/max_compaction_thresholds must be positive integers.");
-                }
-                if ((cf.min_compaction_threshold > cf.max_compaction_threshold) && cf.max_compaction_threshold != 0)
-                {
-                    throw new ConfigurationException("min_compaction_threshold must be smaller than max_compaction_threshold, or either must be 0 (disabled)");
-                }
-
-                if (cf.memtable_throughput_in_mb == null)
-                {
-                    cf.memtable_throughput_in_mb = CFMetaData.sizeMemtableThroughput();
-                    logger.info("memtable_throughput_in_mb not configured for " + cf.name + ", using " + cf.memtable_throughput_in_mb);
-                }
-                if (cf.memtable_operations_in_millions == null)
-                {
-                    cf.memtable_operations_in_millions = CFMetaData.sizeMemtableOperations(cf.memtable_throughput_in_mb);
-                    logger.info("memtable_operations_in_millions not configured for " + cf.name + ", using " + cf.memtable_operations_in_millions);
-                }
-
-                if (cf.memtable_operations_in_millions != null && cf.memtable_operations_in_millions <= 0)
-                {
-                    throw new ConfigurationException("memtable_operations_in_millions must be a positive double");
-                }
-
-                if (cf.merge_shards_chance < 0.0 || cf.merge_shards_chance > 1.0)
-                {
-                    throw new ConfigurationException("merge_shards_chance must be between 0.0 and 1.0 (0% and 100%)");
-                }
-
-                 Map<ByteBuffer, ColumnDefinition> metadata = new TreeMap<ByteBuffer, ColumnDefinition>();
-
-                for (RawColumnDefinition rcd : cf.column_metadata)
-                {
-                    if (rcd.name == null)
-                    {
-                        throw new ConfigurationException("name is required for column definitions.");
-                    }
-                    if (rcd.validator_class == null)
-                    {
-                        throw new ConfigurationException("validator is required for column definitions");
-                    }
-                    
-                    if ((rcd.index_type == null) && (rcd.index_name != null))
-                    {
-                        throw new ConfigurationException("index_name cannot be set if index_type is not also set");
-                    }
-
-                    ByteBuffer columnName = ByteBuffer.wrap(rcd.name.getBytes(Charsets.UTF_8));
-                    metadata.put(columnName, new ColumnDefinition(columnName, rcd.validator_class, rcd.index_type, rcd.index_name));
-                }
-
-                cfDefs[j++] = new CFMetaData(keyspace.name, 
-                                             cf.name, 
-                                             cfType,
-                                             comparator, 
-                                             subcolumnComparator, 
-                                             cf.comment, 
-                                             cf.rows_cached,
-                                             cf.keys_cached, 
-                                             cf.read_repair_chance,
-                                             cf.replicate_on_write,
-                                             cf.gc_grace_seconds,
-                                             default_validator,
-                                             cf.min_compaction_threshold,
-                                             cf.max_compaction_threshold,
-                                             cf.row_cache_save_period_in_seconds,
-                                             cf.key_cache_save_period_in_seconds,
-                                             cf.memtable_flush_after_mins,
-                                             cf.memtable_throughput_in_mb,
-                                             cf.memtable_operations_in_millions,
-                                             cf.merge_shards_chance,
-                                             metadata);
-            }
-            defs.add(new KSMetaData(keyspace.name,
-                                    strategyClass,
-                                    keyspace.strategy_options,
-                                    keyspace.replication_factor,
-                                    cfDefs));
-        }
-
-        return defs;
     }
 
     public static IAuthenticator getAuthenticator()
@@ -983,12 +810,12 @@ public class DatabaseDescriptor
         return dataFileDirectory;
     }
     
-    public static AbstractType getComparator(String tableName, String cfName)
+    public static AbstractType getComparator(String ksName, String cfName)
     {
-        assert tableName != null;
-        CFMetaData cfmd = getCFMetaData(tableName, cfName);
+        assert ksName != null;
+        CFMetaData cfmd = getCFMetaData(ksName, cfName);
         if (cfmd == null)
-            throw new IllegalArgumentException("Unknown ColumnFamily " + cfName + " in keyspace " + tableName);
+            throw new IllegalArgumentException("Unknown ColumnFamily " + cfName + " in keyspace " + ksName);
         return cfmd.comparator;
     }
 

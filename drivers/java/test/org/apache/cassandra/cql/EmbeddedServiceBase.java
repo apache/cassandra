@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.net.Socket;
 import java.net.UnknownHostException;
 
+import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -43,7 +44,7 @@ public abstract class EmbeddedServiceBase
      */
     static void loadData() throws ConfigurationException
     {
-        for (KSMetaData table : DatabaseDescriptor.readTablesFromYaml())
+        for (KSMetaData table : SchemaLoader.schemaDefinition())
         {
             for (CFMetaData cfm : table.cfMetaData().values())
             {

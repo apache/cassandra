@@ -179,7 +179,8 @@ public class CreateColumnFamilyStatement
             try
             {
                 ByteBuffer columnName = col.getKey().getByteBuffer(comparator);
-                String validator = comparators.containsKey(col.getValue()) ? comparators.get(col.getValue()) : col.getValue();
+                String validatorClassName = comparators.containsKey(col.getValue()) ? comparators.get(col.getValue()) : col.getValue();
+                AbstractType validator = DatabaseDescriptor.getComparator(validatorClassName);
                 columnDefs.put(columnName, new ColumnDefinition(columnName, validator, null, null));
             }
             catch (ConfigurationException e)
@@ -204,39 +205,42 @@ public class CreateColumnFamilyStatement
     public CFMetaData getCFMetaData(String keyspace) throws InvalidRequestException
     {
         validate();
-        
+
+        CFMetaData newCFMD;
         try
         {
             // RPC uses BytesType as the default validator/comparator but BytesType expects hex for string terms, (not convenient).
             AbstractType<?> comparator = DatabaseDescriptor.getComparator(comparators.get(getPropertyString(KW_COMPARATOR, "ascii")));
             String validator = getPropertyString(KW_DEFAULTVALIDATION, "ascii");
-            
-            return new CFMetaData(keyspace,
-                                  name,
-                                  ColumnFamilyType.create("Standard"),
-                                  comparator,
-                                  null,
-                                  properties.get(KW_COMMENT),
-                                  getPropertyDouble(KW_ROWCACHESIZE, CFMetaData.DEFAULT_ROW_CACHE_SIZE),
-                                  getPropertyDouble(KW_KEYCACHESIZE, CFMetaData.DEFAULT_KEY_CACHE_SIZE),
-                                  getPropertyDouble(KW_READREPAIRCHANCE, CFMetaData.DEFAULT_READ_REPAIR_CHANCE),
-                                  getPropertyBoolean(KW_REPLICATEONWRITE, false),
-                                  getPropertyInt(KW_GCGRACESECONDS, CFMetaData.DEFAULT_GC_GRACE_SECONDS),
-                                  DatabaseDescriptor.getComparator(comparators.get(validator)),
-                                  getPropertyInt(KW_MINCOMPACTIONTHRESHOLD, CFMetaData.DEFAULT_MIN_COMPACTION_THRESHOLD),
-                                  getPropertyInt(KW_MAXCOMPACTIONTHRESHOLD, CFMetaData.DEFAULT_MAX_COMPACTION_THRESHOLD),
-                                  getPropertyInt(KW_ROWCACHESAVEPERIODSECS, CFMetaData.DEFAULT_ROW_CACHE_SAVE_PERIOD_IN_SECONDS),
-                                  getPropertyInt(KW_KEYCACHESAVEPERIODSECS, CFMetaData.DEFAULT_KEY_CACHE_SAVE_PERIOD_IN_SECONDS),
-                                  getPropertyInt(KW_MEMTABLEFLUSHINMINS, CFMetaData.DEFAULT_MEMTABLE_LIFETIME_IN_MINS),
-                                  getPropertyInt(KW_MEMTABLESIZEINMB, CFMetaData.DEFAULT_MEMTABLE_THROUGHPUT_IN_MB),
-                                  getPropertyDouble(KW_MEMTABLEOPSINMILLIONS, CFMetaData.DEFAULT_MEMTABLE_OPERATIONS_IN_MILLIONS),
-                                  0,
-                                  getColumns(comparator));
+
+            newCFMD = new CFMetaData(keyspace,
+                                     name,
+                                     ColumnFamilyType.Standard,
+                                     comparator,
+                                     null);
+
+            newCFMD.comment(properties.get(KW_COMMENT))
+                   .rowCacheSize(getPropertyDouble(KW_ROWCACHESIZE, CFMetaData.DEFAULT_ROW_CACHE_SIZE))
+                   .keyCacheSize(getPropertyDouble(KW_KEYCACHESIZE, CFMetaData.DEFAULT_KEY_CACHE_SIZE))
+                   .readRepairChance(getPropertyDouble(KW_READREPAIRCHANCE, CFMetaData.DEFAULT_READ_REPAIR_CHANCE))
+                   .replicateOnWrite(getPropertyBoolean(KW_REPLICATEONWRITE, CFMetaData.DEFAULT_REPLICATE_ON_WRITE))
+                   .gcGraceSeconds(getPropertyInt(KW_GCGRACESECONDS, CFMetaData.DEFAULT_GC_GRACE_SECONDS))
+                   .defaultValidator(DatabaseDescriptor.getComparator(comparators.get(validator)))
+                   .minCompactionThreshold(getPropertyInt(KW_MINCOMPACTIONTHRESHOLD, CFMetaData.DEFAULT_MIN_COMPACTION_THRESHOLD))
+                   .maxCompactionThreshold(getPropertyInt(KW_MAXCOMPACTIONTHRESHOLD, CFMetaData.DEFAULT_MAX_COMPACTION_THRESHOLD))
+                   .rowCacheSavePeriod(getPropertyInt(KW_ROWCACHESAVEPERIODSECS, CFMetaData.DEFAULT_ROW_CACHE_SAVE_PERIOD_IN_SECONDS))
+                   .keyCacheSavePeriod(getPropertyInt(KW_KEYCACHESAVEPERIODSECS, CFMetaData.DEFAULT_KEY_CACHE_SAVE_PERIOD_IN_SECONDS))
+                   .memTime(getPropertyInt(KW_MEMTABLEFLUSHINMINS, CFMetaData.DEFAULT_MEMTABLE_LIFETIME_IN_MINS))
+                   .memSize(getPropertyInt(KW_MEMTABLESIZEINMB, CFMetaData.DEFAULT_MEMTABLE_THROUGHPUT_IN_MB))
+                   .memOps(getPropertyDouble(KW_MEMTABLEOPSINMILLIONS, CFMetaData.DEFAULT_MEMTABLE_OPERATIONS_IN_MILLIONS))
+                   .mergeShardsChance(0.0)
+                   .columnMetadata(getColumns(comparator));
         }
         catch (ConfigurationException e)
         {
             throw new InvalidRequestException(e.toString());
         }
+        return newCFMD;
     }
     
     private String getPropertyString(String key, String defaultValue)

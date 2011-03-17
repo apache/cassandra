@@ -22,8 +22,7 @@ import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
-import java.util.TreeMap;
+import java.util.*;
 
 import org.apache.cassandra.SchemaLoader;
 import org.junit.Test;

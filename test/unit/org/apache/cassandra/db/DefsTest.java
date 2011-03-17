@@ -25,7 +25,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -102,30 +101,31 @@ public class DefsTest extends CleanupHelper
         for (int i = 0; i < 5; i++) 
         {
             ByteBuffer name = ByteBuffer.wrap(new byte[] { (byte)i });
-            indexes.put(name, new ColumnDefinition(name, null, IndexType.KEYS, Integer.toString(i)));
+            indexes.put(name, new ColumnDefinition(name, BytesType.instance, IndexType.KEYS, Integer.toString(i)));
         }
         CFMetaData cfm = new CFMetaData("Keyspace1",
-                "TestApplyCFM_CF",
-                ColumnFamilyType.Standard,
-                BytesType.instance,
-                null,
-                "No comment",
-                1.0,
-                1.0,
-                0.5,
-                false,
-                100000,
-                null,
-                500,
-                500,
-                500,
-                500,
-                500,
-                500,
-                500.0,
-                0,
-                indexes);
-        
+                                        "TestApplyCFM_CF",
+                                        ColumnFamilyType.Standard,
+                                        BytesType.instance,
+                                        null);
+
+        cfm.comment("No comment")
+           .rowCacheSize(1.0)
+           .keyCacheSize(1.0)
+           .readRepairChance(0.5)
+           .replicateOnWrite(false)
+           .gcGraceSeconds(100000)
+           .defaultValidator(null)
+           .minCompactionThreshold(500)
+           .maxCompactionThreshold(500)
+           .rowCacheSavePeriod(500)
+           .keyCacheSavePeriod(500)
+           .memTime(500)
+           .memSize(500)
+           .memOps(500.0)
+           .mergeShardsChance(0.0)
+           .columnMetadata(indexes);
+
         // we'll be adding this one later. make sure it's not already there.
         assert cfm.getColumn_metadata().get(ByteBuffer.wrap(new byte[] { 5 })) == null;
         org.apache.cassandra.db.migration.avro.CfDef cfDef = CFMetaData.convertToAvro(cfm);
@@ -300,11 +300,11 @@ public class DefsTest extends CleanupHelper
         for (int i = 0; i < 100; i++)
             rm.add(new QueryPath(cfm.cfName, null, ByteBuffer.wrap(("col" + i).getBytes())), ByteBufferUtil.bytes("anyvalue"), 1L);
         rm.apply();
-        ColumnFamilyStore store = Table.open(cfm.tableName).getColumnFamilyStore(cfm.cfName);
+        ColumnFamilyStore store = Table.open(cfm.ksName).getColumnFamilyStore(cfm.cfName);
         assert store != null;
         store.forceBlockingFlush();
         store.getFlushPath();
-        assert DefsTable.getFiles(cfm.tableName, cfm.cfName).size() > 0;
+        assert DefsTable.getFiles(cfm.ksName, cfm.cfName).size() > 0;
         
         new DropColumnFamily(ks.name, cfm.cfName).apply();
         
@@ -325,7 +325,7 @@ public class DefsTest extends CleanupHelper
         assert !success : "This mutation should have failed since the CF no longer exists.";
 
         // verify that the files are gone.
-        for (File file : DefsTable.getFiles(cfm.tableName, cfm.cfName))
+        for (File file : DefsTable.getFiles(cfm.ksName, cfm.cfName))
         {
             if (file.getPath().endsWith("Data.db") && !new File(file.getPath().replace("Data.db", "Compacted")).exists())
                 throw new AssertionError("undeleted file " + file);
@@ -346,23 +346,23 @@ public class DefsTest extends CleanupHelper
         for (int i = 0; i < 100; i++)
             rm.add(new QueryPath(oldCfm.cfName, null, ByteBuffer.wrap(("col" + i).getBytes())), ByteBufferUtil.bytes("anyvalue"), 1L);
         rm.apply();
-        ColumnFamilyStore store = Table.open(oldCfm.tableName).getColumnFamilyStore(oldCfm.cfName);
+        ColumnFamilyStore store = Table.open(oldCfm.ksName).getColumnFamilyStore(oldCfm.cfName);
         assert store != null;
         store.forceBlockingFlush();
-        int fileCount = DefsTable.getFiles(oldCfm.tableName, oldCfm.cfName).size();
+        int fileCount = DefsTable.getFiles(oldCfm.ksName, oldCfm.cfName).size();
         assert fileCount > 0;
         
         final String cfName = "St4ndard1Replacement";
-        new RenameColumnFamily(oldCfm.tableName, oldCfm.cfName, cfName).apply();
+        new RenameColumnFamily(oldCfm.ksName, oldCfm.cfName, cfName).apply();
         
         assert !DatabaseDescriptor.getTableDefinition(ks.name).cfMetaData().containsKey(oldCfm.cfName);
         assert DatabaseDescriptor.getTableDefinition(ks.name).cfMetaData().containsKey(cfName);
         
         // verify that new files are there.
-        assert DefsTable.getFiles(oldCfm.tableName, cfName).size() == fileCount;
+        assert DefsTable.getFiles(oldCfm.ksName, cfName).size() == fileCount;
         
         // do some reads.
-        store = Table.open(oldCfm.tableName).getColumnFamilyStore(cfName);
+        store = Table.open(oldCfm.ksName).getColumnFamilyStore(cfName);
         assert store != null;
         ColumnFamily cfam = store.getColumnFamily(QueryFilter.getSliceFilter(dk, new QueryPath(cfName), ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 1000));
         assert cfam.getSortedColumns().size() == 100; // should be good enough?
@@ -384,18 +384,18 @@ public class DefsTest extends CleanupHelper
         DecoratedKey dk = Util.dk("key0");
         CFMetaData newCf = addTestCF("NewKeyspace1", "AddedStandard1", "A new cf for a new ks");
 
-        KSMetaData newKs = new KSMetaData(newCf.tableName, SimpleStrategy.class, null, 5, newCf);
+        KSMetaData newKs = new KSMetaData(newCf.ksName, SimpleStrategy.class, null, 5, newCf);
         
         new AddKeyspace(newKs).apply();
         
-        assert DatabaseDescriptor.getTableDefinition(newCf.tableName) != null;
-        assert DatabaseDescriptor.getTableDefinition(newCf.tableName) == newKs;
+        assert DatabaseDescriptor.getTableDefinition(newCf.ksName) != null;
+        assert DatabaseDescriptor.getTableDefinition(newCf.ksName) == newKs;
 
         // test reads and writes.
-        RowMutation rm = new RowMutation(newCf.tableName, dk.key);
+        RowMutation rm = new RowMutation(newCf.ksName, dk.key);
         rm.add(new QueryPath(newCf.cfName, null, ByteBufferUtil.bytes("col0")), ByteBufferUtil.bytes("value0"), 1L);
         rm.apply();
-        ColumnFamilyStore store = Table.open(newCf.tableName).getColumnFamilyStore(newCf.cfName);
+        ColumnFamilyStore store = Table.open(newCf.ksName).getColumnFamilyStore(newCf.cfName);
         assert store != null;
         store.forceBlockingFlush();
         
@@ -420,10 +420,10 @@ public class DefsTest extends CleanupHelper
         for (int i = 0; i < 100; i++)
             rm.add(new QueryPath(cfm.cfName, null, ByteBuffer.wrap(("col" + i).getBytes())), ByteBufferUtil.bytes("anyvalue"), 1L);
         rm.apply();
-        ColumnFamilyStore store = Table.open(cfm.tableName).getColumnFamilyStore(cfm.cfName);
+        ColumnFamilyStore store = Table.open(cfm.ksName).getColumnFamilyStore(cfm.cfName);
         assert store != null;
         store.forceBlockingFlush();
-        assert DefsTable.getFiles(cfm.tableName, cfm.cfName).size() > 0;
+        assert DefsTable.getFiles(cfm.ksName, cfm.cfName).size() > 0;
         
         new DropKeyspace(ks.name).apply();
         
@@ -464,7 +464,7 @@ public class DefsTest extends CleanupHelper
         assert oldKs != null;
         final String cfName = "Standard3";
         assert oldKs.cfMetaData().containsKey(cfName);
-        assert oldKs.cfMetaData().get(cfName).tableName.equals(oldKs.name);
+        assert oldKs.cfMetaData().get(cfName).ksName.equals(oldKs.name);
         
         // write some data that we hope to read back later.
         RowMutation rm = new RowMutation(oldKs.name, dk.key);
@@ -484,7 +484,7 @@ public class DefsTest extends CleanupHelper
         assert newKs != null;
         assert newKs.name.equals(newKsName);
         assert newKs.cfMetaData().containsKey(cfName);
-        assert newKs.cfMetaData().get(cfName).tableName.equals(newKsName);
+        assert newKs.cfMetaData().get(cfName).ksName.equals(newKsName);
         assert DefsTable.getFiles(newKs.name, cfName).size() > 0;
         
         // read on old should fail.
@@ -578,16 +578,16 @@ public class DefsTest extends CleanupHelper
     {
         // create a keyspace to serve as existing.
         CFMetaData cf = addTestCF("UpdatedKeyspace", "AddedStandard1", "A new cf for a new ks");
-        KSMetaData oldKs = new KSMetaData(cf.tableName, SimpleStrategy.class, null, 5, cf);
+        KSMetaData oldKs = new KSMetaData(cf.ksName, SimpleStrategy.class, null, 5, cf);
         
         new AddKeyspace(oldKs).apply();
         
-        assert DatabaseDescriptor.getTableDefinition(cf.tableName) != null;
-        assert DatabaseDescriptor.getTableDefinition(cf.tableName) == oldKs;
+        assert DatabaseDescriptor.getTableDefinition(cf.ksName) != null;
+        assert DatabaseDescriptor.getTableDefinition(cf.ksName) == oldKs;
         
         // anything with cf defs should fail.
-        CFMetaData cf2 = addTestCF(cf.tableName, "AddedStandard2", "A new cf for a new ks");
-        KSMetaData newBadKs = new KSMetaData(cf.tableName, SimpleStrategy.class, null, 4, cf2);
+        CFMetaData cf2 = addTestCF(cf.ksName, "AddedStandard2", "A new cf for a new ks");
+        KSMetaData newBadKs = new KSMetaData(cf.ksName, SimpleStrategy.class, null, 4, cf2);
         try
         {
             new UpdateKeyspace(newBadKs).apply();
@@ -599,7 +599,7 @@ public class DefsTest extends CleanupHelper
         }
         
         // names should match.
-        KSMetaData newBadKs2 = new KSMetaData(cf.tableName + "trash", SimpleStrategy.class, null, 4);
+        KSMetaData newBadKs2 = new KSMetaData(cf.ksName + "trash", SimpleStrategy.class, null, 4);
         try
         {
             new UpdateKeyspace(newBadKs2).apply();
@@ -610,7 +610,7 @@ public class DefsTest extends CleanupHelper
             // expected.
         }
         
-        KSMetaData newKs = new KSMetaData(cf.tableName, OldNetworkTopologyStrategy.class, null, 1);
+        KSMetaData newKs = new KSMetaData(cf.ksName, OldNetworkTopologyStrategy.class, null, 1);
         new UpdateKeyspace(newKs).apply();
         
         KSMetaData newFetchedKs = DatabaseDescriptor.getKSMetaData(newKs.name);
@@ -625,12 +625,12 @@ public class DefsTest extends CleanupHelper
     {
         // create a keyspace with a cf to update.
         CFMetaData cf = addTestCF("UpdatedCfKs", "Standard1added", "A new cf that will be updated");
-        KSMetaData ksm = new KSMetaData(cf.tableName, SimpleStrategy.class, null, 1, cf);
+        KSMetaData ksm = new KSMetaData(cf.ksName, SimpleStrategy.class, null, 1, cf);
         new AddKeyspace(ksm).apply();
         
-        assert DatabaseDescriptor.getTableDefinition(cf.tableName) != null;
-        assert DatabaseDescriptor.getTableDefinition(cf.tableName) == ksm;
-        assert DatabaseDescriptor.getCFMetaData(cf.tableName, cf.cfName) != null;
+        assert DatabaseDescriptor.getTableDefinition(cf.ksName) != null;
+        assert DatabaseDescriptor.getTableDefinition(cf.ksName) == ksm;
+        assert DatabaseDescriptor.getCFMetaData(cf.ksName, cf.cfName) != null;
         
         // updating certain fields should fail.
         org.apache.cassandra.db.migration.avro.CfDef cf_def = CFMetaData.convertToAvro(cf);
@@ -668,12 +668,12 @@ public class DefsTest extends CleanupHelper
         // can't test changing the reconciler because there is only one impl.
         
         // check the cumulative affect.
-        assert DatabaseDescriptor.getCFMetaData(cf.tableName, cf.cfName).getComment().equals(cf_def.comment);
-        assert DatabaseDescriptor.getCFMetaData(cf.tableName, cf.cfName).getRowCacheSize() == cf_def.row_cache_size;
-        assert DatabaseDescriptor.getCFMetaData(cf.tableName, cf.cfName).getKeyCacheSize() == cf_def.key_cache_size;
-        assert DatabaseDescriptor.getCFMetaData(cf.tableName, cf.cfName).getReadRepairChance() == cf_def.read_repair_chance;
-        assert DatabaseDescriptor.getCFMetaData(cf.tableName, cf.cfName).getGcGraceSeconds() == cf_def.gc_grace_seconds;
-        assert DatabaseDescriptor.getCFMetaData(cf.tableName, cf.cfName).getDefaultValidator() == UTF8Type.instance;
+        assert DatabaseDescriptor.getCFMetaData(cf.ksName, cf.cfName).getComment().equals(cf_def.comment);
+        assert DatabaseDescriptor.getCFMetaData(cf.ksName, cf.cfName).getRowCacheSize() == cf_def.row_cache_size;
+        assert DatabaseDescriptor.getCFMetaData(cf.ksName, cf.cfName).getKeyCacheSize() == cf_def.key_cache_size;
+        assert DatabaseDescriptor.getCFMetaData(cf.ksName, cf.cfName).getReadRepairChance() == cf_def.read_repair_chance;
+        assert DatabaseDescriptor.getCFMetaData(cf.ksName, cf.cfName).getGcGraceSeconds() == cf_def.gc_grace_seconds;
+        assert DatabaseDescriptor.getCFMetaData(cf.ksName, cf.cfName).getDefaultValidator() == UTF8Type.instance;
         
         // todo: we probably don't need to reset old values in the catches anymore.
         // make sure some invalid operations fail.
@@ -761,26 +761,12 @@ public class DefsTest extends CleanupHelper
 
     private CFMetaData addTestCF(String ks, String cf, String comment)
     {
-        return new CFMetaData(ks,
-                              cf,
-                              ColumnFamilyType.Standard,
-                              UTF8Type.instance,
-                              null,
-                              comment,
-                              0,
-                              1.0,
-                              0,
-							  false,
-                              CFMetaData.DEFAULT_GC_GRACE_SECONDS,
-                              BytesType.instance,
-                              CFMetaData.DEFAULT_MIN_COMPACTION_THRESHOLD,
-                              CFMetaData.DEFAULT_MAX_COMPACTION_THRESHOLD,
-                              CFMetaData.DEFAULT_ROW_CACHE_SAVE_PERIOD_IN_SECONDS,
-                              CFMetaData.DEFAULT_KEY_CACHE_SAVE_PERIOD_IN_SECONDS,
-                              CFMetaData.DEFAULT_MEMTABLE_LIFETIME_IN_MINS,
-                              CFMetaData.DEFAULT_MEMTABLE_THROUGHPUT_IN_MB,
-                              CFMetaData.DEFAULT_MEMTABLE_OPERATIONS_IN_MILLIONS,
-                              0,
-                              Collections.<ByteBuffer, ColumnDefinition>emptyMap());
+        CFMetaData newCFMD = new CFMetaData(ks, cf, ColumnFamilyType.Standard, UTF8Type.instance, null);
+        newCFMD.comment(comment)
+               .keyCacheSize(1.0)
+               .readRepairChance(0.0)
+               .mergeShardsChance(0.0);
+
+        return newCFMD;
     }
 }

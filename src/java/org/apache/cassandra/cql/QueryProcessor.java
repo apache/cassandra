@@ -684,18 +684,10 @@ public class QueryProcessor
                 // No meta-data, create a new column definition from scratch.
                 else
                 {
-                    try
-                    {
-                        columnDef = new ColumnDefinition(columnName,
-                                                         null,
-                                                         org.apache.cassandra.thrift.IndexType.KEYS,
-                                                         createIdx.getIndexName());
-                    }
-                    catch (ConfigurationException e)
-                    {
-                        // This should never happen
-                        throw new RuntimeException("Unexpected error creating ColumnDefinition", e);
-                    }
+                    columnDef = new ColumnDefinition(columnName,
+                                                     null,
+                                                     org.apache.cassandra.thrift.IndexType.KEYS,
+                                                     createIdx.getIndexName());
                 }
                 
                 CfDef cfamilyDef = CFMetaData.convertToAvro(oldCfm);

@@ -1,8 +1,6 @@
 package org.apache.cassandra.db.migration;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.Map;
 
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -70,7 +68,7 @@ public class UpdateColumnFamily extends Migration
     {
         if (clientMode)
             return;
-        ColumnFamilyStore cfs = Table.open(metadata.tableName).getColumnFamilyStore(metadata.cfName);
+        ColumnFamilyStore cfs = Table.open(metadata.ksName).getColumnFamilyStore(metadata.cfName);
         cfs.snapshot(Table.getTimestampedSnapshotName(null));
     }
 
@@ -90,7 +88,7 @@ public class UpdateColumnFamily extends Migration
 
         if (!clientMode)
         {
-            Table table = Table.open(metadata.tableName);
+            Table table = Table.open(metadata.ksName);
             ColumnFamilyStore oldCfs = table.getColumnFamilyStore(metadata.cfName);
             oldCfs.reload();
         }

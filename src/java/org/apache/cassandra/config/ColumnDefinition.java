@@ -22,10 +22,7 @@ package org.apache.cassandra.config;
 
 
 import java.nio.ByteBuffer;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
+import java.util.*;
 
 import org.apache.avro.util.Utf8;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -42,12 +39,12 @@ public class ColumnDefinition
     private IndexType index_type;
     private String index_name;
 
-    public ColumnDefinition(ByteBuffer name, String validation_class, IndexType index_type, String index_name) throws ConfigurationException
+    public ColumnDefinition(ByteBuffer name, AbstractType validator, IndexType index_type, String index_name)
     {
         this.name = name;
         this.index_type = index_type;
         this.index_name = index_name;
-        this.validator = DatabaseDescriptor.getComparator(validation_class);
+        this.validator = validator;
     }
 
     @Override
@@ -96,7 +93,8 @@ public class ColumnDefinition
         String index_name = cd.index_name == null ? null : cd.index_name.toString();
         try
         {
-            return new ColumnDefinition(cd.name, cd.validation_class.toString(), index_type, index_name);
+            AbstractType validatorType = DatabaseDescriptor.getComparator(cd.validation_class);
+            return new ColumnDefinition(cd.name, validatorType, index_type, index_name);
         }
         catch (ConfigurationException e)
         {
@@ -106,14 +104,16 @@ public class ColumnDefinition
 
     public static ColumnDefinition fromColumnDef(ColumnDef thriftColumnDef) throws ConfigurationException
     {
-        return new ColumnDefinition(ByteBufferUtil.clone(thriftColumnDef.name), thriftColumnDef.validation_class, thriftColumnDef.index_type, thriftColumnDef.index_name);
+        AbstractType validatorType = DatabaseDescriptor.getComparator(thriftColumnDef.validation_class);
+        return new ColumnDefinition(ByteBufferUtil.clone(thriftColumnDef.name), validatorType, thriftColumnDef.index_type, thriftColumnDef.index_name);
     }
     
     public static ColumnDefinition fromColumnDef(org.apache.cassandra.db.migration.avro.ColumnDef avroColumnDef) throws ConfigurationException
     {
         validateIndexType(avroColumnDef);
+        AbstractType validatorType = DatabaseDescriptor.getComparator(avroColumnDef.validation_class);
         return new ColumnDefinition(avroColumnDef.name,
-                avroColumnDef.validation_class.toString(),
+                validatorType,
                 IndexType.valueOf(avroColumnDef.index_type == null ? D_COLDEF_INDEXTYPE : avroColumnDef.index_type.name()),
                 avroColumnDef.index_name == null ? D_COLDEF_INDEXNAME : avroColumnDef.index_name.toString());
     }
@@ -121,13 +121,13 @@ public class ColumnDefinition
     public static Map<ByteBuffer, ColumnDefinition> fromColumnDef(List<ColumnDef> thriftDefs) throws ConfigurationException
     {
         if (thriftDefs == null)
-            return Collections.emptyMap();
+            return new HashMap<ByteBuffer,ColumnDefinition>();
 
         Map<ByteBuffer, ColumnDefinition> cds = new TreeMap<ByteBuffer, ColumnDefinition>();
         for (ColumnDef thriftColumnDef : thriftDefs)
             cds.put(ByteBufferUtil.clone(thriftColumnDef.name), fromColumnDef(thriftColumnDef));
 
-        return Collections.unmodifiableMap(cds);
+        return cds;
     }
     
     public static Map<ByteBuffer, ColumnDefinition> fromColumnDefs(Iterable<org.apache.cassandra.db.migration.avro.ColumnDef> avroDefs) throws ConfigurationException

@@ -491,17 +491,6 @@ public class NodeProbe
         }
     }
     
-    @Deprecated
-    public void loadSchemaFromYAML() throws ConfigurationException, IOException
-    {
-        ssProxy.loadSchemaFromYAML();
-    }
-    
-    public String exportSchemaToYAML() throws IOException
-    {
-        return ssProxy.exportSchema();
-    }
-
     public MessagingServiceMBean getMsProxy()
     {
         try

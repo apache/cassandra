@@ -107,7 +107,6 @@ public class Config
 
     public Integer index_interval = 128;
 
-    public List<RawKeyspace> keyspaces;
     public Double flush_largest_memtables_at = 1.0;
     public Double reduce_cache_sizes_at = 1.0;
     public double reduce_cache_capacity_to = 0.6;
