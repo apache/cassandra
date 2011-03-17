@@ -36,18 +36,26 @@ import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.RowId;
 import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
 import java.sql.SQLWarning;
 import java.sql.SQLXML;
 import java.sql.Statement;
 import java.sql.Time;
 import java.sql.Timestamp;
+import java.sql.Types;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.WeakHashMap;
 
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.db.marshal.CounterColumnType;
+import org.apache.cassandra.db.marshal.IntegerType;
+import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.thrift.Column;
 import org.apache.cassandra.thrift.CqlResult;
 import org.apache.cassandra.thrift.CqlRow;
@@ -76,6 +84,8 @@ class CassandraResultSet<N, V> implements ResultSet
     
     /** The value map. */
     private Map<String, Object> valueMap = new WeakHashMap<String, Object>();
+    
+    private final RsMetaData meta;
 
     /**
      * Instantiates a new cassandra result set.
@@ -89,6 +99,7 @@ class CassandraResultSet<N, V> implements ResultSet
         this.keyspace = keyspace;
         this.columnFamily = columnFamily;
         rSetIter = rSet.getRowsIterator();
+        meta = new RsMetaData();
     }
 
     /**
@@ -98,7 +109,7 @@ class CassandraResultSet<N, V> implements ResultSet
      */
     public boolean isWrapperFor(Class<?> iface) throws SQLException
     {
-        throw new UnsupportedOperationException("method not supported");
+        return false;
     }
 
     /**
@@ -579,7 +590,7 @@ class CassandraResultSet<N, V> implements ResultSet
      */
     public ResultSetMetaData getMetaData() throws SQLException
     {
-        throw new UnsupportedOperationException("method not supported");
+        return meta;
     }
 
     /**
@@ -1032,11 +1043,7 @@ class CassandraResultSet<N, V> implements ResultSet
      */
     public <T> T unwrap(Class<T> iface) throws SQLException
     {
-        // exposes the current row only.
-        if (iface.equals(RowMetaData.class))
-            return (T)new CassandraRowMetaData(this);
-        else
-            throw new SQLException("Unsupported unwrap interface: " + iface.getSimpleName());
+        throw new SQLException("Unsupported unwrap interface: " + iface.getSimpleName());
     }
     
     /**
@@ -1999,55 +2006,331 @@ class CassandraResultSet<N, V> implements ResultSet
     {
         throw new UnsupportedOperationException("method not supported");
     }
-
-    private class CassandraRowMetaData<N, V> implements RowMetaData<N, V>
+    
+    /**
+     * RSMD implementation. Except where explicitly noted the metadata returned refers to the column 
+     * values, not the column names. There is an additional interface that describes column name 
+     * meta information.
+     */
+    private class RsMetaData implements CassandraResultSetMetaData, ResultSetMetaData
     {
-        private final List<TypedColumn<N, V>> cols;
-        private final byte[] key;
-        private final Class colClass;
-        private final Class valClass;
-        
-        private CassandraRowMetaData(CassandraResultSet rs) {
-            cols = new ArrayList<TypedColumn<N, V>>(rs.values);
-            assert rs.values.size() > 0;
-            colClass = rs.values.get(0).getClass();
-            valClass = rs.values.get(0).getClass();
-            key = curRowKey;
-        }
-
-        public int getColumnCount()
-        {
-            return cols.size();
-        }
-
-        public N getColumnName(int index)
-        {
-            return cols.get(index).getName();
-        }
-
-        public V getColumnValue(int index)
-        {
-            return cols.get(index).getValue();
-        }
-
-        public Class getColumnNameClass()
-        {
-            return colClass;
-        }
-
-        public Class getColumnValueClass()
-        {
-            return valClass;
-        }
-
-        public TypedColumn getColumn(int index)
-        {
-            return cols.get(index);
-        }
-
         public byte[] getKey()
         {
-            return key;
+            return curRowKey;
+        }
+
+        public boolean isNameCaseSensitive(int column) throws SQLException
+        {
+            checkIndex(column);
+            if (values.get(column).getNameType() instanceof ColumnMetaData)
+                return ((ColumnMetaData)values.get(column).getNameType()).isCaseSensitive();
+            else 
+                return values.get(column).getNameType().getType().equals(String.class);
+        }
+        
+        public boolean isValueCaseSensitive(int column) throws SQLException
+        {
+            checkIndex(column);
+            if (values.get(column).getValueType() instanceof ColumnMetaData)
+                return ((ColumnMetaData)values.get(column).getValueType()).isCaseSensitive();
+            else 
+                return values.get(column).getValueType().getType().equals(String.class);
+        }
+
+        public boolean isNameCurrency(int column) throws SQLException
+        {
+            checkIndex(column);
+            if (values.get(column).getNameType() instanceof ColumnMetaData)
+                return ((ColumnMetaData)values.get(column).getNameType()).isCurrency();
+            else
+                return false;
+        }
+        
+        public boolean isValueCurrency(int column) throws SQLException
+        {
+            checkIndex(column);
+            if (values.get(column).getValueType() instanceof ColumnMetaData)
+                return ((ColumnMetaData)values.get(column).getValueType()).isCurrency();
+            else
+                return false;
+        }
+
+        public boolean isNameSigned(int column) throws SQLException
+        {
+            checkIndex(column);
+            TypedColumn col = values.get(column);
+            if (col.getNameType() == IntegerType.instance || col.getNameType() == LongType.instance)
+                return true;
+            else if (col.getNameType() instanceof ColumnMetaData) 
+                return ((ColumnMetaData)col.getNameType()).isSigned();
+            else
+                return false;
+        }
+        
+        public boolean isValueSigned(int column) throws SQLException
+        {
+            checkIndex(column);
+            TypedColumn col = values.get(column);
+            if (col.getValueType() == IntegerType.instance || col.getValueType() == LongType.instance)
+                return true;
+            else if (col.getValueType() instanceof ColumnMetaData) 
+                return ((ColumnMetaData)col.getValueType()).isSigned();
+            else
+                return false;
+        }
+
+        public int getNameDisplaySize(int column) throws SQLException
+        {
+            return getColumnName(column).length();
+        }
+
+        public int getValueDisplaySize(int column) throws SQLException
+        {
+            checkIndex(column);
+            return values.get(column).getValueString().length();
+        }
+
+        public int getNamePrecision(int column) throws SQLException
+        {
+            checkIndex(column);
+            TypedColumn col = values.get(column);
+            if (col.getNameType() instanceof ColumnMetaData)
+                return ((ColumnMetaData)col.getNameType()).getPrecision();
+            else if (col.getNameType().getType().equals(String.class))
+                return col.getNameString().length();
+            else if (col.getNameType() == BytesType.instance)
+                return col.getNameString().length();
+            else if (col.getNameType().getType().equals(UUID.class))
+                return 36; // xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+            else if (col.getNameType() == LongType.instance)
+                return 19; // number of digits in 2**63-1.
+            else 
+                return 0;
+        }
+        
+        public int getValuePrecision(int column) throws SQLException
+        {
+            checkIndex(column);
+            TypedColumn col = values.get(column);
+            if (col.getValueType() instanceof ColumnMetaData)
+                return ((ColumnMetaData)col.getValueType()).getPrecision();
+            else if (col.getValueType().getType().equals(String.class))
+                return col.getValueString().length();
+            else if (col.getValueType() == BytesType.instance)
+                return col.getValueString().length();
+            else if (col.getValueType().getType().equals(UUID.class))
+                return 36; // xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+            else if (col.getValueType() == LongType.instance)
+                return 19; // number of digits in 2**63-1.
+            else 
+                return 0;
+        }
+
+        public int getNameScale(int column) throws SQLException
+        {
+            checkIndex(column);
+            if (values.get(column).getValueType() instanceof ColumnMetaData)
+                return ((ColumnMetaData)values.get(column).getNameType()).getScale();
+            else
+                return 0;
+        }
+        
+        public int getValueScale(int column) throws SQLException
+        {
+            checkIndex(column);
+            if (values.get(column).getValueType() instanceof ColumnMetaData)
+                return ((ColumnMetaData)values.get(column).getValueType()).getScale();
+            else
+                return 0;
+        }
+
+        public int getNameType(int column) throws SQLException
+        {
+            checkIndex(column);
+            return getJdbcType(values.get(column).getNameType());
+        }
+        
+        public int getValueType(int column) throws SQLException
+        {
+            checkIndex(column);
+            return getJdbcType(values.get(column).getValueType());
+        }
+        
+        private int getJdbcType(AbstractType type) throws SQLException
+        {
+            
+            if (type instanceof ColumnMetaData)
+                return ((ColumnMetaData)type).getType();
+            else if (type == IntegerType.instance)
+                return Types.BIGINT;
+            else if (type.getType().equals(Long.class))
+                return Types.BIGINT; // not the best fit.
+            else if (type.getType().equals(String.class))
+                return Types.VARCHAR;
+            else if (type.getType().equals(UUID.class))
+                return Types.TIMESTAMP;
+            else if (type == BytesType.instance)
+                return Types.BINARY;
+            else
+                throw new SQLException("Uninterpretable JDBC type " + type.getClass().getName());
+        }
+
+        public String getNameTypeName(int column) throws SQLException
+        {
+            checkIndex(column);
+            return values.get(column).getNameType().getClass().getSimpleName();
+        }
+        
+        public String getValueTypeName(int column) throws SQLException
+        {
+            checkIndex(column);
+            return values.get(column).getValueType().getClass().getSimpleName();
+        }
+
+        public String getNameClassName(int column) throws SQLException
+        {
+            checkIndex(column);
+            return values.get(column).getNameType().getType().getName();
+        }
+
+        public String getValueClassName(int column) throws SQLException
+        {
+            checkIndex(column);
+            return values.get(column).getValueType().getType().getName();
+        }
+        
+        //
+        // ResultSetMetaData
+        //
+        
+        private void checkIndex(int i) throws SQLException
+        {
+            if (i >= values.size())
+                throw new SQLException("Invalid column index " + i);
+        }
+        
+        public int getColumnCount() throws SQLException
+        {
+            return values.size();
+        }
+
+        public boolean isAutoIncrement(int column) throws SQLException
+        {
+            checkIndex(column);
+            return values.get(column).getValueType() instanceof CounterColumnType; // todo: check Value is correct.
+        }
+
+        public boolean isCaseSensitive(int column) throws SQLException
+        {
+            return isValueCaseSensitive(column);
+        }
+
+        public boolean isSearchable(int column) throws SQLException
+        {
+            return false;
+        }
+
+        public boolean isCurrency(int column) throws SQLException
+        {
+            return isValueCurrency(column);
+        }
+
+        public int isNullable(int column) throws SQLException
+        {
+            // no such thing as null in cassandra.
+            return ResultSetMetaData.columnNullableUnknown;
+        }
+
+        public boolean isSigned(int column) throws SQLException
+        {
+            return isValueSigned(column);
+        }
+
+        public int getColumnDisplaySize(int column) throws SQLException
+        {
+            return getValueDisplaySize(column);
+        }
+
+        public String getColumnLabel(int column) throws SQLException
+        {
+            return getColumnName(column);
+        }
+
+        public String getColumnName(int column) throws SQLException
+        {
+            checkIndex(column);
+            return values.get(column).getNameString();
+        }
+
+        public String getSchemaName(int column) throws SQLException
+        {
+            return keyspace;
+        }
+
+        public int getPrecision(int column) throws SQLException
+        {
+            return getValuePrecision(column);
+        }
+
+        public int getScale(int column) throws SQLException
+        {
+            return getValueScale(column);
+        }
+
+        public String getTableName(int column) throws SQLException
+        {
+            return columnFamily;
+        }
+
+        public String getCatalogName(int column) throws SQLException
+        {
+            throw new SQLFeatureNotSupportedException("Cassandra has no catalogs");
+        }
+
+        public int getColumnType(int column) throws SQLException
+        {
+            return getValueType(column);
+        }
+
+        // todo: spec says "database specific type name". this means the abstract type.
+        public String getColumnTypeName(int column) throws SQLException
+        {
+            return getValueTypeName(column);
+        }
+
+        public boolean isReadOnly(int column) throws SQLException
+        {
+            return column == 0;
+        }
+
+        public boolean isWritable(int column) throws SQLException
+        {
+            return column > 0;
+        }
+
+        public boolean isDefinitelyWritable(int column) throws SQLException
+        {
+            return isWritable(column);
+        }
+
+        public String getColumnClassName(int column) throws SQLException
+        {
+            return getValueClassName(column);
+        }
+
+        // todo: once the kinks are worked out, allow unwrapping as CassandraResultSetMetaData.
+        public <T> T unwrap(Class<T> iface) throws SQLException
+        {
+//            if (iface.equals(CassandraResultSetMetaData.class))
+//                return (T)this;
+//            else
+                throw new SQLFeatureNotSupportedException("No wrappers");
+        }
+
+        public boolean isWrapperFor(Class<?> iface) throws SQLException
+        {
+//            return CassandraResultSetMetaData.class.isAssignableFrom(iface);
+            return false;
         }
     }
 }

@@ -62,4 +62,9 @@ public class LocalByPartionerType<T extends Token> extends AbstractType<ByteBuff
     {
         throw new IllegalStateException("You shouldn't be validating this.");
     }
+
+    public Class<ByteBuffer> getType()
+    {
+        return ByteBuffer.class;
+    }
 }

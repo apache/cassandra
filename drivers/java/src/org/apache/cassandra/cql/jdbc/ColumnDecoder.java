@@ -127,7 +127,6 @@ class ColumnDecoder
         CfDef cfDef = cfDefs.get(String.format("%s.%s", keyspace, columnFamily));
         AbstractType comparator = getComparator(keyspace, columnFamily, Specifier.Comparator, cfDef);
         AbstractType validator = getComparator(keyspace, columnFamily, Specifier.Validator, null);
-        // todo: generate less garbage.
-        return new TypedColumn(comparator.compose(ByteBuffer.wrap(name)), validator.compose(ByteBuffer.wrap(value)));
+        return new TypedColumn(comparator, name, validator, value);
     }
 }

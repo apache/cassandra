@@ -182,4 +182,9 @@ public class UTF8Type extends AbstractType<String>
             return state == State.START;
         }
     }
+
+    public Class<String> getType()
+    {
+        return String.class;
+    }
 }

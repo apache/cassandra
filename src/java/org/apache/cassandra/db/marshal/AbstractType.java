@@ -139,4 +139,7 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>
     {
         return false;
     }
+    
+    /** returns the class this AbstractType represents. */
+    public abstract Class<T> getType();
 }

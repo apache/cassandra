@@ -150,4 +150,9 @@ public final class IntegerType extends AbstractType<BigInteger>
     {
         // no invalid integers.
     }
+
+    public Class<BigInteger> getType()
+    {
+        return BigInteger.class;
+    }
 }

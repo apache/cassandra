@@ -29,11 +29,17 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.sql.Types;
 import java.util.Arrays;
 
-import org.apache.cassandra.cql.jdbc.RowMetaData;
+import org.apache.cassandra.db.marshal.AsciiType;
+import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.db.marshal.IntegerType;
+import org.apache.cassandra.db.marshal.LongType;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.utils.FBUtilities;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -71,6 +77,20 @@ public class JdbcDriverTest extends EmbeddedServiceBase
             executeNoResults(con, q);
     }
     
+    private static void expectedMetaData(ResultSetMetaData md, int col, String colClass, String table, String schema,
+                                  String label, int type, String typeName, boolean signed, boolean caseSensitive) throws SQLException
+    {
+        assert colClass.equals(md.getColumnClassName(col)); // full class name of type<T>
+        assert table.equals(md.getTableName(col));
+        assert schema.equals(md.getSchemaName(col));
+        assert label.equals(md.getColumnLabel(col)) : "expected " + label + " got " + md.getColumnLabel(col);
+        assert label.equals(md.getColumnName(col));
+        assert type == md.getColumnType(col);
+        assert typeName.equals(md.getColumnTypeName(col)) : "expected " + typeName + " got " + md.getColumnTypeName(col); // simple name of abstract type.
+        assert md.isSigned(col) == signed;
+        assert md.isCaseSensitive(col) == caseSensitive;
+    }
+    
     @Test 
     public void testIntegerMetadata() throws SQLException
     {
@@ -80,12 +100,11 @@ public class JdbcDriverTest extends EmbeddedServiceBase
         assert rs.next();
         assert rs.getInt("1") == 111;
         assert rs.getInt("2") == 222;
-        RowMetaData<BigInteger, BigInteger> rd = rs.unwrap(RowMetaData.class);
-        assert rd.getColumnCount() == 2;
-        assert rd.getColumnName(0).equals(new BigInteger("1"));
-        assert rd.getColumnValue(0).equals(new BigInteger("111"));
-        assert rd.getColumnName(1).equals(new BigInteger("2"));
-        assert rd.getColumnValue(1).equals(new BigInteger("222"));
+        
+        ResultSetMetaData md = rs.getMetaData();
+        assert md.getColumnCount() == 2;
+        expectedMetaData(md, 0, BigInteger.class.getName(), "JdbcInteger", "Keyspace1", "1", Types.BIGINT, IntegerType.class.getSimpleName(), true, false);
+        expectedMetaData(md, 1, BigInteger.class.getName(), "JdbcInteger", "Keyspace1", "2", Types.BIGINT, IntegerType.class.getSimpleName(), true, false);
     }
     
     @Test
@@ -97,16 +116,11 @@ public class JdbcDriverTest extends EmbeddedServiceBase
         assert rs.next();
         assert rs.getLong("1") == 111;
         assert rs.getLong("2") == 222;
-        RowMetaData<Long, Long> rd = rs.unwrap(RowMetaData.class);
-        assert rd.getColumnCount() == 2;
-        assert rd.getColumnName(0).equals(new Long("1"));
-        assert rd.getColumnValue(0).equals(new Long("111"));
-        assert rd.getColumnName(1).equals(new Long("2"));
-        assert rd.getColumnValue(1).equals(new Long("222"));
-        assert rd.getColumnName(0) == 1L;
-        assert rd.getColumnValue(0) == 111L;
-        assert rd.getColumnName(1) == 2L;
-        assert rd.getColumnValue(1) == 222L;
+        
+        ResultSetMetaData md = rs.getMetaData();
+        assert md.getColumnCount() == 2;
+        expectedMetaData(md, 0, Long.class.getName(), "JdbcLong", "Keyspace1", "1", Types.BIGINT, LongType.class.getSimpleName(), true, false);
+        expectedMetaData(md, 1, Long.class.getName(), "JdbcLong", "Keyspace1", "2", Types.BIGINT, LongType.class.getSimpleName(), true, false);
     }
     
     @Test
@@ -122,13 +136,16 @@ public class JdbcDriverTest extends EmbeddedServiceBase
             assert rs.next();
             assert rs.getString("a").equals("aa");
             assert rs.getString("b").equals("bb");
-            RowMetaData<String, String> rd = rs.unwrap(RowMetaData.class);
-            assert rd.getColumnCount() == 2;
-            assert rd.getColumnName(0).equals("a");
-            assert rd.getColumnValue(0).equals("aa");
-            assert rd.getColumnName(1).equals("b");
-            assert rd.getColumnValue(1).equals("bb");
         }
+        
+        ResultSetMetaData md = rs0.getMetaData();
+        assert md.getColumnCount() == 2;
+        expectedMetaData(md, 0, String.class.getName(), "JdbcAscii", "Keyspace1", "a", Types.VARCHAR, AsciiType.class.getSimpleName(), false, true);
+        expectedMetaData(md, 1, String.class.getName(), "JdbcAscii", "Keyspace1", "b", Types.VARCHAR, AsciiType.class.getSimpleName(), false, true);
+        md = rs1.getMetaData();
+        assert md.getColumnCount() == 2;
+        expectedMetaData(md, 0, String.class.getName(), "JdbcUtf8", "Keyspace1", "a", Types.VARCHAR, UTF8Type.class.getSimpleName(), false, true);
+        expectedMetaData(md, 1, String.class.getName(), "JdbcUtf8", "Keyspace1", "b", Types.VARCHAR, UTF8Type.class.getSimpleName(), false, true);
     }
     
     @Test
@@ -154,11 +171,10 @@ public class JdbcDriverTest extends EmbeddedServiceBase
         assert Arrays.equals(bb, rs.getBytes(1));
         assert Arrays.equals(aa, rs.getBytes(FBUtilities.bytesToHex(a)));
         assert Arrays.equals(bb, rs.getBytes(FBUtilities.bytesToHex(b)));
-        RowMetaData<ByteBuffer, ByteBuffer> rd = rs.unwrap(RowMetaData.class);
-        assert rd.getColumnName(0).equals(ByteBuffer.wrap(a));
-        assert rd.getColumnName(1).equals(ByteBuffer.wrap(b));
-        assert rd.getColumnValue(0).equals(ByteBuffer.wrap(aa));
-        assert rd.getColumnValue(1).equals(ByteBuffer.wrap(bb));
+        ResultSetMetaData md = rs.getMetaData();
+        assert md.getColumnCount() == 2;
+        expectedMetaData(md, 0, ByteBuffer.class.getName(), "JdbcBytes", "Keyspace1", FBUtilities.bytesToHex(a), Types.BINARY, BytesType.class.getSimpleName(), false, false);
+        expectedMetaData(md, 1, ByteBuffer.class.getName(), "JdbcBytes", "Keyspace1", FBUtilities.bytesToHex(b), Types.BINARY, BytesType.class.getSimpleName(), false, false);
     }
     
     /** Method to test statement. */

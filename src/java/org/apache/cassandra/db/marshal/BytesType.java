@@ -40,9 +40,7 @@ public class BytesType extends AbstractType<ByteBuffer>
     public int compare(ByteBuffer o1, ByteBuffer o2)
     {
         return BytesType.bytesCompare(o1, o2);
- 
     }
-
     
     public static int bytesCompare(ByteBuffer o1, ByteBuffer o2)
     {
@@ -74,5 +72,10 @@ public class BytesType extends AbstractType<ByteBuffer>
     public void validate(ByteBuffer bytes) throws MarshalException
     {
         // all bytes are legal.
+    }
+
+    public Class<ByteBuffer> getType()
+    {
+        return ByteBuffer.class;
     }
 }

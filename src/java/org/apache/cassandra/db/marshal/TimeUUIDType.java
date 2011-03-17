@@ -185,4 +185,9 @@ public class TimeUUIDType extends AbstractType<UUID>
                 throw new MarshalException("Invalid version for TimeUUID type.");
         }
     }
+
+    public Class<UUID> getType()
+    {
+        return UUID.class;
+    }
 }

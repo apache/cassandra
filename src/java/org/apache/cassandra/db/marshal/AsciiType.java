@@ -72,4 +72,9 @@ public class AsciiType extends AbstractType<String>
                 throw new MarshalException("Invalid byte for ascii: " + Byte.toString(b));
         }
     }
+
+    public Class<String> getType()
+    {
+        return String.class;
+    }
 }

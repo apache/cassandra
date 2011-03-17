@@ -82,4 +82,9 @@ public class LexicalUUIDType extends AbstractType<UUID>
             throw new MarshalException(String.format("LexicalUUID should be 16 or 0 bytes (%d)", bytes.remaining()));
         // not sure what the version should be for this.
     }
+
+    public Class<UUID> getType()
+    {
+        return UUID.class;
+    }
 }

@@ -41,4 +41,9 @@ public abstract class AbstractCommutativeType extends AbstractType<Long>
      * create commutative column
      */
     public abstract Column createColumn(ByteBuffer name, ByteBuffer value, long timestamp);
+
+    public Class<Long> getType()
+    {
+        return Long.class;
+    }
 }
