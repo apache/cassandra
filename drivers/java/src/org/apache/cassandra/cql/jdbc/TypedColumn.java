@@ -8,8 +8,9 @@ class TypedColumn<N, V>
 {
     private final N name;
     private final V value;
-    private final AbstractType<N> nameType;
-    private final AbstractType<V> valueType;
+    
+    // we cache the string versions of the byte buffers here.  It turns out that {N|V}.toString() isn't always the same
+    // (a good example is byte buffers) as the stringified versions supplied by the AbstractTypes.
     private final String nameString;
     private final String valueString;
     
@@ -19,8 +20,6 @@ class TypedColumn<N, V>
         ByteBuffer bbValue = ByteBuffer.wrap(value);
         this.name = comparator.compose(bbName);
         this.value = validator.compose(bbValue);
-        nameType = comparator;
-        valueType = validator;
         nameString = comparator.getString(bbName);
         valueString = validator.getString(bbValue);
     }
@@ -33,16 +32,6 @@ class TypedColumn<N, V>
     public V getValue()
     {
         return value;
-    }
-    
-    public AbstractType<N> getNameType()
-    {
-        return nameType;
-    }
-    
-    public AbstractType<V> getValueType()
-    {
-        return valueType;
     }
     
     public String getNameString()

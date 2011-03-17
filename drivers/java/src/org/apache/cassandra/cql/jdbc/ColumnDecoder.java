@@ -47,7 +47,7 @@ class ColumnDecoder
      * @param def avoids additional map lookup if specified. null is ok though.
      * @return
      */
-    private AbstractType getComparator(String keyspace, String columnFamily, Specifier specifier, CfDef def) 
+    AbstractType getComparator(String keyspace, String columnFamily, Specifier specifier, CfDef def) 
     {
         // check cache first.
         String key = String.format(MapFormatString, keyspace, columnFamily, specifier.name());
