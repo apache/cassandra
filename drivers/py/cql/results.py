@@ -40,6 +40,9 @@ class Row(object):
     def __init__(self, key, columns, keyspace, cfam, decoder):
         self.key = key
         self.columns = ColumnsProxy(columns, keyspace, cfam, decoder)
+        
+    def __iter__(self):
+        return iter(self.columns)
 
 class ColumnsProxy(object):
     def __init__(self, columns, keyspace, cfam, decoder):
