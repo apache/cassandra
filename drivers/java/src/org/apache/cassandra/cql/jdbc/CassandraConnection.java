@@ -50,7 +50,7 @@ import org.apache.thrift.transport.TTransportException;
 /**
  * Implementation class for {@link Connection}.
  */
-public class CassandraConnection implements Connection
+class CassandraConnection implements Connection
 {
     
     /** The cassandra con. */

@@ -2321,16 +2321,15 @@ class CassandraResultSet<N, V> implements ResultSet
         // todo: once the kinks are worked out, allow unwrapping as CassandraResultSetMetaData.
         public <T> T unwrap(Class<T> iface) throws SQLException
         {
-//            if (iface.equals(CassandraResultSetMetaData.class))
-//                return (T)this;
-//            else
+            if (iface.equals(CassandraResultSetMetaData.class))
+                return (T)this;
+            else
                 throw new SQLFeatureNotSupportedException("No wrappers");
         }
 
         public boolean isWrapperFor(Class<?> iface) throws SQLException
         {
-//            return CassandraResultSetMetaData.class.isAssignableFrom(iface);
-            return false;
+            return CassandraResultSetMetaData.class.isAssignableFrom(iface);
         }
     }
 }

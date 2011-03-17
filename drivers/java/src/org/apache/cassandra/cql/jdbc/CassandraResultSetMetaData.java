@@ -6,7 +6,7 @@ import java.sql.SQLException;
  * ResultSetMetaData give lots of nice detailed type inforamtion about column values.
  * This interface aims to do the same thing but distinguishes column names and values.
  */
-interface CassandraResultSetMetaData
+public interface CassandraResultSetMetaData
 {
     /** exposes row key */
     public byte[] getKey();
