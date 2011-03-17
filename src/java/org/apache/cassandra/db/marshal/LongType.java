@@ -72,6 +72,10 @@ public class LongType extends AbstractType<Long>
 
     public ByteBuffer fromString(String source) throws MarshalException
     {
+        // Return an empty ByteBuffer for an empty string.
+        if (source.isEmpty())
+            return ByteBuffer.allocate(0);
+        
         long longType;
 
         try

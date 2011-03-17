@@ -66,6 +66,10 @@ public class LexicalUUIDType extends AbstractType<UUID>
 
     public ByteBuffer fromString(String source) throws MarshalException
     {
+        // Return an empty ByteBuffer for an empty string.
+        if (source.isEmpty())
+            return ByteBuffer.allocate(0);
+        
         try
         {
             return ByteBuffer.wrap(UUIDGen.decompose(UUID.fromString(source)));

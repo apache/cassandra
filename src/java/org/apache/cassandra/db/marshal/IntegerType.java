@@ -132,6 +132,10 @@ public final class IntegerType extends AbstractType<BigInteger>
 
     public ByteBuffer fromString(String source) throws MarshalException
     {
+        // Return an empty ByteBuffer for an empty string.
+        if (source.isEmpty())
+            return ByteBuffer.allocate(0);
+        
         BigInteger integerType;
 
         try

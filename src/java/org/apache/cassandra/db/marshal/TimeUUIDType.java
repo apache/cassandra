@@ -120,6 +120,10 @@ public class TimeUUIDType extends AbstractType<UUID>
 
     public ByteBuffer fromString(String source) throws MarshalException
     {
+        // Return an empty ByteBuffer for an empty string.
+        if (source.isEmpty())
+            return ByteBuffer.allocate(0);
+        
         ByteBuffer idBytes = null;
         
         // ffffffff-ffff-ffff-ffff-ffffffffff
