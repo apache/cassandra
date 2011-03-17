@@ -394,12 +394,41 @@ public class ThriftValidation
         if (index_clause.expressions.isEmpty())
             throw new InvalidRequestException("index clause list may not be empty");
         Set<ByteBuffer> indexedColumns = Table.open(keyspace).getColumnFamilyStore(columnFamily).getIndexedColumns();
+        AbstractType nameValidator =  ColumnFamily.getComparatorFor(keyspace, columnFamily, null);
+
+        boolean isIndexed = false;
         for (IndexExpression expression : index_clause.expressions)
         {
-            if (expression.op.equals(IndexOperator.EQ) && indexedColumns.contains(expression.column_name))
-                return;
+            try
+            {
+                nameValidator.validate(expression.column_name);
+            }
+            catch (MarshalException me)
+            {
+                throw new InvalidRequestException(String.format("[%s]=[%s] failed name validation (%s)",
+                                                                ByteBufferUtil.bytesToHex(expression.column_name),
+                                                                ByteBufferUtil.bytesToHex(expression.value),
+                                                                me.getMessage()));
+            }
+
+            AbstractType valueValidator = DatabaseDescriptor.getValueValidator(keyspace, columnFamily, expression.column_name);
+            try
+            {
+                valueValidator.validate(expression.value);
+            }
+            catch (MarshalException me)
+            {
+                throw new InvalidRequestException(String.format("[%s]=[%s] failed value validation (%s)",
+                                                                ByteBufferUtil.bytesToHex(expression.column_name),
+                                                                ByteBufferUtil.bytesToHex(expression.value),
+                                                                me.getMessage()));
+            }
+
+            isIndexed |= expression.op.equals(IndexOperator.EQ) && indexedColumns.contains(expression.column_name);
         }
-        throw new InvalidRequestException("No indexed columns present in index clause with operator EQ");
+
+        if (!isIndexed)
+            throw new InvalidRequestException("No indexed columns present in index clause with operator EQ");
     }
 
     public static void validateCfDef(CfDef cf_def) throws InvalidRequestException
