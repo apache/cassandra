@@ -11,11 +11,15 @@ SELECT ?,?,?,? FROM ColumnFamily WHERE KEY = ? AND 'col' = ?;
 """
 USE Keyspace;
 """,
+"""
+SELECT ?..? FROM ColumnFamily;
+""",
 )
 
 ARGUMENTS = (
     (1, 3, long(1000), long(3000), "key", unicode("val")),
     tuple(),
+    ("a'b", "c'd'e"),
 )
 
 STANDARDS = (
@@ -24,6 +28,9 @@ SELECT 1,3,1000,3000 FROM ColumnFamily WHERE KEY = 'key' AND 'col' = 'val';
 """,
 """
 USE Keyspace;
+""",
+"""
+SELECT 'a''b'..'c''d''e' FROM ColumnFamily;
 """,
 )
 

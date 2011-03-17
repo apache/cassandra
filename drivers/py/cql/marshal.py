@@ -49,17 +49,17 @@ def marshal(term):
     if isinstance(term, (long,int)):
         return "%d" % term
     elif isinstance(term, unicode):
-        return "'%s'" % term.encode('utf8')
+        return "'%s'" % __escape_quotes(term.encode('utf8'))
     elif isinstance(term, str):
-        return "'%s'" % term
+        return "'%s'" % __escape_quotes(term)
     elif isinstance(term, UUID):
         if term.version == 1:
             return "timeuuid(\"%s\")" % str(term)
         else:
             return str(term)
     else:
-        return str(term)
-        
+        return str(term)    
+    
 def unmarshal(bytestr, typestr):
     if typestr == "org.apache.cassandra.db.marshal.BytesType":
         return bytestr
@@ -84,3 +84,6 @@ def decode_bigint(term):
         val = val - (1 << (len(term) * 8))
     return val
 
+def __escape_quotes(term):
+    assert isinstance(term, (str, unicode))
+    return term.replace("\'", "''")
