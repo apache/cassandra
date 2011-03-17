@@ -121,13 +121,13 @@ public class JdbcDriverTest extends EmbeddedServiceBase
         
         ResultSetMetaData md = rs.getMetaData();
         assert md.getColumnCount() == 2;
-        expectedMetaData(md, 0, BigInteger.class.getName(), "JdbcInteger", "Keyspace1", "1", Types.BIGINT, IntegerType.class.getSimpleName(), true, false);
-        expectedMetaData(md, 1, BigInteger.class.getName(), "JdbcInteger", "Keyspace1", "2", Types.BIGINT, IntegerType.class.getSimpleName(), true, false);
+        expectedMetaData(md, 1, BigInteger.class.getName(), "JdbcInteger", "Keyspace1", "1", Types.BIGINT, IntegerType.class.getSimpleName(), true, false);
+        expectedMetaData(md, 2, BigInteger.class.getName(), "JdbcInteger", "Keyspace1", "2", Types.BIGINT, IntegerType.class.getSimpleName(), true, false);
 
         CassandraResultSetMetaData cmd = md.unwrap(CassandraResultSetMetaData.class);
         for (int i = 0; i < md.getColumnCount(); i++)
             expectedMetaData(
-                    cmd, i, 
+                    cmd, i+1, 
                     BigInteger.class.getName(), Types.BIGINT, IntegerType.class.getSimpleName(), true, false,
                     BigInteger.class.getName(), Types.BIGINT, IntegerType.class.getSimpleName(), true, false);
         
@@ -145,13 +145,13 @@ public class JdbcDriverTest extends EmbeddedServiceBase
         
         ResultSetMetaData md = rs.getMetaData();
         assert md.getColumnCount() == 2;
-        expectedMetaData(md, 0, Long.class.getName(), "JdbcLong", "Keyspace1", "1", Types.BIGINT, LongType.class.getSimpleName(), true, false);
-        expectedMetaData(md, 1, Long.class.getName(), "JdbcLong", "Keyspace1", "2", Types.BIGINT, LongType.class.getSimpleName(), true, false);
+        expectedMetaData(md, 1, Long.class.getName(), "JdbcLong", "Keyspace1", "1", Types.BIGINT, LongType.class.getSimpleName(), true, false);
+        expectedMetaData(md, 2, Long.class.getName(), "JdbcLong", "Keyspace1", "2", Types.BIGINT, LongType.class.getSimpleName(), true, false);
         
         CassandraResultSetMetaData cmd = md.unwrap(CassandraResultSetMetaData.class);
         for (int i = 0; i < md.getColumnCount(); i++)
             expectedMetaData(
-                    cmd, i,
+                    cmd, i+1,
                     Long.class.getName(), Types.BIGINT, LongType.class.getSimpleName(), true, false,
                     Long.class.getName(), Types.BIGINT, LongType.class.getSimpleName(), true, false);
     }
@@ -173,21 +173,21 @@ public class JdbcDriverTest extends EmbeddedServiceBase
         
         ResultSetMetaData md = rs0.getMetaData();
         assert md.getColumnCount() == 2;
-        expectedMetaData(md, 0, String.class.getName(), "JdbcAscii", "Keyspace1", "a", Types.VARCHAR, AsciiType.class.getSimpleName(), false, true);
-        expectedMetaData(md, 1, String.class.getName(), "JdbcAscii", "Keyspace1", "b", Types.VARCHAR, AsciiType.class.getSimpleName(), false, true);
+        expectedMetaData(md, 1, String.class.getName(), "JdbcAscii", "Keyspace1", "a", Types.VARCHAR, AsciiType.class.getSimpleName(), false, true);
+        expectedMetaData(md, 2, String.class.getName(), "JdbcAscii", "Keyspace1", "b", Types.VARCHAR, AsciiType.class.getSimpleName(), false, true);
         md = rs1.getMetaData();
         assert md.getColumnCount() == 2;
-        expectedMetaData(md, 0, String.class.getName(), "JdbcUtf8", "Keyspace1", "a", Types.VARCHAR, UTF8Type.class.getSimpleName(), false, true);
-        expectedMetaData(md, 1, String.class.getName(), "JdbcUtf8", "Keyspace1", "b", Types.VARCHAR, UTF8Type.class.getSimpleName(), false, true);
+        expectedMetaData(md, 1, String.class.getName(), "JdbcUtf8", "Keyspace1", "a", Types.VARCHAR, UTF8Type.class.getSimpleName(), false, true);
+        expectedMetaData(md, 2, String.class.getName(), "JdbcUtf8", "Keyspace1", "b", Types.VARCHAR, UTF8Type.class.getSimpleName(), false, true);
         
         CassandraResultSetMetaData cmd0 = rs0.getMetaData().unwrap(CassandraResultSetMetaData.class);
         CassandraResultSetMetaData cmd1 = rs1.getMetaData().unwrap(CassandraResultSetMetaData.class);
         for (int i = 0; i < 2; i++)
         {
-            expectedMetaData(cmd0, i,
+            expectedMetaData(cmd0, i+1,
                     String.class.getName(), Types.VARCHAR, AsciiType.class.getSimpleName(), false, true,
                     String.class.getName(), Types.VARCHAR, AsciiType.class.getSimpleName(), false, true);
-            expectedMetaData(cmd1, i,
+            expectedMetaData(cmd1, i+1,
                     String.class.getName(), Types.VARCHAR, UTF8Type.class.getSimpleName(), false, true,
                     String.class.getName(), Types.VARCHAR, UTF8Type.class.getSimpleName(), false, true);
             
@@ -219,12 +219,12 @@ public class JdbcDriverTest extends EmbeddedServiceBase
         assert Arrays.equals(bb, rs.getBytes(FBUtilities.bytesToHex(b)));
         ResultSetMetaData md = rs.getMetaData();
         assert md.getColumnCount() == 2;
-        expectedMetaData(md, 0, ByteBuffer.class.getName(), "JdbcBytes", "Keyspace1", FBUtilities.bytesToHex(a), Types.BINARY, BytesType.class.getSimpleName(), false, false);
-        expectedMetaData(md, 1, ByteBuffer.class.getName(), "JdbcBytes", "Keyspace1", FBUtilities.bytesToHex(b), Types.BINARY, BytesType.class.getSimpleName(), false, false);
+        expectedMetaData(md, 1, ByteBuffer.class.getName(), "JdbcBytes", "Keyspace1", FBUtilities.bytesToHex(a), Types.BINARY, BytesType.class.getSimpleName(), false, false);
+        expectedMetaData(md, 2, ByteBuffer.class.getName(), "JdbcBytes", "Keyspace1", FBUtilities.bytesToHex(b), Types.BINARY, BytesType.class.getSimpleName(), false, false);
         
         CassandraResultSetMetaData cmd = md.unwrap(CassandraResultSetMetaData.class);
         for (int i = 0; i < md.getColumnCount(); i++)
-            expectedMetaData(cmd, 0,
+            expectedMetaData(cmd, i+1,
                     ByteBuffer.class.getName(), Types.BINARY, BytesType.class.getSimpleName(), false, false,
                     ByteBuffer.class.getName(), Types.BINARY, BytesType.class.getSimpleName(), false, false);
     }

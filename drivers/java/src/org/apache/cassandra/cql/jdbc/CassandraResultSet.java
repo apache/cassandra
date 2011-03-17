@@ -2021,6 +2021,7 @@ class CassandraResultSet<N, V> implements ResultSet
 
         public boolean isNameCaseSensitive(int column) throws SQLException
         {
+            column--;
             checkIndex(column);
             if (values.get(column).getNameType() instanceof ColumnMetaData)
                 return ((ColumnMetaData)values.get(column).getNameType()).isCaseSensitive();
@@ -2030,6 +2031,7 @@ class CassandraResultSet<N, V> implements ResultSet
         
         public boolean isValueCaseSensitive(int column) throws SQLException
         {
+            column--;
             checkIndex(column);
             if (values.get(column).getValueType() instanceof ColumnMetaData)
                 return ((ColumnMetaData)values.get(column).getValueType()).isCaseSensitive();
@@ -2039,6 +2041,7 @@ class CassandraResultSet<N, V> implements ResultSet
 
         public boolean isNameCurrency(int column) throws SQLException
         {
+            column--;
             checkIndex(column);
             if (values.get(column).getNameType() instanceof ColumnMetaData)
                 return ((ColumnMetaData)values.get(column).getNameType()).isCurrency();
@@ -2048,6 +2051,7 @@ class CassandraResultSet<N, V> implements ResultSet
         
         public boolean isValueCurrency(int column) throws SQLException
         {
+            column--;
             checkIndex(column);
             if (values.get(column).getValueType() instanceof ColumnMetaData)
                 return ((ColumnMetaData)values.get(column).getValueType()).isCurrency();
@@ -2057,6 +2061,7 @@ class CassandraResultSet<N, V> implements ResultSet
 
         public boolean isNameSigned(int column) throws SQLException
         {
+            column--;
             checkIndex(column);
             TypedColumn col = values.get(column);
             if (col.getNameType() == IntegerType.instance || col.getNameType() == LongType.instance)
@@ -2069,6 +2074,7 @@ class CassandraResultSet<N, V> implements ResultSet
         
         public boolean isValueSigned(int column) throws SQLException
         {
+            column--;
             checkIndex(column);
             TypedColumn col = values.get(column);
             if (col.getValueType() == IntegerType.instance || col.getValueType() == LongType.instance)
@@ -2086,12 +2092,14 @@ class CassandraResultSet<N, V> implements ResultSet
 
         public int getValueDisplaySize(int column) throws SQLException
         {
+            column--;
             checkIndex(column);
             return values.get(column).getValueString().length();
         }
 
         public int getNamePrecision(int column) throws SQLException
         {
+            column--;
             checkIndex(column);
             TypedColumn col = values.get(column);
             if (col.getNameType() instanceof ColumnMetaData)
@@ -2110,6 +2118,7 @@ class CassandraResultSet<N, V> implements ResultSet
         
         public int getValuePrecision(int column) throws SQLException
         {
+            column--;
             checkIndex(column);
             TypedColumn col = values.get(column);
             if (col.getValueType() instanceof ColumnMetaData)
@@ -2128,6 +2137,7 @@ class CassandraResultSet<N, V> implements ResultSet
 
         public int getNameScale(int column) throws SQLException
         {
+            column--;
             checkIndex(column);
             if (values.get(column).getValueType() instanceof ColumnMetaData)
                 return ((ColumnMetaData)values.get(column).getNameType()).getScale();
@@ -2137,6 +2147,7 @@ class CassandraResultSet<N, V> implements ResultSet
         
         public int getValueScale(int column) throws SQLException
         {
+            column--;
             checkIndex(column);
             if (values.get(column).getValueType() instanceof ColumnMetaData)
                 return ((ColumnMetaData)values.get(column).getValueType()).getScale();
@@ -2146,12 +2157,14 @@ class CassandraResultSet<N, V> implements ResultSet
 
         public int getNameType(int column) throws SQLException
         {
+            column--;
             checkIndex(column);
             return getJdbcType(values.get(column).getNameType());
         }
         
         public int getValueType(int column) throws SQLException
         {
+            column--;
             checkIndex(column);
             return getJdbcType(values.get(column).getValueType());
         }
@@ -2177,24 +2190,28 @@ class CassandraResultSet<N, V> implements ResultSet
 
         public String getNameTypeName(int column) throws SQLException
         {
+            column--;
             checkIndex(column);
             return values.get(column).getNameType().getClass().getSimpleName();
         }
         
         public String getValueTypeName(int column) throws SQLException
         {
+            column--;
             checkIndex(column);
             return values.get(column).getValueType().getClass().getSimpleName();
         }
 
         public String getNameClassName(int column) throws SQLException
         {
+            column--;
             checkIndex(column);
             return values.get(column).getNameType().getType().getName();
         }
 
         public String getValueClassName(int column) throws SQLException
         {
+            column--;
             checkIndex(column);
             return values.get(column).getValueType().getType().getName();
         }
@@ -2216,6 +2233,7 @@ class CassandraResultSet<N, V> implements ResultSet
 
         public boolean isAutoIncrement(int column) throws SQLException
         {
+            column--;
             checkIndex(column);
             return values.get(column).getValueType() instanceof CounterColumnType; // todo: check Value is correct.
         }
@@ -2258,6 +2276,7 @@ class CassandraResultSet<N, V> implements ResultSet
 
         public String getColumnName(int column) throws SQLException
         {
+            column--;
             checkIndex(column);
             return values.get(column).getNameString();
         }
