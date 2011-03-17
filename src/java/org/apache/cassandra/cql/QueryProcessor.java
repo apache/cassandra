@@ -605,8 +605,9 @@ public class QueryProcessor
                     {
                         for (Term column : delete.getColumns())
                         {
-                            validateColumnName(keyspace, delete.getColumnFamily(), column.getByteBuffer(comparator));
-                            rm.delete(new QueryPath(delete.getColumnFamily(), null, column.getByteBuffer(comparator)),
+                            ByteBuffer columnName = column.getByteBuffer(comparator);
+                            validateColumnName(keyspace, delete.getColumnFamily(), columnName);
+                            rm.delete(new QueryPath(delete.getColumnFamily(), null, columnName),
                                       System.currentTimeMillis());
                         }
                     }
