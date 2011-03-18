@@ -162,7 +162,6 @@
       <!-- for distributed tests -->
       <artifact:remoteRepository id="jclouds"   url="http://jclouds.googlecode.com/svn/repo"/>
       <artifact:remoteRepository id="oauth"     url="http://oauth.googlecode.com/svn/code/maven"/>
-      <artifact:remoteRepository id="twttr"     url="http://maven.twttr.com"/>
 
       <property name="maven-ant-tasks.initialized" value="true"/>
     </target>
@@ -208,13 +207,12 @@
                              sourcesFilesetId="test-dependency-sources" 
                              cacheDependencyRefs="true" 
                              dependencyRefsBuildFile="${build.dir}/test-dependencies.xml">
-        <dependency groupId="org.apache.whirr" artifactId="whirr-core" version="0.3.0-incubating-SNAPSHOT"/>
-        <dependency groupId="org.apache.whirr" artifactId="whirr-cli" version="0.3.0-incubating-SNAPSHOT"/>
+        <dependency groupId="org.apache.whirr" artifactId="whirr-core" version="0.3.0-incubating"/>
+        <dependency groupId="org.apache.whirr" artifactId="whirr-cli" version="0.3.0-incubating"/>
         <remoteRepository refid="apache"/>
         <remoteRepository refid="central"/>
         <remoteRepository refid="jclouds"/>
         <remoteRepository refid="oauth"/>
-        <remoteRepository refid="twttr"/>
       </artifact:dependencies>
       <copy todir="${test.lib}/jars">
         <fileset refid="test-dependency-jars"/>
