@@ -1654,7 +1654,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             IColumn column = data.getColumn(expression.column_name);
             if (column == null)
                 return false;
-            int v = data.getComparator().compare(column.value(), expression.value);
+            int v = data.metadata().getValueValidator(expression.column_name).compare(column.value(), expression.value);
             if (!satisfies(v, expression.op))
                 return false;
         }

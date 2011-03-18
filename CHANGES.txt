@@ -8,6 +8,8 @@
  * queue secondary indexes for flush before the parent (CASSANDRA-2330)
  * shut down server for OOM on a Thrift thread (CASSANDRA-2269)
  * reduce contention on Table.flusherLock (CASSANDRA-1954)
+ * fix comparator used for non-indexed secondary expressions in index scan
+   (CASSANDRA-2347)
 
 
 0.7.4
