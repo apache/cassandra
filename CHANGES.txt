@@ -12,6 +12,7 @@
    (CASSANDRA-2347)
  * ensure size calculation and write phase of large-row compaction use
    the same threshold for TTL expiration (CASSANDRA-2349)
+ * fix race when iterating CFs during add/drop (CASSANDRA-2350)
 
 
 0.7.4
