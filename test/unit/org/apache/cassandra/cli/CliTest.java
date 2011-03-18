@@ -188,13 +188,13 @@ public class CliTest extends CleanupHelper
             }
             else if (statement.startsWith("set "))
             {
-                assertEquals(result, "Value inserted.\n");
+                assertEquals(result, "Value inserted." + System.getProperty("line.separator"));
             }
             else if (statement.startsWith("get "))
             {
                 if (statement.contains("where"))
                 {
-                    assertTrue(result.startsWith("-------------------\nRowKey:"));
+                    assertTrue(result.startsWith("-------------------" + System.getProperty("line.separator") + "RowKey:"));
                 }
                 else
                 {

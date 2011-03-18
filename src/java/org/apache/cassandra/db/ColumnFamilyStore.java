@@ -700,6 +700,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             if (!icc.contains(this))
                 memtable = new Memtable(this);
 
+            if (memtableSwitchCount == Integer.MAX_VALUE)
+                memtableSwitchCount = 0;
+            memtableSwitchCount++;
+
             // when all the memtables have been written, including for indexes, mark the flush in the commitlog header.
             // a second executor makes sure the onMemtableFlushes get called in the right order,
             // while keeping the wait-for-flush (future.get) out of anything latency-sensitive.
@@ -720,11 +724,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         finally
         {
             Table.flusherLock.unlock();
-            if (memtableSwitchCount == Integer.MAX_VALUE)
-            {
-                memtableSwitchCount = 0;
-            }
-            memtableSwitchCount++;
         }
     }
 

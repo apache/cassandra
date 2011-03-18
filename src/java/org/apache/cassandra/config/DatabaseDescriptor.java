@@ -605,7 +605,7 @@ public class DatabaseDescriptor
 
     public static String getInitialToken()
     {
-        return conf.initial_token;
+        return System.getProperty("cassandra.initial_token", conf.initial_token);
     }
 
    public static String getClusterName()
@@ -672,12 +672,12 @@ public class DatabaseDescriptor
 
     public static int getStoragePort()
     {
-        return conf.storage_port;
+        return Integer.parseInt(System.getProperty("cassandra.storage_port", conf.storage_port.toString()));
     }
 
     public static int getRpcPort()
     {
-        return conf.rpc_port;
+        return Integer.parseInt(System.getProperty("cassandra.rpc_port", conf.rpc_port.toString()));
     }
 
     public static long getRpcTimeout()

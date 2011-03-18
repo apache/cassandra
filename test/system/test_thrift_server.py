@@ -17,7 +17,7 @@
 # to run a single test, run from trunk/:
 # PYTHONPATH=test nosetests --tests=system.test_thrift_server:TestMutations.test_empty_range
 
-import os, sys, time, struct
+import os, sys, time, struct, uuid
 
 from . import root, ThriftTester
 from . import thrift_client as client
@@ -1122,7 +1122,10 @@ class TestMutations(ThriftTester):
 
         ks1 = client.describe_keyspace("Keyspace1")
         assert ks1.replication_factor == 1
-        cf0 = ks1.cf_defs[0]
+        for cf in ks1.cf_defs:
+            if cf.name == "Standard1":
+                cf0 = cf
+                break;
         assert cf0.comparator_type == "org.apache.cassandra.db.marshal.BytesType"
 
     def test_describe(self):
@@ -1763,6 +1766,15 @@ class TestMutations(ThriftTester):
         assert len(result) == 1, result
         assert result[0].key == 'key3'
         assert len(result[0].columns) == 2, result[0].columns
+        
+        cp = ColumnParent('Indexed2')
+        # name must be valid (TimeUUID)
+        clause = IndexClause([IndexExpression('foo', IndexOperator.EQ, uuid.UUID('00000000-0000-1000-0000-000000000000').bytes)], '')
+        _expect_exception(lambda: client.get_indexed_slices(cp, clause, sp, ConsistencyLevel.ONE), InvalidRequestException)
+        
+        # value must be valid (TimeUUID)
+        clause = IndexClause([IndexExpression(uuid.UUID('00000000-0000-1000-0000-000000000000').bytes, IndexOperator.EQ, "foo")], '')
+        _expect_exception(lambda: client.get_indexed_slices(cp, clause, sp, ConsistencyLevel.ONE), InvalidRequestException)
         
     def test_index_scan_expiring(self):
         """ Test that column ttled expires from KEYS index"""
