@@ -103,26 +103,39 @@ public class IndexHelper
 
     /**
      * the index of the IndexInfo in which @name will be found.
-     * If the index is @indexList.size(), the @name appears nowhere.
+     * If the index is @indexList.size() or -1, the @name appears nowhere.
      */
     public static int indexFor(byte[] name, List<IndexInfo> indexList, AbstractType comparator, boolean reversed)
     {
         if (name.length == 0 && reversed)
             return indexList.size() - 1;
         IndexInfo target = new IndexInfo(name, name, 0, 0);
-        int index = Collections.binarySearch(indexList, target, getComparator(comparator));
-        return index < 0 ? -1 * (index + 1) : index;
+        int index = Collections.binarySearch(indexList, target, getComparator(comparator, reversed));
+        return index < 0 ? -index - (reversed ? 2 : 1) : index;
     }
 
-    public static Comparator<IndexInfo> getComparator(final AbstractType nameComparator)
+    public static Comparator<IndexInfo> getComparator(final AbstractType nameComparator, boolean reversed)
     {
-        return new Comparator<IndexInfo>()
+        if (reversed)
         {
-            public int compare(IndexInfo o1, IndexInfo o2)
+            return new Comparator<IndexInfo>()
             {
-                return nameComparator.compare(o1.lastName, o2.lastName);
-            }
-        };
+                public int compare(IndexInfo o1, IndexInfo o2)
+                {
+                    return nameComparator.compare(o1.firstName, o2.firstName);
+                }
+            };
+        }
+        else
+        {
+            return new Comparator<IndexInfo>()
+            {
+                public int compare(IndexInfo o1, IndexInfo o2)
+                {
+                    return nameComparator.compare(o1.lastName, o2.lastName);
+                }
+            };
+        }
     }
 
     public static class IndexInfo

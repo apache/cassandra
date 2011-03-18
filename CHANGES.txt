@@ -1,5 +1,6 @@
 0.6.13
  * shut down server for OOM on a Thrift thread (CASSANDRA-2269)
+ * fix reversed slices on large supercolumn rows (CASSANDRA-2212)
 
 
 0.6.12
