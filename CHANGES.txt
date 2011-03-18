@@ -10,6 +10,8 @@
  * reduce contention on Table.flusherLock (CASSANDRA-1954)
  * fix comparator used for non-indexed secondary expressions in index scan
    (CASSANDRA-2347)
+ * ensure size calculation and write phase of large-row compaction use
+   the same threshold for TTL expiration (CASSANDRA-2349)
 
 
 0.7.4

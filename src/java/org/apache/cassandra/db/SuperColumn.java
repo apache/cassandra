@@ -33,7 +33,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.io.ICompactSerializer2;
+import org.apache.cassandra.io.IColumnSerializer;
 import org.apache.cassandra.io.util.ColumnSortedMap;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -308,7 +308,7 @@ public class SuperColumn implements IColumn, IColumnContainer
     }
 }
 
-class SuperColumnSerializer implements ICompactSerializer2<IColumn>
+class SuperColumnSerializer implements IColumnSerializer
 {
     private static Logger logger = LoggerFactory.getLogger(SuperColumnSerializer.class);
 
@@ -348,6 +348,11 @@ class SuperColumnSerializer implements ICompactSerializer2<IColumn>
 
     public IColumn deserialize(DataInput dis) throws IOException
     {
+        return deserialize(dis, (int)(System.currentTimeMillis() / 1000));
+    }
+
+    public IColumn deserialize(DataInput dis, int expireBefore) throws IOException
+    {
         ByteBuffer name = ByteBufferUtil.readWithShortLength(dis);
         int localDeleteTime = dis.readInt();
         if (localDeleteTime != Integer.MIN_VALUE && localDeleteTime <= 0)
@@ -359,7 +364,7 @@ class SuperColumnSerializer implements ICompactSerializer2<IColumn>
         /* read the number of columns */
         int size = dis.readInt();
         ColumnSerializer serializer = Column.serializer();
-        ColumnSortedMap preSortedMap = new ColumnSortedMap(comparator, serializer, dis, size);
+        ColumnSortedMap preSortedMap = new ColumnSortedMap(comparator, serializer, dis, size, expireBefore);
         SuperColumn superColumn = new SuperColumn(name, new ConcurrentSkipListMap<ByteBuffer,IColumn>(preSortedMap));
         if (localDeleteTime != Integer.MIN_VALUE && localDeleteTime <= 0)
         {

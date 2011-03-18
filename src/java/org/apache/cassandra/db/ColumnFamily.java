@@ -35,7 +35,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.io.ICompactSerializer2;
+import org.apache.cassandra.io.IColumnSerializer;
 import org.apache.cassandra.io.util.IIterableColumns;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -70,7 +70,7 @@ public class ColumnFamily implements IColumnContainer, IIterableColumns
     private final Integer cfid;
     private final ColumnFamilyType type;
 
-    private transient ICompactSerializer2<IColumn> columnSerializer;
+    private transient IColumnSerializer columnSerializer;
     final AtomicLong markedForDeleteAt = new AtomicLong(Long.MIN_VALUE);
     final AtomicInteger localDeletionTime = new AtomicInteger(Integer.MIN_VALUE);
     private ConcurrentSkipListMap<ByteBuffer, IColumn> columns;
@@ -135,7 +135,7 @@ public class ColumnFamily implements IColumnContainer, IIterableColumns
     /**
      * FIXME: Gross.
      */
-    public ICompactSerializer2<IColumn> getColumnSerializer()
+    public IColumnSerializer getColumnSerializer()
     {
         return columnSerializer;
     }

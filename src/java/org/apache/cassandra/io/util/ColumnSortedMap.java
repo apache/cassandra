@@ -42,13 +42,15 @@ public class ColumnSortedMap implements SortedMap<ByteBuffer, IColumn>
     private DataInput dis;
     private Comparator<ByteBuffer> comparator;
     private int length;
+    private final int expireBefore;
 
-    public ColumnSortedMap(Comparator<ByteBuffer> comparator, ColumnSerializer serializer, DataInput dis, int length)
+    public ColumnSortedMap(Comparator<ByteBuffer> comparator, ColumnSerializer serializer, DataInput dis, int length, int expireBefore)
     {
         this.comparator = comparator;
         this.serializer = serializer;
         this.dis = dis;
         this.length = length;
+        this.expireBefore = expireBefore;
     }
 
     public int size()
@@ -138,7 +140,7 @@ public class ColumnSortedMap implements SortedMap<ByteBuffer, IColumn>
 
     public Set<Map.Entry<ByteBuffer, IColumn>> entrySet()
     {
-        return new ColumnSet(serializer, dis, length);
+        return new ColumnSet(serializer, dis, length, expireBefore);
     }
 }
 
@@ -147,12 +149,14 @@ class ColumnSet implements Set<Map.Entry<ByteBuffer, IColumn>>
     private ColumnSerializer serializer;
     private DataInput dis;
     private int length;
+    private final int expireBefore;
 
-    public ColumnSet(ColumnSerializer serializer, DataInput dis, int length)
+    public ColumnSet(ColumnSerializer serializer, DataInput dis, int length, int expireBefore)
     {
         this.serializer = serializer;
         this.dis = dis;
         this.length = length;
+        this.expireBefore = expireBefore;
     }
 
     public int size()
@@ -172,7 +176,7 @@ class ColumnSet implements Set<Map.Entry<ByteBuffer, IColumn>>
 
     public Iterator<Entry<ByteBuffer, IColumn>> iterator()
     {
-        return new ColumnIterator(serializer, dis, length);
+        return new ColumnIterator(serializer, dis, length, expireBefore);
     }
 
     public Object[] toArray()
@@ -226,12 +230,14 @@ class ColumnIterator implements Iterator<Map.Entry<ByteBuffer, IColumn>>
     private DataInput dis;
     private int length;
     private int count = 0;
+    private final int expireBefore;
 
-    public ColumnIterator(ColumnSerializer serializer, DataInput dis, int length)
+    public ColumnIterator(ColumnSerializer serializer, DataInput dis, int length, int expireBefore)
     {
         this.dis = dis;
         this.serializer = serializer;
         this.length = length;
+        this.expireBefore = expireBefore;
     }
 
     private IColumn deserializeNext()
@@ -239,7 +245,7 @@ class ColumnIterator implements Iterator<Map.Entry<ByteBuffer, IColumn>>
         try
         {
             count++;
-            return serializer.deserialize(dis);
+            return serializer.deserialize(dis, expireBefore);
         }
         catch (IOException e)
         {
