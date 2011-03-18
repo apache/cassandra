@@ -707,7 +707,9 @@ public class QueryProcessor
                 else
                 {
                     columnDef = new ColumnDefinition(columnName,
-                                                     null,
+                                                     DatabaseDescriptor.getValueValidator(keyspace,
+                                                                                          createIdx.getColumnFamily(),
+                                                                                          columnName),
                                                      org.apache.cassandra.thrift.IndexType.KEYS,
                                                      createIdx.getIndexName());
                 }
