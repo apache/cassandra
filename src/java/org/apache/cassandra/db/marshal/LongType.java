@@ -74,8 +74,8 @@ public class LongType extends AbstractType<Long>
     {
         // Return an empty ByteBuffer for an empty string.
         if (source.isEmpty())
-            return ByteBuffer.allocate(0);
-        
+            return ByteBufferUtil.EMPTY_BYTE_BUFFER;
+
         long longType;
 
         try

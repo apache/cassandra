@@ -24,6 +24,7 @@ package org.apache.cassandra.db.marshal;
 import java.nio.ByteBuffer;
 import java.util.UUID;
 
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.UUIDGen;
 
 public class LexicalUUIDType extends AbstractType<UUID>
@@ -68,8 +69,8 @@ public class LexicalUUIDType extends AbstractType<UUID>
     {
         // Return an empty ByteBuffer for an empty string.
         if (source.isEmpty())
-            return ByteBuffer.allocate(0);
-        
+            return ByteBufferUtil.EMPTY_BYTE_BUFFER;
+
         try
         {
             return ByteBuffer.wrap(UUIDGen.decompose(UUID.fromString(source)));

@@ -26,6 +26,7 @@ import java.text.ParseException;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 import org.apache.commons.lang.time.DateUtils;
@@ -122,7 +123,7 @@ public class TimeUUIDType extends AbstractType<UUID>
     {
         // Return an empty ByteBuffer for an empty string.
         if (source.isEmpty())
-            return ByteBuffer.allocate(0);
+            return ByteBufferUtil.EMPTY_BYTE_BUFFER;
         
         ByteBuffer idBytes = null;
         
