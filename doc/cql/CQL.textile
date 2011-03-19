@@ -211,13 +211,13 @@ CREATE COLUMNFAMILY ... WITH keyword1 = arg1 AND keyword2 = arg2;
 A number of optional keyword arguments can be supplied to control the configuration of a new column family.
 
 |_. keyword|_. default|_. description|
-|comparator|bytes|Determines sorting and validation of column names. Valid values are identical to the types listed in "Specifying Column Type":#columntypes above.|
+|comparator|utf8|Determines sorting and validation of column names. Valid values are identical to the types listed in "Specifying Column Type":#columntypes above.|
 |comment|none|A free-form, human-readable comment.|
 |row_cache_size|0|Number of rows whose entire contents to cache in memory.|
 |key_cache_size|200000|Number of keys per SSTable whose locations are kept in memory in "mostly LRU" order.|
 |read_repair_chance|1.0|The probability with which read repairs should be invoked on non-quorum reads.|
 |gc_grace_seconds|864000|Time to wait before garbage collecting tombstones (deletion markers).|
-|default_validation|bytes|Determines validation of column values. Valid values are identical to the types listed in "Specifying Column Type":#columntypes above.|
+|default_validation|utf8|Determines validation of column values. Valid values are identical to the types listed in "Specifying Column Type":#columntypes above.|
 |min_compaction_threshold|4|Minimum number of SSTables needed to start a minor compaction.|
 |max_compaction_threshold|32|Maximum number of SSTables allowed before a minor compaction is forced.|
 |row_cache_save_period_in_seconds|0|Number of seconds between saving row caches.|
