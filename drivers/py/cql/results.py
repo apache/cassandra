@@ -43,6 +43,12 @@ class Row(object):
         
     def __iter__(self):
         return iter(self.columns)
+    
+    def __getitem__(self, idx):
+        return self.columns[idx]
+    
+    def __len__(self):
+        return len(self.columns)
 
 class ColumnsProxy(object):
     def __init__(self, columns, keyspace, cfam, decoder):
