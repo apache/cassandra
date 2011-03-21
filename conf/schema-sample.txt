@@ -1,7 +1,7 @@
 /*This file contains an example Keyspace that can be created using the
 cassandra-cli command line interface as follows.
 
-bin/cassandra-cli -host localhost --file conf/Keyspace1.txt
+bin/cassandra-cli -host localhost --file conf/schema-sample.txt
 
 The cassandra-cli includes online help that explains the statements below. You can
 accessed the help without connecting to a running cassandra instance by starting the
