@@ -21,6 +21,7 @@ package org.apache.cassandra.cache;
  */
 
 
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -138,5 +139,10 @@ public class InstrumentedCache<K, V>
     public Set<K> getKeySet()
     {
         return map.keySet();
+    }
+
+    public Set<Map.Entry<K, V>> getEntrySet()
+    {
+        return map.entrySet();
     }
 }
