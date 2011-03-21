@@ -325,7 +325,11 @@ public class CliUserHelp {
                 state.out.println("example:");
                 state.out.println("assume Users comparator as lexicaluuid;");
                 break;
-
+            case CliParser.NODE_CONSISTENCY_LEVEL:
+                state.out.println("consistencylevel as <level>");
+                state.out.println("example:");
+                state.out.println("consistencylevel as QUORUM");
+                break;
             default:
                 state.out.println("?");
                 break;
@@ -372,6 +376,8 @@ public class CliUserHelp {
             state.out.println("truncate <column_family>;                      Truncate specified column family.");
             state.out.println("assume <column_family> <attribute> as <type>;");
             state.out.println("              Assume a given column family attributes to match a specified type.");
+            state.out.println("consistencylevel as <level>;");
+            state.out.println("                  Change the consistency level for set,get, and list operations.");
             state.out.println("list <cf>;                                   List all rows in the column family.");
             state.out.println("list <cf>[<startKey>:];");
             state.out.println("                       List rows in the column family beginning with <startKey>.");
