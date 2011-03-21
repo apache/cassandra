@@ -47,6 +47,11 @@ grunt> orderednames = ORDER namecounts BY $0;
 grunt> topnames = LIMIT orderednames 50;
 grunt> dump topnames;
 
+Slices on columns can also be specified:
+grunt> rows = LOAD 'cassandra://Keyspace1/Standard1&slice_start=C2&slice_end=C4&i&limit=1&reversed=true' USING CassandraStorage();
+
+Binary values for slice_start and slice_end can be escaped such as '\u0255'
+
 Outputting to Cassandra requires the same format from input, so the simplest example is:
 
 grunt> rows = LOAD 'cassandra://Keyspace1/Standard1' USING CassandraStorage();
