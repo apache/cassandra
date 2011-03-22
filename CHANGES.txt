@@ -22,6 +22,12 @@
  * queue secondary indexes for flush before the parent (CASSANDRA-2330)
  * shut down server for OOM on a Thrift thread (CASSANDRA-2269)
  * reduce contention on Table.flusherLock (CASSANDRA-1954)
+ * fix comparator used for non-indexed secondary expressions in index scan
+   (CASSANDRA-2347)
+ * ensure size calculation and write phase of large-row compaction use
+   the same threshold for TTL expiration (CASSANDRA-2349)
+ * fix race when iterating CFs during add/drop (CASSANDRA-2350)
+ * add ConsistencyLevel command to CLI (CASSANDRA-2354)
 
 
 0.7.4

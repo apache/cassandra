@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
@@ -60,10 +61,16 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
     private final static ByteBuffer BOUND = ByteBufferUtil.EMPTY_BYTE_BUFFER;
     private static final Log logger = LogFactory.getLog(CassandraStorage.class);
 
+    private ByteBuffer slice_start = BOUND;
+    private ByteBuffer slice_end = BOUND;
+    private boolean slice_reverse = false;
+    private String keyspace;
+    private String column_family;
+
     private Configuration conf;
     private RecordReader reader;
     private RecordWriter writer;
-    private final int limit;
+    private int limit;
 
     public CassandraStorage() 
     { 
@@ -149,7 +156,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
         this.reader = reader;
     }
 
-    private String[] parseLocation(String location) throws IOException
+    private void setLocationFromUri(String location) throws IOException
     {
         // parse uri into keyspace and columnfamily
         String names[];
@@ -157,14 +164,30 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
         {
             if (!location.startsWith("cassandra://"))
                 throw new Exception("Bad scheme.");
-            String[] parts = location.split("/+");
-            names = new String[]{ parts[1], parts[2] };
+            String[] urlParts = location.split("\\?");
+            if (urlParts.length > 1)
+            {
+                for (String param : urlParts[1].split("&"))
+                {
+                    String[] pair = param.split("=");
+                    if (pair[0].equals("slice_start"))
+                        slice_start = ByteBufferUtil.bytes(pair[1]);
+                    else if (pair[0].equals("slice_end"))
+                        slice_end = ByteBufferUtil.bytes(pair[1]);
+                    else if (pair[0].equals("reversed"))
+                        slice_reverse = Boolean.parseBoolean(pair[1]);
+                    else if (pair[0].equals("limit"))
+                        limit = Integer.parseInt(pair[1]);
+                }
+            }
+            String[] parts = urlParts[0].split("/+");
+            keyspace = parts[1];
+            column_family = parts[2];
         }
         catch (Exception e)
         {
-            throw new IOException("Expected 'cassandra://<keyspace>/<columnfamily>': " + e.getMessage());
+            throw new IOException("Expected 'cassandra://<keyspace>/<columnfamily>[?slice_start=<start>&slice_end=<end>[&reversed=true][&limit=1]]': " + e.getMessage());
         }
-       return names;
     }
 
     private void setConnectionInformation() throws IOException
@@ -186,12 +209,15 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
     @Override
     public void setLocation(String location, Job job) throws IOException
     {
-        SliceRange range = new SliceRange(BOUND, BOUND, false, limit);
-        SlicePredicate predicate = new SlicePredicate().setSlice_range(range);
         conf = job.getConfiguration();
-        ConfigHelper.setInputSlicePredicate(conf, predicate);
-        String[] names = parseLocation(location);
-        ConfigHelper.setInputColumnFamily(conf, names[0], names[1]);
+        setLocationFromUri(location);
+        if (ConfigHelper.getRawInputSlicePredicate(conf) == null)
+        {
+            SliceRange range = new SliceRange(slice_start, slice_end, slice_reverse, limit);
+            SlicePredicate predicate = new SlicePredicate().setSlice_range(range);
+            ConfigHelper.setInputSlicePredicate(conf, predicate);
+        }
+        ConfigHelper.setInputColumnFamily(conf, keyspace, column_family);
         setConnectionInformation();
     }
 
@@ -214,8 +240,8 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
     public void setStoreLocation(String location, Job job) throws IOException
     {
         conf = job.getConfiguration();
-        String[] names = parseLocation(location);
-        ConfigHelper.setOutputColumnFamily(conf, names[0], names[1]);
+        setLocationFromUri(location);
+        ConfigHelper.setOutputColumnFamily(conf, keyspace, column_family);
         setConnectionInformation();
     }
 

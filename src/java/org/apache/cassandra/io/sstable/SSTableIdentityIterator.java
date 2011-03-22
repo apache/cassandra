@@ -52,6 +52,9 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
     public final int columnCount;
     private final long columnPosition;
 
+    // Used by lazilyCompactedRow, so that we see the same things when deserializing the first and second time
+    private final int expireBefore;
+
     /**
      * Used to iterate through the columns of a row.
      * @param sstable SSTable we are reading ffrom.
@@ -75,6 +78,7 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
         this.key = key;
         this.dataStart = dataStart;
         this.dataSize = dataSize;
+        this.expireBefore = (int)(System.currentTimeMillis() / 1000);
         finishedAt = dataStart + dataSize;
 
         try
@@ -137,7 +141,7 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
     {
         try
         {
-            return sstable.getColumnSerializer().deserialize(file);
+            return sstable.getColumnSerializer().deserialize(file, null, false, expireBefore);
         }
         catch (IOException e)
         {

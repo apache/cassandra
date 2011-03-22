@@ -28,5 +28,5 @@ import org.apache.cassandra.db.IColumn;
 
 public interface IColumnSerializer extends ICompactSerializer2<IColumn>
 {
-    public IColumn deserialize(DataInput in, ColumnFamilyStore interner, boolean fromRemote) throws IOException;
+    public IColumn deserialize(DataInput in, ColumnFamilyStore interner, boolean fromRemote, int expireBefore) throws IOException;
 }

@@ -45,8 +45,9 @@ public class ColumnSortedMap implements SortedMap<ByteBuffer, IColumn>
     private final int length;
     private final ColumnFamilyStore interner;
     private final boolean fromRemote;
+    private final int expireBefore;
 
-    public ColumnSortedMap(Comparator<ByteBuffer> comparator, ColumnSerializer serializer, DataInput dis, ColumnFamilyStore interner, int length, boolean fromRemote)
+    public ColumnSortedMap(Comparator<ByteBuffer> comparator, ColumnSerializer serializer, DataInput dis, ColumnFamilyStore interner, int length, boolean fromRemote, int expireBefore)
     {
         this.comparator = comparator;
         this.serializer = serializer;
@@ -54,6 +55,7 @@ public class ColumnSortedMap implements SortedMap<ByteBuffer, IColumn>
         this.dis = dis;
         this.length = length;
         this.fromRemote = fromRemote;
+        this.expireBefore = expireBefore;
     }
 
     public int size()
@@ -143,7 +145,7 @@ public class ColumnSortedMap implements SortedMap<ByteBuffer, IColumn>
 
     public Set<Map.Entry<ByteBuffer, IColumn>> entrySet()
     {
-        return new ColumnSet(serializer, dis, interner, length, fromRemote);
+        return new ColumnSet(serializer, dis, interner, length, fromRemote, expireBefore);
     }
 }
 
@@ -154,14 +156,16 @@ class ColumnSet implements Set<Map.Entry<ByteBuffer, IColumn>>
     private final int length;
     private final ColumnFamilyStore interner;
     private boolean fromRemote;
+    private final int expireBefore;
 
-    public ColumnSet(ColumnSerializer serializer, DataInput dis, ColumnFamilyStore interner, int length, boolean fromRemote)
+    public ColumnSet(ColumnSerializer serializer, DataInput dis, ColumnFamilyStore interner, int length, boolean fromRemote, int expireBefore)
     {
         this.serializer = serializer;
         this.dis = dis;
         this.interner = interner;
         this.length = length;
         this.fromRemote = fromRemote;
+        this.expireBefore = expireBefore;
     }
 
     public int size()
@@ -181,7 +185,7 @@ class ColumnSet implements Set<Map.Entry<ByteBuffer, IColumn>>
 
     public Iterator<Entry<ByteBuffer, IColumn>> iterator()
     {
-        return new ColumnIterator(serializer, dis, interner, length, fromRemote);
+        return new ColumnIterator(serializer, dis, interner, length, fromRemote, expireBefore);
     }
 
     public Object[] toArray()
@@ -237,14 +241,16 @@ class ColumnIterator implements Iterator<Map.Entry<ByteBuffer, IColumn>>
     private final boolean fromRemote;
     private int count = 0;
     private ColumnFamilyStore interner;
+    private final int expireBefore;
 
-    public ColumnIterator(ColumnSerializer serializer, DataInput dis, ColumnFamilyStore interner, int length, boolean fromRemote)
+    public ColumnIterator(ColumnSerializer serializer, DataInput dis, ColumnFamilyStore interner, int length, boolean fromRemote, int expireBefore)
     {
         this.dis = dis;
         this.serializer = serializer;
         this.interner = interner;
         this.length = length;
         this.fromRemote = fromRemote;
+        this.expireBefore = expireBefore;
     }
 
     private IColumn deserializeNext()
@@ -252,7 +258,7 @@ class ColumnIterator implements Iterator<Map.Entry<ByteBuffer, IColumn>>
         try
         {
             count++;
-            return serializer.deserialize(dis, interner, fromRemote);
+            return serializer.deserialize(dis, interner, fromRemote, expireBefore);
         }
         catch (IOException e)
         {

@@ -1767,7 +1767,22 @@ class TestMutations(ThriftTester):
         assert result[0].key == 'key3'
         assert len(result[0].columns) == 2, result[0].columns
         
-        cp = ColumnParent('Indexed2')
+    def test_index_scan_uuid_names(self):
+        _set_keyspace('Keyspace1')
+        sp = SlicePredicate(slice_range=SliceRange('', ''))
+        cp = ColumnParent('Indexed3') # timeuuid name, utf8 values
+        u = uuid.UUID('00000000-0000-1000-0000-000000000000').bytes
+        u2 = uuid.UUID('00000000-0000-1000-0000-000000000001').bytes
+        client.insert('key1', ColumnParent('Indexed3'), Column(u, 'a', 0), ConsistencyLevel.ONE)
+        client.insert('key1', ColumnParent('Indexed3'), Column(u2, 'b', 0), ConsistencyLevel.ONE)
+        # name comparator + data validator of incompatible types -- see CASSANDRA-2347
+        clause = IndexClause([IndexExpression(u, IndexOperator.EQ, 'a'),
+                              IndexExpression(u2, IndexOperator.EQ, 'b')], '')
+        result = client.get_indexed_slices(cp, clause, sp, ConsistencyLevel.ONE)
+        assert len(result) == 1, result
+
+        cp = ColumnParent('Indexed2') # timeuuid name, long values
+
         # name must be valid (TimeUUID)
         clause = IndexClause([IndexExpression('foo', IndexOperator.EQ, uuid.UUID('00000000-0000-1000-0000-000000000000').bytes)], '')
         _expect_exception(lambda: client.get_indexed_slices(cp, clause, sp, ConsistencyLevel.ONE), InvalidRequestException)

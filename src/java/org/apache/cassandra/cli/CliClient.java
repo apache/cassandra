@@ -106,8 +106,8 @@ public class CliClient extends CliUserHelp
     private String username = null;
     private Map<String, KsDef> keyspacesMap = new HashMap<String, KsDef>();
     private Map<String, AbstractType> cfKeysComparators;
-    
-    
+    private ConsistencyLevel consistencyLevel = ConsistencyLevel.ONE;   
+ 
     public CliClient(CliSessionState cliSessionState, Cassandra.Client thriftClient)
     {
         this.sessionState = cliSessionState;
@@ -193,6 +193,9 @@ public class CliClient extends CliUserHelp
                 case CliParser.NODE_ASSUME:
                     executeAssumeStatement(tree);
                     break;
+                case CliParser.NODE_CONSISTENCY_LEVEL:
+                    executeConsistencyLevelStatement(tree);
+                    break;
                 case CliParser.NODE_NO_OP:
                     // comment lines come here; they are treated as no ops.
                     break;
@@ -256,7 +259,7 @@ public class CliClient extends CliUserHelp
         SliceRange range = new SliceRange(ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, Integer.MAX_VALUE);
         SlicePredicate predicate = new SlicePredicate().setColumn_names(null).setSlice_range(range);
 
-        int count = thriftClient.get_count(ByteBuffer.wrap(key.getBytes(Charsets.UTF_8)), colParent, predicate, ConsistencyLevel.ONE);
+        int count = thriftClient.get_count(ByteBuffer.wrap(key.getBytes(Charsets.UTF_8)), colParent, predicate, consistencyLevel);
         sessionState.out.printf("%d columns%n", count);
     }
     
@@ -306,7 +309,7 @@ public class CliClient extends CliUserHelp
             path.setColumn(columnName);
 
         thriftClient.remove(ByteBuffer.wrap(key.getBytes(Charsets.UTF_8)), path,
-                             FBUtilities.timestampMicros(), ConsistencyLevel.ONE);
+                             FBUtilities.timestampMicros(), consistencyLevel);
         sessionState.out.println(String.format("%s removed.", (columnSpecCnt == 0) ? "row" : "column"));
     }
 
@@ -319,7 +322,7 @@ public class CliClient extends CliUserHelp
             parent.setSuper_column(superColumnName);
 
         SliceRange range = new SliceRange(ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 1000000);
-        List<ColumnOrSuperColumn> columns = thriftClient.get_slice(key, parent, new SlicePredicate().setColumn_names(null).setSlice_range(range), ConsistencyLevel.ONE);
+        List<ColumnOrSuperColumn> columns = thriftClient.get_slice(key, parent, new SlicePredicate().setColumn_names(null).setSlice_range(range), consistencyLevel);
 
         AbstractType validator;
         CfDef cfDef = getCfDef(columnFamily);
@@ -445,7 +448,7 @@ public class CliClient extends CliUserHelp
         Column column;
         try
         {
-            column = thriftClient.get(key, path, ConsistencyLevel.ONE).column;
+            column = thriftClient.get(key, path, consistencyLevel).column;
         }
         catch (NotFoundException e)
         {
@@ -571,7 +574,7 @@ public class CliClient extends CliUserHelp
         try
         {
             ColumnParent parent = new ColumnParent(columnFamily);
-            slices = thriftClient.get_indexed_slices(parent, clause, predicate, ConsistencyLevel.ONE);
+            slices = thriftClient.get_indexed_slices(parent, clause, predicate, consistencyLevel);
             printSliceList(columnFamilyDef, slices);
         }
         catch (InvalidRequestException e)
@@ -668,7 +671,7 @@ public class CliClient extends CliUserHelp
         }
 
         // do the insert
-        thriftClient.insert(getKeyAsBytes(columnFamily, keyTree), parent, columnToInsert, ConsistencyLevel.ONE);
+        thriftClient.insert(getKeyAsBytes(columnFamily, keyTree), parent, columnToInsert, consistencyLevel);
         sessionState.out.println("Value inserted.");
     }
 
@@ -1061,7 +1064,7 @@ public class CliClient extends CliUserHelp
         range.setStart_key(startKey).setEnd_key(endKey);
 
         ColumnParent columnParent = new ColumnParent(columnFamily);
-        List<KeySlice> keySlices = thriftClient.get_range_slices(columnParent, predicate, range, ConsistencyLevel.ONE);
+        List<KeySlice> keySlices = thriftClient.get_range_slices(columnParent, predicate, range, consistencyLevel);
         printSliceList(columnFamilyDef, keySlices);
     }
 
@@ -1087,6 +1090,32 @@ public class CliClient extends CliUserHelp
         {
             throw new RuntimeException(e.getMessage());
         }
+    }
+
+    /**
+     * Command: CONSISTENCYLEVEL AS (ONE | QUORUM ...)
+     * Tree: ^(NODE_CONSISTENCY_LEVEL AS (ONE | QUORUM ...))
+     * @param statement - tree representing current statement
+     */
+    private void executeConsistencyLevelStatement(Tree statement)
+    {
+        if (!CliMain.isConnected())
+            return;
+
+        String userSuppliedLevel = statement.getChild(0).getText().toUpperCase();
+
+        try
+        {
+            consistencyLevel = ConsistencyLevel.valueOf(userSuppliedLevel);
+        }
+        catch (IllegalArgumentException e)
+        {
+            String elements = "ONE, TWO, THREE, QUORUM, ALL, LOCAL_QUORUM, EACH_QUORUM, ANY";
+            sessionState.out.println(String.format("'%s' is invalid. Available: %s", userSuppliedLevel, elements));
+            return;
+        }
+
+        sessionState.out.println(String.format("Consistency level is set to '%s'.", consistencyLevel));
     }
 
     /**

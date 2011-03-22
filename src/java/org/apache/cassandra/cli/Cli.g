@@ -58,6 +58,7 @@ tokens {
     NODE_LIST;
     NODE_TRUNCATE;
     NODE_ASSUME;
+    NODE_CONSISTENCY_LEVEL;
 
     // Internal Nodes.
     NODE_COLUMN_ACCESS;
@@ -155,6 +156,7 @@ statement
     | listStatement
     | truncateStatement
     | assumeStatement
+    | consistencyLevelStatement
     | -> ^(NODE_NO_OP)
     ;
 
@@ -212,6 +214,8 @@ helpStatement
         -> ^(NODE_HELP NODE_TRUNCATE)
     | HELP ASSUME
         -> ^(NODE_HELP NODE_ASSUME)
+    | HELP CONSISTENCYLEVEL
+        -> ^(NODE_HELP NODE_CONSISTENCY_LEVEL)
     | HELP 
         -> ^(NODE_HELP)
     | '?'    
@@ -277,6 +281,11 @@ truncateStatement
 assumeStatement
     : ASSUME columnFamily assumptionElement=Identifier 'AS' defaultType=Identifier
         -> ^(NODE_ASSUME columnFamily $assumptionElement $defaultType)
+    ;
+
+consistencyLevelStatement
+    : CONSISTENCYLEVEL 'AS' defaultType=Identifier
+        -> ^(NODE_CONSISTENCY_LEVEL $defaultType)
     ;
 
 showClusterName
@@ -533,6 +542,7 @@ LIMIT:       'LIMIT';
 TRUNCATE:    'TRUNCATE';
 ASSUME:      'ASSUME';
 TTL:         'TTL';
+CONSISTENCYLEVEL:   'CONSISTENCYLEVEL';
 
 IP_ADDRESS 
     : IntegerLiteral '.' IntegerLiteral '.' IntegerLiteral '.' IntegerLiteral

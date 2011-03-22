@@ -375,8 +375,7 @@ public class CompactionManager implements CompactionManagerMBean
     {
         for (String ksname : DatabaseDescriptor.getNonSystemTables())
         {
-            Table ks = Table.open(ksname);
-            for (ColumnFamilyStore cfs : ks.columnFamilyStores.values())
+            for (ColumnFamilyStore cfs : Table.open(ksname).getColumnFamilyStores())
                 cfs.disableAutoCompaction();
         }
     }

@@ -18,32 +18,32 @@
 
 package org.apache.cassandra.db;
 
-import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.Collection;
 
-import org.apache.cassandra.CleanupHelper;
+import org.junit.Test;
 
+import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-import org.junit.Test;
-
 public class RowCacheTest extends CleanupHelper
 {
+    private String KEYSPACE = "RowCacheSpace";
+    private String COLUMN_FAMILY_WITH_CACHE = "CachedCF";
+    private String COLUMN_FAMILY_WITHOUT_CACHE = "CFWithoutCache";
+
     @Test
     public void testRowCache() throws Exception
     {
-        String KEYSPACE = "RowCacheSpace";
-        String COLUMN_FAMILY_WITH_CACHE = "CachedCF";
-        String COLUMN_FAMILY_WITHOUT_CACHE = "CFWithoutCache";
-
         CompactionManager.instance.disableAutoCompaction();
 
         Table table = Table.open(KEYSPACE);
         ColumnFamilyStore cachedStore  = table.getColumnFamilyStore(COLUMN_FAMILY_WITH_CACHE);
         ColumnFamilyStore noCacheStore = table.getColumnFamilyStore(COLUMN_FAMILY_WITHOUT_CACHE);
+
+        // empty the row cache
+        cachedStore.invalidateRowCache();
 
         // inserting 100 rows into both column families
         insertData(KEYSPACE, COLUMN_FAMILY_WITH_CACHE, 0, 100);
@@ -109,17 +109,37 @@ public class RowCacheTest extends CleanupHelper
         }
     }
 
-    private void insertData(String keyspace, String columnFamily, int offset, int numberOfRows) throws IOException
+    @Test
+    public void testRowCacheLoad() throws Exception
     {
-        for (int i = offset; i < offset + numberOfRows; i++)
-        {
-            ByteBuffer key = ByteBufferUtil.bytes("key" + i);
-            RowMutation rowMutation = new RowMutation(keyspace, key);
-            QueryPath path = new QueryPath(columnFamily, null, ByteBufferUtil.bytes("col" + i));
+        CompactionManager.instance.disableAutoCompaction();
 
-            rowMutation.add(path, ByteBufferUtil.bytes("val" + i), System.currentTimeMillis());
-            rowMutation.applyUnsafe();
+        ColumnFamilyStore store = Table.open(KEYSPACE).getColumnFamilyStore(COLUMN_FAMILY_WITH_CACHE);
+
+        // empty the cache
+        store.invalidateRowCache();
+        assert store.getRowCacheSize() == 0;
+
+        // insert data and fill the cache
+        insertData(KEYSPACE, COLUMN_FAMILY_WITH_CACHE, 0, 100);
+        readData(KEYSPACE, COLUMN_FAMILY_WITH_CACHE, 0, 100);
+        assert store.getRowCacheSize() == 100;
+
+        // force the cache to disk
+        store.rowCache.submitWrite().get();
+
+        // empty the cache again to make sure values came from disk
+        store.invalidateRowCache();
+        assert store.getRowCacheSize() == 0;
+
+        // load the cache from disk
+        store.rowCache.readSaved();
+        assert store.getRowCacheSize() == 100;
+
+        for (int i = 0; i < 100; i++)
+        {
+            // verify the correct data was found
+            assert store.getRawCachedRow(Util.dk("key" + i)).getColumn(ByteBufferUtil.bytes("col" + i)).value().equals(ByteBufferUtil.bytes("val" + i));
         }
     }
-
 }

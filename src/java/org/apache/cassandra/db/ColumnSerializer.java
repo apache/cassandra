@@ -25,14 +25,12 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.io.IColumnSerializer;
 import org.apache.cassandra.db.context.CounterContext;
-import org.apache.cassandra.io.ICompactSerializer2;
+import org.apache.cassandra.io.IColumnSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class ColumnSerializer implements IColumnSerializer
@@ -81,6 +79,11 @@ public class ColumnSerializer implements IColumnSerializer
      */
     public Column deserialize(DataInput dis, ColumnFamilyStore interner, boolean fromRemote) throws IOException
     {
+        return deserialize(dis, interner, fromRemote, (int) (System.currentTimeMillis() / 1000));
+    }
+
+    public Column deserialize(DataInput dis, ColumnFamilyStore interner, boolean fromRemote, int expireBefore) throws IOException
+    {
         ByteBuffer name = ByteBufferUtil.readWithShortLength(dis);
         if (name.remaining() <= 0)
             throw new CorruptColumnException("invalid column name length " + name.remaining());
@@ -103,7 +106,7 @@ public class ColumnSerializer implements IColumnSerializer
             int expiration = dis.readInt();
             long ts = dis.readLong();
             ByteBuffer value = ByteBufferUtil.readWithLength(dis);
-            if ((int) (System.currentTimeMillis() / 1000 ) > expiration)
+            if (expiration < expireBefore)
             {
                 // the column is now expired, we can safely return a simple
                 // tombstone
