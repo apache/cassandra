@@ -19,6 +19,7 @@
 package org.apache.cassandra.db;
 
 import java.util.Collection;
+import java.util.Set;
 
 import org.junit.Test;
 
@@ -133,7 +134,7 @@ public class RowCacheTest extends CleanupHelper
         assert store.getRowCacheSize() == 0;
 
         // load the cache from disk
-        store.rowCache.readSaved();
+        store.initCaches();
         assert store.getRowCacheSize() == 100;
 
         for (int i = 0; i < 100; i++)
