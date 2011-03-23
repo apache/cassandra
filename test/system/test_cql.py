@@ -504,8 +504,20 @@ class TestCql(ThriftTester):
         ms = uuid1bytes_to_millis(r[0].columns[0].value.bytes)
         assert ((time.time() * 1e3) - ms) < 100, \
             "new timeuuid not within 100ms of now (UPDATE vs. SELECT)"
+
+        uuid_range = []
+        update = "UPDATE StandardTimeUUID SET ? = ? WHERE KEY = slicetest"
+        for i in range(5):
+            uuid_range.append(uuid.uuid1())
+            conn.execute(update, uuid_range[i], i)
+
+        r = conn.execute("""
+            SELECT ?..? FROM StandardTimeUUID WHERE KEY = slicetest
+        """, uuid_range[0], uuid_range[len(uuid_range)-1])
         
-        # TODO: slices of timeuuids from cf w/ TimeUUIDType comparator
+        for (i, col) in enumerate(r[0]):
+            assert uuid_range[i] == col.name
+        
         
     def test_lexical_uuid(self):
         "store and retrieve lexical uuids"
