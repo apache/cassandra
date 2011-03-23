@@ -117,7 +117,12 @@ class Connection(object):
             match = Connection._keyspace_re.match(prepared_query)
             if match:
                 self._cur_keyspace = match.group(1)
-
+        
+        # If this is a CREATE, then refresh the schema for decoding purposes.
+        if query.lstrip().upper().startswith("CREATE ", 0, 7):
+            if isinstance(self.decoder, SchemaDecoder):
+                self.decoder.schema = self.__get_schema()
+                
         return prepared_query
 
     def execute(self, query, *args, **kwargs):

@@ -465,7 +465,7 @@ class TestCql(ThriftTester):
         r = conn.execute("""
             SELECT '%s' FROM StandardTimeUUID WHERE KEY = 'uuidtest'
         """ % str(timeuuid))
-        assert r[0].columns[0].name == timeuuid.bytes
+        assert r[0].columns[0].name == timeuuid
         
         # Tests a node-side conversion from long to UUID.
         ms = uuid1bytes_to_millis(uuid.uuid1().bytes)
@@ -476,7 +476,7 @@ class TestCql(ThriftTester):
         r = conn.execute("""
             SELECT 'id' FROM StandardTimeUUIDValues WHERE KEY = 'uuidtest'
         """)
-        assert uuid1bytes_to_millis(r[0].columns[0].value) == ms
+        assert uuid1bytes_to_millis(r[0].columns[0].value.bytes) == ms
         
         # Tests a node-side conversion from ISO8601 to UUID.
         conn.execute("""
@@ -488,7 +488,7 @@ class TestCql(ThriftTester):
             SELECT 'id2' FROM StandardTimeUUIDValues WHERE KEY = 'uuidtest'
         """)
         # 2011-01-31 17:00:00-0000 == 1296493200000ms
-        ms = uuid1bytes_to_millis(r[0].columns[0].value)
+        ms = uuid1bytes_to_millis(r[0].columns[0].value.bytes)
         assert ms == 1296493200000, \
                 "%d != 1296493200000 (2011-01-31 17:00:00-0000)" % ms
 
@@ -501,7 +501,7 @@ class TestCql(ThriftTester):
         r = conn.execute("""
             SELECT 'id3' FROM StandardTimeUUIDValues WHERE KEY = 'uuidtest'
         """)
-        ms = uuid1bytes_to_millis(r[0].columns[0].value)
+        ms = uuid1bytes_to_millis(r[0].columns[0].value.bytes)
         assert ((time.time() * 1e3) - ms) < 100, \
             "new timeuuid not within 100ms of now (UPDATE vs. SELECT)"
         
