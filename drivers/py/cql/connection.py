@@ -48,6 +48,7 @@ class Connection(object):
     """
     _keyspace_re = re.compile("USE (\w+);?", re.I | re.M)
     _cfamily_re = re.compile("\s+SELECT\s+.+\s+FROM\s+(\w+)", re.I | re.M)
+    _ddl_re = re.compile("\s+(CREATE|ALTER|DROP)\s+", re.I | re.M)
     
     def __init__(self, host, port=9160, keyspace=None, username=None,
                  password=None, decoder=None):
@@ -113,13 +114,15 @@ class Connection(object):
         match = Connection._cfamily_re.match(prepared_query)
         if match:
             self._cur_column_family = match.group(1)
-        else:
-            match = Connection._keyspace_re.match(prepared_query)
-            if match:
-                self._cur_keyspace = match.group(1)
+            return prepared_query
+        match = Connection._keyspace_re.match(prepared_query)
+        if match:
+            self._cur_keyspace = match.group(1)
+            return prepared_query
         
         # If this is a CREATE, then refresh the schema for decoding purposes.
-        if query.lstrip().upper().startswith("CREATE ", 0, 7):
+        match = Connection._ddl_re.match(prepared_query)
+        if match:
             if isinstance(self.decoder, SchemaDecoder):
                 self.decoder.schema = self.__get_schema()
                 
