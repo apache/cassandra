@@ -53,29 +53,26 @@ public class SSTableWriterTest extends CleanupHelper {
     @Test
     public void testRecoverAndOpen() throws IOException, ExecutionException, InterruptedException
     {
-        RowMutation rm;
-
-        rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes("k1"));
+        // add data via the usual write path
+        RowMutation rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes("k1"));
         rm.add(new QueryPath("Indexed1", null, ByteBufferUtil.bytes("birthdate")), ByteBufferUtil.bytes(1L), 0);
         rm.apply();
         
-        ColumnFamily cf = ColumnFamily.create("Keyspace1", "Indexed1");        
+        // and add an sstable outside the right path (as if via streaming)
+        Map<String, ColumnFamily> entries = new HashMap<String, ColumnFamily>();
+        ColumnFamily cf;
+        // "k2"
+        cf = ColumnFamily.create("Keyspace1", "Indexed1");        
         cf.addColumn(new Column(ByteBufferUtil.bytes("birthdate"), ByteBufferUtil.bytes(1L), 0));
         cf.addColumn(new Column(ByteBufferUtil.bytes("anydate"), ByteBufferUtil.bytes(1L), 0));
+        entries.put("k2", cf);        
         
-        Map<ByteBuffer, ByteBuffer> entries = new HashMap<ByteBuffer, ByteBuffer>();
-        
-        DataOutputBuffer buffer = new DataOutputBuffer();
-        ColumnFamily.serializer().serializeWithIndexes(cf, buffer);
-        entries.put(ByteBufferUtil.bytes("k2"), ByteBuffer.wrap(Arrays.copyOf(buffer.getData(), buffer.getLength())));        
-        cf.clear();
-        
+        // "k3"
+        cf = ColumnFamily.create("Keyspace1", "Indexed1");        
         cf.addColumn(new Column(ByteBufferUtil.bytes("anydate"), ByteBufferUtil.bytes(1L), 0));
-        buffer = new DataOutputBuffer();
-        ColumnFamily.serializer().serializeWithIndexes(cf, buffer);               
-        entries.put(ByteBufferUtil.bytes("k3"), ByteBuffer.wrap(Arrays.copyOf(buffer.getData(), buffer.getLength())));
+        entries.put("k3", cf);        
         
-        SSTableReader orig = SSTableUtils.prepare().cf("Indexed1").writeRaw(entries);        
+        SSTableReader orig = SSTableUtils.prepare().cf("Indexed1").write(entries);        
         // whack the index to trigger the recover
         FileUtils.deleteWithConfirm(orig.descriptor.filenameFor(Component.PRIMARY_INDEX));
         FileUtils.deleteWithConfirm(orig.descriptor.filenameFor(Component.FILTER));

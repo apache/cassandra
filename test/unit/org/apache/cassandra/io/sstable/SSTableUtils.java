@@ -154,6 +154,7 @@ public class SSTableUtils
         /**
          * @Deprecated: Writes the binary content of a row, which should be encapsulated.
          */
+        @Deprecated
         public SSTableReader writeRaw(Map<ByteBuffer, ByteBuffer> entries) throws IOException
         {
             File datafile = (dest == null) ? tempSSTableFile(ksname, cfname, generation) : new File(dest.filenameFor(Component.DATA));

@@ -58,16 +58,16 @@ public class SSTableWriterCommutativeTest extends CleanupHelper
         String keyspace = "Keyspace1";
         String cfname   = "Counter1";
 
-        Map<ByteBuffer, ByteBuffer> entries = new HashMap<ByteBuffer, ByteBuffer>();
-        Map<ByteBuffer, ByteBuffer> cleanedEntries = new HashMap<ByteBuffer, ByteBuffer>();
+        Map<String, ColumnFamily> entries = new HashMap<String, ColumnFamily>();
+        Map<String, ColumnFamily> cleanedEntries = new HashMap<String, ColumnFamily>();
 
-        DataOutputBuffer buffer;
-
-        ColumnFamily cf = ColumnFamily.create(keyspace, cfname);
-        ColumnFamily cfCleaned = ColumnFamily.create(keyspace, cfname);
+        ColumnFamily cf;
+        ColumnFamily cfCleaned;
         CounterContext.ContextState state;
 
         // key: k
+        cf = ColumnFamily.create(keyspace, cfname);
+        cfCleaned = ColumnFamily.create(keyspace, cfname);
         state = CounterContext.ContextState.allocate(4, 1);
         state.writeElement(NodeId.fromInt(2), 9L, 3L, true);
         state.writeElement(NodeId.fromInt(4), 4L, 2L);
@@ -84,24 +84,12 @@ public class SSTableWriterCommutativeTest extends CleanupHelper
         cf.addColumn(new CounterColumn( ByteBufferUtil.bytes("y"), state.context, 0L));
         cfCleaned.addColumn(new CounterColumn( ByteBufferUtil.bytes("y"), cc.clearAllDelta(state.context), 0L));
 
-        buffer = new DataOutputBuffer();
-        ColumnFamily.serializer().serializeWithIndexes(cf, buffer);
-        entries.put(
-            ByteBufferUtil.bytes("k"),
-            ByteBuffer.wrap(Arrays.copyOf(buffer.getData(), buffer.getLength()))
-            );
-
-        buffer = new DataOutputBuffer();
-        ColumnFamily.serializer().serializeWithIndexes(cfCleaned, buffer);
-        cleanedEntries.put(
-            ByteBufferUtil.bytes("k"),
-            ByteBuffer.wrap(Arrays.copyOf(buffer.getData(), buffer.getLength()))
-            );
-
-        cf.clear();
-        cfCleaned.clear();
+        entries.put("k", cf);
+        cleanedEntries.put("k", cfCleaned);
 
         // key: l
+        cf = ColumnFamily.create(keyspace, cfname);
+        cfCleaned = ColumnFamily.create(keyspace, cfname);
         state = CounterContext.ContextState.allocate(4, 1);
         state.writeElement(NodeId.fromInt(2), 9L, 3L, true);
         state.writeElement(NodeId.fromInt(4), 4L, 2L);
@@ -117,25 +105,11 @@ public class SSTableWriterCommutativeTest extends CleanupHelper
         cf.addColumn(new CounterColumn( ByteBufferUtil.bytes("y"), state.context, 0L));
         cfCleaned.addColumn(new CounterColumn( ByteBufferUtil.bytes("y"), cc.clearAllDelta(state.context), 0L));
 
-        buffer = new DataOutputBuffer();
-        ColumnFamily.serializer().serializeWithIndexes(cf, buffer);
-        entries.put(
-            ByteBufferUtil.bytes("l"),
-            ByteBuffer.wrap(Arrays.copyOf(buffer.getData(), buffer.getLength()))
-            );
-
-        buffer = new DataOutputBuffer();
-        ColumnFamily.serializer().serializeWithIndexes(cfCleaned, buffer);
-        cleanedEntries.put(
-            ByteBufferUtil.bytes("l"),
-            ByteBuffer.wrap(Arrays.copyOf(buffer.getData(), buffer.getLength()))
-            );
-
-        cf.clear();
-        cfCleaned.clear();
+        entries.put("l", cf);
+        cleanedEntries.put("l", cfCleaned);
 
         // write out unmodified CF
-        SSTableReader orig = SSTableUtils.prepare().ks(keyspace).cf(cfname).generation(0).writeRaw(entries);
+        SSTableReader orig = SSTableUtils.prepare().ks(keyspace).cf(cfname).generation(0).write(entries);
 
         // whack the index to trigger the recover
         FileUtils.deleteWithConfirm(orig.descriptor.filenameFor(Component.PRIMARY_INDEX));
@@ -148,7 +122,7 @@ public class SSTableWriterCommutativeTest extends CleanupHelper
             ).get();
 
         // write out cleaned CF
-        SSTableReader cleaned = SSTableUtils.prepare().ks(keyspace).cf(cfname).generation(0).writeRaw(cleanedEntries);
+        SSTableReader cleaned = SSTableUtils.prepare().ks(keyspace).cf(cfname).generation(0).write(cleanedEntries);
 
         // verify
         BufferedRandomAccessFile origFile    = new BufferedRandomAccessFile(orig.descriptor.filenameFor(SSTable.COMPONENT_DATA), "r", 8 * 1024 * 1024);
