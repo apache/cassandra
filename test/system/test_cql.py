@@ -528,7 +528,7 @@ class TestCql(ThriftTester):
         
         r = conn.execute("SELECT ? FROM StandardUUID WHERE KEY = 'uuidtest'",
                          uid)
-        assert r[0].columns[0].name == uid.bytes
+        assert r[0].columns[0].name == uid
         
         # TODO: slices of uuids from cf w/ LexicalUUIDType comparator
         
@@ -542,16 +542,16 @@ class TestCql(ThriftTester):
         conn.execute("UPDATE StandardUtf82 SET ? = v1 WHERE KEY = k1", "¢")
         
         r = conn.execute("SELECT * FROM StandardUtf82 WHERE KEY = k1")
-        assert r[0][0].name == "¢"
-        assert r[0][1].name == "©"
-        assert r[0][2].name == "®"
-        assert r[0][3].name == "¿"
+        assert r[0][0].name == u"¢"
+        assert r[0][1].name == u"©"
+        assert r[0][2].name == u"®"
+        assert r[0][3].name == u"¿"
         
         r = conn.execute("SELECT ?..'' FROM StandardUtf82 WHERE KEY = k1", "©")
         assert len(r[0]) == 3
-        assert r[0][0].name == "©"
-        assert r[0][1].name == "®"
-        assert r[0][2].name == "¿"
+        assert r[0][0].name == u"©"
+        assert r[0][1].name == u"®"
+        assert r[0][2].name == u"¿"
         
         
 
