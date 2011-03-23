@@ -79,6 +79,12 @@ public class VersionedValue implements Comparable<VersionedValue>
         return this.version - value.version;
     }
 
+    @Override
+    public String toString()
+    {
+        return "Value(" + value + "," + version + ")";
+    }
+
     public static class VersionedValueFactory
     {
         IPartitioner partitioner;
