@@ -363,9 +363,11 @@ public class ByteBufferUtil
             @Override
             public int read(byte[] bytes, int off, int len) throws IOException
             {
+                if (!copy.hasRemaining())
+                    return -1;
+
                 len = Math.min(len, copy.remaining());
                 copy.get(bytes, off, len);
-
                 return len;
             }
 

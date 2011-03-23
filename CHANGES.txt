@@ -14,6 +14,7 @@
    the same threshold for TTL expiration (CASSANDRA-2349)
  * fix race when iterating CFs during add/drop (CASSANDRA-2350)
  * add ConsistencyLevel command to CLI (CASSANDRA-2354)
+ * fix potential infinite loop in ByteBufferUtil.inputStream (CASSANDRA-2365)
 
 
 0.7.4
