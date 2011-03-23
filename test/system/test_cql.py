@@ -553,6 +553,21 @@ class TestCql(ThriftTester):
         assert r[0][1].name == u"®"
         assert r[0][2].name == u"¿"
         
-        
-
+    def test_read_write_negative_numerics(self):
+        "reading and writing negative numeric values"
+        conn = init()
+        for cf in ("StandardIntegerA", "StandardLongA"):
+            for i in range(10):
+                conn.execute("UPDATE ? SET ? = ? WHERE KEY = negatives;",
+                             cf,
+                             -(i + 1),
+                             i)
+            r = conn.execute("SELECT ?..? FROM ? WHERE KEY = negatives;",
+                             -10,
+                             -1,
+                             cf)
+            assert len(r[0]) == 10, \
+                "returned %d columns, expected %d" % (len(r[0]), 10)
+            assert r[0][0].name == -10
+            assert r[0][9].name == -1
         

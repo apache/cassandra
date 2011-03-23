@@ -412,7 +412,7 @@ RANGEOP
     ;
 
 INTEGER
-    : DIGIT+
+    : '-'? DIGIT+
     ;
 
 /* Normally a lexer only emits one token at a time, but ours is tricked out
