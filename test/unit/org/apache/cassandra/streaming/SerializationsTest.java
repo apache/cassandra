@@ -31,6 +31,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.junit.Test;
@@ -144,7 +145,7 @@ public class SerializationsTest extends AbstractSerializationsTester
     {
         Collection<Range> ranges = new ArrayList<Range>();
         for (int i = 0; i < 5; i++)
-            ranges.add(new Range(new BytesToken(ByteBuffer.wrap(Integer.toString(10*i).getBytes())), new BytesToken(ByteBuffer.wrap(Integer.toString(10*i+5).getBytes()))));
+            ranges.add(new Range(new BytesToken(ByteBufferUtil.bytes(Integer.toString(10*i))), new BytesToken(ByteBufferUtil.bytes(Integer.toString(10*i+5)))));
         StreamRequestMessage msg0 = new StreamRequestMessage(FBUtilities.getLocalAddress(), ranges, "Keyspace1", 123L);
         StreamRequestMessage msg1 = new StreamRequestMessage(FBUtilities.getLocalAddress(), makePendingFile(true, "aa", 100), 124L);
         StreamRequestMessage msg2 = new StreamRequestMessage(FBUtilities.getLocalAddress(), makePendingFile(false, "aa", 100), 124L);
@@ -180,8 +181,8 @@ public class SerializationsTest extends AbstractSerializationsTester
         Table t = Table.open("Keyspace1");
         for (int i = 0; i < 100; i++)
         {
-            RowMutation rm = new RowMutation(t.name, ByteBuffer.wrap(Long.toString(System.nanoTime()).getBytes()));
-            rm.add(new QueryPath("Standard1", null, ByteBuffer.wrap("cola".getBytes())), ByteBuffer.wrap("value".getBytes()), 0);
+            RowMutation rm = new RowMutation(t.name, ByteBufferUtil.bytes(Long.toString(System.nanoTime())));
+            rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes("cola")), ByteBufferUtil.bytes("value"), 0);
             try
             {
                 rm.apply();

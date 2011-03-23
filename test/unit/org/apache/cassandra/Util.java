@@ -25,13 +25,8 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.List;
-import java.util.Map;
-import java.util.HashMap;
 import java.util.concurrent.ExecutionException;
 
-import static org.junit.Assert.*;
-
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.filter.QueryFilter;
@@ -39,26 +34,26 @@ import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.VersionedValue;
-import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
-import static com.google.common.base.Charsets.UTF_8;
+import static org.junit.Assert.assertTrue;
 
 public class Util
 {
     public static DecoratedKey dk(String key)
     {
-        return StorageService.getPartitioner().decorateKey(ByteBuffer.wrap(key.getBytes(UTF_8)));
+        return StorageService.getPartitioner().decorateKey(ByteBufferUtil.bytes(key));
     }
 
     public static Column column(String name, String value, long timestamp)
     {
-        return new Column(ByteBuffer.wrap(name.getBytes()), ByteBuffer.wrap(value.getBytes()), timestamp);
+        return new Column(ByteBufferUtil.bytes(name), ByteBufferUtil.bytes(value), timestamp);
     }
 
     public static Token token(String key)
     {
-        return StorageService.getPartitioner().getToken(ByteBuffer.wrap(key.getBytes()));
+        return StorageService.getPartitioner().getToken(ByteBufferUtil.bytes(key));
     }
 
     public static Range range(String left, String right)
@@ -68,7 +63,7 @@ public class Util
 
     public static Range range(IPartitioner p, String left, String right)
     {
-        return new Range(p.getToken(ByteBuffer.wrap(left.getBytes())), p.getToken(ByteBuffer.wrap(right.getBytes())));
+        return new Range(p.getToken(ByteBufferUtil.bytes(left)), p.getToken(ByteBufferUtil.bytes(right)));
     }
 
     public static Bounds bounds(String left, String right)
@@ -78,7 +73,7 @@ public class Util
 
     public static void addMutation(RowMutation rm, String columnFamilyName, String superColumnName, long columnName, String value, long timestamp)
     {
-        rm.add(new QueryPath(columnFamilyName, ByteBuffer.wrap(superColumnName.getBytes()), getBytes(columnName)), ByteBuffer.wrap(value.getBytes()), timestamp);
+        rm.add(new QueryPath(columnFamilyName, ByteBufferUtil.bytes(superColumnName), getBytes(columnName)), ByteBufferUtil.bytes(value), timestamp);
     }
 
     public static ByteBuffer getBytes(long v)

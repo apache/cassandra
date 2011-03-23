@@ -21,16 +21,16 @@ import java.io.IOException;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+
+import static com.google.common.base.Charsets.UTF_8;
 
 import org.apache.cassandra.contrib.stress.Session;
 import org.apache.cassandra.contrib.stress.Stress;
 import org.apache.cassandra.thrift.Cassandra;
 import org.apache.cassandra.thrift.InvalidRequestException;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
 public abstract class Operation
@@ -91,7 +91,7 @@ public abstract class Operation
     private static byte[] generateRandomKey()
     {
         String format = "%0" + Stress.session.getTotalKeysLength() + "d";
-        return String.format(format, Stress.randomizer.nextInt(Stress.session.getNumKeys() - 1)).getBytes();
+        return String.format(format, Stress.randomizer.nextInt(Stress.session.getNumKeys() - 1)).getBytes(UTF_8);
     }
 
     /**
@@ -109,7 +109,7 @@ public abstract class Operation
 
             if (0 <= token && token < session.getNumKeys())
             {
-                return String.format(format, (int) token).getBytes();
+                return String.format(format, (int) token).getBytes(UTF_8);
             }
         }
     }
@@ -148,7 +148,7 @@ public abstract class Operation
     private String getMD5(String input)
     {
         MessageDigest md = FBUtilities.threadLocalMD5Digest();
-        byte[] messageDigest = md.digest(input.getBytes());
+        byte[] messageDigest = md.digest(input.getBytes(UTF_8));
         StringBuilder hash = new StringBuilder(new BigInteger(1, messageDigest).toString(16));
 
         while (hash.length() < 32)

@@ -27,6 +27,8 @@ import org.apache.cassandra.hadoop.ColumnFamilyOutputFormat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static com.google.common.base.Charsets.UTF_8;
+
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.hadoop.ColumnFamilyInputFormat;
 import org.apache.cassandra.hadoop.ConfigHelper;
@@ -82,7 +84,7 @@ public class WordCount extends Configured implements Tool
         protected void setup(org.apache.hadoop.mapreduce.Mapper.Context context)
         throws IOException, InterruptedException
         {
-            sourceColumn = ByteBuffer.wrap(context.getConfiguration().get(CONF_COLUMN_NAME).getBytes());
+            sourceColumn = ByteBufferUtil.bytes(context.getConfiguration().get(CONF_COLUMN_NAME));
         }
 
         public void map(ByteBuffer key, SortedMap<ByteBuffer, IColumn> columns, Context context) throws IOException, InterruptedException
@@ -120,7 +122,7 @@ public class WordCount extends Configured implements Tool
         protected void setup(org.apache.hadoop.mapreduce.Reducer.Context context)
         throws IOException, InterruptedException
         {
-            outputKey = ByteBuffer.wrap(context.getConfiguration().get(CONF_COLUMN_NAME).getBytes());
+            outputKey = ByteBufferUtil.bytes(context.getConfiguration().get(CONF_COLUMN_NAME));
         }
 
         public void reduce(Text word, Iterable<IntWritable> values, Context context) throws IOException, InterruptedException
@@ -135,7 +137,7 @@ public class WordCount extends Configured implements Tool
         {
             Column c = new Column();
             c.name = ByteBuffer.wrap(Arrays.copyOf(word.getBytes(), word.getLength()));
-            c.value = ByteBuffer.wrap(String.valueOf(sum).getBytes());
+            c.value = ByteBufferUtil.bytes(String.valueOf(sum));
             c.timestamp = System.currentTimeMillis() * 1000;
 
             Mutation m = new Mutation();
@@ -194,7 +196,7 @@ public class WordCount extends Configured implements Tool
             ConfigHelper.setInitialAddress(job.getConfiguration(), "localhost");
             ConfigHelper.setPartitioner(job.getConfiguration(), "org.apache.cassandra.dht.RandomPartitioner");
             ConfigHelper.setInputColumnFamily(job.getConfiguration(), KEYSPACE, COLUMN_FAMILY);
-            SlicePredicate predicate = new SlicePredicate().setColumn_names(Arrays.asList(ByteBuffer.wrap(columnName.getBytes())));
+            SlicePredicate predicate = new SlicePredicate().setColumn_names(Arrays.asList(ByteBufferUtil.bytes(columnName)));
             ConfigHelper.setInputSlicePredicate(job.getConfiguration(), predicate);
 
             job.waitForCompletion(true);

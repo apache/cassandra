@@ -28,6 +28,7 @@ import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.columniterator.SSTableNamesIterator;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -99,7 +100,7 @@ public class LegacySSTableTest extends CleanupHelper
             SSTableReader reader = SSTableReader.open(getDescriptor(version));
             for (String keystring : TEST_DATA)
             {
-                ByteBuffer key = ByteBuffer.wrap(keystring.getBytes());
+                ByteBuffer key = ByteBufferUtil.bytes(keystring);
                 // confirm that the bloom filter does not reject any keys/names
                 DecoratedKey dk = reader.partitioner.decorateKey(key);
                 SSTableNamesIterator iter = new SSTableNamesIterator(reader, dk, FBUtilities.singleton(key));

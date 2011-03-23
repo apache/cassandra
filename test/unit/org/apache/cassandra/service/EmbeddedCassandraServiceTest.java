@@ -20,6 +20,7 @@ package org.apache.cassandra.service;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
 
 import com.google.common.base.Charsets;
 import org.junit.BeforeClass;
@@ -69,8 +70,8 @@ public class EmbeddedCassandraServiceTest extends CleanupHelper
     }
 
     @Test
-    public void testEmbeddedCassandraService() throws AuthenticationException, AuthorizationException,
-    InvalidRequestException, UnavailableException, TimedOutException, TException, NotFoundException
+    public void testEmbeddedCassandraService()
+    throws AuthenticationException, AuthorizationException, InvalidRequestException, UnavailableException, TimedOutException, TException, NotFoundException, CharacterCodingException
     {
         Cassandra.Client client = getClient();
         client.set_keyspace("Keyspace1");
@@ -84,14 +85,14 @@ public class EmbeddedCassandraServiceTest extends CleanupHelper
 
         // insert
         client.insert(key_user_id, par, new Column(ByteBufferUtil.bytes("name"),
-                ByteBuffer.wrap( "Ran".getBytes(Charsets.UTF_8)), timestamp), ConsistencyLevel.ONE);
+                      ByteBufferUtil.bytes("Ran"), timestamp), ConsistencyLevel.ONE);
 
         // read
         ColumnOrSuperColumn got = client.get(key_user_id, cp, ConsistencyLevel.ONE);
 
         // assert
         assertNotNull("Got a null ColumnOrSuperColumn", got);
-        assertEquals("Ran", new String(got.getColumn().getValue(), Charsets.UTF_8));
+        assertEquals("Ran", ByteBufferUtil.string(got.getColumn().value));
     }
 
     /**

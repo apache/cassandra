@@ -36,6 +36,7 @@ import org.apache.cassandra.db.Table;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.StorageServiceAccessor;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.junit.Assert.*;
 
@@ -68,7 +69,7 @@ public class SimpleStrategyTest extends CleanupHelper
         List<Token> keyTokens = new ArrayList<Token>();
         for (int i = 0; i < 5; i++) {
             endpointTokens.add(new StringToken(String.valueOf((char)('a' + i * 2))));
-            keyTokens.add(partitioner.getToken(ByteBuffer.wrap(String.valueOf((char)('a' + i * 2 + 1)).getBytes())));
+            keyTokens.add(partitioner.getToken(ByteBufferUtil.bytes(String.valueOf((char)('a' + i * 2 + 1)))));
         }
         verifyGetNaturalEndpoints(endpointTokens.toArray(new Token[0]), keyTokens.toArray(new Token[0]));
     }

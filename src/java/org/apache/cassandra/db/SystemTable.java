@@ -44,8 +44,6 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
-import static com.google.common.base.Charsets.UTF_8;
-
 public class SystemTable
 {
     private static Logger logger = LoggerFactory.getLogger(SystemTable.class);
@@ -239,8 +237,8 @@ public class SystemTable
             // no system files.  this is a new node.
             RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, LOCATION_KEY);
             cf = ColumnFamily.create(Table.SYSTEM_TABLE, SystemTable.STATUS_CF);
-            cf.addColumn(new Column(PARTITIONER, ByteBuffer.wrap(DatabaseDescriptor.getPartitioner().getClass().getName().getBytes(UTF_8)), FBUtilities.timestampMicros()));
-            cf.addColumn(new Column(CLUSTERNAME, ByteBuffer.wrap(DatabaseDescriptor.getClusterName().getBytes()), FBUtilities.timestampMicros()));
+            cf.addColumn(new Column(PARTITIONER, ByteBufferUtil.bytes(DatabaseDescriptor.getPartitioner().getClass().getName()), FBUtilities.timestampMicros()));
+            cf.addColumn(new Column(CLUSTERNAME, ByteBufferUtil.bytes(DatabaseDescriptor.getClusterName()), FBUtilities.timestampMicros()));
             rm.add(cf);
             rm.apply();
 
@@ -252,9 +250,9 @@ public class SystemTable
         IColumn clusterCol = cf.getColumn(CLUSTERNAME);
         assert partitionerCol != null;
         assert clusterCol != null;
-        if (!DatabaseDescriptor.getPartitioner().getClass().getName().equals(ByteBufferUtil.string(partitionerCol.value(), UTF_8)))
+        if (!DatabaseDescriptor.getPartitioner().getClass().getName().equals(ByteBufferUtil.string(partitionerCol.value())))
             throw new ConfigurationException("Detected partitioner mismatch! Did you change the partitioner?");
-        String savedClusterName = ByteBufferUtil.string(clusterCol.value(), UTF_8);
+        String savedClusterName = ByteBufferUtil.string(clusterCol.value());
         if (!DatabaseDescriptor.getClusterName().equals(savedClusterName))
             throw new ConfigurationException("Saved cluster name " + savedClusterName + " != configured name " + DatabaseDescriptor.getClusterName());
     }
@@ -331,17 +329,17 @@ public class SystemTable
     public static boolean isIndexBuilt(String table, String indexName)
     {
         ColumnFamilyStore cfs = Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(INDEX_CF);
-        QueryFilter filter = QueryFilter.getNamesFilter(decorate(ByteBuffer.wrap(table.getBytes(UTF_8))),
+        QueryFilter filter = QueryFilter.getNamesFilter(decorate(ByteBufferUtil.bytes(table)),
                                                         new QueryPath(INDEX_CF),
-                                                        ByteBuffer.wrap(indexName.getBytes(UTF_8)));
+                                                        ByteBufferUtil.bytes(indexName));
         return cfs.getColumnFamily(filter) != null;
     }
 
     public static void setIndexBuilt(String table, String indexName)
     {
         ColumnFamily cf = ColumnFamily.create(Table.SYSTEM_TABLE, INDEX_CF);
-        cf.addColumn(new Column(ByteBuffer.wrap(indexName.getBytes(UTF_8)), ByteBufferUtil.EMPTY_BYTE_BUFFER, System.currentTimeMillis()));
-        RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, ByteBuffer.wrap(table.getBytes(UTF_8)));
+        cf.addColumn(new Column(ByteBufferUtil.bytes(indexName), ByteBufferUtil.EMPTY_BYTE_BUFFER, System.currentTimeMillis()));
+        RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, ByteBufferUtil.bytes(table));
         rm.add(cf);
         try
         {
@@ -357,8 +355,8 @@ public class SystemTable
 
     public static void setIndexRemoved(String table, String indexName)
     {
-        RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, ByteBuffer.wrap(table.getBytes(UTF_8)));
-        rm.delete(new QueryPath(INDEX_CF, null, ByteBuffer.wrap(indexName.getBytes(UTF_8))), System.currentTimeMillis());
+        RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, ByteBufferUtil.bytes(table));
+        rm.delete(new QueryPath(INDEX_CF, null, ByteBufferUtil.bytes(indexName)), System.currentTimeMillis());
         try
         {
             rm.apply();

@@ -59,7 +59,7 @@ public class Inserter extends Operation
             for (int i = 0; i < session.getSuperColumns(); i++)
             {
                 String superColumnName = "S" + Integer.toString(i);
-                superColumns.add(new SuperColumn(ByteBuffer.wrap(superColumnName.getBytes()), columns));
+                superColumns.add(new SuperColumn(ByteBufferUtil.bytes(superColumnName), columns));
             }
         }
 

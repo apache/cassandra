@@ -35,8 +35,6 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.UUIDGen;
 
-import static com.google.common.base.Charsets.UTF_8;
-
 public class DefsTable
 {
     // column name for the schema storing serialized keyspace definitions
@@ -57,13 +55,13 @@ public class DefsTable
         for (String ksname : ksnames)
         {
             KSMetaData ksm = DatabaseDescriptor.getTableDefinition(ksname);
-            rm.add(new QueryPath(Migration.SCHEMA_CF, null, ByteBuffer.wrap(ksm.name.getBytes(UTF_8))), SerDeUtils.serialize(ksm.deflate()), now);
+            rm.add(new QueryPath(Migration.SCHEMA_CF, null, ByteBufferUtil.bytes(ksm.name)), SerDeUtils.serialize(ksm.deflate()), now);
         }
         // add the schema
         rm.add(new QueryPath(Migration.SCHEMA_CF,
                              null,
                              DEFINITION_SCHEMA_COLUMN_NAME),
-                             ByteBuffer.wrap(org.apache.cassandra.avro.KsDef.SCHEMA$.toString().getBytes(UTF_8)),
+                             ByteBufferUtil.bytes(org.apache.cassandra.avro.KsDef.SCHEMA$.toString()),
                              now);
         rm.apply();
 

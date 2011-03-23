@@ -2078,7 +2078,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                     RawColumnDefinition rcd = new RawColumnDefinition();
                     rcd.index_name = cd.getIndexName();
                     rcd.index_type = cd.getIndexType();
-                    rcd.name = ByteBufferUtil.string(cd.name, Charsets.UTF_8);
+                    rcd.name = ByteBufferUtil.string(cd.name);
                     rcd.validator_class = cd.validator.getClass().getName();
                     rcf.column_metadata[j++] = rcd;
                 }

@@ -23,8 +23,6 @@ import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.util.*;
 
-import com.google.common.base.Charsets;
-
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
@@ -118,14 +116,14 @@ public class OrderPreservingPartitioner implements IPartitioner<StringToken>
     {
         public ByteBuffer toByteArray(Token<String> stringToken)
         {
-            return ByteBuffer.wrap(stringToken.token.getBytes(Charsets.UTF_8));
+            return ByteBufferUtil.bytes(stringToken.token);
         }
 
         public Token<String> fromByteArray(ByteBuffer bytes)
         {
             try
             {
-                return new StringToken(ByteBufferUtil.string(bytes, Charsets.UTF_8));
+                return new StringToken(ByteBufferUtil.string(bytes));
             }
             catch (CharacterCodingException e)
             {
@@ -159,7 +157,7 @@ public class OrderPreservingPartitioner implements IPartitioner<StringToken>
         String skey;
         try
         {
-            skey = ByteBufferUtil.string(key, Charsets.UTF_8);
+            skey = ByteBufferUtil.string(key);
         }
         catch (CharacterCodingException e)
         {

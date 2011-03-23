@@ -23,11 +23,12 @@ import java.io.DataOutput;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.Charset;
 import java.util.Arrays;
+
+import static com.google.common.base.Charsets.UTF_8;
 
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.commons.lang.ArrayUtils;
@@ -101,16 +102,41 @@ public class ByteBufferUtil
         return compareUnsigned(o1, ByteBuffer.wrap(o2));
     }
 
+    /**
+     * Decode a String representation.
+     * This method assumes that the encoding charset is UTF_8.
+     *
+     * @param buffer a byte buffer holding the string representation
+     * @return the decoded string
+     */
     public static String string(ByteBuffer buffer) throws CharacterCodingException
     {
-        return string(buffer, Charset.defaultCharset());
+        return string(buffer, UTF_8);
     }
 
+    /**
+     * Decode a String representation.
+     * This method assumes that the encoding charset is UTF_8.
+     *
+     * @param buffer a byte buffer holding the string representation
+     * @param position the starting position in {@code buffer} to start decoding from
+     * @param length the number of bytes from {@code buffer} to use
+     * @return the decoded string
+     */
     public static String string(ByteBuffer buffer, int position, int length) throws CharacterCodingException
     {
-        return string(buffer, position, length, Charset.defaultCharset());
+        return string(buffer, position, length, UTF_8);
     }
 
+    /**
+     * Decode a String representation.
+     *
+     * @param buffer a byte buffer holding the string representation
+     * @param position the starting position in {@code buffer} to start decoding from
+     * @param length the number of bytes from {@code buffer} to use
+     * @param charset the String encoding charset
+     * @return the decoded string
+     */
     public static String string(ByteBuffer buffer, int position, int length, Charset charset) throws CharacterCodingException
     {
         ByteBuffer copy = buffer.duplicate();
@@ -119,6 +145,13 @@ public class ByteBufferUtil
         return string(copy, charset);
     }
 
+    /**
+     * Decode a String representation.
+     *
+     * @param buffer a byte buffer holding the string representation
+     * @param charset the String encoding charset
+     * @return the decoded string
+     */
     public static String string(ByteBuffer buffer, Charset charset) throws CharacterCodingException
     {
         return charset.newDecoder().decode(buffer.duplicate()).toString();
@@ -177,16 +210,27 @@ public class ByteBufferUtil
         return -1;
     }
 
-    public static ByteBuffer bytes(String s) 
-    { 
-        try
-        {
-            return ByteBuffer.wrap(s.getBytes("UTF-8"));
-        }
-        catch (UnsupportedEncodingException e)
-        {
-           throw new RuntimeException(e);
-        } 
+    /**
+     * Encode a String in a ByteBuffer using UTF_8.
+     *
+     * @param s the string to encode
+     * @return the encoded string
+     */
+    public static ByteBuffer bytes(String s)
+    {
+        return ByteBuffer.wrap(s.getBytes(UTF_8));
+    }
+
+    /**
+     * Encode a String in a ByteBuffer using the provided charset.
+     *
+     * @param s the string to encode
+     * @param charset the String encoding charset to use
+     * @return the encoded string
+     */
+    public static ByteBuffer bytes(String s, Charset charset)
+    {
+        return ByteBuffer.wrap(s.getBytes(charset));
     }
 
     /**

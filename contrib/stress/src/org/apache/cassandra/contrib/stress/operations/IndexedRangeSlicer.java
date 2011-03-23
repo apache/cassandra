@@ -36,15 +36,15 @@ public class IndexedRangeSlicer extends Operation
     public void run(Cassandra.Client client) throws IOException
     {
         String format = "%0" + session.getTotalKeysLength() + "d";
-        SlicePredicate predicate = new SlicePredicate().setSlice_range(new SliceRange(ByteBuffer.wrap(new byte[]{}),
-                                                                                      ByteBuffer.wrap(new byte[] {}),
+        SlicePredicate predicate = new SlicePredicate().setSlice_range(new SliceRange(ByteBufferUtil.EMPTY_BYTE_BUFFER,
+                                                                                      ByteBufferUtil.EMPTY_BYTE_BUFFER,
                                                                                       false, session.getColumnsPerKey()));
 
         List<ByteBuffer> values = super.generateValues();
         ColumnParent parent = new ColumnParent("Standard1");
         int expectedPerValue = session.getNumKeys() / values.size();
 
-        ByteBuffer columnName = ByteBuffer.wrap("C1".getBytes());
+        ByteBuffer columnName = ByteBufferUtil.bytes("C1");
 
         int received = 0;
 
@@ -56,7 +56,7 @@ public class IndexedRangeSlicer extends Operation
         while (received < expectedPerValue)
         {
             IndexClause clause = new IndexClause(Arrays.asList(expression),
-                                                 ByteBuffer.wrap(startOffset.getBytes()),
+                                                 ByteBufferUtil.bytes(startOffset),
                                                  session.getKeysPerCall());
 
             List<KeySlice> results = null;

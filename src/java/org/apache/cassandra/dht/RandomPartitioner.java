@@ -30,8 +30,6 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.GuidGenerator;
 import org.apache.cassandra.utils.Pair;
 
-import static com.google.common.base.Charsets.UTF_8;
-
 /**
  * This class generates a BigIntegerToken using MD5 hash.
  */
@@ -65,7 +63,7 @@ public class RandomPartitioner implements IPartitioner<BigIntegerToken>
         String token = null;
         try
         {
-            token = ByteBufferUtil.string(fromdisk, fromdisk.position(), splitPoint - fromdisk.position(), UTF_8);
+            token = ByteBufferUtil.string(fromdisk, fromdisk.position(), splitPoint - fromdisk.position());
         }
         catch (CharacterCodingException e)
         {

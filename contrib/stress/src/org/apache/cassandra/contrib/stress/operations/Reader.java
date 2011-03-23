@@ -25,6 +25,8 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
 
+import static com.google.common.base.Charsets.UTF_8;
+
 public class Reader extends Operation
 {
     public Reader(int index)
@@ -63,7 +65,7 @@ public class Reader extends Operation
         for (int j = 0; j < session.getSuperColumns(); j++)
         {
             String superColumn = 'S' + Integer.toString(j);
-            ColumnParent parent = new ColumnParent("Super1").setSuper_column(superColumn.getBytes());
+            ColumnParent parent = new ColumnParent("Super1").setSuper_column(superColumn.getBytes(UTF_8));
 
             long start = System.currentTimeMillis();
 

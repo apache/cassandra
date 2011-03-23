@@ -91,7 +91,7 @@ public class TestRingCache
 
         for (int nRows = minRow; nRows < maxRow; nRows++)
         {
-            ByteBuffer row = ByteBuffer.wrap((rowPrefix + nRows).getBytes());
+            ByteBuffer row = ByteBufferUtil.bytes((rowPrefix + nRows));
             ColumnPath col = new ColumnPath("Standard1").setSuper_column((ByteBuffer)null).setColumn("col1".getBytes());
             ColumnParent parent = new ColumnParent("Standard1").setSuper_column((ByteBuffer)null);
 

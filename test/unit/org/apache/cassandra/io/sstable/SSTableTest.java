@@ -34,7 +34,7 @@ public class SSTableTest extends CleanupHelper
     @Test
     public void testSingleWrite() throws IOException {
         // write test data
-        ByteBuffer key = ByteBuffer.wrap(Integer.toString(1).getBytes());
+        ByteBuffer key = ByteBufferUtil.bytes(Integer.toString(1));
         ByteBuffer bytes = ByteBuffer.wrap(new byte[1024]);
         new Random().nextBytes(bytes.array());
 
@@ -64,7 +64,7 @@ public class SSTableTest extends CleanupHelper
         Map<ByteBuffer, ByteBuffer> map = new HashMap<ByteBuffer,ByteBuffer>();
         for (int i = 100; i < 1000; ++i)
         {
-            map.put(ByteBuffer.wrap(Integer.toString(i).getBytes()), ByteBuffer.wrap(("Avinash Lakshman is a good man: " + i).getBytes()));
+            map.put(ByteBufferUtil.bytes(Integer.toString(i)), ByteBufferUtil.bytes(("Avinash Lakshman is a good man: " + i)));
         }
 
         // write

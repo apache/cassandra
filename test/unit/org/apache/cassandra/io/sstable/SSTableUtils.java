@@ -29,6 +29,7 @@ import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class SSTableUtils
 {
@@ -122,7 +123,7 @@ public class SSTableUtils
             for (String key : keys)
             {
                 ColumnFamily cf = ColumnFamily.create(ksname, cfname);
-                cf.addColumn(new Column(ByteBuffer.wrap(key.getBytes()), ByteBuffer.wrap(key.getBytes()), 0));
+                cf.addColumn(new Column(ByteBufferUtil.bytes(key), ByteBufferUtil.bytes(key), 0));
                 map.put(key, cf);
             }
             return write(map);
@@ -135,8 +136,7 @@ public class SSTableUtils
             {
                 DataOutputBuffer buffer = new DataOutputBuffer();
                 ColumnFamily.serializer().serializeWithIndexes(entry.getValue(), buffer);
-                map.put(ByteBuffer.wrap(entry.getKey().getBytes()),
-                        ByteBuffer.wrap(buffer.asByteArray()));
+                map.put(ByteBufferUtil.bytes(entry.getKey()), ByteBuffer.wrap(buffer.asByteArray()));
             }
             return writeRaw(map);
         }

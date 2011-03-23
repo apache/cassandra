@@ -63,9 +63,9 @@ public class ClientOnlyExample
         // do some writing.
         for (int i = 0; i < 100; i++)
         {
-            RowMutation change = new RowMutation(KEYSPACE, ByteBuffer.wrap(("key" + i).getBytes()));
+            RowMutation change = new RowMutation(KEYSPACE, ByteBufferUtil.bytes(("key" + i)));
             ColumnPath cp = new ColumnPath(COLUMN_FAMILY).setColumn(("colb").getBytes());
-            change.add(new QueryPath(cp), ByteBuffer.wrap(("value" + i).getBytes()), 0);
+            change.add(new QueryPath(cp), ByteBufferUtil.bytes(("value" + i)), 0);
 
             // don't call change.apply().  The reason is that is makes a static call into Table, which will perform
             // local storage initialization, which creates local directories.
@@ -87,7 +87,7 @@ public class ClientOnlyExample
         for (int i = 0; i < 100; i++)
         {
             List<ReadCommand> commands = new ArrayList<ReadCommand>();
-            SliceByNamesReadCommand readCommand = new SliceByNamesReadCommand(KEYSPACE, ByteBuffer.wrap(("key" + i).getBytes()),
+            SliceByNamesReadCommand readCommand = new SliceByNamesReadCommand(KEYSPACE, ByteBufferUtil.bytes(("key" + i)),
                                                                               new QueryPath(COLUMN_FAMILY, null, null), cols);
             readCommand.setDigestQuery(false);
             commands.add(readCommand);

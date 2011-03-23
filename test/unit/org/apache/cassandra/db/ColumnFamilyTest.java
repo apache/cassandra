@@ -80,7 +80,7 @@ public class ColumnFamilyTest extends SchemaLoader
         cf = ColumnFamily.serializer().deserialize(new DataInputStream(bufIn));
         for (String cName : map.navigableKeySet())
         {
-            ByteBuffer val = cf.getColumn(ByteBuffer.wrap(cName.getBytes())).value();
+            ByteBuffer val = cf.getColumn(ByteBufferUtil.bytes(cName)).value();
             assert new String(val.array(),val.position(),val.remaining()).equals(map.get(cName));
         }
         assert cf.getColumnNames().size() == map.size();

@@ -45,6 +45,7 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.*;
 import org.apache.cassandra.scheduler.IRequestScheduler;
 import org.apache.cassandra.scheduler.NoScheduler;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.yaml.snakeyaml.Loader;
@@ -613,7 +614,7 @@ public class    DatabaseDescriptor
                         throw new ConfigurationException("index_name cannot be set if index_type is not also set");
                     }
 
-                    ByteBuffer columnName = ByteBuffer.wrap(rcd.name.getBytes(Charsets.UTF_8));
+                    ByteBuffer columnName = ByteBufferUtil.bytes(rcd.name);
                     metadata.put(columnName, new ColumnDefinition(columnName, rcd.validator_class, rcd.index_type, rcd.index_name));
                 }
 

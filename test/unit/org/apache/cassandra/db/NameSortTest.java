@@ -64,15 +64,15 @@ public class NameSortTest extends CleanupHelper
 
         for (int i = 0; i < N; ++i)
         {
-            ByteBuffer key = ByteBuffer.wrap(Integer.toString(i).getBytes());
+            ByteBuffer key = ByteBufferUtil.bytes(Integer.toString(i));
             RowMutation rm;
 
             // standard
             for (int j = 0; j < 8; ++j)
             {
-                ByteBuffer bytes = ByteBuffer.wrap(j % 2 == 0 ? "a".getBytes() : "b".getBytes());
+                ByteBuffer bytes = j % 2 == 0 ? ByteBufferUtil.bytes("a") : ByteBufferUtil.bytes("b");
                 rm = new RowMutation("Keyspace1", key);
-                rm.add(new QueryPath("Standard1", null, ByteBuffer.wrap(("Column-" + j).getBytes())), bytes, j);
+                rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes(("Column-" + j))), bytes, j);
                 rm.applyUnsafe();
             }
 

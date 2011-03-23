@@ -295,7 +295,7 @@ public class DefsTest extends CleanupHelper
         // write some data, force a flush, then verify that files exist on disk.
         RowMutation rm = new RowMutation(ks.name, dk.key);
         for (int i = 0; i < 100; i++)
-            rm.add(new QueryPath(cfm.cfName, null, ByteBuffer.wrap(("col" + i).getBytes())), ByteBufferUtil.bytes("anyvalue"), 1L);
+            rm.add(new QueryPath(cfm.cfName, null, ByteBufferUtil.bytes(("col" + i))), ByteBufferUtil.bytes("anyvalue"), 1L);
         rm.apply();
         ColumnFamilyStore store = Table.open(cfm.tableName).getColumnFamilyStore(cfm.cfName);
         assert store != null;
@@ -341,7 +341,7 @@ public class DefsTest extends CleanupHelper
         // write some data, force a flush, then verify that files exist on disk.
         RowMutation rm = new RowMutation(ks.name, dk.key);
         for (int i = 0; i < 100; i++)
-            rm.add(new QueryPath(oldCfm.cfName, null, ByteBuffer.wrap(("col" + i).getBytes())), ByteBufferUtil.bytes("anyvalue"), 1L);
+            rm.add(new QueryPath(oldCfm.cfName, null, ByteBufferUtil.bytes(("col" + i))), ByteBufferUtil.bytes("anyvalue"), 1L);
         rm.apply();
         ColumnFamilyStore store = Table.open(oldCfm.tableName).getColumnFamilyStore(oldCfm.cfName);
         assert store != null;
@@ -415,7 +415,7 @@ public class DefsTest extends CleanupHelper
         // write some data, force a flush, then verify that files exist on disk.
         RowMutation rm = new RowMutation(ks.name, dk.key);
         for (int i = 0; i < 100; i++)
-            rm.add(new QueryPath(cfm.cfName, null, ByteBuffer.wrap(("col" + i).getBytes())), ByteBufferUtil.bytes("anyvalue"), 1L);
+            rm.add(new QueryPath(cfm.cfName, null, ByteBufferUtil.bytes(("col" + i))), ByteBufferUtil.bytes("anyvalue"), 1L);
         rm.apply();
         ColumnFamilyStore store = Table.open(cfm.tableName).getColumnFamilyStore(cfm.cfName);
         assert store != null;
@@ -465,7 +465,7 @@ public class DefsTest extends CleanupHelper
         // write some data that we hope to read back later.
         RowMutation rm = new RowMutation(oldKs.name, dk.key);
         for (int i = 0; i < 10; i++)
-            rm.add(new QueryPath(cfName, null, ByteBuffer.wrap(("col" + i).getBytes())), ByteBufferUtil.bytes("value"), 1L);
+            rm.add(new QueryPath(cfName, null, ByteBufferUtil.bytes(("col" + i))), ByteBufferUtil.bytes("value"), 1L);
         rm.apply();
         ColumnFamilyStore store = Table.open(oldKs.name).getColumnFamilyStore(cfName);
         assert store != null;

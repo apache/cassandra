@@ -189,8 +189,8 @@ public class MutationTest extends TestBase
         throws InvalidRequestException, UnavailableException, TimedOutException, TException
     {
         Column col = new Column(
-             ByteBuffer.wrap(name.getBytes()),
-             ByteBuffer.wrap(value.getBytes()),
+             ByteBufferUtil.bytes(name),
+             ByteBufferUtil.bytes(value),
              timestamp
              );
         client.insert(key, new ColumnParent(cf), col, cl);
@@ -337,8 +337,8 @@ public class MutationTest extends TestBase
 
     protected void assertColumnEqual(String name, String value, long timestamp, Column col)
     {
-        assertEquals(ByteBuffer.wrap(name.getBytes()), col.name);
-        assertEquals(ByteBuffer.wrap(value.getBytes()), col.value);
+        assertEquals(ByteBufferUtil.bytes(name), col.name);
+        assertEquals(ByteBufferUtil.bytes(value), col.value);
         assertEquals(timestamp, col.timestamp);
     }
 
@@ -371,6 +371,6 @@ public class MutationTest extends TestBase
 
     protected ByteBuffer newKey()
     {
-        return ByteBuffer.wrap(String.format("test.key.%d", System.currentTimeMillis()).getBytes());
+        return ByteBufferUtil.bytes(String.format("test.key.%d", System.currentTimeMillis()));
     }
 }

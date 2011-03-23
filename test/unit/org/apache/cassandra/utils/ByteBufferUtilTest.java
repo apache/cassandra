@@ -218,7 +218,7 @@ public class ByteBufferUtilTest
     public void testDecode() throws IOException
     {
         ByteBuffer bytes = ByteBuffer.wrap(new byte[]{(byte)0xff, (byte)0xfe});
-        ByteBufferUtil.string(bytes, Charsets.UTF_8);
+        ByteBufferUtil.string(bytes);
     }
 
     @Test
