@@ -53,10 +53,7 @@ def marshal(term):
     elif isinstance(term, str):
         return "'%s'" % __escape_quotes(term)
     elif isinstance(term, UUID):
-        if term.version == 1:
-            return "timeuuid(\"%s\")" % str(term)
-        else:
-            return str(term)
+        return str(term)
     else:
         return str(term)    
     
