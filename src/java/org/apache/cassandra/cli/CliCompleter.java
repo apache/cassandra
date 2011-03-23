@@ -66,7 +66,9 @@ public class CliCompleter extends SimpleCompletor
             "count",
             "del",
             "list",
-            "truncate"
+            "truncate",
+            "incr",
+            "decr"
     };
 
     public CliCompleter()

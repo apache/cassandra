@@ -49,6 +49,8 @@ tokens {
     NODE_THRIFT_SET;
     NODE_THRIFT_COUNT;
     NODE_THRIFT_DEL;
+    NODE_THRIFT_INCR;
+    NODE_THRIFT_DECR;
     NODE_ADD_COLUMN_FAMILY;
     NODE_ADD_KEYSPACE;
     NODE_DEL_KEYSPACE;
@@ -152,6 +154,7 @@ statement
     | getStatement
     | helpStatement
     | setStatement
+    | incrStatement
     | showStatement
     | listStatement
     | truncateStatement
@@ -204,6 +207,10 @@ helpStatement
         -> ^(NODE_HELP NODE_THRIFT_GET)
     | HELP SET 
         -> ^(NODE_HELP NODE_THRIFT_SET)
+    | HELP INCR
+        -> ^(NODE_HELP NODE_THRIFT_INCR)
+    | HELP DECR
+        -> ^(NODE_HELP NODE_THRIFT_DECR)
     | HELP DEL 
         -> ^(NODE_HELP NODE_THRIFT_DEL)
     | HELP COUNT 
@@ -230,7 +237,7 @@ exitStatement
 getStatement
     : GET columnFamilyExpr ('AS' typeIdentifier)?
         -> ^(NODE_THRIFT_GET columnFamilyExpr ( ^(CONVERT_TO_TYPE typeIdentifier) )? )
-    | GET columnFamily 'WHERE' getCondition ('AND' getCondition)* ('LIMIT' limit=IntegerLiteral)*
+    | GET columnFamily 'WHERE' getCondition ('AND' getCondition)* ('LIMIT' limit=IntegerPositiveLiteral)*
         -> ^(NODE_THRIFT_GET_WITH_CONDITIONS columnFamily ^(CONDITIONS getCondition+) ^(NODE_LIMIT $limit)*) 
     ;
 
@@ -244,12 +251,19 @@ operator
     ;
 
 typeIdentifier
-    : Identifier | StringLiteral | IntegerLiteral 
+    : Identifier | StringLiteral | IntegerPositiveLiteral 
     ;
 
 setStatement
-    : SET columnFamilyExpr '=' objectValue=value (WITH TTL '=' ttlValue=value)?
+    : SET columnFamilyExpr '=' objectValue=value (WITH TTL '=' ttlValue=IntegerPositiveLiteral)?
         -> ^(NODE_THRIFT_SET columnFamilyExpr $objectValue ( $ttlValue )?)
+    ;
+
+incrStatement
+    : INCR columnFamilyExpr (BY byValue=incrementValue)?
+        -> ^(NODE_THRIFT_INCR columnFamilyExpr ( $byValue )?)
+    | DECR columnFamilyExpr (BY byValue=incrementValue)?
+        -> ^(NODE_THRIFT_DECR columnFamilyExpr ( $byValue )?)
     ;
 
 countStatement
@@ -269,7 +283,7 @@ showStatement
     ;
 
 listStatement
-    : LIST columnFamily keyRangeExpr? ('LIMIT' limit=IntegerLiteral)?
+    : LIST columnFamily keyRangeExpr? ('LIMIT' limit=IntegerPositiveLiteral)?
         -> ^(NODE_LIST columnFamily keyRangeExpr? ^(NODE_LIMIT $limit)?)
     ;
 
@@ -408,7 +422,7 @@ attrValueString
 	;
       
 attrValueInt
-	: IntegerLiteral
+	: IntegerPositiveLiteral
 	;
 
 attrValueDouble
@@ -428,7 +442,7 @@ replica_placement_strategy
 	;
 
 replication_factor
-	: IntegerLiteral
+	: IntegerPositiveLiteral
 	;
 
 keyspaceNewName
@@ -457,11 +471,11 @@ columnFamily
 	;
 
 rowKey	
-    :  (Identifier | StringLiteral | IntegerLiteral | functionCall)
+    :  (Identifier | StringLiteral | IntegerPositiveLiteral | functionCall)
 	;
 
 value	
-    : (Identifier | IntegerLiteral | StringLiteral | functionCall)
+    : (Identifier | IntegerPositiveLiteral | StringLiteral | functionCall)
 	;
 
 functionCall 
@@ -470,7 +484,7 @@ functionCall
     ;
 
 functionArgument 
-    : Identifier | StringLiteral | IntegerLiteral
+    : Identifier | StringLiteral | IntegerPositiveLiteral
     ;
 
 startKey
@@ -482,7 +496,7 @@ endKey
 	;
 
 columnOrSuperColumn
-	: (Identifier | IntegerLiteral | StringLiteral | functionCall)
+	: (Identifier | IntegerPositiveLiteral | StringLiteral | functionCall)
 	;
 
 host	
@@ -501,8 +515,13 @@ ip_address
 
 
 port	
-    : IntegerLiteral
+    : IntegerPositiveLiteral
 	;
+
+incrementValue
+    : IntegerNegativeLiteral
+    | IntegerPositiveLiteral
+    ;
 
 //
 // Lexer Section
@@ -526,6 +545,8 @@ EXIT:        'EXIT';
 FILE:        'FILE';
 QUIT:        'QUIT';
 SET:         'SET';
+INCR:        'INCR';
+DECR:        'DECR';
 SHOW:        'SHOW';
 KEYSPACE:    'KEYSPACE';
 KEYSPACES:   'KEYSPACES';
@@ -535,6 +556,7 @@ DROP:        'DROP';
 COLUMN:      'COLUMN';
 FAMILY:      'FAMILY';
 WITH:        'WITH';
+BY:          'BY';
 AND:         'AND';
 UPDATE:      'UPDATE';
 LIST:        'LIST';
@@ -545,7 +567,7 @@ TTL:         'TTL';
 CONSISTENCYLEVEL:   'CONSISTENCYLEVEL';
 
 IP_ADDRESS 
-    : IntegerLiteral '.' IntegerLiteral '.' IntegerLiteral '.' IntegerLiteral
+    : IntegerPositiveLiteral '.' IntegerPositiveLiteral '.' IntegerPositiveLiteral '.' IntegerPositiveLiteral
     ;
 
 // private syntactic rules
@@ -567,8 +589,12 @@ Alnum
     ;
 
 // syntactic Elements
-IntegerLiteral
+IntegerPositiveLiteral
    : Digit+
+   ;
+
+IntegerNegativeLiteral
+   : '-' Digit+
    ;
    
 DoubleLiteral

@@ -279,6 +279,24 @@ public class CliUserHelp {
                 state.out.println("set diz[testkey][testcol] = 'this is utf8 string.' with ttl = 150;");
                 break;
 
+            case CliParser.NODE_THRIFT_INCR:
+                state.out.println("incr <cf>['<key>']['<col>'] [by <value>];");
+                state.out.println("incr <cf>['<key>']['<super>']['<col>'] [by <value>];");
+                state.out.println("examples:");
+                state.out.println("incr bar['testkey']['my super']['test col'];");
+                state.out.println("incr bar['testkey']['my super']['test col'] by 42;");
+                state.out.println("incr baz['testkey']['test col'] by -4;");
+                break;
+
+            case CliParser.NODE_THRIFT_DECR:
+                state.out.println("decr <cf>['<key>']['<col>'] [by <value>];");
+                state.out.println("decr <cf>['<key>']['<super>']['<col>'] [by <value>];");
+                state.out.println("examples:");
+                state.out.println("decr bar['testkey']['my super']['test col'];");
+                state.out.println("decr bar['testkey']['my super']['test col'] by 42;");
+                state.out.println("decr baz['testkey']['test col'] by 10;");
+                break;
+
             case CliParser.NODE_THRIFT_DEL:
                 state.out.println("del <cf>['<key>'];");
                 state.out.println("del <cf>['<key>']['<col>'];");
@@ -375,6 +393,12 @@ public class CliUserHelp {
             state.out.println("del <cf>['<key>']['<super>']['<col>'];                        Delete sub column.");
             state.out.println("count <cf>['<key>'];                                    Count columns in record.");
             state.out.println("count <cf>['<key>']['<super>'];                 Count columns in a super column.");
+            state.out.println("incr <cf>['<key>']['<col>'] [by <value>];            Increment a counter column.");
+            state.out.println("incr <cf>['<key>']['<super>']['<col>'] [by <value>];");
+            state.out.println("                                                 Increment a counter sub-column.");
+            state.out.println("decr <cf>['<key>']['<col>'] [by <value>];            Decrement a counter column.");
+            state.out.println("decr <cf>['<key>']['<super>']['<col>'] [by <value>];");
+            state.out.println("                                                 Decrement a counter sub-column.");
             state.out.println("truncate <column_family>;                      Truncate specified column family.");
             state.out.println("assume <column_family> <attribute> as <type>;");
             state.out.println("              Assume a given column family attributes to match a specified type.");

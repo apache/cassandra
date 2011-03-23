@@ -86,6 +86,16 @@ public class CliTest extends CleanupHelper
         "set SCF1['hello'][1][9999] = Long(1234);",
         "del SCF1['hello'][9999];",
         "get SCF1['hello'][1][9999];",
+        "create column family Counter1 with comparator=UTF8Type and default_validation_class=CounterColumnType;",
+        "assume Counter1 keys as utf8;",
+        "incr Counter1['hello']['cassandra'];",
+        "incr Counter1['hello']['cassandra'] by 3;",
+        "incr Counter1['hello']['cassandra'] by -2;",
+        "decr Counter1['hello']['cassandra'];",
+        "decr Counter1['hello']['cassandra'] by 3;",
+        "decr Counter1['hello']['cassandra'] by -2;",
+        "get Counter1['hello']['cassandra'];",
+        "get Counter1['hello'];",
         "truncate CF1;",
         "update keyspace TestKeySpace with placement_strategy='org.apache.cassandra.locator.LocalStrategy';",
         "update keyspace TestKeySpace with replication_factor=1 and strategy_options=[{DC1:3, DC2:4, DC5:1}];",
@@ -122,6 +132,7 @@ public class CliTest extends CleanupHelper
         "get Countries[1][name];",
         "set myCF['key']['scName']['firstname'] = 'John';",
         "get myCF['key']['scName']",
+        "assume CF3 keys as utf8;",
         "use TestKEYSpace;",
         "describe cluster;",
         "help describe cluster;",
@@ -190,11 +201,23 @@ public class CliTest extends CleanupHelper
             {
                 assertEquals(result, "Value inserted." + System.getProperty("line.separator"));
             }
+            else if (statement.startsWith("incr "))
+            {
+                assertEquals(result, "Value incremented." + System.getProperty("line.separator"));
+            }
+            else if (statement.startsWith("decr "))
+            {
+                assertEquals(result, "Value decremented." + System.getProperty("line.separator"));
+            }
             else if (statement.startsWith("get "))
             {
                 if (statement.contains("where"))
                 {
                     assertTrue(result.startsWith("-------------------" + System.getProperty("line.separator") + "RowKey:"));
+                }
+                else if (statement.contains("Counter"))
+                {
+                    assertTrue(result.startsWith("=> (counter=") || result.startsWith("Value was not found"));
                 }
                 else
                 {
