@@ -444,7 +444,7 @@
     </target>
 
     <!-- creates release tarballs -->
-    <target name="artifacts" depends="jar,javadoc"
+    <target name="artifacts" depends="jar,javadoc,py-cql-driver,tx-cql-driver"
             description="Create Cassandra release artifacts">
       <mkdir dir="${dist.dir}"/>
       <copy todir="${dist.dir}/lib">
@@ -529,26 +529,18 @@
 
     <target name="release" depends="artifacts,rat-init"
             description="Create and QC release artifacts">
-      <checksum file="${build.dir}/${final.name}-bin.tar.gz"
-                forceOverwrite="yes"
-                todir="${build.dir}"
-                fileext=".md5"
-                algorithm="MD5" />
-      <checksum file="${build.dir}/${final.name}-src.tar.gz"
-                forceOverwrite="yes"
-                todir="${build.dir}"
-                fileext=".md5"
-                algorithm="MD5" />
-      <checksum file="${build.dir}/${final.name}-bin.tar.gz"
-                forceOverwrite="yes"
-                todir="${build.dir}"
-                fileext=".sha"
-                algorithm="SHA" />
-      <checksum file="${build.dir}/${final.name}-src.tar.gz"
-                forceOverwrite="yes"
-                todir="${build.dir}"
-                fileext=".sha"
-                algorithm="SHA" />
+      <checksum forceOverwrite="yes" todir="${build.dir}" fileext=".md5"
+                algorithm="MD5">
+        <fileset dir="${build.dir}">
+          <include name="*.tar.gz" />
+        </fileset>
+      </checksum>
+      <checksum forceOverwrite="yes" todir="${build.dir}" fileext=".sha"
+                algorithm="SHA">
+        <fileset dir="${build.dir}">
+          <include name="*.tar.gz" />
+        </fileset>
+      </checksum>
 
       <rat:report xmlns:rat="antlib:org.apache.rat.anttasks"
                   reportFile="${build.dir}/${final.name}-bin.rat.txt">
@@ -887,4 +879,25 @@
   	<delete dir="build/eclipse-classes" />
   </target>
 
+  <target name="py-cql-driver"
+          description="Generate Python CQL driver artifact">
+    <echo>Creating Python CQL driver artifact...</echo>
+    <exec executable="python" dir="${basedir}/drivers/py" failonerror="true">
+      <arg line="setup.py" />
+      <arg line="sdist" />
+      <arg line="--dist-dir" />
+      <arg line="${build.dir}" />
+    </exec>
+  </target>
+
+  <target name="tx-cql-driver"
+          description="Generate Twisted CQL driver artifact">
+    <echo>Creating Twisted CQL driver artifact...</echo>
+    <exec executable="python" dir="${basedir}/drivers/txpy" failonerror="true">
+      <arg line="setup.py" />
+      <arg line="sdist" />
+      <arg line="--dist-dir" />
+      <arg line="${build.dir}" />
+    </exec>
+  </target>
 </project>
