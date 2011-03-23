@@ -1,4 +1,4 @@
-h1. Cassandra Query Language (CQL) v0.99.1
+h1. Cassandra Query Language (CQL) v1.0.0
 
 h2. Table of Contents
 
@@ -283,3 +283,18 @@ How column name/value terms are interpreted is determined by the configured type
 |long|Numeric value capable of fitting in 8 bytes|
 |int|Numeric value of arbitrary size|
 |bytes|Hex-encoded strings (converted directly to the corresponding bytes)|
+
+h1. Versioning
+
+Versioning of the CQL language adheres to the "Semantic Versioning":http://semver.org guidelines.  Versions take the form X.Y.Z where X, Y, and Z are integer values representing major, minor, and patch level respectively.  There is no correlation between Cassandra release versions and the CQL language version.
+
+|_. version|_. description|
+|Patch|The patch version is incremented when bugs are fixed.|
+|Minor|Minor version increments occur when new, but backward compatible, functionality is introduced.|
+|Major|The major version _must_ be bumped when backward incompatible changes are introduced.  This should rarely (if ever) occur.|
+
+h1. Changes
+
+pre. 
+Tue, 22 Mar 2011 18:10:28 -0700 - Eric Evans <eevans@rackspace.com>
+ * Initial version, 1.0.0
