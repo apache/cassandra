@@ -47,7 +47,7 @@ class Connection(object):
     ...         print "%s is %s years of age" % (r.key, column.age)
     """
     _keyspace_re = re.compile("USE (\w+);?", re.I | re.M)
-    _cfamily_re = re.compile("SELECT\s+.+\s+FROM\s+(\w+)", re.I | re.M)
+    _cfamily_re = re.compile("\s+SELECT\s+.+\s+FROM\s+(\w+)", re.I | re.M)
     
     def __init__(self, host, port=9160, keyspace=None, username=None,
                  password=None, decoder=None):
