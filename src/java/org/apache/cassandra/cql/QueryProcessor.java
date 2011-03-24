@@ -366,7 +366,6 @@ public class QueryProcessor
     private static void validateColumnNames(String keyspace, String columnFamily, Iterable<ByteBuffer> columns)
     throws InvalidRequestException
     {
-        AbstractType<?> comparator = ColumnFamily.getComparatorFor(keyspace, columnFamily, null);
         for (ByteBuffer name : columns)
         {
             if (name.remaining() > IColumn.MAX_NAME_LENGTH)
@@ -375,14 +374,6 @@ public class QueryProcessor
                                                                 IColumn.MAX_NAME_LENGTH));
             if (name.remaining() == 0)
                 throw new InvalidRequestException("zero-length column name");
-            try
-            {
-                comparator.validate(name);
-            }
-            catch (MarshalException e)
-            {
-                throw new InvalidRequestException(e.getMessage());
-            }
         }
     }
     
@@ -430,16 +421,6 @@ public class QueryProcessor
     throws InvalidRequestException
     {
         AbstractType<?> comparator = ColumnFamily.getComparatorFor(keyspace, columnFamily, null);
-        try
-        {
-            comparator.validate(start);
-            comparator.validate(finish);
-        }
-        catch (MarshalException e)
-        {
-            throw new InvalidRequestException(e.getMessage());
-        }
-        
         Comparator<ByteBuffer> orderedComparator = reversed ? comparator.reverseComparator: comparator;
         if (start.remaining() > 0 && finish.remaining() > 0 && orderedComparator.compare(start, finish) > 0)
             throw new InvalidRequestException("range finish must come after start in traversal order");
