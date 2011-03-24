@@ -20,7 +20,7 @@ from os.path import abspath, join, dirname
 
 setup(
     name="txcql",
-    version="1.0",
+    version="1.0.0",
     description="Cassandra Query Language driver",
     long_description=open(abspath(join(dirname(__file__), 'README'))).read(),
     url="http://cassandra.apache.org",

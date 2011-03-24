@@ -55,6 +55,7 @@
     <property name="test.distributed.src" value="${test.dir}/distributed"/>
     <property name="dist.dir" value="${build.dir}/dist"/>
     <property name="base.version" value="0.8.0"/>
+    <property name="cql.driver.version" value="1.0.0" />
     <condition property="version" value="${base.version}">
       <isset property="release"/>
     </condition>
@@ -431,7 +432,7 @@
       </jar>
 
       <!-- CQL driver Jar -->
-      <jar jarfile="${build.dir}/${ant.project.name}-cql-${version}.jar"
+      <jar jarfile="${build.dir}/${ant.project.name}-cql-${cql.driver.version}.jar"
            basedir="${build.classes.cql}">
         <manifest>
           <attribute name="Implementation-Title" value="Cassandra"/>
