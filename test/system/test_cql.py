@@ -570,4 +570,17 @@ class TestCql(ThriftTester):
                 "returned %d columns, expected %d" % (len(r[0]), 10)
             assert r[0][0].name == -10
             assert r[0][9].name == -1
+            
+    def test_escaped_quotes(self):
+        "reading and writing strings w/ escaped quotes"
+        conn = init()
         
+        conn.execute("""
+            UPDATE StandardString1 SET 'x''and''y' = z WHERE KEY = ?
+        """, "test_escaped_quotes")
+                     
+        r = conn.execute("""
+            SELECT 'x''and''y' FROM StandardString1 WHERE KEY = ?
+        """, "test_escaped_quotes")
+        assert (len(r) == 1) and (len(r[0]) == 1), "wrong number of results"
+        assert r[0][0].name == "x\'and\'y"

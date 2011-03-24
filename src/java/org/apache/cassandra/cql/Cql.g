@@ -411,7 +411,7 @@ STRING_LITERAL
     : '\''
       { StringBuilder b = new StringBuilder(); }
       ( c=~('\''|'\r'|'\n') { b.appendCodePoint(c);}
-      | '\'' '\''            { b.appendCodePoint('"');}
+      | '\'' '\''            { b.appendCodePoint('\'');}
       )*
       '\''
       { setText(b.toString()); }
