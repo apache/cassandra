@@ -63,6 +63,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.Column;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.eclipse.jdt.internal.compiler.ast.Statement;
 
 import com.google.common.base.Predicates;
 import com.google.common.collect.Maps;
@@ -444,8 +445,8 @@ public class QueryProcessor
         CQLStatement statement = getStatement(queryString);
         String keyspace = null;
         
-        // Chicken-and-egg; No keyspace to get when we're setting (or creating) one. 
-        if ((statement.type != StatementType.USE) && (statement.type != StatementType.CREATE_KEYSPACE))
+        // Some statements won't have (or don't need) a keyspace (think USE, or CREATE).
+        if (StatementType.requiresKeyspace.contains(statement.type))
             keyspace = clientState.getKeyspace();
         
         CqlResult avroResult = new CqlResult();
