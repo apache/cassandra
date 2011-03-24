@@ -804,7 +804,7 @@ public class AntiEntropyService
                     return;
 
                 // all requests completed
-                logger.info("Session " + getName() + " completed successfully.");
+                logger.info("Repair session " + getName() + " completed successfully.");
                 AntiEntropyService.this.sessions.remove(getName());
                 completed.signalAll();
             }
