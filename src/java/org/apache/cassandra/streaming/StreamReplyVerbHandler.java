@@ -46,6 +46,11 @@ public class StreamReplyVerbHandler implements IVerbHandler
             StreamReply reply = StreamReply.serializer.deserialize(new DataInputStream(bufIn));
             logger.debug("Received StreamReply {}", reply);
             StreamOutSession session = StreamOutSession.get(message.getFrom(), reply.sessionId);
+            if (session == null)
+            {
+                logger.debug("Received stream action " + reply.action + " for an unknown session from " + message.getFrom());
+                return;
+            }
 
             switch (reply.action)
             {
