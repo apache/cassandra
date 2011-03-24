@@ -199,7 +199,7 @@ if __name__ == '__main__':
             readline.write_history_file(HISTORY)
             break
         except CQLException, cqlerr:
-            shell.printerr(cqlerr, color=RED)
+            shell.printerr(str(cqlerr), color=RED)
         except KeyboardInterrupt:
             shell.reset_statement()
             print
