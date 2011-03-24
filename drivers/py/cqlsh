@@ -135,8 +135,14 @@ class Shell(cmd.Cmd):
             return startswith(common, text.upper()) + startswith(props, text)
     complete_CREATE = complete_create
         
+    def complete_drop(self, text, line, begidx, endidx):
+        words = line.split()
+        if len(words) < 3:
+            return startswith(['COLUMNFAMILY', 'KEYSPACE'], text.upper())
+    complete_DROP = complete_drop
+
     def completenames(self, text, *ignored):
-        cmds = startswith(('USE', 'SELECT', 'UPDATE', 'DELETE', 'CREATE'),
+        cmds = startswith(('USE', 'SELECT', 'UPDATE', 'DELETE', 'CREATE', 'DROP'),
                           text.upper())
         return cmd.Cmd.completenames(self, text, ignored) + cmds
 
