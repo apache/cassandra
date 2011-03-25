@@ -63,7 +63,6 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.Column;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.eclipse.jdt.internal.compiler.ast.Statement;
 
 import com.google.common.base.Predicates;
 import com.google.common.collect.Maps;
