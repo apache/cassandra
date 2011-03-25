@@ -292,7 +292,7 @@ public class ByteBufferUtil
     public static void writeWithShortLength(ByteBuffer buffer, DataOutput out)
     {
         int length = buffer.remaining();
-        assert 0 <= length && length <= FBUtilities.MAX_UNSIGNED_SHORT;
+        assert 0 <= length && length <= FBUtilities.MAX_UNSIGNED_SHORT : length;
         try
         {
             out.writeByte((length >> 8) & 0xFF);
