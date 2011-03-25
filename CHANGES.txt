@@ -18,6 +18,7 @@
  * fix encoding bugs in HintedHandoffManager, SystemTable when default
    charset is not UTF8 (CASSANDRA-2367)
  * allow negative numbers in the cli (CASSANDRA-2358)
+ * fsync statistics component on write (CASSANDRA-2382)
 
 
 0.7.4

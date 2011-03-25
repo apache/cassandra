@@ -18,13 +18,13 @@
 */
 package org.apache.cassandra.utils;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
+import java.io.DataInput;
+import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicLongArray;
 
-import org.apache.cassandra.io.ICompactSerializer;
+import org.apache.cassandra.io.ICompactSerializer2;
 
 public class EstimatedHistogram
 {
@@ -188,9 +188,9 @@ public class EstimatedHistogram
         return buckets.get(buckets.length() - 1) > 0;
     }
 
-    public static class EstimatedHistogramSerializer implements ICompactSerializer<EstimatedHistogram>
+    public static class EstimatedHistogramSerializer implements ICompactSerializer2<EstimatedHistogram>
     {
-        public void serialize(EstimatedHistogram eh, DataOutputStream dos) throws IOException
+        public void serialize(EstimatedHistogram eh, DataOutput dos) throws IOException
         {
             long[] offsets = eh.getBucketOffsets();
             long[] buckets = eh.getBuckets(false);
@@ -202,7 +202,7 @@ public class EstimatedHistogram
             }
         }
 
-        public EstimatedHistogram deserialize(DataInputStream dis) throws IOException
+        public EstimatedHistogram deserialize(DataInput dis) throws IOException
         {
             int size = dis.readInt();
             long[] offsets = new long[size - 1];

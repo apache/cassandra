@@ -198,7 +198,10 @@ public class SSTableWriter extends SSTable
 
     private static void writeStatistics(Descriptor desc, EstimatedHistogram rowSizes, EstimatedHistogram columnnCounts) throws IOException
     {
-        DataOutputStream out = new DataOutputStream(new FileOutputStream(desc.filenameFor(SSTable.COMPONENT_STATS)));
+        BufferedRandomAccessFile out = new BufferedRandomAccessFile(new File(desc.filenameFor(SSTable.COMPONENT_STATS)),
+                                                                     "rw",
+                                                                     BufferedRandomAccessFile.DEFAULT_BUFFER_SIZE,
+                                                                     true);
         EstimatedHistogram.serializer.serialize(rowSizes, out);
         EstimatedHistogram.serializer.serialize(columnnCounts, out);
         out.close();
