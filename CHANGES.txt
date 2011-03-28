@@ -29,13 +29,15 @@
    the same threshold for TTL expiration (CASSANDRA-2349)
  * fix race when iterating CFs during add/drop (CASSANDRA-2350)
  * add ConsistencyLevel command to CLI (CASSANDRA-2354)
- * fsync statistics component on write (CASSANDRA-2382)
+ * fix potential infinite loop in ByteBufferUtil.inputStream (CASSANDRA-2365)
  * fix encoding bugs in HintedHandoffManager, SystemTable when default
    charset is not UTF8 (CASSANDRA-2367)
- * fix potential infinite loop in ByteBufferUtil.inputStream (CASSANDRA-2365)
  * allow negative numbers in the cli (CASSANDRA-2358)
+ * fsync statistics component on write (CASSANDRA-2382)
  * fix incorrect truncation of long to int when reading columns via block 
    index (CASSANDRA-2376)
+ * fix race condition that could leave orphaned data files when
+   dropping CF or KS (CASSANDRA-2381)
 
 
 0.7.4
@@ -51,6 +53,8 @@
  * add configurable row limit to Pig loadfunc (CASSANDRA-2276)
  * validate column values in batches as well as single-Column inserts
    (CASSANDRA-2259)
+ * move sample schema from cassandra.yaml to schema-sample.txt,
+   a cli scripts (CASSANDRA-2007)
  * avoid writing empty rows when scrubbing tombstoned rows (CASSANDRA-2296)
  * fix assertion error in range and index scans for CL < ALL
    (CASSANDRA-2282)
@@ -135,8 +139,8 @@
    (CASSANDRA-1962)
  * allow specifying specific SSTables to compact from JMX (CASSANDRA-1963)
  * fix race condition in MessagingService.targets (CASSANDRA-1959, 2094, 2081)
- * zero-copy reads (CASSANDRA-1714)
  * refuse to open sstables from a future version (CASSANDRA-1935)
+ * zero-copy reads (CASSANDRA-1714)
  * fix copy bounds for word Text in wordcount demo (CASSANDRA-1993)
  * fixes for contrib/javautils (CASSANDRA-1979)
  * check more frequently for memtable expiration (CASSANDRA-2000)
@@ -300,7 +304,6 @@
  * upgrade to SLF4J 1.6.1
  * fix ByteBuffer bug in ExpiringColumn.updateDigest (CASSANDRA-1679)
  * fix IntegerType.getString (CASSANDRA-1681)
- * log tpstats when dropping messages (CASSANDRA-1660)
  * make -Djava.net.preferIPv4Stack=true the default (CASSANDRA-628)
  * add INTERNAL_RESPONSE verb to differentiate from responses related
    to client requests (CASSANDRA-1685)
