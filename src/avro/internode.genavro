@@ -52,6 +52,7 @@ protocol InterNode {
         boolean replicate_on_write = false;
         union { int, null } gc_grace_seconds;
         union { null, string } default_validation_class = null;
+        union { null, string } key_validation_class = null;
         union { null, int } min_compaction_threshold = null;
         union { null, int } max_compaction_threshold = null;
         union { int, null } row_cache_save_period_in_seconds = 0;

@@ -73,6 +73,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
   private static final TField MEMTABLE_OPERATIONS_IN_MILLIONS_FIELD_DESC = new TField("memtable_operations_in_millions", TType.DOUBLE, (short)23);
   private static final TField REPLICATE_ON_WRITE_FIELD_DESC = new TField("replicate_on_write", TType.BOOL, (short)24);
   private static final TField MERGE_SHARDS_CHANCE_FIELD_DESC = new TField("merge_shards_chance", TType.DOUBLE, (short)25);
+  private static final TField KEY_VALIDATION_CLASS_FIELD_DESC = new TField("key_validation_class", TType.STRING, (short)26);
 
   public String keyspace;
   public String name;
@@ -96,6 +97,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
   public double memtable_operations_in_millions;
   public boolean replicate_on_write;
   public double merge_shards_chance;
+  public String key_validation_class;
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
   public enum _Fields implements TFieldIdEnum {
@@ -120,7 +122,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     MEMTABLE_THROUGHPUT_IN_MB((short)22, "memtable_throughput_in_mb"),
     MEMTABLE_OPERATIONS_IN_MILLIONS((short)23, "memtable_operations_in_millions"),
     REPLICATE_ON_WRITE((short)24, "replicate_on_write"),
-    MERGE_SHARDS_CHANCE((short)25, "merge_shards_chance");
+    MERGE_SHARDS_CHANCE((short)25, "merge_shards_chance"),
+    KEY_VALIDATION_CLASS((short)26, "key_validation_class");
 
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -179,6 +182,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
           return REPLICATE_ON_WRITE;
         case 25: // MERGE_SHARDS_CHANCE
           return MERGE_SHARDS_CHANCE;
+        case 26: // KEY_VALIDATION_CLASS
+          return KEY_VALIDATION_CLASS;
         default:
           return null;
       }
@@ -283,6 +288,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
         new FieldValueMetaData(TType.BOOL)));
     tmpMap.put(_Fields.MERGE_SHARDS_CHANCE, new FieldMetaData("merge_shards_chance", TFieldRequirementType.OPTIONAL, 
         new FieldValueMetaData(TType.DOUBLE)));
+    tmpMap.put(_Fields.KEY_VALIDATION_CLASS, new FieldMetaData("key_validation_class", TFieldRequirementType.OPTIONAL, 
+        new FieldValueMetaData(TType.STRING)));
     metaDataMap = Collections.unmodifiableMap(tmpMap);
     FieldMetaData.addStructMetaDataMap(CfDef.class, metaDataMap);
   }
@@ -359,6 +366,9 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     this.memtable_operations_in_millions = other.memtable_operations_in_millions;
     this.replicate_on_write = other.replicate_on_write;
     this.merge_shards_chance = other.merge_shards_chance;
+    if (other.isSetKey_validation_class()) {
+      this.key_validation_class = other.key_validation_class;
+    }
   }
 
   public CfDef deepCopy() {
@@ -405,6 +415,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
 
     setMerge_shards_chanceIsSet(false);
     this.merge_shards_chance = 0.0;
+    this.key_validation_class = null;
   }
 
   public String getKeyspace() {
@@ -936,6 +947,30 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     __isset_bit_vector.set(__MERGE_SHARDS_CHANCE_ISSET_ID, value);
   }
 
+  public String getKey_validation_class() {
+    return this.key_validation_class;
+  }
+
+  public CfDef setKey_validation_class(String key_validation_class) {
+    this.key_validation_class = key_validation_class;
+    return this;
+  }
+
+  public void unsetKey_validation_class() {
+    this.key_validation_class = null;
+  }
+
+  /** Returns true if field key_validation_class is set (has been asigned a value) and false otherwise */
+  public boolean isSetKey_validation_class() {
+    return this.key_validation_class != null;
+  }
+
+  public void setKey_validation_classIsSet(boolean value) {
+    if (!value) {
+      this.key_validation_class = null;
+    }
+  }
+
   public void setFieldValue(_Fields field, Object value) {
     switch (field) {
     case KEYSPACE:
@@ -1114,6 +1149,14 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       }
       break;
 
+    case KEY_VALIDATION_CLASS:
+      if (value == null) {
+        unsetKey_validation_class();
+      } else {
+        setKey_validation_class((String)value);
+      }
+      break;
+
     }
   }
 
@@ -1185,6 +1228,9 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     case MERGE_SHARDS_CHANCE:
       return new Double(getMerge_shards_chance());
 
+    case KEY_VALIDATION_CLASS:
+      return getKey_validation_class();
+
     }
     throw new IllegalStateException();
   }
@@ -1240,6 +1286,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       return isSetReplicate_on_write();
     case MERGE_SHARDS_CHANCE:
       return isSetMerge_shards_chance();
+    case KEY_VALIDATION_CLASS:
+      return isSetKey_validation_class();
     }
     throw new IllegalStateException();
   }
@@ -1455,6 +1503,15 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
         return false;
     }
 
+    boolean this_present_key_validation_class = true && this.isSetKey_validation_class();
+    boolean that_present_key_validation_class = true && that.isSetKey_validation_class();
+    if (this_present_key_validation_class || that_present_key_validation_class) {
+      if (!(this_present_key_validation_class && that_present_key_validation_class))
+        return false;
+      if (!this.key_validation_class.equals(that.key_validation_class))
+        return false;
+    }
+
     return true;
   }
 
@@ -1571,6 +1628,11 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     builder.append(present_merge_shards_chance);
     if (present_merge_shards_chance)
       builder.append(merge_shards_chance);
+
+    boolean present_key_validation_class = true && (isSetKey_validation_class());
+    builder.append(present_key_validation_class);
+    if (present_key_validation_class)
+      builder.append(key_validation_class);
 
     return builder.toHashCode();
   }
@@ -1803,6 +1865,16 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
         return lastComparison;
       }
     }
+    lastComparison = Boolean.valueOf(isSetKey_validation_class()).compareTo(typedOther.isSetKey_validation_class());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    if (isSetKey_validation_class()) {
+      lastComparison = TBaseHelper.compareTo(this.key_validation_class, typedOther.key_validation_class);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
     return 0;
   }
 
@@ -1999,6 +2071,13 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
             TProtocolUtil.skip(iprot, field.type);
           }
           break;
+        case 26: // KEY_VALIDATION_CLASS
+          if (field.type == TType.STRING) {
+            this.key_validation_class = iprot.readString();
+          } else { 
+            TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
         default:
           TProtocolUtil.skip(iprot, field.type);
       }
@@ -2142,6 +2221,13 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       oprot.writeFieldBegin(MERGE_SHARDS_CHANCE_FIELD_DESC);
       oprot.writeDouble(this.merge_shards_chance);
       oprot.writeFieldEnd();
+    }
+    if (this.key_validation_class != null) {
+      if (isSetKey_validation_class()) {
+        oprot.writeFieldBegin(KEY_VALIDATION_CLASS_FIELD_DESC);
+        oprot.writeString(this.key_validation_class);
+        oprot.writeFieldEnd();
+      }
     }
     oprot.writeFieldStop();
     oprot.writeStructEnd();
@@ -2309,6 +2395,16 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       if (!first) sb.append(", ");
       sb.append("merge_shards_chance:");
       sb.append(this.merge_shards_chance);
+      first = false;
+    }
+    if (isSetKey_validation_class()) {
+      if (!first) sb.append(", ");
+      sb.append("key_validation_class:");
+      if (this.key_validation_class == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.key_validation_class);
+      }
       first = false;
     }
     sb.append(")");

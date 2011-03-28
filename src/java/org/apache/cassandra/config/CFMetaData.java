@@ -140,6 +140,7 @@ public final class CFMetaData
     private boolean replicateOnWrite;                 // default false
     private int gcGraceSeconds;                       // default 864000 (ten days)
     private AbstractType defaultValidator;            // default BytesType (no-op), use comparator types
+    private AbstractType keyValidator;                // default BytesType (no-op), use comparator types
     private int minCompactionThreshold;               // default 4
     private int maxCompactionThreshold;               // default 32
     private int rowCacheSavePeriodInSeconds;          // default 0 (off)
@@ -159,6 +160,7 @@ public final class CFMetaData
     public CFMetaData replicateOnWrite(boolean prop) {replicateOnWrite = prop; return this;}
     public CFMetaData gcGraceSeconds(int prop) {gcGraceSeconds = prop; return this;}
     public CFMetaData defaultValidator(AbstractType prop) {defaultValidator = prop; return this;}
+    public CFMetaData keyValidator(AbstractType prop) {keyValidator = prop; return this;}
     public CFMetaData minCompactionThreshold(int prop) {minCompactionThreshold = prop; return this;}
     public CFMetaData maxCompactionThreshold(int prop) {maxCompactionThreshold = prop; return this;}
     public CFMetaData rowCacheSavePeriod(int prop) {rowCacheSavePeriodInSeconds = prop; return this;}
@@ -217,6 +219,7 @@ public final class CFMetaData
 
         // Defaults strange or simple enough to not need a DEFAULT_T for
         defaultValidator = BytesType.instance;
+        keyValidator = BytesType.instance;
         comment = "";
         column_metadata = new HashMap<ByteBuffer,ColumnDefinition>();
     }
@@ -308,6 +311,7 @@ public final class CFMetaData
         cf.replicate_on_write = replicateOnWrite;
         cf.gc_grace_seconds = gcGraceSeconds;
         cf.default_validation_class = new Utf8(defaultValidator.getClass().getName());
+        cf.key_validation_class = new Utf8(keyValidator.getClass().getName());
         cf.min_compaction_threshold = minCompactionThreshold;
         cf.max_compaction_threshold = maxCompactionThreshold;
         cf.row_cache_save_period_in_seconds = rowCacheSavePeriodInSeconds;
@@ -328,14 +332,15 @@ public final class CFMetaData
         AbstractType comparator;
         AbstractType subcolumnComparator = null;
         AbstractType validator;
+        AbstractType keyValidator;
+
         try
         {
             comparator = DatabaseDescriptor.getComparator(cf.comparator_type.toString());
             if (cf.subcomparator_type != null)
                 subcolumnComparator = DatabaseDescriptor.getComparator(cf.subcomparator_type.toString());
-            validator = cf.default_validation_class == null
-                        ? BytesType.instance
-                        : DatabaseDescriptor.getComparator(cf.default_validation_class.toString());
+            validator = DatabaseDescriptor.getComparator(cf.default_validation_class.toString());
+            keyValidator = DatabaseDescriptor.getComparator(cf.key_validation_class.toString());
         }
         catch (Exception ex)
         {
@@ -375,6 +380,7 @@ public final class CFMetaData
                       .replicateOnWrite(cf.replicate_on_write)
                       .gcGraceSeconds(cf.gc_grace_seconds)
                       .defaultValidator(validator)
+                      .keyValidator(keyValidator)
                       .columnMetadata(column_metadata);
     }
     
@@ -416,6 +422,11 @@ public final class CFMetaData
     public AbstractType getDefaultValidator()
     {
         return defaultValidator;
+    }
+
+    public AbstractType getKeyValidator()
+    {
+        return keyValidator;
     }
 
     public Integer getMinCompactionThreshold()
@@ -482,6 +493,8 @@ public final class CFMetaData
             .append(readRepairChance, rhs.readRepairChance)
             .append(replicateOnWrite, rhs.replicateOnWrite)
             .append(gcGraceSeconds, rhs.gcGraceSeconds)
+            .append(defaultValidator, rhs.defaultValidator)
+            .append(keyValidator, rhs.keyValidator)
             .append(minCompactionThreshold, rhs.minCompactionThreshold)
             .append(maxCompactionThreshold, rhs.maxCompactionThreshold)
             .append(cfId.intValue(), rhs.cfId.intValue())
@@ -510,6 +523,7 @@ public final class CFMetaData
             .append(replicateOnWrite)
             .append(gcGraceSeconds)
             .append(defaultValidator)
+            .append(keyValidator)
             .append(minCompactionThreshold)
             .append(maxCompactionThreshold)
             .append(cfId)
@@ -593,6 +607,7 @@ public final class CFMetaData
         replicateOnWrite = cf_def.replicate_on_write;
         gcGraceSeconds = cf_def.gc_grace_seconds;
         defaultValidator = DatabaseDescriptor.getComparator(cf_def.default_validation_class);
+        keyValidator = DatabaseDescriptor.getComparator(cf_def.key_validation_class);
         minCompactionThreshold = cf_def.min_compaction_threshold;
         maxCompactionThreshold = cf_def.max_compaction_threshold;
         rowCacheSavePeriodInSeconds = cf_def.row_cache_save_period_in_seconds;
@@ -658,6 +673,7 @@ public final class CFMetaData
         def.setReplicate_on_write(cfm.replicateOnWrite);
         def.setGc_grace_seconds(cfm.gcGraceSeconds);
         def.setDefault_validation_class(cfm.defaultValidator.getClass().getName());
+        def.setKey_validation_class(cfm.keyValidator.getClass().getName());
         def.setMin_compaction_threshold(cfm.minCompactionThreshold);
         def.setMax_compaction_threshold(cfm.maxCompactionThreshold);
         def.setRow_cache_save_period_in_seconds(cfm.rowCacheSavePeriodInSeconds);
@@ -732,6 +748,7 @@ public final class CFMetaData
         newDef.comment = def.getComment();
         newDef.comparator_type = def.getComparator_type();
         newDef.default_validation_class = def.getDefault_validation_class();
+        newDef.key_validation_class = def.getKey_validation_class();
         newDef.gc_grace_seconds = def.getGc_grace_seconds();
         newDef.id = def.getId();
         newDef.key_cache_save_period_in_seconds = def.getKey_cache_save_period_in_seconds();
@@ -862,6 +879,7 @@ public final class CFMetaData
             .append("replicateOnWrite", replicateOnWrite)
             .append("gcGraceSeconds", gcGraceSeconds)
             .append("defaultValidator", defaultValidator)
+            .append("keyValidator", keyValidator)
             .append("minCompactionThreshold", minCompactionThreshold)
             .append("maxCompactionThreshold", maxCompactionThreshold)
             .append("rowCacheSavePeriodInSeconds", rowCacheSavePeriodInSeconds)

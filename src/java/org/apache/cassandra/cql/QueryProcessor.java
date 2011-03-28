@@ -69,6 +69,7 @@ import com.google.common.collect.Maps;
 
 import static org.apache.cassandra.thrift.ThriftValidation.validateKey;
 import static org.apache.cassandra.thrift.ThriftValidation.validateColumnFamily;
+import static org.apache.cassandra.thrift.ThriftValidation.validateKeyType;
 
 public class QueryProcessor
 {
@@ -224,6 +225,7 @@ public class QueryProcessor
 
         for (UpdateStatement update : updateStatements)
         {
+            String cfname = update.getColumnFamily();
             // Avoid unnecessary authorizations.
             if (!(cfamsSeen.contains(update.getColumnFamily())))
             {
@@ -234,7 +236,8 @@ public class QueryProcessor
             // FIXME: keys as ascii is not a Real Solution
             ByteBuffer key = update.getKey().getByteBuffer(AsciiType.instance);
             validateKey(key);
-            validateColumnFamily(keyspace, update.getColumnFamily());
+            validateColumnFamily(keyspace, cfname);
+            validateKeyType(key, keyspace, cfname);
             AbstractType<?> comparator = update.getComparator(keyspace);
             
             RowMutation rm = new RowMutation(keyspace, key);

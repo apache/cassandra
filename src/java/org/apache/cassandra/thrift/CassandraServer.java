@@ -349,6 +349,7 @@ public class CassandraServer implements Cassandra.Iface
 
         ThriftValidation.validateKey(key);
         ThriftValidation.validateColumnParent(state().getKeyspace(), column_parent);
+        ThriftValidation.validateKeyType(key, state().getKeyspace(), column_parent.column_family);
         ThriftValidation.validateColumnNames(state().getKeyspace(), column_parent, Arrays.asList(column.name));
         ThriftValidation.validateColumnData(state().getKeyspace(), column_parent.column_family, column);
 
@@ -387,7 +388,8 @@ public class CassandraServer implements Cassandra.Iface
             for (Map.Entry<String, List<Mutation>> columnFamilyMutations : columnFamilyToMutations.entrySet())
             {
                 String cfName = columnFamilyMutations.getKey();
-                
+                ThriftValidation.validateKeyType(key, state().getKeyspace(), cfName);
+
                 // Avoid unneeded authorizations
                 if (!(cfamsSeen.contains(cfName)))
                 {
@@ -423,6 +425,7 @@ public class CassandraServer implements Cassandra.Iface
 
         ThriftValidation.validateKey(key);
         ThriftValidation.validateColumnPathOrParent(state().getKeyspace(), column_path);
+        ThriftValidation.validateKeyType(key, state().getKeyspace(), column_path.column_family);
 
         RowMutation rm = new RowMutation(state().getKeyspace(), key);
         rm.delete(new QueryPath(column_path), timestamp); 

@@ -23,9 +23,6 @@ package org.apache.cassandra.thrift;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -50,8 +47,6 @@ import org.apache.cassandra.utils.FBUtilities;
  */
 public class ThriftValidation
 {
-    private static final Logger logger = LoggerFactory.getLogger(ThriftValidation.class);
-
     public static void validateKey(ByteBuffer key) throws InvalidRequestException
     {
         if (key == null || key.remaining() == 0)
@@ -63,6 +58,19 @@ public class ThriftValidation
         {
             throw new InvalidRequestException("Key length of " + key.remaining() +
                                               " is longer than maximum of " + FBUtilities.MAX_UNSIGNED_SHORT);
+        }
+    }
+
+    public static void validateKeyType(ByteBuffer key, String ksname, String cfname) throws InvalidRequestException
+    {
+        try
+        {
+            AbstractType<?> keyValidator = DatabaseDescriptor.getCFMetaData(ksname, cfname).getKeyValidator();
+            keyValidator.validate(key);
+        }
+        catch (MarshalException e)
+        {
+            throw new InvalidRequestException(e.toString());
         }
     }
 
