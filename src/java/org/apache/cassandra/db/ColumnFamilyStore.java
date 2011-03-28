@@ -25,6 +25,8 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.regex.Pattern;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
@@ -138,6 +140,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private volatile DefaultInteger rowCacheSaveInSeconds;
     private volatile DefaultInteger keyCacheSaveInSeconds;
 
+    /** Lock to allow migrations to block all flushing, so we can be sure not to write orphaned data files */
+    public final Lock flushLock = new ReentrantLock();
+    
     public static enum CacheType
     {
         KEY_CACHE_TYPE("KeyCache"),
@@ -591,19 +596,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
         assert getMemtableThreadSafe() == oldMemtable;
 
-        boolean isDropped = isIndex()
-                          ? DatabaseDescriptor.getCFMetaData(table.name, getParentColumnfamily()) == null
-                          : DatabaseDescriptor.getCFMetaData(metadata.cfId) == null;
-        if (isDropped)
-        {
-            logger.debug("column family was dropped; no point in flushing");
-            return null;
-        }
-
-        // Table.flusherLock ensures that we schedule discardCompletedSegments calls in the same order as their
+        // global synchronization ensures that we schedule discardCompletedSegments calls in the same order as their
         // contexts (commitlog position) were read, even though the flush executor is multithreaded.
-        Table.flusherLock.lock();
-        try
+        synchronized (ColumnFamilyStore.class)
         {
             final CommitLogSegment.CommitLogContext ctx = writeCommitLog ? CommitLog.instance.getContext() : null;
 
@@ -646,10 +641,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 }
             });
         }
-        finally
-        {
-            Table.flusherLock.unlock();
-        }
+    }
+
+    public boolean isDropped()
+    {
+        return isIndex()
+               ? DatabaseDescriptor.getCFMetaData(table.name, getParentColumnfamily()) == null
+               : DatabaseDescriptor.getCFMetaData(metadata.cfId) == null;
     }
 
     void switchBinaryMemtable(DecoratedKey key, ByteBuffer buffer)

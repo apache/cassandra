@@ -25,7 +25,6 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 
 import com.google.common.base.Function;
 import com.google.common.collect.Iterables;
@@ -57,13 +56,6 @@ public class Table
 
     private static final Logger logger = LoggerFactory.getLogger(Table.class);
     private static final String SNAPSHOT_SUBDIR_NAME = "snapshots";
-
-    /**
-     * Table.maybeSwitchMemtable aquires this lock when flushing.
-     * This is a global lock mainly for the benfits of Migration, so that it
-     * can block all flushing.
-     */
-    static final Lock flusherLock = new ReentrantLock();
 
     // It is possible to call Table.open without a running daemon, so it makes sense to ensure
     // proper directories here as well as in CassandraDaemon.
@@ -116,11 +108,6 @@ public class Table
             }
         }
         return tableInstance;
-    }
-    
-    public static Lock getFlushLock()
-    {
-        return flusherLock;
     }
 
     public static Table clear(String table) throws IOException

@@ -24,6 +24,8 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.CompactionManager;
 import org.apache.cassandra.db.HintedHandOffManager;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.utils.FBUtilities;
@@ -46,34 +48,37 @@ public class DropKeyspace extends Migration
         rm = makeDefinitionMutation(null, ksm, newVersion);
     }
 
-    @Override
-    public void beforeApplyModels()
-    {
-        if (!clientMode)
-            Table.open(name).snapshot(null);
-    }
-
     public void applyModels() throws IOException
     {
-        acquireLocks();
+        String snapshotName = Table.getTimestampedSnapshotName(null);
+        CompactionManager.instance.getCompactionLock().lock();
         try
         {
             KSMetaData ksm = DatabaseDescriptor.getTableDefinition(name);
-            // remove the table from the static instances.
-            Table table = Table.clear(ksm.name);
-            if (table == null)
-                throw new IOException("Table is not active. " + ksm.name);
-            
+
             // remove all cfs from the table instance.
             for (CFMetaData cfm : ksm.cfMetaData().values())
             {
+                ColumnFamilyStore cfs = Table.open(ksm.name).getColumnFamilyStore(cfm.cfName);
                 CFMetaData.purge(cfm);
                 if (!clientMode)
                 {
-                    table.dropCf(cfm.cfId);
+                    cfs.flushLock.lock();
+                    try
+                    {
+                        cfs.snapshot(snapshotName);
+                        Table.open(ksm.name).dropCf(cfm.cfId);
+                    }
+                    finally
+                    {
+                        cfs.flushLock.unlock();
+                    }
                 }
             }
                             
+            // remove the table from the static instances.
+            Table table = Table.clear(ksm.name);
+            assert table != null;
             // reset defs.
             DatabaseDescriptor.clearTableDefinition(ksm, newVersion);
             
@@ -85,7 +90,7 @@ public class DropKeyspace extends Migration
         }
         finally
         {
-            releaseLocks();
+            CompactionManager.instance.getCompactionLock().unlock();
         }
     }
     
