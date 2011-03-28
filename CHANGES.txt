@@ -21,6 +21,8 @@
  * fsync statistics component on write (CASSANDRA-2382)
  * fix incorrect truncation of long to int when reading columns via block 
    index (CASSANDRA-2376)
+ * fix race condition that could leave orphaned data files when
+   dropping CF or KS (CASSANDRA-2381)
 
 
 0.7.4

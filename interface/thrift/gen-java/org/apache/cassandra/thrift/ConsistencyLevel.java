@@ -32,13 +32,26 @@ import java.util.HashMap;
 import org.apache.thrift.TEnum;
 
 /**
- * The ConsistencyLevel is an enum that controls both read and write behavior based on the ReplicationFactor of the keyspace.
- * The different consistency levels have different meanings, depending on if you're doing a write or read
- * operation. Note that if W + R > ReplicationFactor, where W is the number of nodes to block for on write, and R
- * the number to block for on reads, you will have strongly consistent behavior; that is, readers will always see the most
- * recent write. Of these, the most interesting is to do QUORUM reads and writes, which gives you consistency while still
- * allowing availability in the face of node failures up to half of <ReplicationFactor>. Of course if latency is more
- * important than consistency then you can use lower values for either or both.
+ * The ConsistencyLevel is an enum that controls both read and write
+ * behavior based on the ReplicationFactor of the keyspace.  The
+ * different consistency levels have different meanings, depending on
+ * if you're doing a write or read operation.
+ * 
+ * If W + R > ReplicationFactor, where W is the number of nodes to
+ * block for on write, and R the number to block for on reads, you
+ * will have strongly consistent behavior; that is, readers will
+ * always see the most recent write. Of these, the most interesting is
+ * to do QUORUM reads and writes, which gives you consistency while
+ * still allowing availability in the face of node failures up to half
+ * of <ReplicationFactor>. Of course if latency is more important than
+ * consistency then you can use lower values for either or both.
+ * 
+ * Some ConsistencyLevels (ONE, TWO, THREE) refer to a specific number
+ * of replicas rather than a logical concept that adjusts
+ * automatically with the replication factor.  Of these, only ONE is
+ * commonly used; TWO and (even more rarely) THREE are only useful
+ * when you care more about guaranteeing a certain level of
+ * durability, than consistency.
  * 
  * Write consistency levels make the following guarantees before reporting success to the client:
  *   ANY          Ensure that the write has been written once somewhere, including possibly being hinted in a non-target node.

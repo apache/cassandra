@@ -37,7 +37,6 @@ import com.google.common.collect.PeekingIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.columniterator.IColumnIterator;
 import org.apache.cassandra.db.columniterator.SimpleAbstractColumnIterator;
 import org.apache.cassandra.db.filter.AbstractColumnIterator;
@@ -173,8 +172,16 @@ public class Memtable implements Comparable<Memtable>, IFlushable
         {
             public void runMayThrow() throws IOException
             {
-                cfs.addSSTable(writeSortedContents());
-                cfs.getMemtablesPendingFlush().remove(Memtable.this);
+                cfs.flushLock.lock();
+                try
+                {
+                    cfs.addSSTable(writeSortedContents());
+                    cfs.getMemtablesPendingFlush().remove(Memtable.this);
+                }
+                finally
+                {
+                    cfs.flushLock.unlock();
+                }
                 latch.countDown();
             }
         });

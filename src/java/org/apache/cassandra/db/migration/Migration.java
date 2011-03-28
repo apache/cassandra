@@ -92,22 +92,6 @@ public abstract class Migration
         this.lastVersion = lastVersion;
     }
     
-    // block compactions and flushing.
-    protected final void acquireLocks()
-    {
-        CompactionManager.instance.getCompactionLock().lock();
-        Table.getFlushLock().lock();
-    }
-    
-    protected final void releaseLocks()
-    {
-        Table.getFlushLock().unlock();
-        CompactionManager.instance.getCompactionLock().unlock();
-    }
-
-    /** override this to perform logic before writing the migration or applying it.  defaults to nothing. */
-    public void beforeApplyModels() {}
-    
     /** apply changes */
     public final void apply() throws IOException, ConfigurationException
     {
@@ -119,8 +103,6 @@ public abstract class Migration
         if (!clientMode)
             rm.apply();
 
-        beforeApplyModels();
-        
         // write migration.
         if (!clientMode)
         {

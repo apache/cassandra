@@ -24,7 +24,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import com.google.common.base.Function;
@@ -61,7 +60,7 @@ public class Table
      * accesses to CFS.memtable should acquire this for thread safety.
      * Table.maybeSwitchMemtable should aquire the writeLock; see that method for the full explanation.
      */
-    static final ReentrantReadWriteLock flusherLock = new ReentrantReadWriteLock();
+    static final ReentrantReadWriteLock switchLock = new ReentrantReadWriteLock();
 
     // It is possible to call Table.open without a running daemon, so it makes sense to ensure
     // proper directories here as well as in CassandraDaemon.
@@ -114,11 +113,6 @@ public class Table
             }
         }
         return tableInstance;
-    }
-    
-    public static Lock getFlushLock()
-    {
-        return flusherLock.writeLock();
     }
 
     public static Table clear(String table) throws IOException
@@ -343,7 +337,7 @@ public class Table
             logger.debug("applying mutation of row {}", ByteBufferUtil.bytesToHex(mutation.key()));
 
         // write the mutation to the commitlog and memtables
-        flusherLock.readLock().lock();
+        switchLock.readLock().lock();
         try
         {
             if (writeCommitLog)
@@ -407,7 +401,7 @@ public class Table
         }
         finally
         {
-            flusherLock.readLock().unlock();
+            switchLock.readLock().unlock();
         }
 
         // flush memtables that got filled up outside the readlock (maybeSwitchMemtable acquires writeLock).
@@ -562,7 +556,7 @@ public class Table
                 DecoratedKey key = iter.next();
                 logger.debug("Indexing row {} ", key);
                 List<Memtable> memtablesToFlush = Collections.emptyList();
-                flusherLock.readLock().lock();
+                switchLock.readLock().lock();
                 try
                 {
                     synchronized (indexLockFor(key.key))
@@ -574,7 +568,7 @@ public class Table
                 }
                 finally
                 {
-                    flusherLock.readLock().unlock();
+                    switchLock.readLock().unlock();
                 }
 
                 // during index build, we do flush index memtables separately from master; otherwise we could OOM

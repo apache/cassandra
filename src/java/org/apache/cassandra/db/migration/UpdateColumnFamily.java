@@ -65,14 +65,6 @@ public class UpdateColumnFamily extends Migration
         newKsMeta.cfMetaData().get(cf_def.name.toString()).apply(cf_def);
         rm = Migration.makeDefinitionMutation(newKsMeta, null, newVersion);
     }
-    
-    public void beforeApplyModels()
-    {
-        if (clientMode)
-            return;
-        ColumnFamilyStore cfs = Table.open(metadata.tableName).getColumnFamilyStore(metadata.cfName);
-        cfs.snapshot(Table.getTimestampedSnapshotName(null));
-    }
 
     void applyModels() throws IOException
     {
