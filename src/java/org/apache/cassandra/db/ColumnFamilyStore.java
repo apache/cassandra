@@ -709,12 +709,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 return null;
             }
 
-            if (isDropped())
-            {
-                logger.debug("column family was dropped; no point in flushing");
-                return null;
-            }
-
             assert memtable == oldMemtable;
             memtable.freeze();
             final CommitLogSegment.CommitLogContext ctx = writeCommitLog ? CommitLog.instance.getContext() : null;
