@@ -146,7 +146,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         return open(descriptor, components, Collections.<DecoratedKey>emptySet(), null, metadata, partitioner);
     }
 
-    public static SSTableReader open(Descriptor descriptor, Set<Component> components, Set<DecoratedKey> savedKeys, SSTableTracker tracker, CFMetaData metadata, IPartitioner partitioner) throws IOException
+    public static SSTableReader open(Descriptor descriptor, Set<Component> components, Set<DecoratedKey> savedKeys, DataTracker tracker, CFMetaData metadata, IPartitioner partitioner) throws IOException
     {
         assert partitioner != null;
 
@@ -232,7 +232,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         this.bf = bloomFilter;
     }
 
-    public void setTrackedBy(SSTableTracker tracker)
+    public void setTrackedBy(DataTracker tracker)
     {
         if (tracker != null)
         {

@@ -530,6 +530,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         insertKey1Key2();
 
         File backupDir = new File(DatabaseDescriptor.getDataFileLocationForTable("Keyspace2", 0), "backups");
+
         for (String f : Arrays.asList("Standard1-f-1-Data.db", "Standard1-f-1-Index.db", "Standard1-f-2-Data.db", "Standard1-f-2-Index.db",
                                       "Standard1-f-1-Filter.db", "Standard1-f-1-Statistics.db", "Standard1-f-2-Filter.db", "Standard1-f-2-Statistics.db"))
         {

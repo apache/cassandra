@@ -31,6 +31,7 @@ import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.db.DataTracker;
 import org.apache.cassandra.io.DeletionService;
 import org.apache.cassandra.service.StorageService;
 
@@ -40,13 +41,13 @@ public class SSTableDeletingReference extends PhantomReference<SSTableReader>
 
     public static final int RETRY_DELAY = 10000;
 
-    private final SSTableTracker tracker;
+    private final DataTracker tracker;
     public final Descriptor desc;
     public final Set<Component> components;
     private final long size;
     private boolean deleteOnCleanup;
 
-    SSTableDeletingReference(SSTableTracker tracker, SSTableReader referent, ReferenceQueue<? super SSTableReader> q)
+    SSTableDeletingReference(DataTracker tracker, SSTableReader referent, ReferenceQueue<? super SSTableReader> q)
     {
         super(referent, q);
         this.tracker = tracker;

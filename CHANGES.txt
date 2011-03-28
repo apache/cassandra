@@ -1,7 +1,7 @@
 0.8-dev
  * avoid double RowMutation serialization on write path (CASSANDRA-1800)
  * adds support for columns that act as incr/decr counters 
-   (CASSANDRA-1072, 1937, 1944, 1936, 2101, 2093, 2288)
+   (CASSANDRA-1072, 1937, 1944, 1936, 2101, 2093, 2288, 2105)
  * make NetworkTopologyStrategy the default (CASSANDRA-1960)
  * configurable internode encryption (CASSANDRA-1567)
  * human readable column names in sstable2json output (CASSANDRA-1933)
@@ -10,6 +10,7 @@
  * check for null encryption in MessagingService (CASSANDRA-2152)
  * Fix for Cli to support updating replicate_on_write (CASSANDRA-2236)
  * JDBC driver for CQL (CASSANDRA-2124, 2302)
+ * atomic switch of memtables and sstables (CASSANDRA-2284)
 
 
 0.7.5

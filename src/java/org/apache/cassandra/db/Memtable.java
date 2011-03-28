@@ -175,24 +175,12 @@ public class Memtable implements Comparable<Memtable>, IFlushable
 
     public void flushAndSignal(final CountDownLatch latch, ExecutorService sorter, final ExecutorService writer)
     {
-        cfs.getMemtablesPendingFlush().add(this); // it's ok for the MT to briefly be both active and pendingFlush
         writer.execute(new WrappedRunnable()
         {
             public void runMayThrow() throws IOException
             {
                 waitForWriters();
-                if (!cfs.reverseReadWriteOrder())
-                {
-                    //XXX: race condition: may allow double reconcile; but never misses an MT
-                    cfs.addSSTable(writeSortedContents());
-                    cfs.getMemtablesPendingFlush().remove(Memtable.this);
-                }
-                else
-                {
-                    //XXX: race condition: may miss an MT, but no double counts
-                    cfs.getMemtablesPendingFlush().remove(Memtable.this);
-                    cfs.addSSTable(writeSortedContents());
-                }
+                cfs.replaceFlushed(Memtable.this, writeSortedContents());
                 latch.countDown();
             }
         });
