@@ -32,6 +32,7 @@ import org.apache.avro.io.DecoderFactory;
 import org.apache.avro.specific.SpecificDatumReader;
 import org.apache.cassandra.avro.Mutation;
 import org.apache.cassandra.avro.StreamingMutation;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.hadoop.streaming.PipeMapRed;
 import org.apache.hadoop.streaming.io.OutputReader;
 
@@ -139,15 +140,8 @@ public class AvroOutputReader extends OutputReader<ByteBuffer, List<Mutation>>
         @Override
         public long skip(long n) throws IOException
         {
-            long skipped = 0;
-            while (n > 0)
-            {
-                // skip in batches up to max_int in size
-                int skip = (int)Math.min(Integer.MAX_VALUE, n);
-                skipped += in.skipBytes(skip);
-                n -= skip;
-            }
-            return skipped;
+            FileUtils.skipBytesFully(in, n);
+            return n;
         }
     }
 }

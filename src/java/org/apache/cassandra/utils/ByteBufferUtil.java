@@ -31,6 +31,8 @@ import java.util.Arrays;
 import static com.google.common.base.Charsets.UTF_8;
 
 import org.apache.cassandra.io.util.FileDataInput;
+import org.apache.cassandra.io.util.FileUtils;
+
 import org.apache.commons.lang.ArrayUtils;
 
 /**
@@ -341,12 +343,7 @@ public class ByteBufferUtil
     public static ByteBuffer skipShortLength(DataInput in) throws IOException
     {
         int skip = readShortLength(in);
-        while (skip > 0)
-        {
-            int skipped = in.skipBytes(skip);
-            if (skipped == 0) throw new EOFException();
-            skip -= skipped;
-        }
+        FileUtils.skipBytesFully(in, skip);
         return null;
     }
 
