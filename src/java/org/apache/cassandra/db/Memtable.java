@@ -180,10 +180,13 @@ public class Memtable implements Comparable<Memtable>, IFlushable
             {
                 waitForWriters();
                 cfs.flushLock.lock();
-                SSTableReader sstable = writeSortedContents();
                 try
                 {
-                    cfs.replaceFlushed(Memtable.this, sstable);
+                    if (!cfs.isDropped())
+                    {
+                        SSTableReader sstable = writeSortedContents();
+                        cfs.replaceFlushed(Memtable.this, sstable);
+                    }
                 }
                 finally
                 {
