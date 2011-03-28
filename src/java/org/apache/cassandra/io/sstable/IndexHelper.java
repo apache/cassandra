@@ -28,6 +28,7 @@ import java.util.List;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileMark;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.*;
 
 /**
@@ -46,9 +47,7 @@ public class IndexHelper
         /* size of the bloom filter */
         int size = in.readInt();
         /* skip the serialized bloom filter */
-        int skipped = in.skipBytes(size);
-        if (skipped != size)
-            throw new EOFException("attempted to skip " + size + " bytes but only skipped " + skipped);
+        FileUtils.skipBytesFully(in, size);
     }
 
 	/**
@@ -61,8 +60,7 @@ public class IndexHelper
         /* read only the column index list */
         int columnIndexSize = file.readInt();
         /* skip the column index data */
-        if (file.skipBytes(columnIndexSize) != columnIndexSize)
-            throw new EOFException();
+        FileUtils.skipBytesFully(file, columnIndexSize);
 	}
     
     /**

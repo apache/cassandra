@@ -39,6 +39,7 @@ import org.apache.cassandra.io.sstable.IndexHelper;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileMark;
 import org.apache.cassandra.io.sstable.SSTableReader;
+import org.apache.cassandra.io.util.FileUtils;
 
 /**
  *  This is a reader that finds the block for a starting column and returns
@@ -172,8 +173,7 @@ class IndexedSliceReader extends AbstractIterator<IColumn> implements IColumnIte
 
             boolean outOfBounds = false;
             file.reset(mark);
-            long curOffset = file.skipBytes((int) curColPosition.offset);
-            assert curOffset == curColPosition.offset;
+            FileUtils.skipBytesFully(file, curColPosition.offset);
             while (file.bytesPastMark(mark) < curColPosition.offset + curColPosition.width && !outOfBounds)
             {
                 IColumn column = emptyColumnFamily.getColumnSerializer().deserialize(file);

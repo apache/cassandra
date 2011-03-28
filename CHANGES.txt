@@ -34,6 +34,8 @@
    charset is not UTF8 (CASSANDRA-2367)
  * fix potential infinite loop in ByteBufferUtil.inputStream (CASSANDRA-2365)
  * allow negative numbers in the cli (CASSANDRA-2358)
+ * fix incorrect truncation of long to int when reading columns via block 
+   index (CASSANDRA-2376)
 
 
 0.7.4

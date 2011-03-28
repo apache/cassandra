@@ -53,7 +53,8 @@ create column family Super3
     and comment = 'A column family with supercolumns, whose column names are Longs (8 bytes)';
 
 create column family Indexed1
-    with default_validation_class = LongType
+    with comparator = UTF8Type
+    and default_validation_class = LongType
     and column_metadata = [{
         column_name : birthdate,
         validation_class : LongType,

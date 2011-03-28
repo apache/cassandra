@@ -210,4 +210,29 @@ public class FileUtils
         // The directory is now empty so now it can be smoked
         deleteWithConfirm(dir);
     }
+
+    public static void skipBytesFully(DataInput in, int bytes) throws IOException
+    {
+        int n = 0;
+        while (n < bytes)
+        {
+            int skipped = in.skipBytes(bytes - n);
+            if (skipped == 0)
+                throw new EOFException("EOF after " + n + " bytes out of " + bytes);
+            n += skipped;
+        }
+    }
+
+    public static void skipBytesFully(DataInput in, long bytes) throws IOException
+    {
+        long n = 0;
+        while (n < bytes)
+        {
+            int m = (int) Math.min(Integer.MAX_VALUE, bytes - n);
+            int skipped = in.skipBytes(m);
+            if (skipped == 0)
+                throw new EOFException("EOF after " + n + " bytes out of " + bytes);
+            n += skipped;
+        }
+    }
 }
