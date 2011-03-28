@@ -33,6 +33,7 @@
  * fix encoding bugs in HintedHandoffManager, SystemTable when default
    charset is not UTF8 (CASSANDRA-2367)
  * fix potential infinite loop in ByteBufferUtil.inputStream (CASSANDRA-2365)
+ * allow negative numbers in the cli (CASSANDRA-2358)
 
 
 0.7.4

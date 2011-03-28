@@ -26,6 +26,8 @@ import org.apache.cassandra.utils.FBUtilities;
 
 public class BytesToken extends Token<byte[]>
 {
+    static final long serialVersionUID = -2630749093733680626L;
+
     public BytesToken(ByteBuffer token)
     {
         this(ByteBufferUtil.getArray(token));

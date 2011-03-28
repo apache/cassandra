@@ -591,6 +591,7 @@ Alnum
 // syntactic Elements
 IntegerPositiveLiteral
    : Digit+
+   | '-' Digit+
    ;
 
 IntegerNegativeLiteral
