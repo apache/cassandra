@@ -175,8 +175,11 @@ public class Memtable implements Comparable<Memtable>, IFlushable
                 cfs.flushLock.lock();
                 try
                 {
-                    cfs.addSSTable(writeSortedContents());
-                    cfs.getMemtablesPendingFlush().remove(Memtable.this);
+                    if (!cfs.isDropped())
+                    {
+                        cfs.addSSTable(writeSortedContents());
+                        cfs.getMemtablesPendingFlush().remove(Memtable.this);
+                    }
                 }
                 finally
                 {

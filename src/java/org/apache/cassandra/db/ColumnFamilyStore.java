@@ -709,10 +709,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 return null;
             }
 
-            boolean isDropped = isIndex()
-                              ? DatabaseDescriptor.getCFMetaData(table.name, getParentColumnfamily()) == null
-                              : DatabaseDescriptor.getCFMetaData(metadata.cfId) == null;
-            if (isDropped)
+            if (isDropped())
             {
                 logger.debug("column family was dropped; no point in flushing");
                 return null;
@@ -766,6 +763,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             Table.switchLock.writeLock().unlock();
         }
+    }
+
+    public boolean isDropped()
+    {
+        return isIndex()
+               ? DatabaseDescriptor.getCFMetaData(table.name, getParentColumnfamily()) == null
+               : DatabaseDescriptor.getCFMetaData(metadata.cfId) == null;
     }
 
     void switchBinaryMemtable(DecoratedKey key, ByteBuffer buffer)
