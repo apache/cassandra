@@ -264,7 +264,7 @@ public class CliClient extends CliUserHelp
         SliceRange range = new SliceRange(ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, Integer.MAX_VALUE);
         SlicePredicate predicate = new SlicePredicate().setColumn_names(null).setSlice_range(range);
 
-        int count = thriftClient.get_count(ByteBuffer.wrap(key.getBytes(Charsets.UTF_8)), colParent, predicate, consistencyLevel);
+        int count = thriftClient.get_count(ByteBufferUtil.bytes(key), colParent, predicate, consistencyLevel);
         sessionState.out.printf("%d columns%n", count);
     }
     
@@ -315,11 +315,11 @@ public class CliClient extends CliUserHelp
 
         if (isCounterCF(cfDef))
         {
-            thriftClient.remove_counter(ByteBuffer.wrap(key.getBytes(Charsets.UTF_8)), path, consistencyLevel);
+            thriftClient.remove_counter(ByteBufferUtil.bytes(key), path, consistencyLevel);
         }
         else
         {
-            thriftClient.remove(ByteBuffer.wrap(key.getBytes(Charsets.UTF_8)), path,
+            thriftClient.remove(ByteBufferUtil.bytes(key), path,
                     FBUtilities.timestampMicros(), consistencyLevel);
         }
         sessionState.out.println(String.format("%s removed.", (columnSpecCnt == 0) ? "row" : "column"));
@@ -1970,7 +1970,7 @@ public class CliClient extends CliUserHelp
         }
 
         // if no validation were set returning simple .getBytes()
-        return ByteBuffer.wrap(columnValue.getBytes());
+        return ByteBufferUtil.bytes(columnValue);
     }
 
     /**
@@ -2193,7 +2193,7 @@ public class CliClient extends CliUserHelp
 
         for (KeySlice ks : slices)
         {
-            String keyName = (keyComparator == null) ? ByteBufferUtil.string(ks.key, Charsets.UTF_8) : keyComparator.getString(ks.key);
+            String keyName = (keyComparator == null) ? ByteBufferUtil.string(ks.key) : keyComparator.getString(ks.key);
 
             sessionState.out.printf("-------------------%n");
             sessionState.out.printf("RowKey: %s%n", keyName);

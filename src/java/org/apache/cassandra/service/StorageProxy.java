@@ -59,8 +59,6 @@ import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.thrift.SlicePredicate;
 import org.apache.cassandra.thrift.UnavailableException;
 
-import static com.google.common.base.Charsets.UTF_8;
-
 public class StorageProxy implements StorageProxyMBean
 {
     private static final Logger logger = LoggerFactory.getLogger(StorageProxy.class);
@@ -318,7 +316,7 @@ public class StorageProxy implements StorageProxyMBean
         {
             dos.write(previousHints);
         }
-        ByteBufferUtil.writeWithShortLength(ByteBuffer.wrap(target.getHostAddress().getBytes(UTF_8)), dos);
+        ByteBufferUtil.writeWithShortLength(ByteBufferUtil.bytes(target.getHostAddress()), dos);
         message.setHeader(RowMutation.HINT, bos.toByteArray());
     }
 

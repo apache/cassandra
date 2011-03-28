@@ -57,7 +57,7 @@ public class CompactionsPurgeTest extends CleanupHelper
         rm = new RowMutation(TABLE1, key.key);
         for (int i = 0; i < 10; i++)
         {
-            rm.add(new QueryPath(cfName, null, ByteBuffer.wrap(String.valueOf(i).getBytes())), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
+            rm.add(new QueryPath(cfName, null, ByteBufferUtil.bytes(String.valueOf(i))), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
         }
         rm.apply();
         cfs.forceBlockingFlush();
@@ -66,14 +66,14 @@ public class CompactionsPurgeTest extends CleanupHelper
         for (int i = 0; i < 10; i++)
         {
             rm = new RowMutation(TABLE1, key.key);
-            rm.delete(new QueryPath(cfName, null, ByteBuffer.wrap(String.valueOf(i).getBytes())), 1);
+            rm.delete(new QueryPath(cfName, null, ByteBufferUtil.bytes(String.valueOf(i))), 1);
             rm.apply();
         }
         cfs.forceBlockingFlush();
 
         // resurrect one column
         rm = new RowMutation(TABLE1, key.key);
-        rm.add(new QueryPath(cfName, null, ByteBuffer.wrap(String.valueOf(5).getBytes())), ByteBufferUtil.EMPTY_BYTE_BUFFER, 2);
+        rm.add(new QueryPath(cfName, null, ByteBufferUtil.bytes(String.valueOf(5))), ByteBufferUtil.EMPTY_BYTE_BUFFER, 2);
         rm.apply();
         cfs.forceBlockingFlush();
 
@@ -82,7 +82,7 @@ public class CompactionsPurgeTest extends CleanupHelper
         cfs.invalidateCachedRow(key);
         ColumnFamily cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(key, new QueryPath(cfName)));
         assertColumns(cf, "5");
-        assert cf.getColumn(ByteBuffer.wrap(String.valueOf(5).getBytes())) != null;
+        assert cf.getColumn(ByteBufferUtil.bytes(String.valueOf(5))) != null;
     }
 
     @Test
@@ -102,7 +102,7 @@ public class CompactionsPurgeTest extends CleanupHelper
             rm = new RowMutation(TABLE2, key.key);
             for (int i = 0; i < 10; i++)
             {
-                rm.add(new QueryPath(cfName, null, ByteBuffer.wrap(String.valueOf(i).getBytes())), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
+                rm.add(new QueryPath(cfName, null, ByteBufferUtil.bytes(String.valueOf(i))), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
             }
             rm.apply();
             cfs.forceBlockingFlush();
@@ -111,7 +111,7 @@ public class CompactionsPurgeTest extends CleanupHelper
             for (int i = 0; i < 10; i++)
             {
                 rm = new RowMutation(TABLE2, key.key);
-                rm.delete(new QueryPath(cfName, null, ByteBuffer.wrap(String.valueOf(i).getBytes())), 1);
+                rm.delete(new QueryPath(cfName, null, ByteBufferUtil.bytes(String.valueOf(i))), 1);
                 rm.apply();
             }
             cfs.forceBlockingFlush();
@@ -125,7 +125,7 @@ public class CompactionsPurgeTest extends CleanupHelper
         cfs.forceBlockingFlush();
         Collection<SSTableReader> sstablesIncomplete = cfs.getSSTables();
         rm = new RowMutation(TABLE2, key1.key);
-        rm.add(new QueryPath(cfName, null, ByteBuffer.wrap(String.valueOf(5).getBytes())), ByteBufferUtil.EMPTY_BYTE_BUFFER, 2);
+        rm.add(new QueryPath(cfName, null, ByteBufferUtil.bytes(String.valueOf(5))), ByteBufferUtil.EMPTY_BYTE_BUFFER, 2);
         rm.apply();
         cfs.forceBlockingFlush();
         CompactionManager.instance.doCompaction(cfs, sstablesIncomplete, Integer.MAX_VALUE);
@@ -157,7 +157,7 @@ public class CompactionsPurgeTest extends CleanupHelper
         rm = new RowMutation(TABLE1, key.key);
         for (int i = 0; i < 5; i++)
         {
-            rm.add(new QueryPath(cfName, null, ByteBuffer.wrap(String.valueOf(i).getBytes())), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
+            rm.add(new QueryPath(cfName, null, ByteBufferUtil.bytes(String.valueOf(i))), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
         }
         rm.apply();
 
@@ -165,7 +165,7 @@ public class CompactionsPurgeTest extends CleanupHelper
         for (int i = 0; i < 5; i++)
         {
             rm = new RowMutation(TABLE1, key.key);
-            rm.delete(new QueryPath(cfName, null, ByteBuffer.wrap(String.valueOf(i).getBytes())), 1);
+            rm.delete(new QueryPath(cfName, null, ByteBufferUtil.bytes(String.valueOf(i))), 1);
             rm.apply();
         }
         store.forceBlockingFlush();
@@ -196,7 +196,7 @@ public class CompactionsPurgeTest extends CleanupHelper
         rm = new RowMutation(tableName, key.key);
         for (int i = 0; i < 10; i++)
         {
-            rm.add(new QueryPath(cfName, null, ByteBuffer.wrap(String.valueOf(i).getBytes())), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
+            rm.add(new QueryPath(cfName, null, ByteBufferUtil.bytes(String.valueOf(i))), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
         }
         rm.apply();
 
@@ -217,7 +217,7 @@ public class CompactionsPurgeTest extends CleanupHelper
         rm = new RowMutation(tableName, key.key);
         for (int i = 0; i < 10; i++)
         {
-            rm.add(new QueryPath(cfName, null, ByteBuffer.wrap(String.valueOf(i).getBytes())), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
+            rm.add(new QueryPath(cfName, null, ByteBufferUtil.bytes(String.valueOf(i))), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
         }
         rm.apply();
 

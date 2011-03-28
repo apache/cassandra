@@ -50,13 +50,13 @@ public class MovementTest extends TestBase
     {
         final int N = 1000;
         Column col1 = new Column(
-            ByteBuffer.wrap("c1".getBytes()),
-            ByteBuffer.wrap("v1".getBytes()),
+            ByteBufferUtil.bytes("c1"),
+            ByteBufferUtil.bytes("v1"),
             0
             );
         Column col2 = new Column(
-            ByteBuffer.wrap("c2".getBytes()),
-            ByteBuffer.wrap("v2".getBytes()),
+            ByteBufferUtil.bytes("c2"),
+            ByteBufferUtil.bytes("v2"),
             0
             );
 
@@ -66,7 +66,7 @@ public class MovementTest extends TestBase
         for (int i = 0; i < N; i++)
         {
             String rawKey = String.format("test.key.%d", i);
-            ByteBuffer key = ByteBuffer.wrap(rawKey.getBytes());
+            ByteBuffer key = ByteBufferUtil.bytes(rawKey);
             Mutation m1 = (new Mutation()).setColumn_or_supercolumn((new ColumnOrSuperColumn()).setColumn(col1));
             Mutation m2 = (new Mutation()).setColumn_or_supercolumn((new ColumnOrSuperColumn()).setColumn(col2));
             rows.put(key, Arrays.asList(m1.getColumn_or_supercolumn(),

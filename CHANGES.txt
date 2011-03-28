@@ -30,6 +30,8 @@
  * fix race when iterating CFs during add/drop (CASSANDRA-2350)
  * add ConsistencyLevel command to CLI (CASSANDRA-2354)
  * fsync statistics component on write (CASSANDRA-2382)
+ * fix encoding bugs in HintedHandoffManager, SystemTable when default
+   charset is not UTF8 (CASSANDRA-2367)
 
 
 0.7.4

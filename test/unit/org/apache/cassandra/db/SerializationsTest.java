@@ -33,6 +33,8 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.SlicePredicate;
 import org.apache.cassandra.thrift.SliceRange;
+import org.apache.cassandra.utils.ByteBufferUtil;
+
 import org.junit.Test;
 
 import java.io.DataInputStream;
@@ -48,9 +50,9 @@ public class SerializationsTest extends AbstractSerializationsTester
 {
     private void testRangeSliceCommandWrite() throws IOException
     {
-        ByteBuffer startCol = ByteBuffer.wrap("Start".getBytes());
-        ByteBuffer stopCol = ByteBuffer.wrap("Stop".getBytes());
-        ByteBuffer emptyCol = ByteBuffer.wrap("".getBytes());
+        ByteBuffer startCol = ByteBufferUtil.bytes("Start");
+        ByteBuffer stopCol = ByteBufferUtil.bytes("Stop");
+        ByteBuffer emptyCol = ByteBufferUtil.bytes("");
         SlicePredicate namesPred = new SlicePredicate();
         namesPred.column_names = Statics.NamedCols;
         SliceRange emptySliceRange = new SliceRange(emptyCol, emptyCol, false, 100); 
@@ -285,24 +287,24 @@ public class SerializationsTest extends AbstractSerializationsTester
     }
     
     private static ByteBuffer bb(String s) {
-        return ByteBuffer.wrap(s.getBytes());
+        return ByteBufferUtil.bytes(s);
     }
     
     private static class Statics 
     {
         private static final String KS = "Keyspace1";
-        private static final ByteBuffer Key = ByteBuffer.wrap("Key01".getBytes());
+        private static final ByteBuffer Key = ByteBufferUtil.bytes("Key01");
         private static final List<ByteBuffer> NamedCols = new ArrayList<ByteBuffer>() 
         {{
-            add(ByteBuffer.wrap("AAA".getBytes()));     
-            add(ByteBuffer.wrap("BBB".getBytes()));     
-            add(ByteBuffer.wrap("CCC".getBytes()));     
+            add(ByteBufferUtil.bytes("AAA"));
+            add(ByteBufferUtil.bytes("BBB"));
+            add(ByteBufferUtil.bytes("CCC"));
         }};
-        private static final ByteBuffer SC = ByteBuffer.wrap("SCName".getBytes());
+        private static final ByteBuffer SC = ByteBufferUtil.bytes("SCName");
         private static final QueryPath StandardPath = new QueryPath("Standard1");
         private static final QueryPath SuperPath = new QueryPath("Super1", SC);
-        private static final ByteBuffer Start = ByteBuffer.wrap("Start".getBytes());
-        private static final ByteBuffer Stop = ByteBuffer.wrap("Stop".getBytes());
+        private static final ByteBuffer Start = ByteBufferUtil.bytes("Start");
+        private static final ByteBuffer Stop = ByteBufferUtil.bytes("Stop");
         
         private static final ColumnFamily StandardCf = ColumnFamily.create(Statics.KS, "Standard1");
         private static final ColumnFamily SuperCf = ColumnFamily.create(Statics.KS, "Super1");

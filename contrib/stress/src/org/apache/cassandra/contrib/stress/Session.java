@@ -28,6 +28,8 @@ import org.apache.commons.cli.*;
 import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.thrift.*;
 import org.apache.commons.lang.StringUtils;
+
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.transport.TFramedTransport;
 import org.apache.thrift.transport.TSocket;
@@ -390,7 +392,7 @@ public class Session
         standardCfDef.setComparator_type("AsciiType").setDefault_validation_class("BytesType");
         if (indexType != null)
         {
-            ColumnDef standardColumn = new ColumnDef(ByteBuffer.wrap("C1".getBytes()), "BytesType");
+            ColumnDef standardColumn = new ColumnDef(ByteBufferUtil.bytes("C1"), "BytesType");
             standardColumn.setIndex_type(indexType).setIndex_name("Idx1");
             standardCfDef.setColumn_metadata(Arrays.asList(standardColumn));
         }

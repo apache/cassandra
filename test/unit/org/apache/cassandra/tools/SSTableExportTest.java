@@ -55,7 +55,7 @@ public class SSTableExportTest extends SchemaLoader
 {
     public String asHex(String str)
     {
-        return bytesToHex(ByteBuffer.wrap(str.getBytes()));
+        return bytesToHex(ByteBufferUtil.bytes(str));
     }
 
     @Test

@@ -68,7 +68,7 @@ public class StreamingTransferTest extends CleanupHelper
         for (int i = 1; i <= 3; i++)
         {
             String key = "key" + i;
-            RowMutation rm = new RowMutation("Keyspace1", ByteBuffer.wrap(key.getBytes()));
+            RowMutation rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes(key));
             ColumnFamily cf = ColumnFamily.create(table.name, cfs.columnFamily);
             cf.addColumn(column(key, "v", 0));
             cf.addColumn(new Column(ByteBufferUtil.bytes("birthdate"), ByteBufferUtil.bytes((long) i), 0));
@@ -143,8 +143,8 @@ public class StreamingTransferTest extends CleanupHelper
         ColumnFamilyStore cfstore = Table.open(tablename).getColumnFamilyStore(cfname);
         List<Row> rows = Util.getRangeSlice(cfstore);
         assertEquals(6, rows.size());
-        assert rows.get(0).key.key.equals( ByteBufferUtil.bytes("test"));
-        assert rows.get(3).key.key.equals(ByteBuffer.wrap( "transfer1".getBytes() ));
+        assert rows.get(0).key.key.equals(ByteBufferUtil.bytes("test"));
+        assert rows.get(3).key.key.equals(ByteBufferUtil.bytes("transfer1"));
         assert rows.get(0).cf.getColumnsMap().size() == 1;
         assert rows.get(3).cf.getColumnsMap().size() == 1;
 

@@ -75,6 +75,7 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.hadoop.filecache.DistributedCache;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.Text;
@@ -175,9 +176,9 @@ public class CassandraBulkLoader {
                 String ColumnValue = fields[3];
                 int timestamp = 0;
                 columnFamily.addColumn(new QueryPath(cfName,
-                                                     ByteBuffer.wrap(SuperColumnName.getBytes(Charsets.UTF_8)),
-                                                     ByteBuffer.wrap(ColumnName.getBytes(Charsets.UTF_8))), 
-                                       ByteBuffer.wrap(ColumnValue.getBytes()),
+                                                     ByteBufferUtil.bytes(SuperColumnName),
+                                                     ByteBufferUtil.bytes(ColumnName)),
+                                       ByteBufferUtil.bytes(ColumnValue),
                                        timestamp);
             }
 
@@ -186,7 +187,7 @@ public class CassandraBulkLoader {
             /* Get serialized message to send to cluster */
             message = createMessage(keyspace, key.getBytes(), cfName, columnFamilies);
             List<IAsyncResult> results = new ArrayList<IAsyncResult>();
-            for (InetAddress endpoint: StorageService.instance.getNaturalEndpoints(keyspace, ByteBuffer.wrap(key.getBytes())))
+            for (InetAddress endpoint: StorageService.instance.getNaturalEndpoints(keyspace, ByteBufferUtil.bytes(key)))
             {
                 /* Send message to end point */
                 results.add(MessagingService.instance().sendRR(message, endpoint));

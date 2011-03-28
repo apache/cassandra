@@ -42,14 +42,14 @@ public class RangeSlicer extends Operation
         // initial values
         int count = session.getColumnsPerKey();
 
-        SlicePredicate predicate = new SlicePredicate().setSlice_range(new SliceRange(ByteBuffer.wrap(new byte[] {}),
-                                                                                      ByteBuffer.wrap(new byte[] {}),
+        SlicePredicate predicate = new SlicePredicate().setSlice_range(new SliceRange(ByteBufferUtil.EMPTY_BYTE_BUFFER,
+                                                                                      ByteBufferUtil.EMPTY_BYTE_BUFFER,
                                                                                       false,
                                                                                       count));
 
         if (session.getColumnFamilyType() == ColumnFamilyType.Super)
         {
-            byte[] start = String.format(format, index).getBytes();
+            ByteBuffer start = ByteBufferUtil.bytes(String.format(format, index));
 
             List<KeySlice> slices = new ArrayList<KeySlice>();
             KeyRange range = new KeyRange(count).setStart_key(start).setEnd_key(ByteBufferUtil.EMPTY_BYTE_BUFFER);
@@ -57,7 +57,7 @@ public class RangeSlicer extends Operation
             for (int i = 0; i < session.getSuperColumns(); i++)
             {
                 String superColumnName = "S" + Integer.toString(i);
-                ColumnParent parent = new ColumnParent("Super1").setSuper_column(ByteBuffer.wrap(superColumnName.getBytes()));
+                ColumnParent parent = new ColumnParent("Super1").setSuper_column(ByteBufferUtil.bytes(superColumnName));
 
                 long startTime = System.currentTimeMillis();
 
@@ -83,7 +83,7 @@ public class RangeSlicer extends Operation
                     error(String.format("Operation [%d] retried %d times - error on calling get_range_slices for range offset %s %s%n",
                                         index,
                                         session.getRetryTimes(),
-                                        new String(start),
+                                        ByteBufferUtil.string(start),
                                         (exceptionMessage == null) ? "" : "(" + exceptionMessage + ")"));
                 }
 
@@ -97,7 +97,7 @@ public class RangeSlicer extends Operation
         {
             ColumnParent parent = new ColumnParent("Standard1");
 
-            byte[] start = String.format(format, index).getBytes();
+            ByteBuffer start = ByteBufferUtil.bytes(String.format(format, index));
 
             List<KeySlice> slices = new ArrayList<KeySlice>();
             KeyRange range = new KeyRange(count).setStart_key(start).setEnd_key(ByteBufferUtil.EMPTY_BYTE_BUFFER);
@@ -129,7 +129,7 @@ public class RangeSlicer extends Operation
                 error(String.format("Operation [%d] retried %d times - error on calling get_indexed_slices for range offset %s %s%n",
                                     index,
                                     session.getRetryTimes(),
-                                    new String(start),
+                                    ByteBufferUtil.string(start),
                                     (exceptionMessage == null) ? "" : "(" + exceptionMessage + ")"));
             }
 

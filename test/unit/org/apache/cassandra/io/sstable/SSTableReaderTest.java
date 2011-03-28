@@ -49,7 +49,7 @@ public class SSTableReaderTest extends CleanupHelper
 {
     static Token t(int i)
     {
-        return StorageService.getPartitioner().getToken(ByteBuffer.wrap(String.valueOf(i).getBytes()));
+        return StorageService.getPartitioner().getToken(ByteBufferUtil.bytes(String.valueOf(i)));
     }
 
     @Test
@@ -62,7 +62,7 @@ public class SSTableReaderTest extends CleanupHelper
         CompactionManager.instance.disableAutoCompaction();
         for (int j = 0; j < 10; j++)
         {
-            ByteBuffer key = ByteBuffer.wrap(String.valueOf(j).getBytes());
+            ByteBuffer key = ByteBufferUtil.bytes(String.valueOf(j));
             RowMutation rm = new RowMutation("Keyspace1", key);
             rm.add(new QueryPath("Standard2", null, ByteBufferUtil.bytes("0")), ByteBufferUtil.EMPTY_BYTE_BUFFER, j);
             rm.apply();
@@ -103,7 +103,7 @@ public class SSTableReaderTest extends CleanupHelper
         CompactionManager.instance.disableAutoCompaction();
         for (int j = 0; j < 100; j += 2)
         {
-            ByteBuffer key = ByteBuffer.wrap(String.valueOf(j).getBytes());
+            ByteBuffer key = ByteBufferUtil.bytes(String.valueOf(j));
             RowMutation rm = new RowMutation("Keyspace1", key);
             rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes("0")), ByteBufferUtil.EMPTY_BYTE_BUFFER, j);
             rm.apply();
@@ -140,7 +140,7 @@ public class SSTableReaderTest extends CleanupHelper
 
         for (int j = 0; j < 100; j += 2)
         {
-            ByteBuffer key = ByteBuffer.wrap(String.valueOf(j).getBytes());
+            ByteBuffer key = ByteBufferUtil.bytes(String.valueOf(j));
             RowMutation rm = new RowMutation("Keyspace1", key);
             rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes("0")), ByteBufferUtil.EMPTY_BYTE_BUFFER, j);
             rm.apply();

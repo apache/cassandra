@@ -20,12 +20,14 @@ package org.apache.cassandra.contrib.stress.operations;
 import org.apache.cassandra.contrib.stress.util.Operation;
 import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.thrift.*;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+
 
 public class MultiGetter extends Operation
 {
@@ -36,8 +38,8 @@ public class MultiGetter extends Operation
 
     public void run(Cassandra.Client client) throws IOException
     {
-        SlicePredicate predicate = new SlicePredicate().setSlice_range(new SliceRange(ByteBuffer.wrap(new byte[]{}),
-                                                                                      ByteBuffer.wrap(new byte[] {}),
+        SlicePredicate predicate = new SlicePredicate().setSlice_range(new SliceRange(ByteBufferUtil.EMPTY_BYTE_BUFFER,
+                                                                                      ByteBufferUtil.EMPTY_BYTE_BUFFER,
                                                                                       false, session.getColumnsPerKey()));
 
         int offset = index * session.getKeysPerThread();
@@ -49,7 +51,7 @@ public class MultiGetter extends Operation
 
             for (int j = 0; j < session.getSuperColumns(); j++)
             {
-                ColumnParent parent = new ColumnParent("Super1").setSuper_column(("S" + j).getBytes());
+                ColumnParent parent = new ColumnParent("Super1").setSuper_column(ByteBufferUtil.bytes("S" + j));
 
                 long start = System.currentTimeMillis();
 

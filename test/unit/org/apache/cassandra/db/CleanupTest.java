@@ -52,7 +52,7 @@ public class CleanupTest extends CleanupHelper
     public static final String TABLE1 = "Keyspace1";
     public static final String CF1 = "Indexed1";
     public static final String CF2 = "Standard1";
-    public static final ByteBuffer COLUMN = ByteBuffer.wrap("birthdate".getBytes());
+    public static final ByteBuffer COLUMN = ByteBufferUtil.bytes("birthdate");
     public static final ByteBuffer VALUE = ByteBuffer.allocate(8);
     static
     {

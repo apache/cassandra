@@ -92,7 +92,7 @@ public class KeyGenerator {
         }
 
         public ByteBuffer next() {
-            return ByteBuffer.wrap(Integer.toString(i++).getBytes());
+            return ByteBufferUtil.bytes(Integer.toString(i++));
         }
 
         public void remove() {

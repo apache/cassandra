@@ -68,7 +68,7 @@ public class TimeSortTest extends CleanupHelper
 
         for (int i = 900; i < 1000; ++i)
         {
-            RowMutation rm = new RowMutation("Keyspace1", ByteBuffer.wrap(Integer.toString(i).getBytes()));
+            RowMutation rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes(Integer.toString(i)));
             for (int j = 0; j < 8; ++j)
             {
                 rm.add(new QueryPath("StandardLong1", null, getBytes(j * 2)), ByteBufferUtil.bytes("a"), j * 2);

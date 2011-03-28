@@ -33,6 +33,7 @@ import static org.apache.cassandra.Util.column;
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class RecoveryManager2Test extends CleanupHelper
 {
@@ -73,7 +74,7 @@ public class RecoveryManager2Test extends CleanupHelper
 
     private void insertRow(String cfname, String key) throws IOException
     {
-        RowMutation rm = new RowMutation("Keyspace1", ByteBuffer.wrap(key.getBytes()));
+        RowMutation rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes(key));
         ColumnFamily cf = ColumnFamily.create("Keyspace1", cfname);
         cf.addColumn(column("col1", "val1", 1L));
         rm.add(cf);

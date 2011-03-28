@@ -59,7 +59,7 @@ public class AsciiType extends AbstractType<String>
 
     public ByteBuffer fromString(String source)
     {
-        return ByteBuffer.wrap(source.getBytes(Charsets.US_ASCII));
+        return ByteBufferUtil.bytes(source, Charsets.US_ASCII);
     }
 
     public void validate(ByteBuffer bytes) throws MarshalException
