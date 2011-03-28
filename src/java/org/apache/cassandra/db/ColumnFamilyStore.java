@@ -1632,16 +1632,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return keyCache.getSize();
     }
 
-    public JMXInstrumentedCache<DecoratedKey, ColumnFamily> getRowCache()
-    {
-        return ssTables.getRowCache();
-    }
-
-    public JMXInstrumentedCache<Pair<Descriptor, DecoratedKey>, Long> getKeyCache()
-    {
-        return ssTables.getKeyCache();
-    }
-
     public static Iterable<ColumnFamilyStore> all()
     {
         Iterable<ColumnFamilyStore>[] stores = new Iterable[DatabaseDescriptor.getTables().size()];
