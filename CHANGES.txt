@@ -63,8 +63,7 @@
  * fixes for cache save/load (CASSANDRA-2172, -2174)
  * Handle whole-row deletions in CFOutputFormat (CASSANDRA-2014)
  * Make memtable_flush_writers flush in parallel (CASSANDRA-2178)
- * make key cache preheating default to false; enable with
-   -Dcompaction_preheat_key_cache=true (CASSANDRA-2175)
+ * Add compaction_preheat_key_cache option (CASSANDRA-2175)
  * refactor stress.py to have only one copy of the format string 
    used for creating row keys (CASSANDRA-2108)
  * validate index names for \w+ (CASSANDRA-2196)
