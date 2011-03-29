@@ -1,4 +1,5 @@
 0.8-dev
+ * remove Avro RPC support (CASSANDRA-926)
  * avoid double RowMutation serialization on write path (CASSANDRA-1800)
  * adds support for columns that act as incr/decr counters 
    (CASSANDRA-1072, 1937, 1944, 1936, 2101, 2093, 2288, 2105)
@@ -11,6 +12,7 @@
  * Fix for Cli to support updating replicate_on_write (CASSANDRA-2236)
  * JDBC driver for CQL (CASSANDRA-2124, 2302)
  * atomic switch of memtables and sstables (CASSANDRA-2284)
+ * add pluggable SeedProvider (CASSANDRA-1669)
 
 
 0.7.5
