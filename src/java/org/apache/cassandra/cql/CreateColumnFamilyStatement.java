@@ -21,8 +21,10 @@
 package org.apache.cassandra.cql;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -87,7 +89,7 @@ public class CreateColumnFamilyStatement
     private final String name;
     private final Map<Term, String> columns = new HashMap<Term, String>();
     private final Map<String, String> properties = new HashMap<String, String>();
-    private String keyValidator;
+    private List<String> keyValidator = new ArrayList<String>();
     
     public CreateColumnFamilyStatement(String name)
     {
@@ -150,6 +152,12 @@ public class CreateColumnFamilyStatement
         if ((memOps != null) && (memOps <=0))
             throw new InvalidRequestException(String.format("%s must be non-negative and greater than zero",
                                                             KW_MEMTABLEOPSINMILLIONS));
+        
+        // Ensure that exactly one key has been specified.
+        if (keyValidator.size() < 1)
+            throw new InvalidRequestException("You must specify a PRIMARY KEY");
+        else if (keyValidator.size() > 1)
+            throw new InvalidRequestException("You may only specify one PRIMARY KEY");
     }
     
     /** Map a column name to a validator for its value */
@@ -160,7 +168,12 @@ public class CreateColumnFamilyStatement
     
     public void setKeyType(String validator)
     {
-        this.keyValidator = validator;
+        keyValidator.add(validator);
+    }
+    
+    public String getKeyType()
+    {
+        return keyValidator.get(0);
     }
     
     /** Map a keyword to the corresponding value */
@@ -218,7 +231,6 @@ public class CreateColumnFamilyStatement
             // RPC uses BytesType as the default validator/comparator but BytesType expects hex for string terms, (not convenient).
             AbstractType<?> comparator = DatabaseDescriptor.getComparator(comparators.get(getPropertyString(KW_COMPARATOR, "utf8")));
             String validator = getPropertyString(KW_DEFAULTVALIDATION, "utf8");
-            AbstractType<?> keyType = DatabaseDescriptor.getComparator(comparators.get((keyValidator != null) ? keyValidator : "utf8"));
 
             newCFMD = new CFMetaData(keyspace,
                                      name,
@@ -242,7 +254,7 @@ public class CreateColumnFamilyStatement
                    .memOps(getPropertyDouble(KW_MEMTABLEOPSINMILLIONS, CFMetaData.DEFAULT_MEMTABLE_OPERATIONS_IN_MILLIONS))
                    .mergeShardsChance(0.0)
                    .columnMetadata(getColumns(comparator))
-                   .keyValidator(keyType);
+                   .keyValidator(DatabaseDescriptor.getComparator(comparators.get(getKeyType())));
         }
         catch (ConfigurationException e)
         {

@@ -365,6 +365,7 @@ class TestCql(ThriftTester):
         
         conn.execute("""
             CREATE COLUMNFAMILY NewCf1 (
+                KEY int PRIMARY KEY,
                 'username' utf8,
                 'age' int,
                 'birthdate' long,
@@ -383,25 +384,31 @@ class TestCql(ThriftTester):
         assert cfam.comment == "shiny, new, cf"
         assert cfam.default_validation_class == "org.apache.cassandra.db.marshal.AsciiType"
         assert cfam.comparator_type == "org.apache.cassandra.db.marshal.UTF8Type"
+        assert cfam.key_validation_class == "org.apache.cassandra.db.marshal.IntegerType"
         
-        # No column defs, defaults all-around
-        conn.execute("CREATE COLUMNFAMILY NewCf2")
-        ksdef = thrift_client.describe_keyspace("CreateCFKeyspace")
-        assert len(ksdef.cf_defs) == 2, \
-            "expected 2 column families total, found %d" % len(ksdef.cf_defs)
+        # Missing primary key
+        assert_raises(CQLException, conn.execute, "CREATE COLUMNFAMILY NewCf2")
+        
+        # Too many primary keys
+        assert_raises(CQLException,
+                      conn.execute,
+                      """CREATE COLUMNFAMILY NewCf2
+                             (KEY int PRIMARY KEY, KEY utf8 PRIMARY KEY)""")
         
         # No column defs
-        conn.execute("CREATE COLUMNFAMILY NewCf3 WITH comparator = long")
+        conn.execute("""CREATE COLUMNFAMILY NewCf3
+                            (KEY int PRIMARY KEY) WITH comparator = long""")
         ksdef = thrift_client.describe_keyspace("CreateCFKeyspace")
-        assert len(ksdef.cf_defs) == 3, \
+        assert len(ksdef.cf_defs) == 2, \
             "expected 3 column families total, found %d" % len(ksdef.cf_defs)
         cfam = [i for i in ksdef.cf_defs if i.name == "NewCf3"][0]
         assert cfam.comparator_type == "org.apache.cassandra.db.marshal.LongType"
         
         # Column defs, defaults otherwise
-        conn.execute("CREATE COLUMNFAMILY NewCf4 ('a' int, 'b' int);")
+        conn.execute("""CREATE COLUMNFAMILY NewCf4
+                            (KEY int PRIMARY KEY, 'a' int, 'b' int);""")
         ksdef = thrift_client.describe_keyspace("CreateCFKeyspace")
-        assert len(ksdef.cf_defs) == 4, \
+        assert len(ksdef.cf_defs) == 3, \
             "expected 4 column families total, found %d" % len(ksdef.cf_defs)
         cfam = [i for i in ksdef.cf_defs if i.name == "NewCf4"][0]
         assert len(cfam.column_metadata) == 2, \
@@ -418,7 +425,7 @@ class TestCql(ThriftTester):
                 AND strategy_class = 'SimpleStrategy';
         """)
         conn.execute('USE Keyspace4CFDrop;')
-        conn.execute('CREATE COLUMNFAMILY CF4Drop;')
+        conn.execute('CREATE COLUMNFAMILY CF4Drop (KEY int PRIMARY KEY);')
         
         # TODO: temporary (until this can be done with CQL).
         ksdef = thrift_client.describe_keyspace("Keyspace4CFDrop")
@@ -433,7 +440,7 @@ class TestCql(ThriftTester):
         "creating column indexes"
         conn = init()
         conn.execute("USE Keyspace1")
-        conn.execute("CREATE COLUMNFAMILY CreateIndex1")
+        conn.execute("CREATE COLUMNFAMILY CreateIndex1 (KEY utf8 PRIMARY KEY)")
         conn.execute("CREATE INDEX namedIndex ON CreateIndex1 ('items')")
         conn.execute("CREATE INDEX ON CreateIndex1 ('stuff')")
         
