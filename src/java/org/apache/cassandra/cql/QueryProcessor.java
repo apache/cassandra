@@ -63,13 +63,12 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.Column;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 
 import com.google.common.base.Predicates;
 import com.google.common.collect.Maps;
 
-import static org.apache.cassandra.thrift.ThriftValidation.validateKey;
 import static org.apache.cassandra.thrift.ThriftValidation.validateColumnFamily;
-import static org.apache.cassandra.thrift.ThriftValidation.validateColumnNames;
 
 public class QueryProcessor
 {
@@ -87,7 +86,7 @@ public class QueryProcessor
         
         ByteBuffer key = select.getKeys().get(0).getByteBuffer(AsciiType.instance);
         CFMetaData metadata = validateColumnFamily(keyspace, select.getColumnFamily(), false);
-        validateKey(metadata, key);
+        validateKey(key);
 
         // ...of a list of column names
         if (!select.isColumnRange())
@@ -96,7 +95,7 @@ public class QueryProcessor
             for (Term column : select.getColumnNames())
                 columnNames.add(column.getByteBuffer(comparator));
             
-            validateColumnNames(metadata, null, columnNames);
+            validateColumnNames(columnNames);
             commands.add(new SliceByNamesReadCommand(keyspace, key, queryPath, columnNames));
         }
         // ...a range (slice) of column names
@@ -238,7 +237,7 @@ public class QueryProcessor
             
             // FIXME: keys as ascii is not a Real Solution
             ByteBuffer key = update.getKey().getByteBuffer(AsciiType.instance);
-            validateKey(metadata, key);
+            validateKey(key);
             AbstractType<?> comparator = update.getComparator(keyspace);
             
             RowMutation rm = new RowMutation(keyspace, key);
@@ -367,16 +366,45 @@ public class QueryProcessor
         }
     }
     
-    private static void validateColumnName(CFMetaData metadata, ByteBuffer column)
+    private static void validateKey(ByteBuffer key) throws InvalidRequestException
+    {
+        if (key == null || key.remaining() == 0)
+        {
+            throw new InvalidRequestException("Key may not be empty");
+        }
+
+        // check that key can be handled by FBUtilities.writeShortByteArray
+        if (key.remaining() > FBUtilities.MAX_UNSIGNED_SHORT)
+        {
+            throw new InvalidRequestException("Key length of " + key.remaining() +
+                                              " is longer than maximum of " + FBUtilities.MAX_UNSIGNED_SHORT);
+        }
+    }
+
+    private static void validateColumnNames(Iterable<ByteBuffer> columns)
     throws InvalidRequestException
     {
-        validateColumnNames(metadata, null, Arrays.asList(column));
+        for (ByteBuffer name : columns)
+        {
+            if (name.remaining() > IColumn.MAX_NAME_LENGTH)
+                throw new InvalidRequestException(String.format("column name is too long (%s > %s)",
+                                                                name.remaining(),
+                                                                IColumn.MAX_NAME_LENGTH));
+            if (name.remaining() == 0)
+                throw new InvalidRequestException("zero-length column name");
+        }
+    }
+
+    private static void validateColumnName(ByteBuffer column)
+    throws InvalidRequestException
+    {
+        validateColumnNames(Arrays.asList(column));
     }
     
     private static void validateColumn(CFMetaData metadata, ByteBuffer name, ByteBuffer value)
     throws InvalidRequestException
     {
-        validateColumnName(metadata, name);
+        validateColumnName(name);
         AbstractType<?> validator = metadata.getValueValidator(name);
 
         try
@@ -398,7 +426,7 @@ public class QueryProcessor
         if (predicate.slice_range != null)
             validateSliceRange(metadata, predicate.slice_range);
         else
-            validateColumnNames(metadata, null, predicate.column_names);
+            validateColumnNames(predicate.column_names);
     }
     
     private static void validateSliceRange(CFMetaData metadata, SliceRange range)
@@ -578,7 +606,7 @@ public class QueryProcessor
                         for (Term column : delete.getColumns())
                         {
                             ByteBuffer columnName = column.getByteBuffer(comparator);
-                            validateColumnName(metadata, columnName);
+                            validateColumnName(columnName);
                             rm.delete(new QueryPath(delete.getColumnFamily(), null, columnName),
                                       System.currentTimeMillis());
                         }
