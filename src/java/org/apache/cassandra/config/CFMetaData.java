@@ -468,6 +468,11 @@ public final class CFMetaData
     {
         return Collections.unmodifiableMap(column_metadata);
     }
+
+    public AbstractType getComparatorFor(ByteBuffer superColumnName)
+    {
+        return superColumnName == null ? comparator : subcolumnComparator;
+    }
     
     public boolean equals(Object obj) 
     {

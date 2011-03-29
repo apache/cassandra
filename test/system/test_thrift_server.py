@@ -55,6 +55,13 @@ def _assert_no_columnpath(key, column_path):
     except NotFoundException:
         assert True, 'column did not exist'
 
+def _assert_no_columnpath_counter(key, column_path):
+    try:
+        client.get_counter(key, column_path, ConsistencyLevel.ONE)
+        assert False, ('columnpath %s existed in %s when it should not' % (column_path, key))
+    except NotFoundException:
+        assert True, 'column did not exist'
+
 def _insert_simple(block=True):
    return _insert_multi(['key1'])
 
@@ -1548,7 +1555,7 @@ class TestMutations(ThriftTester):
         # remove the previous column and check that it is gone
         client.remove_counter('key1', ColumnPath(column_family='Counter1', column='c1'), ConsistencyLevel.ONE)
         time.sleep(5)
-        _assert_no_columnpath('key1', ColumnPath(column_family='Counter1', column='c1'))
+        _assert_no_columnpath_counter('key1', ColumnPath(column_family='Counter1', column='c1'))
 
         # insert again and this time delete the whole row, check that it is gone
         client.add('key1', ColumnParent(column_family='Counter1'), CounterColumn('c1', d1), ConsistencyLevel.ONE)
@@ -1557,7 +1564,7 @@ class TestMutations(ThriftTester):
         assert rv2.column.value == d1
         client.remove_counter('key1', ColumnPath(column_family='Counter1'), ConsistencyLevel.ONE)
         time.sleep(5)
-        _assert_no_columnpath('key1', ColumnPath(column_family='Counter1', column='c1'))
+        _assert_no_columnpath_counter('key1', ColumnPath(column_family='Counter1', column='c1'))
 
     def test_incr_super_remove(self):
         _set_keyspace('Keyspace1')
@@ -1573,7 +1580,7 @@ class TestMutations(ThriftTester):
         # remove the previous column and check that it is gone
         client.remove_counter('key1', ColumnPath(column_family='SuperCounter1', super_column='sc1', column='c1'), ConsistencyLevel.ONE)
         time.sleep(5)
-        _assert_no_columnpath('key1', ColumnPath(column_family='SuperCounter1', super_column='sc1', column='c1'))
+        _assert_no_columnpath_counter('key1', ColumnPath(column_family='SuperCounter1', super_column='sc1', column='c1'))
 
         # insert again and this time delete the whole row, check that it is gone
         client.add('key1', ColumnParent(column_family='SuperCounter1', super_column='sc1'), CounterColumn('c1', d1), ConsistencyLevel.ONE)
@@ -1582,7 +1589,7 @@ class TestMutations(ThriftTester):
         assert rv2.column.value == d1
         client.remove_counter('key1', ColumnPath(column_family='SuperCounter1', super_column='sc1'), ConsistencyLevel.ONE)
         time.sleep(5)
-        _assert_no_columnpath('key1', ColumnPath(column_family='SuperCounter1', super_column='sc1', column='c1'))
+        _assert_no_columnpath_counter('key1', ColumnPath(column_family='SuperCounter1', super_column='sc1', column='c1'))
 
     def test_incr_decr_standard_remove(self):
         _set_keyspace('Keyspace1')
@@ -1598,7 +1605,7 @@ class TestMutations(ThriftTester):
         # remove the previous column and check that it is gone
         client.remove_counter('key1', ColumnPath(column_family='Counter1', column='c1'), ConsistencyLevel.ONE)
         time.sleep(5)
-        _assert_no_columnpath('key1', ColumnPath(column_family='Counter1', column='c1'))
+        _assert_no_columnpath_counter('key1', ColumnPath(column_family='Counter1', column='c1'))
 
         # insert again and this time delete the whole row, check that it is gone
         client.add('key1', ColumnParent(column_family='Counter1'), CounterColumn('c1', d1), ConsistencyLevel.ONE)
@@ -1607,7 +1614,7 @@ class TestMutations(ThriftTester):
         assert rv2.column.value == d1
         client.remove_counter('key1', ColumnPath(column_family='Counter1'), ConsistencyLevel.ONE)
         time.sleep(5)
-        _assert_no_columnpath('key1', ColumnPath(column_family='Counter1', column='c1'))
+        _assert_no_columnpath_counter('key1', ColumnPath(column_family='Counter1', column='c1'))
 
     def test_incr_decr_super_remove(self):
         _set_keyspace('Keyspace1')
@@ -1623,7 +1630,7 @@ class TestMutations(ThriftTester):
         # remove the previous column and check that it is gone
         client.remove_counter('key1', ColumnPath(column_family='SuperCounter1', super_column='sc1', column='c1'), ConsistencyLevel.ONE)
         time.sleep(5)
-        _assert_no_columnpath('key1', ColumnPath(column_family='SuperCounter1', super_column='sc1', column='c1'))
+        _assert_no_columnpath_counter('key1', ColumnPath(column_family='SuperCounter1', super_column='sc1', column='c1'))
 
         # insert again and this time delete the whole row, check that it is gone
         client.add('key1', ColumnParent(column_family='SuperCounter1', super_column='sc1'), CounterColumn('c1', d1), ConsistencyLevel.ONE)
@@ -1632,7 +1639,7 @@ class TestMutations(ThriftTester):
         assert rv2.column.value == d1
         client.remove_counter('key1', ColumnPath(column_family='SuperCounter1', super_column='sc1'), ConsistencyLevel.ONE)
         time.sleep(5)
-        _assert_no_columnpath('key1', ColumnPath(column_family='SuperCounter1', super_column='sc1', column='c1'))
+        _assert_no_columnpath_counter('key1', ColumnPath(column_family='SuperCounter1', super_column='sc1', column='c1'))
         
     def test_incr_decr_standard_batch_add(self):
         _set_keyspace('Keyspace1')
@@ -1672,7 +1679,7 @@ class TestMutations(ThriftTester):
             ]}}
         client.batch_add(update_map, ConsistencyLevel.ONE)
         time.sleep(5)
-        _assert_no_columnpath('key1', ColumnPath(column_family='Counter1', column='c1'))
+        _assert_no_columnpath_counter('key1', ColumnPath(column_family='Counter1', column='c1'))
 
         # insert again and this time delete the whole row, check that it is gone
         update_map = {'key1': {'Counter1': [
@@ -1689,7 +1696,7 @@ class TestMutations(ThriftTester):
             ]}}
         client.batch_add(update_map, ConsistencyLevel.ONE)
         time.sleep(5)
-        _assert_no_columnpath('key1', ColumnPath(column_family='Counter1', column='c1'))
+        _assert_no_columnpath_counter('key1', ColumnPath(column_family='Counter1', column='c1'))
         
     def test_incr_decr_standard_slice(self):
         _set_keyspace('Keyspace1')

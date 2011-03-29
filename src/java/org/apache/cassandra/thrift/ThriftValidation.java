@@ -82,103 +82,106 @@ public class ThriftValidation
         }
     }
 
-    public static ColumnFamilyType validateColumnFamily(String tablename, String cfName) throws InvalidRequestException
+    public static CFMetaData validateColumnFamily(String tablename, String cfName, boolean isCommutativeOp) throws InvalidRequestException
     {
+        validateTable(tablename);
         if (cfName.isEmpty())
-        {
             throw new InvalidRequestException("non-empty columnfamily is required");
-        }
-        ColumnFamilyType cfType = DatabaseDescriptor.getColumnFamilyType(tablename, cfName);
-        if (cfType == null)
-        {
+
+        CFMetaData metadata = DatabaseDescriptor.getCFMetaData(tablename, cfName);
+        if (metadata == null)
             throw new InvalidRequestException("unconfigured columnfamily " + cfName);
+
+        if (isCommutativeOp)
+        {
+            if (!metadata.getDefaultValidator().isCommutative())
+                throw new InvalidRequestException("invalid operation for non commutative columnfamily " + cfName);
         }
-        return cfType;
+        else
+        {
+            if (metadata.getDefaultValidator().isCommutative())
+                throw new InvalidRequestException("invalid operation for commutative columnfamily " + cfName);
+        }
+        return metadata;
     }
 
     /**
-     * validates the tablename and all parts of the path to the column, including the column name
+     * validates all parts of the path to the column, including the column name
      */
-    static void validateColumnPath(String tablename, ColumnPath column_path) throws InvalidRequestException
+    public static void validateColumnPath(CFMetaData metadata, ColumnPath column_path) throws InvalidRequestException
     {
-        validateTable(tablename);
-        ColumnFamilyType cfType = validateColumnFamily(tablename, column_path.column_family);
-        if (cfType == ColumnFamilyType.Standard)
+        if (metadata.cfType == ColumnFamilyType.Standard)
         {
             if (column_path.super_column != null)
             {
-                throw new InvalidRequestException("supercolumn parameter is invalid for standard CF " + column_path.column_family);
+                throw new InvalidRequestException("supercolumn parameter is invalid for standard CF " + metadata.cfName);
             }
             if (column_path.column == null)
             {
-                throw new InvalidRequestException("column parameter is not optional for standard CF " + column_path.column_family);
+                throw new InvalidRequestException("column parameter is not optional for standard CF " + metadata.cfName);
             }
         }
         else
         {
             if (column_path.super_column == null)
-                throw new InvalidRequestException("supercolumn parameter is not optional for super CF " + column_path.column_family);
+                throw new InvalidRequestException("supercolumn parameter is not optional for super CF " + metadata.cfName);
         }
         if (column_path.column != null)
         {
-            validateColumnNames(tablename, column_path.column_family, column_path.super_column, Arrays.asList(column_path.column));
+            validateColumnNames(metadata, column_path.super_column, Arrays.asList(column_path.column));
         }
         if (column_path.super_column != null)
         {
-            validateColumnNames(tablename, column_path.column_family, null, Arrays.asList(column_path.super_column));
+            validateColumnNames(metadata, (ByteBuffer)null, Arrays.asList(column_path.super_column));
         }
     }
 
-    static void validateColumnParent(String tablename, ColumnParent column_parent) throws InvalidRequestException
+    public static void validateColumnParent(CFMetaData metadata, ColumnParent column_parent) throws InvalidRequestException
     {
-        validateTable(tablename);
-        ColumnFamilyType cfType = validateColumnFamily(tablename, column_parent.column_family);
-        if (cfType == ColumnFamilyType.Standard)
+        if (metadata.cfType == ColumnFamilyType.Standard)
         {
             if (column_parent.super_column != null)
             {
-                throw new InvalidRequestException("columnfamily alone is required for standard CF " + column_parent.column_family);
+                throw new InvalidRequestException("columnfamily alone is required for standard CF " + metadata.cfName);
             }
         }
         if (column_parent.super_column != null)
         {
-            validateColumnNames(tablename, column_parent.column_family, null, Arrays.asList(column_parent.super_column));
+            validateColumnNames(metadata, (ByteBuffer)null, Arrays.asList(column_parent.super_column));
         }
     }
 
     // column_path_or_parent is a ColumnPath for remove, where the "column" is optional even for a standard CF
-    static void validateColumnPathOrParent(String tablename, ColumnPath column_path_or_parent) throws InvalidRequestException
+    static void validateColumnPathOrParent(CFMetaData metadata, ColumnPath column_path_or_parent) throws InvalidRequestException
     {
-        validateTable(tablename);
-        ColumnFamilyType cfType = validateColumnFamily(tablename, column_path_or_parent.column_family);
-        if (cfType == ColumnFamilyType.Standard)
+        if (metadata.cfType == ColumnFamilyType.Standard)
         {
             if (column_path_or_parent.super_column != null)
             {
-                throw new InvalidRequestException("supercolumn may not be specified for standard CF " + column_path_or_parent.column_family);
+                throw new InvalidRequestException("supercolumn may not be specified for standard CF " + metadata.cfName);
             }
         }
-        if (cfType == ColumnFamilyType.Super)
+        if (metadata.cfType == ColumnFamilyType.Super)
         {
             if (column_path_or_parent.super_column == null && column_path_or_parent.column != null)
             {
-                throw new InvalidRequestException("A column cannot be specified without specifying a super column for removal on super CF " + column_path_or_parent.column_family);
+                throw new InvalidRequestException("A column cannot be specified without specifying a super column for removal on super CF " + metadata.cfName);
             }
         }
         if (column_path_or_parent.column != null)
         {
-            validateColumnNames(tablename, column_path_or_parent.column_family, column_path_or_parent.super_column, Arrays.asList(column_path_or_parent.column));
+            validateColumnNames(metadata, column_path_or_parent.super_column, Arrays.asList(column_path_or_parent.column));
         }
         if (column_path_or_parent.super_column != null)
         {
-            validateColumnNames(tablename, column_path_or_parent.column_family, null, Arrays.asList(column_path_or_parent.super_column));
+            validateColumnNames(metadata, (ByteBuffer)null, Arrays.asList(column_path_or_parent.super_column));
         }
     }
 
     /**
      * Validates the column names but not the parent path or data
      */
-    private static void validateColumnNames(String keyspace, String columnFamilyName, ByteBuffer superColumnName, Iterable<ByteBuffer> column_names)
+    private static void validateColumnNames(CFMetaData metadata, ByteBuffer superColumnName, Iterable<ByteBuffer> column_names)
             throws InvalidRequestException
     {
         if (superColumnName != null)
@@ -187,10 +190,10 @@ public class ThriftValidation
                 throw new InvalidRequestException("supercolumn name length must not be greater than " + IColumn.MAX_NAME_LENGTH);
             if (superColumnName.remaining() == 0)
                 throw new InvalidRequestException("supercolumn name must not be empty");
-            if (DatabaseDescriptor.getColumnFamilyType(keyspace, columnFamilyName) == ColumnFamilyType.Standard)
-                throw new InvalidRequestException("supercolumn specified to ColumnFamily " + columnFamilyName + " containing normal columns");
+            if (metadata.cfType == ColumnFamilyType.Standard)
+                throw new InvalidRequestException("supercolumn specified to ColumnFamily " + metadata.cfName + " containing normal columns");
         }
-        AbstractType comparator = ColumnFamily.getComparatorFor(keyspace, columnFamilyName, superColumnName);
+        AbstractType comparator = metadata.getComparatorFor(superColumnName);
         for (ByteBuffer name : column_names)
         {
             if (name.remaining() > IColumn.MAX_NAME_LENGTH)
@@ -208,14 +211,14 @@ public class ThriftValidation
         }
     }
 
-    public static void validateColumnNames(String keyspace, ColumnParent column_parent, Iterable<ByteBuffer> column_names) throws InvalidRequestException
+    public static void validateColumnNames(CFMetaData metadata, ColumnParent column_parent, Iterable<ByteBuffer> column_names) throws InvalidRequestException
     {
-        validateColumnNames(keyspace, column_parent.column_family, column_parent.super_column, column_names);
+        validateColumnNames(metadata, column_parent.super_column, column_names);
     }
 
-    public static void validateRange(String keyspace, ColumnParent column_parent, SliceRange range) throws InvalidRequestException
+    public static void validateRange(CFMetaData metadata, ColumnParent column_parent, SliceRange range) throws InvalidRequestException
     {
-        AbstractType comparator = ColumnFamily.getComparatorFor(keyspace, column_parent.column_family, column_parent.super_column);
+        AbstractType comparator = metadata.getComparatorFor(column_parent.super_column);
         try
         {
             comparator.validate(range.start);
@@ -238,23 +241,22 @@ public class ThriftValidation
         }
     }
 
-    public static void validateColumnOrSuperColumn(String keyspace, String cfName, ColumnOrSuperColumn cosc)
+    public static void validateColumnOrSuperColumn(CFMetaData metadata, ColumnOrSuperColumn cosc)
             throws InvalidRequestException
     {
         if (cosc.column != null)
         {
             validateTtl(cosc.column);
-            ThriftValidation.validateColumnPath(keyspace, new ColumnPath(cfName).setSuper_column((ByteBuffer)null).setColumn(cosc.column.name));
-            validateColumnData(keyspace, cfName, cosc.column);
+            validateColumnPath(metadata, new ColumnPath(metadata.cfName).setSuper_column((ByteBuffer)null).setColumn(cosc.column.name));
+            validateColumnData(metadata, cosc.column);
         }
 
         if (cosc.super_column != null)
         {
-            ColumnParent cp = new ColumnParent(cfName).setSuper_column(cosc.super_column.name);
             for (Column c : cosc.super_column.columns)
             {
-                ThriftValidation.validateColumnPath(keyspace, new ColumnPath(cfName).setSuper_column(cosc.super_column.name).setColumn(c.name));
-                validateColumnData(keyspace, cp.column_family, c);
+                validateColumnPath(metadata, new ColumnPath(metadata.cfName).setSuper_column(cosc.super_column.name).setColumn(c.name));
+                validateColumnData(metadata, c);
             }
         }
 
@@ -272,7 +274,7 @@ public class ThriftValidation
         assert column.isSetTtl() || column.ttl == 0;
     }
 
-    public static void validateMutation(String keyspace, String cfName, Mutation mut)
+    public static void validateMutation(CFMetaData metadata, Mutation mut)
             throws InvalidRequestException
     {
         ColumnOrSuperColumn cosc = mut.column_or_supercolumn;
@@ -283,11 +285,11 @@ public class ThriftValidation
 
         if (cosc != null)
         {
-            validateColumnOrSuperColumn(keyspace, cfName, cosc);
+            validateColumnOrSuperColumn(metadata, cosc);
         }
         else if (del != null)
         {
-            validateDeletion(keyspace, cfName, del);
+            validateDeletion(metadata, del);
         }
         else
         {
@@ -295,59 +297,58 @@ public class ThriftValidation
         }
     }
 
-    public static void validateDeletion(String keyspace, String cfName, Deletion del) throws InvalidRequestException
+    public static void validateDeletion(CFMetaData metadata, Deletion del) throws InvalidRequestException
     {
-        validateColumnFamily(keyspace, cfName);
         if (del.predicate != null)
         {
-            validateSlicePredicate(keyspace, cfName, del.super_column, del.predicate);
+            validateSlicePredicate(metadata, del.super_column, del.predicate);
             if (del.predicate.slice_range != null)
                 throw new InvalidRequestException("Deletion does not yet support SliceRange predicates.");
         }
 
-        if (ColumnFamilyType.Standard == DatabaseDescriptor.getColumnFamilyType(keyspace, cfName) && del.super_column != null)
+        if (metadata.cfType == ColumnFamilyType.Standard && del.super_column != null)
         {
-            String msg = String.format("deletion of super_column is not possible on a standard ColumnFamily (KeySpace=%s ColumnFamily=%s Deletion=%s)", keyspace, cfName, del);
+            String msg = String.format("deletion of super_column is not possible on a standard ColumnFamily (KeySpace=%s ColumnFamily=%s Deletion=%s)", metadata.ksName, metadata.cfName, del);
             throw new InvalidRequestException(msg);
         }
     }
 
-    public static void validateSlicePredicate(String keyspace, String cfName, ByteBuffer scName, SlicePredicate predicate) throws InvalidRequestException
+    public static void validateSlicePredicate(CFMetaData metadata, ByteBuffer scName, SlicePredicate predicate) throws InvalidRequestException
     {
         if (predicate.column_names == null && predicate.slice_range == null)
             throw new InvalidRequestException("A SlicePredicate must be given a list of Columns, a SliceRange, or both");
 
         if (predicate.slice_range != null)
-            validateRange(keyspace, new ColumnParent(cfName).setSuper_column(scName), predicate.slice_range);
+            validateRange(metadata, new ColumnParent(metadata.cfName).setSuper_column(scName), predicate.slice_range);
 
         if (predicate.column_names != null)
-            validateColumnNames(keyspace, cfName, scName, predicate.column_names);
+            validateColumnNames(metadata, scName, predicate.column_names);
     }
 
     /**
      * Validates the data part of the column (everything in the Column object but the name)
      */
-    public static void validateColumnData(String keyspace, String column_family, Column column) throws InvalidRequestException
+    public static void validateColumnData(CFMetaData metadata, Column column) throws InvalidRequestException
     {
         validateTtl(column);
         try
         {
-            AbstractType validator = DatabaseDescriptor.getValueValidator(keyspace, column_family, column.name);
+            AbstractType validator = metadata.getValueValidator(column.name);
             if (validator != null)
                 validator.validate(column.value);
         }
         catch (MarshalException me)
         {
             throw new InvalidRequestException(String.format("[%s][%s][%s] = [%s] failed validation (%s)",
-                                                            keyspace,
-                                                            column_family,
+                                                            metadata.ksName,
+                                                            metadata.cfName,
                                                             ByteBufferUtil.bytesToHex(column.name),
                                                             ByteBufferUtil.bytesToHex(column.value),
                                                             me.getMessage()));
         }
     }
 
-    public static void validatePredicate(String keyspace, ColumnParent column_parent, SlicePredicate predicate)
+    public static void validatePredicate(CFMetaData metadata, ColumnParent column_parent, SlicePredicate predicate)
             throws InvalidRequestException
     {
         if (predicate.column_names == null && predicate.slice_range == null)
@@ -356,9 +357,9 @@ public class ThriftValidation
             throw new InvalidRequestException("predicate column_names and slice_range may not both be present");
 
         if (predicate.getSlice_range() != null)
-            validateRange(keyspace, column_parent, predicate.slice_range);
+            validateRange(metadata, column_parent, predicate.slice_range);
         else
-            validateColumnNames(keyspace, column_parent, predicate.column_names);
+            validateColumnNames(metadata, column_parent, predicate.column_names);
     }
 
     public static void validateKeyRange(KeyRange range) throws InvalidRequestException
@@ -396,13 +397,13 @@ public class ThriftValidation
         }
     }
 
-    public static void validateIndexClauses(String keyspace, String columnFamily, IndexClause index_clause)
+    public static void validateIndexClauses(CFMetaData metadata, IndexClause index_clause)
     throws InvalidRequestException
     {
         if (index_clause.expressions.isEmpty())
             throw new InvalidRequestException("index clause list may not be empty");
-        Set<ByteBuffer> indexedColumns = Table.open(keyspace).getColumnFamilyStore(columnFamily).getIndexedColumns();
-        AbstractType nameValidator =  ColumnFamily.getComparatorFor(keyspace, columnFamily, null);
+        Set<ByteBuffer> indexedColumns = Table.open(metadata.ksName).getColumnFamilyStore(metadata.cfName).getIndexedColumns();
+        AbstractType nameValidator =  ColumnFamily.getComparatorFor(metadata.ksName, metadata.cfName, null);
 
         boolean isIndexed = false;
         for (IndexExpression expression : index_clause.expressions)
@@ -419,7 +420,7 @@ public class ThriftValidation
                                                                 me.getMessage()));
             }
 
-            AbstractType valueValidator = DatabaseDescriptor.getValueValidator(keyspace, columnFamily, expression.column_name);
+            AbstractType valueValidator = DatabaseDescriptor.getValueValidator(metadata.ksName, metadata.cfName, expression.column_name);
             try
             {
                 valueValidator.validate(expression.value);
@@ -494,37 +495,11 @@ public class ThriftValidation
         }
     }
 
-    public static CFMetaData validateCFMetaData(String tablename, String cfName) throws InvalidRequestException
+    public static void validateCommutativeForWrite(CFMetaData metadata, ConsistencyLevel consistency) throws InvalidRequestException
     {
-        if (cfName.isEmpty())
-        {
-            throw new InvalidRequestException("non-empty columnfamily is required");
-        }
-        CFMetaData metadata = DatabaseDescriptor.getCFMetaData(tablename, cfName);
-        if (metadata == null)
-        {
-            throw new InvalidRequestException("unconfigured columnfamily " + cfName);
-        }
-        return metadata;
-    }
-
-    public static CFMetaData validateCommutative(String tablename, String cfName) throws InvalidRequestException
-    {
-        validateTable(tablename);
-        CFMetaData metadata = validateCFMetaData(tablename, cfName);
-        if (!metadata.getDefaultValidator().isCommutative())
-        {
-            throw new InvalidRequestException("not commutative columnfamily " + cfName);
-        }
-        return metadata;
-    }
-
-    public static void validateCommutativeForWrite(String tablename, String cfName, ConsistencyLevel consistency) throws InvalidRequestException
-    {
-        CFMetaData metadata = validateCommutative(tablename, cfName);
         if (!metadata.getReplicateOnWrite() && consistency != ConsistencyLevel.ONE)
         {
-            throw new InvalidRequestException("cannot achieve CL > CL.ONE without replicate_on_write on columnfamily " + cfName);
+            throw new InvalidRequestException("cannot achieve CL > CL.ONE without replicate_on_write on columnfamily " + metadata.cfName);
         }
     }
 }

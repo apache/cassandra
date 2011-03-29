@@ -236,7 +236,7 @@ public class QueryProcessor
             // FIXME: keys as ascii is not a Real Solution
             ByteBuffer key = update.getKey().getByteBuffer(AsciiType.instance);
             validateKey(key);
-            validateColumnFamily(keyspace, cfname);
+            validateColumnFamily(keyspace, update.getColumnFamily(), false);
             validateKeyType(key, keyspace, cfname);
             AbstractType<?> comparator = update.getComparator(keyspace);
             
@@ -460,7 +460,7 @@ public class QueryProcessor
             case SELECT:
                 SelectStatement select = (SelectStatement)statement.statement;
                 clientState.hasColumnFamilyAccess(select.getColumnFamily(), Permission.READ);
-                validateColumnFamily(keyspace, select.getColumnFamily());
+                validateColumnFamily(keyspace, select.getColumnFamily(), false);
                 validateSelect(keyspace, select);
                 
                 List<org.apache.cassandra.db.Row> rows = null;

@@ -30,12 +30,12 @@ public class ThriftValidationTest extends CleanupHelper
     @Test(expected=InvalidRequestException.class)
     public void testValidateCommutativeWithStandard() throws InvalidRequestException
     {
-        ThriftValidation.validateCommutative("Keyspace1", "Standard1");
+        ThriftValidation.validateColumnFamily("Keyspace1", "Standard1", true);
     }
 
     @Test
     public void testValidateCommutativeWithCounter() throws InvalidRequestException
     {
-        ThriftValidation.validateCommutative("Keyspace1", "Counter1");
+        ThriftValidation.validateColumnFamily("Keyspace1", "Counter1", true);
     }
 }
