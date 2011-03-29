@@ -40,36 +40,36 @@ def uuid1bytes_to_millis(uuidbytes):
 
 def load_sample(dbconn):
     dbconn.execute("""
-        CREATE COLUMNFAMILY StandardString1 WITH comparator = ascii
-            AND default_validation = ascii;
+        CREATE COLUMNFAMILY StandardString1 (KEY utf8 PRIMARY KEY)
+            WITH comparator = ascii AND default_validation = ascii;
     """)
     dbconn.execute("""
-        CREATE COLUMNFAMILY StandardUtf82 WITH comparator = utf8
-            AND default_validation = ascii;
+        CREATE COLUMNFAMILY StandardUtf82 (KEY utf8 PRIMARY KEY)
+            WITH comparator = utf8 AND default_validation = ascii;
     """)
     dbconn.execute("""
-        CREATE COLUMNFAMILY StandardLongA WITH comparator = long
-            AND default_validation = ascii;
+        CREATE COLUMNFAMILY StandardLongA (KEY utf8 PRIMARY KEY)
+            WITH comparator = long AND default_validation = ascii;
     """)
     dbconn.execute("""
-        CREATE COLUMNFAMILY StandardIntegerA WITH comparator = int
-            AND default_validation = ascii;
+        CREATE COLUMNFAMILY StandardIntegerA (KEY utf8 PRIMARY KEY)
+            WITH comparator = int AND default_validation = ascii;
     """)
     dbconn.execute("""
-        CREATE COLUMNFAMILY StandardUUID WITH comparator = uuid
-            AND default_validation = ascii;
+        CREATE COLUMNFAMILY StandardUUID (KEY utf8 PRIMARY KEY)
+            WITH comparator = uuid AND default_validation = ascii;
     """)
     dbconn.execute("""
-        CREATE COLUMNFAMILY StandardTimeUUID WITH comparator = timeuuid
-            AND default_validation = ascii;
+        CREATE COLUMNFAMILY StandardTimeUUID (KEY utf8 PRIMARY KEY)
+            WITH comparator = timeuuid AND default_validation = ascii;
     """)
     dbconn.execute("""
-        CREATE COLUMNFAMILY StandardTimeUUIDValues WITH comparator = ascii
-            AND default_validation = timeuuid;
+        CREATE COLUMNFAMILY StandardTimeUUIDValues (KEY utf8 PRIMARY KEY)
+            WITH comparator = ascii AND default_validation = timeuuid;
     """)
     dbconn.execute("""
-        CREATE COLUMNFAMILY IndexedA ('birthdate' long) WITH comparator = ascii
-            AND default_validation = ascii;
+        CREATE COLUMNFAMILY IndexedA (KEY utf8 PRIMARY KEY, 'birthdate' long)
+            WITH comparator = ascii AND default_validation = ascii;
     """)
     dbconn.execute("CREATE INDEX ON IndexedA ('birthdate');")
     

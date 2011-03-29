@@ -87,6 +87,7 @@ public class CreateColumnFamilyStatement
     private final String name;
     private final Map<Term, String> columns = new HashMap<Term, String>();
     private final Map<String, String> properties = new HashMap<String, String>();
+    private String keyValidator;
     
     public CreateColumnFamilyStatement(String name)
     {
@@ -157,6 +158,11 @@ public class CreateColumnFamilyStatement
         columns.put(term, comparator);
     }
     
+    public void setKeyType(String validator)
+    {
+        this.keyValidator = validator;
+    }
+    
     /** Map a keyword to the corresponding value */
     public void addProperty(String name, String value)
     {
@@ -180,7 +186,7 @@ public class CreateColumnFamilyStatement
             {
                 ByteBuffer columnName = col.getKey().getByteBuffer(comparator);
                 String validatorClassName = comparators.containsKey(col.getValue()) ? comparators.get(col.getValue()) : col.getValue();
-                AbstractType validator = DatabaseDescriptor.getComparator(validatorClassName);
+                AbstractType<?> validator = DatabaseDescriptor.getComparator(validatorClassName);
                 columnDefs.put(columnName, new ColumnDefinition(columnName, validator, null, null));
             }
             catch (ConfigurationException e)
@@ -212,6 +218,7 @@ public class CreateColumnFamilyStatement
             // RPC uses BytesType as the default validator/comparator but BytesType expects hex for string terms, (not convenient).
             AbstractType<?> comparator = DatabaseDescriptor.getComparator(comparators.get(getPropertyString(KW_COMPARATOR, "utf8")));
             String validator = getPropertyString(KW_DEFAULTVALIDATION, "utf8");
+            AbstractType<?> keyType = DatabaseDescriptor.getComparator(comparators.get((keyValidator != null) ? keyValidator : "utf8"));
 
             newCFMD = new CFMetaData(keyspace,
                                      name,
@@ -234,7 +241,8 @@ public class CreateColumnFamilyStatement
                    .memSize(getPropertyInt(KW_MEMTABLESIZEINMB, CFMetaData.DEFAULT_MEMTABLE_THROUGHPUT_IN_MB))
                    .memOps(getPropertyDouble(KW_MEMTABLEOPSINMILLIONS, CFMetaData.DEFAULT_MEMTABLE_OPERATIONS_IN_MILLIONS))
                    .mergeShardsChance(0.0)
-                   .columnMetadata(getColumns(comparator));
+                   .columnMetadata(getColumns(comparator))
+                   .keyValidator(keyType);
         }
         catch (ConfigurationException e)
         {

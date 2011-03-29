@@ -114,12 +114,17 @@ public class UpdateStatement
                              cLevel);
     }
     
-    public AbstractType getComparator(String keyspace)
+    public AbstractType<?> getKeyType(String keyspace)
+    {
+        return DatabaseDescriptor.getCFMetaData(keyspace, columnFamily).getKeyValidator();
+    }
+    
+    public AbstractType<?> getComparator(String keyspace)
     {
         return DatabaseDescriptor.getComparator(keyspace, columnFamily);
     }
     
-    public AbstractType getValueValidator(String keyspace, ByteBuffer column)
+    public AbstractType<?> getValueValidator(String keyspace, ByteBuffer column)
     {
         return DatabaseDescriptor.getValueValidator(keyspace, columnFamily, column);
     }

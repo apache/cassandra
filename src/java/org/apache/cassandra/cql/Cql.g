@@ -270,14 +270,16 @@ createKeyspaceStatement returns [CreateKeyspaceStatement expr]
  */
 createColumnFamilyStatement returns [CreateColumnFamilyStatement expr]
     : K_CREATE K_COLUMNFAMILY name=( IDENT | STRING_LITERAL | INTEGER ) { $expr = new CreateColumnFamilyStatement($name.text); }
-      ( '('
-          col1=term v1=createCfamColumnValidator { $expr.addColumn(col1, $v1.validator); } ( ','
-          colN=term vN=createCfamColumnValidator { $expr.addColumn(colN, $vN.validator); } )*
-      ')' )?
+      ( '(' createCfamColumns[expr] ( ',' createCfamColumns[expr] )* ')' )?
       ( K_WITH prop1=IDENT '=' arg1=createCfamKeywordArgument { $expr.addProperty($prop1.text, $arg1.arg); }
           ( K_AND propN=IDENT '=' argN=createCfamKeywordArgument { $expr.addProperty($propN.text, $argN.arg); } )*
       )?
       endStmnt
+    ;
+
+createCfamColumns[CreateColumnFamilyStatement expr]
+    : n=term v=createCfamColumnValidator { $expr.addColumn(n, $v.validator); }
+    | K_KEY v=createCfamColumnValidator K_PRIMARY K_KEY { $expr.setKeyType($v.validator); }
     ;
 
 createCfamColumnValidator returns [String validator]
@@ -378,6 +380,7 @@ K_COLUMNFAMILY: C O L U M N F A M I L Y;
 K_INDEX:       I N D E X;
 K_ON:          O N;
 K_DROP:        D R O P;
+K_PRIMARY:     P R I M A R Y;
 
 // Case-insensitive alpha characters
 fragment A: ('a'|'A');

@@ -51,7 +51,6 @@ import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.db.migration.UpdateColumnFamily;
 import org.apache.cassandra.db.migration.avro.CfDef;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
@@ -84,8 +83,8 @@ public class QueryProcessor
         
         assert select.getKeys().size() == 1;
         
-        ByteBuffer key = select.getKeys().get(0).getByteBuffer(AsciiType.instance);
         CFMetaData metadata = validateColumnFamily(keyspace, select.getColumnFamily(), false);
+        ByteBuffer key = select.getKeys().get(0).getByteBuffer(metadata.getKeyValidator());
         validateKey(key);
 
         // ...of a list of column names
@@ -135,8 +134,10 @@ public class QueryProcessor
     {
         List<org.apache.cassandra.db.Row> rows = null;
         
-        ByteBuffer startKey = (select.getKeyStart() != null) ? select.getKeyStart().getByteBuffer(AsciiType.instance) : (new Term()).getByteBuffer();
-        ByteBuffer finishKey = (select.getKeyFinish() != null) ? select.getKeyFinish().getByteBuffer(AsciiType.instance) : (new Term()).getByteBuffer();
+        AbstractType<?> keyType = DatabaseDescriptor.getCFMetaData(keyspace,
+                                                                   select.getColumnFamily()).getKeyValidator();
+        ByteBuffer startKey = (select.getKeyStart() != null) ? select.getKeyStart().getByteBuffer(keyType) : (new Term()).getByteBuffer();
+        ByteBuffer finishKey = (select.getKeyFinish() != null) ? select.getKeyFinish().getByteBuffer(keyType) : (new Term()).getByteBuffer();
         IPartitioner<?> p = StorageService.getPartitioner();
         AbstractBounds bounds = new Bounds(p.getToken(startKey), p.getToken(finishKey));
         
@@ -193,8 +194,9 @@ public class QueryProcessor
                                                 value));
         }
         
-        // FIXME: keys as ascii is not a Real Solution
-        ByteBuffer startKey = (!select.isKeyRange()) ? (new Term()).getByteBuffer() : select.getKeyStart().getByteBuffer(AsciiType.instance);
+        AbstractType<?> keyType = DatabaseDescriptor.getCFMetaData(keyspace,
+                                                                   select.getColumnFamily()).getKeyValidator();
+        ByteBuffer startKey = (!select.isKeyRange()) ? (new Term()).getByteBuffer() : select.getKeyStart().getByteBuffer(keyType);
         IndexClause thriftIndexClause = new IndexClause(expressions, startKey, select.getNumRecords());
         
         List<org.apache.cassandra.db.Row> rows;
@@ -235,8 +237,7 @@ public class QueryProcessor
                 cfamsSeen.add(update.getColumnFamily());
             }
             
-            // FIXME: keys as ascii is not a Real Solution
-            ByteBuffer key = update.getKey().getByteBuffer(AsciiType.instance);
+            ByteBuffer key = update.getKey().getByteBuffer(update.getKeyType(keyspace));
             validateKey(key);
             AbstractType<?> comparator = update.getComparator(keyspace);
             
@@ -594,11 +595,13 @@ public class QueryProcessor
                 clientState.hasColumnFamilyAccess(delete.getColumnFamily(), Permission.WRITE);
                 CFMetaData metadata = validateColumnFamily(keyspace, delete.getColumnFamily(), false);
                 AbstractType<?> comparator = metadata.getComparatorFor(null);
-
+                AbstractType<?> keyType = DatabaseDescriptor.getCFMetaData(keyspace,
+                                                                           delete.getColumnFamily()).getKeyValidator();
+                
                 List<RowMutation> rowMutations = new ArrayList<RowMutation>();
                 for (Term key : delete.getKeys())
                 {
-                    RowMutation rm = new RowMutation(keyspace, key.getByteBuffer(AsciiType.instance));
+                    RowMutation rm = new RowMutation(keyspace, key.getByteBuffer(keyType));
                     if (delete.getColumns().size() < 1)     // No columns, delete the row
                         rm.delete(new QueryPath(delete.getColumnFamily()), System.currentTimeMillis());
                     else    // Delete specific columns
