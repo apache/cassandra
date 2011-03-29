@@ -69,7 +69,7 @@ import com.google.common.collect.Maps;
 
 import static org.apache.cassandra.thrift.ThriftValidation.validateKey;
 import static org.apache.cassandra.thrift.ThriftValidation.validateColumnFamily;
-import static org.apache.cassandra.thrift.ThriftValidation.validateKeyType;
+import static org.apache.cassandra.thrift.ThriftValidation.validateColumnNames;
 
 public class QueryProcessor
 {
@@ -86,8 +86,9 @@ public class QueryProcessor
         assert select.getKeys().size() == 1;
         
         ByteBuffer key = select.getKeys().get(0).getByteBuffer(AsciiType.instance);
-        validateKey(key);
-        
+        CFMetaData metadata = validateColumnFamily(keyspace, select.getColumnFamily(), false);
+        validateKey(metadata, key);
+
         // ...of a list of column names
         if (!select.isColumnRange())
         {
@@ -95,7 +96,7 @@ public class QueryProcessor
             for (Term column : select.getColumnNames())
                 columnNames.add(column.getByteBuffer(comparator));
             
-            validateColumnNames(keyspace, select.getColumnFamily(), columnNames);
+            validateColumnNames(metadata, null, columnNames);
             commands.add(new SliceByNamesReadCommand(keyspace, key, queryPath, columnNames));
         }
         // ...a range (slice) of column names
@@ -104,7 +105,7 @@ public class QueryProcessor
             ByteBuffer start = select.getColumnStart().getByteBuffer(comparator);
             ByteBuffer finish = select.getColumnFinish().getByteBuffer(comparator);
             
-            validateSliceRange(keyspace, select.getColumnFamily(), start, finish, select.isColumnsReversed());
+            validateSliceRange(metadata, start, finish, select.isColumnsReversed());
             commands.add(new SliceFromReadCommand(keyspace,
                                                   key,
                                                   queryPath,
@@ -140,10 +141,11 @@ public class QueryProcessor
         IPartitioner<?> p = StorageService.getPartitioner();
         AbstractBounds bounds = new Bounds(p.getToken(startKey), p.getToken(finishKey));
         
-        AbstractType<?> comparator = select.getComparator(keyspace);
+        CFMetaData metadata = validateColumnFamily(keyspace, select.getColumnFamily(), false);
+        AbstractType<?> comparator = metadata.getComparatorFor(null);
         // XXX: Our use of Thrift structs internally makes me Sad. :(
         SlicePredicate thriftSlicePredicate = slicePredicateFromSelect(select, comparator);
-        validateSlicePredicate(keyspace, select.getColumnFamily(), thriftSlicePredicate);
+        validateSlicePredicate(metadata, thriftSlicePredicate);
 
         try
         {
@@ -174,10 +176,11 @@ public class QueryProcessor
     private static List<org.apache.cassandra.db.Row> getIndexedSlices(String keyspace, SelectStatement select)
     throws TimedOutException, UnavailableException, InvalidRequestException
     {
-        AbstractType<?> comparator = select.getComparator(keyspace);
+        CFMetaData metadata = validateColumnFamily(keyspace, select.getColumnFamily(), false);
+        AbstractType<?> comparator = metadata.getComparatorFor(null);
         // XXX: Our use of Thrift structs internally (still) makes me Sad. :~(
         SlicePredicate thriftSlicePredicate = slicePredicateFromSelect(select, comparator);
-        validateSlicePredicate(keyspace, select.getColumnFamily(), thriftSlicePredicate);
+        validateSlicePredicate(metadata, thriftSlicePredicate);
         
         List<IndexExpression> expressions = new ArrayList<IndexExpression>();
         for (Relation columnRelation : select.getColumnRelations())
@@ -225,7 +228,7 @@ public class QueryProcessor
 
         for (UpdateStatement update : updateStatements)
         {
-            String cfname = update.getColumnFamily();
+            CFMetaData metadata = validateColumnFamily(keyspace, update.getColumnFamily(), false);
             // Avoid unnecessary authorizations.
             if (!(cfamsSeen.contains(update.getColumnFamily())))
             {
@@ -235,9 +238,7 @@ public class QueryProcessor
             
             // FIXME: keys as ascii is not a Real Solution
             ByteBuffer key = update.getKey().getByteBuffer(AsciiType.instance);
-            validateKey(key);
-            validateColumnFamily(keyspace, update.getColumnFamily(), false);
-            validateKeyType(key, keyspace, cfname);
+            validateKey(metadata, key);
             AbstractType<?> comparator = update.getComparator(keyspace);
             
             RowMutation rm = new RowMutation(keyspace, key);
@@ -246,7 +247,7 @@ public class QueryProcessor
                 ByteBuffer colName = column.getKey().getByteBuffer(comparator);
                 ByteBuffer colValue = column.getValue().getByteBuffer(update.getValueValidator(keyspace, colName));
                 
-                validateColumn(keyspace, update.getColumnFamily(), colName, colValue);
+                validateColumn(metadata, colName, colValue);
                 rm.add(new QueryPath(update.getColumnFamily(), null, colName), colValue, System.currentTimeMillis());
             }
             
@@ -365,33 +366,19 @@ public class QueryProcessor
             }
         }
     }
+    
+    private static void validateColumnName(CFMetaData metadata, ByteBuffer column)
+    throws InvalidRequestException
+    {
+        validateColumnNames(metadata, null, Arrays.asList(column));
+    }
+    
+    private static void validateColumn(CFMetaData metadata, ByteBuffer name, ByteBuffer value)
+    throws InvalidRequestException
+    {
+        validateColumnName(metadata, name);
+        AbstractType<?> validator = metadata.getValueValidator(name);
 
-    private static void validateColumnNames(String keyspace, String columnFamily, Iterable<ByteBuffer> columns)
-    throws InvalidRequestException
-    {
-        for (ByteBuffer name : columns)
-        {
-            if (name.remaining() > IColumn.MAX_NAME_LENGTH)
-                throw new InvalidRequestException(String.format("column name is too long (%s > %s)",
-                                                                name.remaining(),
-                                                                IColumn.MAX_NAME_LENGTH));
-            if (name.remaining() == 0)
-                throw new InvalidRequestException("zero-length column name");
-        }
-    }
-    
-    private static void validateColumnName(String keyspace, String columnFamily, ByteBuffer column)
-    throws InvalidRequestException
-    {
-        validateColumnNames(keyspace, columnFamily, Arrays.asList(column));
-    }
-    
-    private static void validateColumn(String keyspace, String columnFamily, ByteBuffer name, ByteBuffer value)
-    throws InvalidRequestException
-    {
-        validateColumnName(keyspace, columnFamily, name);
-        AbstractType<?> validator = DatabaseDescriptor.getValueValidator(keyspace, columnFamily, name);
-        
         try
         {
             if (validator != null)
@@ -405,25 +392,25 @@ public class QueryProcessor
         }
     }
     
-    private static void validateSlicePredicate(String keyspace, String columnFamily, SlicePredicate predicate)
+    private static void validateSlicePredicate(CFMetaData metadata, SlicePredicate predicate)
     throws InvalidRequestException
     {
         if (predicate.slice_range != null)
-            validateSliceRange(keyspace, columnFamily, predicate.slice_range);
+            validateSliceRange(metadata, predicate.slice_range);
         else
-            validateColumnNames(keyspace, columnFamily, predicate.column_names);
+            validateColumnNames(metadata, null, predicate.column_names);
     }
     
-    private static void validateSliceRange(String keyspace, String columnFamily, SliceRange range)
+    private static void validateSliceRange(CFMetaData metadata, SliceRange range)
     throws InvalidRequestException
     {
-        validateSliceRange(keyspace, columnFamily, range.start, range.finish, range.reversed);
+        validateSliceRange(metadata, range.start, range.finish, range.reversed);
     }
     
-    private static void validateSliceRange(String keyspace, String columnFamily, ByteBuffer start, ByteBuffer finish, boolean reversed)
+    private static void validateSliceRange(CFMetaData metadata, ByteBuffer start, ByteBuffer finish, boolean reversed)
     throws InvalidRequestException
     {
-        AbstractType<?> comparator = ColumnFamily.getComparatorFor(keyspace, columnFamily, null);
+        AbstractType<?> comparator = metadata.getComparatorFor(null);
         Comparator<ByteBuffer> orderedComparator = reversed ? comparator.reverseComparator: comparator;
         if (start.remaining() > 0 && finish.remaining() > 0 && orderedComparator.compare(start, finish) > 0)
             throw new InvalidRequestException("range finish must come after start in traversal order");
@@ -577,8 +564,9 @@ public class QueryProcessor
             case DELETE:
                 DeleteStatement delete = (DeleteStatement)statement.statement;
                 clientState.hasColumnFamilyAccess(delete.getColumnFamily(), Permission.WRITE);
-                AbstractType<?> comparator = DatabaseDescriptor.getComparator(keyspace, delete.getColumnFamily());
-                
+                CFMetaData metadata = validateColumnFamily(keyspace, delete.getColumnFamily(), false);
+                AbstractType<?> comparator = metadata.getComparatorFor(null);
+
                 List<RowMutation> rowMutations = new ArrayList<RowMutation>();
                 for (Term key : delete.getKeys())
                 {
@@ -590,7 +578,7 @@ public class QueryProcessor
                         for (Term column : delete.getColumns())
                         {
                             ByteBuffer columnName = column.getByteBuffer(comparator);
-                            validateColumnName(keyspace, delete.getColumnFamily(), columnName);
+                            validateColumnName(metadata, columnName);
                             rm.delete(new QueryPath(delete.getColumnFamily(), null, columnName),
                                       System.currentTimeMillis());
                         }

@@ -265,7 +265,7 @@ public class CassandraServer implements Cassandra.Iface
         {
             for (ByteBuffer key: keys)
             {
-                ThriftValidation.validateKey(key);
+                ThriftValidation.validateKey(metadata, key);
                 commands.add(new SliceByNamesReadCommand(keyspace, key, column_parent, predicate.column_names));
             }
         }
@@ -274,7 +274,7 @@ public class CassandraServer implements Cassandra.Iface
             SliceRange range = predicate.slice_range;
             for (ByteBuffer key: keys)
             {
-                ThriftValidation.validateKey(key);
+                ThriftValidation.validateKey(metadata, key);
                 commands.add(new SliceFromReadCommand(keyspace, key, column_parent, range.start, range.finish, range.reversed, range.count));
             }
         }
@@ -293,7 +293,7 @@ public class CassandraServer implements Cassandra.Iface
 
         QueryPath path = new QueryPath(column_path.column_family, column_path.column == null ? null : column_path.super_column);
         List<ByteBuffer> nameAsList = Arrays.asList(column_path.column == null ? column_path.super_column : column_path.column);
-        ThriftValidation.validateKey(key);
+        ThriftValidation.validateKey(metadata, key);
         ReadCommand command = new SliceByNamesReadCommand(keyspace, key, path, nameAsList);
 
         Map<DecoratedKey, ColumnFamily> cfamilies = readColumnFamily(Arrays.asList(command), consistency_level);
@@ -349,11 +349,10 @@ public class CassandraServer implements Cassandra.Iface
     {
         state().hasColumnFamilyAccess(column_parent.column_family, Permission.WRITE);
 
-        ThriftValidation.validateKey(key);
         CFMetaData metadata = ThriftValidation.validateColumnFamily(state().getKeyspace(), column_parent.column_family, isCommutativeOp);
+        ThriftValidation.validateKey(metadata, key);
         if (isCommutativeOp)
             ThriftValidation.validateCommutativeForWrite(metadata, consistency_level);
-        ThriftValidation.validateKeyType(key, state().getKeyspace(), column_parent.column_family);
         ThriftValidation.validateColumnNames(metadata, column_parent, Arrays.asList(column.name));
         ThriftValidation.validateColumnData(metadata, column);
 
@@ -387,12 +386,12 @@ public class CassandraServer implements Cassandra.Iface
         {
             ByteBuffer key = mutationEntry.getKey();
 
-            ThriftValidation.validateKey(key);
             Map<String, List<Mutation>> columnFamilyToMutations = mutationEntry.getValue();
             for (Map.Entry<String, List<Mutation>> columnFamilyMutations : columnFamilyToMutations.entrySet())
             {
                 String cfName = columnFamilyMutations.getKey();
-                ThriftValidation.validateKeyType(key, state().getKeyspace(), cfName);
+                CFMetaData metadata = ThriftValidation.validateColumnFamily(state().getKeyspace(), cfName, isCommutativeOp);
+                ThriftValidation.validateKey(metadata, key);
 
                 // Avoid unneeded authorizations
                 if (!(cfamsSeen.contains(cfName)))
@@ -401,7 +400,6 @@ public class CassandraServer implements Cassandra.Iface
                     cfamsSeen.add(cfName);
                 }
 
-                CFMetaData metadata = ThriftValidation.validateColumnFamily(state().getKeyspace(), cfName, isCommutativeOp);
                 if (isCommutativeOp)
                     ThriftValidation.validateCommutativeForWrite(metadata, consistency_level);
 
@@ -431,11 +429,11 @@ public class CassandraServer implements Cassandra.Iface
     {
         state().hasColumnFamilyAccess(column_path.column_family, Permission.WRITE);
 
-        ThriftValidation.validateKey(key);
         CFMetaData metadata = ThriftValidation.validateColumnFamily(state().getKeyspace(), column_path.column_family, isCommutativeOp);
+        ThriftValidation.validateKey(metadata, key);
+        ThriftValidation.validateColumnPathOrParent(metadata, column_path);
         if (isCommutativeOp)
             ThriftValidation.validateCommutativeForWrite(metadata, consistency_level);
-        ThriftValidation.validateKeyType(key, state().getKeyspace(), column_path.column_family);
 
         RowMutation rm = new RowMutation(state().getKeyspace(), key);
         rm.delete(new QueryPath(column_path), timestamp); 

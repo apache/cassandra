@@ -47,30 +47,27 @@ import org.apache.cassandra.utils.FBUtilities;
  */
 public class ThriftValidation
 {
-    public static void validateKey(ByteBuffer key) throws InvalidRequestException
+    public static void validateKey(CFMetaData metadata, ByteBuffer key) throws InvalidRequestException
     {
         if (key == null || key.remaining() == 0)
         {
             throw new InvalidRequestException("Key may not be empty");
         }
+
         // check that key can be handled by FBUtilities.writeShortByteArray
         if (key.remaining() > FBUtilities.MAX_UNSIGNED_SHORT)
         {
             throw new InvalidRequestException("Key length of " + key.remaining() +
                                               " is longer than maximum of " + FBUtilities.MAX_UNSIGNED_SHORT);
         }
-    }
 
-    public static void validateKeyType(ByteBuffer key, String ksname, String cfname) throws InvalidRequestException
-    {
         try
         {
-            AbstractType<?> keyValidator = DatabaseDescriptor.getCFMetaData(ksname, cfname).getKeyValidator();
-            keyValidator.validate(key);
+            metadata.getKeyValidator().validate(key);
         }
         catch (MarshalException e)
         {
-            throw new InvalidRequestException(e.toString());
+            throw new InvalidRequestException(e.getMessage());
         }
     }
 
