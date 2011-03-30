@@ -591,3 +591,13 @@ class TestCql(ThriftTester):
         """, "test_escaped_quotes")
         assert (len(r) == 1) and (len(r[0]) == 1), "wrong number of results"
         assert r[0][0].name == "x\'and\'y"
+        
+    def test_typed_keys(self):
+        "using typed keys"
+        conn = init()
+        r = conn.execute("SELECT * FROM StandardString1 WHERE KEY = ?", "ka")
+        assert isinstance(r[0].key, unicode), \
+            "wrong key-type returned, expected unicode, got %s" % type(r[0].key)
+        
+        # FIXME: The above is woefully inadequate, but the test config uses
+        # CollatingOrderPreservingPartitioner which only supports UTF8.
