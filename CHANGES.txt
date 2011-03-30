@@ -10,7 +10,7 @@
  * backwards compatible internal messaging (CASSANDRA-1015)
  * check for null encryption in MessagingService (CASSANDRA-2152)
  * Fix for Cli to support updating replicate_on_write (CASSANDRA-2236)
- * JDBC driver for CQL (CASSANDRA-2124, 2302)
+ * JDBC driver for CQL (CASSANDRA-2124, 2302, 2277)
  * atomic switch of memtables and sstables (CASSANDRA-2284)
  * add pluggable SeedProvider (CASSANDRA-1669)
 
