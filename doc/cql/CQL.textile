@@ -180,15 +180,23 @@ h2. CREATE COLUMNFAMILY
 _Synopsis:_
 
 bc. 
-CREATE COLUMNFAMILY <COLUMN FAMILY> [(name1 type, name2 type, ...)] [WITH keyword1 = arg1
-    [AND keyword2 = arg2 [AND ...]]];
+CREATE COLUMNFAMILY <COLUMN FAMILY> (KEY <type> PRIMARY KEY [, name1 type, name2 type, ...]);
+CREATE COLUMNFAMILY <COLUMN FAMILY> (KEY <type> PRIMARY KEY [, name1 type, name2 type, ...])
+    [WITH keyword1 = arg1 [AND keyword2 = arg2 [AND ...]]];
 
 @CREATE COLUMNFAMILY@ statements create new column family namespaces under the current keyspace. Valid column family names are strings of alphanumeric characters and underscores, which begin with a letter.
+
+h3(#keytypes). Specifying Key Type
+
+bc. 
+CREATE ... (KEY <type> PRIMARY KEY) ...
+
+When creating a new column family, you must specify key type.  The list of possible key types is identical to column comparators/validators, (see "Specifying Column Type":columntypes).  It's important to note that the key type must be compatible with the partitioner in use, for example @OrderPreservingPartitioner@ and @CollatingOrderPreservingPartitioner@ both require UTF-8 keys.
 
 h3(#columntypes). Specifying Column Type (optional)
 
 bc. 
-CREATE COLUMNFAMILY <COLUMN FAMILY> (name1 type, name2 type) ...;
+CREATE ... (KEY <type> PRIMARY KEY, name1 type, name2 type) ...
 
 It is possible to assign columns a type during column family creation.  Columns configured with a type are validated accordingly when a write occurs. Column types are specified as a parenthesized, comma-separated list of column term and type pairs.  The list of recognized types are:
 
