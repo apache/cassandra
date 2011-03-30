@@ -25,12 +25,14 @@ import java.io.IOException;
 import java.net.Socket;
 import java.net.UnknownHostException;
 
+import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.service.EmbeddedCassandraService;
+import org.junit.BeforeClass;
 
 /**
  * The abstract BaseClass.
@@ -41,13 +43,19 @@ public abstract class EmbeddedServiceBase
     /** The embedded server cassandra. */
     private static EmbeddedCassandraService cassandra;
     
+    @BeforeClass 
+    public static void cleanUpOldStuff() throws IOException
+    {
+        CleanupHelper.cleanupAndLeaveDirs();
+    }
+    
     /**
      * Start cassandra server.
      * @throws ConfigurationException 
      *
      * @throws Exception the exception
      */
-    static void startCassandraServer() throws IOException, ConfigurationException
+    public static void startCassandraServer() throws IOException, ConfigurationException
     {
         if (!checkIfServerRunning())
         {

@@ -244,16 +244,25 @@ public class JdbcDriverTest extends EmbeddedServiceBase
                     ByteBuffer.class.getName(), Types.BINARY, BytesType.class.getSimpleName(), false, false);
     }
     
-    /** Method to test statement. */
     @Test
-    public void testWithStatement() throws SQLException
+    public void testWithStatementBytesType() throws SQLException
     {
         Statement stmt = con.createStatement();
         
         String selectQ = String.format("SELECT '%s', '%s' FROM Standard1 WHERE KEY='%s'", first, last, jsmith);
         checkResultSet(stmt.executeQuery(selectQ), "Bytes", 1, first, last);
         
-        selectQ = "SELECT 1, 2 FROM JdbcInteger WHERE KEY='" + jsmith + "'";
+        selectQ = String.format("SELECT '%s', '%s' FROM JdbcBytes WHERE KEY='%s'", first, last, jsmith);
+        checkResultSet(stmt.executeQuery(selectQ), "Bytes", 1, first, last);
+    }
+    
+    /** Method to test statement. */
+    @Test
+    public void testWithStatement() throws SQLException
+    {
+        Statement stmt = con.createStatement();
+        
+        String selectQ = "SELECT 1, 2 FROM JdbcInteger WHERE KEY='" + jsmith + "'";
         checkResultSet(stmt.executeQuery(selectQ), "Int", 1, "1", "2");
         
         selectQ = "SELECT 3, 4 FROM JdbcInteger WHERE KEY='" + jsmith + "'";
@@ -273,6 +282,16 @@ public class JdbcDriverTest extends EmbeddedServiceBase
         
         selectQ = "SELECT 'first', 'last' FROM JdbcUtf8 WHERE KEY='" + jsmith + "'";
         checkResultSet(stmt.executeQuery(selectQ), "String", 1, "first", "last");
+    }
+    
+    @Test
+    public void testWithPreparedStatementBytesType() throws SQLException
+    {
+        String selectQ = String.format("SELECT '%s', '%s' FROM Standard1 WHERE KEY='%s'", first, last, jsmith);
+        checkResultSet(executePreparedStatementWithResults(con, selectQ), "Bytes", 1, first, last);
+        
+        selectQ = String.format("SELECT '%s', '%s' FROM JdbcBytes WHERE KEY='%s'", first, last, jsmith);
+        checkResultSet(executePreparedStatementWithResults(con, selectQ), "Bytes", 1, first, last);
     }
 
    /** Method to test with prepared statement.*/
@@ -385,8 +404,10 @@ public class JdbcDriverTest extends EmbeddedServiceBase
         }
         
         // Cleanup backup links
-        for (String fname : new File("build/test/cassandra/data/Keyspace1/backups").list())
-            new File("build/test/cassandra/data/Keyspace1/backups" + File.separator + fname).delete();
+        File backups = new File("build/test/cassandra/data/Keyspace1/backups");
+        if (backups.exists())
+            for (String fname : backups.list())
+                new File("build/test/cassandra/data/Keyspace1/backups" + File.separator + fname).delete();
     }
     
     // todo: check expected values as well.

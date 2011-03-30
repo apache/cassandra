@@ -453,7 +453,7 @@ class CassandraConnection implements Connection
      */
     public PreparedStatement prepareStatement(String sql) throws SQLException
     {
-        return new CassandraStatement(this.cassandraCon, sql);
+        return new CassandraPreparedStatement(this.cassandraCon, sql);
     }
 
 

@@ -45,7 +45,8 @@ class ColumnDecoder
     enum Specifier
     {
         Comparator,
-        Validator
+        Validator,
+        Key
     }
     
     private Map<String, CfDef> cfDefs = new HashMap<String, CfDef>();
@@ -79,10 +80,16 @@ class ColumnDecoder
         {
             if (def == null)
                 def = cfDefs.get(String.format("%s.%s", keyspace, columnFamily));
+            if (def == null)
+                // no point in proceeding. these values are bad.
+                return null;
             try 
             {
                 switch (specifier)
                 {
+                    case Key:
+                        comparator = FBUtilities.getComparator(def.getKey_validation_class());
+                        break;
                     case Validator:
                         comparator = FBUtilities.getComparator(def.getDefault_validation_class());
                         break;

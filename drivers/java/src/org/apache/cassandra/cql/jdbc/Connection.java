@@ -50,7 +50,8 @@ import org.slf4j.LoggerFactory;
 class Connection
 {
     private static final Pattern KeyspacePattern = Pattern.compile("USE (\\w+);?", Pattern.CASE_INSENSITIVE | Pattern.MULTILINE);
-    private static final Pattern SelectPattern = Pattern.compile("SELECT\\s+.+\\s+FROM\\s+(\\w+).*", Pattern.CASE_INSENSITIVE | Pattern.MULTILINE);
+    private static final Pattern SelectPattern = Pattern.compile("(?:SELECT|DELETE)\\s+.+\\s+FROM\\s+(\\w+).*", Pattern.CASE_INSENSITIVE | Pattern.MULTILINE);
+    private static final Pattern UpdatePatter = Pattern.compile("UPDATE\\s+(\\w+)\\s+.*", Pattern.CASE_INSENSITIVE);
     
     public static Compression defaultCompression = Compression.GZIP;
     public final String hostName;
@@ -140,12 +141,8 @@ class Connection
         if (decoder == null)
             decoder = new ColumnDecoder(client.describe_keyspaces());
         
-        Matcher isKeyspace = KeyspacePattern.matcher(queryStr);
-        if (isKeyspace.matches())
-            curKeyspace = isKeyspace.group(1);
-        Matcher isSelect = SelectPattern.matcher(queryStr);
-        if (isSelect.matches())
-            curColumnFamily = isSelect.group(1);
+        curKeyspace = getKeyspace(queryStr);
+        curColumnFamily = getColumnFamily(queryStr);
         try
         {
             return client.execute_cql_query(Utils.compressQuery(queryStr, compress), compress);
@@ -158,6 +155,27 @@ class Connection
         }
     }
     
+    String getKeyspace(String query)
+    {
+        String ks = curKeyspace;
+        Matcher isKeyspace = KeyspacePattern.matcher(query);
+        if (isKeyspace.matches())
+            ks = isKeyspace.group(1);
+        return ks;
+    }
+    
+    String getColumnFamily(String query) 
+    {
+        String cf = curColumnFamily;
+        Matcher isSelect = SelectPattern.matcher(query);
+        if (isSelect.matches())
+            cf = isSelect.group(1);
+        Matcher isUpdate = UpdatePatter.matcher(query);
+        if (isUpdate.matches())
+            cf = isUpdate.group(1);   
+        return cf;
+    }
+    
     /** Shutdown the remote connection */
     public void close()
     {
@@ -168,5 +186,17 @@ class Connection
     public boolean isOpen()
     {
         return transport.isOpen();
+    }
+    
+    class QueryMetadata
+    {
+        public final String keyspace;
+        public final String columnFamily;
+        
+        QueryMetadata(String keyspace, String columnFamily)
+        {
+            this.keyspace = keyspace;
+            this.columnFamily = columnFamily;
+        }
     }
 }

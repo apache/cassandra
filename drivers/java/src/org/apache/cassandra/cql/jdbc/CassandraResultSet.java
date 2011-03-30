@@ -42,7 +42,6 @@ import java.sql.SQLXML;
 import java.sql.Statement;
 import java.sql.Time;
 import java.sql.Timestamp;
-import java.sql.Types;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Iterator;
@@ -54,12 +53,12 @@ import java.util.WeakHashMap;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.CounterColumnType;
-import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.thrift.Column;
 import org.apache.cassandra.thrift.CqlResult;
 import org.apache.cassandra.thrift.CqlRow;
 
+// todo: get by index is off by one.
 /**
  * The Class CassandraResultSet.
  */
@@ -2068,26 +2067,14 @@ class CassandraResultSet implements ResultSet
         {
             column--;
             checkIndex(column);
-            TypedColumn col = values.get(column);
-            if (nameType == IntegerType.instance || nameType == LongType.instance)
-                return true;
-            else if (nameType instanceof ColumnMetaData) 
-                return ((ColumnMetaData)nameType).isSigned();
-            else
-                return false;
+            return Utils.isTypeSigned(nameType);
         }
         
         public boolean isValueSigned(int column) throws SQLException
         {
             column--;
             checkIndex(column);
-            TypedColumn col = values.get(column);
-            if (valueType == IntegerType.instance || valueType == LongType.instance)
-                return true;
-            else if (valueType instanceof ColumnMetaData) 
-                return ((ColumnMetaData)valueType).isSigned();
-            else
-                return false;
+            return Utils.isTypeSigned(valueType);
         }
 
         public int getNameDisplaySize(int column) throws SQLException
@@ -2144,55 +2131,30 @@ class CassandraResultSet implements ResultSet
         {
             column--;
             checkIndex(column);
-            if (valueType instanceof ColumnMetaData)
-                return ((ColumnMetaData)nameType).getScale();
-            else
-                return 0;
+            return Utils.getTypeScale(nameType);
         }
         
         public int getValueScale(int column) throws SQLException
         {
             column--;
             checkIndex(column);
-            if (valueType instanceof ColumnMetaData)
-                return ((ColumnMetaData)valueType).getScale();
-            else
-                return 0;
+            return Utils.getTypeScale(valueType);
         }
 
         public int getNameType(int column) throws SQLException
         {
             column--;
             checkIndex(column);
-            return getJdbcType(nameType);
+            return Utils.getJdbcType(nameType);
         }
         
         public int getValueType(int column) throws SQLException
         {
             column--;
             checkIndex(column);
-            return getJdbcType(valueType);
+            return Utils.getJdbcType(valueType);
         }
         
-        private int getJdbcType(AbstractType type) throws SQLException
-        {
-            
-            if (type instanceof ColumnMetaData)
-                return ((ColumnMetaData)type).getType();
-            else if (type == IntegerType.instance)
-                return Types.BIGINT;
-            else if (type.getType().equals(Long.class))
-                return Types.BIGINT; // not the best fit.
-            else if (type.getType().equals(String.class))
-                return Types.VARCHAR;
-            else if (type.getType().equals(UUID.class))
-                return Types.TIMESTAMP;
-            else if (type == BytesType.instance)
-                return Types.BINARY;
-            else
-                throw new SQLException("Uninterpretable JDBC type " + type.getClass().getName());
-        }
-
         public String getNameTypeName(int column) throws SQLException
         {
             column--;

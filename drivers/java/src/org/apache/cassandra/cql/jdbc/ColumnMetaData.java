@@ -34,4 +34,5 @@ public interface ColumnMetaData
     public int getPrecision();
     public int getScale();
     public int getType();
+    public boolean needsQuotes();
 }
