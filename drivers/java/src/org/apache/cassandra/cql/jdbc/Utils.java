@@ -28,6 +28,7 @@ import java.sql.Types;
 import java.util.UUID;
 import java.util.zip.Deflater;
 
+import com.google.common.base.Charsets;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.IntegerType;
@@ -42,7 +43,7 @@ class Utils
     
     public static ByteBuffer compressQuery(String queryStr, Compression compression)
     {
-        byte[] data = queryStr.getBytes();
+        byte[] data = queryStr.getBytes(Charsets.UTF_8);
         Deflater compressor = new Deflater();
         compressor.setInput(data);
         compressor.finish();
