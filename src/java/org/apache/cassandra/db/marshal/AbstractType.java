@@ -94,6 +94,9 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>
     
     public abstract T compose(ByteBuffer bytes);
 
+    /** get a string representation of a particular type. */
+    public abstract String toString(T t);
+    
     /** get a string representation of the bytes suitable for log messages */
     public abstract String getString(ByteBuffer bytes);
 

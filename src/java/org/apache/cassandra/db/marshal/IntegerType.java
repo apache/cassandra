@@ -129,6 +129,11 @@ public final class IntegerType extends AbstractType<BigInteger>
 
         return new java.math.BigInteger(TBaseHelper.byteBufferToByteArray(bytes)).toString(10);
     }
+    
+    public String toString(BigInteger bi)
+    {
+        return bi.toString();
+    }
 
     public ByteBuffer fromString(String source) throws MarshalException
     {

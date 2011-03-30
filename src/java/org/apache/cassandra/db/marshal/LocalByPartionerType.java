@@ -48,6 +48,11 @@ public class LocalByPartionerType<T extends Token> extends AbstractType<ByteBuff
         return ByteBufferUtil.bytesToHex(bytes);
     }
 
+    public String toString(ByteBuffer bb)
+    {
+        return getString(bb);
+    }
+
     public ByteBuffer fromString(String source)
     {
         throw new NotImplementedException();

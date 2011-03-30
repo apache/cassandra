@@ -34,7 +34,6 @@ public class AsciiType extends AbstractType<String>
 
     AsciiType() {} // singleton
 
-    @Override
     public String getString(ByteBuffer bytes)
     {
         try
@@ -45,6 +44,11 @@ public class AsciiType extends AbstractType<String>
         {
             throw new MarshalException("Invalid ascii bytes " + ByteBufferUtil.bytesToHex(bytes));
         }
+    }
+
+    public String toString(String s)
+    {
+        return s;
     }
 
     public int compare(ByteBuffer o1, ByteBuffer o2)

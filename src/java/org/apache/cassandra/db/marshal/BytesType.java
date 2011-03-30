@@ -57,6 +57,11 @@ public class BytesType extends AbstractType<ByteBuffer>
         return ByteBufferUtil.bytesToHex(bytes);
     }
 
+    public String toString(ByteBuffer byteBuffer)
+    {
+        return getString(byteBuffer);
+    }
+
     public ByteBuffer fromString(String source)
     {
         try

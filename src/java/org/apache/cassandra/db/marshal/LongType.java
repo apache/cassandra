@@ -66,8 +66,12 @@ public class LongType extends AbstractType<Long>
             throw new MarshalException("A long is exactly 8 bytes: "+bytes.remaining());
         }
         
-        
         return String.valueOf(bytes.getLong(bytes.position()));
+    }
+
+    public String toString(Long l)
+    {
+        return l.toString();
     }
 
     public ByteBuffer fromString(String source) throws MarshalException
