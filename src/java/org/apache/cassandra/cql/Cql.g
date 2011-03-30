@@ -100,7 +100,7 @@ options {
 
 query returns [CQLStatement stmnt]
     : selectStatement   { $stmnt = new CQLStatement(StatementType.SELECT, $selectStatement.expr); }
-    | updateStatement   { $stmnt = new CQLStatement(StatementType.UPDATE, $updateStatement.expr); }
+    | updateStatement endStmnt { $stmnt = new CQLStatement(StatementType.UPDATE, $updateStatement.expr); }
     | batchUpdateStatement { $stmnt = new CQLStatement(StatementType.BATCH_UPDATE, $batchUpdateStatement.expr); }
     | useStatement      { $stmnt = new CQLStatement(StatementType.USE, $useStatement.keyspace); }
     | truncateStatement { $stmnt = new CQLStatement(StatementType.TRUNCATE, $truncateStatement.cfam); }
@@ -188,7 +188,7 @@ batchUpdateStatement returns [BatchUpdateStatement expr]
           List<UpdateStatement> updates = new ArrayList<UpdateStatement>();
       }
       K_BEGIN K_BATCH ( K_USING K_CONSISTENCY K_LEVEL { cLevel = ConsistencyLevel.valueOf($K_LEVEL.text); } )?
-          u1=updateStatement { updates.add(u1); } ( uN=updateStatement { updates.add(uN); } )*
+          u1=updateStatement ';'? { updates.add(u1); } ( uN=updateStatement ';'? { updates.add(uN); } )*
       K_APPLY K_BATCH EOF
       {
           return new BatchUpdateStatement(updates, cLevel);
@@ -214,7 +214,7 @@ updateStatement returns [UpdateStatement expr]
       K_UPDATE columnFamily=( IDENT | STRING_LITERAL | INTEGER )
           (K_USING K_CONSISTENCY K_LEVEL { cLevel = ConsistencyLevel.valueOf($K_LEVEL.text); })?
           K_SET termPair[columns] (',' termPair[columns])*
-          K_WHERE K_KEY '=' key=term endStmnt
+          K_WHERE K_KEY '=' key=term
       {
           return new UpdateStatement($columnFamily.text, cLevel, columns, key);
       }
@@ -241,7 +241,7 @@ deleteStatement returns [DeleteStatement expr]
           K_FROM columnFamily=( IDENT | STRING_LITERAL | INTEGER ) ( K_USING K_CONSISTENCY K_LEVEL )?
           K_WHERE ( K_KEY '=' key=term           { keyList = Collections.singletonList(key); }
                   | K_KEY K_IN '(' keys=termList { keyList = $keys.items; } ')'
-                  )?
+                  )? endStmnt
       {
           return new DeleteStatement(columnsList, $columnFamily.text, cLevel, keyList);
       }
@@ -339,7 +339,7 @@ truncateStatement returns [String cfam]
     ;
 
 endStmnt
-    : (EOF | ';')
+    : ';'?  EOF
     ;
 
 
