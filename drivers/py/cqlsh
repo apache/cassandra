@@ -129,6 +129,7 @@ class Shell(cmd.Cmd):
         
         if words[1].upper() == 'COLUMNFAMILY':
             types = startswith(CQLTYPES, text)
+            keywords = startswith(('KEY', 'PRIMARY'), text.upper())
             props = startswith(("comparator",
                                 "comment",
                                 "row_cache_size",
@@ -144,7 +145,7 @@ class Shell(cmd.Cmd):
                                 "memtable_throughput_in_mb",
                                 "memtable_operations_in_millions",
                                 "replicate_on_write"), text)
-            return startswith(common, text.upper()) + types + props
+            return startswith(common, text.upper()) + types + keywords + props
             
         if words[1].upper() == 'KEYSPACE':
             props = ("replication_factor", "strategy_options", "strategy_class")

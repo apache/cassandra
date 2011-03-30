@@ -81,13 +81,13 @@ def load_sample(dbconn):
 
     dbconn.execute("""
     BEGIN BATCH USING CONSISTENCY ONE
-     UPDATE StandardLongA SET 1='1', 2='2', 3='3', 4='4' WHERE KEY='aa';
-     UPDATE StandardLongA SET 5='5', 6='6', 7='8', 9='9' WHERE KEY='ab';
-     UPDATE StandardLongA SET 9='9', 8='8', 7='7', 6='6' WHERE KEY='ac';
-     UPDATE StandardLongA SET 5='5', 4='4', 3='3', 2='2' WHERE KEY='ad';
-     UPDATE StandardLongA SET 1='1', 2='2', 3='3', 4='4' WHERE KEY='ae';
-     UPDATE StandardLongA SET 1='1', 2='2', 3='3', 4='4' WHERE KEY='af';
-     UPDATE StandardLongA SET 5='5', 6='6', 7='8', 9='9' WHERE KEY='ag';
+     UPDATE StandardLongA SET 1='1', 2='2', 3='3', 4='4' WHERE KEY='aa'
+     UPDATE StandardLongA SET 5='5', 6='6', 7='8', 9='9' WHERE KEY='ab'
+     UPDATE StandardLongA SET 9='9', 8='8', 7='7', 6='6' WHERE KEY='ac'
+     UPDATE StandardLongA SET 5='5', 4='4', 3='3', 2='2' WHERE KEY='ad'
+     UPDATE StandardLongA SET 1='1', 2='2', 3='3', 4='4' WHERE KEY='ae'
+     UPDATE StandardLongA SET 1='1', 2='2', 3='3', 4='4' WHERE KEY='af'
+     UPDATE StandardLongA SET 5='5', 6='6', 7='8', 9='9' WHERE KEY='ag'
     APPLY BATCH
     """)
     
