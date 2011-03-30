@@ -365,7 +365,7 @@ class CassandraResultSet implements ResultSet
      */
     public byte[] getBytes(int index) throws SQLException
     {
-        return values.get(index) != null ? ((ByteBuffer)values.get(index).getValue()).array() : null;
+        return values.get(index-1) != null ? ((ByteBuffer)values.get(index-1).getValue()).array() : null;
     }
 
     /**
@@ -553,7 +553,7 @@ class CassandraResultSet implements ResultSet
      */
     public int getInt(int index) throws SQLException
     {
-        return values.get(index) != null ? ((BigInteger)values.get(index).getValue()).intValue() : null;
+        return values.get(index-1) != null ? ((BigInteger)values.get(index-1).getValue()).intValue() : null;
     }
 
     /**
@@ -574,7 +574,7 @@ class CassandraResultSet implements ResultSet
      */
     public long getLong(int index) throws SQLException
     {
-        return values.get(index) != null ? (Long)values.get(index).getValue() : null;
+        return values.get(index-1) != null ? (Long)values.get(index-1).getValue() : null;
     }
 
     /**
@@ -664,7 +664,7 @@ class CassandraResultSet implements ResultSet
      */
     public Object getObject(int index) throws SQLException
     {
-        return values.get(index) == null ? null : values.get(index).getValue();
+        return values.get(index-1) == null ? null : values.get(index-1).getValue();
     }
 
     /**
@@ -805,7 +805,7 @@ class CassandraResultSet implements ResultSet
      */
     public String getString(int index) throws SQLException 
     {
-        return values.get(index) != null ? ColumnDecoder.colValueAsString(values.get(index).getValue()) : null;
+        return values.get(index-1) != null ? ColumnDecoder.colValueAsString(values.get(index-1).getValue()) : null;
     }
 
     /**

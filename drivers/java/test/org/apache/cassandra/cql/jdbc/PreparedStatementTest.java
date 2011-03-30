@@ -54,6 +54,8 @@ public class PreparedStatementTest extends EmbeddedServiceBase
             assert rs.next();
             assert Arrays.equals(rs.getBytes(FBUtilities.bytesToHex(FBUtilities.toByteArray(i))), FBUtilities.toByteArray((i+1)*10));
             assert Arrays.equals(rs.getBytes(FBUtilities.bytesToHex(FBUtilities.toByteArray(i+100))), FBUtilities.toByteArray((i+1)*10+1));
+            assert Arrays.equals(rs.getBytes(1), FBUtilities.toByteArray((i+1)*10));
+            assert Arrays.equals(rs.getBytes(2), FBUtilities.toByteArray((i+1)*10+1));
             assert !rs.next();
             rs.close();
         }
@@ -111,6 +113,8 @@ public class PreparedStatementTest extends EmbeddedServiceBase
             assert rs.next();
             assert rs.getString("1\u6543\u3435\u6554").equals("abc\u6543\u3435\u6554");
             assert rs.getString("2\u6543\u3435\u6554").equals("def\u6543\u3435\u6554");
+            assert rs.getString(1).equals("abc\u6543\u3435\u6554");
+            assert rs.getString(2).equals("def\u6543\u3435\u6554");
             assert !rs.next();
             rs.close();
         }
@@ -168,6 +172,8 @@ public class PreparedStatementTest extends EmbeddedServiceBase
             assert rs.next();
             assert rs.getString("1").equals("abc");
             assert rs.getString("2").equals("def");
+            assert rs.getString(1).equals("abc");
+            assert rs.getString(2).equals("def");
             assert !rs.next();
             rs.close();
         }
@@ -225,6 +231,8 @@ public class PreparedStatementTest extends EmbeddedServiceBase
             assert rs.next();
             assert rs.getLong("1") == (i+1)*10;
             assert rs.getLong("2") == (i+1)*10+1;
+            assert rs.getLong(1) == (i+1)*10;
+            assert rs.getLong(2) == (i+1)*10+1;
             assert !rs.next();
             rs.close();
         }
@@ -282,6 +290,8 @@ public class PreparedStatementTest extends EmbeddedServiceBase
             assert rs.next();
             assert rs.getInt("1") == (i+1)*10;
             assert rs.getInt("2") == (i+1)*10+1;
+            assert rs.getInt(1) == (i+1)*10;
+            assert rs.getInt(2) == (i+1)*10+1;
             assert !rs.next();
             rs.close();
         }

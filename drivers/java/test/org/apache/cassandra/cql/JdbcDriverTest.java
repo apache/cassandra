@@ -228,8 +228,8 @@ public class JdbcDriverTest extends EmbeddedServiceBase
                 FBUtilities.bytesToHex(a),
                 FBUtilities.bytesToHex(b)));
         assert rs.next();
-        assert Arrays.equals(aa, rs.getBytes(0));
-        assert Arrays.equals(bb, rs.getBytes(1));
+        assert Arrays.equals(aa, rs.getBytes(1));
+        assert Arrays.equals(bb, rs.getBytes(2));
         assert Arrays.equals(aa, rs.getBytes(FBUtilities.bytesToHex(a)));
         assert Arrays.equals(bb, rs.getBytes(FBUtilities.bytesToHex(b)));
         ResultSetMetaData md = rs.getMetaData();
@@ -423,16 +423,16 @@ public class JdbcDriverTest extends EmbeddedServiceBase
             {
                 // getString and getObject should always work.
                 assert rs.getString(cols[c]) != null;
-                assert rs.getString(c) != null;
+                assert rs.getString(c+1) != null;
                 assert rs.getObject(cols[c]) != null;
-                assert rs.getObject(c) != null;
+                assert rs.getObject(c+1) != null;
                 
                 // now call the accessor.
                 try
                 {
                     Method byInt = rs.getClass().getDeclaredMethod("get" + accessor, int.class);
                     byInt.setAccessible(true);
-                    assert byInt.invoke(rs, c) != null;
+                    assert byInt.invoke(rs, c+1) != null;
                     
                     Method byString = rs.getClass().getDeclaredMethod("get" + accessor, String.class);
                     byString.setAccessible(true);
