@@ -33,14 +33,12 @@ import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.PrecompactedRow;
-import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.utils.FBUtilities;
@@ -190,10 +188,13 @@ public class AntiEntropyServiceTest extends CleanupHelper
         expected.remove(FBUtilities.getLocalAddress());
         assertEquals(expected, AntiEntropyService.getNeighbors(tablename));
     }
-
+    
     @Test
     public void testDifferencer() throws Throwable
     {
+        // this next part does some housekeeping so that cleanup in the dfferencer doesn't error out.
+        AntiEntropyService.RepairSession sess = AntiEntropyService.instance.getArtificialRepairSession(request,  tablename, cfname);
+        
         // generate a tree
         Validator validator = new Validator(request);
         validator.prepare(store);

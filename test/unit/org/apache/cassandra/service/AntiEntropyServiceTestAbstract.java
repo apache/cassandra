@@ -208,6 +208,9 @@ public abstract class AntiEntropyServiceTestAbstract extends CleanupHelper
     @Test
     public void testDifferencer() throws Throwable
     {
+        // this next part does some housekeeping so that cleanup in the differencer doesn't error out.
+        AntiEntropyService.RepairSession sess = AntiEntropyService.instance.getArtificialRepairSession(request,  tablename, cfname);
+        
         // generate a tree
         Validator validator = new Validator(request);
         validator.prepare(store);

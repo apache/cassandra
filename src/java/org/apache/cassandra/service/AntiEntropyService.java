@@ -125,6 +125,11 @@ public class AntiEntropyService
     {
         return new RepairSession(tablename, cfnames);
     }
+    
+    RepairSession getArtificialRepairSession(TreeRequest req, String tablename, String... cfnames)
+    {
+        return new RepairSession(req, tablename, cfnames);
+    }
 
     /**
      * Called by Differencer when a full repair round trip has been completed between the given CF and endpoints.
@@ -621,18 +626,16 @@ public class AntiEntropyService
         public void serialize(Validator v, DataOutputStream dos, int version) throws IOException
         {
             TreeRequestVerbHandler.SERIALIZER.serialize(v.request, dos, version);
-            ObjectOutputStream oos = new ObjectOutputStream(dos);
-            oos.writeObject(v.tree);
-            oos.flush();
+            MerkleTree.serializer.serialize(v.tree, dos, version);
+            dos.flush();
         }
 
         public Validator deserialize(DataInputStream dis, int version) throws IOException
         {
             final TreeRequest request = TreeRequestVerbHandler.SERIALIZER.deserialize(dis, version);
-            ObjectInputStream ois = new ObjectInputStream(dis);
             try
             {
-                return new Validator(request, (MerkleTree)ois.readObject());
+                return new Validator(request, MerkleTree.serializer.deserialize(dis, version));
             }
             catch(Exception e)
             {
@@ -731,6 +734,19 @@ public class AntiEntropyService
         private final String[] cfnames;
         private final SimpleCondition requestsMade;
         private final ConcurrentHashMap<TreeRequest,Object> requests;
+        
+        public RepairSession(TreeRequest req, String tablename, String... cfnames)
+        {
+            super(req.sessionid);
+            this.tablename = tablename;
+            this.cfnames = cfnames;
+            requestsMade = new SimpleCondition();
+            this.requests = new ConcurrentHashMap<TreeRequest,Object>();
+            requests.put(req, this);
+            Callback callback = new Callback();
+            AntiEntropyService.instance.sessions.put(getName(), callback);
+        }
+        
         public RepairSession(String tablename, String... cfnames)
         {
             super("manual-repair-" + UUID.randomUUID());
@@ -760,7 +776,7 @@ public class AntiEntropyService
 
             // begin a repair session
             Callback callback = new Callback();
-            AntiEntropyService.this.sessions.put(getName(), callback);
+            AntiEntropyService.instance.sessions.put(getName(), callback);
             try
             {
                 // request that all relevant endpoints generate trees
@@ -768,9 +784,9 @@ public class AntiEntropyService
                 {
                     // send requests to remote nodes and record them
                     for (InetAddress endpoint : endpoints)
-                        requests.put(AntiEntropyService.this.request(getName(), endpoint, tablename, cfname), this);
+                        requests.put(AntiEntropyService.instance.request(getName(), endpoint, tablename, cfname), this);
                     // send but don't record an outstanding request to the local node
-                    AntiEntropyService.this.request(getName(), FBUtilities.getLocalAddress(), tablename, cfname);
+                    AntiEntropyService.instance.request(getName(), FBUtilities.getLocalAddress(), tablename, cfname);
                 }
                 logger.info("Waiting for repair requests: " + requests.keySet());
                 requestsMade.signalAll();
@@ -810,7 +826,7 @@ public class AntiEntropyService
 
                 // all requests completed
                 logger.info("Repair session " + getName() + " completed successfully.");
-                AntiEntropyService.this.sessions.remove(getName());
+                AntiEntropyService.instance.sessions.remove(getName());
                 completed.signalAll();
             }
         }
