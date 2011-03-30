@@ -38,9 +38,16 @@ class RowsProxy(object):
 
 class Row(object):
     def __init__(self, key, columns, keyspace, cfam, decoder):
-        self.key = key
+        self._key = key
+        self.keyspace = keyspace
+        self.cfam = cfam
+        self.decoder = decoder
         self.columns = ColumnsProxy(columns, keyspace, cfam, decoder)
-        
+    
+    def __get_key(self):
+        return self.decoder.decode_key(self.keyspace, self.cfam, self._key)
+    key = property(__get_key)
+    
     def __iter__(self):
         return iter(self.columns)
     

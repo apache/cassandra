@@ -21,10 +21,16 @@ from marshal import unmarshal
 class BaseDecoder(object):
     def decode_column(self, keyspace, column_family, name, value):
         raise NotImplementedError()
+        
+    def decode_key(self, keyspace, column_family, key):
+        raise NotImplementedError()
     
 class NoopDecoder(BaseDecoder):
     def decode_column(self, keyspace, column_family, name, value):
         return (name, value)
+        
+    def decode_key(self, keyspace, column_family, key):
+        return key
 
 class SchemaDecoder(BaseDecoder):
     """
@@ -53,9 +59,18 @@ class SchemaDecoder(BaseDecoder):
             else:
                 return cfam["default_validation_class"]
         return None
+        
+    def __keytype_for(self, keyspace, column_family, key):
+        cfam = self.__get_column_family_def(keyspace, column_family)
+        if cfam and cfam.has_key("key_validation_class"):
+            return cfam["key_validation_class"]
+        return None
 
     def decode_column(self, keyspace, column_family, name, value):
         comparator = self.__comparator_for(keyspace, column_family)
         validator = self.__validator_for(keyspace, column_family, name)
         return (unmarshal(name, comparator), unmarshal(value, validator))
+        
+    def decode_key(self, keyspace, column_family, key):
+        return unmarshal(key, self.__keytype_for(keyspace, column_family, key))
     

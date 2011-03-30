@@ -97,6 +97,8 @@ class Connection(object):
                 cfresults[cf.name] = {"comparator": cf.comparator_type}
                 cfresults[cf.name]["default_validation_class"] = \
                          cf.default_validation_class
+                cfresults[cf.name]["key_validation_class"] = \
+                         cf.key_validation_class
                 cfresults[cf.name]["columns"] = columns(cf.column_metadata)
             return cfresults
         
