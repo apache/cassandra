@@ -2510,6 +2510,7 @@ class CfDef:
    - memtable_operations_in_millions
    - replicate_on_write
    - merge_shards_chance
+   - key_validation_class
   """
 
   thrift_spec = (
@@ -2539,9 +2540,10 @@ class CfDef:
     (23, TType.DOUBLE, 'memtable_operations_in_millions', None, None, ), # 23
     (24, TType.BOOL, 'replicate_on_write', None, False, ), # 24
     (25, TType.DOUBLE, 'merge_shards_chance', None, None, ), # 25
+    (26, TType.STRING, 'key_validation_class', None, None, ), # 26
   )
 
-  def __init__(self, keyspace=None, name=None, column_type=thrift_spec[3][4], comparator_type=thrift_spec[5][4], subcomparator_type=None, comment=None, row_cache_size=thrift_spec[9][4], key_cache_size=thrift_spec[11][4], read_repair_chance=thrift_spec[12][4], column_metadata=None, gc_grace_seconds=None, default_validation_class=None, id=None, min_compaction_threshold=None, max_compaction_threshold=None, row_cache_save_period_in_seconds=None, key_cache_save_period_in_seconds=None, memtable_flush_after_mins=None, memtable_throughput_in_mb=None, memtable_operations_in_millions=None, replicate_on_write=thrift_spec[24][4], merge_shards_chance=None,):
+  def __init__(self, keyspace=None, name=None, column_type=thrift_spec[3][4], comparator_type=thrift_spec[5][4], subcomparator_type=None, comment=None, row_cache_size=thrift_spec[9][4], key_cache_size=thrift_spec[11][4], read_repair_chance=thrift_spec[12][4], column_metadata=None, gc_grace_seconds=None, default_validation_class=None, id=None, min_compaction_threshold=None, max_compaction_threshold=None, row_cache_save_period_in_seconds=None, key_cache_save_period_in_seconds=None, memtable_flush_after_mins=None, memtable_throughput_in_mb=None, memtable_operations_in_millions=None, replicate_on_write=thrift_spec[24][4], merge_shards_chance=None, key_validation_class=None,):
     self.keyspace = keyspace
     self.name = name
     self.column_type = column_type
@@ -2564,6 +2566,7 @@ class CfDef:
     self.memtable_operations_in_millions = memtable_operations_in_millions
     self.replicate_on_write = replicate_on_write
     self.merge_shards_chance = merge_shards_chance
+    self.key_validation_class = key_validation_class
 
   def read(self, iprot):
     if iprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and isinstance(iprot.trans, TTransport.CReadableTransport) and self.thrift_spec is not None and fastbinary is not None:
@@ -2690,6 +2693,11 @@ class CfDef:
           self.merge_shards_chance = iprot.readDouble();
         else:
           iprot.skip(ftype)
+      elif fid == 26:
+        if ftype == TType.STRING:
+          self.key_validation_class = iprot.readString();
+        else:
+          iprot.skip(ftype)
       else:
         iprot.skip(ftype)
       iprot.readFieldEnd()
@@ -2790,6 +2798,10 @@ class CfDef:
     if self.merge_shards_chance != None:
       oprot.writeFieldBegin('merge_shards_chance', TType.DOUBLE, 25)
       oprot.writeDouble(self.merge_shards_chance)
+      oprot.writeFieldEnd()
+    if self.key_validation_class != None:
+      oprot.writeFieldBegin('key_validation_class', TType.STRING, 26)
+      oprot.writeString(self.key_validation_class)
       oprot.writeFieldEnd()
     oprot.writeFieldStop()
     oprot.writeStructEnd()
