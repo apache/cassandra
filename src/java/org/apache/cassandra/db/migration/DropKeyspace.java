@@ -63,10 +63,10 @@ public class DropKeyspace extends Migration
                 CFMetaData.purge(cfm);
                 if (!clientMode)
                 {
+                    cfs.snapshot(snapshotName);
                     cfs.flushLock.lock();
                     try
                     {
-                        cfs.snapshot(snapshotName);
                         Table.open(ksm.name).dropCf(cfm.cfId);
                     }
                     finally

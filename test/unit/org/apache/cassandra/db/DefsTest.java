@@ -411,7 +411,7 @@ public class DefsTest extends CleanupHelper
         assert ks != null;
         final CFMetaData cfm = ks.cfMetaData().get("Standard2");
         assert cfm != null;
-        
+
         // write some data, force a flush, then verify that files exist on disk.
         RowMutation rm = new RowMutation(ks.name, dk.key);
         for (int i = 0; i < 100; i++)
@@ -451,7 +451,28 @@ public class DefsTest extends CleanupHelper
             assert th instanceof NullPointerException;
         }
     }
-    
+
+    @Test
+    public void dropKSUnflushed() throws ConfigurationException, IOException, ExecutionException, InterruptedException
+    {
+        DecoratedKey dk = Util.dk("dropKs");
+        // sanity
+        final KSMetaData ks = DatabaseDescriptor.getTableDefinition("Keyspace3");
+        assert ks != null;
+        final CFMetaData cfm = ks.cfMetaData().get("Standard1");
+        assert cfm != null;
+
+        // write some data
+        RowMutation rm = new RowMutation(ks.name, dk.key);
+        for (int i = 0; i < 100; i++)
+            rm.add(new QueryPath(cfm.cfName, null, ByteBufferUtil.bytes(("col" + i))), ByteBufferUtil.bytes("anyvalue"), 1L);
+        rm.apply();
+
+        new DropKeyspace(ks.name).apply();
+
+        assert DatabaseDescriptor.getTableDefinition(ks.name) == null;
+    }
+
     @Test
     public void renameKs() throws ConfigurationException, IOException, ExecutionException, InterruptedException
     {
