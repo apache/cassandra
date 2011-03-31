@@ -119,6 +119,12 @@ public class Session
         {
             CommandLine cmd = parser.parse(availableOptions, arguments);
 
+            if (cmd.getArgs().length > 0)
+            {
+                System.err.println("Application does not allow arbitrary arguments: " + StringUtils.join(cmd.getArgList(), ", "));
+                System.exit(1);
+            }
+
             if (cmd.hasOption("h"))
                 throw new IllegalArgumentException("help");
 

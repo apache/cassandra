@@ -80,11 +80,12 @@ public class DropColumnFamily extends Migration
 
         if (!clientMode)
         {
+            cfs.snapshot(Table.getTimestampedSnapshotName(null));
+
             CompactionManager.instance.getCompactionLock().lock();
             cfs.flushLock.lock();
             try
             {
-                cfs.snapshot(Table.getTimestampedSnapshotName(null));
                 Table.open(ksm.name).dropCf(cfm.cfId);
             }
             finally
