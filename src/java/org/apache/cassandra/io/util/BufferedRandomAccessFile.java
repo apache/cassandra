@@ -338,7 +338,8 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
             throw new IllegalArgumentException("new position should not be negative");
 
         if (isReadOnly() && newPosition > fileLength)
-            throw new EOFException("unable to seek past the end of " + filePath + " in read-only mode.");
+            throw new EOFException(String.format("unable to seek to position %d in %s (%d bytes) in read-only mode",
+                                                 newPosition, filePath, fileLength));
 
         current = newPosition;
 
