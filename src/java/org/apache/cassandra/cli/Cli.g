@@ -423,6 +423,7 @@ attrValueString
       
 attrValueInt
 	: IntegerPositiveLiteral
+  | IntegerNegativeLiteral
 	;
 
 attrValueDouble
@@ -471,11 +472,11 @@ columnFamily
 	;
 
 rowKey	
-    :  (Identifier | StringLiteral | IntegerPositiveLiteral | functionCall)
+    :  (Identifier | StringLiteral | IntegerPositiveLiteral | IntegerNegativeLiteral | functionCall)
 	;
 
 value	
-    : (Identifier | IntegerPositiveLiteral | StringLiteral | functionCall)
+    : (Identifier | IntegerPositiveLiteral | IntegerNegativeLiteral | StringLiteral | functionCall)
 	;
 
 functionCall 
@@ -484,7 +485,7 @@ functionCall
     ;
 
 functionArgument 
-    : Identifier | StringLiteral | IntegerPositiveLiteral
+    : Identifier | StringLiteral | IntegerPositiveLiteral | IntegerNegativeLiteral
     ;
 
 startKey
@@ -496,7 +497,7 @@ endKey
 	;
 
 columnOrSuperColumn
-	: (Identifier | IntegerPositiveLiteral | StringLiteral | functionCall)
+	: (Identifier | IntegerPositiveLiteral | IntegerNegativeLiteral | StringLiteral | functionCall)
 	;
 
 host	
@@ -519,8 +520,8 @@ port
 	;
 
 incrementValue
-    : IntegerNegativeLiteral
-    | IntegerPositiveLiteral
+    : IntegerPositiveLiteral
+    | IntegerNegativeLiteral
     ;
 
 //
