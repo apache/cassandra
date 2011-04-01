@@ -15,10 +15,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.contrib.stress;
+package org.apache.cassandra.stress;
 
-import org.apache.cassandra.contrib.stress.operations.*;
-import org.apache.cassandra.contrib.stress.util.Operation;
+import org.apache.cassandra.stress.operations.*;
+import org.apache.cassandra.stress.util.Operation;
 import org.apache.cassandra.thrift.Cassandra;
 import org.apache.commons.cli.Option;
 

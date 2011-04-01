@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.contrib.stress.util;
+package org.apache.cassandra.stress.util;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -27,8 +27,8 @@ import java.util.Random;
 
 import static com.google.common.base.Charsets.UTF_8;
 
-import org.apache.cassandra.contrib.stress.Session;
-import org.apache.cassandra.contrib.stress.Stress;
+import org.apache.cassandra.stress.Session;
+import org.apache.cassandra.stress.Stress;
 import org.apache.cassandra.thrift.Cassandra;
 import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.utils.FBUtilities;

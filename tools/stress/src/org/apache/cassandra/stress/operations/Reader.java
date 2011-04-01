@@ -15,9 +15,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.contrib.stress.operations;
+package org.apache.cassandra.stress.operations;
 
-import org.apache.cassandra.contrib.stress.util.Operation;
+import org.apache.cassandra.stress.util.Operation;
 import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.thrift.*;
 
@@ -25,9 +25,11 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
 
-public class CounterGetter extends Operation
+import static com.google.common.base.Charsets.UTF_8;
+
+public class Reader extends Operation
 {
-    public CounterGetter(int index)
+    public Reader(int index)
     {
         super(index);
     }
@@ -47,15 +49,15 @@ public class CounterGetter extends Operation
 
         if (session.getColumnFamilyType() == ColumnFamilyType.Super)
         {
-            runSuperCounterGetter(predicate, client);
+            runSuperColumnReader(predicate, client);
         }
         else
         {
-            runCounterGetter(predicate, client);
+            runColumnReader(predicate, client);
         }
     }
 
-    private void runSuperCounterGetter(SlicePredicate predicate, Cassandra.Client client) throws IOException
+    private void runSuperColumnReader(SlicePredicate predicate, Cassandra.Client client) throws IOException
     {
         byte[] rawKey = generateKey();
         ByteBuffer key = ByteBuffer.wrap(rawKey);
@@ -63,7 +65,7 @@ public class CounterGetter extends Operation
         for (int j = 0; j < session.getSuperColumns(); j++)
         {
             String superColumn = 'S' + Integer.toString(j);
-            ColumnParent parent = new ColumnParent("CounterSuper1").setSuper_column(superColumn.getBytes());
+            ColumnParent parent = new ColumnParent("Super1").setSuper_column(superColumn.getBytes(UTF_8));
 
             long start = System.currentTimeMillis();
 
@@ -77,9 +79,9 @@ public class CounterGetter extends Operation
 
                 try
                 {
-                    List<Counter> counters;
-                    counters = client.get_counter_slice(key, parent, predicate, session.getConsistencyLevel());
-                    success = (counters.size() != 0);
+                    List<ColumnOrSuperColumn> columns;
+                    columns = client.get_slice(key, parent, predicate, session.getConsistencyLevel());
+                    success = (columns.size() != 0);
                 }
                 catch (Exception e)
                 {
@@ -90,7 +92,7 @@ public class CounterGetter extends Operation
 
             if (!success)
             {
-                error(String.format("Operation [%d] retried %d times - error reading counter key %s %s%n",
+                error(String.format("Operation [%d] retried %d times - error reading key %s %s%n",
                                     index,
                                     session.getRetryTimes(),
                                     new String(rawKey),
@@ -103,9 +105,9 @@ public class CounterGetter extends Operation
         }
     }
 
-    private void runCounterGetter(SlicePredicate predicate, Cassandra.Client client) throws IOException
+    private void runColumnReader(SlicePredicate predicate, Cassandra.Client client) throws IOException
     {
-        ColumnParent parent = new ColumnParent("Counter1");
+        ColumnParent parent = new ColumnParent("Standard1");
 
         byte[] key = generateKey();
         ByteBuffer keyBuffer = ByteBuffer.wrap(key);
@@ -122,9 +124,9 @@ public class CounterGetter extends Operation
 
             try
             {
-                List<Counter> counters;
-                counters = client.get_counter_slice(keyBuffer, parent, predicate, session.getConsistencyLevel());
-                success = (counters.size() != 0);
+                List<ColumnOrSuperColumn> columns;
+                columns = client.get_slice(keyBuffer, parent, predicate, session.getConsistencyLevel());
+                success = (columns.size() != 0);
             }
             catch (Exception e)
             {
@@ -135,7 +137,7 @@ public class CounterGetter extends Operation
 
         if (!success)
         {
-            error(String.format("Operation [%d] retried %d times - error reading counter key %s %s%n",
+            error(String.format("Operation [%d] retried %d times - error reading key %s %s%n",
                                 index,
                                 session.getRetryTimes(),
                                 new String(key),
