@@ -19,24 +19,26 @@
 package org.apache.cassandra.utils;
 
 import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.net.URI;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 
+import com.google.common.io.Files;
 import org.apache.commons.configuration.Configuration;
 
 import org.apache.whirr.service.ClusterSpec;
 
-import org.jclouds.blobstore.BlobStore;
 import org.jclouds.blobstore.BlobStoreContext;
 import org.jclouds.blobstore.BlobStoreContextFactory;
-import org.jclouds.blobstore.domain.BlobMetadata;
 import org.jclouds.blobstore.InputStreamMap;
+import org.jclouds.blobstore.domain.BlobMetadata;
 
-import org.jclouds.aws.s3.S3Client;
-import org.jclouds.aws.s3.S3AsyncClient;
-import org.jclouds.aws.s3.domain.AccessControlList;
-import org.jclouds.aws.s3.domain.CannedAccessPolicy;
-
-import org.jclouds.rest.RestContext;
+import org.jclouds.s3.S3AsyncClient;
+import org.jclouds.s3.S3Client;
+import org.jclouds.s3.domain.AccessControlList;
+import org.jclouds.s3.domain.CannedAccessPolicy;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -77,24 +79,63 @@ public final class BlobUtils
         File file = new File(filename);
         String container = getContainer(config);
         String provider = getProvider(config);
+
+        // blob name and checksum of the file
         String blobName = System.nanoTime() + "/" + file.getName();
+        String blobNameChecksum = blobName + ".md5";
+
         BlobStoreContext context = getContext(config, spec);
+
+        File checksumFile;
+
+        try
+        {
+            checksumFile = File.createTempFile("dtchecksum", "md5");
+            checksumFile.deleteOnExit();
+
+            FileWriter checksumWriter = new FileWriter(checksumFile);
+
+            String checksum = FBUtilities.bytesToHex(Files.getDigest(file, MessageDigest.getInstance("MD5")));
+
+            checksumWriter.write(String.format("%s  %s", checksum, file.getName()));
+            checksumWriter.close();
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException("Can't create a checksum of the file: " + filename);
+        }
+        catch (NoSuchAlgorithmException e)
+        {
+            throw new RuntimeException(e.getMessage());
+        }
+
         try
         {
             InputStreamMap map = context.createInputStreamMap(container);
+
             map.putFile(blobName, file);
+            map.putFile(blobNameChecksum, checksumFile);
+
             // TODO: magic! in order to expose the blob as public, we need to dive into provider specific APIs
             // the hope is that permissions are encapsulated in jclouds in the future
-            if (provider.equals("s3"))
+            if (provider.contains("s3"))
             {
                 S3Client sss = context.<S3Client,S3AsyncClient>getProviderSpecificContext().getApi();
                 String ownerId = sss.getObjectACL(container, blobName).getOwner().getId();
+
                 sss.putObjectACL(container,
                                  blobName,
                                  AccessControlList.fromCannedAccessPolicy(CannedAccessPolicy.PUBLIC_READ, ownerId));
+
+                sss.putObjectACL(container,
+                                 blobNameChecksum,
+                                 AccessControlList.fromCannedAccessPolicy(CannedAccessPolicy.PUBLIC_READ, ownerId));
             }
             else
+            {
                 LOG.warn(provider + " may not be properly supported for tarball transfer.");
+            }
+
             // resolve the full URI of the blob (see http://code.google.com/p/jclouds/issues/detail?id=431)
             BlobMetadata blob = context.getBlobStore().blobMetadata(container, blobName);
             URI uri = context.getProviderSpecificContext().getEndpoint().resolve("/" + container + "/" + blob.getName());

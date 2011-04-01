@@ -207,8 +207,10 @@
                              sourcesFilesetId="test-dependency-sources" 
                              cacheDependencyRefs="true" 
                              dependencyRefsBuildFile="${build.dir}/test-dependencies.xml">
-        <dependency groupId="org.apache.whirr" artifactId="whirr-core" version="0.3.0-incubating"/>
-        <dependency groupId="org.apache.whirr" artifactId="whirr-cli" version="0.3.0-incubating"/>
+        <dependency groupId="org.apache.whirr" artifactId="whirr-core" version="0.4.0-incubating"/>
+        <dependency groupId="org.apache.whirr" artifactId="whirr-cli" version="0.4.0-incubating"/>
+        <dependency groupId="org.jclouds.provider" artifactId="aws-s3" version="1.0-beta-9b" />
+
         <remoteRepository refid="apache"/>
         <remoteRepository refid="central"/>
         <remoteRepository refid="jclouds"/>
