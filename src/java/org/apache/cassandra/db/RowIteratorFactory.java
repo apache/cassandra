@@ -161,17 +161,6 @@ public class RowIteratorFactory
         return new RowIterator(reduced, iterators);
     }
 
-    /** 
-     * Used when locks are required before getting the entry iterator.
-     * @param memtable Memtable to get iterator from
-     * @param startWith Start at this key position
-     * @return entry iterator for the current memtable
-     */
-    private static Iterator<Map.Entry<DecoratedKey, ColumnFamily>> memtableEntryIterator(Memtable memtable, DecoratedKey startWith)
-    {
-        return memtable.getEntryIterator(startWith);
-    }
-
     /**
      * Get a ColumnIterator for a specific key in the memtable.
      */
