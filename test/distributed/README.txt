@@ -26,7 +26,8 @@ configuration is located at:
 
 An example EC2/S3 whirr configuration would be:
 ###############################################
-whirr.provider=ec2
+whirr.cluster-user=[username]
+whirr.provider=aws-ec2
 whirr.location-id=us-west-1
 whirr.image-id=us-west-1/ami-16f3a253
 whirr.hardware-id=m1.large
@@ -35,7 +36,7 @@ whirr.credential=[EC2 Secret Access Key]
 whirr.private-key-file=${sys:user.home}/.ssh/id_rsa
 whirr.public-key-file=${sys:user.home}/.ssh/id_rsa.pub
 whirr.run-url-base=http://hoodidge.net/scripts/
-whirr.blobstore.provider=s3
+whirr.blobstore.provider=aws-s3
 whirr.blobstore.container=cassandratests
 ###############################################
 

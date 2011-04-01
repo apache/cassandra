@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.tools;
+package org.apache.cassandra.sstabledebug;
 
 import java.io.File;
 import java.io.IOException;
