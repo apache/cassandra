@@ -24,7 +24,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import com.google.common.base.Function;
 import com.google.common.collect.Iterables;
@@ -56,6 +56,14 @@ public class Table
 
     private static final Logger logger = LoggerFactory.getLogger(Table.class);
     private static final String SNAPSHOT_SUBDIR_NAME = "snapshots";
+
+    /**
+     * accesses to CFS.memtable should acquire this for thread safety.
+     * Table.maybeSwitchMemtable should aquire the writeLock; see that method for the full explanation.
+     *
+     * (Enabling fairness in the RRWL is observed to decrease throughput, so we leave it off.)
+     */
+    static final ReentrantReadWriteLock switchLock = new ReentrantReadWriteLock();
 
     // It is possible to call Table.open without a running daemon, so it makes sense to ensure
     // proper directories here as well as in CassandraDaemon.
@@ -371,63 +379,71 @@ public class Table
             logger.debug("applying mutation of row {}", ByteBufferUtil.bytesToHex(mutation.key()));
 
         // write the mutation to the commitlog and memtables
-        if (writeCommitLog)
-            CommitLog.instance.add(mutation);
-
-        DecoratedKey<?> key = StorageService.getPartitioner().decorateKey(mutation.key());
-        for (ColumnFamily cf : mutation.getColumnFamilies())
+        switchLock.readLock().lock();
+        try
         {
-            ColumnFamilyStore cfs = columnFamilyStores.get(cf.id());
-            if (cfs == null)
+            if (writeCommitLog)
+                CommitLog.instance.add(mutation);
+        
+            DecoratedKey<?> key = StorageService.getPartitioner().decorateKey(mutation.key());
+            for (ColumnFamily cf : mutation.getColumnFamilies())
             {
-                logger.error("Attempting to mutate non-existant column family " + cf.id());
-                continue;
-            }
-
-            SortedSet<ByteBuffer> mutatedIndexedColumns = null;
-            for (ByteBuffer column : cfs.getIndexedColumns())
-            {
-                if (cf.getColumnNames().contains(column) || cf.isMarkedForDelete())
+                ColumnFamilyStore cfs = columnFamilyStores.get(cf.id());
+                if (cfs == null)
                 {
-                    if (mutatedIndexedColumns == null)
-                        mutatedIndexedColumns = new TreeSet<ByteBuffer>();
-                    mutatedIndexedColumns.add(column);
-                    if (logger.isDebugEnabled())
+                    logger.error("Attempting to mutate non-existant column family " + cf.id());
+                    continue;
+                }
+
+                SortedSet<ByteBuffer> mutatedIndexedColumns = null;
+                for (ByteBuffer column : cfs.getIndexedColumns())
+                {
+                    if (cf.getColumnNames().contains(column) || cf.isMarkedForDelete())
                     {
-                        // can't actually use validator to print value here, because we overload value
-                        // for deletion timestamp as well (which may not be a well-formed value for the column type)
-                        ByteBuffer value = cf.getColumn(column) == null ? null : cf.getColumn(column).value(); // may be null on row-level deletion
-                        logger.debug(String.format("mutating indexed column %s value %s",
-                                    cf.getComparator().getString(column),
-                                    value == null ? "null" : ByteBufferUtil.bytesToHex(value)));
+                        if (mutatedIndexedColumns == null)
+                            mutatedIndexedColumns = new TreeSet<ByteBuffer>();
+                        mutatedIndexedColumns.add(column);
+                        if (logger.isDebugEnabled())
+                        {
+                            // can't actually use validator to print value here, because we overload value
+                            // for deletion timestamp as well (which may not be a well-formed value for the column type)
+                            ByteBuffer value = cf.getColumn(column) == null ? null : cf.getColumn(column).value(); // may be null on row-level deletion
+                            logger.debug(String.format("mutating indexed column %s value %s",
+                                                       cf.getComparator().getString(column),
+                                                       value == null ? "null" : ByteBufferUtil.bytesToHex(value)));
+                        }
+                    }
+                }
+
+                synchronized (indexLockFor(mutation.key()))
+                {
+                    ColumnFamily oldIndexedColumns = null;
+                    if (mutatedIndexedColumns != null)
+                    {
+                        // with the raw data CF, we can just apply every update in any order and let
+                        // read-time resolution throw out obsolete versions, thus avoiding read-before-write.
+                        // but for indexed data we need to make sure that we're not creating index entries
+                        // for obsolete writes.
+                        oldIndexedColumns = readCurrentIndexedColumns(key, cfs, mutatedIndexedColumns);
+                        logger.debug("Pre-mutation index row is {}", oldIndexedColumns);
+                        ignoreObsoleteMutations(cf, mutatedIndexedColumns, oldIndexedColumns);
+                    }
+
+                    Memtable fullMemtable = cfs.apply(key, cf);
+                    if (fullMemtable != null)
+                        memtablesToFlush = addFullMemtable(memtablesToFlush, fullMemtable);
+
+                    if (mutatedIndexedColumns != null)
+                    {
+                        // ignore full index memtables -- we flush those when the "master" one is full
+                        applyIndexUpdates(mutation.key(), cf, cfs, mutatedIndexedColumns, oldIndexedColumns);
                     }
                 }
             }
-
-            synchronized (indexLockFor(mutation.key()))
-            {
-                ColumnFamily oldIndexedColumns = null;
-                if (mutatedIndexedColumns != null)
-                {
-                    // with the raw data CF, we can just apply every update in any order and let
-                    // read-time resolution throw out obsolete versions, thus avoiding read-before-write.
-                    // but for indexed data we need to make sure that we're not creating index entries
-                    // for obsolete writes.
-                    oldIndexedColumns = readCurrentIndexedColumns(key, cfs, mutatedIndexedColumns);
-                    logger.debug("Pre-mutation index row is {}", oldIndexedColumns);
-                    ignoreObsoleteMutations(cf, mutatedIndexedColumns, oldIndexedColumns);
-                }
-
-                Memtable fullMemtable = cfs.apply(key, cf);
-                if (fullMemtable != null)
-                    memtablesToFlush = addFullMemtable(memtablesToFlush, fullMemtable);
-
-                if (mutatedIndexedColumns != null)
-                {
-                    // ignore full index memtables -- we flush those when the "master" one is full
-                    applyIndexUpdates(mutation.key(), cf, cfs, mutatedIndexedColumns, oldIndexedColumns);
-                }
-            }
+        }
+        finally
+        {
+            switchLock.readLock().unlock();
         }
 
         // flush memtables that got filled up outside the readlock (maybeSwitchMemtable acquires writeLock).
@@ -582,12 +598,19 @@ public class Table
                 DecoratedKey<?> key = iter.next();
                 logger.debug("Indexing row {} ", key);
                 List<Memtable> memtablesToFlush = Collections.emptyList();
-
-                synchronized (indexLockFor(key.key))
+                switchLock.readLock().lock();
+                try
                 {
-                    ColumnFamily cf = readCurrentIndexedColumns(key, cfs, columns);
-                    if (cf != null)
-                        memtablesToFlush = applyIndexUpdates(key.key, cf, cfs, cf.getColumnNames(), null);
+                    synchronized (indexLockFor(key.key))
+                    {
+                        ColumnFamily cf = readCurrentIndexedColumns(key, cfs, columns);
+                        if (cf != null)
+                            memtablesToFlush = applyIndexUpdates(key.key, cf, cfs, cf.getColumnNames(), null);
+                    }
+                }
+                finally
+                {
+                    switchLock.readLock().unlock();
                 }
 
                 // during index build, we do flush index memtables separately from master; otherwise we could OOM

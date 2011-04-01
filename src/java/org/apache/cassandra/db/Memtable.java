@@ -52,8 +52,7 @@ public class Memtable implements Comparable<Memtable>, IFlushable
 {
     private static final Logger logger = LoggerFactory.getLogger(Memtable.class);
 
-    private final AtomicBoolean isPendingFlush = new AtomicBoolean(false);
-    private final AtomicInteger activeWriters = new AtomicInteger(0);
+    private boolean isFrozen;
 
     private final AtomicLong currentThroughput = new AtomicLong(0);
     private final AtomicLong currentOperations = new AtomicLong(0);
@@ -106,30 +105,25 @@ public class Memtable implements Comparable<Memtable>, IFlushable
         return currentThroughput.get() >= this.THRESHOLD || currentOperations.get() >= this.THRESHOLD_COUNT;
     }
 
-    boolean isPendingFlush()
+    boolean isFrozen()
     {
-        return isPendingFlush.get();
+        return isFrozen;
     }
 
-    boolean markPendingFlush()
+    void freeze()
     {
-        return isPendingFlush.compareAndSet(false, true);
+        isFrozen = true;
     }
 
     /**
      * Should only be called by ColumnFamilyStore.apply.  NOT a public API.
+     * (CFS handles locking to avoid submitting an op
+     *  to a flushing memtable.  Any other way is unsafe.)
     */
     void put(DecoratedKey key, ColumnFamily columnFamily)
     {
-        try
-        {
-            activeWriters.incrementAndGet();
-            resolve(key, columnFamily);
-        }
-        finally
-        {
-            activeWriters.decrementAndGet();
-        }
+        assert !isFrozen; // not 100% foolproof but hell, it's an assert
+        resolve(key, columnFamily);
     }
 
     private void resolve(DecoratedKey key, ColumnFamily cf)
@@ -178,7 +172,6 @@ public class Memtable implements Comparable<Memtable>, IFlushable
         {
             public void runMayThrow() throws IOException
             {
-                waitForWriters();
                 cfs.flushLock.lock();
                 try
                 {
@@ -195,25 +188,6 @@ public class Memtable implements Comparable<Memtable>, IFlushable
                 latch.countDown();
             }
         });
-    }
-
-    /*
-     * Wait for all writers to be done with this memtable before flushing.
-     * A busy-wait is probably alright since we'll new wait long.
-     */
-    private void waitForWriters()
-    {
-        while (activeWriters.get() > 0)
-        {
-            try
-            {
-                Thread.sleep(3);
-            }
-            catch (InterruptedException e)
-            {
-                logger.error("Interrupted while waiting on writers.", e);
-            }
-        }
     }
 
     public String toString()

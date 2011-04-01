@@ -40,7 +40,6 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.cache.AutoSavingCache;
 import org.apache.cassandra.cache.AutoSavingKeyCache;
 import org.apache.cassandra.cache.AutoSavingRowCache;
-import org.apache.cassandra.cache.JMXInstrumentedCache;
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.concurrent.StageManager;
@@ -588,18 +587,33 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     /** flush the given memtable and swap in a new one for its CFS, if it hasn't been frozen already.  threadsafe. */
     Future<?> maybeSwitchMemtable(Memtable oldMemtable, final boolean writeCommitLog)
     {
-        // Only one thread will succeed in marking it as pending flush; the others can go back to processing writes
-        if (!oldMemtable.markPendingFlush())
+        if (oldMemtable.isFrozen())
         {
-            logger.debug("memtable is already pending flush; another thread must be flushing it");
+            logger.debug("memtable is already frozen; another thread must be flushing it");
             return null;
         }
-        assert getMemtableThreadSafe() == oldMemtable;
 
-        // global synchronization ensures that we schedule discardCompletedSegments calls in the same order as their
-        // contexts (commitlog position) were read, even though the flush executor is multithreaded.
-        synchronized (ColumnFamilyStore.class)
+        /*
+         * If we can get the writelock, that means no new updates can come in and
+         * all ongoing updates to memtables have completed. We can get the tail
+         * of the log and use it as the starting position for log replay on recovery.
+         *
+         * This is why we Table.flusherLock needs to be global instead of per-Table:
+         * we need to schedule discardCompletedSegments calls in the same order as their
+         * contexts (commitlog position) were read, even though the flush executor
+         * is multithreaded.
+         */
+        Table.switchLock.writeLock().lock();
+        try
         {
+            if (oldMemtable.isFrozen())
+            {
+                logger.debug("memtable is already frozen; another thread must be flushing it");
+                return null;
+            }
+
+            assert getMemtableThreadSafe() == oldMemtable;
+            oldMemtable.freeze();
             final CommitLogSegment.CommitLogContext ctx = writeCommitLog ? CommitLog.instance.getContext() : null;
 
             // submit the memtable for any indexed sub-cfses, and our own.
@@ -612,9 +626,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
             final CountDownLatch latch = new CountDownLatch(icc.size());
             for (ColumnFamilyStore cfs : icc)
-            {
                 submitFlush(cfs.data.switchMemtable(), latch);
-            }
+
             // we marked our memtable as frozen as part of the concurrency control,
             // so even if there was nothing to flush we need to switch it out
             if (!icc.contains(this))
@@ -640,6 +653,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     }
                 }
             });
+        }
+        finally
+        {
+            Table.switchLock.writeLock().unlock();
         }
     }
 
@@ -696,6 +713,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     /**
      * Insert/Update the column family for this key.
+     * Caller is responsible for acquiring Table.flusherLock!
+     * param @ lock - lock that needs to be used.
      * param @ key - key for update/insert
      * param @ columnFamily - columnFamily changes
      */
@@ -947,11 +966,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     }
 
     /**
-     * get the current memtable in a threadsafe fashion. 
-     * Returning memtable is ok because memtable is volatile, and thus
-     * introduce a happens-before ordering.
+     * get the current memtable in a threadsafe fashion.  note that simply "return memtable_" is
+     * incorrect; you need to lock to introduce a thread safe happens-before ordering.
      *
-     * do NOT make this method public or it will really get impossible to reason about these things.
+     * do NOT use this method to do either a put or get on the memtable object, since it could be
+     * flushed in the meantime (and its executor terminated).
+     *
+     * also do NOT make this method public or it will really get impossible to reason about these things.
+     * @return
      */
     private Memtable getMemtableThreadSafe()
     {
@@ -998,10 +1020,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return readStats.getTotalLatencyMicros();
     }
 
-    // TODO this actually isn't a good meature of pending tasks
+// TODO this actually isn't a good meature of pending tasks
     public int getPendingTasks()
     {
-        return 0;
+        return Table.switchLock.getQueueLength();
     }
 
     public long getWriteCount()
