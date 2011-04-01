@@ -68,10 +68,10 @@ def load_sample(dbconn):
             WITH comparator = ascii AND default_validation = timeuuid;
     """)
     dbconn.execute("""
-        CREATE COLUMNFAMILY IndexedA (KEY utf8 PRIMARY KEY, 'birthdate' long)
+        CREATE COLUMNFAMILY IndexedA (KEY utf8 PRIMARY KEY, birthdate long)
             WITH comparator = ascii AND default_validation = ascii;
     """)
-    dbconn.execute("CREATE INDEX ON IndexedA ('birthdate');")
+    dbconn.execute("CREATE INDEX ON IndexedA (birthdate)")
     
     query = "UPDATE StandardString1 SET ? = ?, ? = ? WHERE KEY = ?"
     dbconn.execute(query, "ca1", "va1", "col", "val", "ka")
@@ -441,8 +441,8 @@ class TestCql(ThriftTester):
         conn = init()
         conn.execute("USE Keyspace1")
         conn.execute("CREATE COLUMNFAMILY CreateIndex1 (KEY utf8 PRIMARY KEY)")
-        conn.execute("CREATE INDEX namedIndex ON CreateIndex1 ('items')")
-        conn.execute("CREATE INDEX ON CreateIndex1 ('stuff')")
+        conn.execute("CREATE INDEX namedIndex ON CreateIndex1 (items)")
+        conn.execute("CREATE INDEX ON CreateIndex1 (stuff)")
         
         # TODO: temporary (until this can be done with CQL).
         ksdef = thrift_client.describe_keyspace("Keyspace1")
@@ -455,9 +455,10 @@ class TestCql(ThriftTester):
             "index_name should be unset, not %s" % stuff.index_name
         assert stuff.index_type == 0, "missing index"
 
+        # already indexed
         assert_raises(CQLException,
                       conn.execute,
-                      "CREATE INDEX ON CreateIndex1 (\"stuff\")")
+                      "CREATE INDEX ON CreateIndex1 (stuff)")
 
     def test_time_uuid(self):
         "store and retrieve time-based (type 1) uuids"
