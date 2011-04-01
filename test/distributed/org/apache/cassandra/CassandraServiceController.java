@@ -18,41 +18,52 @@
 
 package org.apache.cassandra;
 
+import java.io.IOException;
 import java.net.InetAddress;
 import java.net.URI;
 import java.util.*;
 
-import com.google.common.base.Predicate;
-
 import org.apache.cassandra.thrift.Cassandra;
-import org.apache.cassandra.utils.BlobUtils;
+import org.apache.cassandra.thrift.TokenRange;
 import org.apache.cassandra.utils.KeyPair;
+import org.apache.cassandra.utils.BlobUtils;
 import org.apache.cassandra.utils.Pair;
+
+import org.apache.commons.configuration.Configuration;
 import org.apache.commons.configuration.CompositeConfiguration;
 import org.apache.commons.configuration.PropertiesConfiguration;
+
 import org.apache.thrift.TException;
-import org.apache.thrift.protocol.TBinaryProtocol;
-import org.apache.thrift.protocol.TProtocol;
-import org.apache.thrift.transport.TFramedTransport;
-import org.apache.thrift.transport.TSocket;
-import org.apache.thrift.transport.TTransport;
-import org.apache.whirr.service.*;
+import org.apache.thrift.protocol.*;
+import org.apache.thrift.transport.*;
+
+import org.apache.whirr.service.Cluster;
 import org.apache.whirr.service.Cluster.Instance;
+import org.apache.whirr.service.ClusterSpec;
+import org.apache.whirr.service.ComputeServiceContextBuilder;
+import org.apache.whirr.service.Service;
+import org.apache.whirr.service.ServiceFactory;
+import org.apache.whirr.service.cassandra.CassandraService;
 import org.apache.whirr.service.cassandra.CassandraClusterActionHandler;
 import org.apache.whirr.service.jclouds.RunUrlStatement;
 
 import org.jclouds.blobstore.domain.BlobMetadata;
+
 import org.jclouds.compute.ComputeService;
-import org.jclouds.compute.domain.ExecResponse;
 import org.jclouds.compute.domain.NodeMetadata;
 import org.jclouds.compute.options.RunScriptOptions;
 import org.jclouds.domain.Credentials;
+import org.jclouds.io.Payload;
 import org.jclouds.scriptbuilder.domain.OsFamily;
+import org.jclouds.ssh.ExecResponse;
+import static org.jclouds.io.Payloads.newStringPayload;
+
+import com.google.common.base.Predicate;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.jclouds.io.Payloads.newStringPayload;
+import static org.junit.Assert.assertThat;
 
 public class CassandraServiceController
 {
@@ -73,7 +84,7 @@ public class CassandraServiceController
     private boolean     running;
 
     private ClusterSpec         clusterSpec;
-    private Service             service;
+    private CassandraService    service;
     private Cluster             cluster;
     private ComputeService      computeService;
     private Credentials         credentials;
@@ -85,7 +96,8 @@ public class CassandraServiceController
     {
     }
 
-    public Cassandra.Client createClient(InetAddress addr) throws TException
+    public Cassandra.Client createClient(InetAddress addr)
+        throws TTransportException, TException
     {
         TTransport transport    = new TSocket(
                                     addr.getHostAddress(),
@@ -158,10 +170,10 @@ public class CassandraServiceController
             tarball = blob.left;
             config.setProperty(CassandraClusterActionHandler.BIN_TARBALL, blob.right.toURL().toString());
             // TODO: parse the CassandraVersion property file instead
-            config.setProperty(CassandraClusterActionHandler.MAJOR_VERSION, "0.8");
+            config.setProperty(CassandraClusterActionHandler.MAJOR_VERSION, "0.7");
         }
 
-        service = new ServiceFactory().create(clusterSpec.getServiceName());
+        service = (CassandraService)new ServiceFactory().create(clusterSpec.getServiceName());
         cluster = service.launchCluster(clusterSpec);
         computeService = ComputeServiceContextBuilder.build(clusterSpec).getComputeService();
         hosts = new ArrayList<InetAddress>();
