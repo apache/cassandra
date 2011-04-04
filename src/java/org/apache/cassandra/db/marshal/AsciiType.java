@@ -28,11 +28,31 @@ import com.google.common.base.Charsets;
 
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-public class AsciiType extends BytesType
+public class AsciiType extends AbstractType<String>
 {
     public static final AsciiType instance = new AsciiType();
 
+    public static AsciiType getInstance()
+    {
+        return instance;
+    }
+
     AsciiType() {} // singleton
+
+    public String compose(ByteBuffer bytes)
+    {
+        return getString(bytes);
+    }
+
+    public ByteBuffer decompose(String value)
+    {
+        return ByteBufferUtil.bytes(value, Charsets.US_ASCII);
+    }
+
+    public int compare(ByteBuffer o1, ByteBuffer o2)
+    {
+        return BytesType.bytesCompare(o1, o2);
+    }
 
     @Override
     public String getString(ByteBuffer bytes)
@@ -49,7 +69,7 @@ public class AsciiType extends BytesType
 
     public ByteBuffer fromString(String source)
     {
-        return ByteBufferUtil.bytes(source, Charsets.US_ASCII);
+        return decompose(source);
     }
 
     public void validate(ByteBuffer bytes) throws MarshalException

@@ -26,11 +26,26 @@ import java.util.UUID;
 
 import org.apache.cassandra.utils.UUIDGen;
 
-public class LexicalUUIDType extends AbstractType
+public class LexicalUUIDType extends AbstractType<UUID>
 {
     public static final LexicalUUIDType instance = new LexicalUUIDType();
 
+    public static LexicalUUIDType getInstance()
+    {
+        return instance;
+    }
+
     LexicalUUIDType() {} // singleton
+
+    public UUID compose(ByteBuffer bytes)
+    {
+        return UUIDGen.getUUID(bytes);
+    }
+
+    public ByteBuffer decompose(UUID value)
+    {
+        return ByteBuffer.wrap(UUIDGen.decompose(value));
+    }
 
     public int compare(ByteBuffer o1, ByteBuffer o2)
     {
@@ -61,7 +76,7 @@ public class LexicalUUIDType extends AbstractType
 
     public ByteBuffer fromString(String source)
     {
-        return ByteBuffer.wrap(UUIDGen.decompose(UUID.fromString(source)));
+        return decompose(UUID.fromString(source));
     }
 
     public void validate(ByteBuffer bytes) throws MarshalException

@@ -23,13 +23,34 @@ package org.apache.cassandra.db.marshal;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 
+import com.google.common.base.Charsets;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-public class UTF8Type extends BytesType
+public class UTF8Type extends AbstractType<String>
 {
     public static final UTF8Type instance = new UTF8Type();
 
+    public static UTF8Type getInstance()
+    {
+        return instance;
+    }
+
     UTF8Type() {} // singleton
+
+    public String compose(ByteBuffer bytes)
+    {
+        return getString(bytes);
+    }
+
+    public ByteBuffer decompose(String value)
+    {
+        return ByteBufferUtil.bytes(value, Charsets.UTF_8);
+    }
+
+    public int compare(ByteBuffer o1, ByteBuffer o2)
+    {
+        return BytesType.bytesCompare(o1, o2);
+    }
 
     public String getString(ByteBuffer bytes)
     {
@@ -45,9 +66,9 @@ public class UTF8Type extends BytesType
 
     public ByteBuffer fromString(String source)
     {
-        return ByteBufferUtil.bytes(source);
+        return decompose(source);
     }
-    
+
     public void validate(ByteBuffer bytes) throws MarshalException
     {
         if (!UTF8Validator.validate(bytes.slice()))

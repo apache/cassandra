@@ -26,11 +26,26 @@ import java.util.UUID;
 
 import org.apache.cassandra.utils.UUIDGen;
 
-public class TimeUUIDType extends AbstractType
+public class TimeUUIDType extends AbstractType<UUID>
 {
     public static final TimeUUIDType instance = new TimeUUIDType();
 
+    public static TimeUUIDType getInstance()
+    {
+        return instance;
+    }
+
     TimeUUIDType() {} // singleton
+
+    public UUID compose(ByteBuffer bytes)
+    {
+        return UUIDGen.getUUID(bytes);
+    }
+
+    public ByteBuffer decompose(UUID value)
+    {
+        return ByteBuffer.wrap(UUIDGen.decompose(value));
+    }
 
     public int compare(ByteBuffer o1, ByteBuffer o2)
     {
@@ -102,7 +117,7 @@ public class TimeUUIDType extends AbstractType
         if (uuid.version() != 1)
             throw new IllegalArgumentException("TimeUUID supports only version 1 UUIDs");
 
-        return ByteBuffer.wrap(UUIDGen.decompose(uuid));
+        return decompose(uuid);
     }
 
     public void validate(ByteBuffer bytes) throws MarshalException

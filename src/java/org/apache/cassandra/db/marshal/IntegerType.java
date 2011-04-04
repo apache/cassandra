@@ -22,11 +22,18 @@ package org.apache.cassandra.db.marshal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.thrift.TBaseHelper;
 
-public final class IntegerType extends AbstractType
+public final class IntegerType extends AbstractType<BigInteger>
 {
     public static final IntegerType instance = new IntegerType();
+
+    public static IntegerType getInstance()
+    {
+        return instance;
+    }
+
 
     private static int findMostSignificantByte(ByteBuffer bytes)
     {
@@ -55,6 +62,16 @@ public final class IntegerType extends AbstractType
     }
 
     IntegerType() {/* singleton */}
+
+    public BigInteger compose(ByteBuffer bytes)
+    {
+        return new BigInteger(ByteBufferUtil.getArray(bytes));
+    }
+
+    public ByteBuffer decompose(BigInteger value)
+    {
+        return ByteBuffer.wrap(value.toByteArray());
+    }
 
     public int compare(ByteBuffer lhs, ByteBuffer rhs)
     {
@@ -138,7 +155,7 @@ public final class IntegerType extends AbstractType
             throw new RuntimeException("'" + source + "' could not be translated into an IntegerType.");
         }
 
-        return ByteBuffer.wrap(integerType.toByteArray());
+        return decompose(integerType);
     }
 
     public void validate(ByteBuffer bytes) throws MarshalException

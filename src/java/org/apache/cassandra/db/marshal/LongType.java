@@ -25,11 +25,26 @@ import java.nio.ByteBuffer;
 
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-public class LongType extends AbstractType
+public class LongType extends AbstractType<Long>
 {
     public static final LongType instance = new LongType();
 
+    public static LongType getInstance()
+    {
+        return instance;
+    }
+
     LongType() {} // singleton
+
+    public Long compose(ByteBuffer bytes)
+    {
+        return ByteBufferUtil.toLong(bytes);
+    }
+
+    public ByteBuffer decompose(Long value)
+    {
+        return ByteBufferUtil.bytes(value);
+    }
 
     public int compare(ByteBuffer o1, ByteBuffer o2)
     {
@@ -78,7 +93,7 @@ public class LongType extends AbstractType
             throw new RuntimeException("'" + source + "' could not be translated into a LongType.");
         }
 
-        return ByteBufferUtil.bytes(longType);
+        return decompose(longType);
     }
 
     public void validate(ByteBuffer bytes) throws MarshalException
