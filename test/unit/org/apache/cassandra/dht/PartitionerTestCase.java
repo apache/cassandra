@@ -97,8 +97,8 @@ public abstract class PartitionerTestCase<T extends Token>
     @Test
     public void testMidpointWrapping()
     {
-        //assertMidpoint(tok("b"), tok("a"), 16);
-        //assertMidpoint(tok("bbb"), tok("a"), 16);
+        assertMidpoint(tok("b"), tok("a"), 16);
+        assertMidpoint(tok("bbb"), tok("a"), 16);
     }
     
     @Test
