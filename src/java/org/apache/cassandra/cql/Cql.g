@@ -31,6 +31,8 @@ options {
     import java.util.Map;
     import java.util.HashMap;
     import java.util.Collections;
+    import java.util.List;
+    import java.util.ArrayList;
     import org.apache.cassandra.thrift.ConsistencyLevel;
     import org.apache.cassandra.thrift.InvalidRequestException;
 }
@@ -100,6 +102,7 @@ options {
 
 query returns [CQLStatement stmnt]
     : selectStatement   { $stmnt = new CQLStatement(StatementType.SELECT, $selectStatement.expr); }
+    | insertStatement   { $stmnt = new CQLStatement(StatementType.INSERT, $insertStatement.expr); }
     | updateStatement endStmnt { $stmnt = new CQLStatement(StatementType.UPDATE, $updateStatement.expr); }
     | batchUpdateStatement { $stmnt = new CQLStatement(StatementType.BATCH_UPDATE, $batchUpdateStatement.expr); }
     | useStatement      { $stmnt = new CQLStatement(StatementType.USE, $useStatement.keyspace); }
@@ -173,6 +176,36 @@ selectExpression returns [SelectExpression expr]
 whereClause returns [WhereClause clause]
     : first=relation { $clause = new WhereClause(first); } 
           (K_AND next=relation { $clause.and(next); })*
+    ;
+
+/**
+ * INSERT INTO
+ *    <CF>
+ *    (KEY, <column>, <column>, ...)
+ * VALUES
+ *    (<key>, <value>, <value>, ...)
+ * (USING
+ *    CONSISTENCY <level>)?;
+ *
+ * Consistency level is set to ONE by default
+ */
+insertStatement returns [UpdateStatement expr]
+    : {
+          ConsistencyLevel cLevel = ConsistencyLevel.ONE;
+          Map<Term, Term> columns = new HashMap<Term, Term>();
+
+          List<Term> columnNames  = new ArrayList<Term>();
+          List<Term> columnValues = new ArrayList<Term>();
+      }
+      K_INSERT K_INTO columnFamily=( IDENT | STRING_LITERAL | INTEGER )
+          '(' K_KEY    ( ',' column_name=term  { columnNames.add($column_name.item); } )+ ')'
+        K_VALUES
+          '(' key=term ( ',' column_value=term { columnValues.add($column_value.item); })+ ')'
+        ( K_USING K_CONSISTENCY K_LEVEL { cLevel = ConsistencyLevel.valueOf($K_LEVEL.text); } )?
+      endStmnt
+      {
+          return new UpdateStatement($columnFamily.text, cLevel, columnNames, columnValues, key);
+      }
     ;
 
 /**
@@ -350,6 +383,7 @@ K_WHERE:       W H E R E;
 K_AND:         A N D;
 K_KEY:         K E Y;
 K_COLUMN:      C O L (U M N)?;
+K_INSERT:      I N S E R T;
 K_UPDATE:      U P D A T E;
 K_WITH:        W I T H;
 K_ROW:         R O W;
@@ -381,6 +415,8 @@ K_INDEX:       I N D E X;
 K_ON:          O N;
 K_DROP:        D R O P;
 K_PRIMARY:     P R I M A R Y;
+K_INTO:        I N T O;
+K_VALUES:      V A L U E S;
 
 // Case-insensitive alpha characters
 fragment A: ('a'|'A');

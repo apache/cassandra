@@ -602,3 +602,39 @@ class TestCql(ThriftTester):
         
         # FIXME: The above is woefully inadequate, but the test config uses
         # CollatingOrderPreservingPartitioner which only supports UTF8.
+        
+    def test_write_using_insert(self):
+        "peforming writes using \"insert\""
+        conn = init()
+        conn.execute("INSERT INTO StandardUtf82 (KEY, ?, ?) VALUES (?, ?, ?)",
+                     "pork",
+                     "beef",
+                     "meat",
+                     "bacon",
+                     "brisket")
+        
+        r = conn.execute("SELECT * FROM StandardUtf82 WHERE KEY = ?", "meat")
+        assert r[0][0].name == "beef"
+        assert r[0][0].value == "brisket"
+        assert r[0][1].name == "pork"
+        assert r[0][1].value == "bacon"
+        
+        # Bad writes.
+        
+        # Too many column values
+        assert_raises(CQLException,
+                      conn.execute,
+                      "INSERT INTO StandardUtf82 (KEY, ?) VALUES (?, ?, ?)",
+                      "name1",
+                      "key0",
+                      "value1",
+                      "value2")
+                      
+        # Too many column names, (not enough column values)
+        assert_raises(CQLException,
+                      conn.execute,
+                      "INSERT INTO StandardUtf82 (KEY, ?, ?) VALUES (?, ?)",
+                      "name1",
+                      "name2",
+                      "key0",
+                      "value1")

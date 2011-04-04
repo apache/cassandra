@@ -545,7 +545,8 @@ public class QueryProcessor
                 
                 avroResult.rows = avroRows;
                 return avroResult;
-                
+
+            case INSERT: // insert uses UpdateStatement
             case UPDATE:
                 UpdateStatement update = (UpdateStatement)statement.statement;
                 batchUpdate(clientState, Collections.singletonList(update), update.getConsistencyLevel());
