@@ -55,7 +55,7 @@ public class CliUserHelp {
     {{
         put(ColumnFamilyArgument.COLUMN_TYPE, "Super or Standard");
         put(ColumnFamilyArgument.COMMENT, "Human-readable column family description. Any string is acceptable");
-        put(ColumnFamilyArgument.COMPARATOR, "The class used as a comparator when sorting column names.\n                  Valid options include: AsciiType, BytesType, LexicalUUIDType,\n                  LongType, TimeUUIDType, and UTF8Type");
+        put(ColumnFamilyArgument.COMPARATOR, "The class used as a comparator when sorting column names.\n                  Valid options include: AsciiType, BytesType, LexicalUUIDType,\n                  LongType, IntegerType, TimeUUIDType, and UTF8Type");
         put(ColumnFamilyArgument.SUBCOMPARATOR, "Comparator for sorting subcolumn names, for Super columns only");
         put(ColumnFamilyArgument.MEMTABLE_OPERATIONS, "Flush memtables after this many operations (in millions)");
         put(ColumnFamilyArgument.MEMTABLE_THROUGHPUT, "... or after this many MB have been written");
