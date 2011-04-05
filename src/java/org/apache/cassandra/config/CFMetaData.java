@@ -29,6 +29,9 @@ import org.apache.commons.lang.builder.HashCodeBuilder;
 import org.apache.commons.lang.builder.ToStringBuilder;
 
 import org.apache.avro.util.Utf8;
+import org.apache.cassandra.cache.ConcurrentLinkedHashCache;
+import org.apache.cassandra.cache.ConcurrentLinkedHashCacheProvider;
+import org.apache.cassandra.cache.IRowCacheProvider;
 import org.apache.cassandra.db.migration.avro.ColumnDef;
 import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.db.HintedHandOffManager;
@@ -41,6 +44,7 @@ import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.io.SerDeUtils;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
 
@@ -60,7 +64,8 @@ public final class CFMetaData
     public final static int DEFAULT_MEMTABLE_THROUGHPUT_IN_MB = sizeMemtableThroughput();
     public final static double DEFAULT_MEMTABLE_OPERATIONS_IN_MILLIONS = sizeMemtableOperations(DEFAULT_MEMTABLE_THROUGHPUT_IN_MB);
     public final static double DEFAULT_MERGE_SHARDS_CHANCE = 0.1;
-
+    public final static String DEFAULT_ROW_CACHE_PROVIDER = "org.apache.cassandra.cache.ConcurrentLinkedHashCacheProvider";
+    
     private static final int MIN_CF_ID = 1000;
     private static final AtomicInteger idGen = new AtomicInteger(MIN_CF_ID);
     
@@ -149,6 +154,7 @@ public final class CFMetaData
     private int memtableThroughputInMb;               // default based on heap size
     private double memtableOperationsInMillions;      // default based on throughput
     private double mergeShardsChance;                 // default 0.1, chance [0.0, 1.0] of merging old shards during replication
+    private String rowCacheProvider;
     // NOTE: if you find yourself adding members to this class, make sure you keep the convert methods in lockstep.
 
     private Map<ByteBuffer, ColumnDefinition> column_metadata;
@@ -170,6 +176,7 @@ public final class CFMetaData
     public CFMetaData memOps(double prop) {memtableOperationsInMillions = prop; return this;}
     public CFMetaData mergeShardsChance(double prop) {mergeShardsChance = prop; return this;}
     public CFMetaData columnMetadata(Map<ByteBuffer,ColumnDefinition> prop) {column_metadata = prop; return this;}
+    public CFMetaData rowCacheProvider(String prop) { rowCacheProvider = prop; return this;};
 
     public CFMetaData(String keyspace, String name, ColumnFamilyType type, AbstractType comp, AbstractType subcc)
     {
@@ -216,6 +223,7 @@ public final class CFMetaData
         memtableThroughputInMb       = DEFAULT_MEMTABLE_THROUGHPUT_IN_MB;
         memtableOperationsInMillions = DEFAULT_MEMTABLE_OPERATIONS_IN_MILLIONS;
         mergeShardsChance            = DEFAULT_MERGE_SHARDS_CHANCE;
+        rowCacheProvider             = DEFAULT_ROW_CACHE_PROVIDER;
 
         // Defaults strange or simple enough to not need a DEFAULT_T for
         defaultValidator = BytesType.instance;
@@ -324,6 +332,7 @@ public final class CFMetaData
                                                     org.apache.cassandra.db.migration.avro.ColumnDef.SCHEMA$);
         for (ColumnDefinition cd : column_metadata.values())
             cf.column_metadata.add(cd.deflate());
+        cf.row_cache_provider = new Utf8(rowCacheProvider);
         return cf;
     }
 
@@ -338,9 +347,9 @@ public final class CFMetaData
         {
             comparator = DatabaseDescriptor.getComparator(cf.comparator_type.toString());
             if (cf.subcomparator_type != null)
-                subcolumnComparator = DatabaseDescriptor.getComparator(cf.subcomparator_type.toString());
-            validator = DatabaseDescriptor.getComparator(cf.default_validation_class.toString());
-            keyValidator = DatabaseDescriptor.getComparator(cf.key_validation_class.toString());
+                subcolumnComparator = DatabaseDescriptor.getComparator(cf.subcomparator_type);
+            validator = DatabaseDescriptor.getComparator(cf.default_validation_class);
+            keyValidator = DatabaseDescriptor.getComparator(cf.key_validation_class);
         }
         catch (Exception ex)
         {
@@ -372,6 +381,7 @@ public final class CFMetaData
         if (cf.memtable_throughput_in_mb != null) { newCFMD.memSize(cf.memtable_throughput_in_mb); }
         if (cf.memtable_operations_in_millions != null) { newCFMD.memOps(cf.memtable_operations_in_millions); }
         if (cf.merge_shards_chance != null) { newCFMD.mergeShardsChance(cf.merge_shards_chance); }
+        if (cf.row_cache_provider != null) { newCFMD.rowCacheProvider(cf.row_cache_provider.toString()); }
 
         return newCFMD.comment(cf.comment.toString())
                       .rowCacheSize(cf.row_cache_size)
@@ -462,6 +472,11 @@ public final class CFMetaData
     public double getMemtableOperationsInMillions()
     {
         return memtableOperationsInMillions;
+    }
+
+    public IRowCacheProvider getRowCacheProvider()
+    {
+        return FBUtilities.newCacheProvider(rowCacheProvider);
     }
 
     public Map<ByteBuffer, ColumnDefinition> getColumn_metadata()
@@ -577,6 +592,8 @@ public final class CFMetaData
             cf_def.setMemtable_operations_in_millions(CFMetaData.DEFAULT_MEMTABLE_OPERATIONS_IN_MILLIONS);
         if (!cf_def.isSetMerge_shards_chance())
             cf_def.setMerge_shards_chance(CFMetaData.DEFAULT_MERGE_SHARDS_CHANCE);
+        if (!cf_def.isSetRow_cache_provider())
+            cf_def.setRow_cache_provider(CFMetaData.DEFAULT_ROW_CACHE_PROVIDER);
     }
     
     // merges some final fields from this CFM with modifiable fields from CfDef into a new CFMetaData.
@@ -621,6 +638,7 @@ public final class CFMetaData
         memtableThroughputInMb = cf_def.memtable_throughput_in_mb;
         memtableOperationsInMillions = cf_def.memtable_operations_in_millions;
         mergeShardsChance = cf_def.merge_shards_chance;
+        rowCacheProvider = cf_def.row_cache_provider.toString();
         
         // adjust secondary indexes. figure out who is coming and going.
         Set<ByteBuffer> toRemove = new HashSet<ByteBuffer>();
@@ -741,7 +759,8 @@ public final class CFMetaData
             tcd.validation_class = cd.validator.getClass().getName();
             column_meta.add(tcd);
         }
-        def.column_metadata = column_meta;   
+        def.column_metadata = column_meta; 
+        def.row_cache_provider = cfm.rowCacheProvider;
         return def;
     }
     

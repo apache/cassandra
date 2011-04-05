@@ -120,7 +120,7 @@ public class Column implements IColumn
          * + 4 bytes which basically indicates the size of the byte array
          * + entire byte array.
         */
-        return DBConstants.shortSize_ + name.remaining() + DBConstants.boolSize_ + DBConstants.tsSize_ + DBConstants.intSize_ + value.remaining();
+        return DBConstants.shortSize_ + name.remaining() + 1 + DBConstants.tsSize_ + DBConstants.intSize_ + value.remaining();
     }
 
     /*

@@ -74,9 +74,9 @@ public class KeyCacheTest extends CleanupHelper
 
         // really? our caches don't implement the map interface? (hence no .addAll)
         Map<Pair<Descriptor, DecoratedKey>, Long> savedMap = new HashMap<Pair<Descriptor, DecoratedKey>, Long>();
-        for (Map.Entry<Pair<Descriptor, DecoratedKey>, Long> entry : store.getKeyCache().getEntrySet())
+        for (Pair<Descriptor, DecoratedKey> k : store.getKeyCache().getKeySet())
         {
-            savedMap.put(entry.getKey(), entry.getValue());
+            savedMap.put(k, store.getKeyCache().get(k));
         }
 
         // force the cache to disk

@@ -63,6 +63,7 @@ protocol InterNode {
         union { null, double} merge_shards_chance = null;
         union { int, null } id;
         union { array<ColumnDef>, null } column_metadata;
+        union { string, null } row_cache_provider = "org.apache.cassandra.cache.ConcurrentLinkedHashCacheProvider";
     }
 
     @aliases(["org.apache.cassandra.config.avro.KsDef"])

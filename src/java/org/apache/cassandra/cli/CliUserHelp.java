@@ -50,6 +50,7 @@ public class CliUserHelp {
         MIN_COMPACTION_THRESHOLD,
         MAX_COMPACTION_THRESHOLD,
         REPLICATE_ON_WRITE,
+        ROW_CACHE_PROVIDER,
     }
 
     protected EnumMap<ColumnFamilyArgument, String> argumentExplanations = new EnumMap<ColumnFamilyArgument, String>(ColumnFamilyArgument.class)
@@ -70,6 +71,7 @@ public class CliUserHelp {
         put(ColumnFamilyArgument.MIN_COMPACTION_THRESHOLD, "Avoid minor compactions of less than this number of sstable files");
         put(ColumnFamilyArgument.MAX_COMPACTION_THRESHOLD, "Compact no more than this number of sstable files at once");
         put(ColumnFamilyArgument.REPLICATE_ON_WRITE, "Replicate every counter update from the leader to the follower replicas");
+        put(ColumnFamilyArgument.ROW_CACHE_PROVIDER, "Row cache provider, opions are SerializingProvider/ConcurrentLinkedHashCacheProvider");
     }};
     
     protected void printCmdHelp(Tree statement, CliSessionState state)

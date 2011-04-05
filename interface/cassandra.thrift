@@ -403,6 +403,7 @@ struct CfDef {
     24: optional bool replicate_on_write=0,
     25: optional double merge_shards_chance,
     26: optional string key_validation_class,
+    27: optional string row_cache_provider="org.apache.cassandra.cache.ConcurrentLinkedHashCacheProvider",
 }
 
 /* describes a keyspace. */

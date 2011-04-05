@@ -1105,6 +1105,9 @@ public class CliClient extends CliUserHelp
             case REPLICATE_ON_WRITE:
                 cfDef.setReplicate_on_write(Boolean.parseBoolean(mValue));
                 break;
+            case ROW_CACHE_PROVIDER:
+                cfDef.setRow_cache_provider(mValue);
+                break;
             default:
                 //must match one of the above or we'd throw an exception at the valueOf statement above.
                 assert(false);

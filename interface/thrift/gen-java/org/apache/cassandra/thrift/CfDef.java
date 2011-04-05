@@ -74,6 +74,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
   private static final TField REPLICATE_ON_WRITE_FIELD_DESC = new TField("replicate_on_write", TType.BOOL, (short)24);
   private static final TField MERGE_SHARDS_CHANCE_FIELD_DESC = new TField("merge_shards_chance", TType.DOUBLE, (short)25);
   private static final TField KEY_VALIDATION_CLASS_FIELD_DESC = new TField("key_validation_class", TType.STRING, (short)26);
+  private static final TField ROW_CACHE_PROVIDER_FIELD_DESC = new TField("row_cache_provider", TType.STRING, (short)27);
 
   public String keyspace;
   public String name;
@@ -98,6 +99,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
   public boolean replicate_on_write;
   public double merge_shards_chance;
   public String key_validation_class;
+  public String row_cache_provider;
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
   public enum _Fields implements TFieldIdEnum {
@@ -123,7 +125,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     MEMTABLE_OPERATIONS_IN_MILLIONS((short)23, "memtable_operations_in_millions"),
     REPLICATE_ON_WRITE((short)24, "replicate_on_write"),
     MERGE_SHARDS_CHANCE((short)25, "merge_shards_chance"),
-    KEY_VALIDATION_CLASS((short)26, "key_validation_class");
+    KEY_VALIDATION_CLASS((short)26, "key_validation_class"),
+    ROW_CACHE_PROVIDER((short)27, "row_cache_provider");
 
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -184,6 +187,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
           return MERGE_SHARDS_CHANCE;
         case 26: // KEY_VALIDATION_CLASS
           return KEY_VALIDATION_CLASS;
+        case 27: // ROW_CACHE_PROVIDER
+          return ROW_CACHE_PROVIDER;
         default:
           return null;
       }
@@ -290,6 +295,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
         new FieldValueMetaData(TType.DOUBLE)));
     tmpMap.put(_Fields.KEY_VALIDATION_CLASS, new FieldMetaData("key_validation_class", TFieldRequirementType.OPTIONAL, 
         new FieldValueMetaData(TType.STRING)));
+    tmpMap.put(_Fields.ROW_CACHE_PROVIDER, new FieldMetaData("row_cache_provider", TFieldRequirementType.OPTIONAL, 
+        new FieldValueMetaData(TType.STRING)));
     metaDataMap = Collections.unmodifiableMap(tmpMap);
     FieldMetaData.addStructMetaDataMap(CfDef.class, metaDataMap);
   }
@@ -306,6 +313,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     this.read_repair_chance = 1;
 
     this.replicate_on_write = false;
+
+    this.row_cache_provider = "org.apache.cassandra.cache.ConcurrentLinkedHashCacheProvider";
 
   }
 
@@ -369,6 +378,9 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     if (other.isSetKey_validation_class()) {
       this.key_validation_class = other.key_validation_class;
     }
+    if (other.isSetRow_cache_provider()) {
+      this.row_cache_provider = other.row_cache_provider;
+    }
   }
 
   public CfDef deepCopy() {
@@ -416,6 +428,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     setMerge_shards_chanceIsSet(false);
     this.merge_shards_chance = 0.0;
     this.key_validation_class = null;
+    this.row_cache_provider = "org.apache.cassandra.cache.ConcurrentLinkedHashCacheProvider";
+
   }
 
   public String getKeyspace() {
@@ -971,6 +985,30 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     }
   }
 
+  public String getRow_cache_provider() {
+    return this.row_cache_provider;
+  }
+
+  public CfDef setRow_cache_provider(String row_cache_provider) {
+    this.row_cache_provider = row_cache_provider;
+    return this;
+  }
+
+  public void unsetRow_cache_provider() {
+    this.row_cache_provider = null;
+  }
+
+  /** Returns true if field row_cache_provider is set (has been asigned a value) and false otherwise */
+  public boolean isSetRow_cache_provider() {
+    return this.row_cache_provider != null;
+  }
+
+  public void setRow_cache_providerIsSet(boolean value) {
+    if (!value) {
+      this.row_cache_provider = null;
+    }
+  }
+
   public void setFieldValue(_Fields field, Object value) {
     switch (field) {
     case KEYSPACE:
@@ -1157,6 +1195,14 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       }
       break;
 
+    case ROW_CACHE_PROVIDER:
+      if (value == null) {
+        unsetRow_cache_provider();
+      } else {
+        setRow_cache_provider((String)value);
+      }
+      break;
+
     }
   }
 
@@ -1231,6 +1277,9 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     case KEY_VALIDATION_CLASS:
       return getKey_validation_class();
 
+    case ROW_CACHE_PROVIDER:
+      return getRow_cache_provider();
+
     }
     throw new IllegalStateException();
   }
@@ -1288,6 +1337,8 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       return isSetMerge_shards_chance();
     case KEY_VALIDATION_CLASS:
       return isSetKey_validation_class();
+    case ROW_CACHE_PROVIDER:
+      return isSetRow_cache_provider();
     }
     throw new IllegalStateException();
   }
@@ -1512,6 +1563,15 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
         return false;
     }
 
+    boolean this_present_row_cache_provider = true && this.isSetRow_cache_provider();
+    boolean that_present_row_cache_provider = true && that.isSetRow_cache_provider();
+    if (this_present_row_cache_provider || that_present_row_cache_provider) {
+      if (!(this_present_row_cache_provider && that_present_row_cache_provider))
+        return false;
+      if (!this.row_cache_provider.equals(that.row_cache_provider))
+        return false;
+    }
+
     return true;
   }
 
@@ -1633,6 +1693,11 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     builder.append(present_key_validation_class);
     if (present_key_validation_class)
       builder.append(key_validation_class);
+
+    boolean present_row_cache_provider = true && (isSetRow_cache_provider());
+    builder.append(present_row_cache_provider);
+    if (present_row_cache_provider)
+      builder.append(row_cache_provider);
 
     return builder.toHashCode();
   }
@@ -1875,6 +1940,16 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
         return lastComparison;
       }
     }
+    lastComparison = Boolean.valueOf(isSetRow_cache_provider()).compareTo(typedOther.isSetRow_cache_provider());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    if (isSetRow_cache_provider()) {
+      lastComparison = TBaseHelper.compareTo(this.row_cache_provider, typedOther.row_cache_provider);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
     return 0;
   }
 
@@ -2078,6 +2153,13 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
             TProtocolUtil.skip(iprot, field.type);
           }
           break;
+        case 27: // ROW_CACHE_PROVIDER
+          if (field.type == TType.STRING) {
+            this.row_cache_provider = iprot.readString();
+          } else { 
+            TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
         default:
           TProtocolUtil.skip(iprot, field.type);
       }
@@ -2226,6 +2308,13 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       if (isSetKey_validation_class()) {
         oprot.writeFieldBegin(KEY_VALIDATION_CLASS_FIELD_DESC);
         oprot.writeString(this.key_validation_class);
+        oprot.writeFieldEnd();
+      }
+    }
+    if (this.row_cache_provider != null) {
+      if (isSetRow_cache_provider()) {
+        oprot.writeFieldBegin(ROW_CACHE_PROVIDER_FIELD_DESC);
+        oprot.writeString(this.row_cache_provider);
         oprot.writeFieldEnd();
       }
     }
@@ -2404,6 +2493,16 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
         sb.append("null");
       } else {
         sb.append(this.key_validation_class);
+      }
+      first = false;
+    }
+    if (isSetRow_cache_provider()) {
+      if (!first) sb.append(", ");
+      sb.append("row_cache_provider:");
+      if (this.row_cache_provider == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.row_cache_provider);
       }
       first = false;
     }

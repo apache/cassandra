@@ -21,37 +21,41 @@ package org.apache.cassandra.cache;
  */
 
 
-import java.util.Map;
+import java.lang.management.ManagementFactory;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap;
-import com.googlecode.concurrentlinkedhashmap.Weighers;
+import javax.management.MBeanServer;
+import javax.management.ObjectName;
 
-public class InstrumentedCache<K, V>
+/**
+ * Wraps an ICache in requests + hits tracking.
+ */
+public class InstrumentingCache<K, V> implements InstrumentingCacheMBean
 {
-    public static final int DEFAULT_CONCURENCY_LEVEL = 64;
-
-    private final ConcurrentLinkedHashMap<K, V> map;
     private final AtomicLong requests = new AtomicLong(0);
     private final AtomicLong hits = new AtomicLong(0);
     private final AtomicLong lastRequests = new AtomicLong(0);
     private final AtomicLong lastHits = new AtomicLong(0);
     private volatile boolean capacitySetManually;
+    private final ICache<K, V> map;
 
-    public InstrumentedCache(int capacity)
+    public InstrumentingCache(ICache<K, V> map, String table, String name)
     {
-        this(capacity, DEFAULT_CONCURENCY_LEVEL);
-    }
-
-    public InstrumentedCache(int capacity, int concurency)
-    {
-        map = new ConcurrentLinkedHashMap.Builder<K, V>()
-                .weigher(Weighers.<V>singleton())
-                .initialCapacity(capacity)
-                .maximumWeightedCapacity(capacity)
-                .concurrencyLevel(concurency)
-                .build();
+        this.map = map;
+        MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
+        try
+        {
+            ObjectName mbeanName = new ObjectName("org.apache.cassandra.db:type=Caches,keyspace=" + table + ",cache=" + name);
+            // unregister any previous, as this may be a replacement.
+            if (mbs.isRegistered(mbeanName))
+                mbs.unregisterMBean(mbeanName);
+            mbs.registerMBean(this, mbeanName);
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
     public void put(K key, V value)
@@ -87,7 +91,7 @@ public class InstrumentedCache<K, V>
     {
         return capacitySetManually;
     }
-    
+
     public void updateCapacity(int capacity)
     {
         map.setCapacity(capacity);
@@ -99,7 +103,7 @@ public class InstrumentedCache<K, V>
         capacitySetManually = true;
     }
 
-    public int getSize()
+    public int size()
     {
         return map.size();
     }
@@ -139,10 +143,5 @@ public class InstrumentedCache<K, V>
     public Set<K> getKeySet()
     {
         return map.keySet();
-    }
-
-    public Set<Map.Entry<K, V>> getEntrySet()
-    {
-        return map.entrySet();
     }
 }

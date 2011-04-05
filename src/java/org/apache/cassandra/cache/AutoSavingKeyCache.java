@@ -31,9 +31,9 @@ import org.apache.cassandra.utils.Pair;
 
 public class AutoSavingKeyCache<K extends Pair<Descriptor, DecoratedKey>, V> extends AutoSavingCache<K, V>
 {
-    public AutoSavingKeyCache(String tableName, String cfName, int capacity)
+    public AutoSavingKeyCache(ICache<K, V> cache, String tableName, String cfName)
     {
-        super(tableName, cfName, ColumnFamilyStore.CacheType.KEY_CACHE_TYPE, capacity);
+        super(cache, tableName, cfName, ColumnFamilyStore.CacheType.KEY_CACHE_TYPE);
     }
 
     @Override

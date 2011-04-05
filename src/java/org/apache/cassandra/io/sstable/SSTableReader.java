@@ -30,7 +30,7 @@ import com.google.common.collect.Collections2;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.cache.InstrumentedCache;
+import org.apache.cassandra.cache.InstrumentingCache;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
@@ -114,7 +114,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
     private IndexSummary indexSummary;
     private Filter bf;
 
-    private InstrumentedCache<Pair<Descriptor,DecoratedKey>, Long> keyCache;
+    private InstrumentingCache<Pair<Descriptor, DecoratedKey>, Long> keyCache;
 
     private BloomFilterTracker bloomFilterTracker = new BloomFilterTracker();
 
@@ -195,7 +195,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
             logger.debug("INDEX LOAD TIME for " + descriptor + ": " + (System.currentTimeMillis() - start) + " ms.");
 
         if (logger.isDebugEnabled() && sstable.getKeyCache() != null)
-            logger.debug(String.format("key cache contains %s/%s keys", sstable.getKeyCache().getSize(), sstable.getKeyCache().getCapacity()));
+            logger.debug(String.format("key cache contains %s/%s keys", sstable.getKeyCache().size(), sstable.getKeyCache().getCapacity()));
 
         return sstable;
     }
@@ -279,8 +279,8 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
                                                                       true);
         try
         {
-            if (keyCache != null && keyCache.getCapacity() - keyCache.getSize() < keysToLoadInCache.size())
-                keyCache.updateCapacity(keyCache.getSize() + keysToLoadInCache.size());
+            if (keyCache != null && keyCache.getCapacity() - keyCache.size() < keysToLoadInCache.size())
+                keyCache.updateCapacity(keyCache.size() + keysToLoadInCache.size());
 
             long indexSize = input.length();
             long estimatedKeys = SSTable.estimateRowsFromIndex(input);
@@ -671,7 +671,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         return bloomFilterTracker.getRecentTruePositiveCount();
     }
 
-    public InstrumentedCache<Pair<Descriptor,DecoratedKey>, Long> getKeyCache()
+    public InstrumentingCache<Pair<Descriptor,DecoratedKey>, Long> getKeyCache()
     {
         return keyCache;
     }

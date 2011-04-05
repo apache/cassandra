@@ -54,6 +54,7 @@ public class CreateColumnFamilyStatement
     private static final String KW_MEMTABLESIZEINMB = "memtable_throughput_in_mb";
     private static final String KW_MEMTABLEOPSINMILLIONS = "memtable_operations_in_millions";
     private static final String KW_REPLICATEONWRITE = "replicate_on_write";
+    private static final String KW_ROW_CACHE_PROVIDER = "row_cache_provider";
     
     // Maps CQL short names to the respective Cassandra comparator/validator class names
     private static final Map<String, String> comparators = new HashMap<String, String>();
@@ -84,6 +85,7 @@ public class CreateColumnFamilyStatement
         keywords.add(KW_MEMTABLESIZEINMB);
         keywords.add(KW_MEMTABLEOPSINMILLIONS);
         keywords.add(KW_REPLICATEONWRITE);
+        keywords.add(KW_ROW_CACHE_PROVIDER);
     }
  
     private final String name;
@@ -254,7 +256,8 @@ public class CreateColumnFamilyStatement
                    .memOps(getPropertyDouble(KW_MEMTABLEOPSINMILLIONS, CFMetaData.DEFAULT_MEMTABLE_OPERATIONS_IN_MILLIONS))
                    .mergeShardsChance(0.0)
                    .columnMetadata(getColumns(comparator))
-                   .keyValidator(DatabaseDescriptor.getComparator(comparators.get(getKeyType())));
+                   .keyValidator(DatabaseDescriptor.getComparator(comparators.get(getKeyType())))
+                   .rowCacheProvider(getPropertyString(KW_ROW_CACHE_PROVIDER, CFMetaData.DEFAULT_ROW_CACHE_PROVIDER));
         }
         catch (ConfigurationException e)
         {

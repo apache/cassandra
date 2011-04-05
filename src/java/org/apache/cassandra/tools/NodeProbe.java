@@ -40,7 +40,7 @@ import javax.management.remote.JMXServiceURL;
 
 import com.google.common.collect.Iterables;
 
-import org.apache.cassandra.cache.JMXInstrumentedCacheMBean;
+import org.apache.cassandra.cache.InstrumentingCacheMBean;
 import org.apache.cassandra.concurrent.IExecutorMBean;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
@@ -265,12 +265,12 @@ public class NodeProbe
       return compactionProxy;
     }
 
-    public JMXInstrumentedCacheMBean getKeyCacheMBean(String tableName, String cfName)
+    public InstrumentingCacheMBean getKeyCacheMBean(String tableName, String cfName)
     {
         String keyCachePath = "org.apache.cassandra.db:type=Caches,keyspace=" + tableName + ",cache=" + cfName + "KeyCache";
         try
         {
-            return JMX.newMBeanProxy(mbeanServerConn, new ObjectName(keyCachePath), JMXInstrumentedCacheMBean.class);
+            return JMX.newMBeanProxy(mbeanServerConn, new ObjectName(keyCachePath), InstrumentingCacheMBean.class);
         }
         catch (MalformedObjectNameException e)
         {
@@ -278,12 +278,12 @@ public class NodeProbe
         }
     }
     
-    public JMXInstrumentedCacheMBean getRowCacheMBean(String tableName, String cfName)
+    public InstrumentingCacheMBean getRowCacheMBean(String tableName, String cfName)
     {
         String rowCachePath = "org.apache.cassandra.db:type=Caches,keyspace=" + tableName + ",cache=" + cfName + "RowCache";
         try
         {
-            return JMX.newMBeanProxy(mbeanServerConn, new ObjectName(rowCachePath), JMXInstrumentedCacheMBean.class);
+            return JMX.newMBeanProxy(mbeanServerConn, new ObjectName(rowCachePath), InstrumentingCacheMBean.class);
         }
         catch (MalformedObjectNameException e)
         {
@@ -426,12 +426,12 @@ public class NodeProbe
         try
         {
             String keyCachePath = "org.apache.cassandra.db:type=Caches,keyspace=" + tableName + ",cache=" + cfName + "KeyCache";
-            JMXInstrumentedCacheMBean keyCacheMBean = JMX.newMBeanProxy(mbeanServerConn, new ObjectName(keyCachePath), JMXInstrumentedCacheMBean.class);
+            InstrumentingCacheMBean keyCacheMBean = JMX.newMBeanProxy(mbeanServerConn, new ObjectName(keyCachePath), InstrumentingCacheMBean.class);
             keyCacheMBean.setCapacity(keyCacheCapacity);
 
             String rowCachePath = "org.apache.cassandra.db:type=Caches,keyspace=" + tableName + ",cache=" + cfName + "RowCache";
-            JMXInstrumentedCacheMBean rowCacheMBean = null;
-            rowCacheMBean = JMX.newMBeanProxy(mbeanServerConn, new ObjectName(rowCachePath), JMXInstrumentedCacheMBean.class);
+            InstrumentingCacheMBean rowCacheMBean = null;
+            rowCacheMBean = JMX.newMBeanProxy(mbeanServerConn, new ObjectName(rowCachePath), InstrumentingCacheMBean.class);
             rowCacheMBean.setCapacity(rowCacheCapacity);
         }
         catch (MalformedObjectNameException e)

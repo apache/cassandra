@@ -29,9 +29,9 @@ import org.apache.cassandra.db.DecoratedKey;
 
 public class AutoSavingRowCache<K extends DecoratedKey, V> extends AutoSavingCache<K, V>
 {
-    public AutoSavingRowCache(String tableName, String cfName, int capacity)
+    public AutoSavingRowCache(ICache<K, V> cache, String tableName, String cfName)
     {
-        super(tableName, cfName, ColumnFamilyStore.CacheType.ROW_CACHE_TYPE, capacity);
+        super(cache, tableName, cfName, ColumnFamilyStore.CacheType.ROW_CACHE_TYPE);
     }
 
     @Override

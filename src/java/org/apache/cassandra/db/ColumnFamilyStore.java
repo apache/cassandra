@@ -40,6 +40,8 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.cache.AutoSavingCache;
 import org.apache.cassandra.cache.AutoSavingKeyCache;
 import org.apache.cassandra.cache.AutoSavingRowCache;
+import org.apache.cassandra.cache.ConcurrentLinkedHashCache;
+import org.apache.cassandra.cache.ICache;
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.concurrent.StageManager;
@@ -238,8 +240,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         if (logger.isDebugEnabled())
             logger.debug("Starting CFS {}", columnFamily);
 
-        keyCache = new AutoSavingKeyCache<Pair<Descriptor, DecoratedKey>, Long>(table.name, columnFamilyName, 0);
-        rowCache = new AutoSavingRowCache<DecoratedKey, ColumnFamily>(table.name, columnFamilyName, 0);
+        ICache<Pair<Descriptor, DecoratedKey>, Long> kc = ConcurrentLinkedHashCache.create(0);
+        keyCache = new AutoSavingKeyCache<Pair<Descriptor, DecoratedKey>, Long>(kc, table.name, columnFamilyName);
+        ICache<DecoratedKey, ColumnFamily> rc = metadata.getRowCacheProvider().create(0);        
+        rowCache = new AutoSavingRowCache<DecoratedKey, ColumnFamily>(rc, table.name, columnFamilyName);
 
         // scan for sstables corresponding to this cf and load them
         data = new DataTracker(this);
@@ -495,10 +499,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         // results are sorted on read (via treeset) because there are few reads and many writes and reads only happen at startup
         for (DecoratedKey key : rowCache.readSaved())
             cacheRow(key);
-        if (rowCache.getSize() > 0)
+        if (rowCache.size() > 0)
             logger.info(String.format("completed loading (%d ms; %d keys) row cache for %s.%s",
                                       System.currentTimeMillis()-start,
-                                      rowCache.getSize(),
+                                      rowCache.size(),
                                       table.name,
                                       columnFamily));
 
@@ -735,6 +739,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     /*
      * Insert/Update the column family for this key. param @ lock - lock that
+     * Caller is responsible for acquiring Table.flusherLock!
+     * param @ lock - lock that needs to be used.
      * needs to be used. param @ key - key for update/insert param @
      * columnFamily - columnFamily changes
      */
@@ -1644,12 +1650,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public int getRowCacheSize()
     {
-        return rowCache.getSize();
+        return rowCache.size();
     }
 
     public int getKeyCacheSize()
     {
-        return keyCache.getSize();
+        return keyCache.size();
     }
 
     public static Iterable<ColumnFamilyStore> all()

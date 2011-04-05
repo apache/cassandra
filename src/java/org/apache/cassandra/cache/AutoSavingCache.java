@@ -42,7 +42,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.WrappedRunnable;
 
-public abstract class AutoSavingCache<K, V> extends JMXInstrumentedCache<K, V>
+public abstract class AutoSavingCache<K, V> extends InstrumentingCache<K, V>
 {
     private static final Logger logger = LoggerFactory.getLogger(AutoSavingCache.class);
 
@@ -51,9 +51,9 @@ public abstract class AutoSavingCache<K, V> extends JMXInstrumentedCache<K, V>
     protected volatile ScheduledFuture<?> saveTask;
     protected final ColumnFamilyStore.CacheType cacheType;
     
-    public AutoSavingCache(String tableName, String cfName, ColumnFamilyStore.CacheType cacheType, int capacity)
+    public AutoSavingCache(ICache<K, V> cache, String tableName, String cfName, ColumnFamilyStore.CacheType cacheType)
     {
-        super(tableName, cfName + cacheType, capacity);
+        super(cache, tableName, cfName + cacheType);
         this.tableName = tableName;
         this.cfName = cfName;
         this.cacheType = cacheType;
@@ -177,7 +177,7 @@ public abstract class AutoSavingCache<K, V> extends JMXInstrumentedCache<K, V>
     {
         if (getCapacity() > 0)
         {
-            int newCapacity = (int) (DatabaseDescriptor.getReduceCacheCapacityTo() * getSize());
+            int newCapacity = (int) (DatabaseDescriptor.getReduceCacheCapacityTo() * size());
             logger.warn(String.format("Reducing %s %s capacity from %d to %s to reduce memory pressure",
                                       cfName, cacheType, getCapacity(), newCapacity));
             setCapacity(newCapacity);

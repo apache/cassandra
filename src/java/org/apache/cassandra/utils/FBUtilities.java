@@ -39,6 +39,7 @@ import org.apache.commons.collections.iterators.CollatingIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.cache.IRowCacheProvider;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
@@ -628,4 +629,19 @@ public class FBUtilities
 
         return field;
     }
+
+    public static IRowCacheProvider newCacheProvider(String cache_provider)
+    {
+        if (!cache_provider.contains("."))
+            cache_provider = "org.apache.cassandra.cache." + cache_provider;
+        try
+        {
+            return FBUtilities.construct(cache_provider, "row cache provider");
+        }
+        catch (ConfigurationException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
 }

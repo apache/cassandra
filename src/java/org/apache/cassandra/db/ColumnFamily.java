@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.db;
 
+import static org.apache.cassandra.db.DBConstants.*;
+
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.util.Collection;
@@ -418,5 +420,17 @@ public class ColumnFamily implements IColumnContainer, IIterableColumns
     public Iterator<IColumn> iterator()
     {
         return columns.values().iterator();
+    }
+
+    public long serializedSize()
+    {
+        int size = boolSize_ // bool
+                 + intSize_ // id
+                 + intSize_ // local deletion time
+                 + longSize_ // client deltion time
+                 + intSize_; // column count
+        for (IColumn column : columns.values())
+            size += column.serializedSize();
+        return size;
     }
 }
