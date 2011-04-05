@@ -114,9 +114,9 @@ public class MappedFileDataInput extends AbstractDataInput implements FileDataIn
     public synchronized ByteBuffer readBytes(int length) throws IOException
     {
         int remaining = buffer.remaining() - position;
-
-        assert length <= remaining
-                : String.format("mmap segment underflow; remaining is %d but %d requested", remaining, length);
+        if (length > remaining)
+            throw new IOException(String.format("mmap segment underflow; remaining is %d but %d requested",
+                                                remaining, length));
 
         ByteBuffer bytes = buffer.duplicate();
         bytes.position(buffer.position() + position).limit(buffer.position() + position + length);
