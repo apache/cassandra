@@ -1223,8 +1223,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 {
                     returnCF.delete(iter.getColumnFamily());
                     iterators.add(iter);
+                    sstablesToIterate++;
                 }
-                sstablesToIterate++;
             }
 
             recentSSTablesPerRead.add(sstablesToIterate);
