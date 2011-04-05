@@ -101,7 +101,7 @@ public final class CFMetaData
      */
     public static int sizeMemtableThroughput()
     {
-        return (int) (Runtime.getRuntime().maxMemory() / (1048576 * 16));
+        return (int) (Runtime.getRuntime().maxMemory() / (1048576 * 32));
     }
 
     /**
