@@ -415,11 +415,6 @@ public class ByteBufferUtil
         return bytes.getLong(bytes.position());
     }
 
-    public static long toLong(ByteBuffer bytes)
-    {
-        return bytes.getLong(bytes.position());
-    }
-
     public static float toFloat(ByteBuffer bytes)
     {
         return bytes.getFloat(bytes.position());
