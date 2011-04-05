@@ -415,6 +415,21 @@ public class ByteBufferUtil
         return bytes.getLong(bytes.position());
     }
 
+    public static long toLong(ByteBuffer bytes)
+    {
+        return bytes.getLong(bytes.position());
+    }
+
+    public static float toFloat(ByteBuffer bytes)
+    {
+        return bytes.getFloat(bytes.position());
+    }
+
+    public static double toDouble(ByteBuffer bytes)
+    {
+        return bytes.getDouble(bytes.position());
+    }
+
     public static ByteBuffer bytes(int i)
     {
         return ByteBuffer.allocate(4).putInt(0, i);
@@ -424,6 +439,17 @@ public class ByteBufferUtil
     {
         return ByteBuffer.allocate(8).putLong(0, n);
     }
+
+    public static ByteBuffer bytes(float f)
+    {
+        return ByteBuffer.allocate(4).putFloat(0, f);
+    }
+
+    public static ByteBuffer bytes(double d)
+    {
+        return ByteBuffer.allocate(8).putDouble(0, d);
+    }
+
 
     public static InputStream inputStream(ByteBuffer bytes)
     {

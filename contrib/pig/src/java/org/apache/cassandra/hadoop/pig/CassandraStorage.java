@@ -20,6 +20,9 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -27,9 +30,8 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.SuperColumn;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.hadoop.*;
-import org.apache.cassandra.thrift.SlicePredicate;
-import org.apache.cassandra.thrift.SliceRange;
 import org.apache.cassandra.hadoop.avro.Mutation;
 import org.apache.cassandra.hadoop.avro.Deletion;
 import org.apache.cassandra.hadoop.avro.ColumnOrSuperColumn;
@@ -44,6 +46,14 @@ import org.apache.pig.backend.executionengine.ExecException;
 import org.apache.pig.backend.hadoop.executionengine.mapReduceLayer.PigSplit;
 import org.apache.pig.data.*;
 import org.apache.pig.impl.logicalLayer.FrontendException;
+import org.apache.pig.impl.util.UDFContext;
+import org.apache.thrift.TDeserializer;
+import org.apache.thrift.TException;
+import org.apache.thrift.TSerializer;
+import org.apache.thrift.transport.TFramedTransport;
+import org.apache.thrift.transport.TSocket;
+import org.apache.thrift.transport.TTransport;
+import org.apache.thrift.transport.TTransportException;
 
 /**
  * A LoadFunc wrapping ColumnFamilyInputFormat.
@@ -57,6 +67,8 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
     public final static String PIG_RPC_PORT = "PIG_RPC_PORT";
     public final static String PIG_INITIAL_ADDRESS = "PIG_INITIAL_ADDRESS";
     public final static String PIG_PARTITIONER = "PIG_PARTITIONER";
+
+    private static String UDFCONTEXT_SCHEMA_KEY = "schema";
 
     private final static ByteBuffer BOUND = ByteBufferUtil.EMPTY_BYTE_BUFFER;
     private static final Log logger = LogFactory.getLog(CassandraStorage.class);
@@ -72,8 +84,8 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
     private RecordWriter writer;
     private int limit;
 
-    public CassandraStorage() 
-    { 
+    public CassandraStorage()
+    {
         this(1024);
     }
 
@@ -100,19 +112,20 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
             if (!reader.nextKeyValue())
                 return null;
 
+            CfDef cfDef = getCfDef();
             ByteBuffer key = (ByteBuffer)reader.getCurrentKey();
             SortedMap<ByteBuffer,IColumn> cf = (SortedMap<ByteBuffer,IColumn>)reader.getCurrentValue();
             assert key != null && cf != null;
             
             // and wrap it in a tuple
-	    Tuple tuple = TupleFactory.getInstance().newTuple(2);
+	        Tuple tuple = TupleFactory.getInstance().newTuple(2);
             ArrayList<Tuple> columns = new ArrayList<Tuple>();
             tuple.set(0, new DataByteArray(key.array(), key.position()+key.arrayOffset(), key.limit()+key.arrayOffset()));
             for (Map.Entry<ByteBuffer, IColumn> entry : cf.entrySet())
-            {                    
-                columns.add(columnToTuple(entry.getKey(), entry.getValue()));
+            {
+                columns.add(columnToTuple(entry.getKey(), entry.getValue(), cfDef));
             }
-         
+
             tuple.set(1, new DefaultDataBag(columns));
             return tuple;
         }
@@ -122,26 +135,83 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
         }
     }
 
-    private Tuple columnToTuple(ByteBuffer name, IColumn col) throws IOException
+    private Tuple columnToTuple(ByteBuffer name, IColumn col, CfDef cfDef) throws IOException
     {
         Tuple pair = TupleFactory.getInstance().newTuple(2);
-        pair.set(0, new DataByteArray(name.array(), name.position()+name.arrayOffset(), name.limit()+name.arrayOffset()));
+        List<AbstractType> marshallers = getDefaultMarshallers(cfDef);
+        Map<ByteBuffer,AbstractType> validators = getValidatorMap(cfDef);
+
         if (col instanceof Column)
         {
             // standard
-            pair.set(1, new DataByteArray(col.value().array(), 
-                                          col.value().position()+col.value().arrayOffset(),
-                                          col.value().limit()+col.value().arrayOffset()));
+            pair.set(0, marshallers.get(0).compose(name));
+            if (validators.get(name) == null)
+                // Have to special case BytesType because compose returns a ByteBuffer
+                if (marshallers.get(1) instanceof BytesType)
+                    pair.set(1, new DataByteArray(ByteBufferUtil.getArray(col.value())));
+                else
+                    pair.set(1, marshallers.get(1).compose(col.value()));
+            else
+                pair.set(1, validators.get(name).compose(col.value()));
             return pair;
         }
 
         // super
         ArrayList<Tuple> subcols = new ArrayList<Tuple>();
         for (IColumn subcol : ((SuperColumn)col).getSubColumns())
-            subcols.add(columnToTuple(subcol.name(), subcol));
+            subcols.add(columnToTuple(subcol.name(), subcol, cfDef));
         
         pair.set(1, new DefaultDataBag(subcols));
         return pair;
+    }
+
+    private CfDef getCfDef()
+    {
+        UDFContext context = UDFContext.getUDFContext();
+        Properties property = context.getUDFProperties(ResourceSchema.class);
+        return cfdefFromString(property.getProperty(UDFCONTEXT_SCHEMA_KEY));
+    }
+
+    private List<AbstractType> getDefaultMarshallers(CfDef cfDef) throws IOException
+    {
+        ArrayList<AbstractType> marshallers = new ArrayList<AbstractType>();
+        AbstractType comparator = null;
+        AbstractType default_validator = null;
+        try
+        {
+            comparator = FBUtilities.getInstance(cfDef.comparator_type, "comparator");
+            default_validator = FBUtilities.getInstance(cfDef.default_validation_class, "validator");
+        }
+        catch (ConfigurationException e)
+        {
+            throw new IOException(e);
+        }
+
+        marshallers.add(comparator);
+        marshallers.add(default_validator);
+        return marshallers;
+    }
+
+    private Map<ByteBuffer,AbstractType> getValidatorMap(CfDef cfDef) throws  IOException
+    {
+        Map<ByteBuffer, AbstractType> validators = new HashMap<ByteBuffer, AbstractType>();
+        for (ColumnDef cd : cfDef.column_metadata)
+        {
+            if (cd.getValidation_class() != null && !cd.getValidation_class().isEmpty())
+            {
+                AbstractType validator = null;
+                try
+                {
+                    validator = FBUtilities.getInstance(cd.getValidation_class(), "validator");
+                    validators.put(cd.name, validator);
+                }
+                catch (ConfigurationException e)
+                {
+                    throw new IOException(e);
+                }
+            }
+        }
+        return validators;
     }
 
     @Override
@@ -156,7 +226,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
         this.reader = reader;
     }
 
-    private void setLocationFromUri(String location) throws IOException
+     private void setLocationFromUri(String location) throws IOException
     {
         // parse uri into keyspace and columnfamily
         String names[];
@@ -219,6 +289,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
         }
         ConfigHelper.setInputColumnFamily(conf, keyspace, column_family);
         setConnectionInformation();
+        initSchema();
     }
 
     @Override
@@ -274,7 +345,9 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
         ByteBuffer key = objToBB(t.get(0));
         DefaultDataBag pairs = (DefaultDataBag) t.get(1);
         ArrayList<Mutation> mutationList = new ArrayList<Mutation>();
-
+        CfDef cfDef = getCfDef();
+        List<AbstractType> marshallers = getDefaultMarshallers(cfDef);
+        Map<ByteBuffer,AbstractType> validators = getValidatorMap(cfDef);
         try
         {
             for (Tuple pair : pairs)
@@ -306,7 +379,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
                        mutation.column_or_supercolumn.super_column = sc;
                    }
                }
-               else // assume column since it could be anything else
+               else // assume column since it couldn't be anything else
                {
                    if (pair.get(1) == null)
                    {
@@ -318,8 +391,15 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
                    else
                    {
                        org.apache.cassandra.hadoop.avro.Column column = new org.apache.cassandra.hadoop.avro.Column();
-                       column.name = objToBB(pair.get(0));
-                       column.value = objToBB(pair.get(1));
+                       column.name = marshallers.get(0).decompose((pair.get(0)));
+                       if (validators.get(column.name) == null)
+                           // Have to special case BytesType to convert DataByteArray into ByteBuffer
+                           if (marshallers.get(1) instanceof BytesType)
+                               column.value = ByteBuffer.wrap(((DataByteArray) pair.get(1)).get());
+                           else
+                               column.value = marshallers.get(1).decompose(pair.get(1));
+                       else
+                           column.value = validators.get(column.name).decompose(pair.get(1));
                        column.timestamp = System.currentTimeMillis() * 1000;
                        mutation.column_or_supercolumn = new ColumnOrSuperColumn();
                        mutation.column_or_supercolumn.column = column;
@@ -358,4 +438,92 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
         return new RequiredFieldResponse(true);
     }
 
+
+    /* Methods to get the column family schema from Cassandra */
+
+    private void initSchema()
+    {
+        Cassandra.Client client = null;
+        try
+        {
+            client = createConnection(ConfigHelper.getInitialAddress(conf), ConfigHelper.getRpcPort(conf), true);
+            CfDef cfDef = null;
+            client.set_keyspace(keyspace);
+            KsDef ksDef = client.describe_keyspace(keyspace);
+            List<CfDef> defs = ksDef.getCf_defs();
+            for (CfDef def : defs)
+            {
+                if (column_family.equalsIgnoreCase(def.getName()))
+                {
+                    cfDef = def;
+                    break;
+                }
+            }
+            UDFContext context = UDFContext.getUDFContext();
+            Properties property = context.getUDFProperties(ResourceSchema.class);
+            property.setProperty(UDFCONTEXT_SCHEMA_KEY, cfdefToString(cfDef));
+        }
+        catch (TException e)
+        {
+            throw new RuntimeException(e);
+        }
+        catch (InvalidRequestException e)
+        {
+            throw new RuntimeException(e);
+        }
+        catch (NotFoundException e)
+        {
+            throw new RuntimeException(e);
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static Cassandra.Client createConnection(String host, Integer port, boolean framed) throws IOException
+    {
+        TSocket socket = new TSocket(host, port);
+        TTransport trans = framed ? new TFramedTransport(socket) : socket;
+        try
+        {
+            trans.open();
+        }
+        catch (TTransportException e)
+        {
+            throw new IOException("unable to connect to server", e);
+        }
+        return new Cassandra.Client(new TBinaryProtocol(trans));
+    }
+
+    private static String cfdefToString(CfDef cfDef)
+    {
+        assert cfDef != null;
+        // this is so awful it's kind of cool!
+        TSerializer serializer = new TSerializer(new TBinaryProtocol.Factory());
+        try
+        {
+            return FBUtilities.bytesToHex(serializer.serialize(cfDef));
+        }
+        catch (TException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static CfDef cfdefFromString(String st)
+    {
+        assert st != null;
+        TDeserializer deserializer = new TDeserializer(new TBinaryProtocol.Factory());
+        CfDef cfDef = new CfDef();
+        try
+        {
+            deserializer.deserialize(cfDef, FBUtilities.hexToBytes(st));
+        }
+        catch (TException e)
+        {
+            throw new RuntimeException(e);
+        }
+        return cfDef;
+    }
 }

@@ -596,6 +596,31 @@ public class FBUtilities
         }
     }
 
+    public static <T> T getInstance(String classname, String readable) throws ConfigurationException
+    {
+        Class cls = classForName(classname,  readable);
+        T rval = null;
+        try
+        {
+            rval = (T) cls.getDeclaredMethod("getInstance").invoke(null, (Object) null);
+
+        }
+        catch (NoSuchMethodException e)
+        {
+            throw new ConfigurationException("Class does not have the getInstance method with no arguments");
+        }
+        catch (InvocationTargetException e)
+        {
+            throw new ConfigurationException(String.format("Could not call method getInstance on %s class %s", readable, classname));
+        }
+        catch (IllegalAccessException e)
+        {
+            throw new ConfigurationException(String.format("Could not call method getInstance on %s class %s", readable, classname));
+        }
+
+        return rval;
+    }
+
     public static <T extends Comparable> SortedSet<T> singleton(T column)
     {
         return new TreeSet<T>(Arrays.asList(column));
