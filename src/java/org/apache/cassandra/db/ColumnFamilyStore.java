@@ -925,6 +925,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     void replaceFlushed(Memtable memtable, SSTableReader sstable)
     {
         data.replaceFlushed(memtable, sstable);
+        CompactionManager.instance.submitMinorIfNeeded(this);
     }
 
     public boolean isInvalid()
