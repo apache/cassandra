@@ -35,6 +35,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.thrift.InvalidRequestException;
+import org.apache.cassandra.utils.FBUtilities;
 
 /** A <code>CREATE COLUMNFAMILY</code> parsed from a CQL query statement. */
 public class CreateColumnFamilyStatement
@@ -257,7 +258,7 @@ public class CreateColumnFamilyStatement
                    .mergeShardsChance(0.0)
                    .columnMetadata(getColumns(comparator))
                    .keyValidator(DatabaseDescriptor.getComparator(comparators.get(getKeyType())))
-                   .rowCacheProvider(getPropertyString(KW_ROW_CACHE_PROVIDER, CFMetaData.DEFAULT_ROW_CACHE_PROVIDER));
+                   .rowCacheProvider(FBUtilities.newCacheProvider(getPropertyString(KW_ROW_CACHE_PROVIDER, CFMetaData.DEFAULT_ROW_CACHE_PROVIDER)));
         }
         catch (ConfigurationException e)
         {

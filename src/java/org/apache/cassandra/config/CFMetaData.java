@@ -154,7 +154,7 @@ public final class CFMetaData
     private int memtableThroughputInMb;               // default based on heap size
     private double memtableOperationsInMillions;      // default based on throughput
     private double mergeShardsChance;                 // default 0.1, chance [0.0, 1.0] of merging old shards during replication
-    private String rowCacheProvider;
+    private IRowCacheProvider rowCacheProvider;
     // NOTE: if you find yourself adding members to this class, make sure you keep the convert methods in lockstep.
 
     private Map<ByteBuffer, ColumnDefinition> column_metadata;
@@ -176,7 +176,7 @@ public final class CFMetaData
     public CFMetaData memOps(double prop) {memtableOperationsInMillions = prop; return this;}
     public CFMetaData mergeShardsChance(double prop) {mergeShardsChance = prop; return this;}
     public CFMetaData columnMetadata(Map<ByteBuffer,ColumnDefinition> prop) {column_metadata = prop; return this;}
-    public CFMetaData rowCacheProvider(String prop) { rowCacheProvider = prop; return this;};
+    public CFMetaData rowCacheProvider(IRowCacheProvider prop) { rowCacheProvider = prop; return this;};
 
     public CFMetaData(String keyspace, String name, ColumnFamilyType type, AbstractType comp, AbstractType subcc)
     {
@@ -223,7 +223,7 @@ public final class CFMetaData
         memtableThroughputInMb       = DEFAULT_MEMTABLE_THROUGHPUT_IN_MB;
         memtableOperationsInMillions = DEFAULT_MEMTABLE_OPERATIONS_IN_MILLIONS;
         mergeShardsChance            = DEFAULT_MERGE_SHARDS_CHANCE;
-        rowCacheProvider             = DEFAULT_ROW_CACHE_PROVIDER;
+        rowCacheProvider             = FBUtilities.newCacheProvider(DEFAULT_ROW_CACHE_PROVIDER);
 
         // Defaults strange or simple enough to not need a DEFAULT_T for
         defaultValidator = BytesType.instance;
@@ -332,7 +332,7 @@ public final class CFMetaData
                                                     org.apache.cassandra.db.migration.avro.ColumnDef.SCHEMA$);
         for (ColumnDefinition cd : column_metadata.values())
             cf.column_metadata.add(cd.deflate());
-        cf.row_cache_provider = new Utf8(rowCacheProvider);
+        cf.row_cache_provider = new Utf8(rowCacheProvider.getClass().getName());
         return cf;
     }
 
@@ -381,7 +381,7 @@ public final class CFMetaData
         if (cf.memtable_throughput_in_mb != null) { newCFMD.memSize(cf.memtable_throughput_in_mb); }
         if (cf.memtable_operations_in_millions != null) { newCFMD.memOps(cf.memtable_operations_in_millions); }
         if (cf.merge_shards_chance != null) { newCFMD.mergeShardsChance(cf.merge_shards_chance); }
-        if (cf.row_cache_provider != null) { newCFMD.rowCacheProvider(cf.row_cache_provider.toString()); }
+        if (cf.row_cache_provider != null) { newCFMD.rowCacheProvider(FBUtilities.newCacheProvider(cf.row_cache_provider.toString())); }
 
         return newCFMD.comment(cf.comment.toString())
                       .rowCacheSize(cf.row_cache_size)
@@ -476,7 +476,7 @@ public final class CFMetaData
 
     public IRowCacheProvider getRowCacheProvider()
     {
-        return FBUtilities.newCacheProvider(rowCacheProvider);
+        return rowCacheProvider;
     }
 
     public Map<ByteBuffer, ColumnDefinition> getColumn_metadata()
@@ -638,7 +638,8 @@ public final class CFMetaData
         memtableThroughputInMb = cf_def.memtable_throughput_in_mb;
         memtableOperationsInMillions = cf_def.memtable_operations_in_millions;
         mergeShardsChance = cf_def.merge_shards_chance;
-        rowCacheProvider = cf_def.row_cache_provider.toString();
+        if (cf_def.row_cache_provider != null)
+            rowCacheProvider = FBUtilities.newCacheProvider(cf_def.row_cache_provider.toString());
         
         // adjust secondary indexes. figure out who is coming and going.
         Set<ByteBuffer> toRemove = new HashSet<ByteBuffer>();
@@ -760,7 +761,7 @@ public final class CFMetaData
             column_meta.add(tcd);
         }
         def.column_metadata = column_meta; 
-        def.row_cache_provider = cfm.rowCacheProvider;
+        def.row_cache_provider = new Utf8(cfm.rowCacheProvider.getClass().getName());
         return def;
     }
     
