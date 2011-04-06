@@ -549,7 +549,7 @@ public class FBUtilities
         T rval = null;
         try
         {
-            rval = (T) cls.getDeclaredMethod("getInstance").invoke(null, (Object) null);
+            rval = (T) cls.getDeclaredMethod("getInstance").invoke(new Object[] {null, null});
 
         }
         catch (NoSuchMethodException e)
