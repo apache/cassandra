@@ -2191,7 +2191,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             for (ColumnFamilyStore subordinate : cfs.concatWithIndexes())
             {
                 ops += subordinate.getMemtableColumnsCount();
-                throughput = subordinate.getMemtableThroughputInMB();
+                throughput += subordinate.getMemtableDataSize();
             }
 
             if (ops > 0 && (largestByOps == null || ops > largestByOps.getMemtableColumnsCount()))

@@ -141,6 +141,13 @@ reduce_cache_capacity_to: 0.6
 concurrent_reads: 32
 concurrent_writes: 32
 
+# Total memory to use for memtables.  Cassandra will flush the largest
+# memtable when this much memory is used.  Prefer using this to
+# the older, per-ColumnFamily memtable flush thresholds.
+# If omitted, Cassandra will set it to 1/3 of the heap.
+# If set to 0, only the old flush thresholds are used.
+# memtable_total_space_in_mb: 2048
+
 # This sets the amount of memtable flush writer threads.  These will
 # be blocked by disk io, and each one will hold a memtable in memory
 # while blocked. If you have a large heap and many data directories,
