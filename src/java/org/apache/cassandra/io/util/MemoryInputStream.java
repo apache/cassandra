@@ -1,11 +1,11 @@
 package org.apache.cassandra.io.util;
 
+import java.io.Closeable;
 import java.io.DataInput;
 import java.io.IOException;
 
 import org.apache.cassandra.cache.FreeableMemory;
 
-import com.sun.xml.internal.ws.Closeable;
 
 public class MemoryInputStream extends AbstractDataInput implements DataInput, Closeable
 {
