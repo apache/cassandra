@@ -151,7 +151,7 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<org.apache.cass
         {
             // deletion
             assert amut.deletion != null;
-            Deletion deletion = new Deletion(amut.deletion.timestamp);
+            Deletion deletion = new Deletion().setTimestamp(amut.deletion.timestamp);
             mutation.setDeletion(deletion);
 
             org.apache.cassandra.hadoop.avro.SlicePredicate apred = amut.deletion.predicate;

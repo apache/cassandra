@@ -49,7 +49,8 @@ import org.apache.thrift.transport.*;
 import org.apache.thrift.protocol.*;
 
 /**
- * A Mutation is either an insert, represented by filling column_or_supercolumn, or a deletion, represented by filling the deletion attribute.
+ * A Mutation is either an insert (represented by filling column_or_supercolumn), a deletion (represented by filling the deletion attribute),
+ * a counter addition (represented by filling counter), or a counter deletion (represented by filling counter_deletion).
  * @param column_or_supercolumn. An insert to a column or supercolumn
  * @param deletion. A deletion of a column or supercolumn
  */
@@ -58,14 +59,17 @@ public class Mutation implements TBase<Mutation, Mutation._Fields>, java.io.Seri
 
   private static final TField COLUMN_OR_SUPERCOLUMN_FIELD_DESC = new TField("column_or_supercolumn", TType.STRUCT, (short)1);
   private static final TField DELETION_FIELD_DESC = new TField("deletion", TType.STRUCT, (short)2);
+  private static final TField COUNTER_FIELD_DESC = new TField("counter", TType.STRUCT, (short)3);
 
   public ColumnOrSuperColumn column_or_supercolumn;
   public Deletion deletion;
+  public Counter counter;
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
   public enum _Fields implements TFieldIdEnum {
     COLUMN_OR_SUPERCOLUMN((short)1, "column_or_supercolumn"),
-    DELETION((short)2, "deletion");
+    DELETION((short)2, "deletion"),
+    COUNTER((short)3, "counter");
 
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -84,6 +88,8 @@ public class Mutation implements TBase<Mutation, Mutation._Fields>, java.io.Seri
           return COLUMN_OR_SUPERCOLUMN;
         case 2: // DELETION
           return DELETION;
+        case 3: // COUNTER
+          return COUNTER;
         default:
           return null;
       }
@@ -132,6 +138,8 @@ public class Mutation implements TBase<Mutation, Mutation._Fields>, java.io.Seri
         new StructMetaData(TType.STRUCT, ColumnOrSuperColumn.class)));
     tmpMap.put(_Fields.DELETION, new FieldMetaData("deletion", TFieldRequirementType.OPTIONAL, 
         new StructMetaData(TType.STRUCT, Deletion.class)));
+    tmpMap.put(_Fields.COUNTER, new FieldMetaData("counter", TFieldRequirementType.OPTIONAL, 
+        new StructMetaData(TType.STRUCT, Counter.class)));
     metaDataMap = Collections.unmodifiableMap(tmpMap);
     FieldMetaData.addStructMetaDataMap(Mutation.class, metaDataMap);
   }
@@ -149,6 +157,9 @@ public class Mutation implements TBase<Mutation, Mutation._Fields>, java.io.Seri
     if (other.isSetDeletion()) {
       this.deletion = new Deletion(other.deletion);
     }
+    if (other.isSetCounter()) {
+      this.counter = new Counter(other.counter);
+    }
   }
 
   public Mutation deepCopy() {
@@ -159,6 +170,7 @@ public class Mutation implements TBase<Mutation, Mutation._Fields>, java.io.Seri
   public void clear() {
     this.column_or_supercolumn = null;
     this.deletion = null;
+    this.counter = null;
   }
 
   public ColumnOrSuperColumn getColumn_or_supercolumn() {
@@ -209,6 +221,30 @@ public class Mutation implements TBase<Mutation, Mutation._Fields>, java.io.Seri
     }
   }
 
+  public Counter getCounter() {
+    return this.counter;
+  }
+
+  public Mutation setCounter(Counter counter) {
+    this.counter = counter;
+    return this;
+  }
+
+  public void unsetCounter() {
+    this.counter = null;
+  }
+
+  /** Returns true if field counter is set (has been asigned a value) and false otherwise */
+  public boolean isSetCounter() {
+    return this.counter != null;
+  }
+
+  public void setCounterIsSet(boolean value) {
+    if (!value) {
+      this.counter = null;
+    }
+  }
+
   public void setFieldValue(_Fields field, Object value) {
     switch (field) {
     case COLUMN_OR_SUPERCOLUMN:
@@ -227,6 +263,14 @@ public class Mutation implements TBase<Mutation, Mutation._Fields>, java.io.Seri
       }
       break;
 
+    case COUNTER:
+      if (value == null) {
+        unsetCounter();
+      } else {
+        setCounter((Counter)value);
+      }
+      break;
+
     }
   }
 
@@ -237,6 +281,9 @@ public class Mutation implements TBase<Mutation, Mutation._Fields>, java.io.Seri
 
     case DELETION:
       return getDeletion();
+
+    case COUNTER:
+      return getCounter();
 
     }
     throw new IllegalStateException();
@@ -253,6 +300,8 @@ public class Mutation implements TBase<Mutation, Mutation._Fields>, java.io.Seri
       return isSetColumn_or_supercolumn();
     case DELETION:
       return isSetDeletion();
+    case COUNTER:
+      return isSetCounter();
     }
     throw new IllegalStateException();
   }
@@ -288,6 +337,15 @@ public class Mutation implements TBase<Mutation, Mutation._Fields>, java.io.Seri
         return false;
     }
 
+    boolean this_present_counter = true && this.isSetCounter();
+    boolean that_present_counter = true && that.isSetCounter();
+    if (this_present_counter || that_present_counter) {
+      if (!(this_present_counter && that_present_counter))
+        return false;
+      if (!this.counter.equals(that.counter))
+        return false;
+    }
+
     return true;
   }
 
@@ -304,6 +362,11 @@ public class Mutation implements TBase<Mutation, Mutation._Fields>, java.io.Seri
     builder.append(present_deletion);
     if (present_deletion)
       builder.append(deletion);
+
+    boolean present_counter = true && (isSetCounter());
+    builder.append(present_counter);
+    if (present_counter)
+      builder.append(counter);
 
     return builder.toHashCode();
   }
@@ -332,6 +395,16 @@ public class Mutation implements TBase<Mutation, Mutation._Fields>, java.io.Seri
     }
     if (isSetDeletion()) {
       lastComparison = TBaseHelper.compareTo(this.deletion, typedOther.deletion);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
+    lastComparison = Boolean.valueOf(isSetCounter()).compareTo(typedOther.isSetCounter());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    if (isSetCounter()) {
+      lastComparison = TBaseHelper.compareTo(this.counter, typedOther.counter);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -369,6 +442,14 @@ public class Mutation implements TBase<Mutation, Mutation._Fields>, java.io.Seri
             TProtocolUtil.skip(iprot, field.type);
           }
           break;
+        case 3: // COUNTER
+          if (field.type == TType.STRUCT) {
+            this.counter = new Counter();
+            this.counter.read(iprot);
+          } else { 
+            TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
         default:
           TProtocolUtil.skip(iprot, field.type);
       }
@@ -398,6 +479,13 @@ public class Mutation implements TBase<Mutation, Mutation._Fields>, java.io.Seri
         oprot.writeFieldEnd();
       }
     }
+    if (this.counter != null) {
+      if (isSetCounter()) {
+        oprot.writeFieldBegin(COUNTER_FIELD_DESC);
+        this.counter.write(oprot);
+        oprot.writeFieldEnd();
+      }
+    }
     oprot.writeFieldStop();
     oprot.writeStructEnd();
   }
@@ -423,6 +511,16 @@ public class Mutation implements TBase<Mutation, Mutation._Fields>, java.io.Seri
         sb.append("null");
       } else {
         sb.append(this.deletion);
+      }
+      first = false;
+    }
+    if (isSetCounter()) {
+      if (!first) sb.append(", ");
+      sb.append("counter:");
+      if (this.counter == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.counter);
       }
       first = false;
     }

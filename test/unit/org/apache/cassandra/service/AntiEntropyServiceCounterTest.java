@@ -20,6 +20,12 @@ package org.apache.cassandra.service;
  * 
  */
 
+import java.util.List;
+import java.util.LinkedList;
+
+import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class AntiEntropyServiceCounterTest extends AntiEntropyServiceTestAbstract
 {
@@ -27,5 +33,15 @@ public class AntiEntropyServiceCounterTest extends AntiEntropyServiceTestAbstrac
     {
         tablename = "Keyspace5";
         cfname    = "Counter1";
+    }
+
+    public List<RowMutation> getWriteData()
+    {
+        List<RowMutation> rms = new LinkedList<RowMutation>();
+        RowMutation rm;
+        rm = new RowMutation(tablename, ByteBufferUtil.bytes("key1"));
+        rm.addCounter(new QueryPath(cfname, null, ByteBufferUtil.bytes("Column1")), 42);
+        rms.add(rm);
+        return rms;
     }
 }

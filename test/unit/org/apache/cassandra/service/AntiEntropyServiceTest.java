@@ -68,8 +68,8 @@ public class AntiEntropyServiceTest extends CleanupHelper
         StorageService.instance.initServer();
         // generate a fake endpoint for which we can spoof receiving/sending trees
         REMOTE = InetAddress.getByName("127.0.0.2");
-        store = Table.open(tablename).getColumnFamilyStores().iterator().next();
-        cfname = store.columnFamily;
+        cfname = "Standard1";
+        store = Table.open(tablename).getColumnFamilyStore(cfname);
     }
 
     @Before

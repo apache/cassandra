@@ -48,6 +48,9 @@ import org.apache.thrift.meta_data.*;
 import org.apache.thrift.transport.*;
 import org.apache.thrift.protocol.*;
 
+/**
+ * Note that the timestamp is only optional in case of counter deletion.
+ */
 public class Deletion implements TBase<Deletion, Deletion._Fields>, java.io.Serializable, Cloneable {
   private static final TStruct STRUCT_DESC = new TStruct("Deletion");
 
@@ -130,7 +133,7 @@ public class Deletion implements TBase<Deletion, Deletion._Fields>, java.io.Seri
   public static final Map<_Fields, FieldMetaData> metaDataMap;
   static {
     Map<_Fields, FieldMetaData> tmpMap = new EnumMap<_Fields, FieldMetaData>(_Fields.class);
-    tmpMap.put(_Fields.TIMESTAMP, new FieldMetaData("timestamp", TFieldRequirementType.REQUIRED, 
+    tmpMap.put(_Fields.TIMESTAMP, new FieldMetaData("timestamp", TFieldRequirementType.OPTIONAL, 
         new FieldValueMetaData(TType.I64)));
     tmpMap.put(_Fields.SUPER_COLUMN, new FieldMetaData("super_column", TFieldRequirementType.OPTIONAL, 
         new FieldValueMetaData(TType.STRING)));
@@ -141,14 +144,6 @@ public class Deletion implements TBase<Deletion, Deletion._Fields>, java.io.Seri
   }
 
   public Deletion() {
-  }
-
-  public Deletion(
-    long timestamp)
-  {
-    this();
-    this.timestamp = timestamp;
-    setTimestampIsSet(true);
   }
 
   /**
@@ -334,8 +329,8 @@ public class Deletion implements TBase<Deletion, Deletion._Fields>, java.io.Seri
     if (that == null)
       return false;
 
-    boolean this_present_timestamp = true;
-    boolean that_present_timestamp = true;
+    boolean this_present_timestamp = true && this.isSetTimestamp();
+    boolean that_present_timestamp = true && that.isSetTimestamp();
     if (this_present_timestamp || that_present_timestamp) {
       if (!(this_present_timestamp && that_present_timestamp))
         return false;
@@ -368,7 +363,7 @@ public class Deletion implements TBase<Deletion, Deletion._Fields>, java.io.Seri
   public int hashCode() {
     HashCodeBuilder builder = new HashCodeBuilder();
 
-    boolean present_timestamp = true;
+    boolean present_timestamp = true && (isSetTimestamp());
     builder.append(present_timestamp);
     if (present_timestamp)
       builder.append(timestamp);
@@ -472,9 +467,6 @@ public class Deletion implements TBase<Deletion, Deletion._Fields>, java.io.Seri
     iprot.readStructEnd();
 
     // check for required fields of primitive type, which can't be checked in the validate method
-    if (!isSetTimestamp()) {
-      throw new TProtocolException("Required field 'timestamp' was not found in serialized data! Struct: " + toString());
-    }
     validate();
   }
 
@@ -482,9 +474,11 @@ public class Deletion implements TBase<Deletion, Deletion._Fields>, java.io.Seri
     validate();
 
     oprot.writeStructBegin(STRUCT_DESC);
-    oprot.writeFieldBegin(TIMESTAMP_FIELD_DESC);
-    oprot.writeI64(this.timestamp);
-    oprot.writeFieldEnd();
+    if (isSetTimestamp()) {
+      oprot.writeFieldBegin(TIMESTAMP_FIELD_DESC);
+      oprot.writeI64(this.timestamp);
+      oprot.writeFieldEnd();
+    }
     if (this.super_column != null) {
       if (isSetSuper_column()) {
         oprot.writeFieldBegin(SUPER_COLUMN_FIELD_DESC);
@@ -508,9 +502,11 @@ public class Deletion implements TBase<Deletion, Deletion._Fields>, java.io.Seri
     StringBuilder sb = new StringBuilder("Deletion(");
     boolean first = true;
 
-    sb.append("timestamp:");
-    sb.append(this.timestamp);
-    first = false;
+    if (isSetTimestamp()) {
+      sb.append("timestamp:");
+      sb.append(this.timestamp);
+      first = false;
+    }
     if (isSetSuper_column()) {
       if (!first) sb.append(", ");
       sb.append("super_column:");
@@ -537,7 +533,6 @@ public class Deletion implements TBase<Deletion, Deletion._Fields>, java.io.Seri
 
   public void validate() throws TException {
     // check for required fields
-    // alas, we cannot check 'timestamp' because it's a primitive and you chose the non-beans generator.
   }
 
 }

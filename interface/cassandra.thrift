@@ -321,35 +321,25 @@ struct KeyCount {
     2: required i32 count
 }
 
+/**
+ * Note that the timestamp is only optional in case of counter deletion.
+ */
 struct Deletion {
-    1: required i64 timestamp,
+    1: optional i64 timestamp,
     2: optional binary super_column,
     3: optional SlicePredicate predicate,
 }
 
 /**
-    A Mutation is either an insert, represented by filling column_or_supercolumn, or a deletion, represented by filling the deletion attribute.
+    A Mutation is either an insert (represented by filling column_or_supercolumn), a deletion (represented by filling the deletion attribute),
+    a counter addition (represented by filling counter), or a counter deletion (represented by filling counter_deletion).
     @param column_or_supercolumn. An insert to a column or supercolumn
     @param deletion. A deletion of a column or supercolumn
 */
 struct Mutation {
     1: optional ColumnOrSuperColumn column_or_supercolumn,
     2: optional Deletion deletion,
-}
-
-struct CounterDeletion {
-    1: optional binary super_column,
-    2: optional SlicePredicate predicate,
-}
-
-/**
-    A CounterMutation is either an insert, represented by filling counter, or a deletion, represented by filling the deletion attribute.
-    @param counter. An insert to a counter column or supercolumn
-    @param deletion. A deletion of a counter column or supercolumn
-*/
-struct CounterMutation {
-    1: optional Counter counter,
-    2: optional CounterDeletion deletion,
+    3: optional Counter counter,
 }
 
 struct TokenRange {
@@ -567,12 +557,6 @@ service Cassandra {
            2:required ColumnParent column_parent,
            3:required CounterColumn column,
            4:required ConsistencyLevel consistency_level=ConsistencyLevel.ONE)
-       throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
-  /**
-   * Batch increment or decrement a counter.
-   */
-  void batch_add(1:required map<binary, map<string, list<CounterMutation>>> update_map,
-                 2:required ConsistencyLevel consistency_level=ConsistencyLevel.ONE)
        throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
   /**

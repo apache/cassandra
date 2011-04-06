@@ -189,14 +189,6 @@ public class Cassandra {
     public void add(ByteBuffer key, ColumnParent column_parent, CounterColumn column, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException;
 
     /**
-     * Batch increment or decrement a counter.
-     * 
-     * @param update_map
-     * @param consistency_level
-     */
-    public void batch_add(Map<ByteBuffer,Map<String,List<CounterMutation>>> update_map, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException;
-
-    /**
      * Return the counter at the specified column path.
      * 
      * @param key
@@ -383,8 +375,6 @@ public class Cassandra {
     public void truncate(String cfname, AsyncMethodCallback<AsyncClient.truncate_call> resultHandler) throws TException;
 
     public void add(ByteBuffer key, ColumnParent column_parent, CounterColumn column, ConsistencyLevel consistency_level, AsyncMethodCallback<AsyncClient.add_call> resultHandler) throws TException;
-
-    public void batch_add(Map<ByteBuffer,Map<String,List<CounterMutation>>> update_map, ConsistencyLevel consistency_level, AsyncMethodCallback<AsyncClient.batch_add_call> resultHandler) throws TException;
 
     public void get_counter(ByteBuffer key, ColumnPath path, ConsistencyLevel consistency_level, AsyncMethodCallback<AsyncClient.get_counter_call> resultHandler) throws TException;
 
@@ -1081,49 +1071,6 @@ public class Cassandra {
         throw new TApplicationException(TApplicationException.BAD_SEQUENCE_ID, "add failed: out of sequence response");
       }
       add_result result = new add_result();
-      result.read(iprot_);
-      iprot_.readMessageEnd();
-      if (result.ire != null) {
-        throw result.ire;
-      }
-      if (result.ue != null) {
-        throw result.ue;
-      }
-      if (result.te != null) {
-        throw result.te;
-      }
-      return;
-    }
-
-    public void batch_add(Map<ByteBuffer,Map<String,List<CounterMutation>>> update_map, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException
-    {
-      send_batch_add(update_map, consistency_level);
-      recv_batch_add();
-    }
-
-    public void send_batch_add(Map<ByteBuffer,Map<String,List<CounterMutation>>> update_map, ConsistencyLevel consistency_level) throws TException
-    {
-      oprot_.writeMessageBegin(new TMessage("batch_add", TMessageType.CALL, ++seqid_));
-      batch_add_args args = new batch_add_args();
-      args.setUpdate_map(update_map);
-      args.setConsistency_level(consistency_level);
-      args.write(oprot_);
-      oprot_.writeMessageEnd();
-      oprot_.getTransport().flush();
-    }
-
-    public void recv_batch_add() throws InvalidRequestException, UnavailableException, TimedOutException, TException
-    {
-      TMessage msg = iprot_.readMessageBegin();
-      if (msg.type == TMessageType.EXCEPTION) {
-        TApplicationException x = TApplicationException.read(iprot_);
-        iprot_.readMessageEnd();
-        throw x;
-      }
-      if (msg.seqid != seqid_) {
-        throw new TApplicationException(TApplicationException.BAD_SEQUENCE_ID, "batch_add failed: out of sequence response");
-      }
-      batch_add_result result = new batch_add_result();
       result.read(iprot_);
       iprot_.readMessageEnd();
       if (result.ire != null) {
@@ -2510,40 +2457,6 @@ public class Cassandra {
       }
     }
 
-    public void batch_add(Map<ByteBuffer,Map<String,List<CounterMutation>>> update_map, ConsistencyLevel consistency_level, AsyncMethodCallback<batch_add_call> resultHandler) throws TException {
-      checkReady();
-      batch_add_call method_call = new batch_add_call(update_map, consistency_level, resultHandler, this, protocolFactory, transport);
-      manager.call(method_call);
-    }
-
-    public static class batch_add_call extends TAsyncMethodCall {
-      private Map<ByteBuffer,Map<String,List<CounterMutation>>> update_map;
-      private ConsistencyLevel consistency_level;
-      public batch_add_call(Map<ByteBuffer,Map<String,List<CounterMutation>>> update_map, ConsistencyLevel consistency_level, AsyncMethodCallback<batch_add_call> resultHandler, TAsyncClient client, TProtocolFactory protocolFactory, TNonblockingTransport transport) throws TException {
-        super(client, protocolFactory, transport, resultHandler, false);
-        this.update_map = update_map;
-        this.consistency_level = consistency_level;
-      }
-
-      public void write_args(TProtocol prot) throws TException {
-        prot.writeMessageBegin(new TMessage("batch_add", TMessageType.CALL, 0));
-        batch_add_args args = new batch_add_args();
-        args.setUpdate_map(update_map);
-        args.setConsistency_level(consistency_level);
-        args.write(prot);
-        prot.writeMessageEnd();
-      }
-
-      public void getResult() throws InvalidRequestException, UnavailableException, TimedOutException, TException {
-        if (getState() != State.RESPONSE_READ) {
-          throw new IllegalStateException("Method call not finished!");
-        }
-        TMemoryInputTransport memoryTransport = new TMemoryInputTransport(getFrameBuffer().array());
-        TProtocol prot = client.getProtocolFactory().getProtocol(memoryTransport);
-        (new Client(prot)).recv_batch_add();
-      }
-    }
-
     public void get_counter(ByteBuffer key, ColumnPath path, ConsistencyLevel consistency_level, AsyncMethodCallback<get_counter_call> resultHandler) throws TException {
       checkReady();
       get_counter_call method_call = new get_counter_call(key, path, consistency_level, resultHandler, this, protocolFactory, transport);
@@ -3209,7 +3122,6 @@ public class Cassandra {
       processMap_.put("batch_mutate", new batch_mutate());
       processMap_.put("truncate", new truncate());
       processMap_.put("add", new add());
-      processMap_.put("batch_add", new batch_add());
       processMap_.put("get_counter", new get_counter());
       processMap_.put("get_counter_slice", new get_counter_slice());
       processMap_.put("multiget_counter_slice", new multiget_counter_slice());
@@ -3833,48 +3745,6 @@ public class Cassandra {
           return;
         }
         oprot.writeMessageBegin(new TMessage("add", TMessageType.REPLY, seqid));
-        result.write(oprot);
-        oprot.writeMessageEnd();
-        oprot.getTransport().flush();
-      }
-
-    }
-
-    private class batch_add implements ProcessFunction {
-      public void process(int seqid, TProtocol iprot, TProtocol oprot) throws TException
-      {
-        batch_add_args args = new batch_add_args();
-        try {
-          args.read(iprot);
-        } catch (TProtocolException e) {
-          iprot.readMessageEnd();
-          TApplicationException x = new TApplicationException(TApplicationException.PROTOCOL_ERROR, e.getMessage());
-          oprot.writeMessageBegin(new TMessage("batch_add", TMessageType.EXCEPTION, seqid));
-          x.write(oprot);
-          oprot.writeMessageEnd();
-          oprot.getTransport().flush();
-          return;
-        }
-        iprot.readMessageEnd();
-        batch_add_result result = new batch_add_result();
-        try {
-          iface_.batch_add(args.update_map, args.consistency_level);
-        } catch (InvalidRequestException ire) {
-          result.ire = ire;
-        } catch (UnavailableException ue) {
-          result.ue = ue;
-        } catch (TimedOutException te) {
-          result.te = te;
-        } catch (Throwable th) {
-          LOGGER.error("Internal error processing batch_add", th);
-          TApplicationException x = new TApplicationException(TApplicationException.INTERNAL_ERROR, "Internal error processing batch_add");
-          oprot.writeMessageBegin(new TMessage("batch_add", TMessageType.EXCEPTION, seqid));
-          x.write(oprot);
-          oprot.writeMessageEnd();
-          oprot.getTransport().flush();
-          return;
-        }
-        oprot.writeMessageBegin(new TMessage("batch_add", TMessageType.REPLY, seqid));
         result.write(oprot);
         oprot.writeMessageEnd();
         oprot.getTransport().flush();
@@ -19351,990 +19221,6 @@ public class Cassandra {
 
   }
 
-  public static class batch_add_args implements TBase<batch_add_args, batch_add_args._Fields>, java.io.Serializable, Cloneable   {
-    private static final TStruct STRUCT_DESC = new TStruct("batch_add_args");
-
-    private static final TField UPDATE_MAP_FIELD_DESC = new TField("update_map", TType.MAP, (short)1);
-    private static final TField CONSISTENCY_LEVEL_FIELD_DESC = new TField("consistency_level", TType.I32, (short)2);
-
-    public Map<ByteBuffer,Map<String,List<CounterMutation>>> update_map;
-    /**
-     * 
-     * @see ConsistencyLevel
-     */
-    public ConsistencyLevel consistency_level;
-
-    /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
-    public enum _Fields implements TFieldIdEnum {
-      UPDATE_MAP((short)1, "update_map"),
-      /**
-       * 
-       * @see ConsistencyLevel
-       */
-      CONSISTENCY_LEVEL((short)2, "consistency_level");
-
-      private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
-
-      static {
-        for (_Fields field : EnumSet.allOf(_Fields.class)) {
-          byName.put(field.getFieldName(), field);
-        }
-      }
-
-      /**
-       * Find the _Fields constant that matches fieldId, or null if its not found.
-       */
-      public static _Fields findByThriftId(int fieldId) {
-        switch(fieldId) {
-          case 1: // UPDATE_MAP
-            return UPDATE_MAP;
-          case 2: // CONSISTENCY_LEVEL
-            return CONSISTENCY_LEVEL;
-          default:
-            return null;
-        }
-      }
-
-      /**
-       * Find the _Fields constant that matches fieldId, throwing an exception
-       * if it is not found.
-       */
-      public static _Fields findByThriftIdOrThrow(int fieldId) {
-        _Fields fields = findByThriftId(fieldId);
-        if (fields == null) throw new IllegalArgumentException("Field " + fieldId + " doesn't exist!");
-        return fields;
-      }
-
-      /**
-       * Find the _Fields constant that matches name, or null if its not found.
-       */
-      public static _Fields findByName(String name) {
-        return byName.get(name);
-      }
-
-      private final short _thriftId;
-      private final String _fieldName;
-
-      _Fields(short thriftId, String fieldName) {
-        _thriftId = thriftId;
-        _fieldName = fieldName;
-      }
-
-      public short getThriftFieldId() {
-        return _thriftId;
-      }
-
-      public String getFieldName() {
-        return _fieldName;
-      }
-    }
-
-    // isset id assignments
-
-    public static final Map<_Fields, FieldMetaData> metaDataMap;
-    static {
-      Map<_Fields, FieldMetaData> tmpMap = new EnumMap<_Fields, FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.UPDATE_MAP, new FieldMetaData("update_map", TFieldRequirementType.REQUIRED, 
-          new MapMetaData(TType.MAP, 
-              new FieldValueMetaData(TType.STRING), 
-              new MapMetaData(TType.MAP, 
-                  new FieldValueMetaData(TType.STRING), 
-                  new ListMetaData(TType.LIST, 
-                      new StructMetaData(TType.STRUCT, CounterMutation.class))))));
-      tmpMap.put(_Fields.CONSISTENCY_LEVEL, new FieldMetaData("consistency_level", TFieldRequirementType.REQUIRED, 
-          new EnumMetaData(TType.ENUM, ConsistencyLevel.class)));
-      metaDataMap = Collections.unmodifiableMap(tmpMap);
-      FieldMetaData.addStructMetaDataMap(batch_add_args.class, metaDataMap);
-    }
-
-    public batch_add_args() {
-      this.consistency_level = ConsistencyLevel.ONE;
-
-    }
-
-    public batch_add_args(
-      Map<ByteBuffer,Map<String,List<CounterMutation>>> update_map,
-      ConsistencyLevel consistency_level)
-    {
-      this();
-      this.update_map = update_map;
-      this.consistency_level = consistency_level;
-    }
-
-    /**
-     * Performs a deep copy on <i>other</i>.
-     */
-    public batch_add_args(batch_add_args other) {
-      if (other.isSetUpdate_map()) {
-        Map<ByteBuffer,Map<String,List<CounterMutation>>> __this__update_map = new HashMap<ByteBuffer,Map<String,List<CounterMutation>>>();
-        for (Map.Entry<ByteBuffer, Map<String,List<CounterMutation>>> other_element : other.update_map.entrySet()) {
-
-          ByteBuffer other_element_key = other_element.getKey();
-          Map<String,List<CounterMutation>> other_element_value = other_element.getValue();
-
-          ByteBuffer __this__update_map_copy_key = TBaseHelper.copyBinary(other_element_key);
-;
-
-          Map<String,List<CounterMutation>> __this__update_map_copy_value = new HashMap<String,List<CounterMutation>>();
-          for (Map.Entry<String, List<CounterMutation>> other_element_value_element : other_element_value.entrySet()) {
-
-            String other_element_value_element_key = other_element_value_element.getKey();
-            List<CounterMutation> other_element_value_element_value = other_element_value_element.getValue();
-
-            String __this__update_map_copy_value_copy_key = other_element_value_element_key;
-
-            List<CounterMutation> __this__update_map_copy_value_copy_value = new ArrayList<CounterMutation>();
-            for (CounterMutation other_element_value_element_value_element : other_element_value_element_value) {
-              __this__update_map_copy_value_copy_value.add(new CounterMutation(other_element_value_element_value_element));
-            }
-
-            __this__update_map_copy_value.put(__this__update_map_copy_value_copy_key, __this__update_map_copy_value_copy_value);
-          }
-
-          __this__update_map.put(__this__update_map_copy_key, __this__update_map_copy_value);
-        }
-        this.update_map = __this__update_map;
-      }
-      if (other.isSetConsistency_level()) {
-        this.consistency_level = other.consistency_level;
-      }
-    }
-
-    public batch_add_args deepCopy() {
-      return new batch_add_args(this);
-    }
-
-    @Override
-    public void clear() {
-      this.update_map = null;
-      this.consistency_level = ConsistencyLevel.ONE;
-
-    }
-
-    public int getUpdate_mapSize() {
-      return (this.update_map == null) ? 0 : this.update_map.size();
-    }
-
-    public void putToUpdate_map(ByteBuffer key, Map<String,List<CounterMutation>> val) {
-      if (this.update_map == null) {
-        this.update_map = new HashMap<ByteBuffer,Map<String,List<CounterMutation>>>();
-      }
-      this.update_map.put(key, val);
-    }
-
-    public Map<ByteBuffer,Map<String,List<CounterMutation>>> getUpdate_map() {
-      return this.update_map;
-    }
-
-    public batch_add_args setUpdate_map(Map<ByteBuffer,Map<String,List<CounterMutation>>> update_map) {
-      this.update_map = update_map;
-      return this;
-    }
-
-    public void unsetUpdate_map() {
-      this.update_map = null;
-    }
-
-    /** Returns true if field update_map is set (has been asigned a value) and false otherwise */
-    public boolean isSetUpdate_map() {
-      return this.update_map != null;
-    }
-
-    public void setUpdate_mapIsSet(boolean value) {
-      if (!value) {
-        this.update_map = null;
-      }
-    }
-
-    /**
-     * 
-     * @see ConsistencyLevel
-     */
-    public ConsistencyLevel getConsistency_level() {
-      return this.consistency_level;
-    }
-
-    /**
-     * 
-     * @see ConsistencyLevel
-     */
-    public batch_add_args setConsistency_level(ConsistencyLevel consistency_level) {
-      this.consistency_level = consistency_level;
-      return this;
-    }
-
-    public void unsetConsistency_level() {
-      this.consistency_level = null;
-    }
-
-    /** Returns true if field consistency_level is set (has been asigned a value) and false otherwise */
-    public boolean isSetConsistency_level() {
-      return this.consistency_level != null;
-    }
-
-    public void setConsistency_levelIsSet(boolean value) {
-      if (!value) {
-        this.consistency_level = null;
-      }
-    }
-
-    public void setFieldValue(_Fields field, Object value) {
-      switch (field) {
-      case UPDATE_MAP:
-        if (value == null) {
-          unsetUpdate_map();
-        } else {
-          setUpdate_map((Map<ByteBuffer,Map<String,List<CounterMutation>>>)value);
-        }
-        break;
-
-      case CONSISTENCY_LEVEL:
-        if (value == null) {
-          unsetConsistency_level();
-        } else {
-          setConsistency_level((ConsistencyLevel)value);
-        }
-        break;
-
-      }
-    }
-
-    public Object getFieldValue(_Fields field) {
-      switch (field) {
-      case UPDATE_MAP:
-        return getUpdate_map();
-
-      case CONSISTENCY_LEVEL:
-        return getConsistency_level();
-
-      }
-      throw new IllegalStateException();
-    }
-
-    /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
-    public boolean isSet(_Fields field) {
-      if (field == null) {
-        throw new IllegalArgumentException();
-      }
-
-      switch (field) {
-      case UPDATE_MAP:
-        return isSetUpdate_map();
-      case CONSISTENCY_LEVEL:
-        return isSetConsistency_level();
-      }
-      throw new IllegalStateException();
-    }
-
-    @Override
-    public boolean equals(Object that) {
-      if (that == null)
-        return false;
-      if (that instanceof batch_add_args)
-        return this.equals((batch_add_args)that);
-      return false;
-    }
-
-    public boolean equals(batch_add_args that) {
-      if (that == null)
-        return false;
-
-      boolean this_present_update_map = true && this.isSetUpdate_map();
-      boolean that_present_update_map = true && that.isSetUpdate_map();
-      if (this_present_update_map || that_present_update_map) {
-        if (!(this_present_update_map && that_present_update_map))
-          return false;
-        if (!this.update_map.equals(that.update_map))
-          return false;
-      }
-
-      boolean this_present_consistency_level = true && this.isSetConsistency_level();
-      boolean that_present_consistency_level = true && that.isSetConsistency_level();
-      if (this_present_consistency_level || that_present_consistency_level) {
-        if (!(this_present_consistency_level && that_present_consistency_level))
-          return false;
-        if (!this.consistency_level.equals(that.consistency_level))
-          return false;
-      }
-
-      return true;
-    }
-
-    @Override
-    public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_update_map = true && (isSetUpdate_map());
-      builder.append(present_update_map);
-      if (present_update_map)
-        builder.append(update_map);
-
-      boolean present_consistency_level = true && (isSetConsistency_level());
-      builder.append(present_consistency_level);
-      if (present_consistency_level)
-        builder.append(consistency_level.getValue());
-
-      return builder.toHashCode();
-    }
-
-    public int compareTo(batch_add_args other) {
-      if (!getClass().equals(other.getClass())) {
-        return getClass().getName().compareTo(other.getClass().getName());
-      }
-
-      int lastComparison = 0;
-      batch_add_args typedOther = (batch_add_args)other;
-
-      lastComparison = Boolean.valueOf(isSetUpdate_map()).compareTo(typedOther.isSetUpdate_map());
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      if (isSetUpdate_map()) {
-        lastComparison = TBaseHelper.compareTo(this.update_map, typedOther.update_map);
-        if (lastComparison != 0) {
-          return lastComparison;
-        }
-      }
-      lastComparison = Boolean.valueOf(isSetConsistency_level()).compareTo(typedOther.isSetConsistency_level());
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      if (isSetConsistency_level()) {
-        lastComparison = TBaseHelper.compareTo(this.consistency_level, typedOther.consistency_level);
-        if (lastComparison != 0) {
-          return lastComparison;
-        }
-      }
-      return 0;
-    }
-
-    public _Fields fieldForId(int fieldId) {
-      return _Fields.findByThriftId(fieldId);
-    }
-
-    public void read(TProtocol iprot) throws TException {
-      TField field;
-      iprot.readStructBegin();
-      while (true)
-      {
-        field = iprot.readFieldBegin();
-        if (field.type == TType.STOP) { 
-          break;
-        }
-        switch (field.id) {
-          case 1: // UPDATE_MAP
-            if (field.type == TType.MAP) {
-              {
-                TMap _map98 = iprot.readMapBegin();
-                this.update_map = new HashMap<ByteBuffer,Map<String,List<CounterMutation>>>(2*_map98.size);
-                for (int _i99 = 0; _i99 < _map98.size; ++_i99)
-                {
-                  ByteBuffer _key100;
-                  Map<String,List<CounterMutation>> _val101;
-                  _key100 = iprot.readBinary();
-                  {
-                    TMap _map102 = iprot.readMapBegin();
-                    _val101 = new HashMap<String,List<CounterMutation>>(2*_map102.size);
-                    for (int _i103 = 0; _i103 < _map102.size; ++_i103)
-                    {
-                      String _key104;
-                      List<CounterMutation> _val105;
-                      _key104 = iprot.readString();
-                      {
-                        TList _list106 = iprot.readListBegin();
-                        _val105 = new ArrayList<CounterMutation>(_list106.size);
-                        for (int _i107 = 0; _i107 < _list106.size; ++_i107)
-                        {
-                          CounterMutation _elem108;
-                          _elem108 = new CounterMutation();
-                          _elem108.read(iprot);
-                          _val105.add(_elem108);
-                        }
-                        iprot.readListEnd();
-                      }
-                      _val101.put(_key104, _val105);
-                    }
-                    iprot.readMapEnd();
-                  }
-                  this.update_map.put(_key100, _val101);
-                }
-                iprot.readMapEnd();
-              }
-            } else { 
-              TProtocolUtil.skip(iprot, field.type);
-            }
-            break;
-          case 2: // CONSISTENCY_LEVEL
-            if (field.type == TType.I32) {
-              this.consistency_level = ConsistencyLevel.findByValue(iprot.readI32());
-            } else { 
-              TProtocolUtil.skip(iprot, field.type);
-            }
-            break;
-          default:
-            TProtocolUtil.skip(iprot, field.type);
-        }
-        iprot.readFieldEnd();
-      }
-      iprot.readStructEnd();
-
-      // check for required fields of primitive type, which can't be checked in the validate method
-      validate();
-    }
-
-    public void write(TProtocol oprot) throws TException {
-      validate();
-
-      oprot.writeStructBegin(STRUCT_DESC);
-      if (this.update_map != null) {
-        oprot.writeFieldBegin(UPDATE_MAP_FIELD_DESC);
-        {
-          oprot.writeMapBegin(new TMap(TType.STRING, TType.MAP, this.update_map.size()));
-          for (Map.Entry<ByteBuffer, Map<String,List<CounterMutation>>> _iter109 : this.update_map.entrySet())
-          {
-            oprot.writeBinary(_iter109.getKey());
-            {
-              oprot.writeMapBegin(new TMap(TType.STRING, TType.LIST, _iter109.getValue().size()));
-              for (Map.Entry<String, List<CounterMutation>> _iter110 : _iter109.getValue().entrySet())
-              {
-                oprot.writeString(_iter110.getKey());
-                {
-                  oprot.writeListBegin(new TList(TType.STRUCT, _iter110.getValue().size()));
-                  for (CounterMutation _iter111 : _iter110.getValue())
-                  {
-                    _iter111.write(oprot);
-                  }
-                  oprot.writeListEnd();
-                }
-              }
-              oprot.writeMapEnd();
-            }
-          }
-          oprot.writeMapEnd();
-        }
-        oprot.writeFieldEnd();
-      }
-      if (this.consistency_level != null) {
-        oprot.writeFieldBegin(CONSISTENCY_LEVEL_FIELD_DESC);
-        oprot.writeI32(this.consistency_level.getValue());
-        oprot.writeFieldEnd();
-      }
-      oprot.writeFieldStop();
-      oprot.writeStructEnd();
-    }
-
-    @Override
-    public String toString() {
-      StringBuilder sb = new StringBuilder("batch_add_args(");
-      boolean first = true;
-
-      sb.append("update_map:");
-      if (this.update_map == null) {
-        sb.append("null");
-      } else {
-        sb.append(this.update_map);
-      }
-      first = false;
-      if (!first) sb.append(", ");
-      sb.append("consistency_level:");
-      if (this.consistency_level == null) {
-        sb.append("null");
-      } else {
-        sb.append(this.consistency_level);
-      }
-      first = false;
-      sb.append(")");
-      return sb.toString();
-    }
-
-    public void validate() throws TException {
-      // check for required fields
-      if (update_map == null) {
-        throw new TProtocolException("Required field 'update_map' was not present! Struct: " + toString());
-      }
-      if (consistency_level == null) {
-        throw new TProtocolException("Required field 'consistency_level' was not present! Struct: " + toString());
-      }
-    }
-
-  }
-
-  public static class batch_add_result implements TBase<batch_add_result, batch_add_result._Fields>, java.io.Serializable, Cloneable   {
-    private static final TStruct STRUCT_DESC = new TStruct("batch_add_result");
-
-    private static final TField IRE_FIELD_DESC = new TField("ire", TType.STRUCT, (short)1);
-    private static final TField UE_FIELD_DESC = new TField("ue", TType.STRUCT, (short)2);
-    private static final TField TE_FIELD_DESC = new TField("te", TType.STRUCT, (short)3);
-
-    public InvalidRequestException ire;
-    public UnavailableException ue;
-    public TimedOutException te;
-
-    /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
-    public enum _Fields implements TFieldIdEnum {
-      IRE((short)1, "ire"),
-      UE((short)2, "ue"),
-      TE((short)3, "te");
-
-      private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
-
-      static {
-        for (_Fields field : EnumSet.allOf(_Fields.class)) {
-          byName.put(field.getFieldName(), field);
-        }
-      }
-
-      /**
-       * Find the _Fields constant that matches fieldId, or null if its not found.
-       */
-      public static _Fields findByThriftId(int fieldId) {
-        switch(fieldId) {
-          case 1: // IRE
-            return IRE;
-          case 2: // UE
-            return UE;
-          case 3: // TE
-            return TE;
-          default:
-            return null;
-        }
-      }
-
-      /**
-       * Find the _Fields constant that matches fieldId, throwing an exception
-       * if it is not found.
-       */
-      public static _Fields findByThriftIdOrThrow(int fieldId) {
-        _Fields fields = findByThriftId(fieldId);
-        if (fields == null) throw new IllegalArgumentException("Field " + fieldId + " doesn't exist!");
-        return fields;
-      }
-
-      /**
-       * Find the _Fields constant that matches name, or null if its not found.
-       */
-      public static _Fields findByName(String name) {
-        return byName.get(name);
-      }
-
-      private final short _thriftId;
-      private final String _fieldName;
-
-      _Fields(short thriftId, String fieldName) {
-        _thriftId = thriftId;
-        _fieldName = fieldName;
-      }
-
-      public short getThriftFieldId() {
-        return _thriftId;
-      }
-
-      public String getFieldName() {
-        return _fieldName;
-      }
-    }
-
-    // isset id assignments
-
-    public static final Map<_Fields, FieldMetaData> metaDataMap;
-    static {
-      Map<_Fields, FieldMetaData> tmpMap = new EnumMap<_Fields, FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.IRE, new FieldMetaData("ire", TFieldRequirementType.DEFAULT, 
-          new FieldValueMetaData(TType.STRUCT)));
-      tmpMap.put(_Fields.UE, new FieldMetaData("ue", TFieldRequirementType.DEFAULT, 
-          new FieldValueMetaData(TType.STRUCT)));
-      tmpMap.put(_Fields.TE, new FieldMetaData("te", TFieldRequirementType.DEFAULT, 
-          new FieldValueMetaData(TType.STRUCT)));
-      metaDataMap = Collections.unmodifiableMap(tmpMap);
-      FieldMetaData.addStructMetaDataMap(batch_add_result.class, metaDataMap);
-    }
-
-    public batch_add_result() {
-    }
-
-    public batch_add_result(
-      InvalidRequestException ire,
-      UnavailableException ue,
-      TimedOutException te)
-    {
-      this();
-      this.ire = ire;
-      this.ue = ue;
-      this.te = te;
-    }
-
-    /**
-     * Performs a deep copy on <i>other</i>.
-     */
-    public batch_add_result(batch_add_result other) {
-      if (other.isSetIre()) {
-        this.ire = new InvalidRequestException(other.ire);
-      }
-      if (other.isSetUe()) {
-        this.ue = new UnavailableException(other.ue);
-      }
-      if (other.isSetTe()) {
-        this.te = new TimedOutException(other.te);
-      }
-    }
-
-    public batch_add_result deepCopy() {
-      return new batch_add_result(this);
-    }
-
-    @Override
-    public void clear() {
-      this.ire = null;
-      this.ue = null;
-      this.te = null;
-    }
-
-    public InvalidRequestException getIre() {
-      return this.ire;
-    }
-
-    public batch_add_result setIre(InvalidRequestException ire) {
-      this.ire = ire;
-      return this;
-    }
-
-    public void unsetIre() {
-      this.ire = null;
-    }
-
-    /** Returns true if field ire is set (has been asigned a value) and false otherwise */
-    public boolean isSetIre() {
-      return this.ire != null;
-    }
-
-    public void setIreIsSet(boolean value) {
-      if (!value) {
-        this.ire = null;
-      }
-    }
-
-    public UnavailableException getUe() {
-      return this.ue;
-    }
-
-    public batch_add_result setUe(UnavailableException ue) {
-      this.ue = ue;
-      return this;
-    }
-
-    public void unsetUe() {
-      this.ue = null;
-    }
-
-    /** Returns true if field ue is set (has been asigned a value) and false otherwise */
-    public boolean isSetUe() {
-      return this.ue != null;
-    }
-
-    public void setUeIsSet(boolean value) {
-      if (!value) {
-        this.ue = null;
-      }
-    }
-
-    public TimedOutException getTe() {
-      return this.te;
-    }
-
-    public batch_add_result setTe(TimedOutException te) {
-      this.te = te;
-      return this;
-    }
-
-    public void unsetTe() {
-      this.te = null;
-    }
-
-    /** Returns true if field te is set (has been asigned a value) and false otherwise */
-    public boolean isSetTe() {
-      return this.te != null;
-    }
-
-    public void setTeIsSet(boolean value) {
-      if (!value) {
-        this.te = null;
-      }
-    }
-
-    public void setFieldValue(_Fields field, Object value) {
-      switch (field) {
-      case IRE:
-        if (value == null) {
-          unsetIre();
-        } else {
-          setIre((InvalidRequestException)value);
-        }
-        break;
-
-      case UE:
-        if (value == null) {
-          unsetUe();
-        } else {
-          setUe((UnavailableException)value);
-        }
-        break;
-
-      case TE:
-        if (value == null) {
-          unsetTe();
-        } else {
-          setTe((TimedOutException)value);
-        }
-        break;
-
-      }
-    }
-
-    public Object getFieldValue(_Fields field) {
-      switch (field) {
-      case IRE:
-        return getIre();
-
-      case UE:
-        return getUe();
-
-      case TE:
-        return getTe();
-
-      }
-      throw new IllegalStateException();
-    }
-
-    /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
-    public boolean isSet(_Fields field) {
-      if (field == null) {
-        throw new IllegalArgumentException();
-      }
-
-      switch (field) {
-      case IRE:
-        return isSetIre();
-      case UE:
-        return isSetUe();
-      case TE:
-        return isSetTe();
-      }
-      throw new IllegalStateException();
-    }
-
-    @Override
-    public boolean equals(Object that) {
-      if (that == null)
-        return false;
-      if (that instanceof batch_add_result)
-        return this.equals((batch_add_result)that);
-      return false;
-    }
-
-    public boolean equals(batch_add_result that) {
-      if (that == null)
-        return false;
-
-      boolean this_present_ire = true && this.isSetIre();
-      boolean that_present_ire = true && that.isSetIre();
-      if (this_present_ire || that_present_ire) {
-        if (!(this_present_ire && that_present_ire))
-          return false;
-        if (!this.ire.equals(that.ire))
-          return false;
-      }
-
-      boolean this_present_ue = true && this.isSetUe();
-      boolean that_present_ue = true && that.isSetUe();
-      if (this_present_ue || that_present_ue) {
-        if (!(this_present_ue && that_present_ue))
-          return false;
-        if (!this.ue.equals(that.ue))
-          return false;
-      }
-
-      boolean this_present_te = true && this.isSetTe();
-      boolean that_present_te = true && that.isSetTe();
-      if (this_present_te || that_present_te) {
-        if (!(this_present_te && that_present_te))
-          return false;
-        if (!this.te.equals(that.te))
-          return false;
-      }
-
-      return true;
-    }
-
-    @Override
-    public int hashCode() {
-      HashCodeBuilder builder = new HashCodeBuilder();
-
-      boolean present_ire = true && (isSetIre());
-      builder.append(present_ire);
-      if (present_ire)
-        builder.append(ire);
-
-      boolean present_ue = true && (isSetUe());
-      builder.append(present_ue);
-      if (present_ue)
-        builder.append(ue);
-
-      boolean present_te = true && (isSetTe());
-      builder.append(present_te);
-      if (present_te)
-        builder.append(te);
-
-      return builder.toHashCode();
-    }
-
-    public int compareTo(batch_add_result other) {
-      if (!getClass().equals(other.getClass())) {
-        return getClass().getName().compareTo(other.getClass().getName());
-      }
-
-      int lastComparison = 0;
-      batch_add_result typedOther = (batch_add_result)other;
-
-      lastComparison = Boolean.valueOf(isSetIre()).compareTo(typedOther.isSetIre());
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      if (isSetIre()) {
-        lastComparison = TBaseHelper.compareTo(this.ire, typedOther.ire);
-        if (lastComparison != 0) {
-          return lastComparison;
-        }
-      }
-      lastComparison = Boolean.valueOf(isSetUe()).compareTo(typedOther.isSetUe());
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      if (isSetUe()) {
-        lastComparison = TBaseHelper.compareTo(this.ue, typedOther.ue);
-        if (lastComparison != 0) {
-          return lastComparison;
-        }
-      }
-      lastComparison = Boolean.valueOf(isSetTe()).compareTo(typedOther.isSetTe());
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      if (isSetTe()) {
-        lastComparison = TBaseHelper.compareTo(this.te, typedOther.te);
-        if (lastComparison != 0) {
-          return lastComparison;
-        }
-      }
-      return 0;
-    }
-
-    public _Fields fieldForId(int fieldId) {
-      return _Fields.findByThriftId(fieldId);
-    }
-
-    public void read(TProtocol iprot) throws TException {
-      TField field;
-      iprot.readStructBegin();
-      while (true)
-      {
-        field = iprot.readFieldBegin();
-        if (field.type == TType.STOP) { 
-          break;
-        }
-        switch (field.id) {
-          case 1: // IRE
-            if (field.type == TType.STRUCT) {
-              this.ire = new InvalidRequestException();
-              this.ire.read(iprot);
-            } else { 
-              TProtocolUtil.skip(iprot, field.type);
-            }
-            break;
-          case 2: // UE
-            if (field.type == TType.STRUCT) {
-              this.ue = new UnavailableException();
-              this.ue.read(iprot);
-            } else { 
-              TProtocolUtil.skip(iprot, field.type);
-            }
-            break;
-          case 3: // TE
-            if (field.type == TType.STRUCT) {
-              this.te = new TimedOutException();
-              this.te.read(iprot);
-            } else { 
-              TProtocolUtil.skip(iprot, field.type);
-            }
-            break;
-          default:
-            TProtocolUtil.skip(iprot, field.type);
-        }
-        iprot.readFieldEnd();
-      }
-      iprot.readStructEnd();
-
-      // check for required fields of primitive type, which can't be checked in the validate method
-      validate();
-    }
-
-    public void write(TProtocol oprot) throws TException {
-      oprot.writeStructBegin(STRUCT_DESC);
-
-      if (this.isSetIre()) {
-        oprot.writeFieldBegin(IRE_FIELD_DESC);
-        this.ire.write(oprot);
-        oprot.writeFieldEnd();
-      } else if (this.isSetUe()) {
-        oprot.writeFieldBegin(UE_FIELD_DESC);
-        this.ue.write(oprot);
-        oprot.writeFieldEnd();
-      } else if (this.isSetTe()) {
-        oprot.writeFieldBegin(TE_FIELD_DESC);
-        this.te.write(oprot);
-        oprot.writeFieldEnd();
-      }
-      oprot.writeFieldStop();
-      oprot.writeStructEnd();
-    }
-
-    @Override
-    public String toString() {
-      StringBuilder sb = new StringBuilder("batch_add_result(");
-      boolean first = true;
-
-      sb.append("ire:");
-      if (this.ire == null) {
-        sb.append("null");
-      } else {
-        sb.append(this.ire);
-      }
-      first = false;
-      if (!first) sb.append(", ");
-      sb.append("ue:");
-      if (this.ue == null) {
-        sb.append("null");
-      } else {
-        sb.append(this.ue);
-      }
-      first = false;
-      if (!first) sb.append(", ");
-      sb.append("te:");
-      if (this.te == null) {
-        sb.append("null");
-      } else {
-        sb.append(this.te);
-      }
-      first = false;
-      sb.append(")");
-      return sb.toString();
-    }
-
-    public void validate() throws TException {
-      // check for required fields
-    }
-
-  }
-
   public static class get_counter_args implements TBase<get_counter_args, get_counter_args._Fields>, java.io.Serializable, Cloneable   {
     private static final TStruct STRUCT_DESC = new TStruct("get_counter_args");
 
@@ -22609,14 +21495,14 @@ public class Cassandra {
           case 0: // SUCCESS
             if (field.type == TType.LIST) {
               {
-                TList _list112 = iprot.readListBegin();
-                this.success = new ArrayList<Counter>(_list112.size);
-                for (int _i113 = 0; _i113 < _list112.size; ++_i113)
+                TList _list98 = iprot.readListBegin();
+                this.success = new ArrayList<Counter>(_list98.size);
+                for (int _i99 = 0; _i99 < _list98.size; ++_i99)
                 {
-                  Counter _elem114;
-                  _elem114 = new Counter();
-                  _elem114.read(iprot);
-                  this.success.add(_elem114);
+                  Counter _elem100;
+                  _elem100 = new Counter();
+                  _elem100.read(iprot);
+                  this.success.add(_elem100);
                 }
                 iprot.readListEnd();
               }
@@ -22666,9 +21552,9 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRUCT, this.success.size()));
-          for (Counter _iter115 : this.success)
+          for (Counter _iter101 : this.success)
           {
-            _iter115.write(oprot);
+            _iter101.write(oprot);
           }
           oprot.writeListEnd();
         }
@@ -23237,13 +22123,13 @@ public class Cassandra {
           case 1: // KEYS
             if (field.type == TType.LIST) {
               {
-                TList _list116 = iprot.readListBegin();
-                this.keys = new ArrayList<ByteBuffer>(_list116.size);
-                for (int _i117 = 0; _i117 < _list116.size; ++_i117)
+                TList _list102 = iprot.readListBegin();
+                this.keys = new ArrayList<ByteBuffer>(_list102.size);
+                for (int _i103 = 0; _i103 < _list102.size; ++_i103)
                 {
-                  ByteBuffer _elem118;
-                  _elem118 = iprot.readBinary();
-                  this.keys.add(_elem118);
+                  ByteBuffer _elem104;
+                  _elem104 = iprot.readBinary();
+                  this.keys.add(_elem104);
                 }
                 iprot.readListEnd();
               }
@@ -23293,9 +22179,9 @@ public class Cassandra {
         oprot.writeFieldBegin(KEYS_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRING, this.keys.size()));
-          for (ByteBuffer _iter119 : this.keys)
+          for (ByteBuffer _iter105 : this.keys)
           {
-            oprot.writeBinary(_iter119);
+            oprot.writeBinary(_iter105);
           }
           oprot.writeListEnd();
         }
@@ -23868,26 +22754,26 @@ public class Cassandra {
           case 0: // SUCCESS
             if (field.type == TType.MAP) {
               {
-                TMap _map120 = iprot.readMapBegin();
-                this.success = new HashMap<ByteBuffer,List<Counter>>(2*_map120.size);
-                for (int _i121 = 0; _i121 < _map120.size; ++_i121)
+                TMap _map106 = iprot.readMapBegin();
+                this.success = new HashMap<ByteBuffer,List<Counter>>(2*_map106.size);
+                for (int _i107 = 0; _i107 < _map106.size; ++_i107)
                 {
-                  ByteBuffer _key122;
-                  List<Counter> _val123;
-                  _key122 = iprot.readBinary();
+                  ByteBuffer _key108;
+                  List<Counter> _val109;
+                  _key108 = iprot.readBinary();
                   {
-                    TList _list124 = iprot.readListBegin();
-                    _val123 = new ArrayList<Counter>(_list124.size);
-                    for (int _i125 = 0; _i125 < _list124.size; ++_i125)
+                    TList _list110 = iprot.readListBegin();
+                    _val109 = new ArrayList<Counter>(_list110.size);
+                    for (int _i111 = 0; _i111 < _list110.size; ++_i111)
                     {
-                      Counter _elem126;
-                      _elem126 = new Counter();
-                      _elem126.read(iprot);
-                      _val123.add(_elem126);
+                      Counter _elem112;
+                      _elem112 = new Counter();
+                      _elem112.read(iprot);
+                      _val109.add(_elem112);
                     }
                     iprot.readListEnd();
                   }
-                  this.success.put(_key122, _val123);
+                  this.success.put(_key108, _val109);
                 }
                 iprot.readMapEnd();
               }
@@ -23937,14 +22823,14 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeMapBegin(new TMap(TType.STRING, TType.LIST, this.success.size()));
-          for (Map.Entry<ByteBuffer, List<Counter>> _iter127 : this.success.entrySet())
+          for (Map.Entry<ByteBuffer, List<Counter>> _iter113 : this.success.entrySet())
           {
-            oprot.writeBinary(_iter127.getKey());
+            oprot.writeBinary(_iter113.getKey());
             {
-              oprot.writeListBegin(new TList(TType.STRUCT, _iter127.getValue().size()));
-              for (Counter _iter128 : _iter127.getValue())
+              oprot.writeListBegin(new TList(TType.STRUCT, _iter113.getValue().size()));
+              for (Counter _iter114 : _iter113.getValue())
               {
-                _iter128.write(oprot);
+                _iter114.write(oprot);
               }
               oprot.writeListEnd();
             }
@@ -25536,25 +24422,25 @@ public class Cassandra {
           case 0: // SUCCESS
             if (field.type == TType.MAP) {
               {
-                TMap _map129 = iprot.readMapBegin();
-                this.success = new HashMap<String,List<String>>(2*_map129.size);
-                for (int _i130 = 0; _i130 < _map129.size; ++_i130)
+                TMap _map115 = iprot.readMapBegin();
+                this.success = new HashMap<String,List<String>>(2*_map115.size);
+                for (int _i116 = 0; _i116 < _map115.size; ++_i116)
                 {
-                  String _key131;
-                  List<String> _val132;
-                  _key131 = iprot.readString();
+                  String _key117;
+                  List<String> _val118;
+                  _key117 = iprot.readString();
                   {
-                    TList _list133 = iprot.readListBegin();
-                    _val132 = new ArrayList<String>(_list133.size);
-                    for (int _i134 = 0; _i134 < _list133.size; ++_i134)
+                    TList _list119 = iprot.readListBegin();
+                    _val118 = new ArrayList<String>(_list119.size);
+                    for (int _i120 = 0; _i120 < _list119.size; ++_i120)
                     {
-                      String _elem135;
-                      _elem135 = iprot.readString();
-                      _val132.add(_elem135);
+                      String _elem121;
+                      _elem121 = iprot.readString();
+                      _val118.add(_elem121);
                     }
                     iprot.readListEnd();
                   }
-                  this.success.put(_key131, _val132);
+                  this.success.put(_key117, _val118);
                 }
                 iprot.readMapEnd();
               }
@@ -25588,14 +24474,14 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeMapBegin(new TMap(TType.STRING, TType.LIST, this.success.size()));
-          for (Map.Entry<String, List<String>> _iter136 : this.success.entrySet())
+          for (Map.Entry<String, List<String>> _iter122 : this.success.entrySet())
           {
-            oprot.writeString(_iter136.getKey());
+            oprot.writeString(_iter122.getKey());
             {
-              oprot.writeListBegin(new TList(TType.STRING, _iter136.getValue().size()));
-              for (String _iter137 : _iter136.getValue())
+              oprot.writeListBegin(new TList(TType.STRING, _iter122.getValue().size()));
+              for (String _iter123 : _iter122.getValue())
               {
-                oprot.writeString(_iter137);
+                oprot.writeString(_iter123);
               }
               oprot.writeListEnd();
             }
@@ -26162,14 +25048,14 @@ public class Cassandra {
           case 0: // SUCCESS
             if (field.type == TType.LIST) {
               {
-                TList _list138 = iprot.readListBegin();
-                this.success = new ArrayList<KsDef>(_list138.size);
-                for (int _i139 = 0; _i139 < _list138.size; ++_i139)
+                TList _list124 = iprot.readListBegin();
+                this.success = new ArrayList<KsDef>(_list124.size);
+                for (int _i125 = 0; _i125 < _list124.size; ++_i125)
                 {
-                  KsDef _elem140;
-                  _elem140 = new KsDef();
-                  _elem140.read(iprot);
-                  this.success.add(_elem140);
+                  KsDef _elem126;
+                  _elem126 = new KsDef();
+                  _elem126.read(iprot);
+                  this.success.add(_elem126);
                 }
                 iprot.readListEnd();
               }
@@ -26203,9 +25089,9 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRUCT, this.success.size()));
-          for (KsDef _iter141 : this.success)
+          for (KsDef _iter127 : this.success)
           {
-            _iter141.write(oprot);
+            _iter127.write(oprot);
           }
           oprot.writeListEnd();
         }
@@ -27822,14 +26708,14 @@ public class Cassandra {
           case 0: // SUCCESS
             if (field.type == TType.LIST) {
               {
-                TList _list142 = iprot.readListBegin();
-                this.success = new ArrayList<TokenRange>(_list142.size);
-                for (int _i143 = 0; _i143 < _list142.size; ++_i143)
+                TList _list128 = iprot.readListBegin();
+                this.success = new ArrayList<TokenRange>(_list128.size);
+                for (int _i129 = 0; _i129 < _list128.size; ++_i129)
                 {
-                  TokenRange _elem144;
-                  _elem144 = new TokenRange();
-                  _elem144.read(iprot);
-                  this.success.add(_elem144);
+                  TokenRange _elem130;
+                  _elem130 = new TokenRange();
+                  _elem130.read(iprot);
+                  this.success.add(_elem130);
                 }
                 iprot.readListEnd();
               }
@@ -27863,9 +26749,9 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRUCT, this.success.size()));
-          for (TokenRange _iter145 : this.success)
+          for (TokenRange _iter131 : this.success)
           {
-            _iter145.write(oprot);
+            _iter131.write(oprot);
           }
           oprot.writeListEnd();
         }
@@ -30539,13 +29425,13 @@ public class Cassandra {
           case 0: // SUCCESS
             if (field.type == TType.LIST) {
               {
-                TList _list146 = iprot.readListBegin();
-                this.success = new ArrayList<String>(_list146.size);
-                for (int _i147 = 0; _i147 < _list146.size; ++_i147)
+                TList _list132 = iprot.readListBegin();
+                this.success = new ArrayList<String>(_list132.size);
+                for (int _i133 = 0; _i133 < _list132.size; ++_i133)
                 {
-                  String _elem148;
-                  _elem148 = iprot.readString();
-                  this.success.add(_elem148);
+                  String _elem134;
+                  _elem134 = iprot.readString();
+                  this.success.add(_elem134);
                 }
                 iprot.readListEnd();
               }
@@ -30579,9 +29465,9 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRING, this.success.size()));
-          for (String _iter149 : this.success)
+          for (String _iter135 : this.success)
           {
-            oprot.writeString(_iter149);
+            oprot.writeString(_iter135);
           }
           oprot.writeListEnd();
         }

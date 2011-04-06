@@ -158,20 +158,19 @@ public class ColumnFamily implements IColumnContainer, IIterableColumns
     public void addColumn(QueryPath path, ByteBuffer value, long timestamp, int timeToLive)
     {
         assert path.columnName != null : path;
+        assert !metadata().getDefaultValidator().isCommutative();
         Column column;
-        AbstractType defaultValidator = metadata().getDefaultValidator();
-        if (!defaultValidator.isCommutative())
-        {
-            if (timeToLive > 0)
-                column = new ExpiringColumn(path.columnName, value, timestamp, timeToLive);
-            else
-                column = new Column(path.columnName, value, timestamp);
-        }
+        if (timeToLive > 0)
+            column = new ExpiringColumn(path.columnName, value, timestamp, timeToLive);
         else
-        {
-            column = ((AbstractCommutativeType)defaultValidator).createColumn(path.columnName, value, timestamp);
-        }
+            column = new Column(path.columnName, value, timestamp);
         addColumn(path.superColumnName, column);
+    }
+
+    public void addCounter(QueryPath path, long value)
+    {
+        assert path.columnName != null : path;
+        addColumn(path.superColumnName, new CounterUpdateColumn(path.columnName, value, System.currentTimeMillis()));
     }
 
     public void addTombstone(QueryPath path, ByteBuffer localDeletionTime, long timestamp)

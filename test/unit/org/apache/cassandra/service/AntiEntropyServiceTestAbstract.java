@@ -66,6 +66,8 @@ public abstract class AntiEntropyServiceTestAbstract extends CleanupHelper
 
     public abstract void init();
 
+    public abstract List<RowMutation> getWriteData();
+
     @Before
     public void prepare() throws Exception
     {
@@ -114,12 +116,7 @@ public abstract class AntiEntropyServiceTestAbstract extends CleanupHelper
         Validator validator;
 
         // write
-        List<RowMutation> rms = new LinkedList<RowMutation>();
-        RowMutation rm;
-        rm = new RowMutation(tablename, ByteBufferUtil.bytes("key1"));
-        rm.add(new QueryPath(cfname, null, ByteBufferUtil.bytes("Column1")), ByteBufferUtil.bytes("asdfasdf"), 0);
-        rms.add(rm);
-        Util.writeColumnFamily(rms);
+        Util.writeColumnFamily(getWriteData());
 
         // sample
         validator = new Validator(request);

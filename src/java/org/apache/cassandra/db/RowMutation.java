@@ -33,8 +33,9 @@ import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.ColumnOrSuperColumn;
-import org.apache.cassandra.thrift.Deletion;
 import org.apache.cassandra.thrift.Mutation;
+import org.apache.cassandra.thrift.Counter;
+import org.apache.cassandra.thrift.SlicePredicate;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -146,6 +147,18 @@ public class RowMutation implements IMutation, MessageProducer
         columnFamily.addColumn(path, value, timestamp, timeToLive);
     }
 
+    public void addCounter(QueryPath path, long value)
+    {
+        Integer id = CFMetaData.getId(table_, path.columnFamilyName);
+        ColumnFamily columnFamily = modifications_.get(id);
+        if (columnFamily == null)
+        {
+            columnFamily = ColumnFamily.create(table_, path.columnFamilyName);
+            modifications_.put(id, columnFamily);
+        }
+        columnFamily.addCounter(path, value);
+    }
+
     public void add(QueryPath path, ByteBuffer value, long timestamp)
     {
         add(path, value, timestamp, 0);
@@ -223,11 +236,15 @@ public class RowMutation implements IMutation, MessageProducer
             {
                 if (mutation.deletion != null)
                 {
-                    deleteColumnOrSuperColumnToRowMutation(rm, cfName, mutation.deletion);
+                    deleteColumnOrSuperColumnToRowMutation(rm, cfName, mutation.deletion.predicate, mutation.deletion.super_column, mutation.deletion.timestamp);
                 }
-                else
+                if (mutation.column_or_supercolumn != null)
                 {
                     addColumnOrSuperColumnToRowMutation(rm, cfName, mutation.column_or_supercolumn);
+                }
+                if (mutation.counter != null)
+                {
+                    addCounterToRowMutation(rm, cfName, mutation.counter);
                 }
             }
         }
@@ -290,21 +307,33 @@ public class RowMutation implements IMutation, MessageProducer
         }
     }
 
-    private static void deleteColumnOrSuperColumnToRowMutation(RowMutation rm, String cfName, Deletion del)
+    private static void addCounterToRowMutation(RowMutation rm, String cfName, Counter counter)
     {
-        if (del.predicate != null && del.predicate.column_names != null)
+        if (counter.column == null)
         {
-            for(ByteBuffer c : del.predicate.column_names)
+            for (org.apache.cassandra.thrift.CounterColumn column : counter.super_column.columns)
             {
-                if (del.super_column == null && DatabaseDescriptor.getColumnFamilyType(rm.table_, cfName) == ColumnFamilyType.Super)
-                    rm.delete(new QueryPath(cfName, c), del.timestamp);
-                else
-                    rm.delete(new QueryPath(cfName, del.super_column, c), del.timestamp);
+                rm.addCounter(new QueryPath(cfName, counter.super_column.name, column.name), column.value);
             }
         }
         else
         {
-            rm.delete(new QueryPath(cfName, del.super_column), del.timestamp);
+            rm.addCounter(new QueryPath(cfName, null, counter.column.name), counter.column.value);
+        }
+    }
+
+    private static void deleteColumnOrSuperColumnToRowMutation(RowMutation rm, String cfName, SlicePredicate predicate, ByteBuffer scName, long timestamp)
+    {
+        if (predicate != null && predicate.column_names != null)
+        {
+            for (ByteBuffer c : predicate.column_names)
+            {
+                rm.delete(new QueryPath(cfName, scName, c), timestamp);
+            }
+        }
+        else
+        {
+            rm.delete(new QueryPath(cfName, scName), timestamp);
         }
     }
 
