@@ -24,4 +24,10 @@ public interface ICache<K, V>
     public void clear();
 
     public Set<K> keySet();
+
+    /**
+     * @return true if the cache implementation inherently copies the cached values; otherwise,
+     * the caller should copy manually before caching shared values like Thrift ByteBuffers.
+     */
+    public boolean isPutCopying();
 }

@@ -223,7 +223,14 @@ public final class CFMetaData
         memtableThroughputInMb       = DEFAULT_MEMTABLE_THROUGHPUT_IN_MB;
         memtableOperationsInMillions = DEFAULT_MEMTABLE_OPERATIONS_IN_MILLIONS;
         mergeShardsChance            = DEFAULT_MERGE_SHARDS_CHANCE;
-        rowCacheProvider             = FBUtilities.newCacheProvider(DEFAULT_ROW_CACHE_PROVIDER);
+        try
+        {
+            rowCacheProvider             = FBUtilities.newCacheProvider(DEFAULT_ROW_CACHE_PROVIDER);
+        }
+        catch (ConfigurationException e)
+        {
+            throw new AssertionError(e); // the default provider should not error out
+        }
 
         // Defaults strange or simple enough to not need a DEFAULT_T for
         defaultValidator = BytesType.instance;
@@ -381,7 +388,17 @@ public final class CFMetaData
         if (cf.memtable_throughput_in_mb != null) { newCFMD.memSize(cf.memtable_throughput_in_mb); }
         if (cf.memtable_operations_in_millions != null) { newCFMD.memOps(cf.memtable_operations_in_millions); }
         if (cf.merge_shards_chance != null) { newCFMD.mergeShardsChance(cf.merge_shards_chance); }
-        if (cf.row_cache_provider != null) { newCFMD.rowCacheProvider(FBUtilities.newCacheProvider(cf.row_cache_provider.toString())); }
+        if (cf.row_cache_provider != null)
+        {
+            try
+            {
+                newCFMD.rowCacheProvider(FBUtilities.newCacheProvider(cf.row_cache_provider.toString()));
+            }
+            catch (ConfigurationException e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
 
         return newCFMD.comment(cf.comment.toString())
                       .rowCacheSize(cf.row_cache_size)

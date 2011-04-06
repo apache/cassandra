@@ -144,4 +144,9 @@ public class InstrumentingCache<K, V> implements InstrumentingCacheMBean
     {
         return map.keySet();
     }
+
+    public boolean isPutCopying()
+    {
+        return map.isPutCopying();
+    }
 }

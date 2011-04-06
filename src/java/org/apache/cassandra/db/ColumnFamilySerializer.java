@@ -31,8 +31,9 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.io.ICompactSerializer2;
+import org.apache.cassandra.io.ICompactSerializer3;
 
-public class ColumnFamilySerializer implements ICompactSerializer2<ColumnFamily>
+public class ColumnFamilySerializer implements ICompactSerializer3<ColumnFamily>
 {
     private static final Logger logger = LoggerFactory.getLogger(ColumnFamilySerializer.class);
 
@@ -141,5 +142,10 @@ public class ColumnFamilySerializer implements ICompactSerializer2<ColumnFamily>
     {
         cf.delete(input.readInt(), input.readLong());
         return cf;
+    }
+
+    public long serializedSize(ColumnFamily cf)
+    {
+        return cf.serializedSize();
     }
 }

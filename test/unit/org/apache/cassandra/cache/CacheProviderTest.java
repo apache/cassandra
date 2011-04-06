@@ -85,4 +85,13 @@ public class CacheProviderTest extends SchemaLoader
         simpleCase(cf, cache);
         concurrentCase(cf, cache);
     }
+
+    @Test
+    public void testSerializingCache() throws InterruptedException
+    {
+        ICache<String, ColumnFamily> cache = new SerializingCache<String, ColumnFamily>(CAPACITY, ColumnFamily.serializer());
+        ColumnFamily cf = createCF();
+        simpleCase(cf, cache);
+        // concurrentCase(cf, cache);
+    }
 }

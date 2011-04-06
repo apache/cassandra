@@ -30,11 +30,6 @@ public class ConcurrentLinkedHashCache<K, V> implements ICache<K, V>
         return new ConcurrentLinkedHashCache<K, V>(map);
     }
 
-    public void discard(K key)
-    {
-        remove(key);
-    }
-
     public int capacity()
     {
         return map.capacity();
@@ -78,5 +73,10 @@ public class ConcurrentLinkedHashCache<K, V> implements ICache<K, V>
     public Set<K> keySet()
     {
         return map.keySet();
+    }
+
+    public boolean isPutCopying()
+    {
+        return false;
     }
 }

@@ -729,11 +729,18 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         Memtable mt = getMemtableThreadSafe();
         boolean flushRequested = mt.isThresholdViolated();
         mt.put(key, columnFamily);
-        ColumnFamily cachedRow = getRawCachedRow(key);
-        if (cachedRow != null)
-            cachedRow.addAll(columnFamily);
-        writeStats.addNano(System.nanoTime() - start);
-        
+        if (rowCache.isPutCopying())
+        {
+            invalidateCachedRow(key);
+        }
+        else
+        {
+            ColumnFamily cachedRow = getRawCachedRow(key);
+            if (cachedRow != null)
+                cachedRow.addAll(columnFamily);
+            writeStats.addNano(System.nanoTime() - start);
+        }
+
         return flushRequested ? mt : null;
     }
 
@@ -1087,12 +1094,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             if (cached == null)
                 return null;
 
-            // make a deep copy of column data so we don't keep references to direct buffers, which
-            // would prevent munmap post-compaction.
-            for (IColumn column : cached.getSortedColumns())
+            if (!rowCache.isPutCopying())
             {
-                cached.remove(column.name());
-                cached.addColumn(column.localCopy(this));
+                // make a deep copy of column data so we don't keep references to direct buffers, which
+                // would prevent munmap post-compaction.
+                for (IColumn column : cached.getSortedColumns())
+                {
+                    cached.remove(column.name());
+                    cached.addColumn(column.localCopy(this));
+                }
             }
 
             // avoid keeping a permanent reference to the original key buffer

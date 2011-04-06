@@ -655,18 +655,11 @@ public class FBUtilities
         return field;
     }
 
-    public static IRowCacheProvider newCacheProvider(String cache_provider)
+    public static IRowCacheProvider newCacheProvider(String cache_provider) throws ConfigurationException
     {
         if (!cache_provider.contains("."))
             cache_provider = "org.apache.cassandra.cache." + cache_provider;
-        try
-        {
-            return FBUtilities.construct(cache_provider, "row cache provider");
-        }
-        catch (ConfigurationException e)
-        {
-            throw new RuntimeException(e);
-        }
+        return FBUtilities.construct(cache_provider, "row cache provider");
     }
 
 }
