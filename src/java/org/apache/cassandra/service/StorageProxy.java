@@ -512,7 +512,7 @@ public class StorageProxy implements StorageProxyMBean
 
                     // collect replies and resolve according to consistency level
                     RangeSliceResponseResolver resolver = new RangeSliceResponseResolver(command.keyspace, liveEndpoints);
-                    ReadCallback<List<Row>> handler = getReadCallback(resolver, command, consistency_level, liveEndpoints);
+                    ReadCallback<Iterable<Row>> handler = getReadCallback(resolver, command, consistency_level, liveEndpoints);
                     handler.assureSufficientLiveNodes();
                     for (InetAddress endpoint : handler.endpoints)
                     {
@@ -521,24 +521,21 @@ public class StorageProxy implements StorageProxyMBean
                             logger.debug("reading " + c2 + " from " + endpoint);
                     }
 
-                    // if we're done, great, otherwise, move to the next range
-                    try 
+                    try
                     {
-                        if (logger.isDebugEnabled()) 
+                        for (Row row : handler.get())
                         {
-                            for (Row row : handler.get()) 
-                            {
-                                logger.debug("range slices read " + row.key);
-                            }
+                            rows.add(row);
+                            logger.debug("range slices read {}", row.key);
                         }
-                        rows.addAll(handler.get());
-                    } 
+                    }
                     catch (DigestMismatchException e) 
                     {
                         throw new AssertionError(e); // no digests in range slices yet
                     }
                 }
             
+                // if we're done, great, otherwise, move to the next range
                 if (rows.size() >= command.max_keys)
                     break;
             }
@@ -771,7 +768,7 @@ public class StorageProxy implements StorageProxyMBean
                     return keyspace;
                 }
             };
-            ReadCallback<List<Row>> handler = getReadCallback(resolver, iCommand, consistency_level, liveEndpoints);
+            ReadCallback<Iterable<Row>> handler = getReadCallback(resolver, iCommand, consistency_level, liveEndpoints);
             handler.assureSufficientLiveNodes();
 
             IndexScanCommand command = new IndexScanCommand(keyspace, column_family, index_clause, column_predicate, range);
@@ -783,20 +780,17 @@ public class StorageProxy implements StorageProxyMBean
                     logger.debug("reading " + command + " from " + endpoint);
             }
 
-            List<Row> theseRows;
             try
             {
-                theseRows = handler.get();
+                for (Row row : handler.get())
+                {
+                    rows.add(row);
+                    logger.debug("read {}", row);
+                }
             }
             catch (DigestMismatchException e)
             {
                 throw new RuntimeException(e);
-            }
-            rows.addAll(theseRows);
-            if (logger.isDebugEnabled())
-            {
-                for (Row row : theseRows)
-                    logger.debug("read " + row);
             }
             if (rows.size() >= index_clause.count)
                 return rows.subList(0, index_clause.count);

@@ -24,6 +24,8 @@ import java.util.*;
 import java.util.concurrent.LinkedBlockingQueue;
 
 import com.google.common.collect.AbstractIterator;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Iterators;
 import org.apache.commons.collections.iterators.CollatingIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,7 +42,7 @@ import org.apache.cassandra.utils.ReducingIterator;
  * Turns RangeSliceReply objects into row (string -> CF) maps, resolving
  * to the most recent ColumnFamily and setting up read repairs as necessary.
  */
-public class RangeSliceResponseResolver implements IResponseResolver<List<Row>>
+public class RangeSliceResponseResolver implements IResponseResolver<Iterable<Row>>
 {
     private static final Logger logger_ = LoggerFactory.getLogger(RangeSliceResponseResolver.class);
     private final String table;
@@ -62,7 +64,7 @@ public class RangeSliceResponseResolver implements IResponseResolver<List<Row>>
 
     // Note: this deserializes the response a 2nd time if getData was called first
     // (this is not currently an issue since we don't do read repair for range queries.)
-    public List<Row> resolve() throws IOException
+    public Iterable<Row> resolve() throws IOException
     {
         CollatingIterator collator = new CollatingIterator(new Comparator<Pair<Row,InetAddress>>()
         {
@@ -81,7 +83,8 @@ public class RangeSliceResponseResolver implements IResponseResolver<List<Row>>
         }
 
         // for each row, compute the combination of all different versions seen, and repair incomplete versions
-        ReducingIterator<Pair<Row,InetAddress>, Row> iter = new ReducingIterator<Pair<Row,InetAddress>, Row>(collator)
+
+        return new ReducingIterator<Pair<Row,InetAddress>, Row>(collator)
         {
             List<ColumnFamily> versions = new ArrayList<ColumnFamily>(sources.size());
             List<InetAddress> versionSources = new ArrayList<InetAddress>(sources.size());
@@ -109,12 +112,6 @@ public class RangeSliceResponseResolver implements IResponseResolver<List<Row>>
                 return new Row(key, resolved);
             }
         };
-
-        List<Row> resolvedRows = new ArrayList<Row>(n);
-        while (iter.hasNext())
-            resolvedRows.add(iter.next());
-
-        return resolvedRows;
     }
 
     public void preprocess(Message message)
