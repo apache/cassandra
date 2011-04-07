@@ -62,7 +62,7 @@ public class CounterAdder extends Operation
         }
 
         String rawKey = String.format(format, index);
-        Map<ByteBuffer, Map<String, List<CounterMutation>>> record = new HashMap<ByteBuffer, Map<String, List<CounterMutation>>>();
+        Map<ByteBuffer, Map<String, List<Mutation>>> record = new HashMap<ByteBuffer, Map<String, List<Mutation>>>();
 
         record.put(ByteBufferUtil.bytes(rawKey), session.getColumnFamilyType() == ColumnFamilyType.Super
                                                                                 ? getSuperColumnsMutationMap(superColumns)
@@ -80,7 +80,7 @@ public class CounterAdder extends Operation
 
             try
             {
-                client.batch_add(record, session.getConsistencyLevel());
+                client.batch_mutate(record, session.getConsistencyLevel());
                 success = true;
             }
             catch (Exception e)
@@ -104,15 +104,15 @@ public class CounterAdder extends Operation
         session.latency.getAndAdd(System.currentTimeMillis() - start);
     }
 
-    private Map<String, List<CounterMutation>> getSuperColumnsMutationMap(List<CounterSuperColumn> superColumns)
+    private Map<String, List<Mutation>> getSuperColumnsMutationMap(List<CounterSuperColumn> superColumns)
     {
-        List<CounterMutation> mutations = new ArrayList<CounterMutation>();
-        Map<String, List<CounterMutation>> mutationMap = new HashMap<String, List<CounterMutation>>();
+        List<Mutation> mutations = new ArrayList<Mutation>();
+        Map<String, List<Mutation>> mutationMap = new HashMap<String, List<Mutation>>();
 
         for (CounterSuperColumn s : superColumns)
         {
             Counter counter = new Counter().setSuper_column(s);
-            mutations.add(new CounterMutation().setCounter(counter));
+            mutations.add(new Mutation().setCounter(counter));
         }
 
         mutationMap.put("SuperCounter1", mutations);
@@ -120,15 +120,15 @@ public class CounterAdder extends Operation
         return mutationMap;
     }
 
-    private Map<String, List<CounterMutation>> getColumnsMutationMap(List<CounterColumn> columns)
+    private Map<String, List<Mutation>> getColumnsMutationMap(List<CounterColumn> columns)
     {
-        List<CounterMutation> mutations = new ArrayList<CounterMutation>();
-        Map<String, List<CounterMutation>> mutationMap = new HashMap<String, List<CounterMutation>>();
+        List<Mutation> mutations = new ArrayList<Mutation>();
+        Map<String, List<Mutation>> mutationMap = new HashMap<String, List<Mutation>>();
 
         for (CounterColumn c : columns)
         {
             Counter counter = new Counter().setColumn(c);
-            mutations.add(new CounterMutation().setCounter(counter));
+            mutations.add(new Mutation().setCounter(counter));
         }
 
         mutationMap.put("Counter1", mutations);
