@@ -303,10 +303,14 @@ public class ThriftValidation
         Counter counter = mut.counter;
 
         boolean isCommutative = metadata.getDefaultValidator().isCommutative();
+        int nulls = 0;
+        if (cosc == null) nulls++;
+        if (del == null) nulls++;
+        if (counter == null) nulls++;
 
-        if (cosc == null && del == null && counter == null)
+        if (nulls != 2)
         {
-            throw new InvalidRequestException("Mutation must have at least one of column_or_superColumn, deletion, counter or counter_deletion");
+            throw new InvalidRequestException("mutation must have one and only one of column_or_supercolumn, deletion, counter or counter_deletion");
         }
 
         if (cosc != null)

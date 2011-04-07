@@ -33,8 +33,9 @@ import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.ColumnOrSuperColumn;
-import org.apache.cassandra.thrift.Mutation;
 import org.apache.cassandra.thrift.Counter;
+import org.apache.cassandra.thrift.Deletion;
+import org.apache.cassandra.thrift.Mutation;
 import org.apache.cassandra.thrift.SlicePredicate;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -236,7 +237,7 @@ public class RowMutation implements IMutation, MessageProducer
             {
                 if (mutation.deletion != null)
                 {
-                    deleteColumnOrSuperColumnToRowMutation(rm, cfName, mutation.deletion.predicate, mutation.deletion.super_column, mutation.deletion.timestamp);
+                    deleteColumnOrSuperColumnToRowMutation(rm, cfName, mutation.deletion);
                 }
                 if (mutation.column_or_supercolumn != null)
                 {
@@ -322,18 +323,21 @@ public class RowMutation implements IMutation, MessageProducer
         }
     }
 
-    private static void deleteColumnOrSuperColumnToRowMutation(RowMutation rm, String cfName, SlicePredicate predicate, ByteBuffer scName, long timestamp)
+    private static void deleteColumnOrSuperColumnToRowMutation(RowMutation rm, String cfName, Deletion del)
     {
-        if (predicate != null && predicate.column_names != null)
+        if (del.predicate != null && del.predicate.column_names != null)
         {
-            for (ByteBuffer c : predicate.column_names)
+            for(ByteBuffer c : del.predicate.column_names)
             {
-                rm.delete(new QueryPath(cfName, scName, c), timestamp);
+                if (del.super_column == null && DatabaseDescriptor.getColumnFamilyType(rm.table_, cfName) == ColumnFamilyType.Super)
+                    rm.delete(new QueryPath(cfName, c), del.timestamp);
+                else
+                    rm.delete(new QueryPath(cfName, del.super_column, c), del.timestamp);
             }
         }
         else
         {
-            rm.delete(new QueryPath(cfName, scName), timestamp);
+            rm.delete(new QueryPath(cfName, del.super_column), del.timestamp);
         }
     }
 

@@ -1647,12 +1647,12 @@ class TestMutations(ThriftTester):
         d1 = 12
         d2 = -21
         update_map = {'key1': {'Counter1': [
-            CounterMutation(counter=Counter(column=CounterColumn('c1', d1))),
-            CounterMutation(counter=Counter(column=CounterColumn('c1', d2))),
+            Mutation(counter=Counter(column=CounterColumn('c1', d1))),
+            Mutation(counter=Counter(column=CounterColumn('c1', d2))),
             ]}}
         
         # insert positive and negative values and check the counts
-        client.batch_add(update_map, ConsistencyLevel.ONE)
+        client.batch_mutate(update_map, ConsistencyLevel.ONE)
         time.sleep(0.1)
         rv1 = client.get_counter('key1', ColumnPath(column_family='Counter1', column='c1'), ConsistencyLevel.ONE)
         assert rv1.column.value == d1+d2
@@ -1665,36 +1665,36 @@ class TestMutations(ThriftTester):
 
         # insert positive and negative values and check the counts
         update_map = {'key1': {'Counter1': [
-            CounterMutation(counter=Counter(column=CounterColumn('c1', d1))),
-            CounterMutation(counter=Counter(column=CounterColumn('c1', d2))),
+            Mutation(counter=Counter(column=CounterColumn('c1', d1))),
+            Mutation(counter=Counter(column=CounterColumn('c1', d2))),
             ]}}
-        client.batch_add(update_map, ConsistencyLevel.ONE)
+        client.batch_mutate(update_map, ConsistencyLevel.ONE)
         time.sleep(5)
         rv1 = client.get_counter('key1', ColumnPath(column_family='Counter1', column='c1'), ConsistencyLevel.ONE)
         assert rv1.column.value == d1+d2
 
         # remove the previous column and check that it is gone
         update_map = {'key1': {'Counter1': [
-            CounterMutation(deletion=CounterDeletion(predicate=SlicePredicate(column_names=['c1']))),
+            Mutation(deletion=Deletion(predicate=SlicePredicate(column_names=['c1']))),
             ]}}
-        client.batch_add(update_map, ConsistencyLevel.ONE)
+        client.batch_mutate(update_map, ConsistencyLevel.ONE)
         time.sleep(5)
         _assert_no_columnpath_counter('key1', ColumnPath(column_family='Counter1', column='c1'))
 
         # insert again and this time delete the whole row, check that it is gone
         update_map = {'key1': {'Counter1': [
-            CounterMutation(counter=Counter(column=CounterColumn('c1', d1))),
-            CounterMutation(counter=Counter(column=CounterColumn('c1', d2))),
+            Mutation(counter=Counter(column=CounterColumn('c1', d1))),
+            Mutation(counter=Counter(column=CounterColumn('c1', d2))),
             ]}}
-        client.batch_add(update_map, ConsistencyLevel.ONE)
+        client.batch_mutate(update_map, ConsistencyLevel.ONE)
         time.sleep(5)
         rv2 = client.get_counter('key1', ColumnPath(column_family='Counter1', column='c1'), ConsistencyLevel.ONE)
         assert rv2.column.value == d1+d2
 
         update_map = {'key1': {'Counter1': [
-            CounterMutation(deletion=CounterDeletion()),
+            Mutation(deletion=Deletion()),
             ]}}
-        client.batch_add(update_map, ConsistencyLevel.ONE)
+        client.batch_mutate(update_map, ConsistencyLevel.ONE)
         time.sleep(5)
         _assert_no_columnpath_counter('key1', ColumnPath(column_family='Counter1', column='c1'))
         
