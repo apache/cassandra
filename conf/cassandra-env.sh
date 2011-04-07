@@ -136,7 +136,7 @@ JVM_OPTS="$JVM_OPTS -XX:+UseCMSInitiatingOccupancyOnly"
 # JVM_OPTS="$JVM_OPTS -XX:+PrintClassHistogram"
 # JVM_OPTS="$JVM_OPTS -XX:+PrintTenuringDistribution"
 # JVM_OPTS="$JVM_OPTS -XX:+PrintGCApplicationStoppedTime"
-# JVM_OPTS="$JVM_OPTS -Xloggc:/var/log/cassandra/gc.log"
+# JVM_OPTS="$JVM_OPTS -Xloggc:/var/log/cassandra/gc-`date +%s`.log"
 
 # uncomment to have Cassandra JVM listen for remote debuggers/profilers on port 1414
 # JVM_OPTS="$JVM_OPTS -Xdebug -Xnoagent -Xrunjdwp:transport=dt_socket,server=y,suspend=n,address=1414"
