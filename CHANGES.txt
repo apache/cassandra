@@ -13,7 +13,7 @@
  * JDBC driver for CQL (CASSANDRA-2124, 2302, 2277)
  * atomic switch of memtables and sstables (CASSANDRA-2284)
  * add pluggable SeedProvider (CASSANDRA-1669)
-
+ * Fix clustertool to not throw exception when calling get_endpoints (CASSANDRA-2437)
 
 0.7.5
  * Avoid seeking when sstable2json exports the entire file (CASSANDRA-2318)
