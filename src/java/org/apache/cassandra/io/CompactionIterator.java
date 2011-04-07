@@ -24,8 +24,10 @@ package org.apache.cassandra.io;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 
 import org.apache.commons.collections.iterators.CollatingIterator;
 import org.slf4j.Logger;
@@ -49,32 +51,28 @@ implements Closeable, ICompactionInfo
     public static final int FILE_BUFFER_SIZE = 1024 * 1024;
 
     protected final List<SSTableIdentityIterator> rows = new ArrayList<SSTableIdentityIterator>();
-    private final ColumnFamilyStore cfs;
-    private final int gcBefore;
-    private final boolean major;
+    protected final CompactionController controller;
 
     private long totalBytes;
     private long bytesRead;
     private long row;
 
-    public CompactionIterator(ColumnFamilyStore cfs, Iterable<SSTableReader> sstables, int gcBefore, boolean major) throws IOException
+    public CompactionIterator(Iterable<SSTableReader> sstables, CompactionController controller) throws IOException
     {
-        this(cfs, getCollatingIterator(sstables), gcBefore, major);
+        this(getCollatingIterator(sstables), controller);
     }
 
     @SuppressWarnings("unchecked")
-    protected CompactionIterator(ColumnFamilyStore cfs, Iterator iter, int gcBefore, boolean major)
+    protected CompactionIterator(Iterator iter, CompactionController controller)
     {
         super(iter);
+        this.controller = controller;
         row = 0;
         totalBytes = bytesRead = 0;
         for (SSTableScanner scanner : getScanners())
         {
             totalBytes += scanner.getFileLength();
         }
-        this.cfs = cfs;
-        this.gcBefore = gcBefore;
-        this.major = major;
     }
 
     @SuppressWarnings("unchecked")
@@ -109,7 +107,7 @@ implements Closeable, ICompactionInfo
             AbstractCompactedRow compactedRow = getCompactedRow();
             if (compactedRow.isEmpty())
             {
-                cfs.invalidateCachedRow(compactedRow.key);
+                controller.invalidateCachedRow(compactedRow.key);
                 return null;
             }
             else
@@ -143,9 +141,9 @@ implements Closeable, ICompactionInfo
         {
             logger.info(String.format("Compacting large row %s (%d bytes) incrementally",
                                       ByteBufferUtil.bytesToHex(rows.get(0).getKey().key), rowSize));
-            return new LazilyCompactedRow(cfs, rows, major, gcBefore, false);
+            return new LazilyCompactedRow(controller, rows);
         }
-        return new PrecompactedRow(cfs, rows, major, gcBefore, false);
+        return new PrecompactedRow(controller, rows);
     }
 
     public void close() throws IOException
@@ -170,6 +168,6 @@ implements Closeable, ICompactionInfo
 
     public String getTaskType()
     {
-        return major ? "Major" : "Minor";
+        return controller.isMajor ? "Major" : "Minor";
     }
 }

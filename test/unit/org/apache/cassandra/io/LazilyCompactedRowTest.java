@@ -27,7 +27,9 @@ import java.io.*;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.HashSet;
 import java.util.Collection;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 import org.apache.cassandra.CleanupHelper;
@@ -56,8 +58,9 @@ public class LazilyCompactedRowTest extends CleanupHelper
     private void assertBytes(ColumnFamilyStore cfs, int gcBefore, boolean major) throws IOException
     {
         Collection<SSTableReader> sstables = cfs.getSSTables();
-        CompactionIterator ci1 = new PreCompactingIterator(cfs, sstables, gcBefore, major);
-        CompactionIterator ci2 = new LazyCompactionIterator(cfs, sstables, gcBefore, major);
+        CompactionController controller = new CompactionController(cfs, sstables, major, gcBefore, false);
+        CompactionIterator ci1 = new PreCompactingIterator(sstables, controller);
+        CompactionIterator ci2 = new LazyCompactionIterator(sstables, controller);
 
         while (true)
         {
@@ -131,8 +134,9 @@ public class LazilyCompactedRowTest extends CleanupHelper
     private void assertDigest(ColumnFamilyStore cfs, int gcBefore, boolean major) throws IOException, NoSuchAlgorithmException
     {
         Collection<SSTableReader> sstables = cfs.getSSTables();
-        CompactionIterator ci1 = new PreCompactingIterator(cfs, sstables, gcBefore, major);
-        CompactionIterator ci2 = new LazyCompactionIterator(cfs, sstables, gcBefore, major);
+        CompactionController controller = new CompactionController(cfs, sstables, major, gcBefore, false);
+        CompactionIterator ci1 = new PreCompactingIterator(sstables, controller);
+        CompactionIterator ci2 = new LazyCompactionIterator(sstables, controller);
 
         while (true)
         {
@@ -303,35 +307,29 @@ public class LazilyCompactedRowTest extends CleanupHelper
 
     private static class LazyCompactionIterator extends CompactionIterator
     {
-        private final ColumnFamilyStore cfStore;
-
-        public LazyCompactionIterator(ColumnFamilyStore cfStore, Iterable<SSTableReader> sstables, int gcBefore, boolean major) throws IOException
+        public LazyCompactionIterator(Iterable<SSTableReader> sstables, CompactionController controller) throws IOException
         {
-            super(cfStore, sstables, gcBefore, major);
-            this.cfStore = cfStore;
+            super(sstables, controller);
         }
 
         @Override
         protected AbstractCompactedRow getCompactedRow()
         {
-            return new LazilyCompactedRow(cfStore, rows, true, Integer.MAX_VALUE, true);
+            return new LazilyCompactedRow(controller, rows);
         }
     }
 
     private static class PreCompactingIterator extends CompactionIterator
     {
-        private final ColumnFamilyStore cfStore;
-
-        public PreCompactingIterator(ColumnFamilyStore cfStore, Iterable<SSTableReader> sstables, int gcBefore, boolean major) throws IOException
+        public PreCompactingIterator(Iterable<SSTableReader> sstables, CompactionController controller) throws IOException
         {
-            super(cfStore, sstables, gcBefore, major);
-            this.cfStore = cfStore;
+            super(sstables, controller);
         }
 
         @Override
         protected AbstractCompactedRow getCompactedRow()
         {
-            return new PrecompactedRow(cfStore, rows, true, Integer.MAX_VALUE, true);
+            return new PrecompactedRow(controller, rows);
         }
     }
 }

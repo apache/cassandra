@@ -844,7 +844,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * present in the checked SSTables, but positive ones doesn't ensure key
      * presence.
      */
-    public boolean isKeyInRemainingSSTables(DecoratedKey key, Set<SSTable> sstablesToIgnore)
+    public boolean isKeyInRemainingSSTables(DecoratedKey key, Set<? extends SSTable> sstablesToIgnore)
     {
         for (SSTableReader sstable : data.getSSTables())
         {

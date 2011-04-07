@@ -41,7 +41,7 @@ public class SSTableScanner implements Iterator<IColumnIterator>, Closeable
     private static Logger logger = LoggerFactory.getLogger(SSTableScanner.class);
 
     private final BufferedRandomAccessFile file;
-    private final SSTableReader sstable;
+    public final SSTableReader sstable;
     private IColumnIterator row;
     private boolean exhausted = false;
     private Iterator<IColumnIterator> iterator;

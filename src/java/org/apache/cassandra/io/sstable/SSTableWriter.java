@@ -41,7 +41,10 @@ import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.marshal.AbstractCommutativeType;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.AbstractCompactedRow;
+import org.apache.cassandra.io.CompactionController;
 import org.apache.cassandra.io.ICompactionInfo;
+import org.apache.cassandra.io.LazilyCompactedRow;
+import org.apache.cassandra.io.PrecompactedRow;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
 import org.apache.cassandra.io.util.FileMark;
 import org.apache.cassandra.io.util.FileUtils;
@@ -446,68 +449,53 @@ public class SSTableWriter extends SSTable
             EstimatedHistogram rowSizes = SSTable.defaultRowHistogram();
             EstimatedHistogram columnCounts = SSTable.defaultColumnHistogram();
             long rows = 0L;
-            ByteBuffer diskKey;
             DecoratedKey key;
 
-            long readRowPosition  = 0L;
-            long writeRowPosition = 0L;
-
-            writerDfile.seek(writeRowPosition);
-            dfile.seek(readRowPosition);
+            CompactionController controller = CompactionController.getBasicController(true);
 
             long dfileLength = dfile.length();
-            while (readRowPosition < dfileLength)
+            while (!dfile.isEOF())
             {
                 // read key
-                diskKey = ByteBufferUtil.readWithShortLength(dfile);
+                key = SSTableReader.decodeKey(StorageService.getPartitioner(), desc, ByteBufferUtil.readWithShortLength(dfile));
 
                 // skip data size, bloom filter, column index
                 long dataSize = SSTableReader.readRowSize(dfile, desc);
-                dfile.skipBytes(dfile.readInt());
-                dfile.skipBytes(dfile.readInt());
+                SSTableIdentityIterator iter = new SSTableIdentityIterator(metadata, dfile, key, dfile.getFilePointer(), dataSize, true);
 
-                // deserialize CF
-                ColumnFamily cf = ColumnFamily.create(desc.ksname, desc.cfname);
-                ColumnFamily.serializer().deserializeFromSSTableNoColumns(cf, dfile);
-                // The data is coming from another host
-                ColumnFamily.serializer().deserializeColumns(dfile, cf, false, true);
+                AbstractCompactedRow row;
+                if (dataSize > DatabaseDescriptor.getInMemoryCompactionLimit())
+                {
+                    logger.info(String.format("Rebuilding post-streaming large counter row %s (%d bytes) incrementally", ByteBufferUtil.bytesToHex(key.key), dataSize));
+                    row = new LazilyCompactedRow(controller, Collections.singletonList(iter));
+                }
+                else
+                {
+                    row = new PrecompactedRow(controller, Collections.singletonList(iter));
+                }
+
                 rowSizes.add(dataSize);
-                columnCounts.add(cf.getEstimatedColumnCount());
-
-                readRowPosition = dfile.getFilePointer();
+                columnCounts.add(row.columnCount());
 
                 // update index writer
-                key = SSTableReader.decodeKey(StorageService.getPartitioner(), desc, diskKey);
-                iwriter.afterAppend(key, writeRowPosition);
-
-                // write key
-                ByteBufferUtil.writeWithShortLength(diskKey, writerDfile);
-
-                // write data size; serialize CF w/ bloom filter, column index
-                long writeSizePosition = writerDfile.getFilePointer();
-                writerDfile.writeLong(-1L);
-                ColumnFamily.serializer().serializeWithIndexes(cf, writerDfile);
-                long writeEndPosition = writerDfile.getFilePointer();
-                writerDfile.seek(writeSizePosition);
-                writerDfile.writeLong(writeEndPosition - (writeSizePosition + 8L));
-
-                writeRowPosition = writeEndPosition;
-                writerDfile.seek(writeRowPosition);
+                iwriter.afterAppend(key, writerDfile.getFilePointer());
+                // write key and row
+                ByteBufferUtil.writeWithShortLength(key.key, writerDfile);
+                row.write(writerDfile);
 
                 rows++;
             }
             writeStatistics(desc, rowSizes, columnCounts);
 
-            if (writeRowPosition != readRowPosition)
+            if (writerDfile.getFilePointer() != dfile.getFilePointer())
             {
                 // truncate file to new, reduced length
-                writerDfile.setLength(writeRowPosition);
+                writerDfile.setLength(writerDfile.getFilePointer());
             }
             writerDfile.sync();
 
             return rows;
         }
-
 
         @Override
         void close() throws IOException

@@ -30,6 +30,7 @@ import java.util.ArrayList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IColumn;
@@ -44,9 +45,9 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
     private final DecoratedKey key;
     private final long finishedAt;
     private final BufferedRandomAccessFile file;
-    public final SSTableReader sstable;
     private final long dataStart;
     public final long dataSize;
+    public final boolean fromRemote;
 
     private final ColumnFamily columnFamily;
     public final int columnCount;
@@ -73,12 +74,25 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
     public SSTableIdentityIterator(SSTableReader sstable, BufferedRandomAccessFile file, DecoratedKey key, long dataStart, long dataSize, boolean deserializeRowHeader)
     throws IOException
     {
-        this.sstable = sstable;
+        this(sstable.metadata, file, key, dataStart, dataSize, deserializeRowHeader, sstable, false);
+    }
+
+    public SSTableIdentityIterator(CFMetaData metadata, BufferedRandomAccessFile file, DecoratedKey key, long dataStart, long dataSize, boolean fromRemote)
+    throws IOException
+    {
+        this(metadata, file, key, dataStart, dataSize, false, null, fromRemote);
+    }
+
+    // sstable may be null *if* deserializeRowHeader is false
+    private SSTableIdentityIterator(CFMetaData metadata, BufferedRandomAccessFile file, DecoratedKey key, long dataStart, long dataSize, boolean deserializeRowHeader, SSTableReader sstable, boolean fromRemote)
+    throws IOException
+    {
         this.file = file;
         this.key = key;
         this.dataStart = dataStart;
         this.dataSize = dataSize;
         this.expireBefore = (int)(System.currentTimeMillis() / 1000);
+        this.fromRemote = fromRemote;
         finishedAt = dataStart + dataSize;
 
         try
@@ -111,7 +125,7 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
 
             IndexHelper.skipBloomFilter(file);
             IndexHelper.skipIndex(file);
-            columnFamily = sstable.createColumnFamily();
+            columnFamily = ColumnFamily.create(metadata);
             ColumnFamily.serializer().deserializeFromSSTableNoColumns(columnFamily, file);
             columnCount = file.readInt();
             columnPosition = file.getFilePointer();
@@ -141,7 +155,7 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
     {
         try
         {
-            return sstable.getColumnSerializer().deserialize(file, null, false, expireBefore);
+            return columnFamily.getColumnSerializer().deserialize(file, null, fromRemote, expireBefore);
         }
         catch (IOException e)
         {
@@ -177,7 +191,7 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
     {
         file.seek(columnPosition - 4); // seek to before column count int
         ColumnFamily cf = columnFamily.cloneMeShallow();
-        ColumnFamily.serializer().deserializeColumns(file, cf, false, false);
+        ColumnFamily.serializer().deserializeColumns(file, cf, false, fromRemote);
         return cf;
     }
 

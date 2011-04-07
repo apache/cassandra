@@ -56,16 +56,9 @@ public class PrecompactedRow extends AbstractCompactedRow
         this.compactedCf = compacted;
     }
 
-    public PrecompactedRow(ColumnFamilyStore cfStore, List<SSTableIdentityIterator> rows, boolean major, int gcBefore, boolean forceDeserialize)
+    public PrecompactedRow(CompactionController controller, List<SSTableIdentityIterator> rows)
     {
         super(rows.get(0).getKey());
-
-        Set<SSTable> sstables = new HashSet<SSTable>();
-        for (SSTableIdentityIterator row : rows)
-        {
-            sstables.add(row.sstable);
-        }
-        boolean shouldPurge = major || !cfStore.isKeyInRemainingSSTables(key, sstables);
 
         ColumnFamily cf = null;
         for (SSTableIdentityIterator row : rows)
@@ -89,10 +82,10 @@ public class PrecompactedRow extends AbstractCompactedRow
                 cf.addAll(thisCF);
             }
         }
-        compactedCf = shouldPurge ? ColumnFamilyStore.removeDeleted(cf, gcBefore) : cf;
+        compactedCf = controller.shouldPurge(key) ? ColumnFamilyStore.removeDeleted(cf, controller.gcBefore) : cf;
         if (compactedCf != null && compactedCf.metadata().getDefaultValidator().isCommutative())
         {
-            CounterColumn.removeOldShards(compactedCf, gcBefore);
+            CounterColumn.removeOldShards(compactedCf, controller.gcBefore);
         }
     }
 
