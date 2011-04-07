@@ -1543,6 +1543,11 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      * @param key - key for which we need to find the endpoint return value -
      * the endpoint responsible for this key
      */
+    public List<InetAddress> getNaturalEndpoints(String table, byte[] key)
+    {
+        return getNaturalEndpoints(table, partitioner.getToken(ByteBuffer.wrap(key)));
+    }
+
     public List<InetAddress> getNaturalEndpoints(String table, ByteBuffer key)
     {
         return getNaturalEndpoints(table, partitioner.getToken(key));
