@@ -231,6 +231,9 @@ public class DatabaseDescriptor
                 throw new ConfigurationException("conf.concurrent_replicates must be at least 2");
             }
 
+            if (conf.memtable_total_space_in_mb == null)
+                conf.memtable_total_space_in_mb = (int) (Runtime.getRuntime().maxMemory() / (3 * 1048576));
+
             /* Memtable flush writer threads */
             if (conf.memtable_flush_writers != null && conf.memtable_flush_writers < 1)
             {
@@ -797,6 +800,8 @@ public class DatabaseDescriptor
           maxDiskIndex = i;
         }
       }
+        logger.debug("expected data files size is {}; largest free partition has {} bytes free",
+                     expectedCompactedFileSize, maxFreeDisk);
       // Load factor of 0.9 we do not want to use the entire disk that is too risky.
       maxFreeDisk = (long)(0.9 * maxFreeDisk);
       if( expectedCompactedFileSize < maxFreeDisk )
@@ -1056,5 +1061,17 @@ public class DatabaseDescriptor
     public static int getFlushQueueSize()
     {
         return conf.memtable_flush_queue_size;
+    }
+
+    public static int getTotalMemtableSpaceInMB()
+    {
+        // should only be called if estimatesRealMemtableSize() is true
+        assert conf.memtable_total_space_in_mb > 0;
+        return conf.memtable_total_space_in_mb;
+    }
+
+    public static boolean estimatesRealMemtableSize()
+    {
+        return conf.memtable_total_space_in_mb > 0;
     }
 }

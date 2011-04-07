@@ -24,6 +24,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -102,6 +103,20 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public static final ExecutorService postFlushExecutor = new JMXEnabledThreadPoolExecutor("MemtablePostFlusher");
 
+    static
+    {
+        if (DatabaseDescriptor.estimatesRealMemtableSize())
+        {
+            logger.info("Global memtable threshold is enabled at {}MB", DatabaseDescriptor.getTotalMemtableSpaceInMB());
+            // (can block if flush queue fills up, so don't put on scheduledTasks)
+            StorageService.tasks.scheduleWithFixedDelay(new MeteredFlusher(), 1000, 1000, TimeUnit.MILLISECONDS);
+        }
+        else
+        {
+            logger.info("Global memtable threshold is disabled");
+        }
+    }
+
     public final Table table;
     public final String columnFamily;
     public final CFMetaData metadata;
@@ -143,7 +158,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     /** Lock to allow migrations to block all flushing, so we can be sure not to write orphaned data files */
     public final Lock flushLock = new ReentrantLock();
-    
+
     public static enum CacheType
     {
         KEY_CACHE_TYPE("KeyCache"),
@@ -165,6 +180,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public final AutoSavingCache<Pair<Descriptor,DecoratedKey>, Long> keyCache;
     public final AutoSavingCache<DecoratedKey, ColumnFamily> rowCache;
+
+
+    /** ratio of in-memory memtable size, to serialized size */
+    volatile double liveRatio = 1.0;
+    /** ops count last time we computed liveRatio */
+    private final AtomicLong liveRatioComputedAt = new AtomicLong(32);
 
     public void reload()
     {
@@ -569,12 +590,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * When the sstable object is closed, it will be renamed to a non-temporary
      * format, so incomplete sstables can be recognized and removed on startup.
      */
-    public String getFlushPath()
+    public String getFlushPath(long estimatedSize)
     {
-        long guessedSize = 2L * memsize.value() * 1024*1024; // 2* adds room for keys, column indexes
-        String location = DatabaseDescriptor.getDataFileLocationForTable(table.name, guessedSize);
+        String location = DatabaseDescriptor.getDataFileLocationForTable(table.name, estimatedSize);
         if (location == null)
-            throw new RuntimeException("Insufficient disk space to flush");
+            throw new RuntimeException("Insufficient disk space to flush " + estimatedSize + " bytes");
         return getTempSSTablePath(location);
     }
 
@@ -739,6 +759,22 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             if (cachedRow != null)
                 cachedRow.addAll(columnFamily);
             writeStats.addNano(System.nanoTime() - start);
+        }
+
+        if (DatabaseDescriptor.estimatesRealMemtableSize())
+        {
+            while (true)
+            {
+                long last = liveRatioComputedAt.get();
+                long operations = writeStats.getOpCount();
+                if (operations < 2 * last)
+                    break;
+                if (liveRatioComputedAt.compareAndSet(last, operations))
+                {
+                    logger.debug("computing liveRatio of {} at {} ops", this, operations);
+                    mt.updateLiveRatio();
+                }
+            }
         }
 
         return flushRequested ? mt : null;
@@ -966,12 +1002,20 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public long getMemtableColumnsCount()
     {
-        return getMemtableThreadSafe().getCurrentOperations();
+        return getMemtableThreadSafe().getOperations();
     }
 
     public long getMemtableDataSize()
     {
-        return getMemtableThreadSafe().getCurrentThroughput();
+        return getMemtableThreadSafe().getLiveSize();
+    }
+
+    public long getTotalMemtableLiveSize()
+    {
+        long total = 0;
+        for (ColumnFamilyStore cfs : concatWithIndexes())
+            total += cfs.getMemtableThreadSafe().getLiveSize();
+        return total;
     }
 
     public int getMemtableSwitchCount()
@@ -2032,9 +2076,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return intern(name);
     }
 
-    public SSTableWriter createFlushWriter(long estimatedRows) throws IOException
+    public SSTableWriter createFlushWriter(long estimatedRows, long estimatedSize) throws IOException
     {
-        return new SSTableWriter(getFlushPath(), estimatedRows, metadata, partitioner);
+        return new SSTableWriter(getFlushPath(estimatedSize), estimatedRows, metadata, partitioner);
     }
 
     public SSTableWriter createCompactionWriter(long estimatedRows, String location) throws IOException
@@ -2047,4 +2091,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return Iterables.concat(indexedColumns.values(), Collections.singleton(this));
     }
 
+    public Set<Memtable> getMemtablesPendingFlush()
+    {
+        return data.getMemtablesPendingFlush();
+    }
 }
