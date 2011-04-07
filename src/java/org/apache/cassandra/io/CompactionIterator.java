@@ -36,6 +36,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.sstable.SSTableScanner;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.ReducingIterator;
@@ -149,10 +150,7 @@ implements Closeable, ICompactionInfo
 
     public void close() throws IOException
     {
-        for (SSTableScanner scanner : getScanners())
-        {
-            scanner.close();
-        }
+        FileUtils.close(getScanners());
     }
 
     protected Iterable<SSTableScanner> getScanners()

@@ -20,6 +20,7 @@ package org.apache.cassandra.io.util;
 
 import java.io.*;
 import java.text.DecimalFormat;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 
@@ -93,6 +94,26 @@ public class FileUtils
         {
             logger_.warn("Failed closing stream", e);
         }
+    }
+
+    public static void close(Iterable<? extends Closeable> cs) throws IOException
+    {
+        IOException e = null;
+        for (Closeable c : cs)
+        {
+            try
+            {
+                if (c != null)
+                    c.close();
+            }
+            catch (IOException ex)
+            {
+                e = ex;
+                logger_.warn("Failed closing stream " + c, ex);
+            }
+        }
+        if (e != null)
+            throw e;
     }
 
     public static class FileComparator implements Comparator<File>

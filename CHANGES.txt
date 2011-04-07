@@ -39,6 +39,7 @@
    index (CASSANDRA-2376)
  * fix race condition that could leave orphaned data files when
    dropping CF or KS (CASSANDRA-2381)
+ * Try harder to close files after compaction (CASSANDRA-2431)
 
 
 0.7.4
