@@ -87,7 +87,7 @@ class MeteredFlusher implements Runnable
         }
         finally
         {
-            logger.debug("memtable memory usage is {} bytes with {} live", liveBytes + flushingBytes, liveBytes);
+            logger.trace("memtable memory usage is {} bytes with {} live", liveBytes + flushingBytes, liveBytes);
         }
     }
 
