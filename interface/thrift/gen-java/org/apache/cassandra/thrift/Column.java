@@ -42,12 +42,6 @@ import java.util.Arrays;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.thrift.*;
-import org.apache.thrift.async.*;
-import org.apache.thrift.meta_data.*;
-import org.apache.thrift.transport.*;
-import org.apache.thrift.protocol.*;
-
 /**
  * Basic unit of data within a ColumnFamily.
  * @param name, the name by which this column is set and retrieved.  Maximum 64KB long.
@@ -55,13 +49,13 @@ import org.apache.thrift.protocol.*;
  * @param timestamp. The timestamp is used for conflict detection/resolution when two columns with same name need to be compared.
  * @param ttl. An optional, positive delay (in seconds) after which the column will be automatically deleted.
  */
-public class Column implements TBase<Column, Column._Fields>, java.io.Serializable, Cloneable {
-  private static final TStruct STRUCT_DESC = new TStruct("Column");
+public class Column implements org.apache.thrift.TBase<Column, Column._Fields>, java.io.Serializable, Cloneable {
+  private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct("Column");
 
-  private static final TField NAME_FIELD_DESC = new TField("name", TType.STRING, (short)1);
-  private static final TField VALUE_FIELD_DESC = new TField("value", TType.STRING, (short)2);
-  private static final TField TIMESTAMP_FIELD_DESC = new TField("timestamp", TType.I64, (short)3);
-  private static final TField TTL_FIELD_DESC = new TField("ttl", TType.I32, (short)4);
+  private static final org.apache.thrift.protocol.TField NAME_FIELD_DESC = new org.apache.thrift.protocol.TField("name", org.apache.thrift.protocol.TType.STRING, (short)1);
+  private static final org.apache.thrift.protocol.TField VALUE_FIELD_DESC = new org.apache.thrift.protocol.TField("value", org.apache.thrift.protocol.TType.STRING, (short)2);
+  private static final org.apache.thrift.protocol.TField TIMESTAMP_FIELD_DESC = new org.apache.thrift.protocol.TField("timestamp", org.apache.thrift.protocol.TType.I64, (short)3);
+  private static final org.apache.thrift.protocol.TField TTL_FIELD_DESC = new org.apache.thrift.protocol.TField("ttl", org.apache.thrift.protocol.TType.I32, (short)4);
 
   public ByteBuffer name;
   public ByteBuffer value;
@@ -69,7 +63,7 @@ public class Column implements TBase<Column, Column._Fields>, java.io.Serializab
   public int ttl;
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
-  public enum _Fields implements TFieldIdEnum {
+  public enum _Fields implements org.apache.thrift.TFieldIdEnum {
     NAME((short)1, "name"),
     VALUE((short)2, "value"),
     TIMESTAMP((short)3, "timestamp"),
@@ -140,19 +134,19 @@ public class Column implements TBase<Column, Column._Fields>, java.io.Serializab
   private static final int __TTL_ISSET_ID = 1;
   private BitSet __isset_bit_vector = new BitSet(2);
 
-  public static final Map<_Fields, FieldMetaData> metaDataMap;
+  public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
   static {
-    Map<_Fields, FieldMetaData> tmpMap = new EnumMap<_Fields, FieldMetaData>(_Fields.class);
-    tmpMap.put(_Fields.NAME, new FieldMetaData("name", TFieldRequirementType.REQUIRED, 
-        new FieldValueMetaData(TType.STRING)));
-    tmpMap.put(_Fields.VALUE, new FieldMetaData("value", TFieldRequirementType.REQUIRED, 
-        new FieldValueMetaData(TType.STRING)));
-    tmpMap.put(_Fields.TIMESTAMP, new FieldMetaData("timestamp", TFieldRequirementType.REQUIRED, 
-        new FieldValueMetaData(TType.I64)));
-    tmpMap.put(_Fields.TTL, new FieldMetaData("ttl", TFieldRequirementType.OPTIONAL, 
-        new FieldValueMetaData(TType.I32)));
+    Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
+    tmpMap.put(_Fields.NAME, new org.apache.thrift.meta_data.FieldMetaData("name", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING        , true)));
+    tmpMap.put(_Fields.VALUE, new org.apache.thrift.meta_data.FieldMetaData("value", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING        , true)));
+    tmpMap.put(_Fields.TIMESTAMP, new org.apache.thrift.meta_data.FieldMetaData("timestamp", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I64)));
+    tmpMap.put(_Fields.TTL, new org.apache.thrift.meta_data.FieldMetaData("ttl", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32)));
     metaDataMap = Collections.unmodifiableMap(tmpMap);
-    FieldMetaData.addStructMetaDataMap(Column.class, metaDataMap);
+    org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(Column.class, metaDataMap);
   }
 
   public Column() {
@@ -177,11 +171,11 @@ public class Column implements TBase<Column, Column._Fields>, java.io.Serializab
     __isset_bit_vector.clear();
     __isset_bit_vector.or(other.__isset_bit_vector);
     if (other.isSetName()) {
-      this.name = TBaseHelper.copyBinary(other.name);
+      this.name = org.apache.thrift.TBaseHelper.copyBinary(other.name);
 ;
     }
     if (other.isSetValue()) {
-      this.value = TBaseHelper.copyBinary(other.value);
+      this.value = org.apache.thrift.TBaseHelper.copyBinary(other.value);
 ;
     }
     this.timestamp = other.timestamp;
@@ -203,16 +197,16 @@ public class Column implements TBase<Column, Column._Fields>, java.io.Serializab
   }
 
   public byte[] getName() {
-    setName(TBaseHelper.rightSize(name));
-    return name.array();
+    setName(org.apache.thrift.TBaseHelper.rightSize(name));
+    return name == null ? null : name.array();
   }
 
-  public ByteBuffer BufferForName() {
+  public ByteBuffer bufferForName() {
     return name;
   }
 
   public Column setName(byte[] name) {
-    setName(ByteBuffer.wrap(name));
+    setName(name == null ? (ByteBuffer)null : ByteBuffer.wrap(name));
     return this;
   }
 
@@ -225,7 +219,7 @@ public class Column implements TBase<Column, Column._Fields>, java.io.Serializab
     this.name = null;
   }
 
-  /** Returns true if field name is set (has been asigned a value) and false otherwise */
+  /** Returns true if field name is set (has been assigned a value) and false otherwise */
   public boolean isSetName() {
     return this.name != null;
   }
@@ -237,16 +231,16 @@ public class Column implements TBase<Column, Column._Fields>, java.io.Serializab
   }
 
   public byte[] getValue() {
-    setValue(TBaseHelper.rightSize(value));
-    return value.array();
+    setValue(org.apache.thrift.TBaseHelper.rightSize(value));
+    return value == null ? null : value.array();
   }
 
-  public ByteBuffer BufferForValue() {
+  public ByteBuffer bufferForValue() {
     return value;
   }
 
   public Column setValue(byte[] value) {
-    setValue(ByteBuffer.wrap(value));
+    setValue(value == null ? (ByteBuffer)null : ByteBuffer.wrap(value));
     return this;
   }
 
@@ -259,7 +253,7 @@ public class Column implements TBase<Column, Column._Fields>, java.io.Serializab
     this.value = null;
   }
 
-  /** Returns true if field value is set (has been asigned a value) and false otherwise */
+  /** Returns true if field value is set (has been assigned a value) and false otherwise */
   public boolean isSetValue() {
     return this.value != null;
   }
@@ -284,7 +278,7 @@ public class Column implements TBase<Column, Column._Fields>, java.io.Serializab
     __isset_bit_vector.clear(__TIMESTAMP_ISSET_ID);
   }
 
-  /** Returns true if field timestamp is set (has been asigned a value) and false otherwise */
+  /** Returns true if field timestamp is set (has been assigned a value) and false otherwise */
   public boolean isSetTimestamp() {
     return __isset_bit_vector.get(__TIMESTAMP_ISSET_ID);
   }
@@ -307,7 +301,7 @@ public class Column implements TBase<Column, Column._Fields>, java.io.Serializab
     __isset_bit_vector.clear(__TTL_ISSET_ID);
   }
 
-  /** Returns true if field ttl is set (has been asigned a value) and false otherwise */
+  /** Returns true if field ttl is set (has been assigned a value) and false otherwise */
   public boolean isSetTtl() {
     return __isset_bit_vector.get(__TTL_ISSET_ID);
   }
@@ -371,7 +365,7 @@ public class Column implements TBase<Column, Column._Fields>, java.io.Serializab
     throw new IllegalStateException();
   }
 
-  /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
+  /** Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise */
   public boolean isSet(_Fields field) {
     if (field == null) {
       throw new IllegalArgumentException();
@@ -482,7 +476,7 @@ public class Column implements TBase<Column, Column._Fields>, java.io.Serializab
       return lastComparison;
     }
     if (isSetName()) {
-      lastComparison = TBaseHelper.compareTo(this.name, typedOther.name);
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.name, typedOther.name);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -492,7 +486,7 @@ public class Column implements TBase<Column, Column._Fields>, java.io.Serializab
       return lastComparison;
     }
     if (isSetValue()) {
-      lastComparison = TBaseHelper.compareTo(this.value, typedOther.value);
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.value, typedOther.value);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -502,7 +496,7 @@ public class Column implements TBase<Column, Column._Fields>, java.io.Serializab
       return lastComparison;
     }
     if (isSetTimestamp()) {
-      lastComparison = TBaseHelper.compareTo(this.timestamp, typedOther.timestamp);
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.timestamp, typedOther.timestamp);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -512,7 +506,7 @@ public class Column implements TBase<Column, Column._Fields>, java.io.Serializab
       return lastComparison;
     }
     if (isSetTtl()) {
-      lastComparison = TBaseHelper.compareTo(this.ttl, typedOther.ttl);
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.ttl, typedOther.ttl);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -524,48 +518,48 @@ public class Column implements TBase<Column, Column._Fields>, java.io.Serializab
     return _Fields.findByThriftId(fieldId);
   }
 
-  public void read(TProtocol iprot) throws TException {
-    TField field;
+  public void read(org.apache.thrift.protocol.TProtocol iprot) throws org.apache.thrift.TException {
+    org.apache.thrift.protocol.TField field;
     iprot.readStructBegin();
     while (true)
     {
       field = iprot.readFieldBegin();
-      if (field.type == TType.STOP) { 
+      if (field.type == org.apache.thrift.protocol.TType.STOP) { 
         break;
       }
       switch (field.id) {
         case 1: // NAME
-          if (field.type == TType.STRING) {
+          if (field.type == org.apache.thrift.protocol.TType.STRING) {
             this.name = iprot.readBinary();
           } else { 
-            TProtocolUtil.skip(iprot, field.type);
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
         case 2: // VALUE
-          if (field.type == TType.STRING) {
+          if (field.type == org.apache.thrift.protocol.TType.STRING) {
             this.value = iprot.readBinary();
           } else { 
-            TProtocolUtil.skip(iprot, field.type);
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
         case 3: // TIMESTAMP
-          if (field.type == TType.I64) {
+          if (field.type == org.apache.thrift.protocol.TType.I64) {
             this.timestamp = iprot.readI64();
             setTimestampIsSet(true);
           } else { 
-            TProtocolUtil.skip(iprot, field.type);
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
         case 4: // TTL
-          if (field.type == TType.I32) {
+          if (field.type == org.apache.thrift.protocol.TType.I32) {
             this.ttl = iprot.readI32();
             setTtlIsSet(true);
           } else { 
-            TProtocolUtil.skip(iprot, field.type);
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
         default:
-          TProtocolUtil.skip(iprot, field.type);
+          org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
       }
       iprot.readFieldEnd();
     }
@@ -573,12 +567,12 @@ public class Column implements TBase<Column, Column._Fields>, java.io.Serializab
 
     // check for required fields of primitive type, which can't be checked in the validate method
     if (!isSetTimestamp()) {
-      throw new TProtocolException("Required field 'timestamp' was not found in serialized data! Struct: " + toString());
+      throw new org.apache.thrift.protocol.TProtocolException("Required field 'timestamp' was not found in serialized data! Struct: " + toString());
     }
     validate();
   }
 
-  public void write(TProtocol oprot) throws TException {
+  public void write(org.apache.thrift.protocol.TProtocol oprot) throws org.apache.thrift.TException {
     validate();
 
     oprot.writeStructBegin(STRUCT_DESC);
@@ -613,7 +607,7 @@ public class Column implements TBase<Column, Column._Fields>, java.io.Serializab
     if (this.name == null) {
       sb.append("null");
     } else {
-      TBaseHelper.toString(this.name, sb);
+      org.apache.thrift.TBaseHelper.toString(this.name, sb);
     }
     first = false;
     if (!first) sb.append(", ");
@@ -621,7 +615,7 @@ public class Column implements TBase<Column, Column._Fields>, java.io.Serializab
     if (this.value == null) {
       sb.append("null");
     } else {
-      TBaseHelper.toString(this.value, sb);
+      org.apache.thrift.TBaseHelper.toString(this.value, sb);
     }
     first = false;
     if (!first) sb.append(", ");
@@ -638,15 +632,33 @@ public class Column implements TBase<Column, Column._Fields>, java.io.Serializab
     return sb.toString();
   }
 
-  public void validate() throws TException {
+  public void validate() throws org.apache.thrift.TException {
     // check for required fields
     if (name == null) {
-      throw new TProtocolException("Required field 'name' was not present! Struct: " + toString());
+      throw new org.apache.thrift.protocol.TProtocolException("Required field 'name' was not present! Struct: " + toString());
     }
     if (value == null) {
-      throw new TProtocolException("Required field 'value' was not present! Struct: " + toString());
+      throw new org.apache.thrift.protocol.TProtocolException("Required field 'value' was not present! Struct: " + toString());
     }
     // alas, we cannot check 'timestamp' because it's a primitive and you chose the non-beans generator.
+  }
+
+  private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
+    try {
+      write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
+    } catch (org.apache.thrift.TException te) {
+      throw new java.io.IOException(te);
+    }
+  }
+
+  private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
+    try {
+      // it doesn't seem like you should have to do this, but java serialization is wacky, and doesn't call the default constructor.
+      __isset_bit_vector = new BitSet(1);
+      read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
+    } catch (org.apache.thrift.TException te) {
+      throw new java.io.IOException(te);
+    }
   }
 
 }

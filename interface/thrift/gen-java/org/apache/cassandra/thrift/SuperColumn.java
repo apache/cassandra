@@ -42,29 +42,23 @@ import java.util.Arrays;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.thrift.*;
-import org.apache.thrift.async.*;
-import org.apache.thrift.meta_data.*;
-import org.apache.thrift.transport.*;
-import org.apache.thrift.protocol.*;
-
 /**
  * A named list of columns.
  * @param name. see Column.name.
  * @param columns. A collection of standard Columns.  The columns within a super column are defined in an adhoc manner.
  *                 Columns within a super column do not have to have matching structures (similarly named child columns).
  */
-public class SuperColumn implements TBase<SuperColumn, SuperColumn._Fields>, java.io.Serializable, Cloneable {
-  private static final TStruct STRUCT_DESC = new TStruct("SuperColumn");
+public class SuperColumn implements org.apache.thrift.TBase<SuperColumn, SuperColumn._Fields>, java.io.Serializable, Cloneable {
+  private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct("SuperColumn");
 
-  private static final TField NAME_FIELD_DESC = new TField("name", TType.STRING, (short)1);
-  private static final TField COLUMNS_FIELD_DESC = new TField("columns", TType.LIST, (short)2);
+  private static final org.apache.thrift.protocol.TField NAME_FIELD_DESC = new org.apache.thrift.protocol.TField("name", org.apache.thrift.protocol.TType.STRING, (short)1);
+  private static final org.apache.thrift.protocol.TField COLUMNS_FIELD_DESC = new org.apache.thrift.protocol.TField("columns", org.apache.thrift.protocol.TType.LIST, (short)2);
 
   public ByteBuffer name;
   public List<Column> columns;
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
-  public enum _Fields implements TFieldIdEnum {
+  public enum _Fields implements org.apache.thrift.TFieldIdEnum {
     NAME((short)1, "name"),
     COLUMNS((short)2, "columns");
 
@@ -126,16 +120,16 @@ public class SuperColumn implements TBase<SuperColumn, SuperColumn._Fields>, jav
 
   // isset id assignments
 
-  public static final Map<_Fields, FieldMetaData> metaDataMap;
+  public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
   static {
-    Map<_Fields, FieldMetaData> tmpMap = new EnumMap<_Fields, FieldMetaData>(_Fields.class);
-    tmpMap.put(_Fields.NAME, new FieldMetaData("name", TFieldRequirementType.REQUIRED, 
-        new FieldValueMetaData(TType.STRING)));
-    tmpMap.put(_Fields.COLUMNS, new FieldMetaData("columns", TFieldRequirementType.REQUIRED, 
-        new ListMetaData(TType.LIST, 
-            new StructMetaData(TType.STRUCT, Column.class))));
+    Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
+    tmpMap.put(_Fields.NAME, new org.apache.thrift.meta_data.FieldMetaData("name", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING        , true)));
+    tmpMap.put(_Fields.COLUMNS, new org.apache.thrift.meta_data.FieldMetaData("columns", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+        new org.apache.thrift.meta_data.ListMetaData(org.apache.thrift.protocol.TType.LIST, 
+            new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, Column.class))));
     metaDataMap = Collections.unmodifiableMap(tmpMap);
-    FieldMetaData.addStructMetaDataMap(SuperColumn.class, metaDataMap);
+    org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(SuperColumn.class, metaDataMap);
   }
 
   public SuperColumn() {
@@ -155,7 +149,7 @@ public class SuperColumn implements TBase<SuperColumn, SuperColumn._Fields>, jav
    */
   public SuperColumn(SuperColumn other) {
     if (other.isSetName()) {
-      this.name = TBaseHelper.copyBinary(other.name);
+      this.name = org.apache.thrift.TBaseHelper.copyBinary(other.name);
 ;
     }
     if (other.isSetColumns()) {
@@ -178,16 +172,16 @@ public class SuperColumn implements TBase<SuperColumn, SuperColumn._Fields>, jav
   }
 
   public byte[] getName() {
-    setName(TBaseHelper.rightSize(name));
-    return name.array();
+    setName(org.apache.thrift.TBaseHelper.rightSize(name));
+    return name == null ? null : name.array();
   }
 
-  public ByteBuffer BufferForName() {
+  public ByteBuffer bufferForName() {
     return name;
   }
 
   public SuperColumn setName(byte[] name) {
-    setName(ByteBuffer.wrap(name));
+    setName(name == null ? (ByteBuffer)null : ByteBuffer.wrap(name));
     return this;
   }
 
@@ -200,7 +194,7 @@ public class SuperColumn implements TBase<SuperColumn, SuperColumn._Fields>, jav
     this.name = null;
   }
 
-  /** Returns true if field name is set (has been asigned a value) and false otherwise */
+  /** Returns true if field name is set (has been assigned a value) and false otherwise */
   public boolean isSetName() {
     return this.name != null;
   }
@@ -239,7 +233,7 @@ public class SuperColumn implements TBase<SuperColumn, SuperColumn._Fields>, jav
     this.columns = null;
   }
 
-  /** Returns true if field columns is set (has been asigned a value) and false otherwise */
+  /** Returns true if field columns is set (has been assigned a value) and false otherwise */
   public boolean isSetColumns() {
     return this.columns != null;
   }
@@ -283,7 +277,7 @@ public class SuperColumn implements TBase<SuperColumn, SuperColumn._Fields>, jav
     throw new IllegalStateException();
   }
 
-  /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
+  /** Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise */
   public boolean isSet(_Fields field) {
     if (field == null) {
       throw new IllegalArgumentException();
@@ -362,7 +356,7 @@ public class SuperColumn implements TBase<SuperColumn, SuperColumn._Fields>, jav
       return lastComparison;
     }
     if (isSetName()) {
-      lastComparison = TBaseHelper.compareTo(this.name, typedOther.name);
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.name, typedOther.name);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -372,7 +366,7 @@ public class SuperColumn implements TBase<SuperColumn, SuperColumn._Fields>, jav
       return lastComparison;
     }
     if (isSetColumns()) {
-      lastComparison = TBaseHelper.compareTo(this.columns, typedOther.columns);
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.columns, typedOther.columns);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -384,27 +378,27 @@ public class SuperColumn implements TBase<SuperColumn, SuperColumn._Fields>, jav
     return _Fields.findByThriftId(fieldId);
   }
 
-  public void read(TProtocol iprot) throws TException {
-    TField field;
+  public void read(org.apache.thrift.protocol.TProtocol iprot) throws org.apache.thrift.TException {
+    org.apache.thrift.protocol.TField field;
     iprot.readStructBegin();
     while (true)
     {
       field = iprot.readFieldBegin();
-      if (field.type == TType.STOP) { 
+      if (field.type == org.apache.thrift.protocol.TType.STOP) { 
         break;
       }
       switch (field.id) {
         case 1: // NAME
-          if (field.type == TType.STRING) {
+          if (field.type == org.apache.thrift.protocol.TType.STRING) {
             this.name = iprot.readBinary();
           } else { 
-            TProtocolUtil.skip(iprot, field.type);
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
         case 2: // COLUMNS
-          if (field.type == TType.LIST) {
+          if (field.type == org.apache.thrift.protocol.TType.LIST) {
             {
-              TList _list0 = iprot.readListBegin();
+              org.apache.thrift.protocol.TList _list0 = iprot.readListBegin();
               this.columns = new ArrayList<Column>(_list0.size);
               for (int _i1 = 0; _i1 < _list0.size; ++_i1)
               {
@@ -416,11 +410,11 @@ public class SuperColumn implements TBase<SuperColumn, SuperColumn._Fields>, jav
               iprot.readListEnd();
             }
           } else { 
-            TProtocolUtil.skip(iprot, field.type);
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
         default:
-          TProtocolUtil.skip(iprot, field.type);
+          org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
       }
       iprot.readFieldEnd();
     }
@@ -430,7 +424,7 @@ public class SuperColumn implements TBase<SuperColumn, SuperColumn._Fields>, jav
     validate();
   }
 
-  public void write(TProtocol oprot) throws TException {
+  public void write(org.apache.thrift.protocol.TProtocol oprot) throws org.apache.thrift.TException {
     validate();
 
     oprot.writeStructBegin(STRUCT_DESC);
@@ -442,7 +436,7 @@ public class SuperColumn implements TBase<SuperColumn, SuperColumn._Fields>, jav
     if (this.columns != null) {
       oprot.writeFieldBegin(COLUMNS_FIELD_DESC);
       {
-        oprot.writeListBegin(new TList(TType.STRUCT, this.columns.size()));
+        oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, this.columns.size()));
         for (Column _iter3 : this.columns)
         {
           _iter3.write(oprot);
@@ -464,7 +458,7 @@ public class SuperColumn implements TBase<SuperColumn, SuperColumn._Fields>, jav
     if (this.name == null) {
       sb.append("null");
     } else {
-      TBaseHelper.toString(this.name, sb);
+      org.apache.thrift.TBaseHelper.toString(this.name, sb);
     }
     first = false;
     if (!first) sb.append(", ");
@@ -479,13 +473,29 @@ public class SuperColumn implements TBase<SuperColumn, SuperColumn._Fields>, jav
     return sb.toString();
   }
 
-  public void validate() throws TException {
+  public void validate() throws org.apache.thrift.TException {
     // check for required fields
     if (name == null) {
-      throw new TProtocolException("Required field 'name' was not present! Struct: " + toString());
+      throw new org.apache.thrift.protocol.TProtocolException("Required field 'name' was not present! Struct: " + toString());
     }
     if (columns == null) {
-      throw new TProtocolException("Required field 'columns' was not present! Struct: " + toString());
+      throw new org.apache.thrift.protocol.TProtocolException("Required field 'columns' was not present! Struct: " + toString());
+    }
+  }
+
+  private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
+    try {
+      write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
+    } catch (org.apache.thrift.TException te) {
+      throw new java.io.IOException(te);
+    }
+  }
+
+  private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
+    try {
+      read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
+    } catch (org.apache.thrift.TException te) {
+      throw new java.io.IOException(te);
     }
   }
 

@@ -42,23 +42,17 @@ import java.util.Arrays;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.thrift.*;
-import org.apache.thrift.async.*;
-import org.apache.thrift.meta_data.*;
-import org.apache.thrift.transport.*;
-import org.apache.thrift.protocol.*;
+public class CounterColumn implements org.apache.thrift.TBase<CounterColumn, CounterColumn._Fields>, java.io.Serializable, Cloneable {
+  private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct("CounterColumn");
 
-public class CounterColumn implements TBase<CounterColumn, CounterColumn._Fields>, java.io.Serializable, Cloneable {
-  private static final TStruct STRUCT_DESC = new TStruct("CounterColumn");
-
-  private static final TField NAME_FIELD_DESC = new TField("name", TType.STRING, (short)1);
-  private static final TField VALUE_FIELD_DESC = new TField("value", TType.I64, (short)2);
+  private static final org.apache.thrift.protocol.TField NAME_FIELD_DESC = new org.apache.thrift.protocol.TField("name", org.apache.thrift.protocol.TType.STRING, (short)1);
+  private static final org.apache.thrift.protocol.TField VALUE_FIELD_DESC = new org.apache.thrift.protocol.TField("value", org.apache.thrift.protocol.TType.I64, (short)2);
 
   public ByteBuffer name;
   public long value;
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
-  public enum _Fields implements TFieldIdEnum {
+  public enum _Fields implements org.apache.thrift.TFieldIdEnum {
     NAME((short)1, "name"),
     VALUE((short)2, "value");
 
@@ -122,15 +116,15 @@ public class CounterColumn implements TBase<CounterColumn, CounterColumn._Fields
   private static final int __VALUE_ISSET_ID = 0;
   private BitSet __isset_bit_vector = new BitSet(1);
 
-  public static final Map<_Fields, FieldMetaData> metaDataMap;
+  public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
   static {
-    Map<_Fields, FieldMetaData> tmpMap = new EnumMap<_Fields, FieldMetaData>(_Fields.class);
-    tmpMap.put(_Fields.NAME, new FieldMetaData("name", TFieldRequirementType.REQUIRED, 
-        new FieldValueMetaData(TType.STRING)));
-    tmpMap.put(_Fields.VALUE, new FieldMetaData("value", TFieldRequirementType.REQUIRED, 
-        new FieldValueMetaData(TType.I64)));
+    Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
+    tmpMap.put(_Fields.NAME, new org.apache.thrift.meta_data.FieldMetaData("name", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING        , true)));
+    tmpMap.put(_Fields.VALUE, new org.apache.thrift.meta_data.FieldMetaData("value", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I64)));
     metaDataMap = Collections.unmodifiableMap(tmpMap);
-    FieldMetaData.addStructMetaDataMap(CounterColumn.class, metaDataMap);
+    org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(CounterColumn.class, metaDataMap);
   }
 
   public CounterColumn() {
@@ -153,7 +147,7 @@ public class CounterColumn implements TBase<CounterColumn, CounterColumn._Fields
     __isset_bit_vector.clear();
     __isset_bit_vector.or(other.__isset_bit_vector);
     if (other.isSetName()) {
-      this.name = TBaseHelper.copyBinary(other.name);
+      this.name = org.apache.thrift.TBaseHelper.copyBinary(other.name);
 ;
     }
     this.value = other.value;
@@ -171,16 +165,16 @@ public class CounterColumn implements TBase<CounterColumn, CounterColumn._Fields
   }
 
   public byte[] getName() {
-    setName(TBaseHelper.rightSize(name));
-    return name.array();
+    setName(org.apache.thrift.TBaseHelper.rightSize(name));
+    return name == null ? null : name.array();
   }
 
-  public ByteBuffer BufferForName() {
+  public ByteBuffer bufferForName() {
     return name;
   }
 
   public CounterColumn setName(byte[] name) {
-    setName(ByteBuffer.wrap(name));
+    setName(name == null ? (ByteBuffer)null : ByteBuffer.wrap(name));
     return this;
   }
 
@@ -193,7 +187,7 @@ public class CounterColumn implements TBase<CounterColumn, CounterColumn._Fields
     this.name = null;
   }
 
-  /** Returns true if field name is set (has been asigned a value) and false otherwise */
+  /** Returns true if field name is set (has been assigned a value) and false otherwise */
   public boolean isSetName() {
     return this.name != null;
   }
@@ -218,7 +212,7 @@ public class CounterColumn implements TBase<CounterColumn, CounterColumn._Fields
     __isset_bit_vector.clear(__VALUE_ISSET_ID);
   }
 
-  /** Returns true if field value is set (has been asigned a value) and false otherwise */
+  /** Returns true if field value is set (has been assigned a value) and false otherwise */
   public boolean isSetValue() {
     return __isset_bit_vector.get(__VALUE_ISSET_ID);
   }
@@ -260,7 +254,7 @@ public class CounterColumn implements TBase<CounterColumn, CounterColumn._Fields
     throw new IllegalStateException();
   }
 
-  /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
+  /** Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise */
   public boolean isSet(_Fields field) {
     if (field == null) {
       throw new IllegalArgumentException();
@@ -339,7 +333,7 @@ public class CounterColumn implements TBase<CounterColumn, CounterColumn._Fields
       return lastComparison;
     }
     if (isSetName()) {
-      lastComparison = TBaseHelper.compareTo(this.name, typedOther.name);
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.name, typedOther.name);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -349,7 +343,7 @@ public class CounterColumn implements TBase<CounterColumn, CounterColumn._Fields
       return lastComparison;
     }
     if (isSetValue()) {
-      lastComparison = TBaseHelper.compareTo(this.value, typedOther.value);
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.value, typedOther.value);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -361,33 +355,33 @@ public class CounterColumn implements TBase<CounterColumn, CounterColumn._Fields
     return _Fields.findByThriftId(fieldId);
   }
 
-  public void read(TProtocol iprot) throws TException {
-    TField field;
+  public void read(org.apache.thrift.protocol.TProtocol iprot) throws org.apache.thrift.TException {
+    org.apache.thrift.protocol.TField field;
     iprot.readStructBegin();
     while (true)
     {
       field = iprot.readFieldBegin();
-      if (field.type == TType.STOP) { 
+      if (field.type == org.apache.thrift.protocol.TType.STOP) { 
         break;
       }
       switch (field.id) {
         case 1: // NAME
-          if (field.type == TType.STRING) {
+          if (field.type == org.apache.thrift.protocol.TType.STRING) {
             this.name = iprot.readBinary();
           } else { 
-            TProtocolUtil.skip(iprot, field.type);
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
         case 2: // VALUE
-          if (field.type == TType.I64) {
+          if (field.type == org.apache.thrift.protocol.TType.I64) {
             this.value = iprot.readI64();
             setValueIsSet(true);
           } else { 
-            TProtocolUtil.skip(iprot, field.type);
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
         default:
-          TProtocolUtil.skip(iprot, field.type);
+          org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
       }
       iprot.readFieldEnd();
     }
@@ -395,12 +389,12 @@ public class CounterColumn implements TBase<CounterColumn, CounterColumn._Fields
 
     // check for required fields of primitive type, which can't be checked in the validate method
     if (!isSetValue()) {
-      throw new TProtocolException("Required field 'value' was not found in serialized data! Struct: " + toString());
+      throw new org.apache.thrift.protocol.TProtocolException("Required field 'value' was not found in serialized data! Struct: " + toString());
     }
     validate();
   }
 
-  public void write(TProtocol oprot) throws TException {
+  public void write(org.apache.thrift.protocol.TProtocol oprot) throws org.apache.thrift.TException {
     validate();
 
     oprot.writeStructBegin(STRUCT_DESC);
@@ -425,7 +419,7 @@ public class CounterColumn implements TBase<CounterColumn, CounterColumn._Fields
     if (this.name == null) {
       sb.append("null");
     } else {
-      TBaseHelper.toString(this.name, sb);
+      org.apache.thrift.TBaseHelper.toString(this.name, sb);
     }
     first = false;
     if (!first) sb.append(", ");
@@ -436,12 +430,30 @@ public class CounterColumn implements TBase<CounterColumn, CounterColumn._Fields
     return sb.toString();
   }
 
-  public void validate() throws TException {
+  public void validate() throws org.apache.thrift.TException {
     // check for required fields
     if (name == null) {
-      throw new TProtocolException("Required field 'name' was not present! Struct: " + toString());
+      throw new org.apache.thrift.protocol.TProtocolException("Required field 'name' was not present! Struct: " + toString());
     }
     // alas, we cannot check 'value' because it's a primitive and you chose the non-beans generator.
+  }
+
+  private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
+    try {
+      write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
+    } catch (org.apache.thrift.TException te) {
+      throw new java.io.IOException(te);
+    }
+  }
+
+  private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
+    try {
+      // it doesn't seem like you should have to do this, but java serialization is wacky, and doesn't call the default constructor.
+      __isset_bit_vector = new BitSet(1);
+      read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
+    } catch (org.apache.thrift.TException te) {
+      throw new java.io.IOException(te);
+    }
   }
 
 }

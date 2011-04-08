@@ -42,19 +42,13 @@ import java.util.Arrays;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.thrift.*;
-import org.apache.thrift.async.*;
-import org.apache.thrift.meta_data.*;
-import org.apache.thrift.transport.*;
-import org.apache.thrift.protocol.*;
+public class ColumnDef implements org.apache.thrift.TBase<ColumnDef, ColumnDef._Fields>, java.io.Serializable, Cloneable {
+  private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct("ColumnDef");
 
-public class ColumnDef implements TBase<ColumnDef, ColumnDef._Fields>, java.io.Serializable, Cloneable {
-  private static final TStruct STRUCT_DESC = new TStruct("ColumnDef");
-
-  private static final TField NAME_FIELD_DESC = new TField("name", TType.STRING, (short)1);
-  private static final TField VALIDATION_CLASS_FIELD_DESC = new TField("validation_class", TType.STRING, (short)2);
-  private static final TField INDEX_TYPE_FIELD_DESC = new TField("index_type", TType.I32, (short)3);
-  private static final TField INDEX_NAME_FIELD_DESC = new TField("index_name", TType.STRING, (short)4);
+  private static final org.apache.thrift.protocol.TField NAME_FIELD_DESC = new org.apache.thrift.protocol.TField("name", org.apache.thrift.protocol.TType.STRING, (short)1);
+  private static final org.apache.thrift.protocol.TField VALIDATION_CLASS_FIELD_DESC = new org.apache.thrift.protocol.TField("validation_class", org.apache.thrift.protocol.TType.STRING, (short)2);
+  private static final org.apache.thrift.protocol.TField INDEX_TYPE_FIELD_DESC = new org.apache.thrift.protocol.TField("index_type", org.apache.thrift.protocol.TType.I32, (short)3);
+  private static final org.apache.thrift.protocol.TField INDEX_NAME_FIELD_DESC = new org.apache.thrift.protocol.TField("index_name", org.apache.thrift.protocol.TType.STRING, (short)4);
 
   public ByteBuffer name;
   public String validation_class;
@@ -66,7 +60,7 @@ public class ColumnDef implements TBase<ColumnDef, ColumnDef._Fields>, java.io.S
   public String index_name;
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
-  public enum _Fields implements TFieldIdEnum {
+  public enum _Fields implements org.apache.thrift.TFieldIdEnum {
     NAME((short)1, "name"),
     VALIDATION_CLASS((short)2, "validation_class"),
     /**
@@ -138,19 +132,19 @@ public class ColumnDef implements TBase<ColumnDef, ColumnDef._Fields>, java.io.S
 
   // isset id assignments
 
-  public static final Map<_Fields, FieldMetaData> metaDataMap;
+  public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
   static {
-    Map<_Fields, FieldMetaData> tmpMap = new EnumMap<_Fields, FieldMetaData>(_Fields.class);
-    tmpMap.put(_Fields.NAME, new FieldMetaData("name", TFieldRequirementType.REQUIRED, 
-        new FieldValueMetaData(TType.STRING)));
-    tmpMap.put(_Fields.VALIDATION_CLASS, new FieldMetaData("validation_class", TFieldRequirementType.REQUIRED, 
-        new FieldValueMetaData(TType.STRING)));
-    tmpMap.put(_Fields.INDEX_TYPE, new FieldMetaData("index_type", TFieldRequirementType.OPTIONAL, 
-        new EnumMetaData(TType.ENUM, IndexType.class)));
-    tmpMap.put(_Fields.INDEX_NAME, new FieldMetaData("index_name", TFieldRequirementType.OPTIONAL, 
-        new FieldValueMetaData(TType.STRING)));
+    Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
+    tmpMap.put(_Fields.NAME, new org.apache.thrift.meta_data.FieldMetaData("name", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING        , true)));
+    tmpMap.put(_Fields.VALIDATION_CLASS, new org.apache.thrift.meta_data.FieldMetaData("validation_class", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
+    tmpMap.put(_Fields.INDEX_TYPE, new org.apache.thrift.meta_data.FieldMetaData("index_type", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.EnumMetaData(org.apache.thrift.protocol.TType.ENUM, IndexType.class)));
+    tmpMap.put(_Fields.INDEX_NAME, new org.apache.thrift.meta_data.FieldMetaData("index_name", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
     metaDataMap = Collections.unmodifiableMap(tmpMap);
-    FieldMetaData.addStructMetaDataMap(ColumnDef.class, metaDataMap);
+    org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(ColumnDef.class, metaDataMap);
   }
 
   public ColumnDef() {
@@ -170,7 +164,7 @@ public class ColumnDef implements TBase<ColumnDef, ColumnDef._Fields>, java.io.S
    */
   public ColumnDef(ColumnDef other) {
     if (other.isSetName()) {
-      this.name = TBaseHelper.copyBinary(other.name);
+      this.name = org.apache.thrift.TBaseHelper.copyBinary(other.name);
 ;
     }
     if (other.isSetValidation_class()) {
@@ -197,16 +191,16 @@ public class ColumnDef implements TBase<ColumnDef, ColumnDef._Fields>, java.io.S
   }
 
   public byte[] getName() {
-    setName(TBaseHelper.rightSize(name));
-    return name.array();
+    setName(org.apache.thrift.TBaseHelper.rightSize(name));
+    return name == null ? null : name.array();
   }
 
-  public ByteBuffer BufferForName() {
+  public ByteBuffer bufferForName() {
     return name;
   }
 
   public ColumnDef setName(byte[] name) {
-    setName(ByteBuffer.wrap(name));
+    setName(name == null ? (ByteBuffer)null : ByteBuffer.wrap(name));
     return this;
   }
 
@@ -219,7 +213,7 @@ public class ColumnDef implements TBase<ColumnDef, ColumnDef._Fields>, java.io.S
     this.name = null;
   }
 
-  /** Returns true if field name is set (has been asigned a value) and false otherwise */
+  /** Returns true if field name is set (has been assigned a value) and false otherwise */
   public boolean isSetName() {
     return this.name != null;
   }
@@ -243,7 +237,7 @@ public class ColumnDef implements TBase<ColumnDef, ColumnDef._Fields>, java.io.S
     this.validation_class = null;
   }
 
-  /** Returns true if field validation_class is set (has been asigned a value) and false otherwise */
+  /** Returns true if field validation_class is set (has been assigned a value) and false otherwise */
   public boolean isSetValidation_class() {
     return this.validation_class != null;
   }
@@ -275,7 +269,7 @@ public class ColumnDef implements TBase<ColumnDef, ColumnDef._Fields>, java.io.S
     this.index_type = null;
   }
 
-  /** Returns true if field index_type is set (has been asigned a value) and false otherwise */
+  /** Returns true if field index_type is set (has been assigned a value) and false otherwise */
   public boolean isSetIndex_type() {
     return this.index_type != null;
   }
@@ -299,7 +293,7 @@ public class ColumnDef implements TBase<ColumnDef, ColumnDef._Fields>, java.io.S
     this.index_name = null;
   }
 
-  /** Returns true if field index_name is set (has been asigned a value) and false otherwise */
+  /** Returns true if field index_name is set (has been assigned a value) and false otherwise */
   public boolean isSetIndex_name() {
     return this.index_name != null;
   }
@@ -365,7 +359,7 @@ public class ColumnDef implements TBase<ColumnDef, ColumnDef._Fields>, java.io.S
     throw new IllegalStateException();
   }
 
-  /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
+  /** Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise */
   public boolean isSet(_Fields field) {
     if (field == null) {
       throw new IllegalArgumentException();
@@ -476,7 +470,7 @@ public class ColumnDef implements TBase<ColumnDef, ColumnDef._Fields>, java.io.S
       return lastComparison;
     }
     if (isSetName()) {
-      lastComparison = TBaseHelper.compareTo(this.name, typedOther.name);
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.name, typedOther.name);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -486,7 +480,7 @@ public class ColumnDef implements TBase<ColumnDef, ColumnDef._Fields>, java.io.S
       return lastComparison;
     }
     if (isSetValidation_class()) {
-      lastComparison = TBaseHelper.compareTo(this.validation_class, typedOther.validation_class);
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.validation_class, typedOther.validation_class);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -496,7 +490,7 @@ public class ColumnDef implements TBase<ColumnDef, ColumnDef._Fields>, java.io.S
       return lastComparison;
     }
     if (isSetIndex_type()) {
-      lastComparison = TBaseHelper.compareTo(this.index_type, typedOther.index_type);
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.index_type, typedOther.index_type);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -506,7 +500,7 @@ public class ColumnDef implements TBase<ColumnDef, ColumnDef._Fields>, java.io.S
       return lastComparison;
     }
     if (isSetIndex_name()) {
-      lastComparison = TBaseHelper.compareTo(this.index_name, typedOther.index_name);
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.index_name, typedOther.index_name);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -518,46 +512,46 @@ public class ColumnDef implements TBase<ColumnDef, ColumnDef._Fields>, java.io.S
     return _Fields.findByThriftId(fieldId);
   }
 
-  public void read(TProtocol iprot) throws TException {
-    TField field;
+  public void read(org.apache.thrift.protocol.TProtocol iprot) throws org.apache.thrift.TException {
+    org.apache.thrift.protocol.TField field;
     iprot.readStructBegin();
     while (true)
     {
       field = iprot.readFieldBegin();
-      if (field.type == TType.STOP) { 
+      if (field.type == org.apache.thrift.protocol.TType.STOP) { 
         break;
       }
       switch (field.id) {
         case 1: // NAME
-          if (field.type == TType.STRING) {
+          if (field.type == org.apache.thrift.protocol.TType.STRING) {
             this.name = iprot.readBinary();
           } else { 
-            TProtocolUtil.skip(iprot, field.type);
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
         case 2: // VALIDATION_CLASS
-          if (field.type == TType.STRING) {
+          if (field.type == org.apache.thrift.protocol.TType.STRING) {
             this.validation_class = iprot.readString();
           } else { 
-            TProtocolUtil.skip(iprot, field.type);
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
         case 3: // INDEX_TYPE
-          if (field.type == TType.I32) {
+          if (field.type == org.apache.thrift.protocol.TType.I32) {
             this.index_type = IndexType.findByValue(iprot.readI32());
           } else { 
-            TProtocolUtil.skip(iprot, field.type);
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
         case 4: // INDEX_NAME
-          if (field.type == TType.STRING) {
+          if (field.type == org.apache.thrift.protocol.TType.STRING) {
             this.index_name = iprot.readString();
           } else { 
-            TProtocolUtil.skip(iprot, field.type);
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
         default:
-          TProtocolUtil.skip(iprot, field.type);
+          org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
       }
       iprot.readFieldEnd();
     }
@@ -567,7 +561,7 @@ public class ColumnDef implements TBase<ColumnDef, ColumnDef._Fields>, java.io.S
     validate();
   }
 
-  public void write(TProtocol oprot) throws TException {
+  public void write(org.apache.thrift.protocol.TProtocol oprot) throws org.apache.thrift.TException {
     validate();
 
     oprot.writeStructBegin(STRUCT_DESC);
@@ -608,7 +602,7 @@ public class ColumnDef implements TBase<ColumnDef, ColumnDef._Fields>, java.io.S
     if (this.name == null) {
       sb.append("null");
     } else {
-      TBaseHelper.toString(this.name, sb);
+      org.apache.thrift.TBaseHelper.toString(this.name, sb);
     }
     first = false;
     if (!first) sb.append(", ");
@@ -643,13 +637,29 @@ public class ColumnDef implements TBase<ColumnDef, ColumnDef._Fields>, java.io.S
     return sb.toString();
   }
 
-  public void validate() throws TException {
+  public void validate() throws org.apache.thrift.TException {
     // check for required fields
     if (name == null) {
-      throw new TProtocolException("Required field 'name' was not present! Struct: " + toString());
+      throw new org.apache.thrift.protocol.TProtocolException("Required field 'name' was not present! Struct: " + toString());
     }
     if (validation_class == null) {
-      throw new TProtocolException("Required field 'validation_class' was not present! Struct: " + toString());
+      throw new org.apache.thrift.protocol.TProtocolException("Required field 'validation_class' was not present! Struct: " + toString());
+    }
+  }
+
+  private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
+    try {
+      write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
+    } catch (org.apache.thrift.TException te) {
+      throw new java.io.IOException(te);
+    }
+  }
+
+  private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
+    try {
+      read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
+    } catch (org.apache.thrift.TException te) {
+      throw new java.io.IOException(te);
     }
   }
 

@@ -42,31 +42,25 @@ import java.util.Arrays;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.thrift.*;
-import org.apache.thrift.async.*;
-import org.apache.thrift.meta_data.*;
-import org.apache.thrift.transport.*;
-import org.apache.thrift.protocol.*;
-
 /**
  * A Mutation is either an insert (represented by filling column_or_supercolumn), a deletion (represented by filling the deletion attribute),
  * a counter addition (represented by filling counter), or a counter deletion (represented by filling counter_deletion).
  * @param column_or_supercolumn. An insert to a column or supercolumn
  * @param deletion. A deletion of a column or supercolumn
  */
-public class Mutation implements TBase<Mutation, Mutation._Fields>, java.io.Serializable, Cloneable {
-  private static final TStruct STRUCT_DESC = new TStruct("Mutation");
+public class Mutation implements org.apache.thrift.TBase<Mutation, Mutation._Fields>, java.io.Serializable, Cloneable {
+  private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct("Mutation");
 
-  private static final TField COLUMN_OR_SUPERCOLUMN_FIELD_DESC = new TField("column_or_supercolumn", TType.STRUCT, (short)1);
-  private static final TField DELETION_FIELD_DESC = new TField("deletion", TType.STRUCT, (short)2);
-  private static final TField COUNTER_FIELD_DESC = new TField("counter", TType.STRUCT, (short)3);
+  private static final org.apache.thrift.protocol.TField COLUMN_OR_SUPERCOLUMN_FIELD_DESC = new org.apache.thrift.protocol.TField("column_or_supercolumn", org.apache.thrift.protocol.TType.STRUCT, (short)1);
+  private static final org.apache.thrift.protocol.TField DELETION_FIELD_DESC = new org.apache.thrift.protocol.TField("deletion", org.apache.thrift.protocol.TType.STRUCT, (short)2);
+  private static final org.apache.thrift.protocol.TField COUNTER_FIELD_DESC = new org.apache.thrift.protocol.TField("counter", org.apache.thrift.protocol.TType.STRUCT, (short)3);
 
   public ColumnOrSuperColumn column_or_supercolumn;
   public Deletion deletion;
   public Counter counter;
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
-  public enum _Fields implements TFieldIdEnum {
+  public enum _Fields implements org.apache.thrift.TFieldIdEnum {
     COLUMN_OR_SUPERCOLUMN((short)1, "column_or_supercolumn"),
     DELETION((short)2, "deletion"),
     COUNTER((short)3, "counter");
@@ -131,17 +125,17 @@ public class Mutation implements TBase<Mutation, Mutation._Fields>, java.io.Seri
 
   // isset id assignments
 
-  public static final Map<_Fields, FieldMetaData> metaDataMap;
+  public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
   static {
-    Map<_Fields, FieldMetaData> tmpMap = new EnumMap<_Fields, FieldMetaData>(_Fields.class);
-    tmpMap.put(_Fields.COLUMN_OR_SUPERCOLUMN, new FieldMetaData("column_or_supercolumn", TFieldRequirementType.OPTIONAL, 
-        new StructMetaData(TType.STRUCT, ColumnOrSuperColumn.class)));
-    tmpMap.put(_Fields.DELETION, new FieldMetaData("deletion", TFieldRequirementType.OPTIONAL, 
-        new StructMetaData(TType.STRUCT, Deletion.class)));
-    tmpMap.put(_Fields.COUNTER, new FieldMetaData("counter", TFieldRequirementType.OPTIONAL, 
-        new StructMetaData(TType.STRUCT, Counter.class)));
+    Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
+    tmpMap.put(_Fields.COLUMN_OR_SUPERCOLUMN, new org.apache.thrift.meta_data.FieldMetaData("column_or_supercolumn", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, ColumnOrSuperColumn.class)));
+    tmpMap.put(_Fields.DELETION, new org.apache.thrift.meta_data.FieldMetaData("deletion", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, Deletion.class)));
+    tmpMap.put(_Fields.COUNTER, new org.apache.thrift.meta_data.FieldMetaData("counter", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, Counter.class)));
     metaDataMap = Collections.unmodifiableMap(tmpMap);
-    FieldMetaData.addStructMetaDataMap(Mutation.class, metaDataMap);
+    org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(Mutation.class, metaDataMap);
   }
 
   public Mutation() {
@@ -186,7 +180,7 @@ public class Mutation implements TBase<Mutation, Mutation._Fields>, java.io.Seri
     this.column_or_supercolumn = null;
   }
 
-  /** Returns true if field column_or_supercolumn is set (has been asigned a value) and false otherwise */
+  /** Returns true if field column_or_supercolumn is set (has been assigned a value) and false otherwise */
   public boolean isSetColumn_or_supercolumn() {
     return this.column_or_supercolumn != null;
   }
@@ -210,7 +204,7 @@ public class Mutation implements TBase<Mutation, Mutation._Fields>, java.io.Seri
     this.deletion = null;
   }
 
-  /** Returns true if field deletion is set (has been asigned a value) and false otherwise */
+  /** Returns true if field deletion is set (has been assigned a value) and false otherwise */
   public boolean isSetDeletion() {
     return this.deletion != null;
   }
@@ -234,7 +228,7 @@ public class Mutation implements TBase<Mutation, Mutation._Fields>, java.io.Seri
     this.counter = null;
   }
 
-  /** Returns true if field counter is set (has been asigned a value) and false otherwise */
+  /** Returns true if field counter is set (has been assigned a value) and false otherwise */
   public boolean isSetCounter() {
     return this.counter != null;
   }
@@ -289,7 +283,7 @@ public class Mutation implements TBase<Mutation, Mutation._Fields>, java.io.Seri
     throw new IllegalStateException();
   }
 
-  /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
+  /** Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise */
   public boolean isSet(_Fields field) {
     if (field == null) {
       throw new IllegalArgumentException();
@@ -384,7 +378,7 @@ public class Mutation implements TBase<Mutation, Mutation._Fields>, java.io.Seri
       return lastComparison;
     }
     if (isSetColumn_or_supercolumn()) {
-      lastComparison = TBaseHelper.compareTo(this.column_or_supercolumn, typedOther.column_or_supercolumn);
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.column_or_supercolumn, typedOther.column_or_supercolumn);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -394,7 +388,7 @@ public class Mutation implements TBase<Mutation, Mutation._Fields>, java.io.Seri
       return lastComparison;
     }
     if (isSetDeletion()) {
-      lastComparison = TBaseHelper.compareTo(this.deletion, typedOther.deletion);
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.deletion, typedOther.deletion);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -404,7 +398,7 @@ public class Mutation implements TBase<Mutation, Mutation._Fields>, java.io.Seri
       return lastComparison;
     }
     if (isSetCounter()) {
-      lastComparison = TBaseHelper.compareTo(this.counter, typedOther.counter);
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.counter, typedOther.counter);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -416,42 +410,42 @@ public class Mutation implements TBase<Mutation, Mutation._Fields>, java.io.Seri
     return _Fields.findByThriftId(fieldId);
   }
 
-  public void read(TProtocol iprot) throws TException {
-    TField field;
+  public void read(org.apache.thrift.protocol.TProtocol iprot) throws org.apache.thrift.TException {
+    org.apache.thrift.protocol.TField field;
     iprot.readStructBegin();
     while (true)
     {
       field = iprot.readFieldBegin();
-      if (field.type == TType.STOP) { 
+      if (field.type == org.apache.thrift.protocol.TType.STOP) { 
         break;
       }
       switch (field.id) {
         case 1: // COLUMN_OR_SUPERCOLUMN
-          if (field.type == TType.STRUCT) {
+          if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
             this.column_or_supercolumn = new ColumnOrSuperColumn();
             this.column_or_supercolumn.read(iprot);
           } else { 
-            TProtocolUtil.skip(iprot, field.type);
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
         case 2: // DELETION
-          if (field.type == TType.STRUCT) {
+          if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
             this.deletion = new Deletion();
             this.deletion.read(iprot);
           } else { 
-            TProtocolUtil.skip(iprot, field.type);
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
         case 3: // COUNTER
-          if (field.type == TType.STRUCT) {
+          if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
             this.counter = new Counter();
             this.counter.read(iprot);
           } else { 
-            TProtocolUtil.skip(iprot, field.type);
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
         default:
-          TProtocolUtil.skip(iprot, field.type);
+          org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
       }
       iprot.readFieldEnd();
     }
@@ -461,7 +455,7 @@ public class Mutation implements TBase<Mutation, Mutation._Fields>, java.io.Seri
     validate();
   }
 
-  public void write(TProtocol oprot) throws TException {
+  public void write(org.apache.thrift.protocol.TProtocol oprot) throws org.apache.thrift.TException {
     validate();
 
     oprot.writeStructBegin(STRUCT_DESC);
@@ -528,8 +522,24 @@ public class Mutation implements TBase<Mutation, Mutation._Fields>, java.io.Seri
     return sb.toString();
   }
 
-  public void validate() throws TException {
+  public void validate() throws org.apache.thrift.TException {
     // check for required fields
+  }
+
+  private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
+    try {
+      write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
+    } catch (org.apache.thrift.TException te) {
+      throw new java.io.IOException(te);
+    }
+  }
+
+  private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
+    try {
+      read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
+    } catch (org.apache.thrift.TException te) {
+      throw new java.io.IOException(te);
+    }
   }
 
 }

@@ -42,39 +42,33 @@ import java.util.Arrays;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.thrift.*;
-import org.apache.thrift.async.*;
-import org.apache.thrift.meta_data.*;
-import org.apache.thrift.transport.*;
-import org.apache.thrift.protocol.*;
+public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, java.io.Serializable, Cloneable {
+  private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct("CfDef");
 
-public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable, Cloneable {
-  private static final TStruct STRUCT_DESC = new TStruct("CfDef");
-
-  private static final TField KEYSPACE_FIELD_DESC = new TField("keyspace", TType.STRING, (short)1);
-  private static final TField NAME_FIELD_DESC = new TField("name", TType.STRING, (short)2);
-  private static final TField COLUMN_TYPE_FIELD_DESC = new TField("column_type", TType.STRING, (short)3);
-  private static final TField COMPARATOR_TYPE_FIELD_DESC = new TField("comparator_type", TType.STRING, (short)5);
-  private static final TField SUBCOMPARATOR_TYPE_FIELD_DESC = new TField("subcomparator_type", TType.STRING, (short)6);
-  private static final TField COMMENT_FIELD_DESC = new TField("comment", TType.STRING, (short)8);
-  private static final TField ROW_CACHE_SIZE_FIELD_DESC = new TField("row_cache_size", TType.DOUBLE, (short)9);
-  private static final TField KEY_CACHE_SIZE_FIELD_DESC = new TField("key_cache_size", TType.DOUBLE, (short)11);
-  private static final TField READ_REPAIR_CHANCE_FIELD_DESC = new TField("read_repair_chance", TType.DOUBLE, (short)12);
-  private static final TField COLUMN_METADATA_FIELD_DESC = new TField("column_metadata", TType.LIST, (short)13);
-  private static final TField GC_GRACE_SECONDS_FIELD_DESC = new TField("gc_grace_seconds", TType.I32, (short)14);
-  private static final TField DEFAULT_VALIDATION_CLASS_FIELD_DESC = new TField("default_validation_class", TType.STRING, (short)15);
-  private static final TField ID_FIELD_DESC = new TField("id", TType.I32, (short)16);
-  private static final TField MIN_COMPACTION_THRESHOLD_FIELD_DESC = new TField("min_compaction_threshold", TType.I32, (short)17);
-  private static final TField MAX_COMPACTION_THRESHOLD_FIELD_DESC = new TField("max_compaction_threshold", TType.I32, (short)18);
-  private static final TField ROW_CACHE_SAVE_PERIOD_IN_SECONDS_FIELD_DESC = new TField("row_cache_save_period_in_seconds", TType.I32, (short)19);
-  private static final TField KEY_CACHE_SAVE_PERIOD_IN_SECONDS_FIELD_DESC = new TField("key_cache_save_period_in_seconds", TType.I32, (short)20);
-  private static final TField MEMTABLE_FLUSH_AFTER_MINS_FIELD_DESC = new TField("memtable_flush_after_mins", TType.I32, (short)21);
-  private static final TField MEMTABLE_THROUGHPUT_IN_MB_FIELD_DESC = new TField("memtable_throughput_in_mb", TType.I32, (short)22);
-  private static final TField MEMTABLE_OPERATIONS_IN_MILLIONS_FIELD_DESC = new TField("memtable_operations_in_millions", TType.DOUBLE, (short)23);
-  private static final TField REPLICATE_ON_WRITE_FIELD_DESC = new TField("replicate_on_write", TType.BOOL, (short)24);
-  private static final TField MERGE_SHARDS_CHANCE_FIELD_DESC = new TField("merge_shards_chance", TType.DOUBLE, (short)25);
-  private static final TField KEY_VALIDATION_CLASS_FIELD_DESC = new TField("key_validation_class", TType.STRING, (short)26);
-  private static final TField ROW_CACHE_PROVIDER_FIELD_DESC = new TField("row_cache_provider", TType.STRING, (short)27);
+  private static final org.apache.thrift.protocol.TField KEYSPACE_FIELD_DESC = new org.apache.thrift.protocol.TField("keyspace", org.apache.thrift.protocol.TType.STRING, (short)1);
+  private static final org.apache.thrift.protocol.TField NAME_FIELD_DESC = new org.apache.thrift.protocol.TField("name", org.apache.thrift.protocol.TType.STRING, (short)2);
+  private static final org.apache.thrift.protocol.TField COLUMN_TYPE_FIELD_DESC = new org.apache.thrift.protocol.TField("column_type", org.apache.thrift.protocol.TType.STRING, (short)3);
+  private static final org.apache.thrift.protocol.TField COMPARATOR_TYPE_FIELD_DESC = new org.apache.thrift.protocol.TField("comparator_type", org.apache.thrift.protocol.TType.STRING, (short)5);
+  private static final org.apache.thrift.protocol.TField SUBCOMPARATOR_TYPE_FIELD_DESC = new org.apache.thrift.protocol.TField("subcomparator_type", org.apache.thrift.protocol.TType.STRING, (short)6);
+  private static final org.apache.thrift.protocol.TField COMMENT_FIELD_DESC = new org.apache.thrift.protocol.TField("comment", org.apache.thrift.protocol.TType.STRING, (short)8);
+  private static final org.apache.thrift.protocol.TField ROW_CACHE_SIZE_FIELD_DESC = new org.apache.thrift.protocol.TField("row_cache_size", org.apache.thrift.protocol.TType.DOUBLE, (short)9);
+  private static final org.apache.thrift.protocol.TField KEY_CACHE_SIZE_FIELD_DESC = new org.apache.thrift.protocol.TField("key_cache_size", org.apache.thrift.protocol.TType.DOUBLE, (short)11);
+  private static final org.apache.thrift.protocol.TField READ_REPAIR_CHANCE_FIELD_DESC = new org.apache.thrift.protocol.TField("read_repair_chance", org.apache.thrift.protocol.TType.DOUBLE, (short)12);
+  private static final org.apache.thrift.protocol.TField COLUMN_METADATA_FIELD_DESC = new org.apache.thrift.protocol.TField("column_metadata", org.apache.thrift.protocol.TType.LIST, (short)13);
+  private static final org.apache.thrift.protocol.TField GC_GRACE_SECONDS_FIELD_DESC = new org.apache.thrift.protocol.TField("gc_grace_seconds", org.apache.thrift.protocol.TType.I32, (short)14);
+  private static final org.apache.thrift.protocol.TField DEFAULT_VALIDATION_CLASS_FIELD_DESC = new org.apache.thrift.protocol.TField("default_validation_class", org.apache.thrift.protocol.TType.STRING, (short)15);
+  private static final org.apache.thrift.protocol.TField ID_FIELD_DESC = new org.apache.thrift.protocol.TField("id", org.apache.thrift.protocol.TType.I32, (short)16);
+  private static final org.apache.thrift.protocol.TField MIN_COMPACTION_THRESHOLD_FIELD_DESC = new org.apache.thrift.protocol.TField("min_compaction_threshold", org.apache.thrift.protocol.TType.I32, (short)17);
+  private static final org.apache.thrift.protocol.TField MAX_COMPACTION_THRESHOLD_FIELD_DESC = new org.apache.thrift.protocol.TField("max_compaction_threshold", org.apache.thrift.protocol.TType.I32, (short)18);
+  private static final org.apache.thrift.protocol.TField ROW_CACHE_SAVE_PERIOD_IN_SECONDS_FIELD_DESC = new org.apache.thrift.protocol.TField("row_cache_save_period_in_seconds", org.apache.thrift.protocol.TType.I32, (short)19);
+  private static final org.apache.thrift.protocol.TField KEY_CACHE_SAVE_PERIOD_IN_SECONDS_FIELD_DESC = new org.apache.thrift.protocol.TField("key_cache_save_period_in_seconds", org.apache.thrift.protocol.TType.I32, (short)20);
+  private static final org.apache.thrift.protocol.TField MEMTABLE_FLUSH_AFTER_MINS_FIELD_DESC = new org.apache.thrift.protocol.TField("memtable_flush_after_mins", org.apache.thrift.protocol.TType.I32, (short)21);
+  private static final org.apache.thrift.protocol.TField MEMTABLE_THROUGHPUT_IN_MB_FIELD_DESC = new org.apache.thrift.protocol.TField("memtable_throughput_in_mb", org.apache.thrift.protocol.TType.I32, (short)22);
+  private static final org.apache.thrift.protocol.TField MEMTABLE_OPERATIONS_IN_MILLIONS_FIELD_DESC = new org.apache.thrift.protocol.TField("memtable_operations_in_millions", org.apache.thrift.protocol.TType.DOUBLE, (short)23);
+  private static final org.apache.thrift.protocol.TField REPLICATE_ON_WRITE_FIELD_DESC = new org.apache.thrift.protocol.TField("replicate_on_write", org.apache.thrift.protocol.TType.BOOL, (short)24);
+  private static final org.apache.thrift.protocol.TField MERGE_SHARDS_CHANCE_FIELD_DESC = new org.apache.thrift.protocol.TField("merge_shards_chance", org.apache.thrift.protocol.TType.DOUBLE, (short)25);
+  private static final org.apache.thrift.protocol.TField KEY_VALIDATION_CLASS_FIELD_DESC = new org.apache.thrift.protocol.TField("key_validation_class", org.apache.thrift.protocol.TType.STRING, (short)26);
+  private static final org.apache.thrift.protocol.TField ROW_CACHE_PROVIDER_FIELD_DESC = new org.apache.thrift.protocol.TField("row_cache_provider", org.apache.thrift.protocol.TType.STRING, (short)27);
 
   public String keyspace;
   public String name;
@@ -102,7 +96,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
   public String row_cache_provider;
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
-  public enum _Fields implements TFieldIdEnum {
+  public enum _Fields implements org.apache.thrift.TFieldIdEnum {
     KEYSPACE((short)1, "keyspace"),
     NAME((short)2, "name"),
     COLUMN_TYPE((short)3, "column_type"),
@@ -245,60 +239,60 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
   private static final int __MERGE_SHARDS_CHANCE_ISSET_ID = 13;
   private BitSet __isset_bit_vector = new BitSet(14);
 
-  public static final Map<_Fields, FieldMetaData> metaDataMap;
+  public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
   static {
-    Map<_Fields, FieldMetaData> tmpMap = new EnumMap<_Fields, FieldMetaData>(_Fields.class);
-    tmpMap.put(_Fields.KEYSPACE, new FieldMetaData("keyspace", TFieldRequirementType.REQUIRED, 
-        new FieldValueMetaData(TType.STRING)));
-    tmpMap.put(_Fields.NAME, new FieldMetaData("name", TFieldRequirementType.REQUIRED, 
-        new FieldValueMetaData(TType.STRING)));
-    tmpMap.put(_Fields.COLUMN_TYPE, new FieldMetaData("column_type", TFieldRequirementType.OPTIONAL, 
-        new FieldValueMetaData(TType.STRING)));
-    tmpMap.put(_Fields.COMPARATOR_TYPE, new FieldMetaData("comparator_type", TFieldRequirementType.OPTIONAL, 
-        new FieldValueMetaData(TType.STRING)));
-    tmpMap.put(_Fields.SUBCOMPARATOR_TYPE, new FieldMetaData("subcomparator_type", TFieldRequirementType.OPTIONAL, 
-        new FieldValueMetaData(TType.STRING)));
-    tmpMap.put(_Fields.COMMENT, new FieldMetaData("comment", TFieldRequirementType.OPTIONAL, 
-        new FieldValueMetaData(TType.STRING)));
-    tmpMap.put(_Fields.ROW_CACHE_SIZE, new FieldMetaData("row_cache_size", TFieldRequirementType.OPTIONAL, 
-        new FieldValueMetaData(TType.DOUBLE)));
-    tmpMap.put(_Fields.KEY_CACHE_SIZE, new FieldMetaData("key_cache_size", TFieldRequirementType.OPTIONAL, 
-        new FieldValueMetaData(TType.DOUBLE)));
-    tmpMap.put(_Fields.READ_REPAIR_CHANCE, new FieldMetaData("read_repair_chance", TFieldRequirementType.OPTIONAL, 
-        new FieldValueMetaData(TType.DOUBLE)));
-    tmpMap.put(_Fields.COLUMN_METADATA, new FieldMetaData("column_metadata", TFieldRequirementType.OPTIONAL, 
-        new ListMetaData(TType.LIST, 
-            new StructMetaData(TType.STRUCT, ColumnDef.class))));
-    tmpMap.put(_Fields.GC_GRACE_SECONDS, new FieldMetaData("gc_grace_seconds", TFieldRequirementType.OPTIONAL, 
-        new FieldValueMetaData(TType.I32)));
-    tmpMap.put(_Fields.DEFAULT_VALIDATION_CLASS, new FieldMetaData("default_validation_class", TFieldRequirementType.OPTIONAL, 
-        new FieldValueMetaData(TType.STRING)));
-    tmpMap.put(_Fields.ID, new FieldMetaData("id", TFieldRequirementType.OPTIONAL, 
-        new FieldValueMetaData(TType.I32)));
-    tmpMap.put(_Fields.MIN_COMPACTION_THRESHOLD, new FieldMetaData("min_compaction_threshold", TFieldRequirementType.OPTIONAL, 
-        new FieldValueMetaData(TType.I32)));
-    tmpMap.put(_Fields.MAX_COMPACTION_THRESHOLD, new FieldMetaData("max_compaction_threshold", TFieldRequirementType.OPTIONAL, 
-        new FieldValueMetaData(TType.I32)));
-    tmpMap.put(_Fields.ROW_CACHE_SAVE_PERIOD_IN_SECONDS, new FieldMetaData("row_cache_save_period_in_seconds", TFieldRequirementType.OPTIONAL, 
-        new FieldValueMetaData(TType.I32)));
-    tmpMap.put(_Fields.KEY_CACHE_SAVE_PERIOD_IN_SECONDS, new FieldMetaData("key_cache_save_period_in_seconds", TFieldRequirementType.OPTIONAL, 
-        new FieldValueMetaData(TType.I32)));
-    tmpMap.put(_Fields.MEMTABLE_FLUSH_AFTER_MINS, new FieldMetaData("memtable_flush_after_mins", TFieldRequirementType.OPTIONAL, 
-        new FieldValueMetaData(TType.I32)));
-    tmpMap.put(_Fields.MEMTABLE_THROUGHPUT_IN_MB, new FieldMetaData("memtable_throughput_in_mb", TFieldRequirementType.OPTIONAL, 
-        new FieldValueMetaData(TType.I32)));
-    tmpMap.put(_Fields.MEMTABLE_OPERATIONS_IN_MILLIONS, new FieldMetaData("memtable_operations_in_millions", TFieldRequirementType.OPTIONAL, 
-        new FieldValueMetaData(TType.DOUBLE)));
-    tmpMap.put(_Fields.REPLICATE_ON_WRITE, new FieldMetaData("replicate_on_write", TFieldRequirementType.OPTIONAL, 
-        new FieldValueMetaData(TType.BOOL)));
-    tmpMap.put(_Fields.MERGE_SHARDS_CHANCE, new FieldMetaData("merge_shards_chance", TFieldRequirementType.OPTIONAL, 
-        new FieldValueMetaData(TType.DOUBLE)));
-    tmpMap.put(_Fields.KEY_VALIDATION_CLASS, new FieldMetaData("key_validation_class", TFieldRequirementType.OPTIONAL, 
-        new FieldValueMetaData(TType.STRING)));
-    tmpMap.put(_Fields.ROW_CACHE_PROVIDER, new FieldMetaData("row_cache_provider", TFieldRequirementType.OPTIONAL, 
-        new FieldValueMetaData(TType.STRING)));
+    Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
+    tmpMap.put(_Fields.KEYSPACE, new org.apache.thrift.meta_data.FieldMetaData("keyspace", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
+    tmpMap.put(_Fields.NAME, new org.apache.thrift.meta_data.FieldMetaData("name", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
+    tmpMap.put(_Fields.COLUMN_TYPE, new org.apache.thrift.meta_data.FieldMetaData("column_type", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
+    tmpMap.put(_Fields.COMPARATOR_TYPE, new org.apache.thrift.meta_data.FieldMetaData("comparator_type", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
+    tmpMap.put(_Fields.SUBCOMPARATOR_TYPE, new org.apache.thrift.meta_data.FieldMetaData("subcomparator_type", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
+    tmpMap.put(_Fields.COMMENT, new org.apache.thrift.meta_data.FieldMetaData("comment", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
+    tmpMap.put(_Fields.ROW_CACHE_SIZE, new org.apache.thrift.meta_data.FieldMetaData("row_cache_size", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.DOUBLE)));
+    tmpMap.put(_Fields.KEY_CACHE_SIZE, new org.apache.thrift.meta_data.FieldMetaData("key_cache_size", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.DOUBLE)));
+    tmpMap.put(_Fields.READ_REPAIR_CHANCE, new org.apache.thrift.meta_data.FieldMetaData("read_repair_chance", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.DOUBLE)));
+    tmpMap.put(_Fields.COLUMN_METADATA, new org.apache.thrift.meta_data.FieldMetaData("column_metadata", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.ListMetaData(org.apache.thrift.protocol.TType.LIST, 
+            new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, ColumnDef.class))));
+    tmpMap.put(_Fields.GC_GRACE_SECONDS, new org.apache.thrift.meta_data.FieldMetaData("gc_grace_seconds", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32)));
+    tmpMap.put(_Fields.DEFAULT_VALIDATION_CLASS, new org.apache.thrift.meta_data.FieldMetaData("default_validation_class", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
+    tmpMap.put(_Fields.ID, new org.apache.thrift.meta_data.FieldMetaData("id", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32)));
+    tmpMap.put(_Fields.MIN_COMPACTION_THRESHOLD, new org.apache.thrift.meta_data.FieldMetaData("min_compaction_threshold", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32)));
+    tmpMap.put(_Fields.MAX_COMPACTION_THRESHOLD, new org.apache.thrift.meta_data.FieldMetaData("max_compaction_threshold", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32)));
+    tmpMap.put(_Fields.ROW_CACHE_SAVE_PERIOD_IN_SECONDS, new org.apache.thrift.meta_data.FieldMetaData("row_cache_save_period_in_seconds", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32)));
+    tmpMap.put(_Fields.KEY_CACHE_SAVE_PERIOD_IN_SECONDS, new org.apache.thrift.meta_data.FieldMetaData("key_cache_save_period_in_seconds", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32)));
+    tmpMap.put(_Fields.MEMTABLE_FLUSH_AFTER_MINS, new org.apache.thrift.meta_data.FieldMetaData("memtable_flush_after_mins", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32)));
+    tmpMap.put(_Fields.MEMTABLE_THROUGHPUT_IN_MB, new org.apache.thrift.meta_data.FieldMetaData("memtable_throughput_in_mb", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32)));
+    tmpMap.put(_Fields.MEMTABLE_OPERATIONS_IN_MILLIONS, new org.apache.thrift.meta_data.FieldMetaData("memtable_operations_in_millions", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.DOUBLE)));
+    tmpMap.put(_Fields.REPLICATE_ON_WRITE, new org.apache.thrift.meta_data.FieldMetaData("replicate_on_write", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.BOOL)));
+    tmpMap.put(_Fields.MERGE_SHARDS_CHANCE, new org.apache.thrift.meta_data.FieldMetaData("merge_shards_chance", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.DOUBLE)));
+    tmpMap.put(_Fields.KEY_VALIDATION_CLASS, new org.apache.thrift.meta_data.FieldMetaData("key_validation_class", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
+    tmpMap.put(_Fields.ROW_CACHE_PROVIDER, new org.apache.thrift.meta_data.FieldMetaData("row_cache_provider", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
     metaDataMap = Collections.unmodifiableMap(tmpMap);
-    FieldMetaData.addStructMetaDataMap(CfDef.class, metaDataMap);
+    org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(CfDef.class, metaDataMap);
   }
 
   public CfDef() {
@@ -445,7 +439,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     this.keyspace = null;
   }
 
-  /** Returns true if field keyspace is set (has been asigned a value) and false otherwise */
+  /** Returns true if field keyspace is set (has been assigned a value) and false otherwise */
   public boolean isSetKeyspace() {
     return this.keyspace != null;
   }
@@ -469,7 +463,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     this.name = null;
   }
 
-  /** Returns true if field name is set (has been asigned a value) and false otherwise */
+  /** Returns true if field name is set (has been assigned a value) and false otherwise */
   public boolean isSetName() {
     return this.name != null;
   }
@@ -493,7 +487,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     this.column_type = null;
   }
 
-  /** Returns true if field column_type is set (has been asigned a value) and false otherwise */
+  /** Returns true if field column_type is set (has been assigned a value) and false otherwise */
   public boolean isSetColumn_type() {
     return this.column_type != null;
   }
@@ -517,7 +511,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     this.comparator_type = null;
   }
 
-  /** Returns true if field comparator_type is set (has been asigned a value) and false otherwise */
+  /** Returns true if field comparator_type is set (has been assigned a value) and false otherwise */
   public boolean isSetComparator_type() {
     return this.comparator_type != null;
   }
@@ -541,7 +535,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     this.subcomparator_type = null;
   }
 
-  /** Returns true if field subcomparator_type is set (has been asigned a value) and false otherwise */
+  /** Returns true if field subcomparator_type is set (has been assigned a value) and false otherwise */
   public boolean isSetSubcomparator_type() {
     return this.subcomparator_type != null;
   }
@@ -565,7 +559,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     this.comment = null;
   }
 
-  /** Returns true if field comment is set (has been asigned a value) and false otherwise */
+  /** Returns true if field comment is set (has been assigned a value) and false otherwise */
   public boolean isSetComment() {
     return this.comment != null;
   }
@@ -590,7 +584,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     __isset_bit_vector.clear(__ROW_CACHE_SIZE_ISSET_ID);
   }
 
-  /** Returns true if field row_cache_size is set (has been asigned a value) and false otherwise */
+  /** Returns true if field row_cache_size is set (has been assigned a value) and false otherwise */
   public boolean isSetRow_cache_size() {
     return __isset_bit_vector.get(__ROW_CACHE_SIZE_ISSET_ID);
   }
@@ -613,7 +607,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     __isset_bit_vector.clear(__KEY_CACHE_SIZE_ISSET_ID);
   }
 
-  /** Returns true if field key_cache_size is set (has been asigned a value) and false otherwise */
+  /** Returns true if field key_cache_size is set (has been assigned a value) and false otherwise */
   public boolean isSetKey_cache_size() {
     return __isset_bit_vector.get(__KEY_CACHE_SIZE_ISSET_ID);
   }
@@ -636,7 +630,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     __isset_bit_vector.clear(__READ_REPAIR_CHANCE_ISSET_ID);
   }
 
-  /** Returns true if field read_repair_chance is set (has been asigned a value) and false otherwise */
+  /** Returns true if field read_repair_chance is set (has been assigned a value) and false otherwise */
   public boolean isSetRead_repair_chance() {
     return __isset_bit_vector.get(__READ_REPAIR_CHANCE_ISSET_ID);
   }
@@ -673,7 +667,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     this.column_metadata = null;
   }
 
-  /** Returns true if field column_metadata is set (has been asigned a value) and false otherwise */
+  /** Returns true if field column_metadata is set (has been assigned a value) and false otherwise */
   public boolean isSetColumn_metadata() {
     return this.column_metadata != null;
   }
@@ -698,7 +692,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     __isset_bit_vector.clear(__GC_GRACE_SECONDS_ISSET_ID);
   }
 
-  /** Returns true if field gc_grace_seconds is set (has been asigned a value) and false otherwise */
+  /** Returns true if field gc_grace_seconds is set (has been assigned a value) and false otherwise */
   public boolean isSetGc_grace_seconds() {
     return __isset_bit_vector.get(__GC_GRACE_SECONDS_ISSET_ID);
   }
@@ -720,7 +714,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     this.default_validation_class = null;
   }
 
-  /** Returns true if field default_validation_class is set (has been asigned a value) and false otherwise */
+  /** Returns true if field default_validation_class is set (has been assigned a value) and false otherwise */
   public boolean isSetDefault_validation_class() {
     return this.default_validation_class != null;
   }
@@ -745,7 +739,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     __isset_bit_vector.clear(__ID_ISSET_ID);
   }
 
-  /** Returns true if field id is set (has been asigned a value) and false otherwise */
+  /** Returns true if field id is set (has been assigned a value) and false otherwise */
   public boolean isSetId() {
     return __isset_bit_vector.get(__ID_ISSET_ID);
   }
@@ -768,7 +762,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     __isset_bit_vector.clear(__MIN_COMPACTION_THRESHOLD_ISSET_ID);
   }
 
-  /** Returns true if field min_compaction_threshold is set (has been asigned a value) and false otherwise */
+  /** Returns true if field min_compaction_threshold is set (has been assigned a value) and false otherwise */
   public boolean isSetMin_compaction_threshold() {
     return __isset_bit_vector.get(__MIN_COMPACTION_THRESHOLD_ISSET_ID);
   }
@@ -791,7 +785,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     __isset_bit_vector.clear(__MAX_COMPACTION_THRESHOLD_ISSET_ID);
   }
 
-  /** Returns true if field max_compaction_threshold is set (has been asigned a value) and false otherwise */
+  /** Returns true if field max_compaction_threshold is set (has been assigned a value) and false otherwise */
   public boolean isSetMax_compaction_threshold() {
     return __isset_bit_vector.get(__MAX_COMPACTION_THRESHOLD_ISSET_ID);
   }
@@ -814,7 +808,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     __isset_bit_vector.clear(__ROW_CACHE_SAVE_PERIOD_IN_SECONDS_ISSET_ID);
   }
 
-  /** Returns true if field row_cache_save_period_in_seconds is set (has been asigned a value) and false otherwise */
+  /** Returns true if field row_cache_save_period_in_seconds is set (has been assigned a value) and false otherwise */
   public boolean isSetRow_cache_save_period_in_seconds() {
     return __isset_bit_vector.get(__ROW_CACHE_SAVE_PERIOD_IN_SECONDS_ISSET_ID);
   }
@@ -837,7 +831,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     __isset_bit_vector.clear(__KEY_CACHE_SAVE_PERIOD_IN_SECONDS_ISSET_ID);
   }
 
-  /** Returns true if field key_cache_save_period_in_seconds is set (has been asigned a value) and false otherwise */
+  /** Returns true if field key_cache_save_period_in_seconds is set (has been assigned a value) and false otherwise */
   public boolean isSetKey_cache_save_period_in_seconds() {
     return __isset_bit_vector.get(__KEY_CACHE_SAVE_PERIOD_IN_SECONDS_ISSET_ID);
   }
@@ -860,7 +854,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     __isset_bit_vector.clear(__MEMTABLE_FLUSH_AFTER_MINS_ISSET_ID);
   }
 
-  /** Returns true if field memtable_flush_after_mins is set (has been asigned a value) and false otherwise */
+  /** Returns true if field memtable_flush_after_mins is set (has been assigned a value) and false otherwise */
   public boolean isSetMemtable_flush_after_mins() {
     return __isset_bit_vector.get(__MEMTABLE_FLUSH_AFTER_MINS_ISSET_ID);
   }
@@ -883,7 +877,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     __isset_bit_vector.clear(__MEMTABLE_THROUGHPUT_IN_MB_ISSET_ID);
   }
 
-  /** Returns true if field memtable_throughput_in_mb is set (has been asigned a value) and false otherwise */
+  /** Returns true if field memtable_throughput_in_mb is set (has been assigned a value) and false otherwise */
   public boolean isSetMemtable_throughput_in_mb() {
     return __isset_bit_vector.get(__MEMTABLE_THROUGHPUT_IN_MB_ISSET_ID);
   }
@@ -906,7 +900,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     __isset_bit_vector.clear(__MEMTABLE_OPERATIONS_IN_MILLIONS_ISSET_ID);
   }
 
-  /** Returns true if field memtable_operations_in_millions is set (has been asigned a value) and false otherwise */
+  /** Returns true if field memtable_operations_in_millions is set (has been assigned a value) and false otherwise */
   public boolean isSetMemtable_operations_in_millions() {
     return __isset_bit_vector.get(__MEMTABLE_OPERATIONS_IN_MILLIONS_ISSET_ID);
   }
@@ -929,7 +923,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     __isset_bit_vector.clear(__REPLICATE_ON_WRITE_ISSET_ID);
   }
 
-  /** Returns true if field replicate_on_write is set (has been asigned a value) and false otherwise */
+  /** Returns true if field replicate_on_write is set (has been assigned a value) and false otherwise */
   public boolean isSetReplicate_on_write() {
     return __isset_bit_vector.get(__REPLICATE_ON_WRITE_ISSET_ID);
   }
@@ -952,7 +946,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     __isset_bit_vector.clear(__MERGE_SHARDS_CHANCE_ISSET_ID);
   }
 
-  /** Returns true if field merge_shards_chance is set (has been asigned a value) and false otherwise */
+  /** Returns true if field merge_shards_chance is set (has been assigned a value) and false otherwise */
   public boolean isSetMerge_shards_chance() {
     return __isset_bit_vector.get(__MERGE_SHARDS_CHANCE_ISSET_ID);
   }
@@ -974,7 +968,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     this.key_validation_class = null;
   }
 
-  /** Returns true if field key_validation_class is set (has been asigned a value) and false otherwise */
+  /** Returns true if field key_validation_class is set (has been assigned a value) and false otherwise */
   public boolean isSetKey_validation_class() {
     return this.key_validation_class != null;
   }
@@ -998,7 +992,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     this.row_cache_provider = null;
   }
 
-  /** Returns true if field row_cache_provider is set (has been asigned a value) and false otherwise */
+  /** Returns true if field row_cache_provider is set (has been assigned a value) and false otherwise */
   public boolean isSetRow_cache_provider() {
     return this.row_cache_provider != null;
   }
@@ -1284,7 +1278,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     throw new IllegalStateException();
   }
 
-  /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
+  /** Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise */
   public boolean isSet(_Fields field) {
     if (field == null) {
       throw new IllegalArgumentException();
@@ -1715,7 +1709,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       return lastComparison;
     }
     if (isSetKeyspace()) {
-      lastComparison = TBaseHelper.compareTo(this.keyspace, typedOther.keyspace);
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.keyspace, typedOther.keyspace);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -1725,7 +1719,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       return lastComparison;
     }
     if (isSetName()) {
-      lastComparison = TBaseHelper.compareTo(this.name, typedOther.name);
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.name, typedOther.name);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -1735,7 +1729,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       return lastComparison;
     }
     if (isSetColumn_type()) {
-      lastComparison = TBaseHelper.compareTo(this.column_type, typedOther.column_type);
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.column_type, typedOther.column_type);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -1745,7 +1739,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       return lastComparison;
     }
     if (isSetComparator_type()) {
-      lastComparison = TBaseHelper.compareTo(this.comparator_type, typedOther.comparator_type);
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.comparator_type, typedOther.comparator_type);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -1755,7 +1749,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       return lastComparison;
     }
     if (isSetSubcomparator_type()) {
-      lastComparison = TBaseHelper.compareTo(this.subcomparator_type, typedOther.subcomparator_type);
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.subcomparator_type, typedOther.subcomparator_type);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -1765,7 +1759,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       return lastComparison;
     }
     if (isSetComment()) {
-      lastComparison = TBaseHelper.compareTo(this.comment, typedOther.comment);
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.comment, typedOther.comment);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -1775,7 +1769,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       return lastComparison;
     }
     if (isSetRow_cache_size()) {
-      lastComparison = TBaseHelper.compareTo(this.row_cache_size, typedOther.row_cache_size);
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.row_cache_size, typedOther.row_cache_size);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -1785,7 +1779,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       return lastComparison;
     }
     if (isSetKey_cache_size()) {
-      lastComparison = TBaseHelper.compareTo(this.key_cache_size, typedOther.key_cache_size);
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.key_cache_size, typedOther.key_cache_size);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -1795,7 +1789,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       return lastComparison;
     }
     if (isSetRead_repair_chance()) {
-      lastComparison = TBaseHelper.compareTo(this.read_repair_chance, typedOther.read_repair_chance);
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.read_repair_chance, typedOther.read_repair_chance);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -1805,7 +1799,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       return lastComparison;
     }
     if (isSetColumn_metadata()) {
-      lastComparison = TBaseHelper.compareTo(this.column_metadata, typedOther.column_metadata);
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.column_metadata, typedOther.column_metadata);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -1815,7 +1809,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       return lastComparison;
     }
     if (isSetGc_grace_seconds()) {
-      lastComparison = TBaseHelper.compareTo(this.gc_grace_seconds, typedOther.gc_grace_seconds);
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.gc_grace_seconds, typedOther.gc_grace_seconds);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -1825,7 +1819,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       return lastComparison;
     }
     if (isSetDefault_validation_class()) {
-      lastComparison = TBaseHelper.compareTo(this.default_validation_class, typedOther.default_validation_class);
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.default_validation_class, typedOther.default_validation_class);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -1835,7 +1829,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       return lastComparison;
     }
     if (isSetId()) {
-      lastComparison = TBaseHelper.compareTo(this.id, typedOther.id);
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.id, typedOther.id);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -1845,7 +1839,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       return lastComparison;
     }
     if (isSetMin_compaction_threshold()) {
-      lastComparison = TBaseHelper.compareTo(this.min_compaction_threshold, typedOther.min_compaction_threshold);
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.min_compaction_threshold, typedOther.min_compaction_threshold);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -1855,7 +1849,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       return lastComparison;
     }
     if (isSetMax_compaction_threshold()) {
-      lastComparison = TBaseHelper.compareTo(this.max_compaction_threshold, typedOther.max_compaction_threshold);
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.max_compaction_threshold, typedOther.max_compaction_threshold);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -1865,7 +1859,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       return lastComparison;
     }
     if (isSetRow_cache_save_period_in_seconds()) {
-      lastComparison = TBaseHelper.compareTo(this.row_cache_save_period_in_seconds, typedOther.row_cache_save_period_in_seconds);
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.row_cache_save_period_in_seconds, typedOther.row_cache_save_period_in_seconds);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -1875,7 +1869,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       return lastComparison;
     }
     if (isSetKey_cache_save_period_in_seconds()) {
-      lastComparison = TBaseHelper.compareTo(this.key_cache_save_period_in_seconds, typedOther.key_cache_save_period_in_seconds);
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.key_cache_save_period_in_seconds, typedOther.key_cache_save_period_in_seconds);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -1885,7 +1879,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       return lastComparison;
     }
     if (isSetMemtable_flush_after_mins()) {
-      lastComparison = TBaseHelper.compareTo(this.memtable_flush_after_mins, typedOther.memtable_flush_after_mins);
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.memtable_flush_after_mins, typedOther.memtable_flush_after_mins);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -1895,7 +1889,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       return lastComparison;
     }
     if (isSetMemtable_throughput_in_mb()) {
-      lastComparison = TBaseHelper.compareTo(this.memtable_throughput_in_mb, typedOther.memtable_throughput_in_mb);
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.memtable_throughput_in_mb, typedOther.memtable_throughput_in_mb);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -1905,7 +1899,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       return lastComparison;
     }
     if (isSetMemtable_operations_in_millions()) {
-      lastComparison = TBaseHelper.compareTo(this.memtable_operations_in_millions, typedOther.memtable_operations_in_millions);
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.memtable_operations_in_millions, typedOther.memtable_operations_in_millions);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -1915,7 +1909,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       return lastComparison;
     }
     if (isSetReplicate_on_write()) {
-      lastComparison = TBaseHelper.compareTo(this.replicate_on_write, typedOther.replicate_on_write);
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.replicate_on_write, typedOther.replicate_on_write);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -1925,7 +1919,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       return lastComparison;
     }
     if (isSetMerge_shards_chance()) {
-      lastComparison = TBaseHelper.compareTo(this.merge_shards_chance, typedOther.merge_shards_chance);
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.merge_shards_chance, typedOther.merge_shards_chance);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -1935,7 +1929,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       return lastComparison;
     }
     if (isSetKey_validation_class()) {
-      lastComparison = TBaseHelper.compareTo(this.key_validation_class, typedOther.key_validation_class);
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.key_validation_class, typedOther.key_validation_class);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -1945,7 +1939,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       return lastComparison;
     }
     if (isSetRow_cache_provider()) {
-      lastComparison = TBaseHelper.compareTo(this.row_cache_provider, typedOther.row_cache_provider);
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.row_cache_provider, typedOther.row_cache_provider);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -1957,86 +1951,86 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     return _Fields.findByThriftId(fieldId);
   }
 
-  public void read(TProtocol iprot) throws TException {
-    TField field;
+  public void read(org.apache.thrift.protocol.TProtocol iprot) throws org.apache.thrift.TException {
+    org.apache.thrift.protocol.TField field;
     iprot.readStructBegin();
     while (true)
     {
       field = iprot.readFieldBegin();
-      if (field.type == TType.STOP) { 
+      if (field.type == org.apache.thrift.protocol.TType.STOP) { 
         break;
       }
       switch (field.id) {
         case 1: // KEYSPACE
-          if (field.type == TType.STRING) {
+          if (field.type == org.apache.thrift.protocol.TType.STRING) {
             this.keyspace = iprot.readString();
           } else { 
-            TProtocolUtil.skip(iprot, field.type);
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
         case 2: // NAME
-          if (field.type == TType.STRING) {
+          if (field.type == org.apache.thrift.protocol.TType.STRING) {
             this.name = iprot.readString();
           } else { 
-            TProtocolUtil.skip(iprot, field.type);
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
         case 3: // COLUMN_TYPE
-          if (field.type == TType.STRING) {
+          if (field.type == org.apache.thrift.protocol.TType.STRING) {
             this.column_type = iprot.readString();
           } else { 
-            TProtocolUtil.skip(iprot, field.type);
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
         case 5: // COMPARATOR_TYPE
-          if (field.type == TType.STRING) {
+          if (field.type == org.apache.thrift.protocol.TType.STRING) {
             this.comparator_type = iprot.readString();
           } else { 
-            TProtocolUtil.skip(iprot, field.type);
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
         case 6: // SUBCOMPARATOR_TYPE
-          if (field.type == TType.STRING) {
+          if (field.type == org.apache.thrift.protocol.TType.STRING) {
             this.subcomparator_type = iprot.readString();
           } else { 
-            TProtocolUtil.skip(iprot, field.type);
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
         case 8: // COMMENT
-          if (field.type == TType.STRING) {
+          if (field.type == org.apache.thrift.protocol.TType.STRING) {
             this.comment = iprot.readString();
           } else { 
-            TProtocolUtil.skip(iprot, field.type);
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
         case 9: // ROW_CACHE_SIZE
-          if (field.type == TType.DOUBLE) {
+          if (field.type == org.apache.thrift.protocol.TType.DOUBLE) {
             this.row_cache_size = iprot.readDouble();
             setRow_cache_sizeIsSet(true);
           } else { 
-            TProtocolUtil.skip(iprot, field.type);
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
         case 11: // KEY_CACHE_SIZE
-          if (field.type == TType.DOUBLE) {
+          if (field.type == org.apache.thrift.protocol.TType.DOUBLE) {
             this.key_cache_size = iprot.readDouble();
             setKey_cache_sizeIsSet(true);
           } else { 
-            TProtocolUtil.skip(iprot, field.type);
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
         case 12: // READ_REPAIR_CHANCE
-          if (field.type == TType.DOUBLE) {
+          if (field.type == org.apache.thrift.protocol.TType.DOUBLE) {
             this.read_repair_chance = iprot.readDouble();
             setRead_repair_chanceIsSet(true);
           } else { 
-            TProtocolUtil.skip(iprot, field.type);
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
         case 13: // COLUMN_METADATA
-          if (field.type == TType.LIST) {
+          if (field.type == org.apache.thrift.protocol.TType.LIST) {
             {
-              TList _list29 = iprot.readListBegin();
+              org.apache.thrift.protocol.TList _list29 = iprot.readListBegin();
               this.column_metadata = new ArrayList<ColumnDef>(_list29.size);
               for (int _i30 = 0; _i30 < _list29.size; ++_i30)
               {
@@ -2048,120 +2042,120 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
               iprot.readListEnd();
             }
           } else { 
-            TProtocolUtil.skip(iprot, field.type);
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
         case 14: // GC_GRACE_SECONDS
-          if (field.type == TType.I32) {
+          if (field.type == org.apache.thrift.protocol.TType.I32) {
             this.gc_grace_seconds = iprot.readI32();
             setGc_grace_secondsIsSet(true);
           } else { 
-            TProtocolUtil.skip(iprot, field.type);
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
         case 15: // DEFAULT_VALIDATION_CLASS
-          if (field.type == TType.STRING) {
+          if (field.type == org.apache.thrift.protocol.TType.STRING) {
             this.default_validation_class = iprot.readString();
           } else { 
-            TProtocolUtil.skip(iprot, field.type);
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
         case 16: // ID
-          if (field.type == TType.I32) {
+          if (field.type == org.apache.thrift.protocol.TType.I32) {
             this.id = iprot.readI32();
             setIdIsSet(true);
           } else { 
-            TProtocolUtil.skip(iprot, field.type);
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
         case 17: // MIN_COMPACTION_THRESHOLD
-          if (field.type == TType.I32) {
+          if (field.type == org.apache.thrift.protocol.TType.I32) {
             this.min_compaction_threshold = iprot.readI32();
             setMin_compaction_thresholdIsSet(true);
           } else { 
-            TProtocolUtil.skip(iprot, field.type);
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
         case 18: // MAX_COMPACTION_THRESHOLD
-          if (field.type == TType.I32) {
+          if (field.type == org.apache.thrift.protocol.TType.I32) {
             this.max_compaction_threshold = iprot.readI32();
             setMax_compaction_thresholdIsSet(true);
           } else { 
-            TProtocolUtil.skip(iprot, field.type);
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
         case 19: // ROW_CACHE_SAVE_PERIOD_IN_SECONDS
-          if (field.type == TType.I32) {
+          if (field.type == org.apache.thrift.protocol.TType.I32) {
             this.row_cache_save_period_in_seconds = iprot.readI32();
             setRow_cache_save_period_in_secondsIsSet(true);
           } else { 
-            TProtocolUtil.skip(iprot, field.type);
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
         case 20: // KEY_CACHE_SAVE_PERIOD_IN_SECONDS
-          if (field.type == TType.I32) {
+          if (field.type == org.apache.thrift.protocol.TType.I32) {
             this.key_cache_save_period_in_seconds = iprot.readI32();
             setKey_cache_save_period_in_secondsIsSet(true);
           } else { 
-            TProtocolUtil.skip(iprot, field.type);
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
         case 21: // MEMTABLE_FLUSH_AFTER_MINS
-          if (field.type == TType.I32) {
+          if (field.type == org.apache.thrift.protocol.TType.I32) {
             this.memtable_flush_after_mins = iprot.readI32();
             setMemtable_flush_after_minsIsSet(true);
           } else { 
-            TProtocolUtil.skip(iprot, field.type);
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
         case 22: // MEMTABLE_THROUGHPUT_IN_MB
-          if (field.type == TType.I32) {
+          if (field.type == org.apache.thrift.protocol.TType.I32) {
             this.memtable_throughput_in_mb = iprot.readI32();
             setMemtable_throughput_in_mbIsSet(true);
           } else { 
-            TProtocolUtil.skip(iprot, field.type);
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
         case 23: // MEMTABLE_OPERATIONS_IN_MILLIONS
-          if (field.type == TType.DOUBLE) {
+          if (field.type == org.apache.thrift.protocol.TType.DOUBLE) {
             this.memtable_operations_in_millions = iprot.readDouble();
             setMemtable_operations_in_millionsIsSet(true);
           } else { 
-            TProtocolUtil.skip(iprot, field.type);
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
         case 24: // REPLICATE_ON_WRITE
-          if (field.type == TType.BOOL) {
+          if (field.type == org.apache.thrift.protocol.TType.BOOL) {
             this.replicate_on_write = iprot.readBool();
             setReplicate_on_writeIsSet(true);
           } else { 
-            TProtocolUtil.skip(iprot, field.type);
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
         case 25: // MERGE_SHARDS_CHANCE
-          if (field.type == TType.DOUBLE) {
+          if (field.type == org.apache.thrift.protocol.TType.DOUBLE) {
             this.merge_shards_chance = iprot.readDouble();
             setMerge_shards_chanceIsSet(true);
           } else { 
-            TProtocolUtil.skip(iprot, field.type);
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
         case 26: // KEY_VALIDATION_CLASS
-          if (field.type == TType.STRING) {
+          if (field.type == org.apache.thrift.protocol.TType.STRING) {
             this.key_validation_class = iprot.readString();
           } else { 
-            TProtocolUtil.skip(iprot, field.type);
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
         case 27: // ROW_CACHE_PROVIDER
-          if (field.type == TType.STRING) {
+          if (field.type == org.apache.thrift.protocol.TType.STRING) {
             this.row_cache_provider = iprot.readString();
           } else { 
-            TProtocolUtil.skip(iprot, field.type);
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
         default:
-          TProtocolUtil.skip(iprot, field.type);
+          org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
       }
       iprot.readFieldEnd();
     }
@@ -2171,7 +2165,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     validate();
   }
 
-  public void write(TProtocol oprot) throws TException {
+  public void write(org.apache.thrift.protocol.TProtocol oprot) throws org.apache.thrift.TException {
     validate();
 
     oprot.writeStructBegin(STRUCT_DESC);
@@ -2232,7 +2226,7 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
       if (isSetColumn_metadata()) {
         oprot.writeFieldBegin(COLUMN_METADATA_FIELD_DESC);
         {
-          oprot.writeListBegin(new TList(TType.STRUCT, this.column_metadata.size()));
+          oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, this.column_metadata.size()));
           for (ColumnDef _iter32 : this.column_metadata)
           {
             _iter32.write(oprot);
@@ -2510,13 +2504,31 @@ public class CfDef implements TBase<CfDef, CfDef._Fields>, java.io.Serializable,
     return sb.toString();
   }
 
-  public void validate() throws TException {
+  public void validate() throws org.apache.thrift.TException {
     // check for required fields
     if (keyspace == null) {
-      throw new TProtocolException("Required field 'keyspace' was not present! Struct: " + toString());
+      throw new org.apache.thrift.protocol.TProtocolException("Required field 'keyspace' was not present! Struct: " + toString());
     }
     if (name == null) {
-      throw new TProtocolException("Required field 'name' was not present! Struct: " + toString());
+      throw new org.apache.thrift.protocol.TProtocolException("Required field 'name' was not present! Struct: " + toString());
+    }
+  }
+
+  private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
+    try {
+      write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
+    } catch (org.apache.thrift.TException te) {
+      throw new java.io.IOException(te);
+    }
+  }
+
+  private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
+    try {
+      // it doesn't seem like you should have to do this, but java serialization is wacky, and doesn't call the default constructor.
+      __isset_bit_vector = new BitSet(1);
+      read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
+    } catch (org.apache.thrift.TException te) {
+      throw new java.io.IOException(te);
     }
   }
 

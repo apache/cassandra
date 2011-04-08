@@ -42,23 +42,17 @@ import java.util.Arrays;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.thrift.*;
-import org.apache.thrift.async.*;
-import org.apache.thrift.meta_data.*;
-import org.apache.thrift.transport.*;
-import org.apache.thrift.protocol.*;
+public class KeyCount implements org.apache.thrift.TBase<KeyCount, KeyCount._Fields>, java.io.Serializable, Cloneable {
+  private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct("KeyCount");
 
-public class KeyCount implements TBase<KeyCount, KeyCount._Fields>, java.io.Serializable, Cloneable {
-  private static final TStruct STRUCT_DESC = new TStruct("KeyCount");
-
-  private static final TField KEY_FIELD_DESC = new TField("key", TType.STRING, (short)1);
-  private static final TField COUNT_FIELD_DESC = new TField("count", TType.I32, (short)2);
+  private static final org.apache.thrift.protocol.TField KEY_FIELD_DESC = new org.apache.thrift.protocol.TField("key", org.apache.thrift.protocol.TType.STRING, (short)1);
+  private static final org.apache.thrift.protocol.TField COUNT_FIELD_DESC = new org.apache.thrift.protocol.TField("count", org.apache.thrift.protocol.TType.I32, (short)2);
 
   public ByteBuffer key;
   public int count;
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
-  public enum _Fields implements TFieldIdEnum {
+  public enum _Fields implements org.apache.thrift.TFieldIdEnum {
     KEY((short)1, "key"),
     COUNT((short)2, "count");
 
@@ -122,15 +116,15 @@ public class KeyCount implements TBase<KeyCount, KeyCount._Fields>, java.io.Seri
   private static final int __COUNT_ISSET_ID = 0;
   private BitSet __isset_bit_vector = new BitSet(1);
 
-  public static final Map<_Fields, FieldMetaData> metaDataMap;
+  public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
   static {
-    Map<_Fields, FieldMetaData> tmpMap = new EnumMap<_Fields, FieldMetaData>(_Fields.class);
-    tmpMap.put(_Fields.KEY, new FieldMetaData("key", TFieldRequirementType.REQUIRED, 
-        new FieldValueMetaData(TType.STRING)));
-    tmpMap.put(_Fields.COUNT, new FieldMetaData("count", TFieldRequirementType.REQUIRED, 
-        new FieldValueMetaData(TType.I32)));
+    Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
+    tmpMap.put(_Fields.KEY, new org.apache.thrift.meta_data.FieldMetaData("key", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING        , true)));
+    tmpMap.put(_Fields.COUNT, new org.apache.thrift.meta_data.FieldMetaData("count", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32)));
     metaDataMap = Collections.unmodifiableMap(tmpMap);
-    FieldMetaData.addStructMetaDataMap(KeyCount.class, metaDataMap);
+    org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(KeyCount.class, metaDataMap);
   }
 
   public KeyCount() {
@@ -153,7 +147,7 @@ public class KeyCount implements TBase<KeyCount, KeyCount._Fields>, java.io.Seri
     __isset_bit_vector.clear();
     __isset_bit_vector.or(other.__isset_bit_vector);
     if (other.isSetKey()) {
-      this.key = TBaseHelper.copyBinary(other.key);
+      this.key = org.apache.thrift.TBaseHelper.copyBinary(other.key);
 ;
     }
     this.count = other.count;
@@ -171,16 +165,16 @@ public class KeyCount implements TBase<KeyCount, KeyCount._Fields>, java.io.Seri
   }
 
   public byte[] getKey() {
-    setKey(TBaseHelper.rightSize(key));
-    return key.array();
+    setKey(org.apache.thrift.TBaseHelper.rightSize(key));
+    return key == null ? null : key.array();
   }
 
-  public ByteBuffer BufferForKey() {
+  public ByteBuffer bufferForKey() {
     return key;
   }
 
   public KeyCount setKey(byte[] key) {
-    setKey(ByteBuffer.wrap(key));
+    setKey(key == null ? (ByteBuffer)null : ByteBuffer.wrap(key));
     return this;
   }
 
@@ -193,7 +187,7 @@ public class KeyCount implements TBase<KeyCount, KeyCount._Fields>, java.io.Seri
     this.key = null;
   }
 
-  /** Returns true if field key is set (has been asigned a value) and false otherwise */
+  /** Returns true if field key is set (has been assigned a value) and false otherwise */
   public boolean isSetKey() {
     return this.key != null;
   }
@@ -218,7 +212,7 @@ public class KeyCount implements TBase<KeyCount, KeyCount._Fields>, java.io.Seri
     __isset_bit_vector.clear(__COUNT_ISSET_ID);
   }
 
-  /** Returns true if field count is set (has been asigned a value) and false otherwise */
+  /** Returns true if field count is set (has been assigned a value) and false otherwise */
   public boolean isSetCount() {
     return __isset_bit_vector.get(__COUNT_ISSET_ID);
   }
@@ -260,7 +254,7 @@ public class KeyCount implements TBase<KeyCount, KeyCount._Fields>, java.io.Seri
     throw new IllegalStateException();
   }
 
-  /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
+  /** Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise */
   public boolean isSet(_Fields field) {
     if (field == null) {
       throw new IllegalArgumentException();
@@ -339,7 +333,7 @@ public class KeyCount implements TBase<KeyCount, KeyCount._Fields>, java.io.Seri
       return lastComparison;
     }
     if (isSetKey()) {
-      lastComparison = TBaseHelper.compareTo(this.key, typedOther.key);
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.key, typedOther.key);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -349,7 +343,7 @@ public class KeyCount implements TBase<KeyCount, KeyCount._Fields>, java.io.Seri
       return lastComparison;
     }
     if (isSetCount()) {
-      lastComparison = TBaseHelper.compareTo(this.count, typedOther.count);
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.count, typedOther.count);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -361,33 +355,33 @@ public class KeyCount implements TBase<KeyCount, KeyCount._Fields>, java.io.Seri
     return _Fields.findByThriftId(fieldId);
   }
 
-  public void read(TProtocol iprot) throws TException {
-    TField field;
+  public void read(org.apache.thrift.protocol.TProtocol iprot) throws org.apache.thrift.TException {
+    org.apache.thrift.protocol.TField field;
     iprot.readStructBegin();
     while (true)
     {
       field = iprot.readFieldBegin();
-      if (field.type == TType.STOP) { 
+      if (field.type == org.apache.thrift.protocol.TType.STOP) { 
         break;
       }
       switch (field.id) {
         case 1: // KEY
-          if (field.type == TType.STRING) {
+          if (field.type == org.apache.thrift.protocol.TType.STRING) {
             this.key = iprot.readBinary();
           } else { 
-            TProtocolUtil.skip(iprot, field.type);
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
         case 2: // COUNT
-          if (field.type == TType.I32) {
+          if (field.type == org.apache.thrift.protocol.TType.I32) {
             this.count = iprot.readI32();
             setCountIsSet(true);
           } else { 
-            TProtocolUtil.skip(iprot, field.type);
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
         default:
-          TProtocolUtil.skip(iprot, field.type);
+          org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
       }
       iprot.readFieldEnd();
     }
@@ -395,12 +389,12 @@ public class KeyCount implements TBase<KeyCount, KeyCount._Fields>, java.io.Seri
 
     // check for required fields of primitive type, which can't be checked in the validate method
     if (!isSetCount()) {
-      throw new TProtocolException("Required field 'count' was not found in serialized data! Struct: " + toString());
+      throw new org.apache.thrift.protocol.TProtocolException("Required field 'count' was not found in serialized data! Struct: " + toString());
     }
     validate();
   }
 
-  public void write(TProtocol oprot) throws TException {
+  public void write(org.apache.thrift.protocol.TProtocol oprot) throws org.apache.thrift.TException {
     validate();
 
     oprot.writeStructBegin(STRUCT_DESC);
@@ -425,7 +419,7 @@ public class KeyCount implements TBase<KeyCount, KeyCount._Fields>, java.io.Seri
     if (this.key == null) {
       sb.append("null");
     } else {
-      TBaseHelper.toString(this.key, sb);
+      org.apache.thrift.TBaseHelper.toString(this.key, sb);
     }
     first = false;
     if (!first) sb.append(", ");
@@ -436,12 +430,30 @@ public class KeyCount implements TBase<KeyCount, KeyCount._Fields>, java.io.Seri
     return sb.toString();
   }
 
-  public void validate() throws TException {
+  public void validate() throws org.apache.thrift.TException {
     // check for required fields
     if (key == null) {
-      throw new TProtocolException("Required field 'key' was not present! Struct: " + toString());
+      throw new org.apache.thrift.protocol.TProtocolException("Required field 'key' was not present! Struct: " + toString());
     }
     // alas, we cannot check 'count' because it's a primitive and you chose the non-beans generator.
+  }
+
+  private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
+    try {
+      write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
+    } catch (org.apache.thrift.TException te) {
+      throw new java.io.IOException(te);
+    }
+  }
+
+  private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
+    try {
+      // it doesn't seem like you should have to do this, but java serialization is wacky, and doesn't call the default constructor.
+      __isset_bit_vector = new BitSet(1);
+      read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
+    } catch (org.apache.thrift.TException te) {
+      throw new java.io.IOException(te);
+    }
   }
 
 }

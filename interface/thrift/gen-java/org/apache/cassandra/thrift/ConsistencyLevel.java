@@ -73,7 +73,7 @@ import org.apache.thrift.TEnum;
  *   EACH_QUORUM  Returns the record with the most recent timestamp once a majority of replicas within each datacenter have replied.
  *   ALL          Returns the record with the most recent timestamp once all replicas have replied (implies no replica may be down)..
  */
-public enum ConsistencyLevel implements TEnum {
+public enum ConsistencyLevel implements org.apache.thrift.TEnum {
   ONE(1),
   QUORUM(2),
   LOCAL_QUORUM(3),

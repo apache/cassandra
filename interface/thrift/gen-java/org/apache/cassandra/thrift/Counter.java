@@ -42,23 +42,17 @@ import java.util.Arrays;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.thrift.*;
-import org.apache.thrift.async.*;
-import org.apache.thrift.meta_data.*;
-import org.apache.thrift.transport.*;
-import org.apache.thrift.protocol.*;
+public class Counter implements org.apache.thrift.TBase<Counter, Counter._Fields>, java.io.Serializable, Cloneable {
+  private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct("Counter");
 
-public class Counter implements TBase<Counter, Counter._Fields>, java.io.Serializable, Cloneable {
-  private static final TStruct STRUCT_DESC = new TStruct("Counter");
-
-  private static final TField COLUMN_FIELD_DESC = new TField("column", TType.STRUCT, (short)1);
-  private static final TField SUPER_COLUMN_FIELD_DESC = new TField("super_column", TType.STRUCT, (short)2);
+  private static final org.apache.thrift.protocol.TField COLUMN_FIELD_DESC = new org.apache.thrift.protocol.TField("column", org.apache.thrift.protocol.TType.STRUCT, (short)1);
+  private static final org.apache.thrift.protocol.TField SUPER_COLUMN_FIELD_DESC = new org.apache.thrift.protocol.TField("super_column", org.apache.thrift.protocol.TType.STRUCT, (short)2);
 
   public CounterColumn column;
   public CounterSuperColumn super_column;
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
-  public enum _Fields implements TFieldIdEnum {
+  public enum _Fields implements org.apache.thrift.TFieldIdEnum {
     COLUMN((short)1, "column"),
     SUPER_COLUMN((short)2, "super_column");
 
@@ -120,15 +114,15 @@ public class Counter implements TBase<Counter, Counter._Fields>, java.io.Seriali
 
   // isset id assignments
 
-  public static final Map<_Fields, FieldMetaData> metaDataMap;
+  public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
   static {
-    Map<_Fields, FieldMetaData> tmpMap = new EnumMap<_Fields, FieldMetaData>(_Fields.class);
-    tmpMap.put(_Fields.COLUMN, new FieldMetaData("column", TFieldRequirementType.OPTIONAL, 
-        new StructMetaData(TType.STRUCT, CounterColumn.class)));
-    tmpMap.put(_Fields.SUPER_COLUMN, new FieldMetaData("super_column", TFieldRequirementType.OPTIONAL, 
-        new StructMetaData(TType.STRUCT, CounterSuperColumn.class)));
+    Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
+    tmpMap.put(_Fields.COLUMN, new org.apache.thrift.meta_data.FieldMetaData("column", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, CounterColumn.class)));
+    tmpMap.put(_Fields.SUPER_COLUMN, new org.apache.thrift.meta_data.FieldMetaData("super_column", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, CounterSuperColumn.class)));
     metaDataMap = Collections.unmodifiableMap(tmpMap);
-    FieldMetaData.addStructMetaDataMap(Counter.class, metaDataMap);
+    org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(Counter.class, metaDataMap);
   }
 
   public Counter() {
@@ -169,7 +163,7 @@ public class Counter implements TBase<Counter, Counter._Fields>, java.io.Seriali
     this.column = null;
   }
 
-  /** Returns true if field column is set (has been asigned a value) and false otherwise */
+  /** Returns true if field column is set (has been assigned a value) and false otherwise */
   public boolean isSetColumn() {
     return this.column != null;
   }
@@ -193,7 +187,7 @@ public class Counter implements TBase<Counter, Counter._Fields>, java.io.Seriali
     this.super_column = null;
   }
 
-  /** Returns true if field super_column is set (has been asigned a value) and false otherwise */
+  /** Returns true if field super_column is set (has been assigned a value) and false otherwise */
   public boolean isSetSuper_column() {
     return this.super_column != null;
   }
@@ -237,7 +231,7 @@ public class Counter implements TBase<Counter, Counter._Fields>, java.io.Seriali
     throw new IllegalStateException();
   }
 
-  /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
+  /** Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise */
   public boolean isSet(_Fields field) {
     if (field == null) {
       throw new IllegalArgumentException();
@@ -316,7 +310,7 @@ public class Counter implements TBase<Counter, Counter._Fields>, java.io.Seriali
       return lastComparison;
     }
     if (isSetColumn()) {
-      lastComparison = TBaseHelper.compareTo(this.column, typedOther.column);
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.column, typedOther.column);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -326,7 +320,7 @@ public class Counter implements TBase<Counter, Counter._Fields>, java.io.Seriali
       return lastComparison;
     }
     if (isSetSuper_column()) {
-      lastComparison = TBaseHelper.compareTo(this.super_column, typedOther.super_column);
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.super_column, typedOther.super_column);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -338,34 +332,34 @@ public class Counter implements TBase<Counter, Counter._Fields>, java.io.Seriali
     return _Fields.findByThriftId(fieldId);
   }
 
-  public void read(TProtocol iprot) throws TException {
-    TField field;
+  public void read(org.apache.thrift.protocol.TProtocol iprot) throws org.apache.thrift.TException {
+    org.apache.thrift.protocol.TField field;
     iprot.readStructBegin();
     while (true)
     {
       field = iprot.readFieldBegin();
-      if (field.type == TType.STOP) { 
+      if (field.type == org.apache.thrift.protocol.TType.STOP) { 
         break;
       }
       switch (field.id) {
         case 1: // COLUMN
-          if (field.type == TType.STRUCT) {
+          if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
             this.column = new CounterColumn();
             this.column.read(iprot);
           } else { 
-            TProtocolUtil.skip(iprot, field.type);
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
         case 2: // SUPER_COLUMN
-          if (field.type == TType.STRUCT) {
+          if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
             this.super_column = new CounterSuperColumn();
             this.super_column.read(iprot);
           } else { 
-            TProtocolUtil.skip(iprot, field.type);
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
         default:
-          TProtocolUtil.skip(iprot, field.type);
+          org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
       }
       iprot.readFieldEnd();
     }
@@ -375,7 +369,7 @@ public class Counter implements TBase<Counter, Counter._Fields>, java.io.Seriali
     validate();
   }
 
-  public void write(TProtocol oprot) throws TException {
+  public void write(org.apache.thrift.protocol.TProtocol oprot) throws org.apache.thrift.TException {
     validate();
 
     oprot.writeStructBegin(STRUCT_DESC);
@@ -425,8 +419,24 @@ public class Counter implements TBase<Counter, Counter._Fields>, java.io.Seriali
     return sb.toString();
   }
 
-  public void validate() throws TException {
+  public void validate() throws org.apache.thrift.TException {
     // check for required fields
+  }
+
+  private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
+    try {
+      write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
+    } catch (org.apache.thrift.TException te) {
+      throw new java.io.IOException(te);
+    }
+  }
+
+  private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
+    try {
+      read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
+    } catch (org.apache.thrift.TException te) {
+      throw new java.io.IOException(te);
+    }
   }
 
 }

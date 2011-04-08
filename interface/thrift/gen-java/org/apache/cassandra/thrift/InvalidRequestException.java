@@ -42,25 +42,19 @@ import java.util.Arrays;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.thrift.*;
-import org.apache.thrift.async.*;
-import org.apache.thrift.meta_data.*;
-import org.apache.thrift.transport.*;
-import org.apache.thrift.protocol.*;
-
 /**
  * Invalid request could mean keyspace or column family does not exist, required parameters are missing, or a parameter is malformed.
  * why contains an associated error message.
  */
-public class InvalidRequestException extends Exception implements TBase<InvalidRequestException, InvalidRequestException._Fields>, java.io.Serializable, Cloneable {
-  private static final TStruct STRUCT_DESC = new TStruct("InvalidRequestException");
+public class InvalidRequestException extends Exception implements org.apache.thrift.TBase<InvalidRequestException, InvalidRequestException._Fields>, java.io.Serializable, Cloneable {
+  private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct("InvalidRequestException");
 
-  private static final TField WHY_FIELD_DESC = new TField("why", TType.STRING, (short)1);
+  private static final org.apache.thrift.protocol.TField WHY_FIELD_DESC = new org.apache.thrift.protocol.TField("why", org.apache.thrift.protocol.TType.STRING, (short)1);
 
   public String why;
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
-  public enum _Fields implements TFieldIdEnum {
+  public enum _Fields implements org.apache.thrift.TFieldIdEnum {
     WHY((short)1, "why");
 
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
@@ -119,13 +113,13 @@ public class InvalidRequestException extends Exception implements TBase<InvalidR
 
   // isset id assignments
 
-  public static final Map<_Fields, FieldMetaData> metaDataMap;
+  public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
   static {
-    Map<_Fields, FieldMetaData> tmpMap = new EnumMap<_Fields, FieldMetaData>(_Fields.class);
-    tmpMap.put(_Fields.WHY, new FieldMetaData("why", TFieldRequirementType.REQUIRED, 
-        new FieldValueMetaData(TType.STRING)));
+    Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
+    tmpMap.put(_Fields.WHY, new org.apache.thrift.meta_data.FieldMetaData("why", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
     metaDataMap = Collections.unmodifiableMap(tmpMap);
-    FieldMetaData.addStructMetaDataMap(InvalidRequestException.class, metaDataMap);
+    org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(InvalidRequestException.class, metaDataMap);
   }
 
   public InvalidRequestException() {
@@ -169,7 +163,7 @@ public class InvalidRequestException extends Exception implements TBase<InvalidR
     this.why = null;
   }
 
-  /** Returns true if field why is set (has been asigned a value) and false otherwise */
+  /** Returns true if field why is set (has been assigned a value) and false otherwise */
   public boolean isSetWhy() {
     return this.why != null;
   }
@@ -202,7 +196,7 @@ public class InvalidRequestException extends Exception implements TBase<InvalidR
     throw new IllegalStateException();
   }
 
-  /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
+  /** Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise */
   public boolean isSet(_Fields field) {
     if (field == null) {
       throw new IllegalArgumentException();
@@ -265,7 +259,7 @@ public class InvalidRequestException extends Exception implements TBase<InvalidR
       return lastComparison;
     }
     if (isSetWhy()) {
-      lastComparison = TBaseHelper.compareTo(this.why, typedOther.why);
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.why, typedOther.why);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -277,25 +271,25 @@ public class InvalidRequestException extends Exception implements TBase<InvalidR
     return _Fields.findByThriftId(fieldId);
   }
 
-  public void read(TProtocol iprot) throws TException {
-    TField field;
+  public void read(org.apache.thrift.protocol.TProtocol iprot) throws org.apache.thrift.TException {
+    org.apache.thrift.protocol.TField field;
     iprot.readStructBegin();
     while (true)
     {
       field = iprot.readFieldBegin();
-      if (field.type == TType.STOP) { 
+      if (field.type == org.apache.thrift.protocol.TType.STOP) { 
         break;
       }
       switch (field.id) {
         case 1: // WHY
-          if (field.type == TType.STRING) {
+          if (field.type == org.apache.thrift.protocol.TType.STRING) {
             this.why = iprot.readString();
           } else { 
-            TProtocolUtil.skip(iprot, field.type);
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
         default:
-          TProtocolUtil.skip(iprot, field.type);
+          org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
       }
       iprot.readFieldEnd();
     }
@@ -305,7 +299,7 @@ public class InvalidRequestException extends Exception implements TBase<InvalidR
     validate();
   }
 
-  public void write(TProtocol oprot) throws TException {
+  public void write(org.apache.thrift.protocol.TProtocol oprot) throws org.apache.thrift.TException {
     validate();
 
     oprot.writeStructBegin(STRUCT_DESC);
@@ -334,10 +328,26 @@ public class InvalidRequestException extends Exception implements TBase<InvalidR
     return sb.toString();
   }
 
-  public void validate() throws TException {
+  public void validate() throws org.apache.thrift.TException {
     // check for required fields
     if (why == null) {
-      throw new TProtocolException("Required field 'why' was not present! Struct: " + toString());
+      throw new org.apache.thrift.protocol.TProtocolException("Required field 'why' was not present! Struct: " + toString());
+    }
+  }
+
+  private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
+    try {
+      write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
+    } catch (org.apache.thrift.TException te) {
+      throw new java.io.IOException(te);
+    }
+  }
+
+  private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
+    try {
+      read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
+    } catch (org.apache.thrift.TException te) {
+      throw new java.io.IOException(te);
     }
   }
 

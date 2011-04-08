@@ -31,7 +31,7 @@ import java.util.Map;
 import java.util.HashMap;
 import org.apache.thrift.TEnum;
 
-public enum IndexOperator implements TEnum {
+public enum IndexOperator implements org.apache.thrift.TEnum {
   EQ(0),
   GTE(1),
   GT(2),

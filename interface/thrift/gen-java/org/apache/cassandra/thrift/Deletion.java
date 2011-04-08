@@ -42,28 +42,22 @@ import java.util.Arrays;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.thrift.*;
-import org.apache.thrift.async.*;
-import org.apache.thrift.meta_data.*;
-import org.apache.thrift.transport.*;
-import org.apache.thrift.protocol.*;
-
 /**
  * Note that the timestamp is only optional in case of counter deletion.
  */
-public class Deletion implements TBase<Deletion, Deletion._Fields>, java.io.Serializable, Cloneable {
-  private static final TStruct STRUCT_DESC = new TStruct("Deletion");
+public class Deletion implements org.apache.thrift.TBase<Deletion, Deletion._Fields>, java.io.Serializable, Cloneable {
+  private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct("Deletion");
 
-  private static final TField TIMESTAMP_FIELD_DESC = new TField("timestamp", TType.I64, (short)1);
-  private static final TField SUPER_COLUMN_FIELD_DESC = new TField("super_column", TType.STRING, (short)2);
-  private static final TField PREDICATE_FIELD_DESC = new TField("predicate", TType.STRUCT, (short)3);
+  private static final org.apache.thrift.protocol.TField TIMESTAMP_FIELD_DESC = new org.apache.thrift.protocol.TField("timestamp", org.apache.thrift.protocol.TType.I64, (short)1);
+  private static final org.apache.thrift.protocol.TField SUPER_COLUMN_FIELD_DESC = new org.apache.thrift.protocol.TField("super_column", org.apache.thrift.protocol.TType.STRING, (short)2);
+  private static final org.apache.thrift.protocol.TField PREDICATE_FIELD_DESC = new org.apache.thrift.protocol.TField("predicate", org.apache.thrift.protocol.TType.STRUCT, (short)3);
 
   public long timestamp;
   public ByteBuffer super_column;
   public SlicePredicate predicate;
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
-  public enum _Fields implements TFieldIdEnum {
+  public enum _Fields implements org.apache.thrift.TFieldIdEnum {
     TIMESTAMP((short)1, "timestamp"),
     SUPER_COLUMN((short)2, "super_column"),
     PREDICATE((short)3, "predicate");
@@ -130,17 +124,17 @@ public class Deletion implements TBase<Deletion, Deletion._Fields>, java.io.Seri
   private static final int __TIMESTAMP_ISSET_ID = 0;
   private BitSet __isset_bit_vector = new BitSet(1);
 
-  public static final Map<_Fields, FieldMetaData> metaDataMap;
+  public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
   static {
-    Map<_Fields, FieldMetaData> tmpMap = new EnumMap<_Fields, FieldMetaData>(_Fields.class);
-    tmpMap.put(_Fields.TIMESTAMP, new FieldMetaData("timestamp", TFieldRequirementType.OPTIONAL, 
-        new FieldValueMetaData(TType.I64)));
-    tmpMap.put(_Fields.SUPER_COLUMN, new FieldMetaData("super_column", TFieldRequirementType.OPTIONAL, 
-        new FieldValueMetaData(TType.STRING)));
-    tmpMap.put(_Fields.PREDICATE, new FieldMetaData("predicate", TFieldRequirementType.OPTIONAL, 
-        new StructMetaData(TType.STRUCT, SlicePredicate.class)));
+    Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
+    tmpMap.put(_Fields.TIMESTAMP, new org.apache.thrift.meta_data.FieldMetaData("timestamp", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I64)));
+    tmpMap.put(_Fields.SUPER_COLUMN, new org.apache.thrift.meta_data.FieldMetaData("super_column", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING        , true)));
+    tmpMap.put(_Fields.PREDICATE, new org.apache.thrift.meta_data.FieldMetaData("predicate", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, SlicePredicate.class)));
     metaDataMap = Collections.unmodifiableMap(tmpMap);
-    FieldMetaData.addStructMetaDataMap(Deletion.class, metaDataMap);
+    org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(Deletion.class, metaDataMap);
   }
 
   public Deletion() {
@@ -154,7 +148,7 @@ public class Deletion implements TBase<Deletion, Deletion._Fields>, java.io.Seri
     __isset_bit_vector.or(other.__isset_bit_vector);
     this.timestamp = other.timestamp;
     if (other.isSetSuper_column()) {
-      this.super_column = TBaseHelper.copyBinary(other.super_column);
+      this.super_column = org.apache.thrift.TBaseHelper.copyBinary(other.super_column);
 ;
     }
     if (other.isSetPredicate()) {
@@ -188,7 +182,7 @@ public class Deletion implements TBase<Deletion, Deletion._Fields>, java.io.Seri
     __isset_bit_vector.clear(__TIMESTAMP_ISSET_ID);
   }
 
-  /** Returns true if field timestamp is set (has been asigned a value) and false otherwise */
+  /** Returns true if field timestamp is set (has been assigned a value) and false otherwise */
   public boolean isSetTimestamp() {
     return __isset_bit_vector.get(__TIMESTAMP_ISSET_ID);
   }
@@ -198,16 +192,16 @@ public class Deletion implements TBase<Deletion, Deletion._Fields>, java.io.Seri
   }
 
   public byte[] getSuper_column() {
-    setSuper_column(TBaseHelper.rightSize(super_column));
-    return super_column.array();
+    setSuper_column(org.apache.thrift.TBaseHelper.rightSize(super_column));
+    return super_column == null ? null : super_column.array();
   }
 
-  public ByteBuffer BufferForSuper_column() {
+  public ByteBuffer bufferForSuper_column() {
     return super_column;
   }
 
   public Deletion setSuper_column(byte[] super_column) {
-    setSuper_column(ByteBuffer.wrap(super_column));
+    setSuper_column(super_column == null ? (ByteBuffer)null : ByteBuffer.wrap(super_column));
     return this;
   }
 
@@ -220,7 +214,7 @@ public class Deletion implements TBase<Deletion, Deletion._Fields>, java.io.Seri
     this.super_column = null;
   }
 
-  /** Returns true if field super_column is set (has been asigned a value) and false otherwise */
+  /** Returns true if field super_column is set (has been assigned a value) and false otherwise */
   public boolean isSetSuper_column() {
     return this.super_column != null;
   }
@@ -244,7 +238,7 @@ public class Deletion implements TBase<Deletion, Deletion._Fields>, java.io.Seri
     this.predicate = null;
   }
 
-  /** Returns true if field predicate is set (has been asigned a value) and false otherwise */
+  /** Returns true if field predicate is set (has been assigned a value) and false otherwise */
   public boolean isSetPredicate() {
     return this.predicate != null;
   }
@@ -299,7 +293,7 @@ public class Deletion implements TBase<Deletion, Deletion._Fields>, java.io.Seri
     throw new IllegalStateException();
   }
 
-  /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
+  /** Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise */
   public boolean isSet(_Fields field) {
     if (field == null) {
       throw new IllegalArgumentException();
@@ -394,7 +388,7 @@ public class Deletion implements TBase<Deletion, Deletion._Fields>, java.io.Seri
       return lastComparison;
     }
     if (isSetTimestamp()) {
-      lastComparison = TBaseHelper.compareTo(this.timestamp, typedOther.timestamp);
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.timestamp, typedOther.timestamp);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -404,7 +398,7 @@ public class Deletion implements TBase<Deletion, Deletion._Fields>, java.io.Seri
       return lastComparison;
     }
     if (isSetSuper_column()) {
-      lastComparison = TBaseHelper.compareTo(this.super_column, typedOther.super_column);
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.super_column, typedOther.super_column);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -414,7 +408,7 @@ public class Deletion implements TBase<Deletion, Deletion._Fields>, java.io.Seri
       return lastComparison;
     }
     if (isSetPredicate()) {
-      lastComparison = TBaseHelper.compareTo(this.predicate, typedOther.predicate);
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.predicate, typedOther.predicate);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -426,41 +420,41 @@ public class Deletion implements TBase<Deletion, Deletion._Fields>, java.io.Seri
     return _Fields.findByThriftId(fieldId);
   }
 
-  public void read(TProtocol iprot) throws TException {
-    TField field;
+  public void read(org.apache.thrift.protocol.TProtocol iprot) throws org.apache.thrift.TException {
+    org.apache.thrift.protocol.TField field;
     iprot.readStructBegin();
     while (true)
     {
       field = iprot.readFieldBegin();
-      if (field.type == TType.STOP) { 
+      if (field.type == org.apache.thrift.protocol.TType.STOP) { 
         break;
       }
       switch (field.id) {
         case 1: // TIMESTAMP
-          if (field.type == TType.I64) {
+          if (field.type == org.apache.thrift.protocol.TType.I64) {
             this.timestamp = iprot.readI64();
             setTimestampIsSet(true);
           } else { 
-            TProtocolUtil.skip(iprot, field.type);
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
         case 2: // SUPER_COLUMN
-          if (field.type == TType.STRING) {
+          if (field.type == org.apache.thrift.protocol.TType.STRING) {
             this.super_column = iprot.readBinary();
           } else { 
-            TProtocolUtil.skip(iprot, field.type);
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
         case 3: // PREDICATE
-          if (field.type == TType.STRUCT) {
+          if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
             this.predicate = new SlicePredicate();
             this.predicate.read(iprot);
           } else { 
-            TProtocolUtil.skip(iprot, field.type);
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
         default:
-          TProtocolUtil.skip(iprot, field.type);
+          org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
       }
       iprot.readFieldEnd();
     }
@@ -470,7 +464,7 @@ public class Deletion implements TBase<Deletion, Deletion._Fields>, java.io.Seri
     validate();
   }
 
-  public void write(TProtocol oprot) throws TException {
+  public void write(org.apache.thrift.protocol.TProtocol oprot) throws org.apache.thrift.TException {
     validate();
 
     oprot.writeStructBegin(STRUCT_DESC);
@@ -513,7 +507,7 @@ public class Deletion implements TBase<Deletion, Deletion._Fields>, java.io.Seri
       if (this.super_column == null) {
         sb.append("null");
       } else {
-        TBaseHelper.toString(this.super_column, sb);
+        org.apache.thrift.TBaseHelper.toString(this.super_column, sb);
       }
       first = false;
     }
@@ -531,8 +525,26 @@ public class Deletion implements TBase<Deletion, Deletion._Fields>, java.io.Seri
     return sb.toString();
   }
 
-  public void validate() throws TException {
+  public void validate() throws org.apache.thrift.TException {
     // check for required fields
+  }
+
+  private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
+    try {
+      write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
+    } catch (org.apache.thrift.TException te) {
+      throw new java.io.IOException(te);
+    }
+  }
+
+  private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
+    try {
+      // it doesn't seem like you should have to do this, but java serialization is wacky, and doesn't call the default constructor.
+      __isset_bit_vector = new BitSet(1);
+      read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
+    } catch (org.apache.thrift.TException te) {
+      throw new java.io.IOException(te);
+    }
   }
 
 }

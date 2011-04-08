@@ -31,7 +31,7 @@ import java.util.Map;
 import java.util.HashMap;
 import org.apache.thrift.TEnum;
 
-public enum IndexType implements TEnum {
+public enum IndexType implements org.apache.thrift.TEnum {
   KEYS(0);
 
   private final int value;

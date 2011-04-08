@@ -31,7 +31,7 @@ import java.util.Map;
 import java.util.HashMap;
 import org.apache.thrift.TEnum;
 
-public enum CqlResultType implements TEnum {
+public enum CqlResultType implements org.apache.thrift.TEnum {
   ROWS(1),
   VOID(2),
   INT(3);

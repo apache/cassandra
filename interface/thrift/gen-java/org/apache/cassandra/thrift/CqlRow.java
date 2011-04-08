@@ -42,26 +42,20 @@ import java.util.Arrays;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.thrift.*;
-import org.apache.thrift.async.*;
-import org.apache.thrift.meta_data.*;
-import org.apache.thrift.transport.*;
-import org.apache.thrift.protocol.*;
-
 /**
  * Row returned from a CQL query
  */
-public class CqlRow implements TBase<CqlRow, CqlRow._Fields>, java.io.Serializable, Cloneable {
-  private static final TStruct STRUCT_DESC = new TStruct("CqlRow");
+public class CqlRow implements org.apache.thrift.TBase<CqlRow, CqlRow._Fields>, java.io.Serializable, Cloneable {
+  private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct("CqlRow");
 
-  private static final TField KEY_FIELD_DESC = new TField("key", TType.STRING, (short)1);
-  private static final TField COLUMNS_FIELD_DESC = new TField("columns", TType.LIST, (short)2);
+  private static final org.apache.thrift.protocol.TField KEY_FIELD_DESC = new org.apache.thrift.protocol.TField("key", org.apache.thrift.protocol.TType.STRING, (short)1);
+  private static final org.apache.thrift.protocol.TField COLUMNS_FIELD_DESC = new org.apache.thrift.protocol.TField("columns", org.apache.thrift.protocol.TType.LIST, (short)2);
 
   public ByteBuffer key;
   public List<Column> columns;
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
-  public enum _Fields implements TFieldIdEnum {
+  public enum _Fields implements org.apache.thrift.TFieldIdEnum {
     KEY((short)1, "key"),
     COLUMNS((short)2, "columns");
 
@@ -123,16 +117,16 @@ public class CqlRow implements TBase<CqlRow, CqlRow._Fields>, java.io.Serializab
 
   // isset id assignments
 
-  public static final Map<_Fields, FieldMetaData> metaDataMap;
+  public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
   static {
-    Map<_Fields, FieldMetaData> tmpMap = new EnumMap<_Fields, FieldMetaData>(_Fields.class);
-    tmpMap.put(_Fields.KEY, new FieldMetaData("key", TFieldRequirementType.REQUIRED, 
-        new FieldValueMetaData(TType.STRING)));
-    tmpMap.put(_Fields.COLUMNS, new FieldMetaData("columns", TFieldRequirementType.REQUIRED, 
-        new ListMetaData(TType.LIST, 
-            new StructMetaData(TType.STRUCT, Column.class))));
+    Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
+    tmpMap.put(_Fields.KEY, new org.apache.thrift.meta_data.FieldMetaData("key", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING        , true)));
+    tmpMap.put(_Fields.COLUMNS, new org.apache.thrift.meta_data.FieldMetaData("columns", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+        new org.apache.thrift.meta_data.ListMetaData(org.apache.thrift.protocol.TType.LIST, 
+            new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, Column.class))));
     metaDataMap = Collections.unmodifiableMap(tmpMap);
-    FieldMetaData.addStructMetaDataMap(CqlRow.class, metaDataMap);
+    org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(CqlRow.class, metaDataMap);
   }
 
   public CqlRow() {
@@ -152,7 +146,7 @@ public class CqlRow implements TBase<CqlRow, CqlRow._Fields>, java.io.Serializab
    */
   public CqlRow(CqlRow other) {
     if (other.isSetKey()) {
-      this.key = TBaseHelper.copyBinary(other.key);
+      this.key = org.apache.thrift.TBaseHelper.copyBinary(other.key);
 ;
     }
     if (other.isSetColumns()) {
@@ -175,16 +169,16 @@ public class CqlRow implements TBase<CqlRow, CqlRow._Fields>, java.io.Serializab
   }
 
   public byte[] getKey() {
-    setKey(TBaseHelper.rightSize(key));
-    return key.array();
+    setKey(org.apache.thrift.TBaseHelper.rightSize(key));
+    return key == null ? null : key.array();
   }
 
-  public ByteBuffer BufferForKey() {
+  public ByteBuffer bufferForKey() {
     return key;
   }
 
   public CqlRow setKey(byte[] key) {
-    setKey(ByteBuffer.wrap(key));
+    setKey(key == null ? (ByteBuffer)null : ByteBuffer.wrap(key));
     return this;
   }
 
@@ -197,7 +191,7 @@ public class CqlRow implements TBase<CqlRow, CqlRow._Fields>, java.io.Serializab
     this.key = null;
   }
 
-  /** Returns true if field key is set (has been asigned a value) and false otherwise */
+  /** Returns true if field key is set (has been assigned a value) and false otherwise */
   public boolean isSetKey() {
     return this.key != null;
   }
@@ -236,7 +230,7 @@ public class CqlRow implements TBase<CqlRow, CqlRow._Fields>, java.io.Serializab
     this.columns = null;
   }
 
-  /** Returns true if field columns is set (has been asigned a value) and false otherwise */
+  /** Returns true if field columns is set (has been assigned a value) and false otherwise */
   public boolean isSetColumns() {
     return this.columns != null;
   }
@@ -280,7 +274,7 @@ public class CqlRow implements TBase<CqlRow, CqlRow._Fields>, java.io.Serializab
     throw new IllegalStateException();
   }
 
-  /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
+  /** Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise */
   public boolean isSet(_Fields field) {
     if (field == null) {
       throw new IllegalArgumentException();
@@ -359,7 +353,7 @@ public class CqlRow implements TBase<CqlRow, CqlRow._Fields>, java.io.Serializab
       return lastComparison;
     }
     if (isSetKey()) {
-      lastComparison = TBaseHelper.compareTo(this.key, typedOther.key);
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.key, typedOther.key);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -369,7 +363,7 @@ public class CqlRow implements TBase<CqlRow, CqlRow._Fields>, java.io.Serializab
       return lastComparison;
     }
     if (isSetColumns()) {
-      lastComparison = TBaseHelper.compareTo(this.columns, typedOther.columns);
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.columns, typedOther.columns);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -381,27 +375,27 @@ public class CqlRow implements TBase<CqlRow, CqlRow._Fields>, java.io.Serializab
     return _Fields.findByThriftId(fieldId);
   }
 
-  public void read(TProtocol iprot) throws TException {
-    TField field;
+  public void read(org.apache.thrift.protocol.TProtocol iprot) throws org.apache.thrift.TException {
+    org.apache.thrift.protocol.TField field;
     iprot.readStructBegin();
     while (true)
     {
       field = iprot.readFieldBegin();
-      if (field.type == TType.STOP) { 
+      if (field.type == org.apache.thrift.protocol.TType.STOP) { 
         break;
       }
       switch (field.id) {
         case 1: // KEY
-          if (field.type == TType.STRING) {
+          if (field.type == org.apache.thrift.protocol.TType.STRING) {
             this.key = iprot.readBinary();
           } else { 
-            TProtocolUtil.skip(iprot, field.type);
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
         case 2: // COLUMNS
-          if (field.type == TType.LIST) {
+          if (field.type == org.apache.thrift.protocol.TType.LIST) {
             {
-              TList _list42 = iprot.readListBegin();
+              org.apache.thrift.protocol.TList _list42 = iprot.readListBegin();
               this.columns = new ArrayList<Column>(_list42.size);
               for (int _i43 = 0; _i43 < _list42.size; ++_i43)
               {
@@ -413,11 +407,11 @@ public class CqlRow implements TBase<CqlRow, CqlRow._Fields>, java.io.Serializab
               iprot.readListEnd();
             }
           } else { 
-            TProtocolUtil.skip(iprot, field.type);
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
         default:
-          TProtocolUtil.skip(iprot, field.type);
+          org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
       }
       iprot.readFieldEnd();
     }
@@ -427,7 +421,7 @@ public class CqlRow implements TBase<CqlRow, CqlRow._Fields>, java.io.Serializab
     validate();
   }
 
-  public void write(TProtocol oprot) throws TException {
+  public void write(org.apache.thrift.protocol.TProtocol oprot) throws org.apache.thrift.TException {
     validate();
 
     oprot.writeStructBegin(STRUCT_DESC);
@@ -439,7 +433,7 @@ public class CqlRow implements TBase<CqlRow, CqlRow._Fields>, java.io.Serializab
     if (this.columns != null) {
       oprot.writeFieldBegin(COLUMNS_FIELD_DESC);
       {
-        oprot.writeListBegin(new TList(TType.STRUCT, this.columns.size()));
+        oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, this.columns.size()));
         for (Column _iter45 : this.columns)
         {
           _iter45.write(oprot);
@@ -461,7 +455,7 @@ public class CqlRow implements TBase<CqlRow, CqlRow._Fields>, java.io.Serializab
     if (this.key == null) {
       sb.append("null");
     } else {
-      TBaseHelper.toString(this.key, sb);
+      org.apache.thrift.TBaseHelper.toString(this.key, sb);
     }
     first = false;
     if (!first) sb.append(", ");
@@ -476,13 +470,29 @@ public class CqlRow implements TBase<CqlRow, CqlRow._Fields>, java.io.Serializab
     return sb.toString();
   }
 
-  public void validate() throws TException {
+  public void validate() throws org.apache.thrift.TException {
     // check for required fields
     if (key == null) {
-      throw new TProtocolException("Required field 'key' was not present! Struct: " + toString());
+      throw new org.apache.thrift.protocol.TProtocolException("Required field 'key' was not present! Struct: " + toString());
     }
     if (columns == null) {
-      throw new TProtocolException("Required field 'columns' was not present! Struct: " + toString());
+      throw new org.apache.thrift.protocol.TProtocolException("Required field 'columns' was not present! Struct: " + toString());
+    }
+  }
+
+  private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
+    try {
+      write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
+    } catch (org.apache.thrift.TException te) {
+      throw new java.io.IOException(te);
+    }
+  }
+
+  private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
+    try {
+      read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
+    } catch (org.apache.thrift.TException te) {
+      throw new java.io.IOException(te);
     }
   }
 

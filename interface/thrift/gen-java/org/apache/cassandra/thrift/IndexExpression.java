@@ -42,18 +42,12 @@ import java.util.Arrays;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.thrift.*;
-import org.apache.thrift.async.*;
-import org.apache.thrift.meta_data.*;
-import org.apache.thrift.transport.*;
-import org.apache.thrift.protocol.*;
+public class IndexExpression implements org.apache.thrift.TBase<IndexExpression, IndexExpression._Fields>, java.io.Serializable, Cloneable {
+  private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct("IndexExpression");
 
-public class IndexExpression implements TBase<IndexExpression, IndexExpression._Fields>, java.io.Serializable, Cloneable {
-  private static final TStruct STRUCT_DESC = new TStruct("IndexExpression");
-
-  private static final TField COLUMN_NAME_FIELD_DESC = new TField("column_name", TType.STRING, (short)1);
-  private static final TField OP_FIELD_DESC = new TField("op", TType.I32, (short)2);
-  private static final TField VALUE_FIELD_DESC = new TField("value", TType.STRING, (short)3);
+  private static final org.apache.thrift.protocol.TField COLUMN_NAME_FIELD_DESC = new org.apache.thrift.protocol.TField("column_name", org.apache.thrift.protocol.TType.STRING, (short)1);
+  private static final org.apache.thrift.protocol.TField OP_FIELD_DESC = new org.apache.thrift.protocol.TField("op", org.apache.thrift.protocol.TType.I32, (short)2);
+  private static final org.apache.thrift.protocol.TField VALUE_FIELD_DESC = new org.apache.thrift.protocol.TField("value", org.apache.thrift.protocol.TType.STRING, (short)3);
 
   public ByteBuffer column_name;
   /**
@@ -64,7 +58,7 @@ public class IndexExpression implements TBase<IndexExpression, IndexExpression._
   public ByteBuffer value;
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
-  public enum _Fields implements TFieldIdEnum {
+  public enum _Fields implements org.apache.thrift.TFieldIdEnum {
     COLUMN_NAME((short)1, "column_name"),
     /**
      * 
@@ -133,17 +127,17 @@ public class IndexExpression implements TBase<IndexExpression, IndexExpression._
 
   // isset id assignments
 
-  public static final Map<_Fields, FieldMetaData> metaDataMap;
+  public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
   static {
-    Map<_Fields, FieldMetaData> tmpMap = new EnumMap<_Fields, FieldMetaData>(_Fields.class);
-    tmpMap.put(_Fields.COLUMN_NAME, new FieldMetaData("column_name", TFieldRequirementType.REQUIRED, 
-        new FieldValueMetaData(TType.STRING)));
-    tmpMap.put(_Fields.OP, new FieldMetaData("op", TFieldRequirementType.REQUIRED, 
-        new EnumMetaData(TType.ENUM, IndexOperator.class)));
-    tmpMap.put(_Fields.VALUE, new FieldMetaData("value", TFieldRequirementType.REQUIRED, 
-        new FieldValueMetaData(TType.STRING)));
+    Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
+    tmpMap.put(_Fields.COLUMN_NAME, new org.apache.thrift.meta_data.FieldMetaData("column_name", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING        , true)));
+    tmpMap.put(_Fields.OP, new org.apache.thrift.meta_data.FieldMetaData("op", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+        new org.apache.thrift.meta_data.EnumMetaData(org.apache.thrift.protocol.TType.ENUM, IndexOperator.class)));
+    tmpMap.put(_Fields.VALUE, new org.apache.thrift.meta_data.FieldMetaData("value", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING        , true)));
     metaDataMap = Collections.unmodifiableMap(tmpMap);
-    FieldMetaData.addStructMetaDataMap(IndexExpression.class, metaDataMap);
+    org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(IndexExpression.class, metaDataMap);
   }
 
   public IndexExpression() {
@@ -165,14 +159,14 @@ public class IndexExpression implements TBase<IndexExpression, IndexExpression._
    */
   public IndexExpression(IndexExpression other) {
     if (other.isSetColumn_name()) {
-      this.column_name = TBaseHelper.copyBinary(other.column_name);
+      this.column_name = org.apache.thrift.TBaseHelper.copyBinary(other.column_name);
 ;
     }
     if (other.isSetOp()) {
       this.op = other.op;
     }
     if (other.isSetValue()) {
-      this.value = TBaseHelper.copyBinary(other.value);
+      this.value = org.apache.thrift.TBaseHelper.copyBinary(other.value);
 ;
     }
   }
@@ -189,16 +183,16 @@ public class IndexExpression implements TBase<IndexExpression, IndexExpression._
   }
 
   public byte[] getColumn_name() {
-    setColumn_name(TBaseHelper.rightSize(column_name));
-    return column_name.array();
+    setColumn_name(org.apache.thrift.TBaseHelper.rightSize(column_name));
+    return column_name == null ? null : column_name.array();
   }
 
-  public ByteBuffer BufferForColumn_name() {
+  public ByteBuffer bufferForColumn_name() {
     return column_name;
   }
 
   public IndexExpression setColumn_name(byte[] column_name) {
-    setColumn_name(ByteBuffer.wrap(column_name));
+    setColumn_name(column_name == null ? (ByteBuffer)null : ByteBuffer.wrap(column_name));
     return this;
   }
 
@@ -211,7 +205,7 @@ public class IndexExpression implements TBase<IndexExpression, IndexExpression._
     this.column_name = null;
   }
 
-  /** Returns true if field column_name is set (has been asigned a value) and false otherwise */
+  /** Returns true if field column_name is set (has been assigned a value) and false otherwise */
   public boolean isSetColumn_name() {
     return this.column_name != null;
   }
@@ -243,7 +237,7 @@ public class IndexExpression implements TBase<IndexExpression, IndexExpression._
     this.op = null;
   }
 
-  /** Returns true if field op is set (has been asigned a value) and false otherwise */
+  /** Returns true if field op is set (has been assigned a value) and false otherwise */
   public boolean isSetOp() {
     return this.op != null;
   }
@@ -255,16 +249,16 @@ public class IndexExpression implements TBase<IndexExpression, IndexExpression._
   }
 
   public byte[] getValue() {
-    setValue(TBaseHelper.rightSize(value));
-    return value.array();
+    setValue(org.apache.thrift.TBaseHelper.rightSize(value));
+    return value == null ? null : value.array();
   }
 
-  public ByteBuffer BufferForValue() {
+  public ByteBuffer bufferForValue() {
     return value;
   }
 
   public IndexExpression setValue(byte[] value) {
-    setValue(ByteBuffer.wrap(value));
+    setValue(value == null ? (ByteBuffer)null : ByteBuffer.wrap(value));
     return this;
   }
 
@@ -277,7 +271,7 @@ public class IndexExpression implements TBase<IndexExpression, IndexExpression._
     this.value = null;
   }
 
-  /** Returns true if field value is set (has been asigned a value) and false otherwise */
+  /** Returns true if field value is set (has been assigned a value) and false otherwise */
   public boolean isSetValue() {
     return this.value != null;
   }
@@ -332,7 +326,7 @@ public class IndexExpression implements TBase<IndexExpression, IndexExpression._
     throw new IllegalStateException();
   }
 
-  /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
+  /** Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise */
   public boolean isSet(_Fields field) {
     if (field == null) {
       throw new IllegalArgumentException();
@@ -427,7 +421,7 @@ public class IndexExpression implements TBase<IndexExpression, IndexExpression._
       return lastComparison;
     }
     if (isSetColumn_name()) {
-      lastComparison = TBaseHelper.compareTo(this.column_name, typedOther.column_name);
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.column_name, typedOther.column_name);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -437,7 +431,7 @@ public class IndexExpression implements TBase<IndexExpression, IndexExpression._
       return lastComparison;
     }
     if (isSetOp()) {
-      lastComparison = TBaseHelper.compareTo(this.op, typedOther.op);
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.op, typedOther.op);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -447,7 +441,7 @@ public class IndexExpression implements TBase<IndexExpression, IndexExpression._
       return lastComparison;
     }
     if (isSetValue()) {
-      lastComparison = TBaseHelper.compareTo(this.value, typedOther.value);
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.value, typedOther.value);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -459,39 +453,39 @@ public class IndexExpression implements TBase<IndexExpression, IndexExpression._
     return _Fields.findByThriftId(fieldId);
   }
 
-  public void read(TProtocol iprot) throws TException {
-    TField field;
+  public void read(org.apache.thrift.protocol.TProtocol iprot) throws org.apache.thrift.TException {
+    org.apache.thrift.protocol.TField field;
     iprot.readStructBegin();
     while (true)
     {
       field = iprot.readFieldBegin();
-      if (field.type == TType.STOP) { 
+      if (field.type == org.apache.thrift.protocol.TType.STOP) { 
         break;
       }
       switch (field.id) {
         case 1: // COLUMN_NAME
-          if (field.type == TType.STRING) {
+          if (field.type == org.apache.thrift.protocol.TType.STRING) {
             this.column_name = iprot.readBinary();
           } else { 
-            TProtocolUtil.skip(iprot, field.type);
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
         case 2: // OP
-          if (field.type == TType.I32) {
+          if (field.type == org.apache.thrift.protocol.TType.I32) {
             this.op = IndexOperator.findByValue(iprot.readI32());
           } else { 
-            TProtocolUtil.skip(iprot, field.type);
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
         case 3: // VALUE
-          if (field.type == TType.STRING) {
+          if (field.type == org.apache.thrift.protocol.TType.STRING) {
             this.value = iprot.readBinary();
           } else { 
-            TProtocolUtil.skip(iprot, field.type);
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
         default:
-          TProtocolUtil.skip(iprot, field.type);
+          org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
       }
       iprot.readFieldEnd();
     }
@@ -501,7 +495,7 @@ public class IndexExpression implements TBase<IndexExpression, IndexExpression._
     validate();
   }
 
-  public void write(TProtocol oprot) throws TException {
+  public void write(org.apache.thrift.protocol.TProtocol oprot) throws org.apache.thrift.TException {
     validate();
 
     oprot.writeStructBegin(STRUCT_DESC);
@@ -533,7 +527,7 @@ public class IndexExpression implements TBase<IndexExpression, IndexExpression._
     if (this.column_name == null) {
       sb.append("null");
     } else {
-      TBaseHelper.toString(this.column_name, sb);
+      org.apache.thrift.TBaseHelper.toString(this.column_name, sb);
     }
     first = false;
     if (!first) sb.append(", ");
@@ -549,23 +543,39 @@ public class IndexExpression implements TBase<IndexExpression, IndexExpression._
     if (this.value == null) {
       sb.append("null");
     } else {
-      TBaseHelper.toString(this.value, sb);
+      org.apache.thrift.TBaseHelper.toString(this.value, sb);
     }
     first = false;
     sb.append(")");
     return sb.toString();
   }
 
-  public void validate() throws TException {
+  public void validate() throws org.apache.thrift.TException {
     // check for required fields
     if (column_name == null) {
-      throw new TProtocolException("Required field 'column_name' was not present! Struct: " + toString());
+      throw new org.apache.thrift.protocol.TProtocolException("Required field 'column_name' was not present! Struct: " + toString());
     }
     if (op == null) {
-      throw new TProtocolException("Required field 'op' was not present! Struct: " + toString());
+      throw new org.apache.thrift.protocol.TProtocolException("Required field 'op' was not present! Struct: " + toString());
     }
     if (value == null) {
-      throw new TProtocolException("Required field 'value' was not present! Struct: " + toString());
+      throw new org.apache.thrift.protocol.TProtocolException("Required field 'value' was not present! Struct: " + toString());
+    }
+  }
+
+  private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
+    try {
+      write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
+    } catch (org.apache.thrift.TException te) {
+      throw new java.io.IOException(te);
+    }
+  }
+
+  private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
+    try {
+      read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
+    } catch (org.apache.thrift.TException te) {
+      throw new java.io.IOException(te);
     }
   }
 

@@ -42,29 +42,23 @@ import java.util.Arrays;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.thrift.*;
-import org.apache.thrift.async.*;
-import org.apache.thrift.meta_data.*;
-import org.apache.thrift.transport.*;
-import org.apache.thrift.protocol.*;
-
 /**
  * ColumnParent is used when selecting groups of columns from the same ColumnFamily. In directory structure terms, imagine
  * ColumnParent as ColumnPath + '/../'.
  * 
  * See also <a href="cassandra.html#Struct_ColumnPath">ColumnPath</a>
  */
-public class ColumnParent implements TBase<ColumnParent, ColumnParent._Fields>, java.io.Serializable, Cloneable {
-  private static final TStruct STRUCT_DESC = new TStruct("ColumnParent");
+public class ColumnParent implements org.apache.thrift.TBase<ColumnParent, ColumnParent._Fields>, java.io.Serializable, Cloneable {
+  private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct("ColumnParent");
 
-  private static final TField COLUMN_FAMILY_FIELD_DESC = new TField("column_family", TType.STRING, (short)3);
-  private static final TField SUPER_COLUMN_FIELD_DESC = new TField("super_column", TType.STRING, (short)4);
+  private static final org.apache.thrift.protocol.TField COLUMN_FAMILY_FIELD_DESC = new org.apache.thrift.protocol.TField("column_family", org.apache.thrift.protocol.TType.STRING, (short)3);
+  private static final org.apache.thrift.protocol.TField SUPER_COLUMN_FIELD_DESC = new org.apache.thrift.protocol.TField("super_column", org.apache.thrift.protocol.TType.STRING, (short)4);
 
   public String column_family;
   public ByteBuffer super_column;
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
-  public enum _Fields implements TFieldIdEnum {
+  public enum _Fields implements org.apache.thrift.TFieldIdEnum {
     COLUMN_FAMILY((short)3, "column_family"),
     SUPER_COLUMN((short)4, "super_column");
 
@@ -126,15 +120,15 @@ public class ColumnParent implements TBase<ColumnParent, ColumnParent._Fields>, 
 
   // isset id assignments
 
-  public static final Map<_Fields, FieldMetaData> metaDataMap;
+  public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
   static {
-    Map<_Fields, FieldMetaData> tmpMap = new EnumMap<_Fields, FieldMetaData>(_Fields.class);
-    tmpMap.put(_Fields.COLUMN_FAMILY, new FieldMetaData("column_family", TFieldRequirementType.REQUIRED, 
-        new FieldValueMetaData(TType.STRING)));
-    tmpMap.put(_Fields.SUPER_COLUMN, new FieldMetaData("super_column", TFieldRequirementType.OPTIONAL, 
-        new FieldValueMetaData(TType.STRING)));
+    Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
+    tmpMap.put(_Fields.COLUMN_FAMILY, new org.apache.thrift.meta_data.FieldMetaData("column_family", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
+    tmpMap.put(_Fields.SUPER_COLUMN, new org.apache.thrift.meta_data.FieldMetaData("super_column", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING        , true)));
     metaDataMap = Collections.unmodifiableMap(tmpMap);
-    FieldMetaData.addStructMetaDataMap(ColumnParent.class, metaDataMap);
+    org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(ColumnParent.class, metaDataMap);
   }
 
   public ColumnParent() {
@@ -155,7 +149,7 @@ public class ColumnParent implements TBase<ColumnParent, ColumnParent._Fields>, 
       this.column_family = other.column_family;
     }
     if (other.isSetSuper_column()) {
-      this.super_column = TBaseHelper.copyBinary(other.super_column);
+      this.super_column = org.apache.thrift.TBaseHelper.copyBinary(other.super_column);
 ;
     }
   }
@@ -183,7 +177,7 @@ public class ColumnParent implements TBase<ColumnParent, ColumnParent._Fields>, 
     this.column_family = null;
   }
 
-  /** Returns true if field column_family is set (has been asigned a value) and false otherwise */
+  /** Returns true if field column_family is set (has been assigned a value) and false otherwise */
   public boolean isSetColumn_family() {
     return this.column_family != null;
   }
@@ -195,16 +189,16 @@ public class ColumnParent implements TBase<ColumnParent, ColumnParent._Fields>, 
   }
 
   public byte[] getSuper_column() {
-    setSuper_column(TBaseHelper.rightSize(super_column));
-    return super_column.array();
+    setSuper_column(org.apache.thrift.TBaseHelper.rightSize(super_column));
+    return super_column == null ? null : super_column.array();
   }
 
-  public ByteBuffer BufferForSuper_column() {
+  public ByteBuffer bufferForSuper_column() {
     return super_column;
   }
 
   public ColumnParent setSuper_column(byte[] super_column) {
-    setSuper_column(ByteBuffer.wrap(super_column));
+    setSuper_column(super_column == null ? (ByteBuffer)null : ByteBuffer.wrap(super_column));
     return this;
   }
 
@@ -217,7 +211,7 @@ public class ColumnParent implements TBase<ColumnParent, ColumnParent._Fields>, 
     this.super_column = null;
   }
 
-  /** Returns true if field super_column is set (has been asigned a value) and false otherwise */
+  /** Returns true if field super_column is set (has been assigned a value) and false otherwise */
   public boolean isSetSuper_column() {
     return this.super_column != null;
   }
@@ -261,7 +255,7 @@ public class ColumnParent implements TBase<ColumnParent, ColumnParent._Fields>, 
     throw new IllegalStateException();
   }
 
-  /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
+  /** Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise */
   public boolean isSet(_Fields field) {
     if (field == null) {
       throw new IllegalArgumentException();
@@ -340,7 +334,7 @@ public class ColumnParent implements TBase<ColumnParent, ColumnParent._Fields>, 
       return lastComparison;
     }
     if (isSetColumn_family()) {
-      lastComparison = TBaseHelper.compareTo(this.column_family, typedOther.column_family);
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.column_family, typedOther.column_family);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -350,7 +344,7 @@ public class ColumnParent implements TBase<ColumnParent, ColumnParent._Fields>, 
       return lastComparison;
     }
     if (isSetSuper_column()) {
-      lastComparison = TBaseHelper.compareTo(this.super_column, typedOther.super_column);
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.super_column, typedOther.super_column);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -362,32 +356,32 @@ public class ColumnParent implements TBase<ColumnParent, ColumnParent._Fields>, 
     return _Fields.findByThriftId(fieldId);
   }
 
-  public void read(TProtocol iprot) throws TException {
-    TField field;
+  public void read(org.apache.thrift.protocol.TProtocol iprot) throws org.apache.thrift.TException {
+    org.apache.thrift.protocol.TField field;
     iprot.readStructBegin();
     while (true)
     {
       field = iprot.readFieldBegin();
-      if (field.type == TType.STOP) { 
+      if (field.type == org.apache.thrift.protocol.TType.STOP) { 
         break;
       }
       switch (field.id) {
         case 3: // COLUMN_FAMILY
-          if (field.type == TType.STRING) {
+          if (field.type == org.apache.thrift.protocol.TType.STRING) {
             this.column_family = iprot.readString();
           } else { 
-            TProtocolUtil.skip(iprot, field.type);
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
         case 4: // SUPER_COLUMN
-          if (field.type == TType.STRING) {
+          if (field.type == org.apache.thrift.protocol.TType.STRING) {
             this.super_column = iprot.readBinary();
           } else { 
-            TProtocolUtil.skip(iprot, field.type);
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
         default:
-          TProtocolUtil.skip(iprot, field.type);
+          org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
       }
       iprot.readFieldEnd();
     }
@@ -397,7 +391,7 @@ public class ColumnParent implements TBase<ColumnParent, ColumnParent._Fields>, 
     validate();
   }
 
-  public void write(TProtocol oprot) throws TException {
+  public void write(org.apache.thrift.protocol.TProtocol oprot) throws org.apache.thrift.TException {
     validate();
 
     oprot.writeStructBegin(STRUCT_DESC);
@@ -435,7 +429,7 @@ public class ColumnParent implements TBase<ColumnParent, ColumnParent._Fields>, 
       if (this.super_column == null) {
         sb.append("null");
       } else {
-        TBaseHelper.toString(this.super_column, sb);
+        org.apache.thrift.TBaseHelper.toString(this.super_column, sb);
       }
       first = false;
     }
@@ -443,10 +437,26 @@ public class ColumnParent implements TBase<ColumnParent, ColumnParent._Fields>, 
     return sb.toString();
   }
 
-  public void validate() throws TException {
+  public void validate() throws org.apache.thrift.TException {
     // check for required fields
     if (column_family == null) {
-      throw new TProtocolException("Required field 'column_family' was not present! Struct: " + toString());
+      throw new org.apache.thrift.protocol.TProtocolException("Required field 'column_family' was not present! Struct: " + toString());
+    }
+  }
+
+  private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
+    try {
+      write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
+    } catch (org.apache.thrift.TException te) {
+      throw new java.io.IOException(te);
+    }
+  }
+
+  private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
+    try {
+      read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
+    } catch (org.apache.thrift.TException te) {
+      throw new java.io.IOException(te);
     }
   }
 
