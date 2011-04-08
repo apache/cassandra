@@ -30,7 +30,7 @@ from cassandra.ttypes import Compression, InvalidRequestException, \
                              CqlResultType, AuthenticationRequest, \
                              SchemaDisagreementException
     
-COMPRESSION_SCHEMES = ['GZIP']
+COMPRESSION_SCHEMES = ['GZIP', 'NONE']
 DEFAULT_COMPRESSION = 'GZIP'
 
 __all__ = ['COMPRESSION_SCHEMES', 'DEFAULT_COMPRESSION', 'Connection']
@@ -191,5 +191,7 @@ class Connection(object):
 
         if compression == 'GZIP':
             return zlib.compress(query)
+            
+        return query
     
 # vi: ai ts=4 tw=0 sw=4 et

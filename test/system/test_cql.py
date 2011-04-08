@@ -638,3 +638,23 @@ class TestCql(ThriftTester):
                       "name2",
                       "key0",
                       "value1")
+                      
+    def test_compression_disabled(self):
+        "reading and writing w/ compression disabled"
+        conn = init()
+        conn.execute("UPDATE StandardString1 SET ? = ? WHERE KEY = ?",
+                     "some_name",
+                     "some_value",
+                     "compression_test",
+                     compression='NONE')
+                     
+        r = conn.execute("SELECT ? FROM StandardString1 WHERE KEY = ?",
+                         "some_name",
+                         "compression_test",
+                         compression='NONE')
+                         
+        assert len(r) == 1, "expected 1 result, got %d" % len(r)
+        assert r[0][0].name == "some_name", \
+                "unrecognized name '%s'" % r[0][0].name
+        assert r[0][0].value == "some_value", \
+                "unrecognized value '%s'" % r[0][0].value
