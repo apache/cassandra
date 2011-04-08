@@ -127,13 +127,16 @@ class Compression:
   CQL query compression
   """
   GZIP = 1
+  NONE = 2
 
   _VALUES_TO_NAMES = {
     1: "GZIP",
+    2: "NONE",
   }
 
   _NAMES_TO_VALUES = {
     "GZIP": 1,
+    "NONE": 2,
   }
 
 class CqlResultType:
@@ -1906,6 +1909,8 @@ class KeyCount:
 
 class Deletion:
   """
+  Note that the timestamp is only optional in case of counter deletion.
+
   Attributes:
    - timestamp
    - super_column
@@ -1974,8 +1979,6 @@ class Deletion:
     oprot.writeFieldStop()
     oprot.writeStructEnd()
     def validate(self):
-      if self.timestamp is None:
-        raise TProtocol.TProtocolException(message='Required field timestamp is unset!')
       return
 
 
@@ -1992,24 +1995,28 @@ class Deletion:
 
 class Mutation:
   """
-  A Mutation is either an insert, represented by filling column_or_supercolumn, or a deletion, represented by filling the deletion attribute.
+  A Mutation is either an insert (represented by filling column_or_supercolumn), a deletion (represented by filling the deletion attribute),
+  a counter addition (represented by filling counter), or a counter deletion (represented by filling counter_deletion).
   @param column_or_supercolumn. An insert to a column or supercolumn
   @param deletion. A deletion of a column or supercolumn
 
   Attributes:
    - column_or_supercolumn
    - deletion
+   - counter
   """
 
   thrift_spec = (
     None, # 0
     (1, TType.STRUCT, 'column_or_supercolumn', (ColumnOrSuperColumn, ColumnOrSuperColumn.thrift_spec), None, ), # 1
     (2, TType.STRUCT, 'deletion', (Deletion, Deletion.thrift_spec), None, ), # 2
+    (3, TType.STRUCT, 'counter', (Counter, Counter.thrift_spec), None, ), # 3
   )
 
-  def __init__(self, column_or_supercolumn=None, deletion=None,):
+  def __init__(self, column_or_supercolumn=None, deletion=None, counter=None,):
     self.column_or_supercolumn = column_or_supercolumn
     self.deletion = deletion
+    self.counter = counter
 
   def read(self, iprot):
     if iprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and isinstance(iprot.trans, TTransport.CReadableTransport) and self.thrift_spec is not None and fastbinary is not None:
@@ -2032,6 +2039,12 @@ class Mutation:
           self.deletion.read(iprot)
         else:
           iprot.skip(ftype)
+      elif fid == 3:
+        if ftype == TType.STRUCT:
+          self.counter = Counter()
+          self.counter.read(iprot)
+        else:
+          iprot.skip(ftype)
       else:
         iprot.skip(ftype)
       iprot.readFieldEnd()
@@ -2050,154 +2063,9 @@ class Mutation:
       oprot.writeFieldBegin('deletion', TType.STRUCT, 2)
       self.deletion.write(oprot)
       oprot.writeFieldEnd()
-    oprot.writeFieldStop()
-    oprot.writeStructEnd()
-    def validate(self):
-      return
-
-
-  def __repr__(self):
-    L = ['%s=%r' % (key, value)
-      for key, value in self.__dict__.iteritems()]
-    return '%s(%s)' % (self.__class__.__name__, ', '.join(L))
-
-  def __eq__(self, other):
-    return isinstance(other, self.__class__) and self.__dict__ == other.__dict__
-
-  def __ne__(self, other):
-    return not (self == other)
-
-class CounterDeletion:
-  """
-  Attributes:
-   - super_column
-   - predicate
-  """
-
-  thrift_spec = (
-    None, # 0
-    (1, TType.STRING, 'super_column', None, None, ), # 1
-    (2, TType.STRUCT, 'predicate', (SlicePredicate, SlicePredicate.thrift_spec), None, ), # 2
-  )
-
-  def __init__(self, super_column=None, predicate=None,):
-    self.super_column = super_column
-    self.predicate = predicate
-
-  def read(self, iprot):
-    if iprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and isinstance(iprot.trans, TTransport.CReadableTransport) and self.thrift_spec is not None and fastbinary is not None:
-      fastbinary.decode_binary(self, iprot.trans, (self.__class__, self.thrift_spec))
-      return
-    iprot.readStructBegin()
-    while True:
-      (fname, ftype, fid) = iprot.readFieldBegin()
-      if ftype == TType.STOP:
-        break
-      if fid == 1:
-        if ftype == TType.STRING:
-          self.super_column = iprot.readString();
-        else:
-          iprot.skip(ftype)
-      elif fid == 2:
-        if ftype == TType.STRUCT:
-          self.predicate = SlicePredicate()
-          self.predicate.read(iprot)
-        else:
-          iprot.skip(ftype)
-      else:
-        iprot.skip(ftype)
-      iprot.readFieldEnd()
-    iprot.readStructEnd()
-
-  def write(self, oprot):
-    if oprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and self.thrift_spec is not None and fastbinary is not None:
-      oprot.trans.write(fastbinary.encode_binary(self, (self.__class__, self.thrift_spec)))
-      return
-    oprot.writeStructBegin('CounterDeletion')
-    if self.super_column != None:
-      oprot.writeFieldBegin('super_column', TType.STRING, 1)
-      oprot.writeString(self.super_column)
-      oprot.writeFieldEnd()
-    if self.predicate != None:
-      oprot.writeFieldBegin('predicate', TType.STRUCT, 2)
-      self.predicate.write(oprot)
-      oprot.writeFieldEnd()
-    oprot.writeFieldStop()
-    oprot.writeStructEnd()
-    def validate(self):
-      return
-
-
-  def __repr__(self):
-    L = ['%s=%r' % (key, value)
-      for key, value in self.__dict__.iteritems()]
-    return '%s(%s)' % (self.__class__.__name__, ', '.join(L))
-
-  def __eq__(self, other):
-    return isinstance(other, self.__class__) and self.__dict__ == other.__dict__
-
-  def __ne__(self, other):
-    return not (self == other)
-
-class CounterMutation:
-  """
-  A CounterMutation is either an insert, represented by filling counter, or a deletion, represented by filling the deletion attribute.
-  @param counter. An insert to a counter column or supercolumn
-  @param deletion. A deletion of a counter column or supercolumn
-
-  Attributes:
-   - counter
-   - deletion
-  """
-
-  thrift_spec = (
-    None, # 0
-    (1, TType.STRUCT, 'counter', (Counter, Counter.thrift_spec), None, ), # 1
-    (2, TType.STRUCT, 'deletion', (CounterDeletion, CounterDeletion.thrift_spec), None, ), # 2
-  )
-
-  def __init__(self, counter=None, deletion=None,):
-    self.counter = counter
-    self.deletion = deletion
-
-  def read(self, iprot):
-    if iprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and isinstance(iprot.trans, TTransport.CReadableTransport) and self.thrift_spec is not None and fastbinary is not None:
-      fastbinary.decode_binary(self, iprot.trans, (self.__class__, self.thrift_spec))
-      return
-    iprot.readStructBegin()
-    while True:
-      (fname, ftype, fid) = iprot.readFieldBegin()
-      if ftype == TType.STOP:
-        break
-      if fid == 1:
-        if ftype == TType.STRUCT:
-          self.counter = Counter()
-          self.counter.read(iprot)
-        else:
-          iprot.skip(ftype)
-      elif fid == 2:
-        if ftype == TType.STRUCT:
-          self.deletion = CounterDeletion()
-          self.deletion.read(iprot)
-        else:
-          iprot.skip(ftype)
-      else:
-        iprot.skip(ftype)
-      iprot.readFieldEnd()
-    iprot.readStructEnd()
-
-  def write(self, oprot):
-    if oprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and self.thrift_spec is not None and fastbinary is not None:
-      oprot.trans.write(fastbinary.encode_binary(self, (self.__class__, self.thrift_spec)))
-      return
-    oprot.writeStructBegin('CounterMutation')
     if self.counter != None:
-      oprot.writeFieldBegin('counter', TType.STRUCT, 1)
+      oprot.writeFieldBegin('counter', TType.STRUCT, 3)
       self.counter.write(oprot)
-      oprot.writeFieldEnd()
-    if self.deletion != None:
-      oprot.writeFieldBegin('deletion', TType.STRUCT, 2)
-      self.deletion.write(oprot)
       oprot.writeFieldEnd()
     oprot.writeFieldStop()
     oprot.writeStructEnd()
@@ -2511,6 +2379,7 @@ class CfDef:
    - replicate_on_write
    - merge_shards_chance
    - key_validation_class
+   - row_cache_provider
   """
 
   thrift_spec = (
@@ -2541,9 +2410,10 @@ class CfDef:
     (24, TType.BOOL, 'replicate_on_write', None, False, ), # 24
     (25, TType.DOUBLE, 'merge_shards_chance', None, None, ), # 25
     (26, TType.STRING, 'key_validation_class', None, None, ), # 26
+    (27, TType.STRING, 'row_cache_provider', None, "org.apache.cassandra.cache.ConcurrentLinkedHashCacheProvider", ), # 27
   )
 
-  def __init__(self, keyspace=None, name=None, column_type=thrift_spec[3][4], comparator_type=thrift_spec[5][4], subcomparator_type=None, comment=None, row_cache_size=thrift_spec[9][4], key_cache_size=thrift_spec[11][4], read_repair_chance=thrift_spec[12][4], column_metadata=None, gc_grace_seconds=None, default_validation_class=None, id=None, min_compaction_threshold=None, max_compaction_threshold=None, row_cache_save_period_in_seconds=None, key_cache_save_period_in_seconds=None, memtable_flush_after_mins=None, memtable_throughput_in_mb=None, memtable_operations_in_millions=None, replicate_on_write=thrift_spec[24][4], merge_shards_chance=None, key_validation_class=None,):
+  def __init__(self, keyspace=None, name=None, column_type=thrift_spec[3][4], comparator_type=thrift_spec[5][4], subcomparator_type=None, comment=None, row_cache_size=thrift_spec[9][4], key_cache_size=thrift_spec[11][4], read_repair_chance=thrift_spec[12][4], column_metadata=None, gc_grace_seconds=None, default_validation_class=None, id=None, min_compaction_threshold=None, max_compaction_threshold=None, row_cache_save_period_in_seconds=None, key_cache_save_period_in_seconds=None, memtable_flush_after_mins=None, memtable_throughput_in_mb=None, memtable_operations_in_millions=None, replicate_on_write=thrift_spec[24][4], merge_shards_chance=None, key_validation_class=None, row_cache_provider=thrift_spec[27][4],):
     self.keyspace = keyspace
     self.name = name
     self.column_type = column_type
@@ -2567,6 +2437,7 @@ class CfDef:
     self.replicate_on_write = replicate_on_write
     self.merge_shards_chance = merge_shards_chance
     self.key_validation_class = key_validation_class
+    self.row_cache_provider = row_cache_provider
 
   def read(self, iprot):
     if iprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and isinstance(iprot.trans, TTransport.CReadableTransport) and self.thrift_spec is not None and fastbinary is not None:
@@ -2698,6 +2569,11 @@ class CfDef:
           self.key_validation_class = iprot.readString();
         else:
           iprot.skip(ftype)
+      elif fid == 27:
+        if ftype == TType.STRING:
+          self.row_cache_provider = iprot.readString();
+        else:
+          iprot.skip(ftype)
       else:
         iprot.skip(ftype)
       iprot.readFieldEnd()
@@ -2802,6 +2678,10 @@ class CfDef:
     if self.key_validation_class != None:
       oprot.writeFieldBegin('key_validation_class', TType.STRING, 26)
       oprot.writeString(self.key_validation_class)
+      oprot.writeFieldEnd()
+    if self.row_cache_provider != None:
+      oprot.writeFieldBegin('row_cache_provider', TType.STRING, 27)
+      oprot.writeString(self.row_cache_provider)
       oprot.writeFieldEnd()
     oprot.writeFieldStop()
     oprot.writeStructEnd()

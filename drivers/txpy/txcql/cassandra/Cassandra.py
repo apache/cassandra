@@ -189,16 +189,6 @@ class Iface(Interface):
     """
     pass
 
-  def batch_add(update_map, consistency_level):
-    """
-    Batch increment or decrement a counter.
-
-    Parameters:
-     - update_map
-     - consistency_level
-    """
-    pass
-
   def get_counter(key, path, consistency_level):
     """
     Return the counter at the specified column path.
@@ -1027,47 +1017,6 @@ class Client:
       return d.errback(result.te)
     return d.callback(None)
 
-  def batch_add(self, update_map, consistency_level):
-    """
-    Batch increment or decrement a counter.
-
-    Parameters:
-     - update_map
-     - consistency_level
-    """
-    self._seqid += 1
-    d = self._reqs[self._seqid] = defer.Deferred()
-    self.send_batch_add(update_map, consistency_level)
-    return d
-
-  def send_batch_add(self, update_map, consistency_level):
-    oprot = self._oprot_factory.getProtocol(self._transport)
-    oprot.writeMessageBegin('batch_add', TMessageType.CALL, self._seqid)
-    args = batch_add_args()
-    args.update_map = update_map
-    args.consistency_level = consistency_level
-    args.write(oprot)
-    oprot.writeMessageEnd()
-    oprot.trans.flush()
-
-  def recv_batch_add(self, iprot, mtype, rseqid):
-    d = self._reqs.pop(rseqid)
-    if mtype == TMessageType.EXCEPTION:
-      x = TApplicationException()
-      x.read(iprot)
-      iprot.readMessageEnd()
-      return d.errback(x)
-    result = batch_add_result()
-    result.read(iprot)
-    iprot.readMessageEnd()
-    if result.ire != None:
-      return d.errback(result.ire)
-    if result.ue != None:
-      return d.errback(result.ue)
-    if result.te != None:
-      return d.errback(result.te)
-    return d.callback(None)
-
   def get_counter(self, key, path, consistency_level):
     """
     Return the counter at the specified column path.
@@ -1875,7 +1824,6 @@ class Processor(TProcessor):
     self._processMap["batch_mutate"] = Processor.process_batch_mutate
     self._processMap["truncate"] = Processor.process_truncate
     self._processMap["add"] = Processor.process_add
-    self._processMap["batch_add"] = Processor.process_batch_add
     self._processMap["get_counter"] = Processor.process_get_counter
     self._processMap["get_counter_slice"] = Processor.process_get_counter_slice
     self._processMap["multiget_counter_slice"] = Processor.process_multiget_counter_slice
@@ -2335,37 +2283,6 @@ class Processor(TProcessor):
     except TimedOutException, te:
       result.te = te
     oprot.writeMessageBegin("add", TMessageType.REPLY, seqid)
-    result.write(oprot)
-    oprot.writeMessageEnd()
-    oprot.trans.flush()
-
-  def process_batch_add(self, seqid, iprot, oprot):
-    args = batch_add_args()
-    args.read(iprot)
-    iprot.readMessageEnd()
-    result = batch_add_result()
-    d = defer.maybeDeferred(self._handler.batch_add, args.update_map, args.consistency_level)
-    d.addCallback(self.write_results_success_batch_add, result, seqid, oprot)
-    d.addErrback(self.write_results_exception_batch_add, result, seqid, oprot)
-    return d
-
-  def write_results_success_batch_add(self, success, result, seqid, oprot):
-    result.success = success
-    oprot.writeMessageBegin("batch_add", TMessageType.REPLY, seqid)
-    result.write(oprot)
-    oprot.writeMessageEnd()
-    oprot.trans.flush()
-
-  def write_results_exception_batch_add(self, error, result, seqid, oprot):
-    try:
-      error.raiseException()
-    except InvalidRequestException, ire:
-      result.ire = ire
-    except UnavailableException, ue:
-      result.ue = ue
-    except TimedOutException, te:
-      result.te = te
-    oprot.writeMessageBegin("batch_add", TMessageType.REPLY, seqid)
     result.write(oprot)
     oprot.writeMessageEnd()
     oprot.trans.flush()
@@ -5544,196 +5461,6 @@ class add_result:
   def __ne__(self, other):
     return not (self == other)
 
-class batch_add_args:
-  """
-  Attributes:
-   - update_map
-   - consistency_level
-  """
-
-  thrift_spec = (
-    None, # 0
-    (1, TType.MAP, 'update_map', (TType.STRING,None,TType.MAP,(TType.STRING,None,TType.LIST,(TType.STRUCT,(CounterMutation, CounterMutation.thrift_spec)))), None, ), # 1
-    (2, TType.I32, 'consistency_level', None,     1, ), # 2
-  )
-
-  def __init__(self, update_map=None, consistency_level=thrift_spec[2][4],):
-    self.update_map = update_map
-    self.consistency_level = consistency_level
-
-  def read(self, iprot):
-    if iprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and isinstance(iprot.trans, TTransport.CReadableTransport) and self.thrift_spec is not None and fastbinary is not None:
-      fastbinary.decode_binary(self, iprot.trans, (self.__class__, self.thrift_spec))
-      return
-    iprot.readStructBegin()
-    while True:
-      (fname, ftype, fid) = iprot.readFieldBegin()
-      if ftype == TType.STOP:
-        break
-      if fid == 1:
-        if ftype == TType.MAP:
-          self.update_map = {}
-          (_ktype174, _vtype175, _size173 ) = iprot.readMapBegin() 
-          for _i177 in xrange(_size173):
-            _key178 = iprot.readString();
-            _val179 = {}
-            (_ktype181, _vtype182, _size180 ) = iprot.readMapBegin() 
-            for _i184 in xrange(_size180):
-              _key185 = iprot.readString();
-              _val186 = []
-              (_etype190, _size187) = iprot.readListBegin()
-              for _i191 in xrange(_size187):
-                _elem192 = CounterMutation()
-                _elem192.read(iprot)
-                _val186.append(_elem192)
-              iprot.readListEnd()
-              _val179[_key185] = _val186
-            iprot.readMapEnd()
-            self.update_map[_key178] = _val179
-          iprot.readMapEnd()
-        else:
-          iprot.skip(ftype)
-      elif fid == 2:
-        if ftype == TType.I32:
-          self.consistency_level = iprot.readI32();
-        else:
-          iprot.skip(ftype)
-      else:
-        iprot.skip(ftype)
-      iprot.readFieldEnd()
-    iprot.readStructEnd()
-
-  def write(self, oprot):
-    if oprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and self.thrift_spec is not None and fastbinary is not None:
-      oprot.trans.write(fastbinary.encode_binary(self, (self.__class__, self.thrift_spec)))
-      return
-    oprot.writeStructBegin('batch_add_args')
-    if self.update_map != None:
-      oprot.writeFieldBegin('update_map', TType.MAP, 1)
-      oprot.writeMapBegin(TType.STRING, TType.MAP, len(self.update_map))
-      for kiter193,viter194 in self.update_map.items():
-        oprot.writeString(kiter193)
-        oprot.writeMapBegin(TType.STRING, TType.LIST, len(viter194))
-        for kiter195,viter196 in viter194.items():
-          oprot.writeString(kiter195)
-          oprot.writeListBegin(TType.STRUCT, len(viter196))
-          for iter197 in viter196:
-            iter197.write(oprot)
-          oprot.writeListEnd()
-        oprot.writeMapEnd()
-      oprot.writeMapEnd()
-      oprot.writeFieldEnd()
-    if self.consistency_level != None:
-      oprot.writeFieldBegin('consistency_level', TType.I32, 2)
-      oprot.writeI32(self.consistency_level)
-      oprot.writeFieldEnd()
-    oprot.writeFieldStop()
-    oprot.writeStructEnd()
-    def validate(self):
-      if self.update_map is None:
-        raise TProtocol.TProtocolException(message='Required field update_map is unset!')
-      if self.consistency_level is None:
-        raise TProtocol.TProtocolException(message='Required field consistency_level is unset!')
-      return
-
-
-  def __repr__(self):
-    L = ['%s=%r' % (key, value)
-      for key, value in self.__dict__.iteritems()]
-    return '%s(%s)' % (self.__class__.__name__, ', '.join(L))
-
-  def __eq__(self, other):
-    return isinstance(other, self.__class__) and self.__dict__ == other.__dict__
-
-  def __ne__(self, other):
-    return not (self == other)
-
-class batch_add_result:
-  """
-  Attributes:
-   - ire
-   - ue
-   - te
-  """
-
-  thrift_spec = (
-    None, # 0
-    (1, TType.STRUCT, 'ire', (InvalidRequestException, InvalidRequestException.thrift_spec), None, ), # 1
-    (2, TType.STRUCT, 'ue', (UnavailableException, UnavailableException.thrift_spec), None, ), # 2
-    (3, TType.STRUCT, 'te', (TimedOutException, TimedOutException.thrift_spec), None, ), # 3
-  )
-
-  def __init__(self, ire=None, ue=None, te=None,):
-    self.ire = ire
-    self.ue = ue
-    self.te = te
-
-  def read(self, iprot):
-    if iprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and isinstance(iprot.trans, TTransport.CReadableTransport) and self.thrift_spec is not None and fastbinary is not None:
-      fastbinary.decode_binary(self, iprot.trans, (self.__class__, self.thrift_spec))
-      return
-    iprot.readStructBegin()
-    while True:
-      (fname, ftype, fid) = iprot.readFieldBegin()
-      if ftype == TType.STOP:
-        break
-      if fid == 1:
-        if ftype == TType.STRUCT:
-          self.ire = InvalidRequestException()
-          self.ire.read(iprot)
-        else:
-          iprot.skip(ftype)
-      elif fid == 2:
-        if ftype == TType.STRUCT:
-          self.ue = UnavailableException()
-          self.ue.read(iprot)
-        else:
-          iprot.skip(ftype)
-      elif fid == 3:
-        if ftype == TType.STRUCT:
-          self.te = TimedOutException()
-          self.te.read(iprot)
-        else:
-          iprot.skip(ftype)
-      else:
-        iprot.skip(ftype)
-      iprot.readFieldEnd()
-    iprot.readStructEnd()
-
-  def write(self, oprot):
-    if oprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and self.thrift_spec is not None and fastbinary is not None:
-      oprot.trans.write(fastbinary.encode_binary(self, (self.__class__, self.thrift_spec)))
-      return
-    oprot.writeStructBegin('batch_add_result')
-    if self.ire != None:
-      oprot.writeFieldBegin('ire', TType.STRUCT, 1)
-      self.ire.write(oprot)
-      oprot.writeFieldEnd()
-    if self.ue != None:
-      oprot.writeFieldBegin('ue', TType.STRUCT, 2)
-      self.ue.write(oprot)
-      oprot.writeFieldEnd()
-    if self.te != None:
-      oprot.writeFieldBegin('te', TType.STRUCT, 3)
-      self.te.write(oprot)
-      oprot.writeFieldEnd()
-    oprot.writeFieldStop()
-    oprot.writeStructEnd()
-    def validate(self):
-      return
-
-
-  def __repr__(self):
-    L = ['%s=%r' % (key, value)
-      for key, value in self.__dict__.iteritems()]
-    return '%s(%s)' % (self.__class__.__name__, ', '.join(L))
-
-  def __eq__(self, other):
-    return isinstance(other, self.__class__) and self.__dict__ == other.__dict__
-
-  def __ne__(self, other):
-    return not (self == other)
-
 class get_counter_args:
   """
   Attributes:
@@ -6074,11 +5801,11 @@ class get_counter_slice_result:
       if fid == 0:
         if ftype == TType.LIST:
           self.success = []
-          (_etype201, _size198) = iprot.readListBegin()
-          for _i202 in xrange(_size198):
-            _elem203 = Counter()
-            _elem203.read(iprot)
-            self.success.append(_elem203)
+          (_etype176, _size173) = iprot.readListBegin()
+          for _i177 in xrange(_size173):
+            _elem178 = Counter()
+            _elem178.read(iprot)
+            self.success.append(_elem178)
           iprot.readListEnd()
         else:
           iprot.skip(ftype)
@@ -6113,8 +5840,8 @@ class get_counter_slice_result:
     if self.success != None:
       oprot.writeFieldBegin('success', TType.LIST, 0)
       oprot.writeListBegin(TType.STRUCT, len(self.success))
-      for iter204 in self.success:
-        iter204.write(oprot)
+      for iter179 in self.success:
+        iter179.write(oprot)
       oprot.writeListEnd()
       oprot.writeFieldEnd()
     if self.ire != None:
@@ -6181,10 +5908,10 @@ class multiget_counter_slice_args:
       if fid == 1:
         if ftype == TType.LIST:
           self.keys = []
-          (_etype208, _size205) = iprot.readListBegin()
-          for _i209 in xrange(_size205):
-            _elem210 = iprot.readString();
-            self.keys.append(_elem210)
+          (_etype183, _size180) = iprot.readListBegin()
+          for _i184 in xrange(_size180):
+            _elem185 = iprot.readString();
+            self.keys.append(_elem185)
           iprot.readListEnd()
         else:
           iprot.skip(ftype)
@@ -6218,8 +5945,8 @@ class multiget_counter_slice_args:
     if self.keys != None:
       oprot.writeFieldBegin('keys', TType.LIST, 1)
       oprot.writeListBegin(TType.STRING, len(self.keys))
-      for iter211 in self.keys:
-        oprot.writeString(iter211)
+      for iter186 in self.keys:
+        oprot.writeString(iter186)
       oprot.writeListEnd()
       oprot.writeFieldEnd()
     if self.column_parent != None:
@@ -6293,17 +6020,17 @@ class multiget_counter_slice_result:
       if fid == 0:
         if ftype == TType.MAP:
           self.success = {}
-          (_ktype213, _vtype214, _size212 ) = iprot.readMapBegin() 
-          for _i216 in xrange(_size212):
-            _key217 = iprot.readString();
-            _val218 = []
-            (_etype222, _size219) = iprot.readListBegin()
-            for _i223 in xrange(_size219):
-              _elem224 = Counter()
-              _elem224.read(iprot)
-              _val218.append(_elem224)
+          (_ktype188, _vtype189, _size187 ) = iprot.readMapBegin() 
+          for _i191 in xrange(_size187):
+            _key192 = iprot.readString();
+            _val193 = []
+            (_etype197, _size194) = iprot.readListBegin()
+            for _i198 in xrange(_size194):
+              _elem199 = Counter()
+              _elem199.read(iprot)
+              _val193.append(_elem199)
             iprot.readListEnd()
-            self.success[_key217] = _val218
+            self.success[_key192] = _val193
           iprot.readMapEnd()
         else:
           iprot.skip(ftype)
@@ -6338,11 +6065,11 @@ class multiget_counter_slice_result:
     if self.success != None:
       oprot.writeFieldBegin('success', TType.MAP, 0)
       oprot.writeMapBegin(TType.STRING, TType.LIST, len(self.success))
-      for kiter225,viter226 in self.success.items():
-        oprot.writeString(kiter225)
-        oprot.writeListBegin(TType.STRUCT, len(viter226))
-        for iter227 in viter226:
-          iter227.write(oprot)
+      for kiter200,viter201 in self.success.items():
+        oprot.writeString(kiter200)
+        oprot.writeListBegin(TType.STRUCT, len(viter201))
+        for iter202 in viter201:
+          iter202.write(oprot)
         oprot.writeListEnd()
       oprot.writeMapEnd()
       oprot.writeFieldEnd()
@@ -6620,16 +6347,16 @@ class describe_schema_versions_result:
       if fid == 0:
         if ftype == TType.MAP:
           self.success = {}
-          (_ktype229, _vtype230, _size228 ) = iprot.readMapBegin() 
-          for _i232 in xrange(_size228):
-            _key233 = iprot.readString();
-            _val234 = []
-            (_etype238, _size235) = iprot.readListBegin()
-            for _i239 in xrange(_size235):
-              _elem240 = iprot.readString();
-              _val234.append(_elem240)
+          (_ktype204, _vtype205, _size203 ) = iprot.readMapBegin() 
+          for _i207 in xrange(_size203):
+            _key208 = iprot.readString();
+            _val209 = []
+            (_etype213, _size210) = iprot.readListBegin()
+            for _i214 in xrange(_size210):
+              _elem215 = iprot.readString();
+              _val209.append(_elem215)
             iprot.readListEnd()
-            self.success[_key233] = _val234
+            self.success[_key208] = _val209
           iprot.readMapEnd()
         else:
           iprot.skip(ftype)
@@ -6652,11 +6379,11 @@ class describe_schema_versions_result:
     if self.success != None:
       oprot.writeFieldBegin('success', TType.MAP, 0)
       oprot.writeMapBegin(TType.STRING, TType.LIST, len(self.success))
-      for kiter241,viter242 in self.success.items():
-        oprot.writeString(kiter241)
-        oprot.writeListBegin(TType.STRING, len(viter242))
-        for iter243 in viter242:
-          oprot.writeString(iter243)
+      for kiter216,viter217 in self.success.items():
+        oprot.writeString(kiter216)
+        oprot.writeListBegin(TType.STRING, len(viter217))
+        for iter218 in viter217:
+          oprot.writeString(iter218)
         oprot.writeListEnd()
       oprot.writeMapEnd()
       oprot.writeFieldEnd()
@@ -6750,11 +6477,11 @@ class describe_keyspaces_result:
       if fid == 0:
         if ftype == TType.LIST:
           self.success = []
-          (_etype247, _size244) = iprot.readListBegin()
-          for _i248 in xrange(_size244):
-            _elem249 = KsDef()
-            _elem249.read(iprot)
-            self.success.append(_elem249)
+          (_etype222, _size219) = iprot.readListBegin()
+          for _i223 in xrange(_size219):
+            _elem224 = KsDef()
+            _elem224.read(iprot)
+            self.success.append(_elem224)
           iprot.readListEnd()
         else:
           iprot.skip(ftype)
@@ -6777,8 +6504,8 @@ class describe_keyspaces_result:
     if self.success != None:
       oprot.writeFieldBegin('success', TType.LIST, 0)
       oprot.writeListBegin(TType.STRUCT, len(self.success))
-      for iter250 in self.success:
-        iter250.write(oprot)
+      for iter225 in self.success:
+        iter225.write(oprot)
       oprot.writeListEnd()
       oprot.writeFieldEnd()
     if self.ire != None:
@@ -7089,11 +6816,11 @@ class describe_ring_result:
       if fid == 0:
         if ftype == TType.LIST:
           self.success = []
-          (_etype254, _size251) = iprot.readListBegin()
-          for _i255 in xrange(_size251):
-            _elem256 = TokenRange()
-            _elem256.read(iprot)
-            self.success.append(_elem256)
+          (_etype229, _size226) = iprot.readListBegin()
+          for _i230 in xrange(_size226):
+            _elem231 = TokenRange()
+            _elem231.read(iprot)
+            self.success.append(_elem231)
           iprot.readListEnd()
         else:
           iprot.skip(ftype)
@@ -7116,8 +6843,8 @@ class describe_ring_result:
     if self.success != None:
       oprot.writeFieldBegin('success', TType.LIST, 0)
       oprot.writeListBegin(TType.STRUCT, len(self.success))
-      for iter257 in self.success:
-        iter257.write(oprot)
+      for iter232 in self.success:
+        iter232.write(oprot)
       oprot.writeListEnd()
       oprot.writeFieldEnd()
     if self.ire != None:
@@ -7616,10 +7343,10 @@ class describe_splits_result:
       if fid == 0:
         if ftype == TType.LIST:
           self.success = []
-          (_etype261, _size258) = iprot.readListBegin()
-          for _i262 in xrange(_size258):
-            _elem263 = iprot.readString();
-            self.success.append(_elem263)
+          (_etype236, _size233) = iprot.readListBegin()
+          for _i237 in xrange(_size233):
+            _elem238 = iprot.readString();
+            self.success.append(_elem238)
           iprot.readListEnd()
         else:
           iprot.skip(ftype)
@@ -7642,8 +7369,8 @@ class describe_splits_result:
     if self.success != None:
       oprot.writeFieldBegin('success', TType.LIST, 0)
       oprot.writeListBegin(TType.STRING, len(self.success))
-      for iter264 in self.success:
-        oprot.writeString(iter264)
+      for iter239 in self.success:
+        oprot.writeString(iter239)
       oprot.writeListEnd()
       oprot.writeFieldEnd()
     if self.ire != None:
