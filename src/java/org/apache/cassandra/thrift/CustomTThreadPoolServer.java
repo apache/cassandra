@@ -23,6 +23,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.apache.thrift.server.TThreadPoolServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -55,38 +56,18 @@ public class CustomTThreadPoolServer extends TServer
     private volatile boolean stopped_;
 
     // Server options
-    private Options options_;
+    private TThreadPoolServer.Args args;
 
     //Track and Limit the number of connected clients
     private final AtomicInteger activeClients = new AtomicInteger(0);
     
-    // Customizable server options
-    public static class Options
-    {
-        public int minWorkerThreads = 5;
-        public int maxWorkerThreads = Integer.MAX_VALUE;
-        public int stopTimeoutVal = 60;
-        public TimeUnit stopTimeoutUnit = TimeUnit.SECONDS;
-    }
-
-
-    public CustomTThreadPoolServer(TProcessorFactory tProcessorFactory,
-                                   TServerSocket tServerSocket,
-                                   TTransportFactory inTransportFactory,
-                                   TTransportFactory outTransportFactory,
-                                   TProtocolFactory tProtocolFactory,
-                                   TProtocolFactory tProtocolFactory2,
-                                   Options options,
-                                   ExecutorService executorService)
-    {
-
-        super(tProcessorFactory, tServerSocket, inTransportFactory, outTransportFactory,
-              tProtocolFactory, tProtocolFactory2);
-        options_ = options;
+    
+    public CustomTThreadPoolServer(TThreadPoolServer.Args args, ExecutorService executorService) {
+        super(args);
         executorService_ = executorService;
+        this.args = args;
     }
-
-
+    
     public void serve()
     {
         try
@@ -103,7 +84,7 @@ public class CustomTThreadPoolServer extends TServer
         while (!stopped_)
         {
             // block until we are under max clients
-            while (activeClients.get() >= options_.maxWorkerThreads)
+            while (activeClients.get() >= args.maxWorkerThreads)
             {
                 try
                 {
@@ -132,8 +113,8 @@ public class CustomTThreadPoolServer extends TServer
                 }
             }
 
-            if (activeClients.get() >= options_.maxWorkerThreads)
-                LOGGER.warn("Maximum number of clients " + options_.maxWorkerThreads + " reached");
+            if (activeClients.get() >= args.maxWorkerThreads)
+                LOGGER.warn("Maximum number of clients " + args.maxWorkerThreads + " reached");
         }
 
         executorService_.shutdown();
@@ -142,7 +123,7 @@ public class CustomTThreadPoolServer extends TServer
         // exception. If we don't do this, then we'll shut down prematurely. We want
         // to let the executorService clear it's task queue, closing client sockets
         // appropriately.
-        long timeoutMS = options_.stopTimeoutUnit.toMillis(options_.stopTimeoutVal);
+        long timeoutMS = args.stopTimeoutUnit.toMillis(args.stopTimeoutVal);
         long now = System.currentTimeMillis();
         while (timeoutMS >= 0)
         {

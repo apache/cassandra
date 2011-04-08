@@ -22,6 +22,7 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.concurrent.ExecutorService;
 
+import org.apache.thrift.server.TThreadPoolServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -132,21 +133,19 @@ public class CassandraDaemon extends org.apache.cassandra.service.AbstractCassan
             }
 
             // ThreadPool Server
-            CustomTThreadPoolServer.Options options = new CustomTThreadPoolServer.Options();
-            options.minWorkerThreads = DatabaseDescriptor.getRpcMinThreads();
-            options.maxWorkerThreads = DatabaseDescriptor.getRpcMaxThreads();
+            TThreadPoolServer.Args args = new TThreadPoolServer.Args(tServerSocket)
+                                          .minWorkerThreads(DatabaseDescriptor.getRpcMinThreads())
+                                          .maxWorkerThreads(DatabaseDescriptor.getRpcMaxThreads())
+                                          .inputTransportFactory(inTransportFactory)
+                                          .outputTransportFactory(outTransportFactory)
+                                          .inputProtocolFactory(tProtocolFactory)
+                                          .outputProtocolFactory(tProtocolFactory)
+                                          .processor(processor);
 
             ExecutorService executorService = new CleaningThreadPool(cassandraServer.clientState,
-                    options.minWorkerThreads,
-                    options.maxWorkerThreads);
-            serverEngine = new CustomTThreadPoolServer(new TProcessorFactory(processor),
-                    tServerSocket,
-                    inTransportFactory,
-                    outTransportFactory,
-                    tProtocolFactory,
-                    tProtocolFactory,
-                    options,
-                    executorService);
+                    args.minWorkerThreads,
+                    args.maxWorkerThreads);
+            serverEngine = new CustomTThreadPoolServer(args, executorService);
         }
 
         public void run()

@@ -814,7 +814,7 @@ public final class CFMetaData
             for (org.apache.cassandra.thrift.ColumnDef cdef : def.getColumn_metadata())
             {
                 org.apache.cassandra.db.migration.avro.ColumnDef tdef = new org.apache.cassandra.db.migration.avro.ColumnDef();
-                tdef.name = ByteBufferUtil.clone(cdef.BufferForName());
+                tdef.name = ByteBufferUtil.clone(cdef.bufferForName());
                 tdef.validation_class = cdef.getValidation_class();
                 tdef.index_name = cdef.getIndex_name();
                 tdef.index_type = cdef.getIndex_type() == null ? null : org.apache.cassandra.db.migration.avro.IndexType.valueOf(cdef.getIndex_type().name());
