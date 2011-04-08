@@ -407,7 +407,8 @@ struct KsDef {
 
 /** CQL query compression */
 enum Compression {
-    GZIP = 1
+    GZIP = 1,
+    NONE = 2
 }
 
 enum CqlResultType {
