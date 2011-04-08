@@ -22,6 +22,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.Callable;
@@ -1140,6 +1141,17 @@ public class CassandraServer implements Cassandra.Iface
                     decompressor.end();
                     
                     queryString = new String(byteArray.toByteArray(), 0, byteArray.size(), "UTF-8");
+                    break;
+                case NONE:
+                    try 
+                    {
+                        queryString = ByteBufferUtil.string(query);
+                    }
+                    catch (CharacterCodingException ex) 
+                    {
+                        throw new InvalidRequestException(ex.getMessage());
+                    }
+                    break;
             }
         }
         catch (DataFormatException e)
