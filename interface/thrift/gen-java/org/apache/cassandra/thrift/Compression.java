@@ -35,7 +35,8 @@ import org.apache.thrift.TEnum;
  * CQL query compression
  */
 public enum Compression implements org.apache.thrift.TEnum {
-  GZIP(1);
+  GZIP(1),
+  NONE(2);
 
   private final int value;
 
@@ -58,6 +59,8 @@ public enum Compression implements org.apache.thrift.TEnum {
     switch (value) {
       case 1:
         return GZIP;
+      case 2:
+        return NONE;
       default:
         return null;
     }
