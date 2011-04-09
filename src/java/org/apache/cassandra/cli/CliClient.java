@@ -1317,7 +1317,10 @@ public class CliClient extends CliUserHelp
                 {
                     sessionState.out.printf("    \"%s\"%n", cf_def.comment);
                 }
-                
+
+                if (cf_def.default_validation_class != null)
+                    sessionState.out.printf("      default_validation_class: %s%n", cf_def.default_validation_class);
+
                 sessionState.out.printf("      Columns sorted by: %s%s%n", cf_def.comparator_type, cf_def.column_type.equals("Super") ? "/" + cf_def.subcomparator_type : "");
                 sessionState.out.printf("      Row cache size / save period in seconds: %s/%s%n", cf_def.row_cache_size, cf_def.row_cache_save_period_in_seconds);
                 sessionState.out.printf("      Key cache size / save period in seconds: %s/%s%n", cf_def.key_cache_size, cf_def.key_cache_save_period_in_seconds);
