@@ -1108,6 +1108,9 @@ public class CliClient extends CliUserHelp
             case ROW_CACHE_PROVIDER:
                 cfDef.setRow_cache_provider(mValue);
                 break;
+            case KEY_VALIDATION_CLASS:
+                cfDef.setKey_validation_class(CliUtils.unescapeSQLString(mValue));
+                break;
             default:
                 //must match one of the above or we'd throw an exception at the valueOf statement above.
                 assert(false);
@@ -1512,7 +1515,10 @@ public class CliClient extends CliUserHelp
                 {
                     sessionState.out.printf("    \"%s\"%n", cf_def.comment);
                 }
-                
+
+                if (cf_def.key_validation_class != null)
+                    sessionState.out.printf("      Key Validation Class: %s%n", cf_def.key_validation_class);
+
                 sessionState.out.printf("      Columns sorted by: %s%s%n", cf_def.comparator_type, cf_def.column_type.equals("Super") ? "/" + cf_def.subcomparator_type : "");
                 sessionState.out.printf("      Row cache size / save period in seconds: %s/%s%n", cf_def.row_cache_size, cf_def.row_cache_save_period_in_seconds);
                 sessionState.out.printf("      Key cache size / save period in seconds: %s/%s%n", cf_def.key_cache_size, cf_def.key_cache_save_period_in_seconds);

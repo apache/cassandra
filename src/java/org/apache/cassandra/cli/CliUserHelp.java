@@ -51,6 +51,7 @@ public class CliUserHelp {
         MAX_COMPACTION_THRESHOLD,
         REPLICATE_ON_WRITE,
         ROW_CACHE_PROVIDER,
+        KEY_VALIDATION_CLASS
     }
 
     protected EnumMap<ColumnFamilyArgument, String> argumentExplanations = new EnumMap<ColumnFamilyArgument, String>(ColumnFamilyArgument.class)

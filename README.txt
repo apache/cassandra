@@ -62,7 +62,7 @@ something slightly more interesting...
   ece86bde-dc55-11df-8240-e700f669bcfc
   [default@unknown] use Keyspace1;
   Authenticated to keyspace: Keyspace1
-  [default@Keyspace1] create column family Users with comparator=UTF8Type and default_validation_class=UTF8Type;
+  [default@Keyspace1] create column family Users with comparator=UTF8Type and default_validation_class=UTF8Type and key_validation_class=UTF8Type;
   737c7a71-dc56-11df-8240-e700f669bcfc
 
   [default@KS1] set Users[jsmith][first] = 'John';
