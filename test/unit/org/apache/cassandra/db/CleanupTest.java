@@ -24,6 +24,7 @@ import static org.junit.Assert.assertTrue;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.net.InetAddress;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
@@ -36,6 +37,7 @@ import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.filter.IFilter;
 import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.dht.BytesToken;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.locator.TokenMetadata;
@@ -109,10 +111,14 @@ public class CleanupTest extends CleanupHelper
         rows = table.getColumnFamilyStore(CF1).scan(clause, range, filter);
         assertEquals(LOOPS, rows.size());
 
-        // nuke our token so cleanup will remove everything
+        // we don't allow cleanup when the local host has no range to avoid wipping up all data when a node has not join the ring.
+        // So to make sure cleanup erase everything here, we give the localhost the tiniest possible range.
         TokenMetadata tmd = StorageService.instance.getTokenMetadata();
-        tmd.clearUnsafe();
-        assert StorageService.instance.getLocalRanges(TABLE1).isEmpty();
+        byte[] tk1 = new byte[1], tk2 = new byte[1];
+        tk1[0] = 2;
+        tk2[0] = 1;
+        tmd.updateNormalToken(new BytesToken(tk1), InetAddress.getByName("127.0.0.1"));
+        tmd.updateNormalToken(new BytesToken(tk2), InetAddress.getByName("127.0.0.2"));
 
         CompactionManager.instance.performCleanup(cfs, new NodeId.OneShotRenewer());
 

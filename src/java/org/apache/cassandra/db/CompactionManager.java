@@ -686,6 +686,11 @@ public class CompactionManager implements CompactionManagerMBean
         Table table = cfs.table;
         Collection<Range> ranges = StorageService.instance.getLocalRanges(table.name);
         boolean isCommutative = cfs.metadata.getDefaultValidator().isCommutative();
+        if (ranges.isEmpty())
+        {
+            logger.info("Cleanup cannot be ran before the node join the ring");
+            return;
+        }
 
         for (SSTableReader sstable : cfs.getSSTables())
         {
