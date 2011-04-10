@@ -1441,6 +1441,34 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      */
     public void forceTableRepair(final String tableName, final String... columnFamilies) throws IOException
     {
+        List<AntiEntropyService.RepairSession> sessions = new ArrayList<AntiEntropyService.RepairSession>();
+        for (Range range : getLocalRanges(tableName))
+        {
+            sessions.add(forceTableRepair(range, tableName, columnFamilies));
+        }
+
+        boolean failedSession = false;
+
+        // block until all repair sessions have completed
+        for (AntiEntropyService.RepairSession sess : sessions)
+        {
+            try
+            {
+                sess.join();
+            }
+            catch (InterruptedException e)
+            {
+                logger_.error("Repair session " + sess + " failed.", e);
+                failedSession = true;
+            }
+        }
+
+        if (failedSession)
+            throw new IOException("Some Repair session(s) failed.");
+    }
+
+    public AntiEntropyService.RepairSession forceTableRepair(final Range range, final String tableName, final String... columnFamilies) throws IOException
+    {
         String[] families;
         if (columnFamilies.length == 0)
         {
@@ -1454,18 +1482,9 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         {
             families = columnFamilies;
         }
-        AntiEntropyService.RepairSession sess = AntiEntropyService.instance.getRepairSession(tableName, families);
-        
-        try
-        {
-            sess.start();
-            // block until the repair has completed
-            sess.join();
-        }
-        catch (InterruptedException e)
-        {
-            throw new IOException("Repair session " + sess + " failed.", e);
-        }
+        AntiEntropyService.RepairSession sess = AntiEntropyService.instance.getRepairSession(range, tableName, families);
+        sess.start();
+        return sess;
     }
 
     /* End of MBean interface methods */

@@ -24,6 +24,7 @@ package org.apache.cassandra.service;
 import org.apache.cassandra.AbstractSerializationsTester;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
+import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -39,6 +40,8 @@ import java.util.List;
 
 public class SerializationsTest extends AbstractSerializationsTester
 {
+    public static Range FULL_RANGE = new Range(StorageService.getPartitioner().getMinimumToken(), StorageService.getPartitioner().getMinimumToken());
+
     private void testTreeRequestWrite() throws IOException
     {
         DataOutputStream out = getOutput("service.TreeRequest.bin");
@@ -63,7 +66,7 @@ public class SerializationsTest extends AbstractSerializationsTester
     {
         AntiEntropyService.Validator v0 = new AntiEntropyService.Validator(Statics.req);
         IPartitioner part = new RandomPartitioner();
-        MerkleTree mt = new MerkleTree(part, MerkleTree.RECOMMENDED_DEPTH, Integer.MAX_VALUE);
+        MerkleTree mt = new MerkleTree(part, FULL_RANGE, MerkleTree.RECOMMENDED_DEPTH, Integer.MAX_VALUE);
         List<Token> tokens = new ArrayList<Token>();
         for (int i = 0; i < 10; i++)
         {
@@ -97,6 +100,6 @@ public class SerializationsTest extends AbstractSerializationsTester
     private static class Statics
     {
         private static final AntiEntropyService.CFPair pair = new AntiEntropyService.CFPair("Keyspace1", "Standard1");
-        private static final AntiEntropyService.TreeRequest req = new AntiEntropyService.TreeRequest("sessionId", FBUtilities.getLocalAddress(), pair);
+        private static final AntiEntropyService.TreeRequest req = new AntiEntropyService.TreeRequest("sessionId", FBUtilities.getLocalAddress(), FULL_RANGE, pair);
     }
 }

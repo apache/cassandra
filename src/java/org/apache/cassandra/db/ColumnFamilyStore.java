@@ -1736,6 +1736,18 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return Iterables.concat(samples);
     }
 
+    public Iterable<DecoratedKey> keySamples(Range range)
+    {
+        Collection<SSTableReader> sstables = getSSTables();
+        Iterable<DecoratedKey>[] samples = new Iterable[sstables.size()];
+        int i = 0;
+        for (SSTableReader sstable: sstables)
+        {
+            samples[i++] = sstable.getKeySamples(range);
+        }
+        return Iterables.concat(samples);
+    }
+
     /**
      * For testing.  no effort is made to clear historical memtables, nor for
      * thread safety

@@ -68,6 +68,16 @@ public class MerkleTree implements Serializable
 
     public final byte hashdepth;
 
+    /**
+     * The top level range that this MerkleTree covers.
+     * In a perfect world, this should be final and *not* transient. However
+     * this would break serialization with version &gte; 0.7 because it uses
+     * java serialization. We are moreover always shipping the fullRange will
+     * the request so we can add it back post-deserialization (as for the
+     * partitioner).
+     */
+    public transient Range fullRange;
+
     private transient IPartitioner partitioner;
 
     private long maxsize;
@@ -111,7 +121,7 @@ public class MerkleTree implements Serializable
                 byte hashdepth = dis.readByte();
                 long maxsize = dis.readLong();
                 long size = dis.readLong();
-                MerkleTree mt = new MerkleTree(null, hashdepth, maxsize);
+                MerkleTree mt = new MerkleTree(null, null, hashdepth, maxsize);
                 mt.size = size;
                 mt.root = Hashable.serializer.deserialize(dis, version);
                 return mt;
@@ -121,13 +131,15 @@ public class MerkleTree implements Serializable
 
     /**
      * @param partitioner The partitioner in use.
+     * @param range the range this tree covers
      * @param hashdepth The maximum depth of the tree. 100/(2^depth) is the %
      *        of the key space covered by each subrange of a fully populated tree.
      * @param maxsize The maximum number of subranges in the tree.
      */
-    public MerkleTree(IPartitioner partitioner, byte hashdepth, long maxsize)
+    public MerkleTree(IPartitioner partitioner, Range range, byte hashdepth, long maxsize)
     {
         assert hashdepth < Byte.MAX_VALUE;
+        this.fullRange = range;
         this.partitioner = partitioner;
         this.hashdepth = hashdepth;
         this.maxsize = maxsize;
@@ -135,6 +147,7 @@ public class MerkleTree implements Serializable
         size = 1;
         root = new Leaf(null);
     }
+
 
     static byte inc(byte in)
     {
@@ -154,8 +167,7 @@ public class MerkleTree implements Serializable
         byte sizedepth = (byte)(Math.log10(maxsize) / Math.log10(2));
         byte depth = (byte)Math.min(sizedepth, hashdepth);
 
-        Token mintoken = partitioner.getMinimumToken();
-        root = initHelper(mintoken, mintoken, (byte)0, depth);
+        root = initHelper(fullRange.left, fullRange.right, (byte)0, depth);
         size = (long)Math.pow(2, depth);
     }
 
@@ -165,8 +177,9 @@ public class MerkleTree implements Serializable
             // we've reached the leaves
             return new Leaf();
         Token midpoint = partitioner.midpoint(left, right);
-        Hashable lchild = initHelper(left, midpoint, inc(depth), max);
-        Hashable rchild = initHelper(midpoint, right, inc(depth), max);
+
+        Hashable lchild = midpoint.equals(left) ? new Leaf() : initHelper(left, midpoint, inc(depth), max);
+        Hashable rchild =  midpoint.equals(right) ? new Leaf() : initHelper(midpoint, right, inc(depth), max);
         return new Inner(midpoint, lchild, rchild);
     }
 
@@ -214,9 +227,11 @@ public class MerkleTree implements Serializable
      */
     public static List<TreeRange> difference(MerkleTree ltree, MerkleTree rtree)
     {
+        if (!ltree.fullRange.equals(rtree.fullRange))
+            throw new IllegalArgumentException("Difference only make sense on tree covering the same range (but " + ltree.fullRange + " != " + rtree.fullRange + ")");
+
         List<TreeRange> diff = new ArrayList<TreeRange>();
-        Token mintoken = ltree.partitioner.getMinimumToken();
-        TreeRange active = new TreeRange(null, mintoken, mintoken, (byte)0, null);
+        TreeRange active = new TreeRange(null, ltree.fullRange.left, ltree.fullRange.right, (byte)0, null);
         
         byte[] lhash = ltree.hash(active);
         byte[] rhash = rtree.hash(active);
@@ -289,10 +304,9 @@ public class MerkleTree implements Serializable
      * For testing purposes.
      * Gets the smallest range containing the token.
      */
-    TreeRange get(Token t)
+    public TreeRange get(Token t)
     {
-        Token mintoken = partitioner.getMinimumToken();
-        return getHelper(root, mintoken, mintoken, (byte)0, t);
+        return getHelper(root, fullRange.left, fullRange.right, (byte)0, t);
     }
 
     TreeRange getHelper(Hashable hashable, Token pleft, Token pright, byte depth, Token t)
@@ -314,10 +328,11 @@ public class MerkleTree implements Serializable
 
     /**
      * Invalidates the ranges containing the given token.
+     * Useful for testing.
      */
     public void invalidate(Token t)
     {
-        invalidateHelper(root, partitioner.getMinimumToken(), t);
+        invalidateHelper(root, fullRange.left, t);
     }
 
     private void invalidateHelper(Hashable hashable, Token pleft, Token t)
@@ -326,7 +341,7 @@ public class MerkleTree implements Serializable
         if (hashable instanceof Leaf)
             return;
         // else: node.
-        
+
         Inner node = (Inner)hashable;
         if (Range.contains(pleft, node.token, t))
             // left child contains token
@@ -348,10 +363,9 @@ public class MerkleTree implements Serializable
      */
     public byte[] hash(Range range)
     {
-        Token mintoken = partitioner.getMinimumToken();
         try
         {
-            return hashHelper(root, new Range(mintoken, mintoken), range);
+            return hashHelper(root, new Range(fullRange.left, fullRange.right), range);
         }
         catch (StopRecursion e)
         {
@@ -413,10 +427,9 @@ public class MerkleTree implements Serializable
         if (!(size < maxsize))
             return false;
 
-        Token mintoken = partitioner.getMinimumToken();
         try
         {
-            root = splitHelper(root, mintoken, mintoken, (byte)0, t);
+            root = splitHelper(root, fullRange.left, fullRange.right, (byte)0, t);
         }
         catch (StopRecursion.TooDeep e)
         {
@@ -441,6 +454,13 @@ public class MerkleTree implements Serializable
 
         // recurse on the matching child
         Inner node = (Inner)hashable;
+
+        // FIXME: we are not really 'TooDeep', however we cannot say that the
+        // split was successfull otherwise we could have a chance of infinite
+        // loop given how we split.
+        if (t.equals(node.token) || t.equals(pright))
+            throw new StopRecursion.TooDeep();
+
         if (Range.contains(pleft, node.token, t))
             // left child contains token
             node.lchild(splitHelper(node.lchild, pleft, node.token, inc(depth), t));
@@ -451,51 +471,14 @@ public class MerkleTree implements Serializable
     }
 
     /**
-     * Compacts the smallest subranges evenly split by the given token into a
-     * single range.
-     *
-     * Asserts that the given Token falls between two compactable subranges.
-     */
-    public void compact(Token t)
-    {
-        root = compactHelper(root, t);
-    }
-
-    private Hashable compactHelper(Hashable hashable, Token t)
-    {
-        // we reached a Leaf without finding an Inner to compact
-        assert !(hashable instanceof Leaf);
-
-        Inner node = (Inner)hashable;
-        int comp = t.compareTo(node.token);
-        if (comp == 0)
-        {
-            // this is the node to compact
-            assert node.lchild() instanceof Leaf && node.rchild() instanceof Leaf :
-                "Can only compact a subrange evenly split by the given token!";
-
-            // hash our children together into a new value to replace ourself
-            size--;
-            return new Leaf(node.lchild().hash(), node.rchild().hash());
-        }
-        else if (comp < 0)
-            // recurse to the left
-            node.lchild(compactHelper(node.lchild(), t));
-        else
-            // recurse to the right
-            node.rchild(compactHelper(node.rchild(), t));
-        return node;
-    }
-
-    /**
      * Returns a lazy iterator of invalid TreeRanges that need to be filled
      * in order to make the given Range valid.
      *
      * @param range The range to find invalid subranges for.
      */
-    public TreeRangeIterator invalids(Range range)
+    public TreeRangeIterator invalids()
     {
-        return new TreeRangeIterator(this, range);
+        return new TreeRangeIterator(this);
     }
 
     @Override
@@ -569,25 +552,25 @@ public class MerkleTree implements Serializable
     }
 
     /**
-     * Performs a depth-first, inorder traversal of invalid nodes under the given root
-     * and intersecting the given range.
+     * Returns the leaf (range) of a given tree in increasing order.
+     * If the full range covered by the tree don't wrap, then it will return the
+     * ranges in increasing order.
+     * If the full range wrap, the first *and* last range returned by the
+     * iterator will be the wrapping range. It is the only case where the same
+     * leaf will be returned twice.
      */
     public static class TreeRangeIterator extends AbstractIterator<TreeRange> implements Iterable<TreeRange>, PeekingIterator<TreeRange>
     {
         // stack of ranges to visit
         private final ArrayDeque<TreeRange> tovisit;
         // interesting range
-        private final Range range;
         private final MerkleTree tree;
-        
-        TreeRangeIterator(MerkleTree tree, Range range)
-        {
-            Token mintoken = tree.partitioner().getMinimumToken();
-            tovisit = new ArrayDeque<TreeRange>();
-            tovisit.add(new TreeRange(tree, mintoken, mintoken, (byte)0, tree.root));
 
+        TreeRangeIterator(MerkleTree tree)
+        {
+            tovisit = new ArrayDeque<TreeRange>();
+            tovisit.add(new TreeRange(tree, tree.fullRange.left, tree.fullRange.right, (byte)0, tree.root));
             this.tree = tree;
-            this.range = range;
         }
         
         /**
@@ -601,23 +584,31 @@ public class MerkleTree implements Serializable
             {
                 TreeRange active = tovisit.pop();
 
-                if (active.hashable.hash() != null)
-                    // skip valid ranges
-                    continue;
-
                 if (active.hashable instanceof Leaf)
+                {
                     // found a leaf invalid range
+                    if (active.isWrapAround() && !tovisit.isEmpty())
+                        // put to be taken again last
+                        tovisit.addLast(active);
                     return active;
+                }
 
                 Inner node = (Inner)active.hashable;
-                // push intersecting children onto the stack
                 TreeRange left = new TreeRange(tree, active.left, node.token, inc(active.depth), node.lchild);
                 TreeRange right = new TreeRange(tree, node.token, active.right, inc(active.depth), node.rchild);
-                if (right.intersects(range))
-                    tovisit.push(right);
-                if (left.intersects(range))
-                    tovisit.push(left);
-                    
+
+                if (right.isWrapAround())
+                {
+                    // whatever is on the left is 'after' everything we have seen so far (it has greater tokens)
+                    tovisit.addLast(left);
+                    tovisit.addFirst(right);
+                }
+                else
+                {
+                    // do left first then right
+                    tovisit.addFirst(right);
+                    tovisit.addFirst(left);
+                }
             }
             return endOfData();
         }

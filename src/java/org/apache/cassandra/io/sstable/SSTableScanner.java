@@ -40,11 +40,11 @@ public class SSTableScanner implements Iterator<IColumnIterator>, Closeable
 {
     private static Logger logger = LoggerFactory.getLogger(SSTableScanner.class);
 
-    private final BufferedRandomAccessFile file;
+    protected final BufferedRandomAccessFile file;
     public final SSTableReader sstable;
     private IColumnIterator row;
-    private boolean exhausted = false;
-    private Iterator<IColumnIterator> iterator;
+    protected boolean exhausted = false;
+    protected Iterator<IColumnIterator> iterator;
     private QueryFilter filter;
 
     /**
@@ -141,9 +141,9 @@ public class SSTableScanner implements Iterator<IColumnIterator>, Closeable
         throw new UnsupportedOperationException();
     }
 
-    private class KeyScanningIterator implements Iterator<IColumnIterator>
+    protected class KeyScanningIterator implements Iterator<IColumnIterator>
     {
-        private long finishedAt;
+        protected long finishedAt;
 
         public boolean hasNext()
         {

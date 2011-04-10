@@ -69,12 +69,17 @@ public class MerkleTreeTest
     protected IPartitioner partitioner;
     protected MerkleTree mt;
 
+    private Range fullRange()
+    {
+        return new Range(partitioner.getMinimumToken(), partitioner.getMinimumToken());
+    }
+
     @Before
     public void clear()
     {
         TOKEN_SCALE = new BigInteger("8");
         partitioner = new RandomPartitioner();
-        mt = new MerkleTree(partitioner, RECOMMENDED_DEPTH, Integer.MAX_VALUE);
+        mt = new MerkleTree(partitioner, fullRange(), RECOMMENDED_DEPTH, Integer.MAX_VALUE);
     }
 
     public static void assertHashEquals(final byte[] left, final byte[] right)
@@ -139,7 +144,7 @@ public class MerkleTreeTest
     @Test
     public void testSplitLimitDepth()
     {
-        mt = new MerkleTree(partitioner, (byte)2, Integer.MAX_VALUE);
+        mt = new MerkleTree(partitioner, fullRange(), (byte)2, Integer.MAX_VALUE);
 
         assertTrue(mt.split(tok(4)));
         assertTrue(mt.split(tok(2)));
@@ -156,7 +161,7 @@ public class MerkleTreeTest
     @Test
     public void testSplitLimitSize()
     {
-        mt = new MerkleTree(partitioner, RECOMMENDED_DEPTH, 2);
+        mt = new MerkleTree(partitioner, fullRange(), RECOMMENDED_DEPTH, 2);
 
         assertTrue(mt.split(tok(4)));
         assertEquals(2, mt.size());
@@ -169,88 +174,12 @@ public class MerkleTreeTest
     }
 
     @Test
-    public void testCompact()
-    {
-        // (zero, one], (one,two], ... (seven, zero]
-        mt.split(tok(4));
-        mt.split(tok(2)); 
-        mt.split(tok(6));
-        mt.split(tok(1));
-        mt.split(tok(3));
-        mt.split(tok(5));
-        mt.split(tok(7));
-
-        // compact (zero,two] and then (four,six]
-        mt.compact(tok(1));
-        mt.compact(tok(5));
-        assertEquals(6, mt.size());
-        assertEquals(new Range(tok(-1), tok(2)), mt.get(tok(2)));
-        assertEquals(new Range(tok(2), tok(3)), mt.get(tok(3)));
-        assertEquals(new Range(tok(3), tok(4)), mt.get(tok(4)));
-        assertEquals(new Range(tok(4), tok(6)), mt.get(tok(5)));
-        assertEquals(new Range(tok(6), tok(7)), mt.get(tok(7)));
-        assertEquals(new Range(tok(7), tok(-1)), mt.get(tok(-1)));
-        // compacted ranges should be at depth 2, and the rest at 3
-        for (int i : new int[]{2,6}){ assertEquals((byte)2, mt.get(tok(i)).depth); }
-        for (int i : new int[]{3,4,7,-1}){ assertEquals((byte)3, mt.get(tok(i)).depth); }
-
-        // compact (two,four] and then (six,zero]
-        mt.compact(tok(3));
-        mt.compact(tok(7));
-        assertEquals(4, mt.size());
-        assertEquals(new Range(tok(-1), tok(2)), mt.get(tok(2)));
-        assertEquals(new Range(tok(2), tok(4)), mt.get(tok(4)));
-        assertEquals(new Range(tok(4), tok(6)), mt.get(tok(5)));
-        assertEquals(new Range(tok(6), tok(-1)), mt.get(tok(-1)));
-        for (int i : new int[]{2,4,5,-1}){ assertEquals((byte)2, mt.get(tok(i)).depth); }
-
-        // compact (zero,four]
-        mt.compact(tok(2));
-        assertEquals(3, mt.size());
-        assertEquals(new Range(tok(-1), tok(4)), mt.get(tok(2)));
-        assertEquals(new Range(tok(4), tok(6)), mt.get(tok(6)));
-        assertEquals(new Range(tok(6), tok(-1)), mt.get(tok(-1)));
-
-        // compact (four, zero]
-        mt.compact(tok(6));
-        assertEquals(2, mt.size());
-        assertEquals(new Range(tok(-1), tok(4)), mt.get(tok(2)));
-        assertEquals(new Range(tok(4), tok(-1)), mt.get(tok(6)));
-        assertEquals((byte)1, mt.get(tok(2)).depth);
-        assertEquals((byte)1, mt.get(tok(6)).depth);
-
-        // compact (zero, zero] (the root)
-        mt.compact(tok(4));
-        assertEquals(1, mt.size());
-        assertEquals(new Range(tok(-1), tok(-1)), mt.get(tok(-1)));
-        assertEquals((byte)0, mt.get(tok(-1)).depth);
-    }
-
-    @Test
-    public void testCompactHash()
-    {
-        byte[] val = DUMMY;
-        byte[] valXval = hashed(val, 1, 1);
-
-        // (zero, four], (four,zero]
-        mt.split(tok(4));
-
-        // validate both ranges
-        mt.get(tok(4)).hash(val);
-        mt.get(tok(-1)).hash(val);
-
-        // compact (zero, eight]
-        mt.compact(tok(4));
-        assertHashEquals(valXval, mt.get(tok(-1)).hash());
-    }
-
-    @Test
     public void testInvalids()
     {
         Iterator<TreeRange> ranges;
         
         // (zero, zero]
-        ranges = mt.invalids(new Range(tok(-1), tok(-1)));
+        ranges = mt.invalids();
         assertEquals(new Range(tok(-1), tok(-1)), ranges.next());
         assertFalse(ranges.hasNext());
 
@@ -260,7 +189,8 @@ public class MerkleTreeTest
         mt.split(tok(6));
         mt.split(tok(3));
         mt.split(tok(5));
-        ranges = mt.invalids(new Range(tok(-1), tok(-1)));
+        ranges = mt.invalids();
+        assertEquals(new Range(tok(6), tok(-1)), ranges.next());
         assertEquals(new Range(tok(-1), tok(2)), ranges.next());
         assertEquals(new Range(tok(2), tok(3)), ranges.next());
         assertEquals(new Range(tok(3), tok(4)), ranges.next());
@@ -268,29 +198,8 @@ public class MerkleTreeTest
         assertEquals(new Range(tok(5), tok(6)), ranges.next());
         assertEquals(new Range(tok(6), tok(-1)), ranges.next());
         assertFalse(ranges.hasNext());
-        
-        // some invalid
-        mt.get(tok(2)).hash("non-null!".getBytes());
-        mt.get(tok(4)).hash("non-null!".getBytes());
-        mt.get(tok(5)).hash("non-null!".getBytes());
-        mt.get(tok(-1)).hash("non-null!".getBytes());
-        ranges = mt.invalids(new Range(tok(-1), tok(-1)));
-        assertEquals(new Range(tok(2), tok(3)), ranges.next());
-        assertEquals(new Range(tok(5), tok(6)), ranges.next());
-        assertFalse(ranges.hasNext());
-        
-        // some invalid in left subrange
-        ranges = mt.invalids(new Range(tok(-1), tok(6)));
-        assertEquals(new Range(tok(2), tok(3)), ranges.next());
-        assertEquals(new Range(tok(5), tok(6)), ranges.next());
-        assertFalse(ranges.hasNext());
-
-        // some invalid in right subrange
-        ranges = mt.invalids(new Range(tok(2), tok(-1)));
-        assertEquals(new Range(tok(2), tok(3)), ranges.next());
-        assertEquals(new Range(tok(5), tok(6)), ranges.next());
-        assertFalse(ranges.hasNext());
     }
+
 
     @Test
     public void testHashFull()
@@ -387,7 +296,7 @@ public class MerkleTreeTest
         Range full = new Range(tok(-1), tok(-1));
         Range invalid = new Range(tok(4), tok(-1));
 
-        mt = new MerkleTree(partitioner, RECOMMENDED_DEPTH, Integer.MAX_VALUE);
+        mt = new MerkleTree(partitioner, fullRange(), RECOMMENDED_DEPTH, Integer.MAX_VALUE);
         mt.split(tok(16));
         mt.split(tok(8));
         mt.split(tok(4));
@@ -416,7 +325,7 @@ public class MerkleTreeTest
         int max = 1000000;
         TOKEN_SCALE = new BigInteger("" + max);
 
-        mt = new MerkleTree(partitioner, RECOMMENDED_DEPTH, 32);
+        mt = new MerkleTree(partitioner, fullRange(), RECOMMENDED_DEPTH, 32);
         Random random = new Random();
         while (true)
         {
@@ -425,7 +334,7 @@ public class MerkleTreeTest
         }
 
         // validate the tree
-        TreeRangeIterator ranges = mt.invalids(new Range(tok(-1), tok(-1)));
+        TreeRangeIterator ranges = mt.invalids();
         for (TreeRange range : ranges)
             range.addHash(new RowHash(range.right, new byte[0]));
 
@@ -446,7 +355,7 @@ public class MerkleTreeTest
 
         Range full = new Range(tok(-1), tok(-1));
         Iterator<TreeRange> ranges;
-        MerkleTree mt2 = new MerkleTree(partitioner, RECOMMENDED_DEPTH, Integer.MAX_VALUE);
+        MerkleTree mt2 = new MerkleTree(partitioner, fullRange(), RECOMMENDED_DEPTH, Integer.MAX_VALUE);
 
         mt.split(tok(8));
         mt.split(tok(4));
@@ -454,7 +363,7 @@ public class MerkleTreeTest
         mt.split(tok(6));
         mt.split(tok(10));
         
-        ranges = mt.invalids(full);
+        ranges = mt.invalids();
         ranges.next().addAll(new HIterator(2, 4)); // (-1,4]: depth 2
         ranges.next().addAll(new HIterator(6)); // (4,6]
         ranges.next().addAll(new HIterator(8)); // (6,8]
@@ -471,7 +380,7 @@ public class MerkleTreeTest
         mt2.split(tok(9));
         mt2.split(tok(11));
 
-        ranges = mt2.invalids(full);
+        ranges = mt2.invalids();
         ranges.next().addAll(new HIterator(2)); // (-1,2]
         ranges.next().addAll(new HIterator(4)); // (2,4]
         ranges.next().addAll(new HIterator(6, 8)); // (4,8]: depth 2
@@ -496,7 +405,7 @@ public class MerkleTreeTest
         // populate and validate the tree
         mt.maxsize(256);
         mt.init();
-        for (TreeRange range : mt.invalids(full))
+        for (TreeRange range : mt.invalids())
             range.addAll(new HIterator(range.right));
 
         byte[] initialhash = mt.hash(full);
@@ -509,6 +418,7 @@ public class MerkleTreeTest
     
         // restore partitioner after serialization
         restored.partitioner(partitioner);
+        restored.fullRange = fullRange();
 
         assertHashEquals(initialhash, restored.hash(full));
     }
@@ -519,40 +429,34 @@ public class MerkleTreeTest
         Range full = new Range(tok(-1), tok(-1));
         int maxsize = 16;
         mt.maxsize(maxsize);
-        MerkleTree mt2 = new MerkleTree(partitioner, RECOMMENDED_DEPTH, maxsize);
+        MerkleTree mt2 = new MerkleTree(partitioner, fullRange(), RECOMMENDED_DEPTH, maxsize);
         mt.init();
         mt2.init();
 
+        // add dummy hashes to both trees
+        for (TreeRange range : mt.invalids())
+            range.addAll(new HIterator(range.right));
+        for (TreeRange range : mt2.invalids())
+            range.addAll(new HIterator(range.right));
+
         TreeRange leftmost = null;
         TreeRange middle = null;
-        TreeRange rightmost = null;
 
-        // compact the leftmost, and split the rightmost
-        Iterator<TreeRange> ranges = mt.invalids(full);
+        mt.maxsize(maxsize + 2); // give some room for splitting
+
+        // split the leftmost
+        Iterator<TreeRange> ranges = mt.invalids();
         leftmost = ranges.next();
-        rightmost = null;
-        while (ranges.hasNext())
-            rightmost = ranges.next();
-        mt.compact(leftmost.right);
-        leftmost = mt.get(leftmost.right); // leftmost is now a larger range
-        mt.split(rightmost.right);
+        mt.split(leftmost.left);
         
         // set the hash for the left neighbor of rightmost
-        middle = mt.get(rightmost.left);
+        middle = mt.get(leftmost.right);
         middle.hash("arbitrary!".getBytes());
-        byte depth = middle.depth;
 
-        // add dummy hashes to the rest of both trees
-        for (TreeRange range : mt.invalids(full))
-            range.addAll(new HIterator(range.right));
-        for (TreeRange range : mt2.invalids(full))
-            range.addAll(new HIterator(range.right));
-        
-        // trees should disagree for leftmost, (middle.left, rightmost.right]
+        // trees should disagree for (middle.left, rightmost.right]
         List<TreeRange> diffs = MerkleTree.difference(mt, mt2);
-        assertEquals(diffs + " contains wrong number of differences:", 2, diffs.size());
-        assertTrue(diffs.contains(leftmost));
-        assertTrue(diffs.contains(new Range(middle.left, rightmost.right)));
+        assertEquals(diffs + " contains wrong number of differences:", 1, diffs.size());
+        assertTrue(diffs.contains(new Range(leftmost.left, middle.right)));
     }
 
     /**

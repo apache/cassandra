@@ -62,6 +62,8 @@ public abstract class AntiEntropyServiceTestAbstract extends CleanupHelper
     public ColumnFamilyStore store;
     public InetAddress LOCAL, REMOTE;
 
+    public Range local_range;
+
     private boolean initialized;
 
     public abstract void init();
@@ -99,9 +101,11 @@ public abstract class AntiEntropyServiceTestAbstract extends CleanupHelper
         StorageService.instance.setToken(StorageService.getPartitioner().getRandomToken());
         tmd.updateNormalToken(StorageService.getPartitioner().getMinimumToken(), REMOTE);
         assert tmd.isMember(REMOTE);
+
+        local_range = StorageService.instance.getLocalPrimaryRange();
         
         // random session id for each test
-        request = new TreeRequest(UUID.randomUUID().toString(), LOCAL, new CFPair(tablename, cfname));
+        request = new TreeRequest(UUID.randomUUID().toString(), LOCAL, local_range, new CFPair(tablename, cfname));
     }
 
     @After
@@ -143,25 +147,21 @@ public abstract class AntiEntropyServiceTestAbstract extends CleanupHelper
     {
         Validator validator = new Validator(request);
         IPartitioner part = validator.tree.partitioner();
-        Token min = part.getMinimumToken();
-        Token mid = part.midpoint(min, min);
+        Token mid = part.midpoint(local_range.left, local_range.right);
         validator.prepare(store);
 
-        // add a row with the minimum token
-        validator.add(new PrecompactedRow(new DecoratedKey(min, ByteBufferUtil.bytes("nonsense!")), null));
-
-        // and a row after it
+        // add a row
         validator.add(new PrecompactedRow(new DecoratedKey(mid, ByteBufferUtil.bytes("inconceivable!")), null));
         validator.complete();
 
         // confirm that the tree was validated
-        assert null != validator.tree.hash(new Range(min, min));
+        assert null != validator.tree.hash(local_range);
     }
 
     @Test
     public void testManualRepair() throws Throwable
     {
-        AntiEntropyService.RepairSession sess = AntiEntropyService.instance.getRepairSession(tablename, cfname);
+        AntiEntropyService.RepairSession sess = AntiEntropyService.instance.getRepairSession(local_range, tablename, cfname);
         sess.start();
         sess.blockUntilRunning();
 
@@ -170,7 +170,7 @@ public abstract class AntiEntropyServiceTestAbstract extends CleanupHelper
         assert sess.isAlive();
 
         // deliver a fake response from REMOTE
-        AntiEntropyService.instance.completedRequest(new TreeRequest(sess.getName(), REMOTE, request.cf));
+        AntiEntropyService.instance.completedRequest(new TreeRequest(sess.getName(), REMOTE, local_range, request.cf));
 
         // block until the repair has completed
         sess.join();
@@ -182,7 +182,13 @@ public abstract class AntiEntropyServiceTestAbstract extends CleanupHelper
         // generate rf+1 nodes, and ensure that all nodes are returned
         Set<InetAddress> expected = addTokens(1 + Table.open(tablename).getReplicationStrategy().getReplicationFactor());
         expected.remove(FBUtilities.getLocalAddress());
-        assertEquals(expected, AntiEntropyService.getNeighbors(tablename));
+        Collection<Range> ranges = StorageService.instance.getLocalRanges(tablename);
+        Set<InetAddress> neighbors = new HashSet<InetAddress>();
+        for (Range range : ranges)
+        {
+            neighbors.addAll(AntiEntropyService.getNeighbors(tablename, range));
+        }
+        assertEquals(expected, neighbors);
     }
 
     @Test
@@ -199,14 +205,20 @@ public abstract class AntiEntropyServiceTestAbstract extends CleanupHelper
             expected.addAll(ars.getRangeAddresses(tmd).get(replicaRange));
         }
         expected.remove(FBUtilities.getLocalAddress());
-        assertEquals(expected, AntiEntropyService.getNeighbors(tablename));
+        Collection<Range> ranges = StorageService.instance.getLocalRanges(tablename);
+        Set<InetAddress> neighbors = new HashSet<InetAddress>();
+        for (Range range : ranges)
+        {
+            neighbors.addAll(AntiEntropyService.getNeighbors(tablename, range));
+        }
+        assertEquals(expected, neighbors);
     }
 
     @Test
     public void testDifferencer() throws Throwable
     {
         // this next part does some housekeeping so that cleanup in the differencer doesn't error out.
-        AntiEntropyService.RepairSession sess = AntiEntropyService.instance.getArtificialRepairSession(request,  tablename, cfname);
+        AntiEntropyService.RepairSession sess = AntiEntropyService.instance.getArtificialRepairSession(request, tablename, cfname);
         
         // generate a tree
         Validator validator = new Validator(request);
@@ -220,16 +232,14 @@ public abstract class AntiEntropyServiceTestAbstract extends CleanupHelper
         validator.complete();
         MerkleTree rtree = validator.tree;
 
-        // change a range we own in one of the trees
-        Token ltoken = StorageService.instance.getLocalToken();
+        // change a range in one of the trees
+        Token ltoken = StorageService.getPartitioner().midpoint(local_range.left, local_range.right);
         ltree.invalidate(ltoken);
-        MerkleTree.TreeRange changed = ltree.invalids(StorageService.instance.getLocalPrimaryRange()).next();
+        MerkleTree.TreeRange changed = ltree.get(ltoken);
         changed.hash("non-empty hash!".getBytes());
-        // the changed range has two halves, split on our local token: both will be repaired
-        // (since this keyspace has RF > N, so every node is responsible for the entire ring)
+
         Set<Range> interesting = new HashSet<Range>();
-        interesting.add(new Range(changed.left, ltoken));
-        interesting.add(new Range(ltoken, changed.right));
+        interesting.add(changed);
 
         // difference the trees
         Differencer diff = new Differencer(request, ltree, rtree);

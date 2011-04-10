@@ -381,6 +381,97 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
                                       });
     }
 
+    private static List<Pair<Integer,Integer>> getSampleIndexesForRanges(List<IndexSummary.KeyPosition> samples, Collection<Range> ranges)
+    {
+        // use the index to determine a minimal section for each range
+        List<Pair<Integer,Integer>> positions = new ArrayList<Pair<Integer,Integer>>();
+        if (samples.isEmpty())
+            return positions;
+
+        for (AbstractBounds range : AbstractBounds.normalize(ranges))
+        {
+            DecoratedKey leftKey = new DecoratedKey(range.left, null);
+            DecoratedKey rightKey = new DecoratedKey(range.right, null);
+
+            int left = Collections.binarySearch(samples, new IndexSummary.KeyPosition(leftKey, -1));
+            if (left < 0)
+                left = (left + 1) * -1;
+            else
+                // left range are start exclusive
+                left = left + 1;
+            if (left == samples.size())
+                // left is past the end of the sampling
+                continue;
+
+            int right = Range.isWrapAround(range.left, range.right)
+                      ? samples.size() - 1
+                      : Collections.binarySearch(samples, new IndexSummary.KeyPosition(rightKey, -1));
+            if (right < 0)
+            {
+                // range are end inclusive so we use the previous index from what binarySearch give us
+                // since that will be the last index we will return
+                right = (right + 1) * -1;
+                if (right > 0)
+                    right--;
+            }
+
+            if (left >= right)
+                // empty range
+                continue;
+            positions.add(new Pair(Integer.valueOf(left), Integer.valueOf(right)));
+        }
+        return positions;
+    }
+
+    public Iterable<DecoratedKey> getKeySamples(final Range range)
+    {
+        final List<IndexSummary.KeyPosition> samples = indexSummary.getIndexPositions();
+
+        final List<Pair<Integer, Integer>> indexRanges = getSampleIndexesForRanges(samples, Collections.singletonList(range));
+
+        if (indexRanges.isEmpty())
+            return Collections.emptyList();
+
+        return new Iterable<DecoratedKey>()
+        {
+            public Iterator<DecoratedKey> iterator()
+            {
+                return new Iterator<DecoratedKey>()
+                {
+                    private Iterator<Pair<Integer, Integer>> rangeIter = indexRanges.iterator();
+                    private Pair<Integer, Integer> current;
+                    private int idx;
+
+                    public boolean hasNext()
+                    {
+                        if (current == null || idx > current.right)
+                        {
+                            if (rangeIter.hasNext())
+                            {
+                                current = rangeIter.next();
+                                idx = current.left;
+                                return true;
+                            }
+                            return false;
+                        }
+
+                        return true;
+                    }
+
+                    public DecoratedKey next()
+                    {
+                        return samples.get(idx++).key;
+                    }
+
+                    public void remove()
+                    {
+                        throw new UnsupportedOperationException();
+                    }
+                };
+            }
+        };
+    }
+
     /**
      * Determine the minimal set of sections that can be extracted from this SSTable to cover the given ranges.
      * @return A sorted list of (offset,end) pairs that cover the given ranges in the datafile for this SSTable.
@@ -548,6 +639,17 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
     public SSTableScanner getDirectScanner(int bufferSize)
     {
         return new SSTableScanner(this, bufferSize, true);
+    }
+
+   /**
+    * Direct I/O SSTableScanner over a defined range of tokens.
+    * @param bufferSize Buffer size in bytes for this Scanner.
+    * @param range the range of keys to cover
+    * @return A Scanner for seeking over the rows of the SSTable.
+    */
+    public SSTableScanner getDirectScanner(int bufferSize, Range range)
+    {
+        return new SSTableBoundedScanner(this, bufferSize, true, range);
     }
 
     public FileDataInput getFileDataInput(DecoratedKey decoratedKey, int bufferSize)

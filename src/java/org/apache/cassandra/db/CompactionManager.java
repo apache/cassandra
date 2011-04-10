@@ -34,6 +34,7 @@ import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
 import org.apache.commons.collections.PredicateUtils;
+import org.apache.commons.collections.iterators.CollatingIterator;
 import org.apache.commons.collections.iterators.FilterIterator;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
@@ -51,6 +52,7 @@ import org.apache.cassandra.service.AntiEntropyService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.OperationType;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.NodeId;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.WrappedRunnable;
@@ -825,7 +827,7 @@ public class CompactionManager implements CompactionManagerMBean
             throw new AssertionError(e);
         }
 
-        CompactionIterator ci = new ValidationCompactionIterator(cfs);
+        CompactionIterator ci = new ValidationCompactionIterator(cfs, validator.request.range);
         executor.beginCompaction(cfs.columnFamily, ci);
         try
         {
@@ -984,9 +986,19 @@ public class CompactionManager implements CompactionManagerMBean
 
     private static class ValidationCompactionIterator extends CompactionIterator
     {
-        public ValidationCompactionIterator(ColumnFamilyStore cfs) throws IOException
+        public ValidationCompactionIterator(ColumnFamilyStore cfs, Range range) throws IOException
         {
-            super(cfs.getSSTables(), new CompactionController(cfs, cfs.getSSTables(), true, getDefaultGcBefore(cfs), false));
+            super(getCollatingIterator(cfs.getSSTables(), range), new CompactionController(cfs, cfs.getSSTables(), true, getDefaultGcBefore(cfs), false));
+        }
+
+        protected static CollatingIterator getCollatingIterator(Iterable<SSTableReader> sstables, Range range) throws IOException
+        {
+            CollatingIterator iter = FBUtilities.getCollatingIterator();
+            for (SSTableReader sstable : sstables)
+            {
+                iter.addIterator(sstable.getDirectScanner(FILE_BUFFER_SIZE, range));
+            }
+            return iter;
         }
 
         @Override
