@@ -40,35 +40,35 @@ def uuid1bytes_to_millis(uuidbytes):
 
 def load_sample(dbconn):
     dbconn.execute("""
-        CREATE COLUMNFAMILY StandardString1 (KEY utf8 PRIMARY KEY)
+        CREATE COLUMNFAMILY StandardString1 (KEY text PRIMARY KEY)
             WITH comparator = ascii AND default_validation = ascii;
     """)
     dbconn.execute("""
-        CREATE COLUMNFAMILY StandardUtf82 (KEY utf8 PRIMARY KEY)
-            WITH comparator = utf8 AND default_validation = ascii;
+        CREATE COLUMNFAMILY StandardUtf82 (KEY text PRIMARY KEY)
+            WITH comparator = text AND default_validation = ascii;
     """)
     dbconn.execute("""
-        CREATE COLUMNFAMILY StandardLongA (KEY utf8 PRIMARY KEY)
-            WITH comparator = long AND default_validation = ascii;
+        CREATE COLUMNFAMILY StandardLongA (KEY text PRIMARY KEY)
+            WITH comparator = bigint AND default_validation = ascii;
     """)
     dbconn.execute("""
-        CREATE COLUMNFAMILY StandardIntegerA (KEY utf8 PRIMARY KEY)
-            WITH comparator = int AND default_validation = ascii;
+        CREATE COLUMNFAMILY StandardIntegerA (KEY text PRIMARY KEY)
+            WITH comparator = varint AND default_validation = ascii;
     """)
     dbconn.execute("""
-        CREATE COLUMNFAMILY StandardUUID (KEY utf8 PRIMARY KEY)
+        CREATE COLUMNFAMILY StandardUUID (KEY text PRIMARY KEY)
             WITH comparator = uuid AND default_validation = ascii;
     """)
     dbconn.execute("""
-        CREATE COLUMNFAMILY StandardTimeUUID (KEY utf8 PRIMARY KEY)
-            WITH comparator = timeuuid AND default_validation = ascii;
+        CREATE COLUMNFAMILY StandardTimeUUID (KEY text PRIMARY KEY)
+            WITH comparator = uuid AND default_validation = ascii;
     """)
     dbconn.execute("""
-        CREATE COLUMNFAMILY StandardTimeUUIDValues (KEY utf8 PRIMARY KEY)
-            WITH comparator = ascii AND default_validation = timeuuid;
+        CREATE COLUMNFAMILY StandardTimeUUIDValues (KEY text PRIMARY KEY)
+            WITH comparator = ascii AND default_validation = uuid;
     """)
     dbconn.execute("""
-        CREATE COLUMNFAMILY IndexedA (KEY utf8 PRIMARY KEY, birthdate long)
+        CREATE COLUMNFAMILY IndexedA (KEY text PRIMARY KEY, birthdate bigint)
             WITH comparator = ascii AND default_validation = ascii;
     """)
     dbconn.execute("CREATE INDEX ON IndexedA (birthdate)")
@@ -365,12 +365,12 @@ class TestCql(ThriftTester):
         
         conn.execute("""
             CREATE COLUMNFAMILY NewCf1 (
-                KEY int PRIMARY KEY,
-                'username' utf8,
-                'age' int,
-                'birthdate' long,
+                KEY varint PRIMARY KEY,
+                'username' text,
+                'age' varint,
+                'birthdate' bigint,
                 'id' uuid
-            ) WITH comparator = utf8 AND comment = 'shiny, new, cf' AND
+            ) WITH comparator = text AND comment = 'shiny, new, cf' AND
                     default_validation = ascii;
         """)
         
@@ -393,11 +393,11 @@ class TestCql(ThriftTester):
         assert_raises(CQLException,
                       conn.execute,
                       """CREATE COLUMNFAMILY NewCf2
-                             (KEY int PRIMARY KEY, KEY utf8 PRIMARY KEY)""")
+                             (KEY varint PRIMARY KEY, KEY text PRIMARY KEY)""")
         
         # No column defs
         conn.execute("""CREATE COLUMNFAMILY NewCf3
-                            (KEY int PRIMARY KEY) WITH comparator = long""")
+                            (KEY varint PRIMARY KEY) WITH comparator = bigint""")
         ksdef = thrift_client.describe_keyspace("CreateCFKeyspace")
         assert len(ksdef.cf_defs) == 2, \
             "expected 3 column families total, found %d" % len(ksdef.cf_defs)
@@ -406,7 +406,8 @@ class TestCql(ThriftTester):
         
         # Column defs, defaults otherwise
         conn.execute("""CREATE COLUMNFAMILY NewCf4
-                            (KEY int PRIMARY KEY, 'a' int, 'b' int);""")
+                            (KEY varint PRIMARY KEY, 'a' varint, 'b' varint)
+                            WITH comparator = text;""")
         ksdef = thrift_client.describe_keyspace("CreateCFKeyspace")
         assert len(ksdef.cf_defs) == 3, \
             "expected 4 column families total, found %d" % len(ksdef.cf_defs)
@@ -414,7 +415,7 @@ class TestCql(ThriftTester):
         assert len(cfam.column_metadata) == 2, \
             "expected 2 columns, found %d" % len(cfam.column_metadata)
         for coldef in cfam.column_metadata:
-            assert coldef.name in ("a", "b"), "Unknown column name"
+            assert coldef.name in ("a", "b"), "Unknown column name " + coldef.name
             assert coldef.validation_class.endswith("marshal.IntegerType")
             
     def test_drop_columnfamily(self):
@@ -425,7 +426,7 @@ class TestCql(ThriftTester):
                 AND strategy_class = 'SimpleStrategy';
         """)
         conn.execute('USE Keyspace4CFDrop;')
-        conn.execute('CREATE COLUMNFAMILY CF4Drop (KEY int PRIMARY KEY);')
+        conn.execute('CREATE COLUMNFAMILY CF4Drop (KEY varint PRIMARY KEY);')
         
         # TODO: temporary (until this can be done with CQL).
         ksdef = thrift_client.describe_keyspace("Keyspace4CFDrop")
@@ -440,7 +441,7 @@ class TestCql(ThriftTester):
         "creating column indexes"
         conn = init()
         conn.execute("USE Keyspace1")
-        conn.execute("CREATE COLUMNFAMILY CreateIndex1 (KEY utf8 PRIMARY KEY)")
+        conn.execute("CREATE COLUMNFAMILY CreateIndex1 (KEY text PRIMARY KEY)")
         conn.execute("CREATE INDEX namedIndex ON CreateIndex1 (items)")
         conn.execute("CREATE INDEX ON CreateIndex1 (stuff)")
         
@@ -475,7 +476,7 @@ class TestCql(ThriftTester):
         """ % str(timeuuid))
         assert r[0].columns[0].name == timeuuid
         
-        # Tests a node-side conversion from long to UUID.
+        # Tests a node-side conversion from bigint to UUID.
         ms = uuid1bytes_to_millis(uuid.uuid1().bytes)
         conn.execute("""
             UPDATE StandardTimeUUIDValues SET 'id' = %d WHERE KEY = 'uuidtest'
@@ -536,7 +537,7 @@ class TestCql(ThriftTester):
         
         r = conn.execute("SELECT ? FROM StandardUUID WHERE KEY = 'uuidtest'",
                          uid)
-        assert r[0].columns[0].name == uid
+        assert r[0].columns[0].name == uid, r[0].columns[0].name
         
         # TODO: slices of uuids from cf w/ LexicalUUIDType comparator
         

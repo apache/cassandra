@@ -63,14 +63,13 @@ public class CreateColumnFamilyStatement
     
     static
     {
-        comparators.put("bytes", "BytesType");
+        comparators.put("bytea", "BytesType");
         comparators.put("ascii", "AsciiType");
-        comparators.put("utf8", "UTF8Type");
-        comparators.put("int", "IntegerType");
-        comparators.put("long", "LongType");
-        comparators.put("uuid", "LexicalUUIDType");
-        comparators.put("timeuuid", "TimeUUIDType");
-        
+        comparators.put("text", "UTF8Type");
+        comparators.put("varchar", "UTF8Type");
+        comparators.put("varint", "IntegerType");
+        comparators.put("bigint", "LongType");
+        comparators.put("uuid", "UUIDType");
         keywords.add(KW_COMPARATOR);
         keywords.add(KW_COMMENT);
         keywords.add(KW_ROWCACHESIZE);

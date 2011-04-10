@@ -342,7 +342,7 @@ dropColumnFamilyStatement returns [String cfam]
     ;
 
 comparatorType
-    : 'bytes' | 'ascii' | 'utf8' | 'int' | 'long' | 'uuid' | 'timeuuid'
+    : 'bytea' | 'ascii' | 'text' | 'varchar' | 'varint' | 'bigint' | 'uuid'
     ;
 
 term returns [Term item]

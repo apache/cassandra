@@ -1,11 +1,6 @@
 package org.apache.cassandra.cql.jdbc;
 
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.AsciiType;
-import org.apache.cassandra.db.marshal.BytesType;
-import org.apache.cassandra.db.marshal.LexicalUUIDType;
-import org.apache.cassandra.db.marshal.TimeUUIDType;
-import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.marshal.*;
 
 import java.io.InputStream;
 import java.io.Reader;
@@ -67,7 +62,8 @@ public class CassandraPreparedStatement extends CassandraStatement implements Pr
                    type == AsciiType.instance ||
                    type == UTF8Type.instance ||
                    type == LexicalUUIDType.instance ||
-                   type == TimeUUIDType.instance;
+                   type == TimeUUIDType.instance ||
+                   type == UUIDType.instance;
     }
     
     // double quotes strings (in parameters)

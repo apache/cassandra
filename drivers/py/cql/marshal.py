@@ -68,6 +68,8 @@ def unmarshal(bytestr, typestr):
         return decode_bigint(bytestr)
     elif typestr == "org.apache.cassandra.db.marshal.LongType":
         return unpack(">q", bytestr)[0]
+    elif typestr == "org.apache.cassandra.db.marshal.UUIDType":
+        return UUID(bytes=bytestr)
     elif typestr == "org.apache.cassandra.db.marshal.LexicalUUIDType":
         return UUID(bytes=bytestr)
     elif typestr == "org.apache.cassandra.db.marshal.TimeUUIDType":

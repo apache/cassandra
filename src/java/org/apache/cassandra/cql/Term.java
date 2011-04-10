@@ -104,6 +104,8 @@ public class Term
             case INTEGER: 
                 return IntegerType.instance.fromString(text);
             case UUID:
+                // we specifically want the Lexical class here, not "UUIDType," because we're supposed to have
+                // a uuid-shaped string here, and UUIDType also accepts integer or date strings (and turns them into version 1 uuids).
                 return LexicalUUIDType.instance.fromString(text);
         }
         
