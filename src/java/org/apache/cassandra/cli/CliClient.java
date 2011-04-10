@@ -339,12 +339,6 @@ public class CliClient extends CliUserHelp
         CfDef cfDef = getCfDef(columnFamily);
         boolean isSuperCF = cfDef.column_type.equals("Super");
 
-        if (isCounterCF(cfDef))
-        {
-            doCounterSlice(keyspace, key, parent, predicate, isSuperCF);
-            return;
-        }
-
         List<ColumnOrSuperColumn> columns = thriftClient.get_slice(key, parent, predicate, consistencyLevel);
         AbstractType validator;
 
@@ -366,7 +360,7 @@ public class CliClient extends CliUserHelp
                 
                 sessionState.out.println(")");
             }
-            else
+            else if (cosc.isSetColumn())
             {
                 Column column = cosc.column;
                 validator = getValidatorForValue(cfDef, column.getName());
@@ -381,23 +375,9 @@ public class CliClient extends CliUserHelp
                                         column.timestamp,
                                         column.isSetTtl() ? String.format(", ttl=%d", column.getTtl()) : "");
             }
-        }
-        
-        sessionState.out.println("Returned " + columns.size() + " results.");
-    }
-
-    private void doCounterSlice(String keyspace, ByteBuffer key, ColumnParent parent, SlicePredicate predicate, boolean isSuperCF)
-            throws InvalidRequestException, UnavailableException, TimedOutException, TException, IllegalAccessException, NotFoundException, InstantiationException, NoSuchFieldException
-    {
-        String columnFamily = parent.column_family;
-        List<Counter> columns = thriftClient.get_counter_slice(key, parent, predicate, consistencyLevel);
-
-        // Print out super columns or columns.
-        for (Counter cosc : columns)
-        {
-            if (cosc.isSetSuper_column())
+            else if (cosc.isSetCounter_super_column())
             {
-                CounterSuperColumn superColumn = cosc.super_column;
+                CounterSuperColumn superColumn = cosc.counter_super_column;
 
                 sessionState.out.printf("=> (super_column=%s,", formatColumnName(keyspace, columnFamily, superColumn.name));
                 for (CounterColumn col : superColumn.getColumns())
@@ -406,9 +386,9 @@ public class CliClient extends CliUserHelp
                 }
                 sessionState.out.println(")");
             }
-            else
+            else // cosc.isSetCounter_column()
             {
-                CounterColumn column = cosc.column;
+                CounterColumn column = cosc.counter_column;
                 String formattedName = isSuperCF
                                        ? formatSubcolumnName(keyspace, columnFamily, column.name)
                                        : formatColumnName(keyspace, columnFamily, column.name);
@@ -562,7 +542,7 @@ public class CliClient extends CliUserHelp
         CounterColumn column;
         try
         {
-            column = thriftClient.get_counter(key, path, consistencyLevel).column;
+            column = thriftClient.get(key, path, consistencyLevel).counter_column;
         }
         catch (NotFoundException e)
         {

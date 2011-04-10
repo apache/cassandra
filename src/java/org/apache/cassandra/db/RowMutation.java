@@ -33,7 +33,6 @@ import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.ColumnOrSuperColumn;
-import org.apache.cassandra.thrift.Counter;
 import org.apache.cassandra.thrift.Deletion;
 import org.apache.cassandra.thrift.Mutation;
 import org.apache.cassandra.thrift.SlicePredicate;
@@ -243,10 +242,6 @@ public class RowMutation implements IMutation, MessageProducer
                 {
                     addColumnOrSuperColumnToRowMutation(rm, cfName, mutation.column_or_supercolumn);
                 }
-                if (mutation.counter != null)
-                {
-                    addCounterToRowMutation(rm, cfName, mutation.counter);
-                }
             }
         }
         return rm;
@@ -295,31 +290,27 @@ public class RowMutation implements IMutation, MessageProducer
 
     private static void addColumnOrSuperColumnToRowMutation(RowMutation rm, String cfName, ColumnOrSuperColumn cosc)
     {
-        if (cosc.column == null)
+        if (cosc.super_column != null)
         {
             for (org.apache.cassandra.thrift.Column column : cosc.super_column.columns)
             {
                 rm.add(new QueryPath(cfName, cosc.super_column.name, column.name), column.value, column.timestamp, column.ttl);
             }
         }
-        else
+        else if (cosc.column != null)
         {
             rm.add(new QueryPath(cfName, null, cosc.column.name), cosc.column.value, cosc.column.timestamp, cosc.column.ttl);
         }
-    }
-
-    private static void addCounterToRowMutation(RowMutation rm, String cfName, Counter counter)
-    {
-        if (counter.column == null)
+        else if (cosc.counter_super_column != null)
         {
-            for (org.apache.cassandra.thrift.CounterColumn column : counter.super_column.columns)
+            for (org.apache.cassandra.thrift.CounterColumn column : cosc.counter_super_column.columns)
             {
-                rm.addCounter(new QueryPath(cfName, counter.super_column.name, column.name), column.value);
+                rm.addCounter(new QueryPath(cfName, cosc.counter_super_column.name, column.name), column.value);
             }
         }
-        else
+        else // cosc.counter_column != null
         {
-            rm.addCounter(new QueryPath(cfName, null, counter.column.name), counter.column.value);
+            rm.addCounter(new QueryPath(cfName, null, cosc.counter_column.name), cosc.counter_column.value);
         }
     }
 

@@ -76,6 +76,16 @@ struct SuperColumn {
    2: required list<Column> columns,
 }
 
+struct CounterColumn {
+    1: required binary name,
+    2: required i64 value
+}
+
+struct CounterSuperColumn {
+    1: required binary name,
+    2: required list<CounterColumn> columns
+}
+
 /**
     Methods for fetching rows/records from Cassandra will return either a single instance of ColumnOrSuperColumn or a list
     of ColumnOrSuperColumns (get_slice()). If you're looking up a SuperColumn (or list of SuperColumns) then the resulting
@@ -83,12 +93,19 @@ struct SuperColumn {
     in Columns, those values will be in the attribute column. This change was made between 0.3 and 0.4 to standardize on
     single query methods that may return either a SuperColumn or Column.
 
+    If the query was on a counter column family, you will either get a counter_column (instead of a column) or a 
+    counter_super_column (instead of a super_column)
+
     @param column. The Column returned by get() or get_slice().
     @param super_column. The SuperColumn returned by get() or get_slice().
+    @param counter_column. The Counterolumn returned by get() or get_slice().
+    @param counter_super_column. The CounterSuperColumn returned by get() or get_slice().
  */
 struct ColumnOrSuperColumn {
     1: optional Column column,
     2: optional SuperColumn super_column,
+    3: optional CounterColumn counter_column,
+    4: optional CounterSuperColumn counter_super_column
 }
 
 
@@ -213,21 +230,6 @@ struct ColumnPath {
     5: optional binary column,
 }
 
-struct CounterColumn {
-    1: required binary name,
-    2: required i64 value
-}
-
-struct CounterSuperColumn {
-    1: required binary name,
-    2: required list<CounterColumn> columns
-}
-
-struct Counter {
-    1: optional CounterColumn column,
-    2: optional CounterSuperColumn super_column
-}
-
 /**
     A slice range is a structure that stores basic range, ordering and limit information for a query that will return
     multiple columns. It could be thought of as Cassandra's version of LIMIT and ORDER BY
@@ -331,15 +333,13 @@ struct Deletion {
 }
 
 /**
-    A Mutation is either an insert (represented by filling column_or_supercolumn), a deletion (represented by filling the deletion attribute),
-    a counter addition (represented by filling counter), or a counter deletion (represented by filling counter_deletion).
-    @param column_or_supercolumn. An insert to a column or supercolumn
+    A Mutation is either an insert (represented by filling column_or_supercolumn) or a deletion (represented by filling the deletion attribute).
+    @param column_or_supercolumn. An insert to a column or supercolumn (possibly counter column or supercolumn)
     @param deletion. A deletion of a column or supercolumn
 */
 struct Mutation {
     1: optional ColumnOrSuperColumn column_or_supercolumn,
     2: optional Deletion deletion,
-    3: optional Counter counter,
 }
 
 struct TokenRange {
@@ -390,7 +390,7 @@ struct CfDef {
     21: optional i32 memtable_flush_after_mins,
     22: optional i32 memtable_throughput_in_mb,
     23: optional double memtable_operations_in_millions,
-    24: optional bool replicate_on_write=0,
+    24: optional bool replicate_on_write,
     25: optional double merge_shards_chance,
     26: optional string key_validation_class,
     27: optional string row_cache_provider="org.apache.cassandra.cache.ConcurrentLinkedHashCacheProvider",
@@ -513,20 +513,35 @@ service Cassandra {
        throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
   /**
+   * Increment or decrement a counter.
+   */
+  void add(1:required binary key,
+           2:required ColumnParent column_parent,
+           3:required CounterColumn column,
+           4:required ConsistencyLevel consistency_level=ConsistencyLevel.ONE)
+       throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
+
+  /**
     Remove data from the row specified by key at the granularity specified by column_path, and the given timestamp. Note
     that all the values in column_path besides column_path.column_family are truly optional: you can remove the entire
     row by just specifying the ColumnFamily, or you can remove a SuperColumn or a single Column by specifying those levels too.
-
-    Note that counters have limited support for deletes: if you remove
-    a counter, you must wait to issue any following update until the
-    delete has reached all the nodes and all of them have been fully
-    compacted.
    */
   void remove(1:required binary key,
               2:required ColumnPath column_path,
               3:required i64 timestamp,
               4:ConsistencyLevel consistency_level=ConsistencyLevel.ONE)
        throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
+
+  /**
+   * Remove a counter at the specified location.
+   * Note that counters have limited support for deletes: if you remove a counter, you must wait to issue any following update
+   * until the delete has reached all the nodes and all of them have been fully compacted.
+   */
+  void remove_counter(1:required binary key,
+                      2:required ColumnPath path,
+                      3:required ConsistencyLevel consistency_level=ConsistencyLevel.ONE)
+      throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
+
 
   /**
     Mutate many columns or super columns for many row keys. See also: Mutation.
@@ -548,51 +563,6 @@ service Cassandra {
   void truncate(1:required string cfname)
        throws (1: InvalidRequestException ire, 2: UnavailableException ue),
 
-
-  # counter methods
-  
-  /**
-   * Increment or decrement a counter.
-   */
-  void add(1:required binary key,
-           2:required ColumnParent column_parent,
-           3:required CounterColumn column,
-           4:required ConsistencyLevel consistency_level=ConsistencyLevel.ONE)
-       throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
-
-  /**
-   * Return the counter at the specified column path.
-   */
-  Counter get_counter(1:required binary key,
-                      2:required ColumnPath path,
-                      3:required ConsistencyLevel consistency_level=ConsistencyLevel.ONE)
-      throws (1:InvalidRequestException ire, 2:NotFoundException nfe, 3:UnavailableException ue, 4:TimedOutException te),
-
-  /**
-   * Get a list of counters from the specified columns.
-   */
-  list<Counter> get_counter_slice(1:required binary key,
-                                  2:required ColumnParent column_parent, 
-                                  3:required SlicePredicate predicate, 
-                                  4:required ConsistencyLevel consistency_level=ConsistencyLevel.ONE)
-      throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
-  
-  /**
-   * Get counter slices from multiple keys.
-   */
-  map<binary,list<Counter>> multiget_counter_slice(1:required list<binary> keys,
-                                                   2:required ColumnParent column_parent,
-                                                   3:required SlicePredicate predicate, 
-                                                   4:required ConsistencyLevel consistency_level=ConsistencyLevel.ONE)
-      throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
-
-  /**
-   * Remove a counter at the specified location.
-   */
-  void remove_counter(1:required binary key,
-                      2:required ColumnPath path,
-                      3:required ConsistencyLevel consistency_level=ConsistencyLevel.ONE)
-      throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
     
   // Meta-APIs -- APIs to get information about the node or cluster,

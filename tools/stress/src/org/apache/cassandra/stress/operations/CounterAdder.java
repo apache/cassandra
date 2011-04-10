@@ -111,8 +111,8 @@ public class CounterAdder extends Operation
 
         for (CounterSuperColumn s : superColumns)
         {
-            Counter counter = new Counter().setSuper_column(s);
-            mutations.add(new Mutation().setCounter(counter));
+            ColumnOrSuperColumn cosc = new ColumnOrSuperColumn().setCounter_super_column(s);
+            mutations.add(new Mutation().setColumn_or_supercolumn(cosc));
         }
 
         mutationMap.put("SuperCounter1", mutations);
@@ -127,8 +127,8 @@ public class CounterAdder extends Operation
 
         for (CounterColumn c : columns)
         {
-            Counter counter = new Counter().setColumn(c);
-            mutations.add(new Mutation().setCounter(counter));
+            ColumnOrSuperColumn cosc = new ColumnOrSuperColumn().setCounter_column(c);
+            mutations.add(new Mutation().setColumn_or_supercolumn(cosc));
         }
 
         mutationMap.put("Counter1", mutations);

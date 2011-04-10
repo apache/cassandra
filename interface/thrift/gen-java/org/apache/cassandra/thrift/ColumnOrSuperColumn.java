@@ -49,22 +49,33 @@ import org.slf4j.LoggerFactory;
  * in Columns, those values will be in the attribute column. This change was made between 0.3 and 0.4 to standardize on
  * single query methods that may return either a SuperColumn or Column.
  * 
+ * If the query was on a counter column family, you will either get a counter_column (instead of a column) or a
+ * counter_super_column (instead of a super_column)
+ * 
  * @param column. The Column returned by get() or get_slice().
  * @param super_column. The SuperColumn returned by get() or get_slice().
+ * @param counter_column. The Counterolumn returned by get() or get_slice().
+ * @param counter_super_column. The CounterSuperColumn returned by get() or get_slice().
  */
 public class ColumnOrSuperColumn implements org.apache.thrift.TBase<ColumnOrSuperColumn, ColumnOrSuperColumn._Fields>, java.io.Serializable, Cloneable {
   private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct("ColumnOrSuperColumn");
 
   private static final org.apache.thrift.protocol.TField COLUMN_FIELD_DESC = new org.apache.thrift.protocol.TField("column", org.apache.thrift.protocol.TType.STRUCT, (short)1);
   private static final org.apache.thrift.protocol.TField SUPER_COLUMN_FIELD_DESC = new org.apache.thrift.protocol.TField("super_column", org.apache.thrift.protocol.TType.STRUCT, (short)2);
+  private static final org.apache.thrift.protocol.TField COUNTER_COLUMN_FIELD_DESC = new org.apache.thrift.protocol.TField("counter_column", org.apache.thrift.protocol.TType.STRUCT, (short)3);
+  private static final org.apache.thrift.protocol.TField COUNTER_SUPER_COLUMN_FIELD_DESC = new org.apache.thrift.protocol.TField("counter_super_column", org.apache.thrift.protocol.TType.STRUCT, (short)4);
 
   public Column column;
   public SuperColumn super_column;
+  public CounterColumn counter_column;
+  public CounterSuperColumn counter_super_column;
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
   public enum _Fields implements org.apache.thrift.TFieldIdEnum {
     COLUMN((short)1, "column"),
-    SUPER_COLUMN((short)2, "super_column");
+    SUPER_COLUMN((short)2, "super_column"),
+    COUNTER_COLUMN((short)3, "counter_column"),
+    COUNTER_SUPER_COLUMN((short)4, "counter_super_column");
 
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -83,6 +94,10 @@ public class ColumnOrSuperColumn implements org.apache.thrift.TBase<ColumnOrSupe
           return COLUMN;
         case 2: // SUPER_COLUMN
           return SUPER_COLUMN;
+        case 3: // COUNTER_COLUMN
+          return COUNTER_COLUMN;
+        case 4: // COUNTER_SUPER_COLUMN
+          return COUNTER_SUPER_COLUMN;
         default:
           return null;
       }
@@ -131,6 +146,10 @@ public class ColumnOrSuperColumn implements org.apache.thrift.TBase<ColumnOrSupe
         new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, Column.class)));
     tmpMap.put(_Fields.SUPER_COLUMN, new org.apache.thrift.meta_data.FieldMetaData("super_column", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
         new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, SuperColumn.class)));
+    tmpMap.put(_Fields.COUNTER_COLUMN, new org.apache.thrift.meta_data.FieldMetaData("counter_column", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, CounterColumn.class)));
+    tmpMap.put(_Fields.COUNTER_SUPER_COLUMN, new org.apache.thrift.meta_data.FieldMetaData("counter_super_column", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, CounterSuperColumn.class)));
     metaDataMap = Collections.unmodifiableMap(tmpMap);
     org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(ColumnOrSuperColumn.class, metaDataMap);
   }
@@ -148,6 +167,12 @@ public class ColumnOrSuperColumn implements org.apache.thrift.TBase<ColumnOrSupe
     if (other.isSetSuper_column()) {
       this.super_column = new SuperColumn(other.super_column);
     }
+    if (other.isSetCounter_column()) {
+      this.counter_column = new CounterColumn(other.counter_column);
+    }
+    if (other.isSetCounter_super_column()) {
+      this.counter_super_column = new CounterSuperColumn(other.counter_super_column);
+    }
   }
 
   public ColumnOrSuperColumn deepCopy() {
@@ -158,6 +183,8 @@ public class ColumnOrSuperColumn implements org.apache.thrift.TBase<ColumnOrSupe
   public void clear() {
     this.column = null;
     this.super_column = null;
+    this.counter_column = null;
+    this.counter_super_column = null;
   }
 
   public Column getColumn() {
@@ -208,6 +235,54 @@ public class ColumnOrSuperColumn implements org.apache.thrift.TBase<ColumnOrSupe
     }
   }
 
+  public CounterColumn getCounter_column() {
+    return this.counter_column;
+  }
+
+  public ColumnOrSuperColumn setCounter_column(CounterColumn counter_column) {
+    this.counter_column = counter_column;
+    return this;
+  }
+
+  public void unsetCounter_column() {
+    this.counter_column = null;
+  }
+
+  /** Returns true if field counter_column is set (has been assigned a value) and false otherwise */
+  public boolean isSetCounter_column() {
+    return this.counter_column != null;
+  }
+
+  public void setCounter_columnIsSet(boolean value) {
+    if (!value) {
+      this.counter_column = null;
+    }
+  }
+
+  public CounterSuperColumn getCounter_super_column() {
+    return this.counter_super_column;
+  }
+
+  public ColumnOrSuperColumn setCounter_super_column(CounterSuperColumn counter_super_column) {
+    this.counter_super_column = counter_super_column;
+    return this;
+  }
+
+  public void unsetCounter_super_column() {
+    this.counter_super_column = null;
+  }
+
+  /** Returns true if field counter_super_column is set (has been assigned a value) and false otherwise */
+  public boolean isSetCounter_super_column() {
+    return this.counter_super_column != null;
+  }
+
+  public void setCounter_super_columnIsSet(boolean value) {
+    if (!value) {
+      this.counter_super_column = null;
+    }
+  }
+
   public void setFieldValue(_Fields field, Object value) {
     switch (field) {
     case COLUMN:
@@ -226,6 +301,22 @@ public class ColumnOrSuperColumn implements org.apache.thrift.TBase<ColumnOrSupe
       }
       break;
 
+    case COUNTER_COLUMN:
+      if (value == null) {
+        unsetCounter_column();
+      } else {
+        setCounter_column((CounterColumn)value);
+      }
+      break;
+
+    case COUNTER_SUPER_COLUMN:
+      if (value == null) {
+        unsetCounter_super_column();
+      } else {
+        setCounter_super_column((CounterSuperColumn)value);
+      }
+      break;
+
     }
   }
 
@@ -236,6 +327,12 @@ public class ColumnOrSuperColumn implements org.apache.thrift.TBase<ColumnOrSupe
 
     case SUPER_COLUMN:
       return getSuper_column();
+
+    case COUNTER_COLUMN:
+      return getCounter_column();
+
+    case COUNTER_SUPER_COLUMN:
+      return getCounter_super_column();
 
     }
     throw new IllegalStateException();
@@ -252,6 +349,10 @@ public class ColumnOrSuperColumn implements org.apache.thrift.TBase<ColumnOrSupe
       return isSetColumn();
     case SUPER_COLUMN:
       return isSetSuper_column();
+    case COUNTER_COLUMN:
+      return isSetCounter_column();
+    case COUNTER_SUPER_COLUMN:
+      return isSetCounter_super_column();
     }
     throw new IllegalStateException();
   }
@@ -287,6 +388,24 @@ public class ColumnOrSuperColumn implements org.apache.thrift.TBase<ColumnOrSupe
         return false;
     }
 
+    boolean this_present_counter_column = true && this.isSetCounter_column();
+    boolean that_present_counter_column = true && that.isSetCounter_column();
+    if (this_present_counter_column || that_present_counter_column) {
+      if (!(this_present_counter_column && that_present_counter_column))
+        return false;
+      if (!this.counter_column.equals(that.counter_column))
+        return false;
+    }
+
+    boolean this_present_counter_super_column = true && this.isSetCounter_super_column();
+    boolean that_present_counter_super_column = true && that.isSetCounter_super_column();
+    if (this_present_counter_super_column || that_present_counter_super_column) {
+      if (!(this_present_counter_super_column && that_present_counter_super_column))
+        return false;
+      if (!this.counter_super_column.equals(that.counter_super_column))
+        return false;
+    }
+
     return true;
   }
 
@@ -303,6 +422,16 @@ public class ColumnOrSuperColumn implements org.apache.thrift.TBase<ColumnOrSupe
     builder.append(present_super_column);
     if (present_super_column)
       builder.append(super_column);
+
+    boolean present_counter_column = true && (isSetCounter_column());
+    builder.append(present_counter_column);
+    if (present_counter_column)
+      builder.append(counter_column);
+
+    boolean present_counter_super_column = true && (isSetCounter_super_column());
+    builder.append(present_counter_super_column);
+    if (present_counter_super_column)
+      builder.append(counter_super_column);
 
     return builder.toHashCode();
   }
@@ -331,6 +460,26 @@ public class ColumnOrSuperColumn implements org.apache.thrift.TBase<ColumnOrSupe
     }
     if (isSetSuper_column()) {
       lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.super_column, typedOther.super_column);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
+    lastComparison = Boolean.valueOf(isSetCounter_column()).compareTo(typedOther.isSetCounter_column());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    if (isSetCounter_column()) {
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.counter_column, typedOther.counter_column);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
+    lastComparison = Boolean.valueOf(isSetCounter_super_column()).compareTo(typedOther.isSetCounter_super_column());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    if (isSetCounter_super_column()) {
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.counter_super_column, typedOther.counter_super_column);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -368,6 +517,22 @@ public class ColumnOrSuperColumn implements org.apache.thrift.TBase<ColumnOrSupe
             org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
+        case 3: // COUNTER_COLUMN
+          if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
+            this.counter_column = new CounterColumn();
+            this.counter_column.read(iprot);
+          } else { 
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
+        case 4: // COUNTER_SUPER_COLUMN
+          if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
+            this.counter_super_column = new CounterSuperColumn();
+            this.counter_super_column.read(iprot);
+          } else { 
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
         default:
           org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
       }
@@ -397,6 +562,20 @@ public class ColumnOrSuperColumn implements org.apache.thrift.TBase<ColumnOrSupe
         oprot.writeFieldEnd();
       }
     }
+    if (this.counter_column != null) {
+      if (isSetCounter_column()) {
+        oprot.writeFieldBegin(COUNTER_COLUMN_FIELD_DESC);
+        this.counter_column.write(oprot);
+        oprot.writeFieldEnd();
+      }
+    }
+    if (this.counter_super_column != null) {
+      if (isSetCounter_super_column()) {
+        oprot.writeFieldBegin(COUNTER_SUPER_COLUMN_FIELD_DESC);
+        this.counter_super_column.write(oprot);
+        oprot.writeFieldEnd();
+      }
+    }
     oprot.writeFieldStop();
     oprot.writeStructEnd();
   }
@@ -422,6 +601,26 @@ public class ColumnOrSuperColumn implements org.apache.thrift.TBase<ColumnOrSupe
         sb.append("null");
       } else {
         sb.append(this.super_column);
+      }
+      first = false;
+    }
+    if (isSetCounter_column()) {
+      if (!first) sb.append(", ");
+      sb.append("counter_column:");
+      if (this.counter_column == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.counter_column);
+      }
+      first = false;
+    }
+    if (isSetCounter_super_column()) {
+      if (!first) sb.append(", ");
+      sb.append("counter_super_column:");
+      if (this.counter_super_column == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.counter_super_column);
       }
       first = false;
     }

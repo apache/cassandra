@@ -77,8 +77,8 @@ public class CounterGetter extends Operation
 
                 try
                 {
-                    List<Counter> counters;
-                    counters = client.get_counter_slice(key, parent, predicate, session.getConsistencyLevel());
+                    List<ColumnOrSuperColumn> counters;
+                    counters = client.get_slice(key, parent, predicate, session.getConsistencyLevel());
                     success = (counters.size() != 0);
                 }
                 catch (Exception e)
@@ -122,8 +122,8 @@ public class CounterGetter extends Operation
 
             try
             {
-                List<Counter> counters;
-                counters = client.get_counter_slice(keyBuffer, parent, predicate, session.getConsistencyLevel());
+                List<ColumnOrSuperColumn> counters;
+                counters = client.get_slice(keyBuffer, parent, predicate, session.getConsistencyLevel());
                 success = (counters.size() != 0);
             }
             catch (Exception e)

@@ -96,7 +96,7 @@ public class ThriftValidation
         return metadata;
     }
 
-    // This should only be used when the operation should be authorized whether this is a counter CF or not
+    // To be used when the operation should be authorized whether this is a counter CF or not
     public static CFMetaData validateColumnFamily(String tablename, String cfName) throws InvalidRequestException
     {
         validateTable(tablename);
@@ -249,8 +249,22 @@ public class ThriftValidation
     public static void validateColumnOrSuperColumn(CFMetaData metadata, ColumnOrSuperColumn cosc)
             throws InvalidRequestException
     {
+        boolean isCommutative = metadata.getDefaultValidator().isCommutative();
+
+        int nulls = 0;
+        if (cosc.column == null) nulls++;
+        if (cosc.super_column == null) nulls++;
+        if (cosc.counter_column == null) nulls++;
+        if (cosc.counter_super_column == null) nulls++;
+
+        if (nulls != 3)
+            throw new InvalidRequestException("ColumnOrSuperColumn must have one (and only one) of column, super_column, counter and counter_super_column");
+
         if (cosc.column != null)
         {
+            if (isCommutative)
+                throw new InvalidRequestException("invalid operation for commutative columnfamily " + metadata.cfName);
+
             validateTtl(cosc.column);
             validateColumnPath(metadata, new ColumnPath(metadata.cfName).setSuper_column((ByteBuffer)null).setColumn(cosc.column.name));
             validateColumnData(metadata, cosc.column);
@@ -258,6 +272,9 @@ public class ThriftValidation
 
         if (cosc.super_column != null)
         {
+            if (isCommutative)
+                throw new InvalidRequestException("invalid operation for commutative columnfamily " + metadata.cfName);
+
             for (Column c : cosc.super_column.columns)
             {
                 validateColumnPath(metadata, new ColumnPath(metadata.cfName).setSuper_column(cosc.super_column.name).setColumn(c.name));
@@ -265,24 +282,22 @@ public class ThriftValidation
             }
         }
 
-        if (cosc.column == null && cosc.super_column == null)
-            throw new InvalidRequestException("ColumnOrSuperColumn must have one or both of Column or SuperColumn");
-    }
-
-    public static void validateCounter(CFMetaData metadata, Counter counter)
-            throws InvalidRequestException
-    {
-        if (counter.column != null)
-            validateColumnPath(metadata, new ColumnPath(metadata.cfName).setSuper_column((ByteBuffer)null).setColumn(counter.column.name));
-
-        if (counter.super_column != null)
+        if (cosc.counter_column != null)
         {
-            for (CounterColumn c : counter.super_column.columns)
-                validateColumnPath(metadata, new ColumnPath(metadata.cfName).setSuper_column(counter.super_column.name).setColumn(c.name));
+            if (!isCommutative)
+                throw new InvalidRequestException("invalid operation for non commutative columnfamily " + metadata.cfName);
+
+            validateColumnPath(metadata, new ColumnPath(metadata.cfName).setSuper_column((ByteBuffer)null).setColumn(cosc.counter_column.name));
         }
 
-        if (counter.column == null && counter.super_column == null)
-            throw new InvalidRequestException("Counter must have one or both of column or super_column");
+        if (cosc.counter_super_column != null)
+        {
+            if (!isCommutative)
+                throw new InvalidRequestException("invalid operation for non commutative columnfamily " + metadata.cfName);
+
+            for (CounterColumn c : cosc.counter_super_column.columns)
+                validateColumnPath(metadata, new ColumnPath(metadata.cfName).setSuper_column(cosc.counter_super_column.name).setColumn(c.name));
+        }
     }
 
     private static void validateTtl(Column column) throws InvalidRequestException
@@ -300,34 +315,21 @@ public class ThriftValidation
     {
         ColumnOrSuperColumn cosc = mut.column_or_supercolumn;
         Deletion del = mut.deletion;
-        Counter counter = mut.counter;
 
-        boolean isCommutative = metadata.getDefaultValidator().isCommutative();
         int nulls = 0;
         if (cosc == null) nulls++;
         if (del == null) nulls++;
-        if (counter == null) nulls++;
 
-        if (nulls != 2)
+        if (nulls != 1)
         {
-            throw new InvalidRequestException("mutation must have one and only one of column_or_supercolumn, deletion, counter or counter_deletion");
+            throw new InvalidRequestException("mutation must have one and only one of column_or_supercolumn or deletion");
         }
 
         if (cosc != null)
         {
-            if (isCommutative)
-                throw new InvalidRequestException("invalid operation for commutative columnfamily " + metadata.cfName);
-
             validateColumnOrSuperColumn(metadata, cosc);
         }
-        if (counter != null)
-        {
-            if (!isCommutative)
-                throw new InvalidRequestException("invalid operation for non commutative columnfamily " + metadata.cfName);
-
-            validateCounter(metadata, counter);
-        }
-        if (del != null)
+        else
         {
             validateDeletion(metadata, del);
         }

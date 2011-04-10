@@ -306,8 +306,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
 
     this.read_repair_chance = 1;
 
-    this.replicate_on_write = false;
-
     this.row_cache_provider = "org.apache.cassandra.cache.ConcurrentLinkedHashCacheProvider";
 
   }
@@ -417,8 +415,8 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     this.memtable_throughput_in_mb = 0;
     setMemtable_operations_in_millionsIsSet(false);
     this.memtable_operations_in_millions = 0.0;
+    setReplicate_on_writeIsSet(false);
     this.replicate_on_write = false;
-
     setMerge_shards_chanceIsSet(false);
     this.merge_shards_chance = 0.0;
     this.key_validation_class = null;
