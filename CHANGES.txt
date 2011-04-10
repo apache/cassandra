@@ -16,6 +16,7 @@
  * Fix clustertool to not throw exception when calling get_endpoints (CASSANDRA-2437)
  * upgrade to thrift 0.6 (CASSANDRA-2412) 
  * repair works on a token range instead of full ring (CASSANDRA-2324)
+ * purge tombstone from row cache (CASSANDRA-2305)
 
 
 0.7.5

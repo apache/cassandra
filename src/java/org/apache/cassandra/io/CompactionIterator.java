@@ -34,6 +34,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
 import org.apache.cassandra.io.sstable.SSTableReader;
@@ -110,10 +111,13 @@ implements Closeable, ICompactionInfo
                 controller.invalidateCachedRow(compactedRow.key);
                 return null;
             }
-            else
-            {
-                return compactedRow;
-            }
+
+            // If the raw is cached, we call removeDeleted on it to have/ coherent query returns. However it would look
+            // like some deleted columns lived longer than gc_grace + compaction. This can also free up big amount of
+            // memory on long running instances
+            controller.removeDeletedInCache(compactedRow.key);
+
+            return compactedRow;
         }
         finally
         {

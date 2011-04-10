@@ -24,8 +24,9 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
-import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.io.sstable.SSTableReader;
 
 /**
@@ -82,4 +83,15 @@ public class CompactionController
         if (cfs != null)
             cfs.invalidateCachedRow(key);
     }
+
+    public void removeDeletedInCache(DecoratedKey key)
+    {
+        if (cfs != null)
+        {
+            ColumnFamily cachedRow = cfs.getRawCachedRow(key);
+            if (cachedRow != null)
+                ColumnFamilyStore.removeDeleted(cachedRow, gcBefore);
+        }
+    }
+
 }
