@@ -68,8 +68,10 @@ public class CreateColumnFamilyStatement
         comparators.put("text", "UTF8Type");
         comparators.put("varchar", "UTF8Type");
         comparators.put("varint", "IntegerType");
+        comparators.put("int", "LongType");
         comparators.put("bigint", "LongType");
         comparators.put("uuid", "UUIDType");
+
         keywords.add(KW_COMPARATOR);
         keywords.add(KW_COMMENT);
         keywords.add(KW_ROWCACHESIZE);

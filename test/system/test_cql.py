@@ -68,7 +68,7 @@ def load_sample(dbconn):
             WITH comparator = ascii AND default_validation = uuid;
     """)
     dbconn.execute("""
-        CREATE COLUMNFAMILY IndexedA (KEY text PRIMARY KEY, birthdate bigint)
+        CREATE COLUMNFAMILY IndexedA (KEY text PRIMARY KEY, birthdate int)
             WITH comparator = ascii AND default_validation = ascii;
     """)
     dbconn.execute("CREATE INDEX ON IndexedA (birthdate)")
