@@ -9,7 +9,7 @@ client and typing "help;"
 */
 
 create keyspace Keyspace1
-    with replication_factor = 1
+    with strategy_options=[{replication_factor:1}]
     and placement_strategy = 'org.apache.cassandra.locator.SimpleStrategy';
 
 use Keyspace1;

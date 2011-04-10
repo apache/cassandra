@@ -368,8 +368,7 @@ public class DatabaseDescriptor
             // Hardcoded system tables
             KSMetaData systemMeta = new KSMetaData(Table.SYSTEM_TABLE,
                                                    LocalStrategy.class,
-                                                   null,
-                                                   1,
+                                                   KSMetaData.optsWithRF(1),
                                                    CFMetaData.StatusCf,
                                                    CFMetaData.HintsCf,
                                                    CFMetaData.MigrationsCf,

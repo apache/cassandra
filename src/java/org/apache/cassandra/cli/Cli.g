@@ -442,10 +442,6 @@ replica_placement_strategy
 	: StringLiteral
 	;
 
-replication_factor
-	: IntegerPositiveLiteral
-	;
-
 keyspaceNewName
 	: Identifier
 	;

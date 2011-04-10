@@ -24,6 +24,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -37,5 +38,15 @@ public class LocalStrategy extends AbstractReplicationStrategy
     public List<InetAddress> calculateNaturalEndpoints(Token token, TokenMetadata metadata)
     {
         return Arrays.asList(FBUtilities.getLocalAddress());
+    }
+
+    public int getReplicationFactor()
+    {
+        return 1;
+    }
+
+    public void validateOptions() throws ConfigurationException
+    {
+        // LocalStrategy doesn't expect any options.
     }
 }

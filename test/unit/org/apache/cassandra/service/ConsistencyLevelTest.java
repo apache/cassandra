@@ -32,6 +32,7 @@ import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.Row;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
@@ -177,11 +178,13 @@ public class ConsistencyLevelTest extends CleanupHelper
 
     private AbstractReplicationStrategy getStrategy(String table, TokenMetadata tmd) throws ConfigurationException
     {
-        return AbstractReplicationStrategy.createReplicationStrategy(table,
-                                                                     "org.apache.cassandra.locator.SimpleStrategy",
-                                                                     tmd,
-                                                                     new SimpleSnitch(),
-                                                                     null);
+        KSMetaData ksmd =  DatabaseDescriptor.getKSMetaData(table);
+        return AbstractReplicationStrategy.createReplicationStrategy(
+                table,
+                ksmd.strategyClass,
+                tmd,
+                new SimpleSnitch(),
+                ksmd.strategyOptions);
     }
 
 }

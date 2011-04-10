@@ -32,6 +32,7 @@ import org.junit.Test;
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.service.StorageService;
@@ -177,11 +178,12 @@ public class SimpleStrategyTest extends CleanupHelper
 
     private AbstractReplicationStrategy getStrategy(String table, TokenMetadata tmd) throws ConfigurationException
     {
+        KSMetaData ksmd =  DatabaseDescriptor.getKSMetaData(table);
         return AbstractReplicationStrategy.createReplicationStrategy(
                 table,
-                "org.apache.cassandra.locator.SimpleStrategy",
+                ksmd.strategyClass,
                 tmd,
                 new SimpleSnitch(),
-                null);
+                ksmd.strategyOptions);
     }
 }

@@ -33,6 +33,7 @@ import com.google.common.collect.Multimap;
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.VersionedValue;
@@ -504,12 +505,13 @@ public class MoveTest extends CleanupHelper
 
     private AbstractReplicationStrategy getStrategy(String table, TokenMetadata tmd) throws ConfigurationException
     {
+        KSMetaData ksmd =  DatabaseDescriptor.getKSMetaData(table);
         return AbstractReplicationStrategy.createReplicationStrategy(
                 table,
-                "org.apache.cassandra.locator.SimpleStrategy",
+                ksmd.strategyClass,
                 tmd,
                 new SimpleSnitch(),
-                null);
+                ksmd.strategyOptions);
     }
 
     private Token positionToken(int position)

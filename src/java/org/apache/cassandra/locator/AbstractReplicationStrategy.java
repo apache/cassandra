@@ -30,7 +30,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.FailureDetector;
@@ -127,10 +126,13 @@ public abstract class AbstractReplicationStrategy
         return WriteResponseHandler.create(writeEndpoints, hintedEndpoints, consistencyLevel, table);
     }
 
-    public int getReplicationFactor()
-    {
-        return DatabaseDescriptor.getTableDefinition(table).replicationFactor;
-    }
+    /**
+     * calculate the RF based on strategy_options. When overwriting, ensure that this get()
+     *  is FAST, as this is called often.
+     *
+     * @return the replication factor
+     */
+    public abstract int getReplicationFactor();
 
     /**
      * returns <tt>Multimap</tt> of {live destination: ultimate targets}, where if target is not the same
@@ -235,6 +237,8 @@ public abstract class AbstractReplicationStrategy
         clearEndpointCache();
     }
 
+    public abstract void validateOptions() throws ConfigurationException;
+
     public static AbstractReplicationStrategy createReplicationStrategy(String table,
                                                                         Class<? extends AbstractReplicationStrategy> strategyClass,
                                                                         TokenMetadata tokenMetadata,
@@ -253,6 +257,9 @@ public abstract class AbstractReplicationStrategy
         {
             throw new RuntimeException(e);
         }
+
+        // Throws Config Exception if strat_opts don't contain required info
+        strategy.validateOptions();
 
         return strategy;
     }

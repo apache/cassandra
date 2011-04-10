@@ -324,14 +324,13 @@ class TestCql(ThriftTester):
         "create a new keyspace"
         init().execute("""
         CREATE KEYSPACE TestKeyspace42 WITH strategy_options:DC1 = '1'
-            AND strategy_class = 'SimpleStrategy' AND replication_factor = 3
+            AND strategy_class = 'NetworkTopologyStrategy'
         """)
         
         # TODO: temporary (until this can be done with CQL).
         ksdef = thrift_client.describe_keyspace("TestKeyspace42")
         
-        assert ksdef.replication_factor == 3
-        strategy_class = "org.apache.cassandra.locator.SimpleStrategy"
+        strategy_class = "org.apache.cassandra.locator.NetworkTopologyStrategy"
         assert ksdef.strategy_class == strategy_class
         assert ksdef.strategy_options['DC1'] == "1"
         
@@ -340,7 +339,7 @@ class TestCql(ThriftTester):
         conn = init()
         conn.execute("""
         CREATE KEYSPACE Keyspace4Drop
-            WITH strategy_class = SimpleStrategy AND replication_factor = 1
+            WITH strategy_class = SimpleStrategy AND strategy_options:replication_factor = 1
         """)
         
         # TODO: temporary (until this can be done with CQL).
@@ -358,7 +357,7 @@ class TestCql(ThriftTester):
         "create a new column family"
         conn = init()
         conn.execute("""
-            CREATE KEYSPACE CreateCFKeyspace WITH replication_factor = 1
+            CREATE KEYSPACE CreateCFKeyspace WITH strategy_options:replication_factor = 1
                 AND strategy_class = 'SimpleStrategy';
         """)
         conn.execute("USE CreateCFKeyspace;")
@@ -422,7 +421,7 @@ class TestCql(ThriftTester):
         "removing a column family"
         conn = init()
         conn.execute("""
-            CREATE KEYSPACE Keyspace4CFDrop WITH replication_factor = 1
+            CREATE KEYSPACE Keyspace4CFDrop WITH strategy_options:replication_factor = 1
                 AND strategy_class = 'SimpleStrategy';
         """)
         conn.execute('USE Keyspace4CFDrop;')

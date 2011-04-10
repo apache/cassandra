@@ -48,13 +48,11 @@ public class KsDef implements org.apache.thrift.TBase<KsDef, KsDef._Fields>, jav
   private static final org.apache.thrift.protocol.TField NAME_FIELD_DESC = new org.apache.thrift.protocol.TField("name", org.apache.thrift.protocol.TType.STRING, (short)1);
   private static final org.apache.thrift.protocol.TField STRATEGY_CLASS_FIELD_DESC = new org.apache.thrift.protocol.TField("strategy_class", org.apache.thrift.protocol.TType.STRING, (short)2);
   private static final org.apache.thrift.protocol.TField STRATEGY_OPTIONS_FIELD_DESC = new org.apache.thrift.protocol.TField("strategy_options", org.apache.thrift.protocol.TType.MAP, (short)3);
-  private static final org.apache.thrift.protocol.TField REPLICATION_FACTOR_FIELD_DESC = new org.apache.thrift.protocol.TField("replication_factor", org.apache.thrift.protocol.TType.I32, (short)4);
-  private static final org.apache.thrift.protocol.TField CF_DEFS_FIELD_DESC = new org.apache.thrift.protocol.TField("cf_defs", org.apache.thrift.protocol.TType.LIST, (short)5);
+  private static final org.apache.thrift.protocol.TField CF_DEFS_FIELD_DESC = new org.apache.thrift.protocol.TField("cf_defs", org.apache.thrift.protocol.TType.LIST, (short)4);
 
   public String name;
   public String strategy_class;
   public Map<String,String> strategy_options;
-  public int replication_factor;
   public List<CfDef> cf_defs;
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
@@ -62,8 +60,7 @@ public class KsDef implements org.apache.thrift.TBase<KsDef, KsDef._Fields>, jav
     NAME((short)1, "name"),
     STRATEGY_CLASS((short)2, "strategy_class"),
     STRATEGY_OPTIONS((short)3, "strategy_options"),
-    REPLICATION_FACTOR((short)4, "replication_factor"),
-    CF_DEFS((short)5, "cf_defs");
+    CF_DEFS((short)4, "cf_defs");
 
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -84,9 +81,7 @@ public class KsDef implements org.apache.thrift.TBase<KsDef, KsDef._Fields>, jav
           return STRATEGY_CLASS;
         case 3: // STRATEGY_OPTIONS
           return STRATEGY_OPTIONS;
-        case 4: // REPLICATION_FACTOR
-          return REPLICATION_FACTOR;
-        case 5: // CF_DEFS
+        case 4: // CF_DEFS
           return CF_DEFS;
         default:
           return null;
@@ -128,8 +123,6 @@ public class KsDef implements org.apache.thrift.TBase<KsDef, KsDef._Fields>, jav
   }
 
   // isset id assignments
-  private static final int __REPLICATION_FACTOR_ISSET_ID = 0;
-  private BitSet __isset_bit_vector = new BitSet(1);
 
   public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
   static {
@@ -142,8 +135,6 @@ public class KsDef implements org.apache.thrift.TBase<KsDef, KsDef._Fields>, jav
         new org.apache.thrift.meta_data.MapMetaData(org.apache.thrift.protocol.TType.MAP, 
             new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING), 
             new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING))));
-    tmpMap.put(_Fields.REPLICATION_FACTOR, new org.apache.thrift.meta_data.FieldMetaData("replication_factor", org.apache.thrift.TFieldRequirementType.REQUIRED, 
-        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32)));
     tmpMap.put(_Fields.CF_DEFS, new org.apache.thrift.meta_data.FieldMetaData("cf_defs", org.apache.thrift.TFieldRequirementType.REQUIRED, 
         new org.apache.thrift.meta_data.ListMetaData(org.apache.thrift.protocol.TType.LIST, 
             new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, CfDef.class))));
@@ -157,14 +148,11 @@ public class KsDef implements org.apache.thrift.TBase<KsDef, KsDef._Fields>, jav
   public KsDef(
     String name,
     String strategy_class,
-    int replication_factor,
     List<CfDef> cf_defs)
   {
     this();
     this.name = name;
     this.strategy_class = strategy_class;
-    this.replication_factor = replication_factor;
-    setReplication_factorIsSet(true);
     this.cf_defs = cf_defs;
   }
 
@@ -172,8 +160,6 @@ public class KsDef implements org.apache.thrift.TBase<KsDef, KsDef._Fields>, jav
    * Performs a deep copy on <i>other</i>.
    */
   public KsDef(KsDef other) {
-    __isset_bit_vector.clear();
-    __isset_bit_vector.or(other.__isset_bit_vector);
     if (other.isSetName()) {
       this.name = other.name;
     }
@@ -195,7 +181,6 @@ public class KsDef implements org.apache.thrift.TBase<KsDef, KsDef._Fields>, jav
       }
       this.strategy_options = __this__strategy_options;
     }
-    this.replication_factor = other.replication_factor;
     if (other.isSetCf_defs()) {
       List<CfDef> __this__cf_defs = new ArrayList<CfDef>();
       for (CfDef other_element : other.cf_defs) {
@@ -214,8 +199,6 @@ public class KsDef implements org.apache.thrift.TBase<KsDef, KsDef._Fields>, jav
     this.name = null;
     this.strategy_class = null;
     this.strategy_options = null;
-    setReplication_factorIsSet(false);
-    this.replication_factor = 0;
     this.cf_defs = null;
   }
 
@@ -302,29 +285,6 @@ public class KsDef implements org.apache.thrift.TBase<KsDef, KsDef._Fields>, jav
     }
   }
 
-  public int getReplication_factor() {
-    return this.replication_factor;
-  }
-
-  public KsDef setReplication_factor(int replication_factor) {
-    this.replication_factor = replication_factor;
-    setReplication_factorIsSet(true);
-    return this;
-  }
-
-  public void unsetReplication_factor() {
-    __isset_bit_vector.clear(__REPLICATION_FACTOR_ISSET_ID);
-  }
-
-  /** Returns true if field replication_factor is set (has been assigned a value) and false otherwise */
-  public boolean isSetReplication_factor() {
-    return __isset_bit_vector.get(__REPLICATION_FACTOR_ISSET_ID);
-  }
-
-  public void setReplication_factorIsSet(boolean value) {
-    __isset_bit_vector.set(__REPLICATION_FACTOR_ISSET_ID, value);
-  }
-
   public int getCf_defsSize() {
     return (this.cf_defs == null) ? 0 : this.cf_defs.size();
   }
@@ -390,14 +350,6 @@ public class KsDef implements org.apache.thrift.TBase<KsDef, KsDef._Fields>, jav
       }
       break;
 
-    case REPLICATION_FACTOR:
-      if (value == null) {
-        unsetReplication_factor();
-      } else {
-        setReplication_factor((Integer)value);
-      }
-      break;
-
     case CF_DEFS:
       if (value == null) {
         unsetCf_defs();
@@ -420,9 +372,6 @@ public class KsDef implements org.apache.thrift.TBase<KsDef, KsDef._Fields>, jav
     case STRATEGY_OPTIONS:
       return getStrategy_options();
 
-    case REPLICATION_FACTOR:
-      return new Integer(getReplication_factor());
-
     case CF_DEFS:
       return getCf_defs();
 
@@ -443,8 +392,6 @@ public class KsDef implements org.apache.thrift.TBase<KsDef, KsDef._Fields>, jav
       return isSetStrategy_class();
     case STRATEGY_OPTIONS:
       return isSetStrategy_options();
-    case REPLICATION_FACTOR:
-      return isSetReplication_factor();
     case CF_DEFS:
       return isSetCf_defs();
     }
@@ -491,15 +438,6 @@ public class KsDef implements org.apache.thrift.TBase<KsDef, KsDef._Fields>, jav
         return false;
     }
 
-    boolean this_present_replication_factor = true;
-    boolean that_present_replication_factor = true;
-    if (this_present_replication_factor || that_present_replication_factor) {
-      if (!(this_present_replication_factor && that_present_replication_factor))
-        return false;
-      if (this.replication_factor != that.replication_factor)
-        return false;
-    }
-
     boolean this_present_cf_defs = true && this.isSetCf_defs();
     boolean that_present_cf_defs = true && that.isSetCf_defs();
     if (this_present_cf_defs || that_present_cf_defs) {
@@ -530,11 +468,6 @@ public class KsDef implements org.apache.thrift.TBase<KsDef, KsDef._Fields>, jav
     builder.append(present_strategy_options);
     if (present_strategy_options)
       builder.append(strategy_options);
-
-    boolean present_replication_factor = true;
-    builder.append(present_replication_factor);
-    if (present_replication_factor)
-      builder.append(replication_factor);
 
     boolean present_cf_defs = true && (isSetCf_defs());
     builder.append(present_cf_defs);
@@ -578,16 +511,6 @@ public class KsDef implements org.apache.thrift.TBase<KsDef, KsDef._Fields>, jav
     }
     if (isSetStrategy_options()) {
       lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.strategy_options, typedOther.strategy_options);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-    }
-    lastComparison = Boolean.valueOf(isSetReplication_factor()).compareTo(typedOther.isSetReplication_factor());
-    if (lastComparison != 0) {
-      return lastComparison;
-    }
-    if (isSetReplication_factor()) {
-      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.replication_factor, typedOther.replication_factor);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -652,15 +575,7 @@ public class KsDef implements org.apache.thrift.TBase<KsDef, KsDef._Fields>, jav
             org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
-        case 4: // REPLICATION_FACTOR
-          if (field.type == org.apache.thrift.protocol.TType.I32) {
-            this.replication_factor = iprot.readI32();
-            setReplication_factorIsSet(true);
-          } else { 
-            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
-          }
-          break;
-        case 5: // CF_DEFS
+        case 4: // CF_DEFS
           if (field.type == org.apache.thrift.protocol.TType.LIST) {
             {
               org.apache.thrift.protocol.TList _list37 = iprot.readListBegin();
@@ -686,9 +601,6 @@ public class KsDef implements org.apache.thrift.TBase<KsDef, KsDef._Fields>, jav
     iprot.readStructEnd();
 
     // check for required fields of primitive type, which can't be checked in the validate method
-    if (!isSetReplication_factor()) {
-      throw new org.apache.thrift.protocol.TProtocolException("Required field 'replication_factor' was not found in serialized data! Struct: " + toString());
-    }
     validate();
   }
 
@@ -721,9 +633,6 @@ public class KsDef implements org.apache.thrift.TBase<KsDef, KsDef._Fields>, jav
         oprot.writeFieldEnd();
       }
     }
-    oprot.writeFieldBegin(REPLICATION_FACTOR_FIELD_DESC);
-    oprot.writeI32(this.replication_factor);
-    oprot.writeFieldEnd();
     if (this.cf_defs != null) {
       oprot.writeFieldBegin(CF_DEFS_FIELD_DESC);
       {
@@ -771,10 +680,6 @@ public class KsDef implements org.apache.thrift.TBase<KsDef, KsDef._Fields>, jav
       first = false;
     }
     if (!first) sb.append(", ");
-    sb.append("replication_factor:");
-    sb.append(this.replication_factor);
-    first = false;
-    if (!first) sb.append(", ");
     sb.append("cf_defs:");
     if (this.cf_defs == null) {
       sb.append("null");
@@ -794,7 +699,6 @@ public class KsDef implements org.apache.thrift.TBase<KsDef, KsDef._Fields>, jav
     if (strategy_class == null) {
       throw new org.apache.thrift.protocol.TProtocolException("Required field 'strategy_class' was not present! Struct: " + toString());
     }
-    // alas, we cannot check 'replication_factor' because it's a primitive and you chose the non-beans generator.
     if (cf_defs == null) {
       throw new org.apache.thrift.protocol.TProtocolException("Required field 'cf_defs' was not present! Struct: " + toString());
     }
@@ -810,8 +714,6 @@ public class KsDef implements org.apache.thrift.TBase<KsDef, KsDef._Fields>, jav
 
   private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
     try {
-      // it doesn't seem like you should have to do this, but java serialization is wacky, and doesn't call the default constructor.
-      __isset_bit_vector = new BitSet(1);
       read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
     } catch (org.apache.thrift.TException te) {
       throw new java.io.IOException(te);

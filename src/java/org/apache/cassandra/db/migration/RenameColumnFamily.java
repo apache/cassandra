@@ -76,7 +76,7 @@ public class RenameColumnFamily extends Migration
         assert newCfs.size() == ksm.cfMetaData().size() - 1;
         CFMetaData newCfm = CFMetaData.rename(oldCfm, newName);
         newCfs.add(newCfm);
-        return new KSMetaData(ksm.name, ksm.strategyClass, ksm.strategyOptions, ksm.replicationFactor, newCfs.toArray(new CFMetaData[newCfs.size()]));
+        return new KSMetaData(ksm.name, ksm.strategyClass, ksm.strategyOptions, newCfs.toArray(new CFMetaData[newCfs.size()]));
     }
 
     public void applyModels() throws IOException

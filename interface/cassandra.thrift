@@ -46,7 +46,7 @@ namespace rb CassandraThrift
 #           for every edit that doesn't result in a change to major/minor.
 #
 # See the Semantic Versioning Specification (SemVer) http://semver.org.
-const string VERSION = "19.5.0"
+const string VERSION = "20.0.0"
 
 
 #
@@ -401,8 +401,7 @@ struct KsDef {
     1: required string name,
     2: required string strategy_class,
     3: optional map<string,string> strategy_options,
-    4: required i32 replication_factor,
-    5: required list<CfDef> cf_defs,
+    4: required list<CfDef> cf_defs,
 }
 
 /** CQL query compression */

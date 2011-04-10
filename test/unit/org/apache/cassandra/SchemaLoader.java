@@ -68,11 +68,11 @@ public class SchemaLoader
         String ks_rcs = "RowCacheSpace";
 
         Class<? extends AbstractReplicationStrategy> simple = SimpleStrategy.class;
-        Map<String, String> no_opts = Collections.<String, String>emptyMap();
-        int rep_factor1 = 1;
-        int rep_factor2 = 2;
-        int rep_factor3 = 3;
-        int rep_factor5 = 5;
+
+        Map<String, String> opts_rf1 = KSMetaData.optsWithRF(1);
+        Map<String, String> opts_rf2 = KSMetaData.optsWithRF(2);
+        Map<String, String> opts_rf3 = KSMetaData.optsWithRF(3);
+        Map<String, String> opts_rf5 = KSMetaData.optsWithRF(5);
 
         ColumnFamilyType st = ColumnFamilyType.Standard;
         ColumnFamilyType su = ColumnFamilyType.Super;
@@ -81,8 +81,7 @@ public class SchemaLoader
         // Keyspace 1
         schema.add(new KSMetaData(ks1,
                                   simple,
-                                  no_opts,
-                                  rep_factor1,
+                                  opts_rf1,
 
                                   // Column Families
                                   standardCFMD(ks1, "Standard1"),
@@ -125,8 +124,7 @@ public class SchemaLoader
         // Keyspace 2
         schema.add(new KSMetaData(ks2,
                                   simple,
-                                  no_opts,
-                                  rep_factor1,
+                                  opts_rf1,
 
                                   // Column Families
                                   standardCFMD(ks2, "Standard1"),
@@ -138,8 +136,7 @@ public class SchemaLoader
         // Keyspace 3
         schema.add(new KSMetaData(ks3,
                                   simple,
-                                  no_opts,
-                                  rep_factor5,
+                                  opts_rf5,
 
                                   // Column Families
                                   standardCFMD(ks3, "Standard1"),
@@ -148,8 +145,7 @@ public class SchemaLoader
         // Keyspace 4
         schema.add(new KSMetaData(ks4,
                                   simple,
-                                  no_opts,
-                                  rep_factor3,
+                                  opts_rf3,
 
                                   // Column Families
                                   standardCFMD(ks4, "Standard1"),
@@ -166,10 +162,7 @@ public class SchemaLoader
         // Keyspace 5
         schema.add(new KSMetaData(ks5,
                                   simple,
-                                  no_opts,
-                                  rep_factor2,
-
-                                  // Column Families
+                                  opts_rf2,
                                   standardCFMD(ks5, "Standard1"),
                                   standardCFMD(ks5, "Counter1")
                                                .defaultValidator(CounterColumnType.instance)));
@@ -177,8 +170,7 @@ public class SchemaLoader
         // KeyCacheSpace
         schema.add(new KSMetaData(ks_kcs,
                                   simple,
-                                  no_opts,
-                                  rep_factor1,
+                                  opts_rf1,
                                   standardCFMD(ks_kcs, "Standard1")
                                               .keyCacheSize(0.5),
                                   standardCFMD(ks_kcs, "Standard2")
@@ -187,8 +179,7 @@ public class SchemaLoader
         // RowCacheSpace
         schema.add(new KSMetaData(ks_rcs,
                                   simple,
-                                  no_opts,
-                                  rep_factor1,
+                                  opts_rf1,
                                   standardCFMD(ks_rcs, "CFWithoutCache"),
                                   standardCFMD(ks_rcs, "CachedCF")
                                               .rowCacheSize(100)));
@@ -217,6 +208,6 @@ public class SchemaLoader
     }
     private static CFMetaData jdbcCFMD(String ksName, String cfName, AbstractType comp)
     {
-        return new CFMetaData(ksName, cfName, ColumnFamilyType.Standard, comp, null).defaultValidator(comp);
+        return new CFMetaData(ksName, cfName, ColumnFamilyType.Standard, comp, comp).defaultValidator(comp);
     }
 }

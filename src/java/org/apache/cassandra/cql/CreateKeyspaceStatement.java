@@ -31,7 +31,6 @@ public class CreateKeyspaceStatement
     private final String name;
     private final Map<String, String> attrs;
     private String strategyClass;
-    private int replicationFactor;
     private Map<String, String> strategyOptions = new HashMap<String, String>();
     
     /**
@@ -65,20 +64,6 @@ public class CreateKeyspaceStatement
             throw new InvalidRequestException("missing required argument \"strategy_class\"");
         strategyClass = attrs.get("strategy_class");
         
-        // required
-        if (!attrs.containsKey("replication_factor"))
-            throw new InvalidRequestException("missing required argument \"replication_factor\"");
-        
-        try
-        {
-            replicationFactor = Integer.parseInt(attrs.get("replication_factor"));
-        }
-        catch (NumberFormatException e)
-        {
-            throw new InvalidRequestException(String.format("\"%s\" is not valid for replication_factor",
-                                                            attrs.get("replication_factor")));
-        }
-        
         // optional
         for (String key : attrs.keySet())
             if ((key.contains(":")) && (key.startsWith("strategy_options")))
@@ -94,12 +79,7 @@ public class CreateKeyspaceStatement
     {
         return strategyClass;
     }
-    
-    public int getReplicationFactor()
-    {
-        return replicationFactor;
-    }
-    
+
     public Map<String, String> getStrategyOptions()
     {
         return strategyOptions;

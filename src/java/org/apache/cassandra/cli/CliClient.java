@@ -93,7 +93,6 @@ public class CliClient extends CliUserHelp
      *  this enum defines which arguments are valid
      */
     private enum AddKeyspaceArgument {
-        REPLICATION_FACTOR,
         PLACEMENT_STRATEGY,
         STRATEGY_OPTIONS
     }
@@ -831,7 +830,7 @@ public class CliClient extends CliUserHelp
         
         // first value is the keyspace name, after that it is all key=value
         String keyspaceName = statement.getChild(0).getText();
-        KsDef ksDef = new KsDef(keyspaceName, DEFAULT_PLACEMENT_STRATEGY, 1, new LinkedList<CfDef>());
+        KsDef ksDef = new KsDef(keyspaceName, DEFAULT_PLACEMENT_STRATEGY, new LinkedList<CfDef>());
 
         try
         {
@@ -965,9 +964,6 @@ public class CliClient extends CliUserHelp
             {
             case PLACEMENT_STRATEGY: 
                 ksDef.setStrategy_class(CliUtils.unescapeSQLString(mValue));
-                break;
-            case REPLICATION_FACTOR:
-                ksDef.setReplication_factor(Integer.parseInt(mValue));
                 break;
             case STRATEGY_OPTIONS:
                 ksDef.setStrategy_options(getStrategyOptionsFromTree(statement.getChild(i + 1)));
@@ -1468,15 +1464,8 @@ public class CliClient extends CliUserHelp
             ks_def = metadata == null ? thriftClient.describe_keyspace(keySpaceName) : metadata;
             sessionState.out.println("  Replication Strategy: " + ks_def.strategy_class);
 
-            if (ks_def.strategy_class.endsWith(".NetworkTopologyStrategy"))
-            {
-                Map<String, String> options = ks_def.strategy_options;
-                sessionState.out.println("    Options: [" + ((options == null) ? "" : FBUtilities.toString(options)) + "]");
-            }
-            else
-            {
-                sessionState.out.println("    Replication Factor: " + ks_def.replication_factor);
-            }
+            Map<String, String> options = ks_def.strategy_options;
+            sessionState.out.println("    Options: [" + ((options == null) ? "" : FBUtilities.toString(options)) + "]");
 
             sessionState.out.println("  Column Families:");
 

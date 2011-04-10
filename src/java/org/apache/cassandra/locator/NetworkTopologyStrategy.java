@@ -164,4 +164,17 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
         }
         return super.getWriteResponseHandler(writeEndpoints, hintedEndpoints, consistency_level);
     }
+
+    public void validateOptions() throws ConfigurationException
+    {
+        for (Entry<String,String> e : this.configOptions.entrySet())
+        {
+            int rf = Integer.parseInt(e.getValue());
+            if (rf < 0)
+            {
+                throw new ConfigurationException("Replication factor for NTS must be non-negative. dc: " +e.getKey()+", rf: "+rf);
+            }
+        }
+
+    }
 }

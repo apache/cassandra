@@ -63,7 +63,9 @@ public class DatabaseDescriptorTest
     {
         for (KSMetaData ksm : DatabaseDescriptor.tables.values())
         {
-            KSMetaData ksmDupe = KSMetaData.inflate(serDe(ksm.deflate(), new org.apache.cassandra.db.migration.avro.KsDef()));
+            // Not testing round-trip on the KsDef via serDe() because maps
+            //  cannot be compared in avro.
+            KSMetaData ksmDupe = KSMetaData.inflate(ksm.deflate());
             assert ksmDupe != null;
             assert ksmDupe.equals(ksm);
         }
@@ -78,9 +80,9 @@ public class DatabaseDescriptorTest
         assert DatabaseDescriptor.getNonSystemTables().size() == 0;
         
         // add a few.
-        AddKeyspace ks0 = new AddKeyspace(new KSMetaData("ks0", SimpleStrategy.class, null, 3));
+        AddKeyspace ks0 = new AddKeyspace(new KSMetaData("ks0", SimpleStrategy.class, KSMetaData.optsWithRF(3)));
         ks0.apply();
-        AddKeyspace ks1 = new AddKeyspace(new KSMetaData("ks1", SimpleStrategy.class, null, 3));
+        AddKeyspace ks1 = new AddKeyspace(new KSMetaData("ks1", SimpleStrategy.class, KSMetaData.optsWithRF(3)));
         ks1.apply();
         
         assert DatabaseDescriptor.getTableDefinition("ks0") != null;

@@ -49,8 +49,7 @@ import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.db.migration.*;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.dht.*;
-import org.apache.cassandra.locator.AbstractReplicationStrategy;
-import org.apache.cassandra.locator.DynamicEndpointSnitch;
+import org.apache.cassandra.locator.*;
 import org.apache.cassandra.scheduler.IRequestScheduler;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.StorageProxy;
@@ -563,7 +562,7 @@ public class CassandraServer implements Cassandra.Iface
         List<CfDef> cfDefs = new ArrayList<CfDef>();
         for (CFMetaData cfm : ksm.cfMetaData().values())
             cfDefs.add(CFMetaData.convertToThrift(cfm));
-        KsDef ksdef = new KsDef(ksm.name, ksm.strategyClass.getName(), ksm.replicationFactor, cfDefs);
+        KsDef ksdef = new KsDef(ksm.name, ksm.strategyClass.getName(), cfDefs);
         ksdef.setStrategy_options(ksm.strategyOptions);
         return ksdef;
     }
@@ -859,11 +858,23 @@ public class CassandraServer implements Cassandra.Iface
                 cfDefs.add(convertToCFMetaData(cfDef));
             }
 
+            // Attempt to instantiate the ARS, which will throw a ConfigException if
+            //  the strategy_options aren't fully formed or if the ARS Classname is invalid.
+            TokenMetadata tmd = StorageService.instance.getTokenMetadata();
+            IEndpointSnitch eps = DatabaseDescriptor.getEndpointSnitch();
+            Class<? extends AbstractReplicationStrategy> cls = AbstractReplicationStrategy.getClass(ks_def.strategy_class);
+            AbstractReplicationStrategy strat = AbstractReplicationStrategy
+                                                    .createReplicationStrategy(ks_def.name,
+                                                                               cls,
+                                                                               tmd,
+                                                                               eps,
+                                                                               ks_def.strategy_options);
+
             KSMetaData ksm = new KSMetaData(ks_def.name,
                                             AbstractReplicationStrategy.getClass(ks_def.strategy_class),
                                             ks_def.strategy_options,
-                                            ks_def.replication_factor,
                                             cfDefs.toArray(new CFMetaData[cfDefs.size()]));
+
             applyMigrationOnStage(new AddKeyspace(ksm));
             return DatabaseDescriptor.getDefsVersion().toString();
         }
@@ -921,11 +932,9 @@ public class CassandraServer implements Cassandra.Iface
 
         try
         {
-            KSMetaData ksm = new KSMetaData(
-                    ks_def.name, 
-                    AbstractReplicationStrategy.getClass(ks_def.strategy_class),
-                    ks_def.strategy_options,
-                    ks_def.replication_factor);
+            KSMetaData ksm = new KSMetaData(ks_def.name,
+                                            AbstractReplicationStrategy.getClass(ks_def.strategy_class),
+                                            ks_def.strategy_options);
             applyMigrationOnStage(new UpdateKeyspace(ksm));
             return DatabaseDescriptor.getDefsVersion().toString();
         }

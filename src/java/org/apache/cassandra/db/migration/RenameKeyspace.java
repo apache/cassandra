@@ -75,7 +75,7 @@ public class RenameKeyspace extends Migration
                 CFMetaData.purge(oldCf);
             newCfs.add(CFMetaData.renameTable(oldCf, newName));
         }
-        return new KSMetaData(newName, ksm.strategyClass, ksm.strategyOptions, ksm.replicationFactor, newCfs.toArray(new CFMetaData[newCfs.size()]));
+        return new KSMetaData(newName, ksm.strategyClass, ksm.strategyOptions, newCfs.toArray(new CFMetaData[newCfs.size()]));
     }
 
     public void applyModels() throws IOException

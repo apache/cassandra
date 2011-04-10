@@ -353,6 +353,165 @@ class SuperColumn:
   def __ne__(self, other):
     return not (self == other)
 
+class CounterColumn:
+  """
+  Attributes:
+   - name
+   - value
+  """
+
+  thrift_spec = (
+    None, # 0
+    (1, TType.STRING, 'name', None, None, ), # 1
+    (2, TType.I64, 'value', None, None, ), # 2
+  )
+
+  def __init__(self, name=None, value=None,):
+    self.name = name
+    self.value = value
+
+  def read(self, iprot):
+    if iprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and isinstance(iprot.trans, TTransport.CReadableTransport) and self.thrift_spec is not None and fastbinary is not None:
+      fastbinary.decode_binary(self, iprot.trans, (self.__class__, self.thrift_spec))
+      return
+    iprot.readStructBegin()
+    while True:
+      (fname, ftype, fid) = iprot.readFieldBegin()
+      if ftype == TType.STOP:
+        break
+      if fid == 1:
+        if ftype == TType.STRING:
+          self.name = iprot.readString();
+        else:
+          iprot.skip(ftype)
+      elif fid == 2:
+        if ftype == TType.I64:
+          self.value = iprot.readI64();
+        else:
+          iprot.skip(ftype)
+      else:
+        iprot.skip(ftype)
+      iprot.readFieldEnd()
+    iprot.readStructEnd()
+
+  def write(self, oprot):
+    if oprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and self.thrift_spec is not None and fastbinary is not None:
+      oprot.trans.write(fastbinary.encode_binary(self, (self.__class__, self.thrift_spec)))
+      return
+    oprot.writeStructBegin('CounterColumn')
+    if self.name != None:
+      oprot.writeFieldBegin('name', TType.STRING, 1)
+      oprot.writeString(self.name)
+      oprot.writeFieldEnd()
+    if self.value != None:
+      oprot.writeFieldBegin('value', TType.I64, 2)
+      oprot.writeI64(self.value)
+      oprot.writeFieldEnd()
+    oprot.writeFieldStop()
+    oprot.writeStructEnd()
+    def validate(self):
+      if self.name is None:
+        raise TProtocol.TProtocolException(message='Required field name is unset!')
+      if self.value is None:
+        raise TProtocol.TProtocolException(message='Required field value is unset!')
+      return
+
+
+  def __repr__(self):
+    L = ['%s=%r' % (key, value)
+      for key, value in self.__dict__.iteritems()]
+    return '%s(%s)' % (self.__class__.__name__, ', '.join(L))
+
+  def __eq__(self, other):
+    return isinstance(other, self.__class__) and self.__dict__ == other.__dict__
+
+  def __ne__(self, other):
+    return not (self == other)
+
+class CounterSuperColumn:
+  """
+  Attributes:
+   - name
+   - columns
+  """
+
+  thrift_spec = (
+    None, # 0
+    (1, TType.STRING, 'name', None, None, ), # 1
+    (2, TType.LIST, 'columns', (TType.STRUCT,(CounterColumn, CounterColumn.thrift_spec)), None, ), # 2
+  )
+
+  def __init__(self, name=None, columns=None,):
+    self.name = name
+    self.columns = columns
+
+  def read(self, iprot):
+    if iprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and isinstance(iprot.trans, TTransport.CReadableTransport) and self.thrift_spec is not None and fastbinary is not None:
+      fastbinary.decode_binary(self, iprot.trans, (self.__class__, self.thrift_spec))
+      return
+    iprot.readStructBegin()
+    while True:
+      (fname, ftype, fid) = iprot.readFieldBegin()
+      if ftype == TType.STOP:
+        break
+      if fid == 1:
+        if ftype == TType.STRING:
+          self.name = iprot.readString();
+        else:
+          iprot.skip(ftype)
+      elif fid == 2:
+        if ftype == TType.LIST:
+          self.columns = []
+          (_etype10, _size7) = iprot.readListBegin()
+          for _i11 in xrange(_size7):
+            _elem12 = CounterColumn()
+            _elem12.read(iprot)
+            self.columns.append(_elem12)
+          iprot.readListEnd()
+        else:
+          iprot.skip(ftype)
+      else:
+        iprot.skip(ftype)
+      iprot.readFieldEnd()
+    iprot.readStructEnd()
+
+  def write(self, oprot):
+    if oprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and self.thrift_spec is not None and fastbinary is not None:
+      oprot.trans.write(fastbinary.encode_binary(self, (self.__class__, self.thrift_spec)))
+      return
+    oprot.writeStructBegin('CounterSuperColumn')
+    if self.name != None:
+      oprot.writeFieldBegin('name', TType.STRING, 1)
+      oprot.writeString(self.name)
+      oprot.writeFieldEnd()
+    if self.columns != None:
+      oprot.writeFieldBegin('columns', TType.LIST, 2)
+      oprot.writeListBegin(TType.STRUCT, len(self.columns))
+      for iter13 in self.columns:
+        iter13.write(oprot)
+      oprot.writeListEnd()
+      oprot.writeFieldEnd()
+    oprot.writeFieldStop()
+    oprot.writeStructEnd()
+    def validate(self):
+      if self.name is None:
+        raise TProtocol.TProtocolException(message='Required field name is unset!')
+      if self.columns is None:
+        raise TProtocol.TProtocolException(message='Required field columns is unset!')
+      return
+
+
+  def __repr__(self):
+    L = ['%s=%r' % (key, value)
+      for key, value in self.__dict__.iteritems()]
+    return '%s(%s)' % (self.__class__.__name__, ', '.join(L))
+
+  def __eq__(self, other):
+    return isinstance(other, self.__class__) and self.__dict__ == other.__dict__
+
+  def __ne__(self, other):
+    return not (self == other)
+
 class ColumnOrSuperColumn:
   """
   Methods for fetching rows/records from Cassandra will return either a single instance of ColumnOrSuperColumn or a list
@@ -361,23 +520,34 @@ class ColumnOrSuperColumn:
   in Columns, those values will be in the attribute column. This change was made between 0.3 and 0.4 to standardize on
   single query methods that may return either a SuperColumn or Column.
 
+  If the query was on a counter column family, you will either get a counter_column (instead of a column) or a
+  counter_super_column (instead of a super_column)
+
   @param column. The Column returned by get() or get_slice().
   @param super_column. The SuperColumn returned by get() or get_slice().
+  @param counter_column. The Counterolumn returned by get() or get_slice().
+  @param counter_super_column. The CounterSuperColumn returned by get() or get_slice().
 
   Attributes:
    - column
    - super_column
+   - counter_column
+   - counter_super_column
   """
 
   thrift_spec = (
     None, # 0
     (1, TType.STRUCT, 'column', (Column, Column.thrift_spec), None, ), # 1
     (2, TType.STRUCT, 'super_column', (SuperColumn, SuperColumn.thrift_spec), None, ), # 2
+    (3, TType.STRUCT, 'counter_column', (CounterColumn, CounterColumn.thrift_spec), None, ), # 3
+    (4, TType.STRUCT, 'counter_super_column', (CounterSuperColumn, CounterSuperColumn.thrift_spec), None, ), # 4
   )
 
-  def __init__(self, column=None, super_column=None,):
+  def __init__(self, column=None, super_column=None, counter_column=None, counter_super_column=None,):
     self.column = column
     self.super_column = super_column
+    self.counter_column = counter_column
+    self.counter_super_column = counter_super_column
 
   def read(self, iprot):
     if iprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and isinstance(iprot.trans, TTransport.CReadableTransport) and self.thrift_spec is not None and fastbinary is not None:
@@ -400,6 +570,18 @@ class ColumnOrSuperColumn:
           self.super_column.read(iprot)
         else:
           iprot.skip(ftype)
+      elif fid == 3:
+        if ftype == TType.STRUCT:
+          self.counter_column = CounterColumn()
+          self.counter_column.read(iprot)
+        else:
+          iprot.skip(ftype)
+      elif fid == 4:
+        if ftype == TType.STRUCT:
+          self.counter_super_column = CounterSuperColumn()
+          self.counter_super_column.read(iprot)
+        else:
+          iprot.skip(ftype)
       else:
         iprot.skip(ftype)
       iprot.readFieldEnd()
@@ -417,6 +599,14 @@ class ColumnOrSuperColumn:
     if self.super_column != None:
       oprot.writeFieldBegin('super_column', TType.STRUCT, 2)
       self.super_column.write(oprot)
+      oprot.writeFieldEnd()
+    if self.counter_column != None:
+      oprot.writeFieldBegin('counter_column', TType.STRUCT, 3)
+      self.counter_column.write(oprot)
+      oprot.writeFieldEnd()
+    if self.counter_super_column != None:
+      oprot.writeFieldBegin('counter_super_column', TType.STRUCT, 4)
+      self.counter_super_column.write(oprot)
       oprot.writeFieldEnd()
     oprot.writeFieldStop()
     oprot.writeStructEnd()
@@ -984,238 +1174,6 @@ class ColumnPath:
     def validate(self):
       if self.column_family is None:
         raise TProtocol.TProtocolException(message='Required field column_family is unset!')
-      return
-
-
-  def __repr__(self):
-    L = ['%s=%r' % (key, value)
-      for key, value in self.__dict__.iteritems()]
-    return '%s(%s)' % (self.__class__.__name__, ', '.join(L))
-
-  def __eq__(self, other):
-    return isinstance(other, self.__class__) and self.__dict__ == other.__dict__
-
-  def __ne__(self, other):
-    return not (self == other)
-
-class CounterColumn:
-  """
-  Attributes:
-   - name
-   - value
-  """
-
-  thrift_spec = (
-    None, # 0
-    (1, TType.STRING, 'name', None, None, ), # 1
-    (2, TType.I64, 'value', None, None, ), # 2
-  )
-
-  def __init__(self, name=None, value=None,):
-    self.name = name
-    self.value = value
-
-  def read(self, iprot):
-    if iprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and isinstance(iprot.trans, TTransport.CReadableTransport) and self.thrift_spec is not None and fastbinary is not None:
-      fastbinary.decode_binary(self, iprot.trans, (self.__class__, self.thrift_spec))
-      return
-    iprot.readStructBegin()
-    while True:
-      (fname, ftype, fid) = iprot.readFieldBegin()
-      if ftype == TType.STOP:
-        break
-      if fid == 1:
-        if ftype == TType.STRING:
-          self.name = iprot.readString();
-        else:
-          iprot.skip(ftype)
-      elif fid == 2:
-        if ftype == TType.I64:
-          self.value = iprot.readI64();
-        else:
-          iprot.skip(ftype)
-      else:
-        iprot.skip(ftype)
-      iprot.readFieldEnd()
-    iprot.readStructEnd()
-
-  def write(self, oprot):
-    if oprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and self.thrift_spec is not None and fastbinary is not None:
-      oprot.trans.write(fastbinary.encode_binary(self, (self.__class__, self.thrift_spec)))
-      return
-    oprot.writeStructBegin('CounterColumn')
-    if self.name != None:
-      oprot.writeFieldBegin('name', TType.STRING, 1)
-      oprot.writeString(self.name)
-      oprot.writeFieldEnd()
-    if self.value != None:
-      oprot.writeFieldBegin('value', TType.I64, 2)
-      oprot.writeI64(self.value)
-      oprot.writeFieldEnd()
-    oprot.writeFieldStop()
-    oprot.writeStructEnd()
-    def validate(self):
-      if self.name is None:
-        raise TProtocol.TProtocolException(message='Required field name is unset!')
-      if self.value is None:
-        raise TProtocol.TProtocolException(message='Required field value is unset!')
-      return
-
-
-  def __repr__(self):
-    L = ['%s=%r' % (key, value)
-      for key, value in self.__dict__.iteritems()]
-    return '%s(%s)' % (self.__class__.__name__, ', '.join(L))
-
-  def __eq__(self, other):
-    return isinstance(other, self.__class__) and self.__dict__ == other.__dict__
-
-  def __ne__(self, other):
-    return not (self == other)
-
-class CounterSuperColumn:
-  """
-  Attributes:
-   - name
-   - columns
-  """
-
-  thrift_spec = (
-    None, # 0
-    (1, TType.STRING, 'name', None, None, ), # 1
-    (2, TType.LIST, 'columns', (TType.STRUCT,(CounterColumn, CounterColumn.thrift_spec)), None, ), # 2
-  )
-
-  def __init__(self, name=None, columns=None,):
-    self.name = name
-    self.columns = columns
-
-  def read(self, iprot):
-    if iprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and isinstance(iprot.trans, TTransport.CReadableTransport) and self.thrift_spec is not None and fastbinary is not None:
-      fastbinary.decode_binary(self, iprot.trans, (self.__class__, self.thrift_spec))
-      return
-    iprot.readStructBegin()
-    while True:
-      (fname, ftype, fid) = iprot.readFieldBegin()
-      if ftype == TType.STOP:
-        break
-      if fid == 1:
-        if ftype == TType.STRING:
-          self.name = iprot.readString();
-        else:
-          iprot.skip(ftype)
-      elif fid == 2:
-        if ftype == TType.LIST:
-          self.columns = []
-          (_etype10, _size7) = iprot.readListBegin()
-          for _i11 in xrange(_size7):
-            _elem12 = CounterColumn()
-            _elem12.read(iprot)
-            self.columns.append(_elem12)
-          iprot.readListEnd()
-        else:
-          iprot.skip(ftype)
-      else:
-        iprot.skip(ftype)
-      iprot.readFieldEnd()
-    iprot.readStructEnd()
-
-  def write(self, oprot):
-    if oprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and self.thrift_spec is not None and fastbinary is not None:
-      oprot.trans.write(fastbinary.encode_binary(self, (self.__class__, self.thrift_spec)))
-      return
-    oprot.writeStructBegin('CounterSuperColumn')
-    if self.name != None:
-      oprot.writeFieldBegin('name', TType.STRING, 1)
-      oprot.writeString(self.name)
-      oprot.writeFieldEnd()
-    if self.columns != None:
-      oprot.writeFieldBegin('columns', TType.LIST, 2)
-      oprot.writeListBegin(TType.STRUCT, len(self.columns))
-      for iter13 in self.columns:
-        iter13.write(oprot)
-      oprot.writeListEnd()
-      oprot.writeFieldEnd()
-    oprot.writeFieldStop()
-    oprot.writeStructEnd()
-    def validate(self):
-      if self.name is None:
-        raise TProtocol.TProtocolException(message='Required field name is unset!')
-      if self.columns is None:
-        raise TProtocol.TProtocolException(message='Required field columns is unset!')
-      return
-
-
-  def __repr__(self):
-    L = ['%s=%r' % (key, value)
-      for key, value in self.__dict__.iteritems()]
-    return '%s(%s)' % (self.__class__.__name__, ', '.join(L))
-
-  def __eq__(self, other):
-    return isinstance(other, self.__class__) and self.__dict__ == other.__dict__
-
-  def __ne__(self, other):
-    return not (self == other)
-
-class Counter:
-  """
-  Attributes:
-   - column
-   - super_column
-  """
-
-  thrift_spec = (
-    None, # 0
-    (1, TType.STRUCT, 'column', (CounterColumn, CounterColumn.thrift_spec), None, ), # 1
-    (2, TType.STRUCT, 'super_column', (CounterSuperColumn, CounterSuperColumn.thrift_spec), None, ), # 2
-  )
-
-  def __init__(self, column=None, super_column=None,):
-    self.column = column
-    self.super_column = super_column
-
-  def read(self, iprot):
-    if iprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and isinstance(iprot.trans, TTransport.CReadableTransport) and self.thrift_spec is not None and fastbinary is not None:
-      fastbinary.decode_binary(self, iprot.trans, (self.__class__, self.thrift_spec))
-      return
-    iprot.readStructBegin()
-    while True:
-      (fname, ftype, fid) = iprot.readFieldBegin()
-      if ftype == TType.STOP:
-        break
-      if fid == 1:
-        if ftype == TType.STRUCT:
-          self.column = CounterColumn()
-          self.column.read(iprot)
-        else:
-          iprot.skip(ftype)
-      elif fid == 2:
-        if ftype == TType.STRUCT:
-          self.super_column = CounterSuperColumn()
-          self.super_column.read(iprot)
-        else:
-          iprot.skip(ftype)
-      else:
-        iprot.skip(ftype)
-      iprot.readFieldEnd()
-    iprot.readStructEnd()
-
-  def write(self, oprot):
-    if oprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and self.thrift_spec is not None and fastbinary is not None:
-      oprot.trans.write(fastbinary.encode_binary(self, (self.__class__, self.thrift_spec)))
-      return
-    oprot.writeStructBegin('Counter')
-    if self.column != None:
-      oprot.writeFieldBegin('column', TType.STRUCT, 1)
-      self.column.write(oprot)
-      oprot.writeFieldEnd()
-    if self.super_column != None:
-      oprot.writeFieldBegin('super_column', TType.STRUCT, 2)
-      self.super_column.write(oprot)
-      oprot.writeFieldEnd()
-    oprot.writeFieldStop()
-    oprot.writeStructEnd()
-    def validate(self):
       return
 
 
@@ -1995,28 +1953,24 @@ class Deletion:
 
 class Mutation:
   """
-  A Mutation is either an insert (represented by filling column_or_supercolumn), a deletion (represented by filling the deletion attribute),
-  a counter addition (represented by filling counter), or a counter deletion (represented by filling counter_deletion).
-  @param column_or_supercolumn. An insert to a column or supercolumn
+  A Mutation is either an insert (represented by filling column_or_supercolumn) or a deletion (represented by filling the deletion attribute).
+  @param column_or_supercolumn. An insert to a column or supercolumn (possibly counter column or supercolumn)
   @param deletion. A deletion of a column or supercolumn
 
   Attributes:
    - column_or_supercolumn
    - deletion
-   - counter
   """
 
   thrift_spec = (
     None, # 0
     (1, TType.STRUCT, 'column_or_supercolumn', (ColumnOrSuperColumn, ColumnOrSuperColumn.thrift_spec), None, ), # 1
     (2, TType.STRUCT, 'deletion', (Deletion, Deletion.thrift_spec), None, ), # 2
-    (3, TType.STRUCT, 'counter', (Counter, Counter.thrift_spec), None, ), # 3
   )
 
-  def __init__(self, column_or_supercolumn=None, deletion=None, counter=None,):
+  def __init__(self, column_or_supercolumn=None, deletion=None,):
     self.column_or_supercolumn = column_or_supercolumn
     self.deletion = deletion
-    self.counter = counter
 
   def read(self, iprot):
     if iprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and isinstance(iprot.trans, TTransport.CReadableTransport) and self.thrift_spec is not None and fastbinary is not None:
@@ -2039,12 +1993,6 @@ class Mutation:
           self.deletion.read(iprot)
         else:
           iprot.skip(ftype)
-      elif fid == 3:
-        if ftype == TType.STRUCT:
-          self.counter = Counter()
-          self.counter.read(iprot)
-        else:
-          iprot.skip(ftype)
       else:
         iprot.skip(ftype)
       iprot.readFieldEnd()
@@ -2062,10 +2010,6 @@ class Mutation:
     if self.deletion != None:
       oprot.writeFieldBegin('deletion', TType.STRUCT, 2)
       self.deletion.write(oprot)
-      oprot.writeFieldEnd()
-    if self.counter != None:
-      oprot.writeFieldBegin('counter', TType.STRUCT, 3)
-      self.counter.write(oprot)
       oprot.writeFieldEnd()
     oprot.writeFieldStop()
     oprot.writeStructEnd()
@@ -2407,13 +2351,13 @@ class CfDef:
     (21, TType.I32, 'memtable_flush_after_mins', None, None, ), # 21
     (22, TType.I32, 'memtable_throughput_in_mb', None, None, ), # 22
     (23, TType.DOUBLE, 'memtable_operations_in_millions', None, None, ), # 23
-    (24, TType.BOOL, 'replicate_on_write', None, False, ), # 24
+    (24, TType.BOOL, 'replicate_on_write', None, None, ), # 24
     (25, TType.DOUBLE, 'merge_shards_chance', None, None, ), # 25
     (26, TType.STRING, 'key_validation_class', None, None, ), # 26
     (27, TType.STRING, 'row_cache_provider', None, "org.apache.cassandra.cache.ConcurrentLinkedHashCacheProvider", ), # 27
   )
 
-  def __init__(self, keyspace=None, name=None, column_type=thrift_spec[3][4], comparator_type=thrift_spec[5][4], subcomparator_type=None, comment=None, row_cache_size=thrift_spec[9][4], key_cache_size=thrift_spec[11][4], read_repair_chance=thrift_spec[12][4], column_metadata=None, gc_grace_seconds=None, default_validation_class=None, id=None, min_compaction_threshold=None, max_compaction_threshold=None, row_cache_save_period_in_seconds=None, key_cache_save_period_in_seconds=None, memtable_flush_after_mins=None, memtable_throughput_in_mb=None, memtable_operations_in_millions=None, replicate_on_write=thrift_spec[24][4], merge_shards_chance=None, key_validation_class=None, row_cache_provider=thrift_spec[27][4],):
+  def __init__(self, keyspace=None, name=None, column_type=thrift_spec[3][4], comparator_type=thrift_spec[5][4], subcomparator_type=None, comment=None, row_cache_size=thrift_spec[9][4], key_cache_size=thrift_spec[11][4], read_repair_chance=thrift_spec[12][4], column_metadata=None, gc_grace_seconds=None, default_validation_class=None, id=None, min_compaction_threshold=None, max_compaction_threshold=None, row_cache_save_period_in_seconds=None, key_cache_save_period_in_seconds=None, memtable_flush_after_mins=None, memtable_throughput_in_mb=None, memtable_operations_in_millions=None, replicate_on_write=None, merge_shards_chance=None, key_validation_class=None, row_cache_provider=thrift_spec[27][4],):
     self.keyspace = keyspace
     self.name = name
     self.column_type = column_type
@@ -2710,7 +2654,6 @@ class KsDef:
    - name
    - strategy_class
    - strategy_options
-   - replication_factor
    - cf_defs
   """
 
@@ -2719,15 +2662,13 @@ class KsDef:
     (1, TType.STRING, 'name', None, None, ), # 1
     (2, TType.STRING, 'strategy_class', None, None, ), # 2
     (3, TType.MAP, 'strategy_options', (TType.STRING,None,TType.STRING,None), None, ), # 3
-    (4, TType.I32, 'replication_factor', None, None, ), # 4
-    (5, TType.LIST, 'cf_defs', (TType.STRUCT,(CfDef, CfDef.thrift_spec)), None, ), # 5
+    (4, TType.LIST, 'cf_defs', (TType.STRUCT,(CfDef, CfDef.thrift_spec)), None, ), # 4
   )
 
-  def __init__(self, name=None, strategy_class=None, strategy_options=None, replication_factor=None, cf_defs=None,):
+  def __init__(self, name=None, strategy_class=None, strategy_options=None, cf_defs=None,):
     self.name = name
     self.strategy_class = strategy_class
     self.strategy_options = strategy_options
-    self.replication_factor = replication_factor
     self.cf_defs = cf_defs
 
   def read(self, iprot):
@@ -2761,11 +2702,6 @@ class KsDef:
         else:
           iprot.skip(ftype)
       elif fid == 4:
-        if ftype == TType.I32:
-          self.replication_factor = iprot.readI32();
-        else:
-          iprot.skip(ftype)
-      elif fid == 5:
         if ftype == TType.LIST:
           self.cf_defs = []
           (_etype68, _size65) = iprot.readListBegin()
@@ -2802,12 +2738,8 @@ class KsDef:
         oprot.writeString(viter72)
       oprot.writeMapEnd()
       oprot.writeFieldEnd()
-    if self.replication_factor != None:
-      oprot.writeFieldBegin('replication_factor', TType.I32, 4)
-      oprot.writeI32(self.replication_factor)
-      oprot.writeFieldEnd()
     if self.cf_defs != None:
-      oprot.writeFieldBegin('cf_defs', TType.LIST, 5)
+      oprot.writeFieldBegin('cf_defs', TType.LIST, 4)
       oprot.writeListBegin(TType.STRUCT, len(self.cf_defs))
       for iter73 in self.cf_defs:
         iter73.write(oprot)
@@ -2820,8 +2752,6 @@ class KsDef:
         raise TProtocol.TProtocolException(message='Required field name is unset!')
       if self.strategy_class is None:
         raise TProtocol.TProtocolException(message='Required field strategy_class is unset!')
-      if self.replication_factor is None:
-        raise TProtocol.TProtocolException(message='Required field replication_factor is unset!')
       if self.cf_defs is None:
         raise TProtocol.TProtocolException(message='Required field cf_defs is unset!')
       return

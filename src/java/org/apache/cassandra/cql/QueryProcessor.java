@@ -640,8 +640,7 @@ public class QueryProcessor
                 {
                     KSMetaData ksm = new KSMetaData(create.getName(),
                                                     AbstractReplicationStrategy.getClass(create.getStrategyClass()),
-                                                    create.getStrategyOptions(),
-                                                    create.getReplicationFactor());
+                                                    create.getStrategyOptions());
                     applyMigrationOnStage(new AddKeyspace(ksm));
                 }
                 catch (ConfigurationException e)

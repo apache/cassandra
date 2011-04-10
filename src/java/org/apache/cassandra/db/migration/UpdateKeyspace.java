@@ -51,7 +51,7 @@ public class UpdateKeyspace extends Migration
         oldKsm = DatabaseDescriptor.getKSMetaData(ksm.name);
         if (oldKsm == null)
             throw new ConfigurationException(ksm.name + " cannot be updated because it doesn't exist.");
-        this.newKsm = new KSMetaData(ksm.name, ksm.strategyClass, ksm.strategyOptions, ksm.replicationFactor, oldKsm.cfMetaData().values().toArray(new CFMetaData[]{}));
+        this.newKsm = new KSMetaData(ksm.name, ksm.strategyClass, ksm.strategyOptions, oldKsm.cfMetaData().values().toArray(new CFMetaData[]{}));
         rm = makeDefinitionMutation(newKsm, oldKsm, newVersion);
     }
     

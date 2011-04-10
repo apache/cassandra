@@ -148,7 +148,7 @@ class ThriftTester(BaseTester):
         self.client.transport.close()
         
     def define_schema(self):
-        keyspace1 = Cassandra.KsDef('Keyspace1', 'org.apache.cassandra.locator.SimpleStrategy', None, 1,
+        keyspace1 = Cassandra.KsDef('Keyspace1', 'org.apache.cassandra.locator.SimpleStrategy', {'replication_factor':'1'},
         [
             Cassandra.CfDef('Keyspace1', 'Standard1'),
             Cassandra.CfDef('Keyspace1', 'Standard2'), 
@@ -167,7 +167,7 @@ class ThriftTester(BaseTester):
 
         ])
 
-        keyspace2 = Cassandra.KsDef('Keyspace2', 'org.apache.cassandra.locator.SimpleStrategy', None, 1,
+        keyspace2 = Cassandra.KsDef('Keyspace2', 'org.apache.cassandra.locator.SimpleStrategy', {'replication_factor':'1'},
         [
             Cassandra.CfDef('Keyspace2', 'Standard1'),
             Cassandra.CfDef('Keyspace2', 'Standard3'),
