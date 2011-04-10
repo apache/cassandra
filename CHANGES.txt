@@ -24,6 +24,7 @@
  * fix race condition that could leave orphaned data files when
    dropping CF or KS (CASSANDRA-2381)
  * halve default memtable thresholds (CASSANDRA-2413)
+ * convert mmap assertion to if/throw so scrub can catch it (CASSANDRA-2417)
  * Try harder to close files after compaction (CASSANDRA-2431)
 
 
