@@ -150,7 +150,7 @@ public class UUIDTypeTest
         assertEquals("Expected " + describeCompare(u1, u2, expC) + ", got "
                 + describeCompare(u1, u2, c), expC, c);
 
-        if (u1.version() == 1)
+        if (u1.version() == 1 && u2.version() == 1)
             assertEquals(c, sign(TimeUUIDType.instance.compare(bytebuffer(u1), bytebuffer(u2))));
 
         logJdkUUIDCompareToVariance(u1, u2, c);
