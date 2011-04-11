@@ -43,6 +43,7 @@ import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.io.SerDeUtils;
+import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
@@ -131,7 +132,7 @@ public final class CFMetaData
 
     //REQUIRED
     public final Integer cfId;                        // internal id, never exposed to user
-    public final String ksName;                    // name of keyspace
+    public final String ksName;                       // name of keyspace
     public final String cfName;                       // name of this column family
     public final ColumnFamilyType cfType;             // standard, super
     public final AbstractType comparator;             // bytes, long, timeuuid, utf8, etc.
@@ -155,6 +156,7 @@ public final class CFMetaData
     private double memtableOperationsInMillions;      // default based on throughput
     private double mergeShardsChance;                 // default 0.1, chance [0.0, 1.0] of merging old shards during replication
     private IRowCacheProvider rowCacheProvider;
+    private ByteBuffer keyAlias;                      // default NULL
     // NOTE: if you find yourself adding members to this class, make sure you keep the convert methods in lockstep.
 
     private Map<ByteBuffer, ColumnDefinition> column_metadata;
@@ -175,6 +177,7 @@ public final class CFMetaData
     public CFMetaData memSize(int prop) {memtableThroughputInMb = prop; return this;}
     public CFMetaData memOps(double prop) {memtableOperationsInMillions = prop; return this;}
     public CFMetaData mergeShardsChance(double prop) {mergeShardsChance = prop; return this;}
+    public CFMetaData keyAlias(ByteBuffer prop) {keyAlias = prop; return this;}
     public CFMetaData columnMetadata(Map<ByteBuffer,ColumnDefinition> prop) {column_metadata = prop; return this;}
     public CFMetaData rowCacheProvider(IRowCacheProvider prop) { rowCacheProvider = prop; return this;};
 
@@ -236,6 +239,7 @@ public final class CFMetaData
         defaultValidator = BytesType.instance;
         keyValidator = BytesType.instance;
         comment = "";
+        keyAlias = null; // This qualifies as a 'strange default'.
         column_metadata = new HashMap<ByteBuffer,ColumnDefinition>();
     }
 
@@ -335,6 +339,7 @@ public final class CFMetaData
         cf.memtable_throughput_in_mb = memtableThroughputInMb;
         cf.memtable_operations_in_millions = memtableOperationsInMillions;
         cf.merge_shards_chance = mergeShardsChance;
+        cf.key_alias = keyAlias;
         cf.column_metadata = SerDeUtils.createArray(column_metadata.size(),
                                                     org.apache.cassandra.db.migration.avro.ColumnDef.SCHEMA$);
         for (ColumnDefinition cd : column_metadata.values())
@@ -399,6 +404,7 @@ public final class CFMetaData
                 throw new RuntimeException(e);
             }
         }
+        if (cf.key_alias != null) { newCFMD.keyAlias(cf.key_alias); }
 
         return newCFMD.comment(cf.comment.toString())
                       .rowCacheSize(cf.row_cache_size)
@@ -496,6 +502,11 @@ public final class CFMetaData
         return rowCacheProvider;
     }
 
+    public ByteBuffer getKeyAlias()
+    {
+        return keyAlias;
+    }
+
     public Map<ByteBuffer, ColumnDefinition> getColumn_metadata()
     {
         return Collections.unmodifiableMap(column_metadata);
@@ -506,7 +517,7 @@ public final class CFMetaData
         return superColumnName == null ? comparator : subcolumnComparator;
     }
     
-    public boolean equals(Object obj) 
+    public boolean equals(Object obj)
     {
         if (obj == this)
         {
@@ -542,6 +553,7 @@ public final class CFMetaData
             .append(memtableThroughputInMb, rhs.memtableThroughputInMb)
             .append(memtableOperationsInMillions, rhs.memtableOperationsInMillions)
             .append(mergeShardsChance, rhs.mergeShardsChance)
+            .append(keyAlias, rhs.keyAlias)
             .isEquals();
     }
 
@@ -571,6 +583,7 @@ public final class CFMetaData
             .append(memtableThroughputInMb)
             .append(memtableOperationsInMillions)
             .append(mergeShardsChance)
+            .append(keyAlias)
             .toHashCode();
     }
 
@@ -612,7 +625,49 @@ public final class CFMetaData
         if (!cf_def.isSetRow_cache_provider())
             cf_def.setRow_cache_provider(CFMetaData.DEFAULT_ROW_CACHE_PROVIDER);
     }
-    
+
+    public static CFMetaData convertToCFMetaData(org.apache.cassandra.thrift.CfDef cf_def) throws InvalidRequestException, ConfigurationException
+    {
+        ColumnFamilyType cfType = ColumnFamilyType.create(cf_def.column_type);
+        if (cfType == null)
+        {
+          throw new InvalidRequestException("Invalid column type " + cf_def.column_type);
+        }
+
+        applyImplicitDefaults(cf_def);
+
+        validateMinMaxCompactionThresholds(cf_def);
+        validateMemtableSettings(cf_def);
+        validateAliasCompares(cf_def);
+
+        CFMetaData newCFMD = new CFMetaData(cf_def.keyspace,
+                                            cf_def.name,
+                                            cfType,
+                                            DatabaseDescriptor.getComparator(cf_def.comparator_type),
+                                            cf_def.subcomparator_type == null ? null : DatabaseDescriptor.getComparator(cf_def.subcomparator_type));
+
+        if (cf_def.isSetGc_grace_seconds()) { newCFMD.gcGraceSeconds(cf_def.gc_grace_seconds); }
+        if (cf_def.isSetMin_compaction_threshold()) { newCFMD.minCompactionThreshold(cf_def.min_compaction_threshold); }
+        if (cf_def.isSetMax_compaction_threshold()) { newCFMD.maxCompactionThreshold(cf_def.max_compaction_threshold); }
+        if (cf_def.isSetRow_cache_save_period_in_seconds()) { newCFMD.rowCacheSavePeriod(cf_def.row_cache_save_period_in_seconds); }
+        if (cf_def.isSetKey_cache_save_period_in_seconds()) { newCFMD.keyCacheSavePeriod(cf_def.key_cache_save_period_in_seconds); }
+        if (cf_def.isSetMemtable_flush_after_mins()) { newCFMD.memTime(cf_def.memtable_flush_after_mins); }
+        if (cf_def.isSetMemtable_throughput_in_mb()) { newCFMD.memSize(cf_def.memtable_throughput_in_mb); }
+        if (cf_def.isSetMemtable_operations_in_millions()) { newCFMD.memOps(cf_def.memtable_operations_in_millions); }
+        if (cf_def.isSetMerge_shards_chance()) { newCFMD.mergeShardsChance(cf_def.merge_shards_chance); }
+        if (cf_def.isSetRow_cache_provider()) { newCFMD.rowCacheProvider(FBUtilities.newCacheProvider(cf_def.row_cache_provider)); }
+        if (cf_def.isSetKey_alias()) { newCFMD.keyAlias(cf_def.key_alias); }
+
+        return newCFMD.comment(cf_def.comment)
+                      .rowCacheSize(cf_def.row_cache_size)
+                      .keyCacheSize(cf_def.key_cache_size)
+                      .readRepairChance(cf_def.read_repair_chance)
+                      .replicateOnWrite(cf_def.replicate_on_write)
+                      .defaultValidator(DatabaseDescriptor.getComparator(cf_def.default_validation_class))
+                      .keyValidator(DatabaseDescriptor.getComparator(cf_def.key_validation_class))
+                      .columnMetadata(ColumnDefinition.fromColumnDef(cf_def.column_metadata));
+    }
+
     // merges some final fields from this CFM with modifiable fields from CfDef into a new CFMetaData.
     public void apply(org.apache.cassandra.db.migration.avro.CfDef cf_def) throws ConfigurationException
     {
@@ -638,6 +693,7 @@ public final class CFMetaData
 
         validateMinMaxCompactionThresholds(cf_def);
         validateMemtableSettings(cf_def);
+        validateAliasCompares(cf_def);
 
         comment = enforceCommentNotNull(cf_def.comment);
         rowCacheSize = cf_def.row_cache_size;
@@ -657,7 +713,8 @@ public final class CFMetaData
         mergeShardsChance = cf_def.merge_shards_chance;
         if (cf_def.row_cache_provider != null)
             rowCacheProvider = FBUtilities.newCacheProvider(cf_def.row_cache_provider.toString());
-        
+        keyAlias = cf_def.key_alias;
+
         // adjust secondary indexes. figure out who is coming and going.
         Set<ByteBuffer> toRemove = new HashSet<ByteBuffer>();
         Set<ByteBuffer> newIndexNames = new HashSet<ByteBuffer>();
@@ -723,6 +780,7 @@ public final class CFMetaData
         def.setMemtable_throughput_in_mb(cfm.memtableThroughputInMb);
         def.setMemtable_operations_in_millions(cfm.memtableOperationsInMillions);
         def.setMerge_shards_chance(cfm.mergeShardsChance);
+        def.setKey_alias(cfm.keyAlias);
         List<org.apache.cassandra.thrift.ColumnDef> column_meta = new ArrayList< org.apache.cassandra.thrift.ColumnDef>(cfm.column_metadata.size());
         for (ColumnDefinition cd : cfm.column_metadata.values())
         {
@@ -767,6 +825,7 @@ public final class CFMetaData
         def.memtable_operations_in_millions = cfm.memtableOperationsInMillions;
         def.merge_shards_chance = cfm.mergeShardsChance;
         def.key_validation_class = cfm.keyValidator.getClass().getName();
+        def.key_alias = cfm.keyAlias;
         List<org.apache.cassandra.db.migration.avro.ColumnDef> column_meta = new ArrayList<org.apache.cassandra.db.migration.avro.ColumnDef>(cfm.column_metadata.size());
         for (ColumnDefinition cd : cfm.column_metadata.values())
         {
@@ -807,6 +866,7 @@ public final class CFMetaData
         newDef.row_cache_size = def.getRow_cache_size();
         newDef.subcomparator_type = def.getSubcomparator_type();
         newDef.merge_shards_chance = def.getMerge_shards_chance();
+        newDef.key_alias = def.key_alias;
 
         List<org.apache.cassandra.db.migration.avro.ColumnDef> columnMeta = new ArrayList<org.apache.cassandra.db.migration.avro.ColumnDef>();
         if (def.isSetColumn_metadata())
@@ -905,6 +965,20 @@ public final class CFMetaData
             DatabaseDescriptor.validateMemtableOperations(cf_def.memtable_operations_in_millions);
     }
 
+    public static void validateAliasCompares(org.apache.cassandra.thrift.CfDef cf_def) throws ConfigurationException
+    {
+        AbstractType comparator = DatabaseDescriptor.getComparator(cf_def.comparator_type);
+        if (cf_def.key_alias != null)
+            comparator.validate(cf_def.key_alias);
+    }
+
+    public static void validateAliasCompares(org.apache.cassandra.db.migration.avro.CfDef cf_def) throws ConfigurationException
+    {
+        AbstractType comparator = DatabaseDescriptor.getComparator(cf_def.comparator_type);
+        if (cf_def.key_alias != null)
+            comparator.validate(cf_def.key_alias);
+    }
+
     @Override
     public String toString()
     {
@@ -931,6 +1005,7 @@ public final class CFMetaData
             .append("memtableThroughputInMb", memtableThroughputInMb)
             .append("memtableOperationsInMillions", memtableOperationsInMillions)
             .append("mergeShardsChance", mergeShardsChance)
+            .append("keyAlias", keyAlias)
             .append("column_metadata", column_metadata)
             .toString();
     }

@@ -64,6 +64,7 @@ protocol InterNode {
         union { int, null } id;
         union { array<ColumnDef>, null } column_metadata;
         union { string, null } row_cache_provider = "org.apache.cassandra.cache.ConcurrentLinkedHashCacheProvider";
+        union { null, bytes } key_alias = null;
     }
 
     @aliases(["org.apache.cassandra.config.avro.KsDef"])
