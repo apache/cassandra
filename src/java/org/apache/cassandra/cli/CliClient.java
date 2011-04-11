@@ -2206,6 +2206,24 @@ public class CliClient extends CliUserHelp
 
                     sessionState.out.println(")");
                 }
+                else if (columnOrSuperColumn.counter_column != null)
+                {
+                    CounterColumn col = columnOrSuperColumn.counter_column;
+
+                    sessionState.out.printf("=> (counter=%s, value=%s)%n", formatColumnName(keySpace, columnFamilyName, col.name), col.value);
+                }
+                else if (columnOrSuperColumn.counter_super_column != null)
+                {
+                    CounterSuperColumn superCol = columnOrSuperColumn.counter_super_column;
+                    sessionState.out.printf("=> (super_column=%s,", formatColumnName(keySpace, columnFamilyName, superCol.name));
+
+                    for (CounterColumn col : superCol.columns)
+                    {
+                        sessionState.out.printf("%n     (counter=%s, value=%s)", formatSubcolumnName(keySpace, columnFamilyName, col.name), col.value);
+                    }
+
+                    sessionState.out.println(")");
+                }
             }
         }
 

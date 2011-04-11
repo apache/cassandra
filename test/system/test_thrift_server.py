@@ -105,6 +105,12 @@ def _insert_range():
     client.insert('key1', ColumnParent('Standard1'), Column('c3', 'value3', 0), ConsistencyLevel.ONE)
     time.sleep(0.1)
 
+def _insert_counter_range():
+    client.add('key1', ColumnParent('Counter1'), CounterColumn('c1', 1), ConsistencyLevel.ONE)
+    client.add('key1', ColumnParent('Counter1'), CounterColumn('c2', 2), ConsistencyLevel.ONE)
+    client.add('key1', ColumnParent('Counter1'), CounterColumn('c3', 3), ConsistencyLevel.ONE)
+    time.sleep(0.1)
+
 def _verify_range():
     p = SlicePredicate(slice_range=SliceRange('c1', 'c2', False, 1000))
     result = client.get_slice('key1', ColumnParent('Standard1'), p, ConsistencyLevel.ONE)
@@ -126,6 +132,27 @@ def _verify_range():
     result = client.get_slice('key1', ColumnParent('Standard1'), p, ConsistencyLevel.ONE)
     assert len(result) == 2, result
 
+def _verify_counter_range():
+    p = SlicePredicate(slice_range=SliceRange('c1', 'c2', False, 1000))
+    result = client.get_slice('key1', ColumnParent('Counter1'), p, ConsistencyLevel.ONE)
+    assert len(result) == 2
+    assert result[0].counter_column.name == 'c1'
+    assert result[1].counter_column.name == 'c2'
+
+    p = SlicePredicate(slice_range=SliceRange('c3', 'c2', True, 1000))
+    result = client.get_slice('key1', ColumnParent('Counter1'), p, ConsistencyLevel.ONE)
+    assert len(result) == 2
+    assert result[0].counter_column.name == 'c3'
+    assert result[1].counter_column.name == 'c2'
+
+    p = SlicePredicate(slice_range=SliceRange('a', 'z', False, 1000))
+    result = client.get_slice('key1', ColumnParent('Counter1'), p, ConsistencyLevel.ONE)
+    assert len(result) == 3, result
+
+    p = SlicePredicate(slice_range=SliceRange('a', 'z', False, 2))
+    result = client.get_slice('key1', ColumnParent('Counter1'), p, ConsistencyLevel.ONE)
+    assert len(result) == 2, result
+
 def _set_keyspace(keyspace):
     client.set_keyspace(keyspace)
 
@@ -134,6 +161,13 @@ def _insert_super_range():
     client.insert('key1', ColumnParent('Super1', 'sc2'), Column(_i64(5), 'value5', 0), ConsistencyLevel.ONE)
     client.insert('key1', ColumnParent('Super1', 'sc2'), Column(_i64(6), 'value6', 0), ConsistencyLevel.ONE)
     client.insert('key1', ColumnParent('Super1', 'sc3'), Column(_i64(7), 'value7', 0), ConsistencyLevel.ONE)
+    time.sleep(0.1)
+
+def _insert_counter_super_range():
+    client.add('key1', ColumnParent('SuperCounter1', 'sc1'), CounterColumn(_i64(4), 4), ConsistencyLevel.ONE)
+    client.add('key1', ColumnParent('SuperCounter1', 'sc2'), CounterColumn(_i64(5), 5), ConsistencyLevel.ONE)
+    client.add('key1', ColumnParent('SuperCounter1', 'sc2'), CounterColumn(_i64(6), 6), ConsistencyLevel.ONE)
+    client.add('key1', ColumnParent('SuperCounter1', 'sc3'), CounterColumn(_i64(7), 7), ConsistencyLevel.ONE)
     time.sleep(0.1)
 
 def _verify_super_range():
@@ -148,6 +182,19 @@ def _verify_super_range():
     assert len(result) == 2
     assert result[0].super_column.name == 'sc3'
     assert result[1].super_column.name == 'sc2'
+
+def _verify_counter_super_range():
+    p = SlicePredicate(slice_range=SliceRange('sc2', 'sc3', False, 2))
+    result = client.get_slice('key1', ColumnParent('SuperCounter1'), p, ConsistencyLevel.ONE)
+    assert len(result) == 2
+    assert result[0].counter_super_column.name == 'sc2'
+    assert result[1].counter_super_column.name == 'sc3'
+
+    p = SlicePredicate(slice_range=SliceRange('sc3', 'sc2', True, 2))
+    result = client.get_slice('key1', ColumnParent('SuperCounter1'), p, ConsistencyLevel.ONE)
+    assert len(result) == 2
+    assert result[0].counter_super_column.name == 'sc3'
+    assert result[1].counter_super_column.name == 'sc2'
 
 def _verify_super(supercf='Super1', key='key1'):
     assert client.get(key, ColumnPath(supercf, 'sc1', _i64(4)), ConsistencyLevel.ONE).column == Column(_i64(4), 'value4', 0)
@@ -1741,6 +1788,16 @@ class TestMutations(ThriftTester):
         assert counters['key1'][1].counter_column.value == d1   
         assert counters['key2'][0].counter_column.value == d1+d2
         assert counters['key2'][1].counter_column.value == d1
+
+    def test_counter_get_slice_range(self):
+        _set_keyspace('Keyspace1')
+        _insert_counter_range()
+        _verify_counter_range()
+
+    def test_counter_get_slice_super_range(self):
+        _set_keyspace('Keyspace1')
+        _insert_counter_super_range()
+        _verify_counter_super_range()
 
     def test_index_scan(self):
         _set_keyspace('Keyspace1')
