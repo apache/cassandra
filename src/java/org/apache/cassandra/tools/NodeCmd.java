@@ -76,7 +76,7 @@ public class NodeCmd
     public enum NodeCommand
     {
         RING, INFO, CFSTATS, SNAPSHOT, CLEARSNAPSHOT, VERSION, TPSTATS, FLUSH, DRAIN,
-        DECOMMISSION, MOVE, LOADBALANCE, REMOVETOKEN, REPAIR, CLEANUP, COMPACT, SCRUB,
+        DECOMMISSION, MOVE, REMOVETOKEN, REPAIR, CLEANUP, COMPACT, SCRUB,
         SETCACHECAPACITY, GETCOMPACTIONTHRESHOLD, SETCOMPACTIONTHRESHOLD, NETSTATS, CFHISTOGRAMS,
         COMPACTIONSTATS, DISABLEGOSSIP, ENABLEGOSSIP, INVALIDATEKEYCACHE, INVALIDATEROWCACHE,
         DISABLETHRIFT, ENABLETHRIFT, JOIN, SETCOMPACTIONTHROUGHPUT
@@ -100,7 +100,6 @@ public class NodeCmd
         addCmdHelp(header, "tpstats", "Print usage statistics of thread pools");
         addCmdHelp(header, "drain", "Drain the node (stop accepting writes and flush all column families)");
         addCmdHelp(header, "decommission", "Decommission the node");
-        addCmdHelp(header, "loadbalance", "Loadbalance the node");
         addCmdHelp(header, "compactionstats", "Print statistics on compactions");
         addCmdHelp(header, "disablegossip", "Disable gossip (effectively marking the node dead)");
         addCmdHelp(header, "enablegossip", "Reenable gossip");
@@ -553,7 +552,6 @@ public class NodeCmd
             case INFO            : nodeCmd.printInfo(System.out); break;
             case CFSTATS         : nodeCmd.printColumnFamilyStats(System.out); break;
             case DECOMMISSION    : probe.decommission(); break;
-            case LOADBALANCE     : probe.loadBalance(); break;
             case TPSTATS         : nodeCmd.printThreadPoolStats(System.out); break;
             case VERSION         : nodeCmd.printReleaseVersion(System.out); break;
             case COMPACTIONSTATS : nodeCmd.printCompactionStats(System.out); break;

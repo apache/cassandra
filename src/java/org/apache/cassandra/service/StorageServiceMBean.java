@@ -198,13 +198,6 @@ public interface StorageServiceMBean
     public void move(String newToken) throws IOException, InterruptedException;
 
     /**
-     * Node will call BootStrapper.getBalancedToken then it will calculate ranges to
-     * transfer from other nodes, load the data and move to a new token
-     * @throws IOException on any I/O error.
-     */
-    public void loadBalance() throws IOException;
-
-    /**
      * removeToken removes token (and all data associated with
      * enpoint that had it) from the ring
      */

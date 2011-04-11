@@ -815,10 +815,9 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     }
 
     /**
-     * Handle node leaving the ring. This can be either because of decommission or loadbalance
+     * Handle node leaving the ring. This will happen when a node is decommissioned
      *
-     * @param endpoint If reason for leaving is decommission or loadbalance
-     * endpoint is the leaving node.
+     * @param endpoint If reason for leaving is decommission, endpoint is the leaving node.
      * @param pieces STATE_LEFT,token
      */
     private void handleStateLeft(InetAddress endpoint, String[] pieces)
@@ -1797,15 +1796,6 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     public void move(String newToken) throws IOException, InterruptedException
     {
         move(partitioner.getTokenFactory().fromString(newToken));
-    }
-
-    /**
-     * Generates balanced token and calls load balance operation to move current node to that token
-     * @throws IOException on any I/O operation error
-     */
-    public void loadBalance() throws IOException
-    {
-        move(BootStrapper.getBalancedToken(tokenMetadata_, StorageLoadBalancer.instance.getLoadInfo()));
     }
 
     /**
