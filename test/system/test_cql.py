@@ -369,8 +369,7 @@ class TestCql(ThriftTester):
                 'age' varint,
                 'birthdate' bigint,
                 'id' uuid
-            ) WITH comparator = text AND comment = 'shiny, new, cf' AND
-                    default_validation = ascii;
+            ) WITH comment = 'shiny, new, cf' AND default_validation = ascii;
         """)
         
         # TODO: temporary (until this can be done with CQL).

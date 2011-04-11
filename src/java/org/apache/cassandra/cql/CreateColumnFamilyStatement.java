@@ -233,7 +233,7 @@ public class CreateColumnFamilyStatement
         try
         {
             // RPC uses BytesType as the default validator/comparator but BytesType expects hex for string terms, (not convenient).
-            AbstractType<?> comparator = DatabaseDescriptor.getComparator(comparators.get(getPropertyString(KW_COMPARATOR, "utf8")));
+            AbstractType<?> comparator = DatabaseDescriptor.getComparator(comparators.get(getPropertyString(KW_COMPARATOR, "text")));
             String validator = getPropertyString(KW_DEFAULTVALIDATION, "utf8");
 
             newCFMD = new CFMetaData(keyspace,
