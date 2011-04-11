@@ -20,7 +20,7 @@
  * give snapshots the same name on each node (CASSANDRA-1791)
  * add key type information and alias (CASSANDRA-2311, 2396)
  * multithreaded compaction (CASSANDRA-2191)
-
+ * compaction throttling (CASSANDRA-2156)
 
 0.7.5
  * Avoid seeking when sstable2json exports the entire file (CASSANDRA-2318)

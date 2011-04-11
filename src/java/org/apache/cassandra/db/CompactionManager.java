@@ -1184,6 +1184,11 @@ public class CompactionManager implements CompactionManagerMBean
         }
     }
 
+    public int getActiveCompactions()
+    {
+        return executor.getActiveCount();
+    }
+
     private static class CompactionExecutor extends DebuggableThreadPoolExecutor
     {
         // a synchronized identity set of running tasks to their compaction info

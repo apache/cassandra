@@ -344,6 +344,9 @@ public class DatabaseDescriptor
             if (conf.compaction_multithreading == null)
                 conf.compaction_multithreading = true;
 
+            if (conf.compaction_throughput_mb_per_sec == null)
+                conf.compaction_throughput_mb_per_sec = 16;
+
             /* data file and commit log directories. they get created later, when they're needed. */
             if (conf.commitlog_directory != null && conf.data_file_directories != null && conf.saved_caches_directory != null)
             {
@@ -729,6 +732,16 @@ public class DatabaseDescriptor
     public static boolean getCompactionMultithreading()
     {
         return conf.compaction_multithreading;
+    }
+
+    public static int getCompactionThroughputMbPerSec()
+    {
+        return conf.compaction_throughput_mb_per_sec;
+    }
+
+    public static void setCompactionThroughputMbPerSec(int value)
+    {
+        conf.compaction_throughput_mb_per_sec = value;
     }
 
     public static String[] getAllDataFileLocations()
