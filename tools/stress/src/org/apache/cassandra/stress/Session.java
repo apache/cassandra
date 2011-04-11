@@ -414,7 +414,9 @@ public class Session
 
         keyspace.setName("Keyspace1");
         keyspace.setStrategy_class(replicationStrategy);
-        keyspace.setReplication_factor(replicationFactor);
+        Map<String,String> options = new HashMap<String, String>();
+        options.put("replication_factor", String.valueOf(replicationFactor));
+        keyspace.setStrategy_options(options);
 
         if (!replicationStrategyOptions.isEmpty())
         {
