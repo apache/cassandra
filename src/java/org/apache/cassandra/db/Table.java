@@ -39,7 +39,7 @@ import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.dht.LocalToken;
-import org.apache.cassandra.io.ICompactionInfo;
+import org.apache.cassandra.io.CompactionInfo;
 import org.apache.cassandra.io.sstable.ReducingKeyIterator;
 import org.apache.cassandra.io.sstable.SSTableDeletingReference;
 import org.apache.cassandra.io.sstable.SSTableReader;
@@ -597,7 +597,7 @@ public class Table
         return replicationStrategy;
     }
 
-    public class IndexBuilder implements ICompactionInfo
+    public class IndexBuilder implements CompactionInfo.Holder
     {
         private final ColumnFamilyStore cfs;
         private final SortedSet<ByteBuffer> columns;
@@ -608,6 +608,15 @@ public class Table
             this.cfs = cfs;
             this.columns = columns;
             this.iter = iter;
+        }
+
+        public CompactionInfo getCompactionInfo()
+        {
+            return new CompactionInfo(cfs.table.name,
+                                      cfs.columnFamily,
+                                      String.format("Secondary index build %s", cfs.columnFamily),
+                                      iter.getTotalBytes(),
+                                      iter.getBytesRead());
         }
 
         public void build()
@@ -645,21 +654,6 @@ public class Table
             {
                 throw new RuntimeException(e);
             }
-        }
-
-        public long getTotalBytes()
-        {
-            return iter.getTotalBytes();
-        }
-
-        public long getBytesComplete()
-        {
-            return iter.getBytesRead();
-        }
-
-        public String getTaskType()
-        {
-            return String.format("Secondary index build %s", cfs.columnFamily);
         }
     }
 

@@ -33,6 +33,7 @@ import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.db.CompactionManagerMBean;
 import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.io.CompactionInfo;
 import org.apache.cassandra.locator.SimpleSnitch;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.thrift.*;
@@ -1548,16 +1549,15 @@ public class CliClient extends CliUserHelp
             // compaction manager information
             if (compactionManagerMBean != null)
             {
-                String compactionType = compactionManagerMBean.getCompactionType();
-
-                // if ongoing compaction type is index build
-                if (compactionType != null && compactionType.contains("index build"))
+                for (CompactionInfo info : compactionManagerMBean.getCompactions())
                 {
-                    String indexName         = compactionManagerMBean.getColumnFamilyInProgress();
-                    long bytesCompacted      = compactionManagerMBean.getBytesCompacted();
-                    long totalBytesToProcess = compactionManagerMBean.getBytesTotalInProgress();
-
-                    sessionState.out.printf("%nCurrently building index %s, completed %d of %d bytes.%n", indexName, bytesCompacted, totalBytesToProcess);
+                    // if ongoing compaction type is index build
+                    if (!info.getTaskType().contains("index build"))
+                        continue;
+                    sessionState.out.printf("%nCurrently building index %s, completed %d of %d bytes.%n",
+                                            info.getColumnFamily(),
+                                            info.getBytesComplete(),
+                                            info.getTotalBytes());
                 }
             }
 

@@ -54,7 +54,8 @@ public class DataTracker
     public DataTracker(ColumnFamilyStore cfstore)
     {
         this.cfstore = cfstore;
-        this.view = new AtomicReference<View>(new View(new Memtable(cfstore), Collections.<Memtable>emptySet(), Collections.<SSTableReader>emptySet()));
+        this.view = new AtomicReference<View>();
+        this.init();
     }
 
     public Memtable getMemtable()
@@ -154,6 +155,57 @@ public class DataTracker
         }
     }
 
+    /**
+     * @return A subset of the given active sstables that have been marked compacting,
+     * or null if the thresholds cannot be met: files that are marked compacting must
+     * later be unmarked using unmarkCompacting.
+     */
+    public Set<SSTableReader> markCompacting(Collection<SSTableReader> tomark, int min, int max)
+    {
+        if (max < min || max < 1)
+            return null;
+        View currentView, newView;
+        Set<SSTableReader> subset = null;
+        // order preserving set copy of the input
+        Set<SSTableReader> remaining = new LinkedHashSet<SSTableReader>(tomark);
+        do
+        {
+            currentView = view.get();
+
+            // find the subset that is active and not already compacting
+            remaining.removeAll(currentView.compacting);
+            remaining.retainAll(currentView.sstables);
+            if (remaining.size() < min)
+                // cannot meet the min threshold
+                return null;
+
+            // cap the newly compacting items into a subset set
+            subset = new HashSet<SSTableReader>();
+            Iterator<SSTableReader> iter = remaining.iterator();
+            for (int added = 0; added < max && iter.hasNext(); added++)
+                subset.add(iter.next());
+
+            newView = currentView.markCompacting(subset);
+        }
+        while (!view.compareAndSet(currentView, newView));
+        return subset;
+    }
+
+    /**
+     * Removes files from compacting status: this is different from 'markCompacted'
+     * because it should be run regardless of whether a compaction succeeded.
+     */
+    public void unmarkCompacting(Collection<SSTableReader> unmark)
+    {
+        View currentView, newView;
+        do
+        {
+            currentView = view.get();
+            newView = currentView.unmarkCompacting(unmark);
+        }
+        while (!view.compareAndSet(currentView, newView));
+    }
+
     public void markCompacted(Collection<SSTableReader> sstables)
     {
         replace(sstables, Collections.<SSTableReader>emptyList());
@@ -180,9 +232,13 @@ public class DataTracker
         replace(getSSTables(), Collections.<SSTableReader>emptyList());
     }
 
-    public void clearUnsafe()
+    /** (Re)initializes the tracker, purging all references. */
+    void init()
     {
-        view.set(new View(new Memtable(cfstore), Collections.<Memtable>emptySet(), Collections.<SSTableReader>emptySet()));
+        view.set(new View(new Memtable(cfstore),
+                          Collections.<Memtable>emptySet(),
+                          Collections.<SSTableReader>emptySet(),
+                          Collections.<SSTableReader>emptySet()));
     }
 
     private void replace(Collection<SSTableReader> oldSSTables, Iterable<SSTableReader> replacements)
@@ -384,31 +440,34 @@ public class DataTracker
 
     /**
      * An immutable structure holding the current memtable, the memtables pending
-     * flush and the sstables for a column family.
+     * flush, the sstables for a column family, and the sstables that are active
+     * in compaction (a subset of the sstables).
      */
     static class View
     {
         public final Memtable memtable;
         public final Set<Memtable> memtablesPendingFlush;
         public final Set<SSTableReader> sstables;
+        public final Set<SSTableReader> compacting;
 
-        public View(Memtable memtable, Set<Memtable> pendingFlush, Set<SSTableReader> sstables)
+        public View(Memtable memtable, Set<Memtable> pendingFlush, Set<SSTableReader> sstables, Set<SSTableReader> compacting)
         {
             this.memtable = memtable;
             this.memtablesPendingFlush = Collections.unmodifiableSet(pendingFlush);
             this.sstables = Collections.unmodifiableSet(sstables);
+            this.compacting = Collections.unmodifiableSet(compacting);
         }
 
         public View switchMemtable(Memtable newMemtable)
         {
             Set<Memtable> newPending = new HashSet<Memtable>(memtablesPendingFlush);
             newPending.add(memtable);
-            return new View(newMemtable, newPending, sstables);
+            return new View(newMemtable, newPending, sstables, compacting);
         }
 
         public View renewMemtable(Memtable newMemtable)
         {
-            return new View(newMemtable, memtablesPendingFlush, sstables);
+            return new View(newMemtable, memtablesPendingFlush, sstables, compacting);
         }
 
         public View replaceFlushed(Memtable flushedMemtable, SSTableReader newSSTable)
@@ -417,7 +476,7 @@ public class DataTracker
             Set<SSTableReader> newSSTables = new HashSet<SSTableReader>(sstables);
             newPendings.remove(flushedMemtable);
             newSSTables.add(newSSTable);
-            return new View(memtable, newPendings, newSSTables);
+            return new View(memtable, newPendings, newSSTables, compacting);
         }
 
         public View replace(Collection<SSTableReader> oldSSTables, Iterable<SSTableReader> replacements)
@@ -425,7 +484,21 @@ public class DataTracker
             Set<SSTableReader> sstablesNew = new HashSet<SSTableReader>(sstables);
             Iterables.addAll(sstablesNew, replacements);
             sstablesNew.removeAll(oldSSTables);
-            return new View(memtable, memtablesPendingFlush, sstablesNew);
+            return new View(memtable, memtablesPendingFlush, sstablesNew, compacting);
+        }
+
+        public View markCompacting(Collection<SSTableReader> tomark)
+        {
+            Set<SSTableReader> compactingNew = new HashSet<SSTableReader>(compacting);
+            compactingNew.addAll(tomark);
+            return new View(memtable, memtablesPendingFlush, sstables, compactingNew);
+        }
+
+        public View unmarkCompacting(Collection<SSTableReader> tounmark)
+        {
+            Set<SSTableReader> compactingNew = new HashSet<SSTableReader>(compacting);
+            compactingNew.removeAll(tounmark);
+            return new View(memtable, memtablesPendingFlush, sstables, compactingNew);
         }
     }
 }

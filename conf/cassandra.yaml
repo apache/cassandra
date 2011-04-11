@@ -249,6 +249,10 @@ column_index_size_in_kb: 64
 # will be logged specifying the row key.
 in_memory_compaction_limit_in_mb: 64
 
+# Enables multiple compactions to execute at once. This is highly recommended
+# for preserving read performance in a mixed read/write workload.
+compaction_multithreading: true
+
 # Track cached row keys during compaction, and re-cache their new
 # positions in the compacted sstable.  Disable if you use really large
 # key caches.

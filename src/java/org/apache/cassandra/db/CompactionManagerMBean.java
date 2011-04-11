@@ -18,28 +18,17 @@
 
 package org.apache.cassandra.db;
 
+import java.util.List;
+
+import org.apache.cassandra.io.CompactionInfo;
+
 public interface CompactionManagerMBean
-{    
+{
+    /** List of running compaction objects. */
+    public List<CompactionInfo> getCompactions();
 
-    /**
-     * @return the columnfamily currently being compacted; null if none
-     */
-    public String getColumnFamilyInProgress();
-
-    /**
-     * @return the total (data, not including index and filter) bytes being compacted; null if none
-     */
-    public Long getBytesTotalInProgress();
-
-    /**
-     * @return the progress on the current compaction; null if none
-     */
-    public Long getBytesCompacted();
-
-    /**
-     * @return the type of compaction operation currently in progress; null if none
-     */
-    public String getCompactionType();
+    /** List of running compaction summary strings. */
+    public List<String> getCompactionSummary();
 
     /**
      * @return estimated number of compactions remaining to perform

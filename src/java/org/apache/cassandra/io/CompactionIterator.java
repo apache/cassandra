@@ -45,28 +45,30 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.ReducingIterator;
 
 public class CompactionIterator extends ReducingIterator<SSTableIdentityIterator, AbstractCompactedRow>
-implements Closeable, ICompactionInfo
+implements Closeable, CompactionInfo.Holder
 {
     private static Logger logger = LoggerFactory.getLogger(CompactionIterator.class);
 
     public static final int FILE_BUFFER_SIZE = 1024 * 1024;
 
     protected final List<SSTableIdentityIterator> rows = new ArrayList<SSTableIdentityIterator>();
+    protected final String type;
     protected final CompactionController controller;
 
     private long totalBytes;
     private long bytesRead;
     private long row;
 
-    public CompactionIterator(Iterable<SSTableReader> sstables, CompactionController controller) throws IOException
+    public CompactionIterator(String type, Iterable<SSTableReader> sstables, CompactionController controller) throws IOException
     {
-        this(getCollatingIterator(sstables), controller);
+        this(type, getCollatingIterator(sstables), controller);
     }
 
     @SuppressWarnings("unchecked")
-    protected CompactionIterator(Iterator iter, CompactionController controller)
+    protected CompactionIterator(String type, Iterator iter, CompactionController controller)
     {
         super(iter);
+        this.type = type;
         this.controller = controller;
         row = 0;
         totalBytes = bytesRead = 0;
@@ -86,6 +88,15 @@ implements Closeable, ICompactionInfo
             iter.addIterator(sstable.getDirectScanner(FILE_BUFFER_SIZE));
         }
         return iter;
+    }
+
+    public CompactionInfo getCompactionInfo()
+    {
+        return new CompactionInfo(controller.getKeyspace(),
+                                  controller.getColumnFamily(),
+                                  type,
+                                  bytesRead,
+                                  totalBytes);
     }
 
     @Override
@@ -160,18 +171,8 @@ implements Closeable, ICompactionInfo
         return ((CollatingIterator)source).getIterators();
     }
 
-    public long getTotalBytes()
+    public String toString()
     {
-        return totalBytes;
-    }
-
-    public long getBytesComplete()
-    {
-        return bytesRead;
-    }
-
-    public String getTaskType()
-    {
-        return controller.isMajor ? "Major" : "Minor";
+        return this.getCompactionInfo().toString();
     }
 }

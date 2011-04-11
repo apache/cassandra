@@ -340,7 +340,10 @@ public class DatabaseDescriptor
             {
                 throw new ConfigurationException("in_memory_compaction_limit_in_mb must be a positive integer");
             }
-            
+
+            if (conf.compaction_multithreading == null)
+                conf.compaction_multithreading = true;
+
             /* data file and commit log directories. they get created later, when they're needed. */
             if (conf.commitlog_directory != null && conf.data_file_directories != null && conf.saved_caches_directory != null)
             {
@@ -722,7 +725,12 @@ public class DatabaseDescriptor
     {
         return conf.in_memory_compaction_limit_in_mb * 1024 * 1024;
     }
-    
+
+    public static boolean getCompactionMultithreading()
+    {
+        return conf.compaction_multithreading;
+    }
+
     public static String[] getAllDataFileLocations()
     {
         return conf.data_file_directories;

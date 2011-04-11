@@ -42,7 +42,7 @@ import org.apache.cassandra.db.marshal.AbstractCommutativeType;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.AbstractCompactedRow;
 import org.apache.cassandra.io.CompactionController;
-import org.apache.cassandra.io.ICompactionInfo;
+import org.apache.cassandra.io.CompactionInfo;
 import org.apache.cassandra.io.LazilyCompactedRow;
 import org.apache.cassandra.io.PrecompactedRow;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
@@ -249,7 +249,7 @@ public class SSTableWriter extends SSTable
      * Removes the given SSTable from temporary status and opens it, rebuilding the
      * bloom filter and row index from the data file.
      */
-    public static class Builder implements ICompactionInfo
+    public static class Builder implements CompactionInfo.Holder
     {
         private final Descriptor desc;
         private final OperationType type;
@@ -261,6 +261,24 @@ public class SSTableWriter extends SSTable
             this.desc = desc;
             this.type = type;
             cfs = Table.open(desc.ksname).getColumnFamilyStore(desc.cfname);
+        }
+
+        public CompactionInfo getCompactionInfo()
+        {
+            maybeOpenIndexer();
+            try
+            {
+                // both file offsets are still valid post-close
+                return new CompactionInfo(desc.ksname,
+                                          desc.cfname,
+                                          "SSTable rebuild",
+                                          indexer.dfile.getFilePointer(),
+                                          indexer.dfile.length());
+            }
+            catch (IOException e)
+            {
+                throw new IOError(e);
+            }
         }
 
         // lazy-initialize the file to avoid opening it until it's actually executing on the CompactionManager,
@@ -300,32 +318,6 @@ public class SSTableWriter extends SSTable
 
             logger.debug("estimated row count was {} of real count", ((double)estimatedRows) / rows);
             return SSTableReader.open(rename(desc, SSTable.componentsFor(desc)));
-        }
-
-        public long getTotalBytes()
-        {
-            maybeOpenIndexer();
-            try
-            {
-                // (length is still valid post-close)
-                return indexer.dfile.length();
-            }
-            catch (IOException e)
-            {
-                throw new IOError(e);
-            }
-        }
-
-        public long getBytesComplete()
-        {
-            maybeOpenIndexer();
-            // (getFilePointer is still valid post-close)
-            return indexer.dfile.getFilePointer();
-        }
-
-        public String getTaskType()
-        {
-            return "SSTable rebuild";
         }
     }
 

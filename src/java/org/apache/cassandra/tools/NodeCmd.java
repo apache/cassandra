@@ -40,6 +40,7 @@ import org.apache.cassandra.concurrent.IExecutorMBean;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.db.CompactionManagerMBean;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.CompactionInfo;
 import org.apache.cassandra.net.MessagingServiceMBean;
 import org.apache.cassandra.utils.EstimatedHistogram;
 
@@ -324,10 +325,15 @@ public class NodeCmd
     public void printCompactionStats(PrintStream outs)
     {
         CompactionManagerMBean cm = probe.getCompactionManagerProxy();
-        outs.println("compaction type: " + (cm.getCompactionType() == null ? "n/a" : cm.getCompactionType()));
-        outs.println("column family: " + (cm.getColumnFamilyInProgress() == null ? "n/a" : cm.getColumnFamilyInProgress()));
-        outs.println("bytes compacted: " + (cm.getBytesCompacted() == null ? "n/a" : cm.getBytesCompacted()));
-        outs.println("bytes total in progress: " + (cm.getBytesTotalInProgress() == null ? "n/a" : cm.getBytesTotalInProgress() ));
+        for (CompactionInfo c : cm.getCompactions())
+        {
+            outs.println("compaction type: " + c.getTaskType());
+            outs.println("keyspace: " + c.getKeyspace());
+            outs.println("column family: " + c.getColumnFamily());
+            outs.println("bytes compacted: " + c.getBytesComplete());
+            outs.println("bytes total: " + c.getTotalBytes());
+            outs.println("-----------------");
+        }
         outs.println("pending tasks: " + cm.getPendingTasks());
     }
  
