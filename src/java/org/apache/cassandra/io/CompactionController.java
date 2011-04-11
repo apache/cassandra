@@ -61,6 +61,18 @@ public class CompactionController
         return forceDeserialize ? basicDeserializingController : basicController;
     }
 
+    /** @return The keyspace name: only valid if created with a non-null CFS. */
+    public String getKeyspace()
+    {
+        return cfs != null ? cfs.table.name : "n/a";
+    }
+
+    /** @return The column family name: only valid if created with a non-null CFS. */
+    public String getColumnFamily()
+    {
+        return cfs != null ? cfs.columnFamily : "n/a";
+    }
+
     public boolean shouldPurge(DecoratedKey key)
     {
         return isMajor || (cfs != null && !cfs.isKeyInRemainingSSTables(key, sstables));

@@ -309,7 +309,7 @@ public class LazilyCompactedRowTest extends CleanupHelper
     {
         public LazyCompactionIterator(Iterable<SSTableReader> sstables, CompactionController controller) throws IOException
         {
-            super(sstables, controller);
+            super("Lazy", sstables, controller);
         }
 
         @Override
@@ -323,7 +323,7 @@ public class LazilyCompactedRowTest extends CleanupHelper
     {
         public PreCompactingIterator(Iterable<SSTableReader> sstables, CompactionController controller) throws IOException
         {
-            super(sstables, controller);
+            super("Pre", sstables, controller);
         }
 
         @Override

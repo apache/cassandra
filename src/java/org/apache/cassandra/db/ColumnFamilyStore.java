@@ -1038,6 +1038,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return data.getMemtable();
     }
 
+    /**
+     * Package protected for access from the CompactionManager.
+     */
+    DataTracker getDataTracker()
+    {
+        return data;
+    }
+
     public Collection<SSTableReader> getSSTables()
     {
         return data.getSSTables();
@@ -1754,7 +1762,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     void clearUnsafe()
     {
-        data.clearUnsafe();
+        data.init();
     }
 
     /**
