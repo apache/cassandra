@@ -45,7 +45,9 @@
    index (CASSANDRA-2376)
  * fix race condition that could leave orphaned data files when
    dropping CF or KS (CASSANDRA-2381)
+ * convert mmap assertion to if/throw so scrub can catch it (CASSANDRA-2417)
  * Try harder to close files after compaction (CASSANDRA-2431)
+ * re-set bootstrapped flag after move finishes (CASSANDRA-2435)
 
 
 0.7.4
