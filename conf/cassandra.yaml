@@ -250,8 +250,16 @@ column_index_size_in_kb: 64
 in_memory_compaction_limit_in_mb: 64
 
 # Enables multiple compactions to execute at once. This is highly recommended
-# for preserving read performance in a mixed read/write workload.
+# for preserving read performance in a mixed read/write workload as this
+# avoids sstables from accumulating during long running compactions.
 compaction_multithreading: true
+
+# Throttles compaction to the given total throughput across the entire
+# system. The faster you insert data, the faster you need to compact in
+# order to keep the sstable count down, but in general, setting this to
+# 16 to 32 times the rate you are inserting data is more than sufficient.
+# Setting this to 0 disables throttling.
+compaction_throughput_mb_per_sec: 16
 
 # Track cached row keys during compaction, and re-cache their new
 # positions in the compacted sstable.  Disable if you use really large

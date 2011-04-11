@@ -295,4 +295,6 @@ public interface StorageServiceMBean
     // allows a node that have been started without joining the ring to join it
     public void joinRing() throws IOException, org.apache.cassandra.config.ConfigurationException;
     public boolean isJoined();
+
+    public void setCompactionThroughputMbPerSec(int value);
 }

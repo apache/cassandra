@@ -83,6 +83,7 @@ public class Config
     public Integer column_index_size_in_kb = 64;
     public Integer in_memory_compaction_limit_in_mb = 256;
     public Boolean compaction_multithreading = true;
+    public Integer compaction_throughput_mb_per_sec = 16;
     
     public String[] data_file_directories;
 

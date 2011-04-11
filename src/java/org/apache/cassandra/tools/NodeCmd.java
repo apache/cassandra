@@ -79,7 +79,7 @@ public class NodeCmd
         DECOMMISSION, MOVE, LOADBALANCE, REMOVETOKEN, REPAIR, CLEANUP, COMPACT, SCRUB,
         SETCACHECAPACITY, GETCOMPACTIONTHRESHOLD, SETCOMPACTIONTHRESHOLD, NETSTATS, CFHISTOGRAMS,
         COMPACTIONSTATS, DISABLEGOSSIP, ENABLEGOSSIP, INVALIDATEKEYCACHE, INVALIDATEROWCACHE,
-        DISABLETHRIFT, ENABLETHRIFT, JOIN
+        DISABLETHRIFT, ENABLETHRIFT, JOIN, SETCOMPACTIONTHROUGHPUT
     }
 
     
@@ -111,6 +111,7 @@ public class NodeCmd
         addCmdHelp(header, "netstats [host]", "Print network information on provided host (connecting node by default)");
         addCmdHelp(header, "move <new token>", "Move node on the token ring to a new token");
         addCmdHelp(header, "removetoken status|force|<token>", "Show status of current token removal, force completion of pending removal or remove providen token");
+        addCmdHelp(header, "setcompactionthroughput <value_in_mb>", "Set the MB/s throughput cap for compaction in the system, or 0 to disable throttling.");
 
         // Two args
         addCmdHelp(header, "snapshot [keyspaces...] -t [snapshotName]", "Take a snapshot of the specified keyspaces using optional name snapshotName");
@@ -590,6 +591,11 @@ public class NodeCmd
                 }
 
                 probe.joinRing();
+                break;
+
+            case SETCOMPACTIONTHROUGHPUT :
+                if (arguments.length != 2) { badUse("Missing value argument."); }
+                probe.setCompactionThroughput(Integer.valueOf(arguments[1]));
                 break;
 
             case REMOVETOKEN :

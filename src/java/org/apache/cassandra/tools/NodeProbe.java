@@ -550,6 +550,11 @@ public class NodeProbe
     {
         return ssProxy.isInitialized();
     }
+
+    public void setCompactionThroughput(int value)
+    {
+        ssProxy.setCompactionThroughputMbPerSec(value);
+    }
 }
 
 class ColumnFamilyStoreMBeanIterator implements Iterator<Map.Entry<String, ColumnFamilyStoreMBean>>
