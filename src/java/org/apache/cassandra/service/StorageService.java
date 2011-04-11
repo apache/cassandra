@@ -1348,15 +1348,37 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     }
 
     /**
-     * Takes the snapshot for a given table.
+     * Takes the snapshot for the given tables. A snapshot name must be specified.
      *
-     * @param tableName the name of the table.
-     * @param tag   the tag given to the snapshot (null is permissible)
+     * @param tag the tag given to the snapshot; may not be null or empty
+     * @param tableNames the name of the tables to snapshot; empty means "all."
      */
-    public void takeSnapshot(String tableName, String tag) throws IOException
+    public void takeSnapshot(String tag, String... tableNames) throws IOException
     {
-        Table tableInstance = getValidTable(tableName);
-        tableInstance.snapshot(tag);
+        if (tag == null || tag.equals(""))
+            throw new IOException("You must supply a snapshot name.");
+
+        Iterable<Table> tables;
+        if (tableNames.length == 0)
+        {
+            tables = Table.all();
+        }
+        else
+        {
+            ArrayList<Table> t = new ArrayList<Table>();
+            for (String table : tableNames)
+                t.add(getValidTable(table));
+            tables = t;
+        }
+
+        // Do a check to see if this snapshot exists before we actually snapshot
+        for (Table table : tables)
+            if (table.snapshotExists(tag))
+                throw new IOException("Snapshot " + tag + " already exists.");
+
+
+        for (Table table : tables)
+            table.snapshot(tag);
     }
 
     private Table getValidTable(String tableName) throws IOException
@@ -1369,26 +1391,32 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     }
 
     /**
-     * Takes a snapshot for every table.
-     *
-     * @param tag the tag given to the snapshot (null is permissible)
+     * Remove the snapshot with the given name from the given tables.
+     * If no tag is specified we will remove all snapshots.
      */
-    public void takeAllSnapshot(String tag) throws IOException
+    public void clearSnapshot(String tag, String... tableNames) throws IOException
     {
-        for (Table table : Table.all())
-            table.snapshot(tag);
-    }
+        if(tag == null)
+            tag = "";
 
-    /**
-     * Remove all the existing snapshots.
-     */
-    public void clearSnapshot() throws IOException
-    {
-        for (Table table : Table.all())
-            table.clearSnapshot();
+        Iterable<Table> tables;
+        if (tableNames.length == 0)
+        {
+            tables = Table.all();
+        }
+        else
+        {
+            ArrayList<Table> tempTables = new ArrayList<Table>();
+            for(String table : tableNames)
+                tempTables.add(getValidTable(table));
+            tables = tempTables;
+        }
+
+        for (Table table : tables)
+            table.clearSnapshot(tag);
 
         if (logger_.isDebugEnabled())
-            logger_.debug("Cleared out all snapshot directories");
+            logger_.debug("Cleared out snapshot directories");
     }
 
     public Iterable<ColumnFamilyStore> getValidColumnFamilies(String tableName, String... cfNames) throws IOException

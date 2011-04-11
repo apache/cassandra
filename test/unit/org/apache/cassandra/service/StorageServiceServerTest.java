@@ -66,6 +66,6 @@ public class StorageServiceServerTest
     public void testSnapshot() throws IOException
     {
         // no need to insert extra data, even an "empty" database will have a little information in the system keyspace
-        StorageService.instance.takeAllSnapshot(null);
+        StorageService.instance.takeSnapshot("snapshot", new String[0]);
     }
 }

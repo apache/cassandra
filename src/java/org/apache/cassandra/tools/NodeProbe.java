@@ -326,17 +326,17 @@ public class NodeProbe
      * 
      * @param snapshotName the name of the snapshot.
      */
-    public void takeSnapshot(String snapshotName) throws IOException
+    public void takeSnapshot(String snapshotName, String... keyspaces) throws IOException
     {
-        ssProxy.takeAllSnapshot(snapshotName);
+        ssProxy.takeSnapshot(snapshotName, keyspaces);
     }
 
     /**
      * Remove all the existing snapshots.
      */
-    public void clearSnapshot() throws IOException
+    public void clearSnapshot(String tag, String... keyspaces) throws IOException
     {
-        ssProxy.clearSnapshot();
+        ssProxy.clearSnapshot(tag, keyspaces);
     }
 
     public boolean isJoined()

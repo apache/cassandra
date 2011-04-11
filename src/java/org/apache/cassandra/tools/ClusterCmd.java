@@ -162,7 +162,7 @@ public class ClusterCmd {
             {
                 NodeProbe hostProbe = new NodeProbe(liveNode, probe.port);
                 hostProbe.takeSnapshot(snapshotName);
-                System.out.println(liveNode + " snapshot taken");
+                System.out.println(liveNode + " snapshot taken in directory: " + snapshotName);
             }
             catch (IOException e)
             {
@@ -174,14 +174,14 @@ public class ClusterCmd {
     /**
      * Remove all the existing snapshots from all (live) nodes in the cluster
      */
-    public void clearGlobalSnapshot() throws IOException, InterruptedException
+    public void clearGlobalSnapshot(String tag) throws IOException, InterruptedException
     {
         for (String liveNode : probe.getLiveNodes())
         {
             try
             {
                 NodeProbe hostProbe = new NodeProbe(liveNode, probe.port);
-                hostProbe.clearSnapshot();
+                hostProbe.clearSnapshot(tag);
                 System.out.println(liveNode + " snapshot cleared");
             }
             catch (IOException e)
@@ -241,16 +241,13 @@ public class ClusterCmd {
         }
         else if (cmdName.equals("global_snapshot"))
         {
-            String snapshotName = "";
-            if (arguments.length > 1)
-            {
-                snapshotName = arguments[1];
-            }
+            String snapshotName = arguments.length > 1 ? arguments[1] : new Long(System.currentTimeMillis()).toString();
             clusterCmd.takeGlobalSnapshot(snapshotName);
         }
         else if (cmdName.equals("clear_global_snapshot"))
         {
-            clusterCmd.clearGlobalSnapshot();
+            String snapshotName = arguments.length > 1 ? arguments[1] : "";
+            clusterCmd.clearGlobalSnapshot(snapshotName);
         }
         else if (cmdName.equals("truncate"))
         {

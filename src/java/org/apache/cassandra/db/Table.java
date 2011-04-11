@@ -190,10 +190,8 @@ public class Table
      * @param clientSuppliedName the tag associated with the name of the snapshot.  This
      *                           value can be null.
      */
-    public void snapshot(String clientSuppliedName)
+    public void snapshot(String snapshotName)
     {
-        String snapshotName = getTimestampedSnapshotName(clientSuppliedName);
-
         for (ColumnFamilyStore cfStore : columnFamilyStores.values())
         {
             cfStore.snapshot(snapshotName);
@@ -214,15 +212,36 @@ public class Table
         return snapshotName;
     }
 
+    /**
+     * Clear snapshots for this table. If no tag is given we will clear all
+     * snapshots
+     *
+     * @param snapshotName the user supplied snapshot name
+     * @return true if the snapshot exists
+     */
+    public boolean snapshotExists(String snapshotName)
+    {
+        for (String dataDirPath : DatabaseDescriptor.getAllDataFileLocations())
+        {
+            String snapshotPath = dataDirPath + File.separator + name + File.separator + SNAPSHOT_SUBDIR_NAME + File.separator + snapshotName;
+            File snapshot = new File(snapshotPath);
+            if (snapshot.exists())
+            {
+                return true;
+            }
+        }
+        return false;
+    }
 
     /**
      * Clear all the snapshots for a given table.
      */
-    public void clearSnapshot() throws IOException
+    public void clearSnapshot(String tag) throws IOException
     {
         for (String dataDirPath : DatabaseDescriptor.getAllDataFileLocations())
         {
-            String snapshotPath = dataDirPath + File.separator + name + File.separator + SNAPSHOT_SUBDIR_NAME;
+            // If tag is empty we will delete the entire snapshot directory
+            String snapshotPath = dataDirPath + File.separator + name + File.separator + SNAPSHOT_SUBDIR_NAME + File.separator + tag;
             File snapshotDir = new File(snapshotPath);
             if (snapshotDir.exists())
             {

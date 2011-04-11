@@ -49,6 +49,7 @@ public class NodeCmd
     private static final Pair<String, String> PORT_OPT = new Pair<String, String>("p", "port");
     private static final Pair<String, String> USERNAME_OPT = new Pair<String, String>("u",  "username");
     private static final Pair<String, String> PASSWORD_OPT = new Pair<String, String>("pw", "password");
+    private static final Pair<String, String> TAG_OPT = new Pair<String, String>("t", "tag");
     private static final int DEFAULT_PORT = 7199;
 
     private static ToolOptions options = null;
@@ -63,6 +64,7 @@ public class NodeCmd
         options.addOption(PORT_OPT,     true, "remote jmx agent port number");
         options.addOption(USERNAME_OPT, true, "remote jmx agent username");
         options.addOption(PASSWORD_OPT, true, "remote jmx agent password");
+        options.addOption(TAG_OPT,      true, "optional name to give a snapshot");
     }
     
     public NodeCmd(NodeProbe probe)
@@ -93,7 +95,6 @@ public class NodeCmd
         addCmdHelp(header, "join", "Join the ring");
         addCmdHelp(header, "info", "Print node informations (uptime, load, ...)");
         addCmdHelp(header, "cfstats", "Print statistics on column families");
-        addCmdHelp(header, "clearsnapshot", "Remove all existing snapshots");
         addCmdHelp(header, "version", "Print cassandra version");
         addCmdHelp(header, "tpstats", "Print usage statistics of thread pools");
         addCmdHelp(header, "drain", "Drain the node (stop accepting writes and flush all column families)");
@@ -106,12 +107,13 @@ public class NodeCmd
         addCmdHelp(header, "enablethrift", "Reenable thrift server");
 
         // One arg
-        addCmdHelp(header, "snapshot [snapshotname]", "Take a snapshot using optional name snapshotname");
         addCmdHelp(header, "netstats [host]", "Print network information on provided host (connecting node by default)");
         addCmdHelp(header, "move <new token>", "Move node on the token ring to a new token");
         addCmdHelp(header, "removetoken status|force|<token>", "Show status of current token removal, force completion of pending removal or remove providen token");
 
         // Two args
+        addCmdHelp(header, "snapshot [keyspaces...] -t [snapshotName]", "Take a snapshot of the specified keyspaces using optional name snapshotName");
+        addCmdHelp(header, "clearsnapshot [keyspaces...] -t [snapshotName]", "Remove snapshots for the specified keyspaces. Either remove all snapshots or remove the snapshots with the given name.");
         addCmdHelp(header, "flush [keyspace] [cfnames]", "Flush one or more column family");
         addCmdHelp(header, "repair [keyspace] [cfnames]", "Repair one or more column family");
         addCmdHelp(header, "cleanup [keyspace] [cfnames]", "Run cleanup on one or more column family");
@@ -545,7 +547,6 @@ public class NodeCmd
             case CFSTATS         : nodeCmd.printColumnFamilyStats(System.out); break;
             case DECOMMISSION    : probe.decommission(); break;
             case LOADBALANCE     : probe.loadBalance(); break;
-            case CLEARSNAPSHOT   : probe.clearSnapshot(); break;
             case TPSTATS         : nodeCmd.printThreadPoolStats(System.out); break;
             case VERSION         : nodeCmd.printReleaseVersion(System.out); break;
             case COMPACTIONSTATS : nodeCmd.printCompactionStats(System.out); break;
@@ -565,8 +566,9 @@ public class NodeCmd
                 break;
 
             case SNAPSHOT :
-                if (arguments.length > 0) { probe.takeSnapshot(arguments[0]); }
-                else                      { probe.takeSnapshot(""); }
+            case CLEARSNAPSHOT :
+                String tag = cmd.getOptionValue(TAG_OPT.left);
+                handleSnapshots(command, tag, arguments, probe);
                 break;
 
             case MOVE :
@@ -646,6 +648,27 @@ public class NodeCmd
         System.err.println(errStr);
         e.printStackTrace();
         System.exit(3);
+    }
+
+    private static void handleSnapshots(NodeCommand nc, String tag, String[] cmdArgs, NodeProbe probe) throws InterruptedException, IOException
+    {
+        int length = cmdArgs.length > 1 ? cmdArgs.length - 1 : 0;
+        String[] keyspaces = new String[length];
+        for (int i = 0; i < keyspaces.length; i++)
+            keyspaces[i] = cmdArgs[i + 1];
+
+        switch (nc)
+        {
+            case SNAPSHOT :
+                if (tag == null || tag.equals(""))
+                    tag = new Long(System.currentTimeMillis()).toString();
+                probe.takeSnapshot(tag, keyspaces);
+                System.out.println("Snapshot directory: " + tag);
+                break;
+            case CLEARSNAPSHOT :
+                probe.clearSnapshot(tag, keyspaces);
+                break;
+        }
     }
 
     private static void optionalKSandCFs(NodeCommand nc, String[] cmdArgs, NodeProbe probe) throws InterruptedException, IOException

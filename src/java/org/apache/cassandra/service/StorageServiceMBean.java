@@ -137,24 +137,18 @@ public interface StorageServiceMBean
     public List<InetAddress> getNaturalEndpoints(String table, ByteBuffer key);
 
     /**
-     * Takes the snapshot for a given table.
-     * 
-     * @param tableName the name of the table.
-     * @param tag       the tag given to the snapshot (null is permissible)
+     * Takes the snapshot for the given tables. A snapshot name must be specified.
+     *
+     * @param tag the tag given to the snapshot; may not be null or empty
+     * @param tableNames the name of the tables to snapshot; empty means "all."
      */
-    public void takeSnapshot(String tableName, String tag) throws IOException;
+    public void takeSnapshot(String tag, String... tableNames) throws IOException;
 
     /**
-     * Takes a snapshot for every table.
-     * 
-     * @param tag the tag given to the snapshot (null is permissible)
+     * Remove the snapshot with the given name from the given tables.
+     * If no tag is specified we will remove all snapshots.
      */
-    public void takeAllSnapshot(String tag) throws IOException;
-
-    /**
-     * Remove all the existing snapshots.
-     */
-    public void clearSnapshot() throws IOException;
+    public void clearSnapshot(String tag, String... tableNames) throws IOException;
 
     /**
      * Forces major compaction of a single keyspace
