@@ -232,9 +232,17 @@ public class CreateColumnFamilyStatement
         CFMetaData newCFMD;
         try
         {
-            // RPC uses BytesType as the default validator/comparator but BytesType expects hex for string terms, (not convenient).
-            AbstractType<?> comparator = DatabaseDescriptor.getComparator(comparators.get(getPropertyString(KW_COMPARATOR, "text")));
-            String validator = getPropertyString(KW_DEFAULTVALIDATION, "utf8");
+            /* If not comparator/validator is not specified, default to text (BytesType is the wrong default for CQL
+             * since it uses hex terms).  If the value specified is not found in the comparators map, assume the user
+             * knows what they are doing (a custom comparator/validator for example), and pass it on as-is.
+             */
+            String comparatorString = (comparators.get(getPropertyString(KW_COMPARATOR, "text")) != null)
+                                      ? comparators.get(getPropertyString(KW_COMPARATOR, "text"))
+                                      : getPropertyString(KW_COMPARATOR, "text");
+            String validatorString = (comparators.get(getPropertyString(KW_DEFAULTVALIDATION, "text")) != null)
+                                     ? comparators.get(getPropertyString(KW_DEFAULTVALIDATION, "text"))
+                                     : getPropertyString(KW_DEFAULTVALIDATION, "text");
+            AbstractType<?> comparator = DatabaseDescriptor.getComparator(comparatorString);
 
             newCFMD = new CFMetaData(keyspace,
                                      name,
@@ -248,7 +256,7 @@ public class CreateColumnFamilyStatement
                    .readRepairChance(getPropertyDouble(KW_READREPAIRCHANCE, CFMetaData.DEFAULT_READ_REPAIR_CHANCE))
                    .replicateOnWrite(getPropertyBoolean(KW_REPLICATEONWRITE, CFMetaData.DEFAULT_REPLICATE_ON_WRITE))
                    .gcGraceSeconds(getPropertyInt(KW_GCGRACESECONDS, CFMetaData.DEFAULT_GC_GRACE_SECONDS))
-                   .defaultValidator(DatabaseDescriptor.getComparator(comparators.get(validator)))
+                   .defaultValidator(DatabaseDescriptor.getComparator(validatorString))
                    .minCompactionThreshold(getPropertyInt(KW_MINCOMPACTIONTHRESHOLD, CFMetaData.DEFAULT_MIN_COMPACTION_THRESHOLD))
                    .maxCompactionThreshold(getPropertyInt(KW_MAXCOMPACTIONTHRESHOLD, CFMetaData.DEFAULT_MAX_COMPACTION_THRESHOLD))
                    .rowCacheSavePeriod(getPropertyInt(KW_ROWCACHESAVEPERIODSECS, CFMetaData.DEFAULT_ROW_CACHE_SAVE_PERIOD_IN_SECONDS))
