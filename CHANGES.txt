@@ -26,6 +26,7 @@
  * halve default memtable thresholds (CASSANDRA-2413)
  * convert mmap assertion to if/throw so scrub can catch it (CASSANDRA-2417)
  * Try harder to close files after compaction (CASSANDRA-2431)
+ * re-set bootstrapped flag after move finishes (CASSANDRA-2435)
 
 
 0.7.4

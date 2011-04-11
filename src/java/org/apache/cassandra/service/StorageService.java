@@ -203,6 +203,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     public void finishBootstrapping()
     {
         isBootstrapMode = false;
+        SystemTable.setBootstrapped(true);
         setToken(getLocalToken());
         logger_.info("Bootstrap/move completed! Now serving reads.");
     }
@@ -477,10 +478,9 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             {
                 logger_.info("Using saved token " + token);
             }
-        } 
-
-        SystemTable.setBootstrapped(true); // first startup is only chance to bootstrap
-        setToken(token);
+            SystemTable.setBootstrapped(true); // first startup is only chance to bootstrap
+            setToken(token);
+        }
 
         assert tokenMetadata_.sortedTokens().size() > 0;
     }
