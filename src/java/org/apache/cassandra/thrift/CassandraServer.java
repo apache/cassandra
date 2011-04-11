@@ -575,7 +575,7 @@ public class CassandraServer implements Cassandra.Iface
         String keyspace = state().getKeyspace();
         state().hasColumnFamilyAccess(column_parent.column_family, Permission.READ);
 
-        CFMetaData metadata = ThriftValidation.validateColumnFamily(keyspace, column_parent.column_family, false);
+        CFMetaData metadata = ThriftValidation.validateColumnFamily(keyspace, column_parent.column_family);
         ThriftValidation.validateColumnParent(metadata, column_parent);
         ThriftValidation.validatePredicate(metadata, column_parent, predicate);
         ThriftValidation.validateKeyRange(range);
