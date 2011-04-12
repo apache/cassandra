@@ -6,11 +6,10 @@
    2124, 2302, 2277)
  * avoid double RowMutation serialization on write path (CASSANDRA-1800)
  * make NetworkTopologyStrategy the default (CASSANDRA-1960)
- * configurable internode encryption (CASSANDRA-1567)
+ * configurable internode encryption (CASSANDRA-1567, 2152)
  * human readable column names in sstable2json output (CASSANDRA-1933)
  * change default JMX port to 7199 (CASSANDRA-2027)
  * backwards compatible internal messaging (CASSANDRA-1015)
- * check for null encryption in MessagingService (CASSANDRA-2152)
  * atomic switch of memtables and sstables (CASSANDRA-2284)
  * add pluggable SeedProvider (CASSANDRA-1669)
  * Fix clustertool to not throw exception when calling get_endpoints (CASSANDRA-2437)
@@ -21,6 +20,8 @@
  * give snapshots the same name on each node (CASSANDRA-1791)
  * multithreaded compaction (CASSANDRA-2191)
  * compaction throttling (CASSANDRA-2156)
+ * add key type information and alias (CASSANDRA-2311, 2396)
+
 
 0.7.5
  * Avoid seeking when sstable2json exports the entire file (CASSANDRA-2318)
@@ -46,7 +47,9 @@
    index (CASSANDRA-2376)
  * fix race condition that could leave orphaned data files when
    dropping CF or KS (CASSANDRA-2381)
+ * convert mmap assertion to if/throw so scrub can catch it (CASSANDRA-2417)
  * Try harder to close files after compaction (CASSANDRA-2431)
+ * re-set bootstrapped flag after move finishes (CASSANDRA-2435)
 
 
 0.7.4

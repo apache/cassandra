@@ -790,7 +790,7 @@ public class CassandraServer implements Cassandra.Iface
 
         try
         {
-            applyMigrationOnStage(new AddColumnFamily(convertToCFMetaData(cf_def)));
+            applyMigrationOnStage(new AddColumnFamily(CFMetaData.convertToCFMetaData(cf_def)));
             return DatabaseDescriptor.getDefsVersion().toString();
         }
         catch (ConfigurationException e)
@@ -855,7 +855,7 @@ public class CassandraServer implements Cassandra.Iface
             for (CfDef cfDef : ks_def.cf_defs)
             {
                 ThriftValidation.validateCfDef(cfDef);
-                cfDefs.add(convertToCFMetaData(cfDef));
+                cfDefs.add(CFMetaData.convertToCFMetaData(cfDef));
             }
 
             // Attempt to instantiate the ARS, which will throw a ConfigException if
@@ -994,45 +994,6 @@ public class CassandraServer implements Cassandra.Iface
                                                              Predicates.not(Predicates.equalTo(StorageProxy.UNREACHABLE)));
         if (versions.size() > 1)
             throw new SchemaDisagreementException();
-    }
-
-    // @see CFMetaData.applyImplicitDefaults().
-    private CFMetaData convertToCFMetaData(CfDef cf_def) throws InvalidRequestException, ConfigurationException
-    {
-        ColumnFamilyType cfType = ColumnFamilyType.create(cf_def.column_type);
-        if (cfType == null)
-        {
-          throw new InvalidRequestException("Invalid column type " + cf_def.column_type);
-        }
-
-        CFMetaData.applyImplicitDefaults(cf_def);
-        CFMetaData.validateMinMaxCompactionThresholds(cf_def);
-        CFMetaData.validateMemtableSettings(cf_def);
-
-        CFMetaData newCFMD = new CFMetaData(cf_def.keyspace,
-                                            cf_def.name,
-                                            cfType,
-                                            DatabaseDescriptor.getComparator(cf_def.comparator_type),
-                                            cf_def.subcomparator_type == null ? null : DatabaseDescriptor.getComparator(cf_def.subcomparator_type));
-
-        if (cf_def.isSetGc_grace_seconds()) { newCFMD.gcGraceSeconds(cf_def.gc_grace_seconds); }
-        if (cf_def.isSetMin_compaction_threshold()) { newCFMD.minCompactionThreshold(cf_def.min_compaction_threshold); }
-        if (cf_def.isSetMax_compaction_threshold()) { newCFMD.maxCompactionThreshold(cf_def.max_compaction_threshold); }
-        if (cf_def.isSetRow_cache_save_period_in_seconds()) { newCFMD.rowCacheSavePeriod(cf_def.row_cache_save_period_in_seconds); }
-        if (cf_def.isSetKey_cache_save_period_in_seconds()) { newCFMD.keyCacheSavePeriod(cf_def.key_cache_save_period_in_seconds); }
-        if (cf_def.isSetMemtable_flush_after_mins()) { newCFMD.memTime(cf_def.memtable_flush_after_mins); }
-        if (cf_def.isSetMemtable_throughput_in_mb()) { newCFMD.memSize(cf_def.memtable_throughput_in_mb); }
-        if (cf_def.isSetMemtable_operations_in_millions()) { newCFMD.memOps(cf_def.memtable_operations_in_millions); }
-        if (cf_def.isSetMerge_shards_chance()) { newCFMD.mergeShardsChance(cf_def.merge_shards_chance); }
-        if (cf_def.isSetRow_cache_provider()) { newCFMD.rowCacheProvider(FBUtilities.newCacheProvider(cf_def.row_cache_provider)); }
-
-        return newCFMD.comment(cf_def.comment)
-                      .rowCacheSize(cf_def.row_cache_size)
-                      .keyCacheSize(cf_def.key_cache_size)
-                      .readRepairChance(cf_def.read_repair_chance)
-                      .replicateOnWrite(cf_def.replicate_on_write)
-                      .defaultValidator(DatabaseDescriptor.getComparator(cf_def.default_validation_class))
-                      .columnMetadata(ColumnDefinition.fromColumnDef(cf_def.column_metadata));
     }
 
     public void truncate(String cfname) throws InvalidRequestException, UnavailableException, TException

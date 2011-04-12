@@ -207,6 +207,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     public void finishBootstrapping()
     {
         isBootstrapMode = false;
+        SystemTable.setBootstrapped(true);
         setToken(getLocalToken());
         logger_.info("Bootstrap/move completed! Now serving reads.");
     }
@@ -439,14 +440,13 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             logger_.info("This node will not auto bootstrap because it is configured to be a seed node.");
 
         Token token;
-        boolean bootstrapped = false;
         if (DatabaseDescriptor.isAutoBootstrap()
             && !(DatabaseDescriptor.getSeeds().contains(FBUtilities.getLocalAddress()) || SystemTable.isBootstrapped()))
         {
-            setMode("Joining: getting load information", true);
+            setMode("Joining: getting load and schema information", true);
             StorageLoadBalancer.instance.waitForLoadInfo();
             if (logger_.isDebugEnabled())
-                logger_.debug("... got load info");
+                logger_.debug("... got load + schema info");
             if (tokenMetadata_.isMember(FBUtilities.getLocalAddress()))
             {
                 String s = "This node is already a member of the token ring; bootstrap aborted. (If replacing a dead node, remove the old one from the ring first.)";
@@ -459,8 +459,6 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             {
                 bootstrap(token);
                 assert !isBootstrapMode; // bootstrap will block until finished
-                bootstrapped = true;
-                SystemTable.setBootstrapped(true); // first startup is only chance to bootstrap
             }
             // else nothing to do, go directly to participating in ring
         }
@@ -485,7 +483,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             {
                 logger_.info("Using saved token " + token);
             }
-        } 
+        }
 
         SystemTable.setBootstrapped(true); // first startup is only chance to bootstrap
         setToken(token);

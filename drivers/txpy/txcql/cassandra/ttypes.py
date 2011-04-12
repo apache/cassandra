@@ -2324,6 +2324,7 @@ class CfDef:
    - merge_shards_chance
    - key_validation_class
    - row_cache_provider
+   - key_alias
   """
 
   thrift_spec = (
@@ -2355,9 +2356,10 @@ class CfDef:
     (25, TType.DOUBLE, 'merge_shards_chance', None, None, ), # 25
     (26, TType.STRING, 'key_validation_class', None, None, ), # 26
     (27, TType.STRING, 'row_cache_provider', None, "org.apache.cassandra.cache.ConcurrentLinkedHashCacheProvider", ), # 27
+    (28, TType.STRING, 'key_alias', None, None, ), # 28
   )
 
-  def __init__(self, keyspace=None, name=None, column_type=thrift_spec[3][4], comparator_type=thrift_spec[5][4], subcomparator_type=None, comment=None, row_cache_size=thrift_spec[9][4], key_cache_size=thrift_spec[11][4], read_repair_chance=thrift_spec[12][4], column_metadata=None, gc_grace_seconds=None, default_validation_class=None, id=None, min_compaction_threshold=None, max_compaction_threshold=None, row_cache_save_period_in_seconds=None, key_cache_save_period_in_seconds=None, memtable_flush_after_mins=None, memtable_throughput_in_mb=None, memtable_operations_in_millions=None, replicate_on_write=None, merge_shards_chance=None, key_validation_class=None, row_cache_provider=thrift_spec[27][4],):
+  def __init__(self, keyspace=None, name=None, column_type=thrift_spec[3][4], comparator_type=thrift_spec[5][4], subcomparator_type=None, comment=None, row_cache_size=thrift_spec[9][4], key_cache_size=thrift_spec[11][4], read_repair_chance=thrift_spec[12][4], column_metadata=None, gc_grace_seconds=None, default_validation_class=None, id=None, min_compaction_threshold=None, max_compaction_threshold=None, row_cache_save_period_in_seconds=None, key_cache_save_period_in_seconds=None, memtable_flush_after_mins=None, memtable_throughput_in_mb=None, memtable_operations_in_millions=None, replicate_on_write=None, merge_shards_chance=None, key_validation_class=None, row_cache_provider=thrift_spec[27][4], key_alias=None,):
     self.keyspace = keyspace
     self.name = name
     self.column_type = column_type
@@ -2382,6 +2384,7 @@ class CfDef:
     self.merge_shards_chance = merge_shards_chance
     self.key_validation_class = key_validation_class
     self.row_cache_provider = row_cache_provider
+    self.key_alias = key_alias
 
   def read(self, iprot):
     if iprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and isinstance(iprot.trans, TTransport.CReadableTransport) and self.thrift_spec is not None and fastbinary is not None:
@@ -2518,6 +2521,11 @@ class CfDef:
           self.row_cache_provider = iprot.readString();
         else:
           iprot.skip(ftype)
+      elif fid == 28:
+        if ftype == TType.STRING:
+          self.key_alias = iprot.readString();
+        else:
+          iprot.skip(ftype)
       else:
         iprot.skip(ftype)
       iprot.readFieldEnd()
@@ -2626,6 +2634,10 @@ class CfDef:
     if self.row_cache_provider != None:
       oprot.writeFieldBegin('row_cache_provider', TType.STRING, 27)
       oprot.writeString(self.row_cache_provider)
+      oprot.writeFieldEnd()
+    if self.key_alias != None:
+      oprot.writeFieldBegin('key_alias', TType.STRING, 28)
+      oprot.writeString(self.key_alias)
       oprot.writeFieldEnd()
     oprot.writeFieldStop()
     oprot.writeStructEnd()
