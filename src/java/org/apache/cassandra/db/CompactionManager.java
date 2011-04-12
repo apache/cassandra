@@ -721,6 +721,7 @@ public class CompactionManager implements CompactionManagerMBean
                     }
                     else
                     {
+                        cfs.invalidateCachedRow(row.getKey());
                         while (row.hasNext())
                         {
                             IColumn column = row.next();
