@@ -22,6 +22,7 @@
  * remove "nodetool loadbalance" (CASSANDRA-2448)
  * multithreaded compaction (CASSANDRA-2191)
  * compaction throttling (CASSANDRA-2156)
+ * cli no longer divides read_repair_chance by 100 (CASSANDRA-2458)
 
 
 0.7.5
