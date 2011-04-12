@@ -1232,15 +1232,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
 
         IColumnIterator ci = filter.getMemtableColumnIterator(cached, null, getComparator());
-        ColumnFamily cf = null;
-        try
-        {
-            cf = ci.getColumnFamily().cloneMeShallow();
-        }
-        catch (IOException e)
-        {
-            throw new IOError(e);
-        }
+        ColumnFamily cf = ci.getColumnFamily().cloneMeShallow();
         filter.collectCollatedColumns(cf, ci, gcBefore);
         // TODO this is necessary because when we collate supercolumns together, we don't check
         // their subcolumns for relevance, so we need to do a second prune post facto here.
@@ -1301,10 +1293,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             // we need to distinguish between "there is no data at all for this row" (BF will let us rebuild that efficiently)
             // and "there used to be data, but it's gone now" (we should cache the empty CF so we don't need to rebuild that slower)
             return returnCF;
-        }
-        catch (IOException e)
-        {
-            throw new IOError(e);
         }
         finally
         {

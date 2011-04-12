@@ -118,14 +118,7 @@ public class RowIteratorFactory
             {
                 this.colIters.add(current);
                 this.key = current.getKey();
-                try
-                {
-                    this.returnCF.delete(current.getColumnFamily());
-                }
-                catch (IOException e)
-                {
-                    throw new IOError(e);
-                }
+                this.returnCF.delete(current.getColumnFamily());
             }
 
             @Override
