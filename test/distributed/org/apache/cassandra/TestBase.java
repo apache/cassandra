@@ -82,13 +82,14 @@ public abstract class TestBase
         {
             List<InetAddress> hosts = controller.getHosts();
             Cassandra.Client client = controller.createClient(hosts.get(0));
-
+            Map<String,String> stratOptions = new HashMap<String,String>();
+            stratOptions.put("replication_factor", "" + rf);
             client.system_add_keyspace(
                 new KsDef(
                     name,
                     "org.apache.cassandra.locator.SimpleStrategy",
-                    rf,
-                    Arrays.asList(cfdef)));
+                    Arrays.asList(cfdef))
+                .setStrategy_options(stratOptions));
 
             // poll, until KS added
             for (InetAddress host : hosts)

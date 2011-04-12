@@ -72,7 +72,7 @@ public class CountersTest extends TestBase
         {
             ByteBuffer bname = ByteBuffer.wrap(name.getBytes());
             ColumnPath cpath = new ColumnPath(cf).setColumn(bname);
-            CounterColumn col = client.get_counter(key, cpath, cl).column;
+            CounterColumn col = client.get(key, cpath, cl).counter_column;
             assertEquals(bname, col.name);
             assertEquals(value.longValue(), col.value);
         }
