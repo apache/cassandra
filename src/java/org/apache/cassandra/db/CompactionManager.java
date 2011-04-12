@@ -838,16 +838,20 @@ public class CompactionManager implements CompactionManagerMBean
                             writer.append(getCompactedRow(row, sstable.descriptor, false));
                             totalkeysWritten++;
                         }
-                        else if (!indexedColumns.isEmpty() || isCommutative)
-                        {
-                            while (row.hasNext())
+                        else
+			{
+			    cfs.invalidateCachedRow(row.getKey());
+			    if (!indexedColumns.isEmpty() || isCommutative)
                             {
-                                IColumn column = row.next();
-                                if (column instanceof CounterColumn)
-                                    renewer.maybeRenew((CounterColumn)column);
-                                if (indexedColumns.contains(column.name()))
-                                    Table.cleanupIndexEntry(cfs, row.getKey().key, column);
-                            }
+                                while (row.hasNext())
+                                {
+                                    IColumn column = row.next();
+                                    if (column instanceof CounterColumn)
+                                        renewer.maybeRenew((CounterColumn)column);
+                                    if (indexedColumns.contains(column.name()))
+                                        Table.cleanupIndexEntry(cfs, row.getKey().key, column);
+                                }
+			    }
                         }
                     }
                 }
