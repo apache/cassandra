@@ -89,7 +89,7 @@ class SimpleSliceReader extends AbstractIterator<IColumn> implements IColumnIter
         return column;
     }
 
-    public ColumnFamily getColumnFamily() throws IOException
+    public ColumnFamily getColumnFamily()
     {
         return emptyColumnFamily;
     }

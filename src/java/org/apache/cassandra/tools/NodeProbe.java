@@ -354,11 +354,6 @@ public class NodeProbe
         ssProxy.decommission();
     }
 
-    public void loadBalance() throws IOException
-    {
-        ssProxy.loadBalance();
-    }
-
     public void move(String newToken) throws IOException, InterruptedException
     {
         ssProxy.move(newToken);

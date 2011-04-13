@@ -1,5 +1,5 @@
-Whatever
-========
+0.8
+===
 
 Upgrading
 ---------
@@ -9,6 +9,9 @@ Upgrading
 
 	Upgrading from version 0.7.1 or later can be done with a rolling restart,
 	one node at a time.  You do not need to bring down the whole cluster.
+
+    The loadbalance command has been removed from nodetool.  For similar
+    behavior, decommission then rebootstrap with empty initial_token.
 
 Other
 -----

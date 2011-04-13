@@ -151,6 +151,14 @@ public class Memtable implements Comparable<Memtable>, IFlushable
 
     public void updateLiveRatio()
     {
+        if (!MemoryMeter.isInitialized())
+        {
+            // hack for openjdk.  we log a warning about this in the startup script too.
+            logger.warn("MemoryMeter uninitialized (jamm not specified as java agent); assuming liveRatio of 10.0.  Usually this means cassandra-env.sh disabled jamm because you are using a buggy JRE; upgrade to the Sun JRE instead");
+            cfs.liveRatio = 10.0;
+            return;
+        }
+
         Runnable runnable = new Runnable()
         {
             public void run()

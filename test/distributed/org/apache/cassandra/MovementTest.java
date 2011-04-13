@@ -29,6 +29,7 @@ import java.util.*;
 
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.WrappedRunnable;
 
 import org.apache.cassandra.CassandraServiceController.Failure;

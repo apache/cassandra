@@ -91,7 +91,6 @@ public class Session
 
     private int progressInterval  = 10;
     private int keysPerCall       = 1000;
-    private int replicationFactor = 1;
     private boolean replicateOnWrite = true;
     private boolean ignoreErrors  = false;
 
@@ -231,7 +230,7 @@ public class Session
                 keysPerCall = Integer.parseInt(cmd.getOptionValue("g"));
 
             if (cmd.hasOption("l"))
-                replicationFactor = Integer.parseInt(cmd.getOptionValue("l"));
+                replicationStrategyOptions.put("replication_factor", String.valueOf(Integer.parseInt(cmd.getOptionValue("l"))));
 
             if (cmd.hasOption("e"))
                 consistencyLevel = ConsistencyLevel.valueOf(cmd.getOptionValue("e").toUpperCase());
@@ -414,7 +413,6 @@ public class Session
 
         keyspace.setName("Keyspace1");
         keyspace.setStrategy_class(replicationStrategy);
-        keyspace.setReplication_factor(replicationFactor);
 
         if (!replicationStrategyOptions.isEmpty())
         {

@@ -98,7 +98,7 @@ public class SSTableSliceIterator implements IColumnIterator
         return key;
     }
 
-    public ColumnFamily getColumnFamily() throws IOException
+    public ColumnFamily getColumnFamily()
     {
         return reader == null ? null : reader.getColumnFamily();
     }
