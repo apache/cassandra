@@ -72,6 +72,7 @@ public class Session
         availableOptions.addOption("x",  "create-index",         true,   "Type of index to create on needed column families (KEYS)");
         availableOptions.addOption("R",  "replication-strategy", true,   "Replication strategy to use (only on insert if keyspace does not exist), default:org.apache.cassandra.locator.SimpleStrategy");
         availableOptions.addOption("O",  "strategy-properties",  true,   "Replication strategy properties in the following format <dc_name>:<num>,<dc_name>:<num>,...");
+        availableOptions.addOption("V",  "average-size-values",  false,  "Generate column values of average rather than specific size");
     }
 
     private int numKeys          = 1000 * 1000;
@@ -101,6 +102,7 @@ public class Session
     private String replicationStrategy = "org.apache.cassandra.locator.SimpleStrategy";
     private Map<String, String> replicationStrategyOptions = new HashMap<String, String>();
 
+    public final boolean averageSizeValues;
 
     // required by Gaussian distribution.
     protected int   mean;
@@ -247,6 +249,8 @@ public class Session
                     replicationStrategyOptions.put(keyAndValue[0], keyAndValue[1]);
                 }
             }
+
+            averageSizeValues = cmd.hasOption("V");
         }
         catch (ParseException e)
         {

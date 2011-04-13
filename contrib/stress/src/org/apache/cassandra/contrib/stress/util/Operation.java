@@ -55,11 +55,33 @@ public abstract class Operation
 
     // Utility methods
 
+    protected List<ByteBuffer> generateValues()
+    {
+        if (session.averageSizeValues)
+        {
+            return generateRandomizedValues();
+        }
+
+        List<ByteBuffer> values = new ArrayList<ByteBuffer>();
+
+        for (int i = 0; i < session.getCardinality(); i++)
+        {
+            String hash = getMD5(Integer.toString(i));
+            int times = session.getColumnSize() / hash.length();
+            int sumReminder = session.getColumnSize() % hash.length();
+
+            String value = new StringBuilder(multiplyString(hash, times)).append(hash.substring(0, sumReminder)).toString();
+            values.add(ByteBuffer.wrap(value.getBytes()));
+        }
+
+        return values;
+    }
+
     /**
      * Generate values of average size specified by -S, up to cardinality specified by -C
      * @return Collection of the values
      */
-    protected List<ByteBuffer> generateValues()
+    protected List<ByteBuffer> generateRandomizedValues()
     {
         List<ByteBuffer> values = new ArrayList<ByteBuffer>();
 
