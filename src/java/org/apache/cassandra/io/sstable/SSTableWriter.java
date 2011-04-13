@@ -80,7 +80,7 @@ public class SSTableWriter extends SSTable
               SSTable.defaultColumnHistogram());
         iwriter = new IndexWriter(descriptor, partitioner, keyCount);
         dbuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode());
-        dataFile = new BufferedRandomAccessFile(new File(getFilename()), "rw", DatabaseDescriptor.getInMemoryCompactionLimit(), true);
+        dataFile = new BufferedRandomAccessFile(new File(getFilename()), "rw", BufferedRandomAccessFile.DEFAULT_BUFFER_SIZE, true);
     }
     
     public void mark()
