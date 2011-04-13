@@ -15,62 +15,53 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from os.path import abspath, dirname, join
-from marshal import unmarshal
+import cql
+from marshal import (unmarshallers, unmarshal_noop)
 
-class BaseDecoder(object):
-    def decode_column(self, keyspace, column_family, name, value):
-        raise NotImplementedError()
-        
-    def decode_key(self, keyspace, column_family, key):
-        raise NotImplementedError()
-    
-class NoopDecoder(BaseDecoder):
-    def decode_column(self, keyspace, column_family, name, value):
-        return (name, value)
-        
-    def decode_key(self, keyspace, column_family, key):
-        return key
-
-class SchemaDecoder(BaseDecoder):
+class SchemaDecoder(object):
     """
     Decode binary column names/values according to schema.
     """
     def __init__(self, schema={}):
         self.schema = schema
-        
+
     def __get_column_family_def(self, keyspace, column_family):
         if self.schema.has_key(keyspace):
             if self.schema[keyspace].has_key(column_family):
                 return self.schema[keyspace][column_family]
         return None
-    
+
     def __comparator_for(self, keyspace, column_family):
         cfam = self.__get_column_family_def(keyspace, column_family)
-        if cfam and cfam.has_key("comparator"):
+        if cfam and "comparator" in cfam:
             return cfam["comparator"]
         return None
-    
+
     def __validator_for(self, keyspace, column_family, name):
         cfam = self.__get_column_family_def(keyspace, column_family)
         if cfam:
-            if cfam["columns"].has_key(name):
+            if name in cfam["columns"]:
                 return cfam["columns"][name]
-            else:
-                return cfam["default_validation_class"]
+            return cfam["default_validation_class"]
         return None
-        
-    def __keytype_for(self, keyspace, column_family, key):
+
+    def __keytype_for(self, keyspace, column_family):
         cfam = self.__get_column_family_def(keyspace, column_family)
-        if cfam and cfam.has_key("key_validation_class"):
+        if cfam and "key_validation_class" in cfam:
             return cfam["key_validation_class"]
         return None
 
-    def decode_column(self, keyspace, column_family, name, value):
+    def decode_row(self, keyspace, column_family, row):
+        key_type = self.__keytype_for(keyspace, column_family)
+        key = unmarshallers.get(key_type, unmarshal_noop)(row.key)
+        description = [(cql.ROW_KEY, key_type, None, None, None, None, None, False)]
+
         comparator = self.__comparator_for(keyspace, column_family)
-        validator = self.__validator_for(keyspace, column_family, name)
-        return (unmarshal(name, comparator), unmarshal(value, validator))
-        
-    def decode_key(self, keyspace, column_family, key):
-        return unmarshal(key, self.__keytype_for(keyspace, column_family, key))
-    
+        unmarshal = unmarshallers.get(comparator, unmarshal_noop)
+        values = [key]
+        for column in row.columns:
+            description.append((unmarshal(column.name), comparator, None, None, None, None, True))
+            validator = self.__validator_for(keyspace, column_family, column.name)
+            values.append(unmarshallers.get(validator, unmarshal_noop)(column.value))
+
+        return description, values

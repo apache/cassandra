@@ -16,26 +16,26 @@
 # limitations under the License.
 
 import unittest
+import cql
 from cql.marshal import prepare
-from cql.errors import InvalidQueryFormat
 
 # TESTS[i] ARGUMENTS[i] -> STANDARDS[i]
 TESTS = (
 """
-SELECT ?,?,?,? FROM ColumnFamily WHERE KEY = ? AND 'col' = ?;
+SELECT :a,:b,:c,:d FROM ColumnFamily WHERE KEY = :e AND 'col' = :f;
 """,
 """
 USE Keyspace;
 """,
 """
-SELECT ?..? FROM ColumnFamily;
+SELECT :a..:b FROM ColumnFamily;
 """,
 )
 
 ARGUMENTS = (
-    (1, 3, long(1000), long(3000), "key", unicode("val")),
-    tuple(),
-    ("a'b", "c'd'e"),
+    {'a': 1, 'b': 3, 'c': long(1000), 'd': long(3000), 'e': "key", 'f': unicode("val")},
+    {},
+    {'a': "a'b", 'b': "c'd'e"},
 )
 
 STANDARDS = (
@@ -54,13 +54,12 @@ class TestPrepare(unittest.TestCase):
     def test_prepares(self):
         "test prepared queries against known standards"
         for (i, test) in enumerate(TESTS):
-            a = prepare(test, *ARGUMENTS[i])
+            a = prepare(test, **ARGUMENTS[i])
             b = STANDARDS[i]
             assert a == b, "\n%s !=\n%s" % (a, b)
-    
+
     def test_bad(self):
         "ensure bad calls raise exceptions"
-        self.assertRaises(InvalidQueryFormat, prepare, "? ?", 1)
-        self.assertRaises(InvalidQueryFormat, prepare, "? ?", 1, 2, 3)
-        self.assertRaises(InvalidQueryFormat, prepare, "none", 1)
-
+        self.assertRaises(KeyError, prepare, ":a :b", a=1)
+        self.assertRaises(cql.ProgrammingError, prepare, ":a :b", a=1, b=2, c=3)
+        self.assertRaises(cql.ProgrammingError, prepare, "none", a=1)

@@ -15,84 +15,48 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-class RowsProxy(object):
-    def __init__(self, rows, keyspace, cfam, decoder):
+class ResultSet(object):
+
+    def __init__(self, rows, keyspace, column_family, decoder):
         self.rows = rows
-        self.keyspace = keyspace
-        self.cfam = cfam
+        self.ks = keyspace
+        self.cf = column_family
         self.decoder = decoder
+
+        # We need to try to parse the first row to set the description
+        if len(self.rows) > 0:
+            self.description, self._first_vals = self.decoder.decode_row(self.ks, self.cf, self.rows[0])
+        else:
+            self.description, self._first_vals = (None, None)
 
     def __len__(self):
         return len(self.rows)
-        
+
     def __getitem__(self, idx):
-        return Row(self.rows[idx].key,
-                   self.rows[idx].columns,
-                   self.keyspace,
-                   self.cfam,
-                   self.decoder)
-    
+        if isinstance(idx, int):
+            if idx == 0 and self._first_vals:
+                return self._first_vals
+            self.description, vals = self.decoder.decode_row(self.ks, self.cf, self.rows[idx])
+            return vals
+        elif isinstance(idx, slice):
+            num_rows = len(self.rows)
+            results = []
+            for i in xrange(idx.start, min(len(self.rows), idx.stop)):
+                if i == 0 and self._first_vals:
+                    vals = self._first_vals
+                else:
+                    self.description, vals = self.decoder.decode_row(self.ks, self.cf, self.rows[i])
+                results.append(vals)
+            return results
+        else:
+            raise TypeError
+
     def __iter__(self):
+        idx = 0
         for r in self.rows:
-            yield Row(r.key, r.columns, self.keyspace, self.cfam, self.decoder)
-
-class Row(object):
-    def __init__(self, key, columns, keyspace, cfam, decoder):
-        self._key = key
-        self.keyspace = keyspace
-        self.cfam = cfam
-        self.decoder = decoder
-        self.columns = ColumnsProxy(columns, keyspace, cfam, decoder)
-    
-    def __get_key(self):
-        return self.decoder.decode_key(self.keyspace, self.cfam, self._key)
-    key = property(__get_key)
-    
-    def __iter__(self):
-        return iter(self.columns)
-    
-    def __getitem__(self, idx):
-        return self.columns[idx]
-    
-    def __len__(self):
-        return len(self.columns)
-
-class ColumnsProxy(object):
-    def __init__(self, columns, keyspace, cfam, decoder):
-        self.columns = columns
-        self.keyspace = keyspace
-        self.cfam = cfam
-        self.decoder = decoder
-        
-    def __len__(self):
-        return len(self.columns)
-    
-    def __getitem__(self, idx):
-        return Column(self.decoder.decode_column(self.keyspace,
-                                                 self.cfam,
-                                                 self.columns[idx].name,
-                                                 self.columns[idx].value))
-
-    def __iter__(self):
-        for c in self.columns:
-            yield Column(self.decoder.decode_column(self.keyspace,
-                                                    self.cfam,
-                                                    c.name,
-                                                    c.value))
-    
-    def __str__(self):
-        return "ColumnsProxy(columns=%s)" % self.columns
-    
-    def __repr__(self):
-        return str(self)
-
-class Column(object):
-    def __init__(self, (name, value)):
-        self.name = name
-        self.value = value
-    
-    def __str__(self):
-        return "Column(%s, %s)" % (self.name, self.value)
-    
-    def __repr__(self):
-        return str(self)
+            if idx == 0 and self._first_vals:
+                yield self._first_vals
+            else:
+                self.description, vals = self.decoder.decode_row(self.ks, self.cf, r)
+                yield vals
+            idx += 1
