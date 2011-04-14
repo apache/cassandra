@@ -20,28 +20,29 @@ package org.apache.cassandra.db;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.nio.ByteBuffer;
 import java.util.*;
 
-import org.apache.cassandra.Util;
-
 import org.junit.Test;
-import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.sstable.SSTableUtils;
 import org.apache.cassandra.io.sstable.SSTableWriter;
-import org.apache.cassandra.CleanupHelper;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.streaming.OperationType;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import java.nio.ByteBuffer;
-import org.apache.cassandra.io.sstable.Component;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.NodeId;
+import static org.apache.cassandra.db.context.CounterContext.ContextState;
+
 import static junit.framework.Assert.assertEquals;
 
 public class LongCompactionSpeedTest extends CleanupHelper
 {
     public static final String TABLE1 = "Keyspace1";
-    public static final InetAddress LOCAL = FBUtilities.getLocalAddress();
 
     /**
      * Test compaction with a very wide row.
@@ -188,12 +189,12 @@ public class LongCompactionSpeedTest extends CleanupHelper
 
     protected CounterColumn createCounterColumn(String name)
     {
-        byte[] context = Util.concatByteArrays(
-            FBUtilities.getLocalAddress().getAddress(), FBUtilities.toByteArray(9L), FBUtilities.toByteArray(3L),
-            FBUtilities.toByteArray(2),  FBUtilities.toByteArray(4L), FBUtilities.toByteArray(2L),
-            FBUtilities.toByteArray(4),  FBUtilities.toByteArray(3L), FBUtilities.toByteArray(3L),
-            FBUtilities.toByteArray(8),  FBUtilities.toByteArray(2L), FBUtilities.toByteArray(4L)
-        );
-        return new CounterColumn(ByteBufferUtil.bytes(name), ByteBuffer.wrap(context), 0L);
+        ContextState context = ContextState.allocate(4, 1);
+        context.writeElement(NodeId.fromInt(1), 4L, 2L, true);
+        context.writeElement(NodeId.fromInt(2), 4L, 2L);
+        context.writeElement(NodeId.fromInt(4), 3L, 3L);
+        context.writeElement(NodeId.fromInt(8), 2L, 4L);
+
+        return new CounterColumn(ByteBufferUtil.bytes(name), context.context, 0L);
     }
 }
