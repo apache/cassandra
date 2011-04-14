@@ -435,6 +435,10 @@ commands:
         - read_repair_chance: Probability (0.0-1.0) with which to perform read
           repairs for any read operation. Default is 1.0 to enable read repair.
 
+          Note that disabling read repair entirely means that the dynamic snitch
+          will not have any latency information from all the replicas to recognize
+          when one is performing worse than usual.
+
         - rows_cached: Maximum number of rows whose entire contents we
           cache in memory. Valid values are either a double between 0 and 1 (
           inclusive on both ends) denoting what fraction should be cached. Or an
