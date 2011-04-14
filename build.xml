@@ -27,6 +27,7 @@
     <property name="basedir" value="."/>
     <property name="build.src" value="${basedir}/src"/>
     <property name="build.src.java" value="${basedir}/src/java"/>
+    <property name="build.src.resources" value="${basedir}/src/resources"/>
     <property name="build.src.driver" value="${basedir}/drivers/java/src" />
     <property name="avro.src" value="${basedir}/src/avro"/>
     <property name="build.src.gen-java" value="${basedir}/src/gen-java"/>
@@ -383,7 +384,9 @@
             <src path="${build.src.driver}" />
             <classpath refid="cassandra.classpath"/>
         </javac>
-
+        <copy todir="${build.classes.main}">
+            <fileset dir="${build.src.resources}" />
+        </copy>
         <taskdef name="paranamer" classname="com.thoughtworks.paranamer.ant.ParanamerGeneratorTask">
           <classpath refid="cassandra.classpath" />
         </taskdef>
