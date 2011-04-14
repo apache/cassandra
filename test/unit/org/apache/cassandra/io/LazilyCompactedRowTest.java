@@ -27,9 +27,7 @@ import java.io.*;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.HashSet;
 import java.util.Collection;
-import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 import org.apache.cassandra.CleanupHelper;
@@ -309,7 +307,7 @@ public class LazilyCompactedRowTest extends CleanupHelper
     {
         public LazyCompactionIterator(Iterable<SSTableReader> sstables, CompactionController controller) throws IOException
         {
-            super("Lazy", sstables, controller);
+            super(CompactionType.UNKNOWN, sstables, controller);
         }
 
         @Override
@@ -323,7 +321,7 @@ public class LazilyCompactedRowTest extends CleanupHelper
     {
         public PreCompactingIterator(Iterable<SSTableReader> sstables, CompactionController controller) throws IOException
         {
-            super("Pre", sstables, controller);
+            super(CompactionType.UNKNOWN, sstables, controller);
         }
 
         @Override

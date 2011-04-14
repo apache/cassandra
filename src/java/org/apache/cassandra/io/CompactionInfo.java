@@ -23,13 +23,15 @@ import java.io.Serializable;
 /** Implements serializable to allow structured info to be returned via JMX. */
 public final class CompactionInfo implements Serializable
 {
+
+
     private final String ksname;
     private final String cfname;
-    private final String tasktype;
+    private final CompactionType tasktype;
     private final long bytesComplete;
     private final long totalBytes;
 
-    public CompactionInfo(String ksname, String cfname, String tasktype, long bytesComplete, long totalBytes)
+    public CompactionInfo(String ksname, String cfname, CompactionType tasktype, long bytesComplete, long totalBytes)
     {
         this.ksname = ksname;
         this.cfname = cfname;
@@ -64,7 +66,7 @@ public final class CompactionInfo implements Serializable
         return totalBytes;
     }
 
-    public String getTaskType()
+    public CompactionType getTaskType()
     {
         return tasktype;
     }

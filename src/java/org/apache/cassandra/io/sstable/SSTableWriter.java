@@ -28,6 +28,7 @@ import java.util.Set;
 
 import com.google.common.collect.Sets;
 
+import org.apache.cassandra.io.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,13 +39,7 @@ import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Table;
-import org.apache.cassandra.db.marshal.AbstractCommutativeType;
 import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.io.AbstractCompactedRow;
-import org.apache.cassandra.io.CompactionController;
-import org.apache.cassandra.io.CompactionInfo;
-import org.apache.cassandra.io.LazilyCompactedRow;
-import org.apache.cassandra.io.PrecompactedRow;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
 import org.apache.cassandra.io.util.FileMark;
 import org.apache.cassandra.io.util.FileUtils;
@@ -271,7 +266,7 @@ public class SSTableWriter extends SSTable
                 // both file offsets are still valid post-close
                 return new CompactionInfo(desc.ksname,
                                           desc.cfname,
-                                          "SSTable rebuild",
+                                          CompactionType.SSTABLE_BUILD,
                                           indexer.dfile.getFilePointer(),
                                           indexer.dfile.length());
             }
