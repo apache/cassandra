@@ -229,9 +229,6 @@ public class Session
             if (cmd.hasOption("g"))
                 keysPerCall = Integer.parseInt(cmd.getOptionValue("g"));
 
-            if (cmd.hasOption("l"))
-                replicationStrategyOptions.put("replication_factor", String.valueOf(Integer.parseInt(cmd.getOptionValue("l"))));
-
             if (cmd.hasOption("e"))
                 consistencyLevel = ConsistencyLevel.valueOf(cmd.getOptionValue("e").toUpperCase());
 
@@ -240,6 +237,11 @@ public class Session
 
             if (cmd.hasOption("R"))
                 replicationStrategy = cmd.getOptionValue("R");
+
+            if (cmd.hasOption("l"))
+                replicationStrategyOptions.put("replication_factor", String.valueOf(Integer.parseInt(cmd.getOptionValue("l"))));
+            else if (replicationStrategy.endsWith("SimpleStrategy"))
+                replicationStrategyOptions.put("replication_factor", "1");
 
             if (cmd.hasOption("O"))
             {
@@ -421,19 +423,18 @@ public class Session
 
         keyspace.setCf_defs(new ArrayList<CfDef>(Arrays.asList(standardCfDef, superCfDef, counterCfDef, counterSuperCfDef)));
 
-
         Cassandra.Client client = getClient(false);
 
         try
         {
             client.system_add_keyspace(keyspace);
             out.println(String.format("Created keyspaces. Sleeping %ss for propagation.", nodes.length));
-
             Thread.sleep(nodes.length * 1000); // seconds
         }
         catch (InvalidRequestException e)
         {
-            out.println(e.getWhy());
+            out.println("Unable to create stress keyspace: " + e.getWhy());
+            System.exit(1);
         }
         catch (Exception e)
         {
