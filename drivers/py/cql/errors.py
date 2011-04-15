@@ -15,8 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-__all__ = ['InvalidCompressionScheme', 'CQLException', 'InvalidQueryFormat']
+__all__ = ['InvalidCompressionScheme', 'InvalidQueryFormat']
 
 class InvalidCompressionScheme(Exception): pass
 class InvalidQueryFormat(Exception): pass
-class CQLException(Exception): pass

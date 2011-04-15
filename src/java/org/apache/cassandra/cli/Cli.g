@@ -119,7 +119,7 @@ package org.apache.cassandra.cli;
 
         if (e instanceof NoViableAltException)
         {
-            errorMessage = "Command not found: `" + this.input + "`. Type 'help' or '?' for help.";
+            errorMessage = "Command not found: `" + this.input + "`. Type 'help;' or '?' for help.";
         }
         else
         {

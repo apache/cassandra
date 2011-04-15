@@ -23,18 +23,18 @@ import sys, uuid, time
 
 sys.path.append(join(abspath(dirname(__file__)), '../../drivers/py'))
 
-from cql import Connection
-from cql.errors import CQLException
+import cql
+from cql.connection import Connection
 from __init__ import ThriftTester
 from __init__ import thrift_client     # TODO: temporary
 
-def assert_raises(exception, method, *args):
+def assert_raises(exception, method, *args, **kwargs):
     try:
-        method(*args)
+        method(*args, **kwargs)
     except exception:
         return
     raise AssertionError("failed to see expected exception")
-    
+
 def uuid1bytes_to_millis(uuidbytes):
     return (uuid.UUID(bytes=uuidbytes).get_time() / 10000) - 12219292800000L
 
@@ -72,12 +72,12 @@ def load_sample(dbconn):
             WITH comparator = ascii AND default_validation = ascii;
     """)
     dbconn.execute("CREATE INDEX ON IndexedA (birthdate)")
-    
-    query = "UPDATE StandardString1 SET ? = ?, ? = ? WHERE KEY = ?"
-    dbconn.execute(query, "ca1", "va1", "col", "val", "ka")
-    dbconn.execute(query, "cb1", "vb1", "col", "val", "kb")
-    dbconn.execute(query, "cc1", "vc1", "col", "val", "kc")
-    dbconn.execute(query, "cd1", "vd1", "col", "val", "kd")
+
+    query = "UPDATE StandardString1 SET :c1 = :v1, :c2 = :v2 WHERE KEY = :key"
+    dbconn.execute(query, dict(c1="ca1", v1="va1", c2="col", v2="val", key="ka"))
+    dbconn.execute(query, dict(c1="cb1", v1="vb1", c2="col", v2="val", key="kb"))
+    dbconn.execute(query, dict(c1="cc1", v1="vc1", c2="col", v2="val", key="kc"))
+    dbconn.execute(query, dict(c1="cd1", v1="vd1", c2="col", v2="val", key="kd"))
 
     dbconn.execute("""
     BEGIN BATCH USING CONSISTENCY ONE
@@ -90,7 +90,7 @@ def load_sample(dbconn):
      UPDATE StandardLongA SET 5='5', 6='6', 7='8', 9='9' WHERE KEY='ag'
     APPLY BATCH
     """)
-    
+
     dbconn.execute("""
     BEGIN BATCH USING CONSISTENCY ONE
       UPDATE StandardIntegerA SET 10='a', 20='b', 30='c', 40='d' WHERE KEY='k1';
@@ -114,255 +114,294 @@ def load_sample(dbconn):
     """)
 
 def init(keyspace="Keyspace1"):
-    dbconn = Connection('localhost', 9170, keyspace)
-    load_sample(dbconn)
-    return dbconn
+    dbconn = cql.connect('localhost', 9170, keyspace)
+    cursor = dbconn.cursor()
+    load_sample(cursor)
+    return cursor
 
 class TestCql(ThriftTester):
     def test_select_simple(self):
         "retrieve a column"
-        conn = init()
-        r = conn.execute("SELECT 'ca1' FROM StandardString1 WHERE KEY='ka'")
-        assert r[0].key == 'ka'
-        assert r[0].columns[0].name == 'ca1'
-        assert r[0].columns[0].value == 'va1'
+        cursor = init()
+        cursor.execute("SELECT 'ca1' FROM StandardString1 WHERE KEY='ka'")
+        r = cursor.fetchone()
+        d = cursor.description
+
+        assert d[0][0] == cql.ROW_KEY
+        assert r[0] == 'ka'
+
+        assert d[1][0] == 'ca1'
+        assert r[1] == 'va1'
 
     def test_select_columns(self):
         "retrieve multiple columns"
-        conn = init()
-        r = conn.execute("""
+        cursor = init()
+        cursor.execute("""
             SELECT 'cd1', 'col' FROM StandardString1 WHERE KEY = 'kd'
         """)
-        assert "cd1" in [i.name for i in r[0].columns]
-        assert "col" in [i.name for i in r[0].columns]
+
+        d = cursor.description
+        assert "cd1" in [col_dscptn[0] for col_dscptn in d]
+        assert "col" in [col_dscptn[0] for col_dscptn in d]
 
     def test_select_row_range(self):
         "retrieve a range of rows with columns"
-        conn = init()
-        r = conn.execute("""
+        cursor = init()
+        cursor.execute("""
             SELECT 4 FROM StandardLongA WHERE KEY > 'ad' AND KEY < 'ag';
         """)
-        assert len(r) == 4
-        assert r[0].key == "ad"
-        assert r[1].key == "ae"
-        assert r[2].key == "af"
-        assert len(r[0].columns) == 1
-        assert len(r[1].columns) == 1
-        assert len(r[2].columns) == 1
+        keys = ['ad', 'ae', 'af']
+        assert cursor.rowcount == 4
+        for i in range(3):
+            r = cursor.fetchone()
+            assert len(r) == 2
+            assert r[0] == keys[i]
 
     def test_select_row_range_with_limit(self):
         "retrieve a limited range of rows with columns"
-        conn = init()
-        r = conn.execute("""
+        cursor = init()
+        cursor.execute("""
             SELECT 1,5,9 FROM StandardLongA WHERE KEY > 'aa'
                     AND KEY < 'ag' LIMIT 3
         """)
-        assert len(r) == 3
-        
-        r = conn.execute("""
+        assert cursor.rowcount == 3
+
+        cursor.execute("""
             SELECT 20,40 FROM StandardIntegerA WHERE KEY > 'k1'
                     AND KEY < 'k7' LIMIT 5
         """)
-        assert len(r) == 5
-        r[0].key == "k1"
-        r[4].key == "k5"
+        assert cursor.rowcount == 5
+        for i in range(5):
+            r = cursor.fetchone()
+            assert r[0] == "k%d" % (i+1)
 
     def test_select_columns_slice(self):
         "range of columns (slice) by row"
-        conn = init()
-        r = conn.execute("SELECT 1..3 FROM StandardLongA WHERE KEY = 'aa';")
-        assert len(r) == 1
-        assert r[0].columns[0].value == "1"
-        assert r[0].columns[1].value == "2"
-        assert r[0].columns[2].value == "3"
-        
-        r = conn.execute("SELECT 10..30 FROM StandardIntegerA WHERE KEY='k1'")
-        assert len(r) == 1
-        assert r[0].columns[0].value == "a"
-        assert r[0].columns[1].value == "b"
-        assert r[0].columns[2].value == "c"
-        
+        cursor = init()
+
+        cursor.execute("SELECT 1..3 FROM StandardLongA WHERE KEY = 'aa';")
+        assert cursor.rowcount == 1
+        r = cursor.fetchone()
+        assert r[0] == "aa"
+        assert r[1] == "1"
+        assert r[2] == "2"
+        assert r[3] == "3"
+
+        cursor.execute("SELECT 10..30 FROM StandardIntegerA WHERE KEY='k1'")
+        assert cursor.rowcount == 1
+        r = cursor.fetchone()
+        assert r[0] == "k1"
+        assert r[1] == "a"
+        assert r[2] == "b"
+        assert r[3] == "c"
+
     def test_select_columns_slice_all(self):
         "slice all columns in a row"
-        conn = init()
-        r = conn.execute("SELECT * FROM StandardString1 WHERE KEY = 'ka';")
-        assert len(r[0].columns) == 2
-        r = conn.execute("SELECT ''..'' FROM StandardString1 WHERE KEY = 'ka';")
-        assert len(r[0].columns) == 2
+        cursor = init()
+        cursor.execute("SELECT * FROM StandardString1 WHERE KEY = 'ka';")
+        r = cursor.fetchone()
+        assert len(r) == 3
+        cursor.execute("SELECT ''..'' FROM StandardString1 WHERE KEY = 'ka';")
+        r = cursor.fetchone()
+        assert len(r) == 3
 
     def test_select_columns_slice_with_limit(self):
         "range of columns (slice) by row with limit"
-        conn = init()
-        r = conn.execute("""
+        cursor = init()
+        cursor.execute("""
             SELECT FIRST 1 1..3 FROM StandardLongA WHERE KEY = 'aa';
         """)
-        assert len(r) == 1
-        assert len(r[0].columns) == 1
-        assert r[0].columns[0].value == "1"
+        assert cursor.rowcount == 1
+        r = cursor.fetchone()
+        assert len(r) == 2
+        assert r[0] == "aa"
+        assert r[1] == "1"
 
     def test_select_columns_slice_reversed(self):
         "range of columns (slice) by row reversed"
-        conn = init()
-        r = conn.execute("""
+        cursor= init()
+        cursor.execute("""
             SELECT FIRST 2 REVERSED 3..1 FROM StandardLongA WHERE KEY = 'aa';
         """)
-        assert len(r) == 1, "%d != 1" % len(r)
-        assert len(r[0].columns) == 2
-        assert r[0].columns[0].value == "3"
-        assert r[0].columns[1].value == "2"
+        assert cursor.rowcount == 1, "%d != 1" % cursor.rowcount
+        r = cursor.fetchone()
+        assert len(r) == 3
+        assert r[0] == 'aa'
+        assert r[1] == "3"
+        assert r[2] == "2"
 
     def test_error_on_multiple_key_by(self):
         "ensure multiple key-bys in where clause excepts"
-        conn = init()
-        assert_raises(CQLException, conn.execute, """
+        cursor = init()
+        assert_raises(cql.ProgrammingError, cursor.execute, """
             SELECT 'col' FROM StandardString1 WHERE KEY = 'ka' AND KEY = 'kb';
         """)
 
     def test_index_scan_equality(self):
         "indexed scan where column equals value"
-        conn = init()
-        r = conn.execute("""
+        cursor = init()
+        cursor.execute("""
             SELECT 'birthdate' FROM IndexedA WHERE 'birthdate' = 100
         """)
+        assert cursor.rowcount == 2
+
+        r = cursor.fetchone()
+        assert r[0] == "asmith"
         assert len(r) == 2
-        assert r[0].key == "asmith"
-        assert r[1].key == "dozer"
-        assert len(r[0].columns) == 1
-        assert len(r[1].columns) == 1
+
+        r = cursor.fetchone()
+        assert r[0] == "dozer"
+        assert len(r) == 2
 
     def test_index_scan_greater_than(self):
         "indexed scan where a column is greater than a value"
-        conn = init()
-        r = conn.execute("""
+        cursor = init()
+        cursor.execute("""
             SELECT 'birthdate' FROM IndexedA WHERE 'birthdate' = 100
                     AND 'unindexed' > 200
         """)
-        assert len(r) == 1
-        assert r[0].key == "asmith"
+        assert cursor.rowcount == 1
+        r = cursor.fetchone()
+        assert r[0] == "asmith"
 
     def test_index_scan_with_start_key(self):
         "indexed scan with a starting key"
-        conn = init()
-        r = conn.execute("""
+        cursor = init()
+        cursor.execute("""
             SELECT 'birthdate' FROM IndexedA WHERE 'birthdate' = 100
                     AND KEY > 'asmithZ'
         """)
-        assert len(r) == 1
-        assert r[0].key == "dozer"
+        assert cursor.rowcount == 1
+        r = cursor.fetchone()
+        assert r[0] == "dozer"
 
     def test_no_where_clause(self):
         "empty where clause (range query w/o start key)"
-        conn = init()
-        r = conn.execute("SELECT 'col' FROM StandardString1 LIMIT 3")
-        assert len(r) == 3
-        assert r[0].key == "ka"
-        assert r[1].key == "kb"
-        assert r[2].key == "kc"
+        cursor = init()
+        cursor.execute("SELECT 'col' FROM StandardString1 LIMIT 3")
+        assert cursor.rowcount == 3
+        rows = cursor.fetchmany(3)
+        assert rows[0][0] == "ka"
+        assert rows[1][0] == "kb"
+        assert rows[2][0] == "kc"
 
     def test_column_count(self):
         "getting a result count instead of results"
-        conn = init()
-        r = conn.execute("""
+        cursor = init()
+        cursor.execute("""
             SELECT COUNT(1..4) FROM StandardLongA WHERE KEY = 'aa';
         """)
-        assert r == 4, "expected 4 results, got %d" % (r and r or 0)
+        r = cursor.fetchone()
+        assert r[0] == 4, "expected 4 results, got %d" % (r and r or 0)
 
     def test_truncate_columnfamily(self):
         "truncating a column family"
-        conn = init()
-        conn.execute('TRUNCATE StandardString1;')
-        r = conn.execute("SELECT 'cd1' FROM StandardString1 WHERE KEY = 'kd'")
-        assert len(r) == 0
+        cursor = init()
+        cursor.execute('TRUNCATE StandardString1;')
+        cursor.execute("SELECT 'cd1' FROM StandardString1 WHERE KEY = 'kd'")
+        assert cursor.rowcount == 0
 
     def test_delete_columns(self):
         "delete columns from a row"
-        conn = init()
-        r = conn.execute("""
+        cursor = init()
+        cursor.execute("""
             SELECT 'cd1', 'col' FROM StandardString1 WHERE KEY = 'kd'
         """)
-        assert "cd1" in [i.name for i in r[0].columns]
-        assert "col" in [i.name for i in r[0].columns]
-        conn.execute("""
+        colnames = [col_d[0] for col_d in cursor.description]
+        assert "cd1" in colnames
+        assert "col" in colnames
+        cursor.execute("""
             DELETE 'cd1', 'col' FROM StandardString1 WHERE KEY = 'kd'
         """)
-        r = conn.execute("""
+        cursor.execute("""
             SELECT 'cd1', 'col' FROM StandardString1 WHERE KEY = 'kd'
         """)
-        assert len(r[0].columns) == 0
+        r = cursor.fetchone()
+        assert len(r) == 1
 
     def test_delete_columns_multi_rows(self):
         "delete columns from multiple rows"
-        conn = init()
-        r = conn.execute("SELECT 'col' FROM StandardString1 WHERE KEY = 'kc'")
-        assert len(r[0].columns) == 1
-        r = conn.execute("SELECT 'col' FROM StandardString1 WHERE KEY = 'kd'")
-        assert len(r[0].columns) == 1
+        cursor = init()
 
-        conn.execute("""
+        cursor.execute("SELECT 'col' FROM StandardString1 WHERE KEY = 'kc'")
+        r = cursor.fetchone()
+        assert  len(r) == 2
+
+        cursor.execute("SELECT 'col' FROM StandardString1 WHERE KEY = 'kd'")
+        r = cursor.fetchone()
+        assert  len(r) == 2
+
+        cursor.execute("""
             DELETE 'col' FROM StandardString1 WHERE KEY IN ('kc', 'kd')
         """)
-        r = conn.execute("SELECT 'col' FROM StandardString1 WHERE KEY = 'kc'")
-        assert len(r[0].columns) == 0
-        r = conn.execute("SELECT 'col' FROM StandardString1 WHERE KEY = 'kd'")
-        assert len(r[0].columns) == 0
+        cursor.execute("SELECT 'col' FROM StandardString1 WHERE KEY = 'kc'")
+        r = cursor.fetchone()
+        assert  len(r) == 1
+
+        cursor.execute("SELECT 'col' FROM StandardString1 WHERE KEY = 'kd'")
+        r = cursor.fetchone()
+        assert  len(r) == 1
 
     def test_delete_rows(self):
         "delete entire rows"
-        conn = init()
-        r = conn.execute("""
+        cursor = init()
+        cursor.execute("""
             SELECT 'cd1', 'col' FROM StandardString1 WHERE KEY = 'kd'
         """)
-        assert "cd1" in [i.name for i in r[0].columns]
-        assert "col" in [i.name for i in r[0].columns]
-        conn.execute("DELETE FROM StandardString1 WHERE KEY = 'kd'")
-        r = conn.execute("""
+        colnames = [col_d[0] for col_d in cursor.description]
+        assert "cd1" in colnames
+        assert "col" in colnames
+        cursor.execute("DELETE FROM StandardString1 WHERE KEY = 'kd'")
+        cursor.execute("""
             SELECT 'cd1', 'col' FROM StandardString1 WHERE KEY = 'kd'
         """)
-        assert len(r[0].columns) == 0
-        
+        r = cursor.fetchone()
+        assert len(r) == 1
+
     def test_create_keyspace(self):
         "create a new keyspace"
-        init().execute("""
+        cursor = init()
+        cursor.execute("""
         CREATE KEYSPACE TestKeyspace42 WITH strategy_options:DC1 = '1'
             AND strategy_class = 'NetworkTopologyStrategy'
         """)
-        
+
         # TODO: temporary (until this can be done with CQL).
         ksdef = thrift_client.describe_keyspace("TestKeyspace42")
-        
+
         strategy_class = "org.apache.cassandra.locator.NetworkTopologyStrategy"
         assert ksdef.strategy_class == strategy_class
         assert ksdef.strategy_options['DC1'] == "1"
-        
+
     def test_drop_keyspace(self):
         "removing a keyspace"
-        conn = init()
-        conn.execute("""
-        CREATE KEYSPACE Keyspace4Drop
-            WITH strategy_class = SimpleStrategy AND strategy_options:replication_factor = 1
+        cursor = init()
+        cursor.execute("""
+               CREATE KEYSPACE Keyspace4Drop WITH strategy_options:replication_factor = '1'
+                   AND strategy_class = 'SimpleStrategy'
         """)
-        
+
         # TODO: temporary (until this can be done with CQL).
         thrift_client.describe_keyspace("Keyspace4Drop")
-        
-        conn.execute('DROP KEYSPACE Keyspace4Drop;')
-        
+
+        cursor.execute('DROP KEYSPACE Keyspace4Drop;')
+
         # Technically this should throw a ttypes.NotFound(), but this is
         # temporary and so not worth requiring it on PYTHONPATH.
         assert_raises(Exception,
                       thrift_client.describe_keyspace,
                       "Keyspace4Drop")
-        
+
     def test_create_column_family(self):
         "create a new column family"
-        conn = init()
-        conn.execute("""
-            CREATE KEYSPACE CreateCFKeyspace WITH strategy_options:replication_factor = 1
-                AND strategy_class = 'SimpleStrategy';
+        cursor = init()
+        cursor.execute("""
+               CREATE KEYSPACE CreateCFKeyspace WITH strategy_options:replication_factor = '1'
+                   AND strategy_class = 'SimpleStrategy';
         """)
-        conn.execute("USE CreateCFKeyspace;")
-        
-        conn.execute("""
+        cursor.execute("USE CreateCFKeyspace;")
+
+        cursor.execute("""
             CREATE COLUMNFAMILY NewCf1 (
                 KEY varint PRIMARY KEY,
                 'username' text,
@@ -371,7 +410,7 @@ class TestCql(ThriftTester):
                 'id' uuid
             ) WITH comment = 'shiny, new, cf' AND default_validation = ascii;
         """)
-        
+
         # TODO: temporary (until this can be done with CQL).
         ksdef = thrift_client.describe_keyspace("CreateCFKeyspace")
         assert len(ksdef.cf_defs) == 1, \
@@ -383,27 +422,27 @@ class TestCql(ThriftTester):
         assert cfam.default_validation_class == "org.apache.cassandra.db.marshal.AsciiType"
         assert cfam.comparator_type == "org.apache.cassandra.db.marshal.UTF8Type"
         assert cfam.key_validation_class == "org.apache.cassandra.db.marshal.IntegerType"
-        
+
         # Missing primary key
-        assert_raises(CQLException, conn.execute, "CREATE COLUMNFAMILY NewCf2")
-        
+        assert_raises(cql.ProgrammingError, cursor.execute, "CREATE COLUMNFAMILY NewCf2")
+
         # Too many primary keys
-        assert_raises(CQLException,
-                      conn.execute,
+        assert_raises(cql.ProgrammingError,
+                      cursor.execute,
                       """CREATE COLUMNFAMILY NewCf2
                              (KEY varint PRIMARY KEY, KEY text PRIMARY KEY)""")
-        
+
         # No column defs
-        conn.execute("""CREATE COLUMNFAMILY NewCf3
+        cursor.execute("""CREATE COLUMNFAMILY NewCf3
                             (KEY varint PRIMARY KEY) WITH comparator = bigint""")
         ksdef = thrift_client.describe_keyspace("CreateCFKeyspace")
         assert len(ksdef.cf_defs) == 2, \
             "expected 3 column families total, found %d" % len(ksdef.cf_defs)
         cfam = [i for i in ksdef.cf_defs if i.name == "NewCf3"][0]
         assert cfam.comparator_type == "org.apache.cassandra.db.marshal.LongType"
-        
+
         # Column defs, defaults otherwise
-        conn.execute("""CREATE COLUMNFAMILY NewCf4
+        cursor.execute("""CREATE COLUMNFAMILY NewCf4
                             (KEY varint PRIMARY KEY, 'a' varint, 'b' varint)
                             WITH comparator = text;""")
         ksdef = thrift_client.describe_keyspace("CreateCFKeyspace")
@@ -415,34 +454,34 @@ class TestCql(ThriftTester):
         for coldef in cfam.column_metadata:
             assert coldef.name in ("a", "b"), "Unknown column name " + coldef.name
             assert coldef.validation_class.endswith("marshal.IntegerType")
-            
+
     def test_drop_columnfamily(self):
         "removing a column family"
-        conn = init()
-        conn.execute("""
-            CREATE KEYSPACE Keyspace4CFDrop WITH strategy_options:replication_factor = 1
-                AND strategy_class = 'SimpleStrategy';
+        cursor = init()
+        cursor.execute("""
+               CREATE KEYSPACE Keyspace4CFDrop WITH strategy_options:replication_factor = '1'
+                   AND strategy_class = 'SimpleStrategy';
         """)
-        conn.execute('USE Keyspace4CFDrop;')
-        conn.execute('CREATE COLUMNFAMILY CF4Drop (KEY varint PRIMARY KEY);')
-        
+        cursor.execute('USE Keyspace4CFDrop;')
+        cursor.execute('CREATE COLUMNFAMILY CF4Drop (KEY varint PRIMARY KEY);')
+
         # TODO: temporary (until this can be done with CQL).
         ksdef = thrift_client.describe_keyspace("Keyspace4CFDrop")
         assert len(ksdef.cf_defs), "Column family not created!"
-        
-        conn.execute('DROP COLUMNFAMILY CF4Drop;')
-        
+
+        cursor.execute('DROP COLUMNFAMILY CF4Drop;')
+
         ksdef = thrift_client.describe_keyspace("Keyspace4CFDrop")
         assert not len(ksdef.cf_defs), "Column family not deleted!"
-            
+
     def test_create_indexs(self):
         "creating column indexes"
-        conn = init()
-        conn.execute("USE Keyspace1")
-        conn.execute("CREATE COLUMNFAMILY CreateIndex1 (KEY text PRIMARY KEY)")
-        conn.execute("CREATE INDEX namedIndex ON CreateIndex1 (items)")
-        conn.execute("CREATE INDEX ON CreateIndex1 (stuff)")
-        
+        cursor = init()
+        cursor.execute("USE Keyspace1")
+        cursor.execute("CREATE COLUMNFAMILY CreateIndex1 (KEY text PRIMARY KEY)")
+        cursor.execute("CREATE INDEX namedIndex ON CreateIndex1 (items)")
+        cursor.execute("CREATE INDEX ON CreateIndex1 (stuff)")
+
         # TODO: temporary (until this can be done with CQL).
         ksdef = thrift_client.describe_keyspace("Keyspace1")
         cfam = [i for i in ksdef.cf_defs if i.name == "CreateIndex1"][0]
@@ -455,205 +494,208 @@ class TestCql(ThriftTester):
         assert stuff.index_type == 0, "missing index"
 
         # already indexed
-        assert_raises(CQLException,
-                      conn.execute,
+        assert_raises(cql.ProgrammingError,
+                      cursor.execute,
                       "CREATE INDEX ON CreateIndex1 (stuff)")
 
     def test_time_uuid(self):
         "store and retrieve time-based (type 1) uuids"
-        conn = init()
-        
+        cursor = init()
+
         # Store and retrieve a timeuuid using it's hex-formatted string
         timeuuid = uuid.uuid1()
-        conn.execute("""
+        cursor.execute("""
             UPDATE StandardTimeUUID SET '%s' = 10 WHERE KEY = 'uuidtest'
         """ % str(timeuuid))
-        
-        r = conn.execute("""
+
+        cursor.execute("""
             SELECT '%s' FROM StandardTimeUUID WHERE KEY = 'uuidtest'
         """ % str(timeuuid))
-        assert r[0].columns[0].name == timeuuid
-        
+        d = cursor.description
+        assert d[1][0] == timeuuid, "%s, %s" % (str(d[1][0]), str(timeuuid))
+
         # Tests a node-side conversion from bigint to UUID.
         ms = uuid1bytes_to_millis(uuid.uuid1().bytes)
-        conn.execute("""
+        cursor.execute("""
             UPDATE StandardTimeUUIDValues SET 'id' = %d WHERE KEY = 'uuidtest'
         """ % ms)
-        
-        r = conn.execute("""
+
+        cursor.execute("""
             SELECT 'id' FROM StandardTimeUUIDValues WHERE KEY = 'uuidtest'
         """)
-        assert uuid1bytes_to_millis(r[0].columns[0].value.bytes) == ms
-        
+        r = cursor.fetchone()
+        assert uuid1bytes_to_millis(r[1].bytes) == ms
+
         # Tests a node-side conversion from ISO8601 to UUID.
-        conn.execute("""
+        cursor.execute("""
             UPDATE StandardTimeUUIDValues SET 'id2' = '2011-01-31 17:00:00-0000'
             WHERE KEY = 'uuidtest'
         """)
-        
-        r = conn.execute("""
+
+        cursor.execute("""
             SELECT 'id2' FROM StandardTimeUUIDValues WHERE KEY = 'uuidtest'
         """)
         # 2011-01-31 17:00:00-0000 == 1296493200000ms
-        ms = uuid1bytes_to_millis(r[0].columns[0].value.bytes)
+        r = cursor.fetchone()
+        ms = uuid1bytes_to_millis(r[1].bytes)
         assert ms == 1296493200000, \
                 "%d != 1296493200000 (2011-01-31 17:00:00-0000)" % ms
 
         # Tests node-side conversion of timeuuid("now") to UUID
-        conn.execute("""
+        cursor.execute("""
             UPDATE StandardTimeUUIDValues SET 'id3' = 'now'
                     WHERE KEY = 'uuidtest'
         """)
-        
-        r = conn.execute("""
+
+        cursor.execute("""
             SELECT 'id3' FROM StandardTimeUUIDValues WHERE KEY = 'uuidtest'
         """)
-        ms = uuid1bytes_to_millis(r[0].columns[0].value.bytes)
+        r = cursor.fetchone()
+        ms = uuid1bytes_to_millis(r[1].bytes)
         assert ((time.time() * 1e3) - ms) < 100, \
             "new timeuuid not within 100ms of now (UPDATE vs. SELECT)"
 
         uuid_range = []
-        update = "UPDATE StandardTimeUUID SET ? = ? WHERE KEY = slicetest"
+        update = "UPDATE StandardTimeUUID SET :name = :val WHERE KEY = slicetest"
         for i in range(5):
             uuid_range.append(uuid.uuid1())
-            conn.execute(update, uuid_range[i], i)
+            cursor.execute(update, dict(name=uuid_range[i], val=i))
 
-        r = conn.execute("""
-            SELECT ?..? FROM StandardTimeUUID WHERE KEY = slicetest
-        """, uuid_range[0], uuid_range[len(uuid_range)-1])
-        
-        for (i, col) in enumerate(r[0]):
-            assert uuid_range[i] == col.name
-        
-        
+        cursor.execute("""
+            SELECT :start..:finish FROM StandardTimeUUID WHERE KEY = slicetest
+            """, dict(start=uuid_range[0], finish=uuid_range[len(uuid_range)-1]))
+        d = cursor.description
+        for (i, col_d) in enumerate(d[1:]):
+            assert uuid_range[i] == col_d[0]
+
+
     def test_lexical_uuid(self):
         "store and retrieve lexical uuids"
-        conn = init()
+        cursor = init()
         uid = uuid.uuid4()
-        conn.execute("UPDATE StandardUUID SET ? = 10 WHERE KEY = 'uuidtest'",
-                     uid)
-        
-        r = conn.execute("SELECT ? FROM StandardUUID WHERE KEY = 'uuidtest'",
-                         uid)
-        assert r[0].columns[0].name == uid, r[0].columns[0].name
-        
+        cursor.execute("UPDATE StandardUUID SET :name = 10 WHERE KEY = 'uuidtest'",
+                       dict(name=uid))
+
+        cursor.execute("SELECT :name FROM StandardUUID WHERE KEY = 'uuidtest'",
+                       dict(name=uid))
+        d = cursor.description
+        assert d[1][0] == uid, "expected %s, got %s (%s)" % \
+                (uid.bytes.encode('hex'), str(d[1][0]).encode('hex'), d[1][1])
+
         # TODO: slices of uuids from cf w/ LexicalUUIDType comparator
-        
+
     def test_utf8_read_write(self):
         "reading and writing utf8 values"
-        conn = init()
+        cursor = init()
         # Sorting: ¢ (u00a2) < © (u00a9) < ® (u00ae) < ¿ (u00bf)
-        conn.execute("UPDATE StandardUtf82 SET ? = v1 WHERE KEY = k1", "¿")
-        conn.execute("UPDATE StandardUtf82 SET ? = v1 WHERE KEY = k1", "©")
-        conn.execute("UPDATE StandardUtf82 SET ? = v1 WHERE KEY = k1", "®")
-        conn.execute("UPDATE StandardUtf82 SET ? = v1 WHERE KEY = k1", "¢")
-        
-        r = conn.execute("SELECT * FROM StandardUtf82 WHERE KEY = k1")
-        assert r[0][0].name == u"¢"
-        assert r[0][1].name == u"©"
-        assert r[0][2].name == u"®"
-        assert r[0][3].name == u"¿"
-        
-        r = conn.execute("SELECT ?..'' FROM StandardUtf82 WHERE KEY = k1", "©")
-        assert len(r[0]) == 3
-        assert r[0][0].name == u"©"
-        assert r[0][1].name == u"®"
-        assert r[0][2].name == u"¿"
-        
+        cursor.execute("UPDATE StandardUtf82 SET :name = v1 WHERE KEY = k1", dict(name="¿"))
+        cursor.execute("UPDATE StandardUtf82 SET :name = v1 WHERE KEY = k1", dict(name="©"))
+        cursor.execute("UPDATE StandardUtf82 SET :name = v1 WHERE KEY = k1", dict(name="®"))
+        cursor.execute("UPDATE StandardUtf82 SET :name = v1 WHERE KEY = k1", dict(name="¢"))
+
+        cursor.execute("SELECT * FROM StandardUtf82 WHERE KEY = k1")
+        d = cursor.description
+        assert d[1][0] == u"¢", d[1][0]
+        assert d[2][0] == u"©", d[2][0]
+        assert d[3][0] == u"®", d[3][0]
+        assert d[4][0] == u"¿", d[4][0]
+
+        cursor.execute("SELECT :start..'' FROM StandardUtf82 WHERE KEY = k1", dict(start="©"))
+        r = cursor.fetchone()
+        assert len(r) == 4
+        d = cursor.description
+        assert d[1][0] == u"©"
+        assert d[2][0] == u"®"
+        assert d[3][0] == u"¿"
+
     def test_read_write_negative_numerics(self):
         "reading and writing negative numeric values"
-        conn = init()
+        cursor = init()
         for cf in ("StandardIntegerA", "StandardLongA"):
             for i in range(10):
-                conn.execute("UPDATE ? SET ? = ? WHERE KEY = negatives;",
-                             cf,
-                             -(i + 1),
-                             i)
-            r = conn.execute("SELECT ?..? FROM ? WHERE KEY = negatives;",
-                             -10,
-                             -1,
-                             cf)
-            assert len(r[0]) == 10, \
-                "returned %d columns, expected %d" % (len(r[0]), 10)
-            assert r[0][0].name == -10
-            assert r[0][9].name == -1
-            
+                cursor.execute("UPDATE :cf SET :name = :val WHERE KEY = negatives;",
+                               dict(cf=cf, name=-(i + 1), val=i))
+
+            cursor.execute("SELECT :start..:finish FROM :cf WHERE KEY = negatives;",
+                           dict(start=-10, finish=-1, cf=cf))
+            r = cursor.fetchone()
+            assert len(r) == 11, \
+                "returned %d columns, expected %d" % (len(r) - 1, 10)
+            d = cursor.description
+            assert d[1][0] == -10
+            assert d[10][0] == -1
+
     def test_escaped_quotes(self):
         "reading and writing strings w/ escaped quotes"
-        conn = init()
-        
-        conn.execute("""
-            UPDATE StandardString1 SET 'x''and''y' = z WHERE KEY = ?
-        """, "test_escaped_quotes")
-                     
-        r = conn.execute("""
-            SELECT 'x''and''y' FROM StandardString1 WHERE KEY = ?
-        """, "test_escaped_quotes")
-        assert (len(r) == 1) and (len(r[0]) == 1), "wrong number of results"
-        assert r[0][0].name == "x\'and\'y"
-        
+        cursor = init()
+
+        cursor.execute("""
+                       UPDATE StandardString1 SET 'x''and''y' = z WHERE KEY = :key
+                       """, dict(key="test_escaped_quotes"))
+
+        cursor.execute("""
+                       SELECT 'x''and''y' FROM StandardString1 WHERE KEY = :key
+                       """, dict(key="test_escaped_quotes"))
+        assert cursor.rowcount == 1
+        r = cursor.fetchone()
+        assert len(r) == 2, "wrong number of results"
+        d = cursor.description
+        assert d[1][0] == "x\'and\'y"
+
     def test_typed_keys(self):
         "using typed keys"
-        conn = init()
-        r = conn.execute("SELECT * FROM StandardString1 WHERE KEY = ?", "ka")
-        assert isinstance(r[0].key, unicode), \
-            "wrong key-type returned, expected unicode, got %s" % type(r[0].key)
-        
+        cursor = init()
+        cursor.execute("SELECT * FROM StandardString1 WHERE KEY = :key", dict(key="ka"))
+        r = cursor.fetchone()
+        assert isinstance(r[0], unicode), \
+            "wrong key-type returned, expected unicode, got %s" % type(r[0])
+
         # FIXME: The above is woefully inadequate, but the test config uses
         # CollatingOrderPreservingPartitioner which only supports UTF8.
-        
+
     def test_write_using_insert(self):
         "peforming writes using \"insert\""
-        conn = init()
-        conn.execute("INSERT INTO StandardUtf82 (KEY, ?, ?) VALUES (?, ?, ?)",
-                     "pork",
-                     "beef",
-                     "meat",
-                     "bacon",
-                     "brisket")
-        
-        r = conn.execute("SELECT * FROM StandardUtf82 WHERE KEY = ?", "meat")
-        assert r[0][0].name == "beef"
-        assert r[0][0].value == "brisket"
-        assert r[0][1].name == "pork"
-        assert r[0][1].value == "bacon"
-        
+        cursor = init()
+        cursor.execute("INSERT INTO StandardUtf82 (KEY, :c1, :c2) VALUES (:key, :v1, :v2)", 
+                       dict(c1="pork", c2="beef", key="meat", v1="bacon", v2="brisket"))
+
+        cursor.execute("SELECT * FROM StandardUtf82 WHERE KEY = :key", dict(key="meat"))
+        r = cursor.fetchone()
+        d = cursor.description
+        assert d[1][0] == "beef"
+        assert r[1] == "brisket"
+
+        assert d[2][0] == "pork"
+        assert r[2] == "bacon"
+
         # Bad writes.
-        
+
         # Too many column values
-        assert_raises(CQLException,
-                      conn.execute,
-                      "INSERT INTO StandardUtf82 (KEY, ?) VALUES (?, ?, ?)",
-                      "name1",
-                      "key0",
-                      "value1",
-                      "value2")
-                      
+        assert_raises(cql.ProgrammingError,
+                      cursor.execute,
+                      "INSERT INTO StandardUtf82 (KEY, :c1) VALUES (:key, :v1, :v2)",
+                      dict(c1="name1", key="key0", v1="value1", v2="value2"))
+
         # Too many column names, (not enough column values)
-        assert_raises(CQLException,
-                      conn.execute,
-                      "INSERT INTO StandardUtf82 (KEY, ?, ?) VALUES (?, ?)",
-                      "name1",
-                      "name2",
-                      "key0",
-                      "value1")
-                      
+        assert_raises(cql.ProgrammingError,
+                      cursor.execute,
+                      "INSERT INTO StandardUtf82 (KEY, :c1, :c2) VALUES (:key, :v1)",
+                      dict(c1="name1", c2="name2", key="key0", v1="value1"))
+
     def test_compression_disabled(self):
         "reading and writing w/ compression disabled"
-        conn = init()
-        conn.execute("UPDATE StandardString1 SET ? = ? WHERE KEY = ?",
-                     "some_name",
-                     "some_value",
-                     "compression_test",
-                     compression='NONE')
-                     
-        r = conn.execute("SELECT ? FROM StandardString1 WHERE KEY = ?",
-                         "some_name",
-                         "compression_test",
-                         compression='NONE')
-                         
-        assert len(r) == 1, "expected 1 result, got %d" % len(r)
-        assert r[0][0].name == "some_name", \
-                "unrecognized name '%s'" % r[0][0].name
-        assert r[0][0].value == "some_value", \
-                "unrecognized value '%s'" % r[0][0].value
+        cursor = init()
+        cursor.compression = 'NONE'
+        cursor.execute("UPDATE StandardString1 SET :name = :val WHERE KEY = :key",
+                        dict(name="some_name", val="some_value", key="compression_test"))
+
+        cursor.execute("SELECT :name FROM StandardString1 WHERE KEY = :key",
+                       dict(name="some_name", key="compression_test"))
+
+        assert cursor.rowcount == 1, "expected 1 result, got %d" % cursor.rowcount
+        colnames = [col_d[0] for col_d in cursor.description]
+        assert colnames[1] == "some_name", \
+               "unrecognized name '%s'" % colnames[1]
+        r = cursor.fetchone()
+        assert r[1] == "some_value", \
+               "unrecognized value '%s'" % r[1]

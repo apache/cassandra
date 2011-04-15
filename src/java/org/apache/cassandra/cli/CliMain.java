@@ -181,12 +181,6 @@ public class CliMain
         }
     }
 
-    private static void printBanner()
-    {
-        sessionState.out.println("Welcome to cassandra CLI.\n");
-        sessionState.out.println("Type 'help;' or '?' for help. Type 'quit;' or 'exit;' to quit.");
-    }
-
     /**
      * Checks whether the thrift client is connected.
      * @return boolean - true when connected, false otherwise
@@ -315,7 +309,7 @@ public class CliMain
             sessionState.out.close();
         }
 
-        printBanner();
+        cliClient.printBanner();
 
         String prompt;
         String line = "";

@@ -76,6 +76,7 @@ public class StorageProxy implements StorageProxyMBean
 
     private static final WritePerformer standardWritePerformer;
     private static final WritePerformer counterWritePerformer;
+    private static final WritePerformer counterWriteOnCoordinatorPerformer;
 
     public static final StorageProxy instance = new StorageProxy();
 
@@ -102,11 +103,25 @@ public class StorageProxy implements StorageProxyMBean
             }
         };
 
+        /*
+         * We execute counter writes in 2 places: either directly in the coordinator node if it is a replica, or
+         * in CounterMutationVerbHandler on a replica othewise. The write must be executed on the MUTATION stage
+         * but on the latter case, the verb handler already run on the MUTATION stage, so we must not execute the
+         * underlying on the stage otherwise we risk a deadlock. Hence two different performer.
+         */
         counterWritePerformer = new WritePerformer()
         {
             public void apply(IMutation mutation, Multimap<InetAddress, InetAddress> hintedEndpoints, IWriteResponseHandler responseHandler, String localDataCenter, ConsistencyLevel consistency_level) throws IOException
             {
-                applyCounterMutation(mutation, hintedEndpoints, responseHandler, localDataCenter, consistency_level);
+                applyCounterMutation(mutation, hintedEndpoints, responseHandler, localDataCenter, consistency_level, false);
+            }
+        };
+
+        counterWriteOnCoordinatorPerformer = new WritePerformer()
+        {
+            public void apply(IMutation mutation, Multimap<InetAddress, InetAddress> hintedEndpoints, IWriteResponseHandler responseHandler, String localDataCenter, ConsistencyLevel consistency_level) throws IOException
+            {
+                applyCounterMutation(mutation, hintedEndpoints, responseHandler, localDataCenter, consistency_level, true);
             }
         };
     }
@@ -367,7 +382,7 @@ public class StorageProxy implements StorageProxyMBean
 
                 if (endpoint.equals(FBUtilities.getLocalAddress()))
                 {
-                    applyCounterMutationOnLeader(cm);
+                    applyCounterMutationOnCoordinator(cm);
                 }
                 else
                 {
@@ -423,7 +438,14 @@ public class StorageProxy implements StorageProxyMBean
         write(Collections.singletonList(cm), cm.consistency(), counterWritePerformer, false);
     }
 
-    private static void applyCounterMutation(final IMutation mutation, final Multimap<InetAddress, InetAddress> hintedEndpoints, final IWriteResponseHandler responseHandler, final String localDataCenter, final ConsistencyLevel consistency_level)
+    // Same as applyCounterMutationOnLeader but must with the difference that it use the MUTATION stage to execute the write (while
+    // applyCounterMutationOnLeader assumes it is on the MUTATION stage already)
+    public static void applyCounterMutationOnCoordinator(CounterMutation cm) throws UnavailableException, TimeoutException, IOException
+    {
+        write(Collections.singletonList(cm), cm.consistency(), counterWriteOnCoordinatorPerformer, false);
+    }
+
+    private static void applyCounterMutation(final IMutation mutation, final Multimap<InetAddress, InetAddress> hintedEndpoints, final IWriteResponseHandler responseHandler, final String localDataCenter, final ConsistencyLevel consistency_level, boolean executeOnMutationStage)
     {
         // we apply locally first, then send it to other replica
         if (logger.isDebugEnabled())
@@ -456,7 +478,10 @@ public class StorageProxy implements StorageProxyMBean
                 }
             }
         };
-        StageManager.getStage(Stage.MUTATION).execute(runnable);
+        if (executeOnMutationStage)
+            StageManager.getStage(Stage.MUTATION).execute(runnable);
+        else
+            runnable.run();
     }
 
     /**

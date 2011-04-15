@@ -17,7 +17,9 @@
  */
 package org.apache.cassandra.cli;
 
+import java.io.IOError;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
@@ -34,6 +36,7 @@ import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.db.CompactionManagerMBean;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.io.CompactionInfo;
+import org.apache.cassandra.io.CompactionType;
 import org.apache.cassandra.locator.SimpleSnitch;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.thrift.*;
@@ -43,9 +46,13 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 import org.apache.thrift.TBaseHelper;
 import org.apache.thrift.TException;
+import org.yaml.snakeyaml.constructor.Constructor;
+import org.yaml.snakeyaml.Loader;
+import org.yaml.snakeyaml.TypeDescription;
+import org.yaml.snakeyaml.Yaml;
 
 // Cli Client Side Library
-public class CliClient extends CliUserHelp
+public class CliClient
 {
 
     /**
@@ -98,6 +105,34 @@ public class CliClient extends CliUserHelp
         STRATEGY_OPTIONS
     }
 
+    /*
+        * the <i>add column family</i> command requires a list of arguments,
+        *  this enum defines which arguments are valid.
+        */
+    protected enum ColumnFamilyArgument
+    {
+        COLUMN_TYPE,
+        COMPARATOR,
+        SUBCOMPARATOR,
+        COMMENT,
+        ROWS_CACHED,
+        ROW_CACHE_SAVE_PERIOD,
+        KEYS_CACHED,
+        KEY_CACHE_SAVE_PERIOD,
+        READ_REPAIR_CHANCE,
+        GC_GRACE,
+        COLUMN_METADATA,
+        MEMTABLE_OPERATIONS,
+        MEMTABLE_THROUGHPUT,
+        MEMTABLE_FLUSH_AFTER,
+        DEFAULT_VALIDATION_CLASS,
+        MIN_COMPACTION_THRESHOLD,
+        MAX_COMPACTION_THRESHOLD,
+        REPLICATE_ON_WRITE,
+        ROW_CACHE_PROVIDER,
+        KEY_VALIDATION_CLASS
+    }
+
     private static final String DEFAULT_PLACEMENT_STRATEGY = "org.apache.cassandra.locator.NetworkTopologyStrategy";
 
     private Cassandra.Client thriftClient = null;
@@ -106,13 +141,45 @@ public class CliClient extends CliUserHelp
     private String username = null;
     private Map<String, KsDef> keyspacesMap = new HashMap<String, KsDef>();
     private Map<String, AbstractType> cfKeysComparators;
-    private ConsistencyLevel consistencyLevel = ConsistencyLevel.ONE;   
- 
+    private ConsistencyLevel consistencyLevel = ConsistencyLevel.ONE;
+    private CliUserHelp help;
     public CliClient(CliSessionState cliSessionState, Cassandra.Client thriftClient)
     {
         this.sessionState = cliSessionState;
         this.thriftClient = thriftClient;
         this.cfKeysComparators = new HashMap<String, AbstractType>();
+        help = getHelp();
+    }
+
+        private CliUserHelp getHelp()
+    {
+        final InputStream is =  CliClient.class.getClassLoader().getResourceAsStream("org/apache/cassandra/cli/CliHelp.yaml");
+        assert is != null;
+
+        try
+        {
+            final Constructor constructor = new Constructor(CliUserHelp.class);
+            TypeDescription desc = new TypeDescription(CliUserHelp.class);
+            desc.putListPropertyType("commands", CliCommandHelp.class);
+            final Yaml yaml = new Yaml(new Loader(constructor));
+            return (CliUserHelp)yaml.load(is);
+        }
+        finally
+        {
+            try
+            {
+                is.close();
+            }
+            catch (IOException e)
+            {
+                throw new IOError(e);
+            }
+        }
+    }
+
+    public void printBanner()
+    {
+        sessionState.out.println(help.banner);
     }
 
     // Execute a CLI Statement 
@@ -134,7 +201,7 @@ public class CliClient extends CliUserHelp
                     executeGetWithConditions(tree);
                     break;
                 case CliParser.NODE_HELP:
-                    printCmdHelp(tree, sessionState);
+                    executeHelp(tree);
                     break;
                 case CliParser.NODE_THRIFT_SET:
                     executeSet(tree);
@@ -240,7 +307,27 @@ public class CliClient extends CliUserHelp
         
         return keyspacesMap.get(keyspace);
     }
-    
+
+    private void executeHelp(Tree tree)
+    {
+        if (tree.getChildCount() > 0)
+        {
+            String token = tree.getChild(0).getText();
+            for (CliCommandHelp ch : help.commands)
+            {
+                if (token.equals(ch.name))
+                {
+                    sessionState.out.println(ch.help);
+                    break;
+                }
+            }
+        }
+        else
+        {
+            sessionState.out.println(help.help);
+        }
+    }
+
     private void executeCount(Tree statement)
             throws TException, InvalidRequestException, UnavailableException, TimedOutException
     {
@@ -677,7 +764,7 @@ public class CliClient extends CliUserHelp
         // table.cf['key']
         if (columnSpecCnt == 0)
         {
-            sessionState.err.println("No column name specified, (type 'help' or '?' for help on syntax).");
+            sessionState.err.println("No column name specified, (type 'help;' or '?' for help on syntax).");
             return;
         }
         // table.cf['key']['column'] = 'value'
@@ -1552,7 +1639,7 @@ public class CliClient extends CliUserHelp
                 for (CompactionInfo info : compactionManagerMBean.getCompactions())
                 {
                     // if ongoing compaction type is index build
-                    if (!info.getTaskType().contains("index build"))
+                    if (info.getTaskType() != CompactionType.INDEX_BUILD)
                         continue;
                     sessionState.out.printf("%nCurrently building index %s, completed %d of %d bytes.%n",
                                             info.getColumnFamily(),

@@ -28,7 +28,6 @@ import java.security.MessageDigest;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import javax.management.MBeanServer;
@@ -529,7 +528,9 @@ public class CompactionManager implements CompactionManagerMBean
         // so in our single-threaded compaction world this is a valid way of determining if we're compacting
         // all the sstables (that existed when we started)
         boolean major = cfs.isCompleteSSTables(sstables);
-        String type = major ? "Major" : "Minor";
+        CompactionType type = major
+                            ? CompactionType.MAJOR
+                            : CompactionType.MINOR;
         logger.info("Compacting {}: {}", type, sstables);
 
         long startTime = System.currentTimeMillis();
@@ -1147,7 +1148,7 @@ public class CompactionManager implements CompactionManagerMBean
     {
         public ValidationCompactionIterator(ColumnFamilyStore cfs, Range range) throws IOException
         {
-            super("Validation",
+            super(CompactionType.VALIDATION,
                   getCollatingIterator(cfs.getSSTables(), range),
                   new CompactionController(cfs, cfs.getSSTables(), true, getDefaultGcBefore(cfs), false));
         }
@@ -1348,7 +1349,7 @@ public class CompactionManager implements CompactionManagerMBean
             {
                 return new CompactionInfo(sstable.descriptor.ksname,
                                           sstable.descriptor.cfname,
-                                          "Cleanup of " + sstable.getColumnFamilyName(),
+                                          CompactionType.CLEANUP,
                                           scanner.getFilePointer(),
                                           scanner.getFileLength());
             }
@@ -1375,7 +1376,7 @@ public class CompactionManager implements CompactionManagerMBean
             {
                 return new CompactionInfo(sstable.descriptor.ksname,
                                           sstable.descriptor.cfname,
-                                          "Scrub " + sstable,
+                                          CompactionType.SCRUB,
                                           dataFile.getFilePointer(),
                                           dataFile.length());
             }

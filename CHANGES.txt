@@ -1,7 +1,8 @@
 0.8-dev
  * remove Avro RPC support (CASSANDRA-926)
  * adds support for columns that act as incr/decr counters 
-   (CASSANDRA-1072, 1937, 1944, 1936, 2101, 2093, 2288, 2105, 2384, 2236, 2342)
+   (CASSANDRA-1072, 1937, 1944, 1936, 2101, 2093, 2288, 2105, 2384, 2236, 2342,
+   2454)
  * CQL (CASSANDRA-1703, 1704, 1705, 1706, 1707, 1708, 1710, 1711, 1940, 
    2124, 2302, 2277)
  * avoid double RowMutation serialization on write path (CASSANDRA-1800)
@@ -23,6 +24,7 @@
  * compaction throttling (CASSANDRA-2156)
  * add key type information and alias (CASSANDRA-2311, 2396)
  * cli no longer divides read_repair_chance by 100 (CASSANDRA-2458)
+ * made CompactionInfo.getTaskType return an enum (CASSANDRA-2482)
 
 
 0.7.5

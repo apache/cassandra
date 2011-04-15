@@ -17,16 +17,8 @@
  */
 package org.apache.cassandra.cli;
 
-import java.util.List;
-
-/**
- * @author Pavel A. Yaskevich
- */
-public class CliUserHelp
+public class CliCommandHelp
 {
-    public String banner;
-
+    public String name;
     public String help;
-
-    public List<CliCommandHelp> commands;
 }

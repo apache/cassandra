@@ -15,68 +15,75 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import re
+import struct
 from uuid import UUID
-from StringIO import StringIO
-from errors import InvalidQueryFormat
-from struct import unpack
 
-__all__ = ['prepare', 'marshal', 'unmarshal']
+import cql
 
-def prepare(query, *args):
-    result = StringIO()
-    index = query.find('?')
-    oldindex = 0
-    count = 0
-    
-    while (index >= 0):
-        result.write(query[oldindex:index])
-        try:
-            result.write(marshal(args[count]))
-        except IndexError:
-            raise InvalidQueryFormat("not enough arguments in substitution")
-        
-        oldindex = index + 1
-        index = query.find('?', index + 1)
-        count += 1
-    result.write(query[oldindex:])
-    
-    if count < len(args):
-        raise InvalidQueryFormat("too many arguments in substitution")
-    
-    return result.getvalue()
+__all__ = ['prepare', 'marshal', 'unmarshal_noop', 'unmarshallers']
+
+if hasattr(struct, 'Struct'): # new in Python 2.5
+   _have_struct = True
+   _long_packer = struct.Struct('>q')
+else:
+    _have_struct = False
+
+_param_re = re.compile(r"(?<!strategy_options)(:[a-zA-Z_][a-zA-Z0-9_]*)", re.M)
+
+BYTES_TYPE = "org.apache.cassandra.db.marshal.BytesType"
+ASCII_TYPE = "org.apache.cassandra.db.marshal.AsciiType"
+UTF8_TYPE = "org.apache.cassandra.db.marshal.UTF8Type"
+INTEGER_TYPE = "org.apache.cassandra.db.marshal.IntegerType"
+LONG_TYPE = "org.apache.cassandra.db.marshal.LongType"
+UUID_TYPE = "org.apache.cassandra.db.marshal.UUIDType"
+LEXICAL_UUID_TYPE = "org.apache.cassandra.db.marshal.LexicalType"
+TIME_UUID_TYPE = "org.apache.cassandra.db.marshal.TimeUUIDType"
+
+def prepare(query, params):
+    # For every match of the form ":param_name", call marshal
+    # on kwargs['param_name'] and replace that section of the query
+    # with the result
+    new, count = re.subn(_param_re, lambda m: marshal(params[m.group(1)[1:]]), query)
+    if len(params) > count:
+        raise cql.ProgrammingError("More keywords were provided than parameters")
+    return new
 
 def marshal(term):
-    if isinstance(term, (long,int)):
-        return "%d" % term
-    elif isinstance(term, unicode):
+    if isinstance(term, unicode):
         return "'%s'" % __escape_quotes(term.encode('utf8'))
     elif isinstance(term, str):
         return "'%s'" % __escape_quotes(term)
-    elif isinstance(term, UUID):
+    else:
         return str(term)
+
+def unmarshal_noop(bytestr):
+    return bytestr
+
+def unmarshal_utf8(bytestr):
+    return bytestr.decode("utf8")
+
+def unmarshal_int(bytestr):
+    return decode_bigint(bytestr)
+
+def unmarshal_long(bytestr):
+    if _have_struct:
+        return _long_packer.unpack(bytestr)[0]
     else:
-        return str(term)    
-    
-def unmarshal(bytestr, typestr):
-    if typestr == "org.apache.cassandra.db.marshal.BytesType":
-        return bytestr
-    elif typestr == "org.apache.cassandra.db.marshal.AsciiType":
-        return bytestr
-    elif typestr == "org.apache.cassandra.db.marshal.UTF8Type":
-        return bytestr.decode("utf8")
-    elif typestr == "org.apache.cassandra.db.marshal.IntegerType":
-        return decode_bigint(bytestr)
-    elif typestr == "org.apache.cassandra.db.marshal.LongType":
         return unpack(">q", bytestr)[0]
-    elif typestr == "org.apache.cassandra.db.marshal.UUIDType":
-        return UUID(bytes=bytestr)
-    elif typestr == "org.apache.cassandra.db.marshal.LexicalUUIDType":
-        return UUID(bytes=bytestr)
-    elif typestr == "org.apache.cassandra.db.marshal.TimeUUIDType":
-        return UUID(bytes=bytestr)
-    else:
-        return bytestr
-    
+
+def unmarshal_uuid(bytestr):
+    return UUID(bytes=bytestr)
+
+unmarshallers = {BYTES_TYPE:        unmarshal_noop,
+                 ASCII_TYPE:        unmarshal_noop,
+                 UTF8_TYPE:         unmarshal_utf8,
+                 INTEGER_TYPE:      unmarshal_int,
+                 LONG_TYPE:         unmarshal_long,
+                 UUID_TYPE:         unmarshal_uuid,
+                 LEXICAL_UUID_TYPE: unmarshal_uuid,
+                 TIME_UUID_TYPE:    unmarshal_uuid}
+
 def decode_bigint(term):
     val = int(term.encode('hex'), 16)
     if (ord(term[0]) & 128) != 0:

@@ -26,14 +26,11 @@ import os
 import re
 
 try:
-    from cql import Connection
-    from cql.errors import CQLException
-    from cql.results import RowsProxy
+    import cql
 except ImportError:
     sys.path.append(os.path.abspath(os.path.dirname(__file__)))
-    from cql import Connection
-    from cql.errors import CQLException
-    from cql.results import RowsProxy
+    import cql
+from cql.results import ResultSet
 
 HISTORY = os.path.join(os.path.expanduser('~'), '.cqlsh')
 CQLTYPES = ("bytes", "ascii", "utf8", "timeuuid", "uuid", "long", "int")
@@ -55,10 +52,7 @@ class Shell(cmd.Cmd):
     def __init__(self, hostname, port, color=False, username=None,
             password=None):
         cmd.Cmd.__init__(self)
-        self.conn = Connection(hostname,
-                               port=port,
-                               username=username,
-                               password=password)
+        self.conn = cql.connect(hostname, port, user=username, password=password)
                                
         if os.path.exists(HISTORY):
             readline.read_history_file(HISTORY)
@@ -92,10 +86,11 @@ class Shell(cmd.Cmd):
         statement = self.get_statement(arg)
         if not statement: return
         
-        result = self.conn.execute(statement)
+        cursor = self.conn.cursor()
+        cursor.execute(statement)
         
-        if isinstance(result, RowsProxy):
-            for row in result:
+        if isinstance(cursor.result, ResultSet):
+            for row in cursor.result.rows:
                 self.printout(row.key, BLUE, False)
                 for column in row.columns:
                     self.printout(" | ", newline=False)
@@ -105,7 +100,7 @@ class Shell(cmd.Cmd):
                     self.printout(repr(column.value), YELLOW, False)
                 self.printout("")
         else:
-            if result: print result
+            if cursor.result: print cursor.result[0]
 
     def emptyline(self):
         pass
@@ -221,7 +216,7 @@ if __name__ == '__main__':
         except SystemExit:
             readline.write_history_file(HISTORY)
             break
-        except CQLException, cqlerr:
+        except cql.Error, cqlerr:
             shell.printerr(str(cqlerr), color=RED)
         except KeyboardInterrupt:
             shell.reset_statement()

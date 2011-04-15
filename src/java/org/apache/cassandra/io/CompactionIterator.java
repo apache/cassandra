@@ -24,18 +24,14 @@ package org.apache.cassandra.io;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Set;
 
 import org.apache.commons.collections.iterators.CollatingIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.CompactionManager;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
 import org.apache.cassandra.io.sstable.SSTableReader;
@@ -53,7 +49,7 @@ implements Closeable, CompactionInfo.Holder
     public static final int FILE_BUFFER_SIZE = 1024 * 1024;
 
     protected final List<SSTableIdentityIterator> rows = new ArrayList<SSTableIdentityIterator>();
-    protected final String type;
+    protected final CompactionType type;
     protected final CompactionController controller;
 
     private long totalBytes;
@@ -68,13 +64,13 @@ implements Closeable, CompactionInfo.Holder
     // current target bytes to compact per millisecond
     private int targetBytesPerMS = -1;
 
-    public CompactionIterator(String type, Iterable<SSTableReader> sstables, CompactionController controller) throws IOException
+    public CompactionIterator(CompactionType type, Iterable<SSTableReader> sstables, CompactionController controller) throws IOException
     {
         this(type, getCollatingIterator(sstables), controller);
     }
 
     @SuppressWarnings("unchecked")
-    protected CompactionIterator(String type, Iterator iter, CompactionController controller)
+    protected CompactionIterator(CompactionType type, Iterator iter, CompactionController controller)
     {
         super(iter);
         this.type = type;

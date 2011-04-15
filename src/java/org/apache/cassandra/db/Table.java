@@ -40,6 +40,7 @@ import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.dht.LocalToken;
 import org.apache.cassandra.io.CompactionInfo;
+import org.apache.cassandra.io.CompactionType;
 import org.apache.cassandra.io.sstable.ReducingKeyIterator;
 import org.apache.cassandra.io.sstable.SSTableDeletingReference;
 import org.apache.cassandra.io.sstable.SSTableReader;
@@ -614,7 +615,7 @@ public class Table
         {
             return new CompactionInfo(cfs.table.name,
                                       cfs.columnFamily,
-                                      String.format("Secondary index build %s", cfs.columnFamily),
+                                      CompactionType.INDEX_BUILD,
                                       iter.getTotalBytes(),
                                       iter.getBytesRead());
         }
