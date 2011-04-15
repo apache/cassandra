@@ -28,6 +28,7 @@
  * Try harder to close files after compaction (CASSANDRA-2431)
  * re-set bootstrapped flag after move finishes (CASSANDRA-2435)
  * use 64KB flush buffer instead of in_memory_compaction_limit (CASSANDRA-2463)
+ * fix duplicate results from CFS.scan (CASSANDRA-2406)
 
 
 0.7.4

@@ -1547,6 +1547,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         ByteBuffer startKey = clause.start_key;
         QueryPath path = new QueryPath(columnFamily);
 
+        // we need to store last data key accessed to avoid duplicate results
+        // because in the while loop new iteration we can access the same column if start_key was not set
+        ByteBuffer lastDataKey = null;
+
         // fetch row keys matching the primary expression, fetch the slice predicate for each
         // and filter by remaining expressions.  repeat until finished w/ assigned range or index row is exhausted.
         outer:
@@ -1578,10 +1582,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     continue;
                 dataKey = column.name();
                 n++;
+
                 DecoratedKey dk = partitioner.decorateKey(dataKey);
                 if (!range.right.equals(partitioner.getMinimumToken()) && range.right.compareTo(dk.token) < 0)
                     break outer;
-                if (!range.contains(dk.token))
+                if (!range.contains(dk.token) || dataKey.equals(lastDataKey))
                     continue;
 
                 // get the row columns requested, and additional columns for the expressions if necessary
@@ -1622,7 +1627,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
             if (n < clause.count || startKey.equals(dataKey))
                 break;
-            startKey = dataKey;
+
+            lastDataKey = startKey = dataKey;
         }
 
         return rows;
