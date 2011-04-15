@@ -657,6 +657,7 @@ public final class CFMetaData
         if (cf_def.isSetMerge_shards_chance()) { newCFMD.mergeShardsChance(cf_def.merge_shards_chance); }
         if (cf_def.isSetRow_cache_provider()) { newCFMD.rowCacheProvider(FBUtilities.newCacheProvider(cf_def.row_cache_provider)); }
         if (cf_def.isSetKey_alias()) { newCFMD.keyAlias(cf_def.key_alias); }
+        if (cf_def.isSetKey_validation_class()) { newCFMD.keyValidator(DatabaseDescriptor.getComparator(cf_def.key_validation_class)); }
 
         return newCFMD.comment(cf_def.comment)
                       .rowCacheSize(cf_def.row_cache_size)
