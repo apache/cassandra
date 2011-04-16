@@ -24,6 +24,7 @@ package org.apache.cassandra.cql.jdbc;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.thrift.CfDef;
+import org.apache.cassandra.thrift.ColumnDef;
 import org.apache.cassandra.thrift.KsDef;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -39,14 +40,15 @@ import java.util.Map;
 class ColumnDecoder 
 {
     private static final Logger logger = LoggerFactory.getLogger(ColumnDecoder.class);
-    private static final String MapFormatString = "%s.%s.%s";
+    private static final String MapFormatString = "%s.%s.%s.%s";
     
     // basically denotes column or value.
     enum Specifier
     {
         Comparator,
         Validator,
-        Key
+        Key,
+        ColumnSpecific
     }
     
     private Map<String, CfDef> cfDefs = new HashMap<String, CfDef>();
@@ -58,8 +60,29 @@ class ColumnDecoder
     public ColumnDecoder(List<KsDef> defs)
     {
         for (KsDef ks : defs) 
+        {
             for (CfDef cf : ks.getCf_defs())
+            {
                 cfDefs.put(String.format("%s.%s", ks.getName(), cf.getName()), cf);
+                for (ColumnDef cd : cf.getColumn_metadata()) 
+                {
+                    try 
+                    {
+                        // prefill the validators (because they aren't kept in a convenient lookup map and we don't
+                        // want to iterate over the list for every miss in getComparator.
+                        comparators.put(String.format(MapFormatString, 
+                                ks.getName(), 
+                                cf.getName(),
+                                Specifier.ColumnSpecific.name(),
+                                ByteBufferUtil.bytesToHex(cd.bufferForName())), 
+                                   FBUtilities.getComparator(cd.getValidation_class()));
+                    } 
+                    catch (ConfigurationException ex) {
+                        throw new RuntimeException(ex);
+                    }
+                }
+            }
+        }
     }
 
     /**
@@ -69,10 +92,20 @@ class ColumnDecoder
      * @param def avoids additional map lookup if specified. null is ok though.
      * @return
      */
-    AbstractType getComparator(String keyspace, String columnFamily, Specifier specifier, CfDef def) 
+    AbstractType getComparator(String keyspace, String columnFamily, Specifier specifier, CfDef def)
+    {
+        return getComparator(keyspace, columnFamily, null, specifier, def);
+    }
+    
+    // same as above, but can get column-specific validators.
+    AbstractType getComparator(String keyspace, String columnFamily, byte[] column, Specifier specifier, CfDef def) 
     {
         // check cache first.
-        String key = String.format(MapFormatString, keyspace, columnFamily, specifier.name());
+        String key = String.format(MapFormatString, 
+                                   keyspace, 
+                                   columnFamily, 
+                                   specifier.name(), 
+                                   FBUtilities.bytesToHex(column == null ? new byte[] {} : column));
         AbstractType comparator = comparators.get(key);
 
         // make and put in cache.
@@ -90,6 +123,8 @@ class ColumnDecoder
                     case Key:
                         comparator = FBUtilities.getComparator(def.getKey_validation_class());
                         break;
+                    case ColumnSpecific:
+                        // if we get here this means there is no column-specific validator, so fall through to the default.
                     case Validator:
                         comparator = FBUtilities.getComparator(def.getDefault_validation_class());
                         break;
@@ -154,7 +189,7 @@ class ColumnDecoder
     {
         CfDef cfDef = cfDefs.get(String.format("%s.%s", keyspace, columnFamily));
         AbstractType comparator = getComparator(keyspace, columnFamily, Specifier.Comparator, cfDef);
-        AbstractType validator = getComparator(keyspace, columnFamily, Specifier.Validator, null);
+        AbstractType validator = getComparator(keyspace, columnFamily, name, Specifier.ColumnSpecific, null);
         return new TypedColumn(comparator, name, validator, value);
     }
 }
