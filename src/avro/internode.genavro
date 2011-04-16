@@ -73,6 +73,7 @@ protocol InterNode {
         string name;
         string strategy_class;
         union{ map<string>, null } strategy_options;
+        union{ int, null } replication_factor;
         array<CfDef> cf_defs;
     }
     

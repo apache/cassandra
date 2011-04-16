@@ -77,6 +77,20 @@ public class SchemaLoader
         ColumnFamilyType st = ColumnFamilyType.Standard;
         ColumnFamilyType su = ColumnFamilyType.Super;
         AbstractType bytes = BytesType.instance;
+      
+        // these column definitions will will be applied to the jdbc utf and integer column familes respectively.
+        Map<ByteBuffer, ColumnDefinition> integerColumn = new HashMap<ByteBuffer, ColumnDefinition>();
+        integerColumn.put(IntegerType.instance.fromString("42"), new ColumnDefinition(
+            IntegerType.instance.fromString("42"),
+            UTF8Type.instance,
+            null,
+            "Column42"));
+        Map<ByteBuffer, ColumnDefinition> utf8Column = new HashMap<ByteBuffer, ColumnDefinition>();
+        utf8Column.put(UTF8Type.instance.fromString("fortytwo"), new ColumnDefinition(
+            UTF8Type.instance.fromString("fortytwo"),
+            IntegerType.instance,
+            null,
+            "Column42"));
 
         // Keyspace 1
         schema.add(new KSMetaData(ks1,
@@ -115,8 +129,8 @@ public class SchemaLoader
                                                  bytes,
                                                  bytes)
                                                  .defaultValidator(CounterColumnType.instance),
-                                  jdbcCFMD(ks1, "JdbcInteger", IntegerType.instance),
-                                  jdbcCFMD(ks1, "JdbcUtf8", UTF8Type.instance),
+                                  jdbcCFMD(ks1, "JdbcInteger", IntegerType.instance).columnMetadata(integerColumn),
+                                  jdbcCFMD(ks1, "JdbcUtf8", UTF8Type.instance).columnMetadata(utf8Column),
                                   jdbcCFMD(ks1, "JdbcLong", LongType.instance),
                                   jdbcCFMD(ks1, "JdbcBytes", bytes),
                                   jdbcCFMD(ks1, "JdbcAscii", AsciiType.instance)));

@@ -68,12 +68,12 @@ public class JdbcDriverTest extends EmbeddedServiceBase
         String[] inserts = 
         {
             String.format("UPDATE Standard1 SET '%s' = '%s', '%s' = '%s' WHERE KEY = '%s'", first, firstrec, last, lastrec, jsmith),    
-            "UPDATE JdbcInteger SET 1 = 11, 2 = 22 WHERE KEY = '" + jsmith + "'",
+            "UPDATE JdbcInteger SET 1 = 11, 2 = 22, 42='fortytwo' WHERE KEY = '" + jsmith + "'",
             "UPDATE JdbcInteger SET 3 = 33, 4 = 44 WHERE KEY = '" + jsmith + "'",
             "UPDATE JdbcLong SET 1 = 11, 2 = 22 WHERE KEY = '" + jsmith + "'",
             "UPDATE JdbcAscii SET 'first' = 'firstrec', 'last' = 'lastrec' WHERE key = '" + jsmith + "'",
             String.format("UPDATE JdbcBytes SET '%s' = '%s', '%s' = '%s' WHERE key = '%s'", first, firstrec, last, lastrec, jsmith),
-            "UPDATE JdbcUtf8 SET 'first' = 'firstrec', 'last' = 'lastrec' WHERE key = '" + jsmith + "'",
+            "UPDATE JdbcUtf8 SET 'first' = 'firstrec', 'fortytwo' = '42', 'last' = 'lastrec' WHERE key = '" + jsmith + "'",
         };
         for (String q : inserts)
         {
@@ -117,6 +117,37 @@ public class JdbcDriverTest extends EmbeddedServiceBase
         assert valuTypeName.equals(md.getValueTypeName(col));
         assert valuSigned == md.isValueSigned(col);
         assert valuCaseSense == md.isValueCaseSensitive(col);
+    }
+    
+    @Test
+    public void testNonDefaultColumnValidators() throws SQLException
+    {
+        String key = FBUtilities.bytesToHex("Integer".getBytes());
+        Statement stmt = con.createStatement();
+        stmt.executeUpdate("update JdbcInteger set 1=1111, 2=2222, 42='fortytwofortytwo' where key='" + key + "'");
+        ResultSet rs = stmt.executeQuery("select 1, 2, 42 from JdbcInteger where key='" + key + "'");
+        assert rs.next();
+        assert rs.getInt("1") == 1111;
+        assert rs.getInt("2") == 2222;
+        assert rs.getString("42").equals("fortytwofortytwo") : rs.getString("42");
+        
+        ResultSetMetaData md = rs.getMetaData();
+        assert md.getColumnCount() == 3;
+        expectedMetaData(md, 1, BigInteger.class.getName(), "JdbcInteger", "Keyspace1", "1", Types.BIGINT, IntegerType.class.getSimpleName(), true, false);
+        expectedMetaData(md, 2, BigInteger.class.getName(), "JdbcInteger", "Keyspace1", "2", Types.BIGINT, IntegerType.class.getSimpleName(), true, false);
+        expectedMetaData(md, 3, String.class.getName(), "JdbcInteger", "Keyspace1", "42", Types.VARCHAR, UTF8Type.class.getSimpleName(), false, true);
+        
+        stmt.executeUpdate("update JdbcUtf8 set 'a'='aa', 'b'='bb', 'fortytwo'='4242' where key='" + key + "'");
+        rs = stmt.executeQuery("select 'a', 'b', 'fortytwo' from JdbcUtf8 where key='" + key + "'");
+        assert rs.next();
+        assert rs.getString("a").equals("aa");
+        assert rs.getString("b").equals("bb");
+        assert rs.getInt("fortytwo") == 4242L;
+        
+        md = rs.getMetaData();
+        expectedMetaData(md, 1, String.class.getName(), "JdbcUtf8", "Keyspace1", "a", Types.VARCHAR, UTF8Type.class.getSimpleName(), false, true);
+        expectedMetaData(md, 2, String.class.getName(), "JdbcUtf8", "Keyspace1", "b", Types.VARCHAR, UTF8Type.class.getSimpleName(), false, true);
+        expectedMetaData(md, 3, BigInteger.class.getName(), "JdbcUtf8", "Keyspace1", "fortytwo", Types.BIGINT, IntegerType.class.getSimpleName(), true, false);
     }
     
     @Test 

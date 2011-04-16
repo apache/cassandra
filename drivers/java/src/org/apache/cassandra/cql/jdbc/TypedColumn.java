@@ -34,6 +34,7 @@ class TypedColumn<N, V>
     // (a good example is byte buffers) as the stringified versions supplied by the AbstractTypes.
     private final String nameString;
     private final String valueString;
+    private final AbstractType<V> validator;
     
     public TypedColumn(AbstractType<N> comparator, byte[] name, AbstractType<V> validator, byte[] value)
     {
@@ -43,6 +44,7 @@ class TypedColumn<N, V>
         this.value = validator.compose(bbValue);
         nameString = comparator.getString(bbName);
         valueString = validator.getString(bbValue);
+        this.validator = validator;
     }
     
     public N getName()
@@ -63,5 +65,10 @@ class TypedColumn<N, V>
     public String getValueString()
     {
         return valueString;
+    }
+    
+    public AbstractType<V> getValidator()
+    {
+        return validator;
     }
 }

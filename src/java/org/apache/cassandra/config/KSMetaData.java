@@ -115,16 +115,19 @@ public final class KSMetaData
         {
             throw new RuntimeException("Could not create ReplicationStrategy of type " + ks.strategy_class, ex);
         }
-        Map<String, String> strategyOptions = null;
+
+        Map<String, String> strategyOptions = new HashMap<String, String>();
         if (ks.strategy_options != null)
         {
-            strategyOptions = new HashMap<String, String>();
             for (Map.Entry<CharSequence, CharSequence> e : ks.strategy_options.entrySet())
             {
                 strategyOptions.put(e.getKey().toString(), e.getValue().toString());
             }
         }
-        int cfsz = (int)ks.cf_defs.size();
+        if (ks.replication_factor != null)
+            strategyOptions.put("replication_factor", ks.replication_factor.toString());
+
+        int cfsz = ks.cf_defs.size();
         CFMetaData[] cfMetaData = new CFMetaData[cfsz];
         Iterator<org.apache.cassandra.db.migration.avro.CfDef> cfiter = ks.cf_defs.iterator();
         for (int i = 0; i < cfsz; i++)
