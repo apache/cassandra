@@ -56,11 +56,11 @@ import org.apache.thrift.transport.TTransport;
 import org.apache.thrift.transport.TTransportException;
 
 /**
- * A LoadFunc wrapping ColumnFamilyInputFormat.
+ * A LoadStoreFunc for retrieving data from and storing data to Cassandra
  *
  * A row from a standard CF will be returned as nested tuples: (key, ((name1, val1), (name2, val2))).
  */
-public class CassandraStorage extends LoadFunc implements StoreFuncInterface, LoadPushDown
+public class CassandraStorage extends LoadFunc implements StoreFuncInterface
 {
     // system environment variables that can be set to configure connection info:
     // alternatively, Hadoop JobConf variables can be set using keys from ConfigHelper
@@ -427,18 +427,6 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
     public void cleanupOnFailure(String failure, Job job)
     {
     }
-
-    /* LoadPushDown methods */
-
-    public List<OperatorSet> getFeatures() {
-        return Arrays.asList(LoadPushDown.OperatorSet.PROJECTION);
-    }
-
-    public RequiredFieldResponse pushProjection(RequiredFieldList requiredFieldList) throws FrontendException
-    {
-        return new RequiredFieldResponse(true);
-    }
-
 
     /* Methods to get the column family schema from Cassandra */
 
