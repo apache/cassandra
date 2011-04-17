@@ -467,10 +467,9 @@ public class QueryProcessor
         if (StatementType.requiresKeyspace.contains(statement.type))
             keyspace = clientState.getKeyspace();
         
-        CqlResult avroResult = new CqlResult();
+        CqlResult result = new CqlResult();
         
         logger.debug("CQL statement type: {}", statement.type.toString());
-        
         switch (statement.type)
         {
             case SELECT:
@@ -480,7 +479,7 @@ public class QueryProcessor
                 validateSelect(keyspace, select);
                 
                 List<org.apache.cassandra.db.Row> rows = null;
-                
+
                 // By-key
                 if (!select.isKeyRange() && (select.getKeys().size() > 0))
                 {
@@ -489,12 +488,12 @@ public class QueryProcessor
                     // Only return the column count, (of the at-most 1 row).
                     if (select.isCountOperation())
                     {
-                        avroResult.type = CqlResultType.INT;
+                        result.type = CqlResultType.INT;
                         if (rows.size() > 0)
-                            avroResult.setNum(rows.get(0).cf != null ? rows.get(0).cf.getSortedColumns().size() : 0);
+                            result.setNum(rows.get(0).cf != null ? rows.get(0).cf.getSortedColumns().size() : 0);
                         else
-                            avroResult.setNum(0);
-                        return avroResult;
+                            result.setNum(0);
+                        return result;
                     }
                 }
                 else
@@ -511,8 +510,8 @@ public class QueryProcessor
                     }
                 }
                 
-                List<CqlRow> avroRows = new ArrayList<CqlRow>();
-                avroResult.type = CqlResultType.ROWS;
+                List<CqlRow> cqlRows = new ArrayList<CqlRow>();
+                result.type = CqlResultType.ROWS;
                 
                 // Create the result set
                 for (org.apache.cassandra.db.Row row : rows)
@@ -521,37 +520,36 @@ public class QueryProcessor
                     if (row.cf == null)
                         continue;
                     
-                    List<Column> avroColumns = new ArrayList<Column>();
-                    
+                    List<Column> thriftColumns = new ArrayList<Column>();
                     for (IColumn column : row.cf.getSortedColumns())
                     {
                         if (column.isMarkedForDelete())
                             continue;
-                        Column avroColumn = new Column();
-                        avroColumn.name = column.name();
-                        avroColumn.value = column.value();
-                        avroColumn.timestamp = column.timestamp();
-                        avroColumns.add(avroColumn);
+                        Column c = new Column();
+                        c.name = column.name();
+                        c.value = column.value();
+                        c.timestamp = column.timestamp();
+                        thriftColumns.add(c);
                     }
                     
                     // Create a new row, add the columns to it, and then add it to the list of rows
-                    CqlRow avroRow = new CqlRow();
-                    avroRow.key = row.key.key;
-                    avroRow.columns = avroColumns;
+                    CqlRow cqlRow = new CqlRow();
+                    cqlRow.key = row.key.key;
+                    cqlRow.columns = thriftColumns;
                     if (select.isColumnsReversed())
-                        Collections.reverse(avroRow.columns);
-                    avroRows.add(avroRow);
+                        Collections.reverse(cqlRow.columns);
+                    cqlRows.add(cqlRow);
                 }
                 
-                avroResult.rows = avroRows;
-                return avroResult;
+                result.rows = cqlRows;
+                return result;
 
             case INSERT: // insert uses UpdateStatement
             case UPDATE:
                 UpdateStatement update = (UpdateStatement)statement.statement;
                 batchUpdate(clientState, Collections.singletonList(update), update.getConsistencyLevel());
-                avroResult.type = CqlResultType.VOID;
-                return avroResult;
+                result.type = CqlResultType.VOID;
+                return result;
                 
             case BATCH_UPDATE:
                 BatchUpdateStatement batch = (BatchUpdateStatement)statement.statement;
@@ -562,14 +560,14 @@ public class QueryProcessor
                                 "Consistency level must be set on the BATCH, not individual UPDATE statements");
                 
                 batchUpdate(clientState, batch.getUpdates(), batch.getConsistencyLevel());
-                avroResult.type = CqlResultType.VOID;
-                return avroResult;
+                result.type = CqlResultType.VOID;
+                return result;
                 
             case USE:
                 clientState.setKeyspace((String)statement.statement);
-                avroResult.type = CqlResultType.VOID;
+                result.type = CqlResultType.VOID;
                 
-                return avroResult;
+                return result;
             
             case TRUNCATE:
                 String columnFamily = (String)statement.statement;
@@ -588,8 +586,8 @@ public class QueryProcessor
                     throw (UnavailableException) new UnavailableException().initCause(e);
                 }
                 
-                avroResult.type = CqlResultType.VOID;
-                return avroResult;
+                result.type = CqlResultType.VOID;
+                return result;
             
             case DELETE:
                 DeleteStatement delete = (DeleteStatement)statement.statement;
@@ -627,8 +625,8 @@ public class QueryProcessor
                     throw new TimedOutException();
                 }
                 
-                avroResult.type = CqlResultType.VOID;
-                return avroResult;
+                result.type = CqlResultType.VOID;
+                return result;
                 
             case CREATE_KEYSPACE:
                 CreateKeyspaceStatement create = (CreateKeyspaceStatement)statement.statement;
@@ -656,8 +654,8 @@ public class QueryProcessor
                     throw ex;
                 }
                 
-                avroResult.type = CqlResultType.VOID;
-                return avroResult;
+                result.type = CqlResultType.VOID;
+                return result;
                
             case CREATE_COLUMNFAMILY:
                 CreateColumnFamilyStatement createCf = (CreateColumnFamilyStatement)statement.statement;
@@ -681,8 +679,8 @@ public class QueryProcessor
                     throw ex;
                 }
                 
-                avroResult.type = CqlResultType.VOID;
-                return avroResult;
+                result.type = CqlResultType.VOID;
+                return result;
                 
             case CREATE_INDEX:
                 CreateIndexStatement createIdx = (CreateIndexStatement)statement.statement;
@@ -737,8 +735,8 @@ public class QueryProcessor
                     throw ex;
                 }
                 
-                avroResult.type = CqlResultType.VOID;
-                return avroResult;
+                result.type = CqlResultType.VOID;
+                return result;
                 
             case DROP_KEYSPACE:
                 String deleteKeyspace = (String)statement.statement;
@@ -762,8 +760,8 @@ public class QueryProcessor
                     throw ex;
                 }
                 
-                avroResult.type = CqlResultType.VOID;
-                return avroResult;
+                result.type = CqlResultType.VOID;
+                return result;
             
             case DROP_COLUMNFAMILY:
                 String deleteColumnFamily = (String)statement.statement;
@@ -787,8 +785,8 @@ public class QueryProcessor
                     throw ex;
                 }
                 
-                avroResult.type = CqlResultType.VOID;
-                return avroResult;
+                result.type = CqlResultType.VOID;
+                return result;
                 
         }
         
