@@ -470,12 +470,15 @@ public class QueryProcessor
         CqlResult result = new CqlResult();
         
         logger.debug("CQL statement type: {}", statement.type.toString());
+        CFMetaData metadata;
+        AbstractType<?> comparator;
         switch (statement.type)
         {
             case SELECT:
                 SelectStatement select = (SelectStatement)statement.statement;
                 clientState.hasColumnFamilyAccess(select.getColumnFamily(), Permission.READ);
-                validateColumnFamily(keyspace, select.getColumnFamily(), false);
+                metadata = validateColumnFamily(keyspace, select.getColumnFamily(), false);
+                comparator = metadata.getComparatorFor(null);
                 validateSelect(keyspace, select);
                 
                 List<org.apache.cassandra.db.Row> rows = null;
@@ -519,19 +522,8 @@ public class QueryProcessor
                     /// No results for this row
                     if (row.cf == null)
                         continue;
-                    
-                    List<Column> thriftColumns = new ArrayList<Column>();
-                    for (IColumn column : row.cf.getSortedColumns())
-                    {
-                        if (column.isMarkedForDelete())
-                            continue;
-                        Column c = new Column();
-                        c.name = column.name();
-                        c.value = column.value();
-                        c.timestamp = column.timestamp();
-                        thriftColumns.add(c);
-                    }
-                    
+
+                    List<Column> thriftColumns = extractThriftColumns(select, comparator, row);
                     // Create a new row, add the columns to it, and then add it to the list of rows
                     CqlRow cqlRow = new CqlRow();
                     cqlRow.key = row.key.key;
@@ -592,8 +584,8 @@ public class QueryProcessor
             case DELETE:
                 DeleteStatement delete = (DeleteStatement)statement.statement;
                 clientState.hasColumnFamilyAccess(delete.getColumnFamily(), Permission.WRITE);
-                CFMetaData metadata = validateColumnFamily(keyspace, delete.getColumnFamily(), false);
-                AbstractType<?> comparator = metadata.getComparatorFor(null);
+                metadata = validateColumnFamily(keyspace, delete.getColumnFamily(), false);
+                comparator = metadata.getComparatorFor(null);
                 AbstractType<?> keyType = DatabaseDescriptor.getCFMetaData(keyspace,
                                                                            delete.getColumnFamily()).getKeyValidator();
                 
@@ -792,7 +784,44 @@ public class QueryProcessor
         
         return null;    // We should never get here.
     }
-    
+
+    private static List<Column> extractThriftColumns(SelectStatement select, AbstractType<?> comparator, Row row)
+    {
+        List<Column> thriftColumns = new ArrayList<Column>();
+        if (select.isColumnRange())
+        {
+            // preserve comparator order
+            for (IColumn c : row.cf.getSortedColumns())
+            {
+                if (c.isMarkedForDelete())
+                    continue;
+                thriftColumns.add(new Column(c.name()).setValue(c.value()).setTimestamp(c.timestamp()));
+            }
+        }
+        else
+        {
+            // order columns in the order they were asked for
+            for (Term term : select.getColumnNames())
+            {
+                ByteBuffer name;
+                try
+                {
+                    name = term.getByteBuffer(comparator);
+                }
+                catch (InvalidRequestException e)
+                {
+                    throw new AssertionError(e);
+                }
+                IColumn c = row.cf.getColumn(name);
+                if (c == null || c.isMarkedForDelete())
+                    thriftColumns.add(new Column().setName(name));
+                else
+                    thriftColumns.add(new Column(c.name()).setValue(c.value()).setTimestamp(c.timestamp()));
+            }
+        }
+        return thriftColumns;
+    }
+
     private static CQLStatement getStatement(String queryStr) throws InvalidRequestException, RecognitionException
     {
         // Lexer and parser

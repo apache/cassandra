@@ -398,8 +398,11 @@ public class JdbcDriverTest extends EmbeddedServiceBase
         {
             executeNoResults(con, statements[3*i]);
             ResultSet rs = executePreparedStatementWithResults(con, statements[3*i+1]);
-            assert !rs.next() : statements[3*i+1];
+            rs.next();
+            rs.getObject(1);
+            assert rs.wasNull();
             rs.close();
+
             rs = executePreparedStatementWithResults(con, statements[3*i+2]);
             assert rs.next() : statements[3*i+2];
         }

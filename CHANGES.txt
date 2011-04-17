@@ -4,7 +4,7 @@
    (CASSANDRA-1072, 1937, 1944, 1936, 2101, 2093, 2288, 2105, 2384, 2236, 2342,
    2454)
  * CQL (CASSANDRA-1703, 1704, 1705, 1706, 1707, 1708, 1710, 1711, 1940, 
-   2124, 2302, 2277)
+   2124, 2302, 2277, 2493)
  * avoid double RowMutation serialization on write path (CASSANDRA-1800)
  * make NetworkTopologyStrategy the default (CASSANDRA-1960)
  * configurable internode encryption (CASSANDRA-1567, 2152)

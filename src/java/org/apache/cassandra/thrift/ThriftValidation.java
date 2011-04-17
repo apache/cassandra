@@ -379,6 +379,10 @@ public class ThriftValidation
     public static void validateColumnData(CFMetaData metadata, Column column) throws InvalidRequestException
     {
         validateTtl(column);
+        if (!column.isSetValue())
+            throw new InvalidRequestException("Column value is required");
+        if (!column.isSetTimestamp())
+            throw new InvalidRequestException("Column timestamp is required");
         try
         {
             AbstractType validator = metadata.getValueValidator(column.name);

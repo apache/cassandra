@@ -206,7 +206,7 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<org.apache.cass
 
     private Column avroToThrift(org.apache.cassandra.hadoop.avro.Column acol)
     {
-        return new Column(acol.name, acol.value, acol.timestamp);
+        return new Column(acol.name).setValue(acol.value).setTimestamp(acol.timestamp);
     }
 
     /**

@@ -146,7 +146,7 @@ public class CassandraServer implements Cassandra.Iface
             {
                 continue;
             }
-            Column thrift_column = new Column(column.name(), column.value(), column.timestamp());
+            Column thrift_column = new Column(column.name()).setValue(column.value()).setTimestamp(column.timestamp());
             if (column instanceof ExpiringColumn)
             {
                 thrift_column.setTtl(((ExpiringColumn) column).getTimeToLive());
@@ -195,7 +195,7 @@ public class CassandraServer implements Cassandra.Iface
             }
             else
             {
-                Column thrift_column = new Column(column.name(), column.value(), column.timestamp());
+                Column thrift_column = new Column(column.name()).setValue(column.value()).setTimestamp(column.timestamp());
                 if (column instanceof ExpiringColumn)
                 {
                     thrift_column.setTtl(((ExpiringColumn) column).getTimeToLive());

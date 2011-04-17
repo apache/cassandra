@@ -80,7 +80,8 @@ public class PreparedStatementTest extends EmbeddedServiceBase
             stmt.setBytes(2, FBUtilities.toByteArray(i+100));
             stmt.setBytes(3, key);
             ResultSet rs = stmt.executeQuery();
-            assert !rs.next();
+            rs.next();
+            assert rs.getString(1) == null;  assert rs.getString(2) == null;
             rs.close();
         }
     }
@@ -139,7 +140,8 @@ public class PreparedStatementTest extends EmbeddedServiceBase
             stmt.setString(2, "2\u6543\u3435\u6554");
             stmt.setBytes(3, key);
             ResultSet rs = stmt.executeQuery();
-            assert !rs.next();
+            rs.next();
+            assert rs.getString(1) == null;  assert rs.getString(2) == null;
             rs.close();
         }
     }
@@ -198,7 +200,8 @@ public class PreparedStatementTest extends EmbeddedServiceBase
             stmt.setString(2, "2");
             stmt.setBytes(3, key);
             ResultSet rs = stmt.executeQuery();
-            assert !rs.next();
+            rs.next();
+            assert rs.getString(1) == null;  assert rs.getString(2) == null;
             rs.close();
         }
     }
@@ -257,7 +260,9 @@ public class PreparedStatementTest extends EmbeddedServiceBase
             stmt.setLong(2, 2);
             stmt.setBytes(3, key);
             ResultSet rs = stmt.executeQuery();
-            assert !rs.next();
+            rs.next();
+            rs.getLong(1);
+            assert rs.wasNull();
             rs.close();
         }
     }
@@ -316,7 +321,9 @@ public class PreparedStatementTest extends EmbeddedServiceBase
             stmt.setInt(2, 2);
             stmt.setBytes(3, key);
             ResultSet rs = stmt.executeQuery();
-            assert !rs.next();
+            rs.next();
+            rs.getInt(1);
+            assert rs.wasNull();
             rs.close();
         }
     }
