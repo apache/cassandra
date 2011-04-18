@@ -23,6 +23,14 @@
     <property file="build.properties" />
     <property name="debuglevel" value="source,lines,vars"/>
 
+    <!-- default version and SCM information (we need the default SCM info as people may checkout with git-svn) -->
+    <property name="base.version" value="0.7.5"/>
+    <property name="scm.default.path" value="cassandra/branches/cassandra-0.7"/>
+    <property name="scm.default.connection" value="scm:svn:http://svn.apache.org/repos/asf/${scm.default.path}"/>
+    <property name="scm.default.developerConnection" value="scm:svn:https://svn.apache.org/repos/asf/${scm.default.path}"/>
+    <property name="scm.default.url" value="http://svn.apache.org/viewvc/${scm.default.path}"/>
+
+    <!-- directory details -->
     <property name="basedir" value="."/>
     <property name="build.src" value="${basedir}/src"/>
     <property name="build.src.java" value="${basedir}/src/java"/>
@@ -49,16 +57,29 @@
     <property name="test.long.src" value="${test.dir}/long"/>
     <property name="test.distributed.src" value="${test.dir}/distributed"/>
     <property name="dist.dir" value="${build.dir}/dist"/>
-    <property name="base.version" value="0.7.4"/>
     <condition property="version" value="${base.version}">
       <isset property="release"/>
     </condition>
     <property name="version" value="${base.version}-SNAPSHOT"/>
     <property name="version.properties.dir" value="${build.classes}/org/apache/cassandra/config/"/>
     <property name="final.name" value="${ant.project.name}-${version}"/>
-    <property name="maven-ant-tasks.version" value="2.1.1" />
+
+    <!-- details of what version of Maven ANT Tasks to fetch -->
+    <property name="maven-ant-tasks.version" value="2.1.3" />
+    <property name="maven-ant-tasks.local" value="${user.home}/.m2/repository/org/apache/maven/maven-ant-tasks"/>
     <property name="maven-ant-tasks.url"
               value="http://repo2.maven.org/maven2/org/apache/maven/maven-ant-tasks" />
+
+    <!-- details of how and which Maven repository we publish to -->
+    <property name="maven.version" value="3.0.3" />
+    <condition property="maven-repository-url" value="https://repository.apache.org/service/local/staging/deploy/maven2">
+      <isset property="release"/>
+    </condition>
+    <condition property="maven-repository-id" value="apache.releases.https">
+      <isset property="release"/>
+    </condition>
+    <property name="maven-repository-url" value="https://repository.apache.org/content/repositories/snapshots"/>
+    <property name="maven-repository-id" value="apache.snapshots.https"/>
 
     <!-- http://cobertura.sourceforge.net/ -->
     <property name="cobertura.version" value="1.9.4.1"/>
@@ -71,8 +92,20 @@
       <available file="${build.dir}/maven-ant-tasks-${maven-ant-tasks.version}.jar" />
     </condition>
 
+    <condition property="maven-ant-tasks.jar.local">
+      <available file="${maven-ant-tasks.local}/${maven-ant-tasks.version}/maven-ant-tasks-${maven-ant-tasks.version}.jar" />
+    </condition>
+
     <condition property="is.source.artifact">
       <available file="${build.src.java}" type="dir" />
+    </condition>
+
+    <condition property="scm.provider.git-svn">
+      <available file="${basedir}/.git" type="dir"/>
+    </condition>
+
+    <condition property="scm.provider.svn">
+      <available file="${basedir}/.svn" type="dir"/>
     </condition>
 
     <!--
@@ -137,20 +170,55 @@
       </java>
     </target>
 
+    <target name="scm-svn-info" description="Determines the current Subversion URL with peg revision"
+            if="scm.provider.svn">
+      <exec executable="svn" dir="${basedir}" output="${build.dir}/svn-info.xml">
+        <arg line="info --xml"/>
+      </exec>
+      <xmlproperty file="${build.dir}/svn-info.xml" collapseAttributes="true" prefix="svn" keepRoot="false"/>
+      <echo file="${build.dir}/scm.properties">
+connection=scm:svn:${svn.entry.url}@${svn.entry.commit.revision}
+developerConnection=scm:svn:${svn.entry.url}@${svn.entry.commit.revision}
+url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
+      </echo>
+      <replace file="${build.dir}/scm.properties">
+        <replacefilter token="connection=scm:svn:https:" value="connection=scm:svn:http:"/>
+        <replacefilter token="Connection=scm:svn:http:" value="Connection=scm:svn:https:"/>
+        <replacefilter token="url=${svn.entry.repository.root}" value="url=http://svn.apache.org/viewvc"/>
+      </replace>
+      <property file="${build.dir}/scm.properties" prefix="scm"/>
+    </target>
+
+    <target name="scm-info" description="Determines the SCM details"
+            unless="scm.connection" depends="scm-svn-info">
+      <property name="scm.connection" value="${scm.default.connection}"/>
+      <property name="scm.developerConnection" value="${scm.default.developerConnection}"/>
+      <property name="scm.url" value="${scm.default.url}"/>
+    </target>
     <!--
        Fetch Maven Ant Tasks and Cassandra's dependencies
 
        These targets are intentionally free of dependencies so that they
        can be run stand-alone from a binary release artifact.
     -->
-    <target name="maven-ant-tasks-download" unless="maven-ant-tasks.jar.exists">
+    <target name="maven-ant-tasks-localrepo" unless="maven-ant-tasks.jar.exists" if="maven-ant-tasks.jar.local"
+            description="Fetch Maven ANT Tasks from Maven Local Repository">
+      <mkdir dir="${build.dir}" />
+      <copy file="${maven-ant-tasks.local}/${maven-ant-tasks.version}/maven-ant-tasks-${maven-ant-tasks.version}.jar"
+           tofile="${build.dir}/maven-ant-tasks-${maven-ant-tasks.version}.jar"/>
+      <property name="maven-ant-tasks.jar.exists" value="true"/>
+    </target>
+
+    <target name="maven-ant-tasks-download" depends="maven-ant-tasks-localrepo" unless="maven-ant-tasks.jar.exists"
+            description="Fetch Maven ANT Tasks from Maven Central Repositroy">
       <echo>Downloading Maven ANT Tasks...</echo>
       <mkdir dir="${build.dir}" />
       <get src="${maven-ant-tasks.url}/${maven-ant-tasks.version}/maven-ant-tasks-${maven-ant-tasks.version}.jar"
            dest="${build.dir}/maven-ant-tasks-${maven-ant-tasks.version}.jar" usetimestamp="true" />
     </target>
 
-    <target name="maven-ant-tasks-init" depends="maven-ant-tasks-download" unless="maven-ant-tasks.initialized">
+    <target name="maven-ant-tasks-init" depends="maven-ant-tasks-download" unless="maven-ant-tasks.initialized"
+            description="Initialize Maven ANT Tasks">
       <mkdir dir="${build.dir.lib}"/>
       <typedef uri="antlib:org.apache.maven.artifact.ant" classpathref="maven-ant-tasks.classpath" />
 
@@ -163,16 +231,83 @@
       <artifact:remoteRepository id="jclouds"   url="http://jclouds.googlecode.com/svn/repo"/>
       <artifact:remoteRepository id="oauth"     url="http://oauth.googlecode.com/svn/code/maven"/>
 
+      <macrodef name="install">
+        <attribute name="pomFile"/>
+        <attribute name="file"/>
+        <attribute name="classifier" default=""/>
+        <attribute name="packaging" default="jar"/>
+        <sequential>
+          <artifact:mvn mavenVersion="${maven.version}" fork="true">
+            <arg value="org.apache.maven.plugins:maven-install-plugin:2.3.1:install-file" />
+            <arg value="-DpomFile=@{pomFile}" />
+            <arg value="-Dfile=@{file}" />
+            <arg value="-Dclassifier=@{classifier}" />
+            <arg value="-Dpackaging=@{packaging}" />
+          </artifact:mvn>
+        </sequential>
+      </macrodef>
+
+      <macrodef name="deploy">
+        <attribute name="pomFile"/>
+        <attribute name="file"/>
+        <attribute name="classifier" default=""/>
+        <attribute name="packaging" default="jar"/>
+        <sequential>
+          <artifact:mvn mavenVersion="${maven.version}" fork="true">
+            <jvmarg value="-Xmx512m"/>
+            <arg value="org.apache.maven.plugins:maven-gpg-plugin:1.2:sign-and-deploy-file" />
+            <arg value="-Durl=${maven-repository-url}" />
+            <arg value="-DrepositoryId=${maven-repository-id}" />
+            <arg value="-DpomFile=@{pomFile}" />
+            <arg value="-Dfile=@{file}" />
+            <arg value="-Dclassifier=@{classifier}" />
+            <arg value="-Dpackaging=@{packaging}" />
+            <arg value="-Papache-release" />
+          </artifact:mvn>
+        </sequential>
+      </macrodef>
+
       <property name="maven-ant-tasks.initialized" value="true"/>
     </target>
 
-    <target name="maven-ant-tasks-retrieve-build" depends="maven-ant-tasks-init">
-      <artifact:dependencies filesetId="build-dependency-jars" 
-                             sourcesFilesetId="build-dependency-sources" 
-                             cacheDependencyRefs="true" 
-                             dependencyRefsBuildFile="${build.dir}/build-dependencies.xml">
-          <!-- FIXME: paranamer can be dropped after we're depending on avro
-          (since it depends on them). -->
+    <!-- this task defines the dependencies that will be fetched by Maven ANT Tasks
+         the dependencies are re-used for publishing artifacts to Maven Central
+         in order to keep everything consistent -->
+    <target name="maven-declare-dependencies" depends="maven-ant-tasks-init, scm-info"
+            description="Define dependencies and dependency versions">
+      <!-- The parent pom defines the versions of all dependencies -->
+      <artifact:pom id="parent-pom"
+                    groupId="org.apache.cassandra"
+                    artifactId="cassandra-parent"
+                    version="${version}"
+                    url="http://cassandra.apache.org"
+                    name="Apache Cassandra"
+                    inceptionYear="2009"
+                    description="The Apache Cassandra Project develops a highly scalable second-generation distributed database, bringing together Dynamo's fully distributed design and Bigtable's ColumnFamily-based data model.">
+        <license name="The Apache Software License, Version 2.0" url="http://www.apache.org/licenses/LICENSE-2.0.txt"/>
+        <scm connection="${scm.connection}" developerConnection="${scm.developerConnection}" url="${scm.url}"/>
+        <dependencyManagement>
+          <dependency groupId="com.google.guava" artifactId="guava" version="r05"/>
+          <dependency groupId="commons-cli" artifactId="commons-cli" version="1.1"/>
+          <dependency groupId="commons-codec" artifactId="commons-codec" version="1.2"/>
+          <dependency groupId="commons-collections" artifactId="commons-collections" version="3.2.1"/>
+          <dependency groupId="commons-lang" artifactId="commons-lang" version="2.4"/>
+          <dependency groupId="com.googlecode.concurrentlinkedhashmap" artifactId="concurrentlinkedhashmap-lru" version="1.1"/>
+          <dependency groupId="org.mortbay.jetty" artifactId="jetty" version="6.1.21"/>
+          <dependency groupId="org.mortbay.jetty" artifactId="jetty-util" version="6.1.21"/>
+          <dependency groupId="org.antlr" artifactId="antlr" version="3.1.3"/>
+          <dependency groupId="org.slf4j" artifactId="slf4j-api" version="1.6.1"/>
+          <dependency groupId="org.slf4j" artifactId="slf4j-log4j12" version="1.6.1"/>
+          <dependency groupId="org.codehaus.jackson" artifactId="jackson-core-asl" version="1.4.0"/>
+          <dependency groupId="org.codehaus.jackson" artifactId="jackson-mapper-asl" version="1.4.0"/>
+          <dependency groupId="jline" artifactId="jline" version="0.9.94"/>
+          <dependency groupId="com.googlecode.json-simple" artifactId="json-simple" version="1.1"/>
+          <dependency groupId="com.github.stephenc.high-scale-lib" artifactId="high-scale-lib" version="1.1.1"/>
+          <dependency groupId="org.yaml" artifactId="snakeyaml" version="1.6"/>
+          <dependency groupId="org.safehaus.jug" artifactId="jug" version="2.0.0" classifier="asl"/>
+          <dependency groupId="org.apache.cassandra.deps" artifactId="avro" version="1.4.0-cassandra-1"/>
+          <dependency groupId="org.apache.cassandra.deps" artifactId="libthrift" version="0.5.0"/>
+
           <dependency groupId="com.thoughtworks.paranamer" artifactId="paranamer-ant" version="2.1"/>
           <dependency groupId="junit" artifactId="junit" version="4.6" />
           <dependency groupId="commons-logging" artifactId="commons-logging" version="1.1.1"/>
@@ -180,15 +315,127 @@
           <dependency groupId="com.cloudera.hadoop" artifactId="hadoop-core" version="0.20.2-320"/>
           <dependency groupId="com.cloudera.hadoop" artifactId="hadoop-streaming" version="0.20.2-320"/>
           <dependency groupId="net.sf.jopt-simple" artifactId="jopt-simple" version="3.2"/>
-
           <dependency groupId="net.java.dev.jna" artifactId="jna" version="3.2.7"/>
+
+          <dependency groupId="net.sourceforge.cobertura" artifactId="cobertura" version="${cobertura.version}"/>
+
+          <dependency groupId="org.apache.whirr" artifactId="whirr-core" version="0.3.0-incubating"/>
+          <dependency groupId="org.apache.whirr" artifactId="whirr-cli" version="0.3.0-incubating"/>
+        </dependencyManagement>
+        <developer id="alakshman" name="Avinash Lakshman"/>
+        <developer id="antelder" name="Anthony Elder"/>
+        <developer id="brandonwilliams" name="Brandon Williams"/>
+        <developer id="eevans" name="Eric Evans"/>
+        <developer id="gdusbabek" name="Gary Dusbabek"/>
+        <developer id="goffinet" name="Chris Goffinet"/>
+        <developer id="ianh" name="Ian Holsman"/>
+        <developer id="jaakko" name="Laine Jaakko Olavi"/>
+        <developer id="jbellis" name="Jonathan Ellis"/>
+        <developer id="johan" name="Johan Oskarsson"/>
+        <developer id="junrao" name="Jun Rao"/>
+        <developer id="mriou" name="Matthieu Riou"/>
+        <developer id="pmalik" name="Prashant Malik"/>
+      </artifact:pom>
+
+      <!-- each dependency set then defines the subset of the dependencies for that dependency set -->
+      <artifact:pom id="build-deps-pom"
+                    artifactId="cassandra-build-deps">
+        <parent groupId="org.apache.cassandra"
+                artifactId="cassandra-parent"
+                version="${version}"/>
+        <!-- FIXME: paranamer can be dropped after we're depending on avro
+        (since it depends on them). -->
+        <dependency groupId="com.thoughtworks.paranamer" artifactId="paranamer-ant"/>
+        <dependency groupId="junit" artifactId="junit"/>
+        <dependency groupId="commons-logging" artifactId="commons-logging"/>
+        <dependency groupId="org.apache.rat" artifactId="apache-rat"/>
+        <dependency groupId="com.cloudera.hadoop" artifactId="hadoop-core"/>
+        <dependency groupId="com.cloudera.hadoop" artifactId="hadoop-streaming"/>
+        <dependency groupId="net.sf.jopt-simple" artifactId="jopt-simple"/>
+
+        <dependency groupId="net.java.dev.jna" artifactId="jna"/>
+      </artifact:pom>
+
+      <artifact:pom id="coverage-deps-pom"
+                    artifactId="cassandra-coverage-deps">
+        <parent groupId="org.apache.cassandra"
+                artifactId="cassandra-parent"
+                version="${version}"/>
+        <dependency groupId="net.sourceforge.cobertura" artifactId="cobertura"/>
+      </artifact:pom>
+
+      <artifact:pom id="test-deps-pom"
+                    artifactId="cassandra-test-deps">
+        <parent groupId="org.apache.cassandra"
+                artifactId="cassandra-parent"
+                version="${version}"/>
+        <dependency groupId="org.apache.whirr" artifactId="whirr-core"/>
+        <dependency groupId="org.apache.whirr" artifactId="whirr-cli"/>
+      </artifact:pom>
+
+      <!-- now the pom's for artifacts being deployed to Maven Central -->
+
+      <artifact:pom id="all-pom"
+                    artifactId="cassandra-all"
+                    url="http://cassandra.apache.org"
+                    name="Apache Cassandra">
+        <parent groupId="org.apache.cassandra"
+                artifactId="cassandra-parent"
+                version="${version}"/>
+        <scm connection="${scm.connection}" developerConnection="${scm.developerConnection}" url="${scm.url}"/>
+        <dependency groupId="com.google.guava" artifactId="guava"/>
+        <dependency groupId="commons-cli" artifactId="commons-cli"/>
+        <dependency groupId="commons-codec" artifactId="commons-codec"/>
+        <dependency groupId="commons-collections" artifactId="commons-collections"/>
+        <dependency groupId="commons-lang" artifactId="commons-lang"/>
+        <dependency groupId="com.googlecode.concurrentlinkedhashmap" artifactId="concurrentlinkedhashmap-lru"/>
+        <dependency groupId="org.mortbay.jetty" artifactId="jetty"/>
+        <dependency groupId="org.mortbay.jetty" artifactId="jetty-util"/>
+        <dependency groupId="org.antlr" artifactId="antlr"/>
+        <dependency groupId="org.slf4j" artifactId="slf4j-api"/>
+        <dependency groupId="org.slf4j" artifactId="slf4j-log4j12" scope="provided"/>
+        <dependency groupId="org.codehaus.jackson" artifactId="jackson-core-asl"/>
+        <dependency groupId="org.codehaus.jackson" artifactId="jackson-mapper-asl"/>
+        <dependency groupId="jline" artifactId="jline">
+          <exclusion groupId="junit" artifactId="junit"/>
+        </dependency>
+        <dependency groupId="com.googlecode.json-simple" artifactId="json-simple"/>
+        <dependency groupId="com.github.stephenc.high-scale-lib" artifactId="high-scale-lib"/>
+        <dependency groupId="org.yaml" artifactId="snakeyaml"/>
+        <dependency groupId="org.safehaus.jug" artifactId="jug" classifier="asl"/>
+        <dependency groupId="org.apache.cassandra.deps" artifactId="avro">
+          <exclusion groupId="org.jboss.netty" artifactId="netty"/>
+          <exclusion groupId="com.thoughtworks.paranamer" artifactId="paranamer"/>
+          <exclusion groupId="com.thoughtworks.paranamer" artifactId="paranamer-ant"/>
+          <exclusion groupId="org.apache.velocity" artifactId="velocity"/>
+        </dependency>
+        <dependency groupId="org.apache.cassandra.deps" artifactId="libthrift"/>
+      </artifact:pom>
+      <artifact:pom id="dist-pom"
+                    artifactId="apache-cassandra"
+                    packaging="pom"
+                    url="http://cassandra.apache.org"
+                    name="Apache Cassandra">
+        <parent groupId="org.apache.cassandra"
+                artifactId="cassandra-parent"
+                version="${version}"/>
+        <scm connection="${scm.connection}" developerConnection="${scm.developerConnection}" url="${scm.url}"/>
+      </artifact:pom>
+    </target>
+
+    <target name="maven-ant-tasks-retrieve-build" depends="maven-declare-dependencies">
+      <artifact:dependencies pomRefId="build-deps-pom"
+                             filesetId="build-dependency-jars" 
+                             sourcesFilesetId="build-dependency-sources" 
+                             cacheDependencyRefs="true" 
+                             dependencyRefsBuildFile="${build.dir}/build-dependencies.xml">
           <remoteRepository refid="central"/>
           <remoteRepository refid="apache"/>
           <remoteRepository refid="cloudera"/>
           <remoteRepository refid="java.net2"/>
       </artifact:dependencies>
-      <artifact:dependencies pathId="cobertura.classpath">
-          <dependency groupId="net.sourceforge.cobertura" artifactId="cobertura" version="${cobertura.version}"/>
+      <artifact:dependencies pomRefId="coverage-deps-pom"
+                             pathId="cobertura.classpath">
           <remoteRepository refid="central"/>
       </artifact:dependencies>
 
@@ -203,12 +450,11 @@
     </target>
 
     <target name="maven-ant-tasks-retrieve-test" depends="maven-ant-tasks-init">
-      <artifact:dependencies filesetId="test-dependency-jars" 
+      <artifact:dependencies pomRefId="test-deps-pom"
+                             filesetId="test-dependency-jars"
                              sourcesFilesetId="test-dependency-sources" 
                              cacheDependencyRefs="true" 
                              dependencyRefsBuildFile="${build.dir}/test-dependencies.xml">
-        <dependency groupId="org.apache.whirr" artifactId="whirr-core" version="0.3.0-incubating"/>
-        <dependency groupId="org.apache.whirr" artifactId="whirr-cli" version="0.3.0-incubating"/>
         <remoteRepository refid="apache"/>
         <remoteRepository refid="central"/>
         <remoteRepository refid="jclouds"/>
@@ -222,6 +468,11 @@
         <fileset refid="test-dependency-sources"/>
         <mapper type="flatten"/>
       </copy>
+    </target>
+
+    <target name="maven-write-poms" depends="maven-declare-dependencies" description="Create Maven POM files">
+      <artifact:writepom pomRefId="all-pom" file="${build.dir}/${final.name}.pom"/>
+      <artifact:writepom pomRefId="dist-pom" file="${build.dir}/${final.name}-dist.pom"/>
     </target>
 
     <!--
@@ -362,6 +613,31 @@
           <attribute name="Premain-Class" value="org.apache.cassandra.infrastructure.continuations.CAgent"/>
         <!-- </section> -->
         </manifest>
+      </jar>
+    </target>
+
+    <!--
+        The javadoc-jar target makes cassandra-javadoc.jar output required for publishing to Maven central repository.
+    -->
+    <target name="javadoc-jar" depends="javadoc" description="Assemble Cassandra JavaDoc JAR file">
+      <jar jarfile="${build.dir}/${final.name}-javadoc.jar"
+           basedir="${javadoc.dir}"/>
+    </target>
+
+    <!--
+        The sources-jar target makes cassandra-sources.jar output required for publishing to Maven central repository.
+    -->
+    <target name="sources-jar" depends="init,avro-generate" description="Assemble Cassandra Sources JAR file">
+      <jar jarfile="${build.dir}/${final.name}-sources.jar">
+      <fileset dir="${build.src.java}" defaultexcludes="yes">
+        <include name="org/apache/**/*.java"/>
+      </fileset>
+      <fileset dir="${interface.thrift.gen-java}" defaultexcludes="yes">
+        <include name="org/apache/**/*.java"/>
+      </fileset>
+      <fileset dir="${interface.avro.dir}" defaultexcludes="yes">
+        <include name="org/apache/**/*.java"/>
+      </fileset>
       </jar>
     </target>
 
@@ -693,6 +969,10 @@
       <fileset dir="${interface.thrift.gen-java}" defaultexcludes="yes">
         <include name="org/apache/**/*.java"/>
       </fileset>
+       <!-- until avro is removed we should generate it's javadoc also -->
+      <fileset dir="${interface.avro.dir}" defaultexcludes="yes">
+        <include name="org/apache/**/*.java"/>
+      </fileset>
     </javadoc>
    </target>
 
@@ -801,6 +1081,61 @@
     <delete dir=".settings" />
   	<delete dir=".externalToolBuilders" />
   	<delete dir="build/eclipse-classes" />
+  </target>
+
+  <target name="mvn-install"
+          depends="maven-write-poms,artifacts,jar,sources-jar,javadoc-jar"
+          description="Installs the artifacts in the Maven Local Repository">
+    <!-- the distribution -->
+    <install pomFile="${build.dir}/${final.name}-dist.pom"
+             file="${build.dir}/${final.name}-dist.pom"
+             packaging="pom"/>
+    <install pomFile="${build.dir}/${final.name}-dist.pom"
+             file="${build.dir}/${final.name}-bin.tar.gz"
+             packaging="tar.gz"
+             classifier="bin"/>
+    <install pomFile="${build.dir}/${final.name}-dist.pom"
+             file="${build.dir}/${final.name}-src.tar.gz"
+             packaging="tar.gz"
+             classifier="src"/>
+
+    <!-- the cassandra-all jar -->
+    <install pomFile="${build.dir}/${final.name}.pom"
+             file="${build.dir}/${final.name}.jar"/>
+    <install pomFile="${build.dir}/${final.name}.pom"
+             file="${build.dir}/${final.name}-sources.jar"
+             classifier="sources"/>
+    <install pomFile="${build.dir}/${final.name}.pom"
+             file="${build.dir}/${final.name}-javadoc.jar"
+             classifier="javadoc"/>
+  </target>
+
+  <target name="publish"
+          depends="mvn-install"
+          if="release"
+          description="Publishes the artifacts to the Maven repository">
+    <!-- the distribution -->
+    <deploy pomFile="${build.dir}/${final.name}-dist.pom"
+            file="${build.dir}/${final.name}-dist.pom"
+            packaging="pom"/>
+    <deploy pomFile="${build.dir}/${final.name}-dist.pom"
+            file="${build.dir}/${final.name}-bin.tar.gz"
+            packaging="tar.gz"
+            classifier="bin"/>
+    <deploy pomFile="${build.dir}/${final.name}-dist.pom"
+            file="${build.dir}/${final.name}-src.tar.gz"
+            packaging="tar.gz"
+            classifier="src"/>
+
+    <!-- the cassandra-all jar -->
+    <deploy pomFile="${build.dir}/${final.name}.pom"
+            file="${build.dir}/${final.name}.jar"/>
+    <deploy pomFile="${build.dir}/${final.name}.pom"
+            file="${build.dir}/${final.name}-sources.jar"
+            classifier="sources"/>
+    <deploy pomFile="${build.dir}/${final.name}.pom"
+            file="${build.dir}/${final.name}-javadoc.jar"
+            classifier="javadoc"/>
   </target>
 
 </project>
