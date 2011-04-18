@@ -1,4 +1,4 @@
-0.8-dev
+0.8.0-beta1
  * remove Avro RPC support (CASSANDRA-926)
  * adds support for columns that act as incr/decr counters 
    (CASSANDRA-1072, 1937, 1944, 1936, 2101, 2093, 2288, 2105, 2384, 2236, 2342,
