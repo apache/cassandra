@@ -252,7 +252,7 @@ in_memory_compaction_limit_in_mb: 64
 # Enables multiple compactions to execute at once. This is highly recommended
 # for preserving read performance in a mixed read/write workload as this
 # avoids sstables from accumulating during long running compactions.
-compaction_multithreading: true
+compaction_multithreading: false
 
 # Throttles compaction to the given total throughput across the entire
 # system. The faster you insert data, the faster you need to compact in
