@@ -279,13 +279,13 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
     {
         try
         {
-            logger_.info("Checking remote schema before delivering hints");
+            logger_.debug("Checking remote schema before delivering hints");
             int waited = waitForSchemaAgreement(endpoint);
             // sleep a random amount to stagger handoff delivery from different replicas.
             // (if we had to wait, then gossiper randomness took care of that for us already.)
             if (waited == 0) {
                 int sleep = new Random().nextInt(60000);
-                logger_.info("Sleeping {}ms to stagger hint delivery", sleep);
+                logger_.debug("Sleeping {}ms to stagger hint delivery", sleep);
                 Thread.sleep(sleep);
             }
             if (!Gossiper.instance.getEndpointStateForEndpoint(endpoint).isAlive())
