@@ -29,6 +29,8 @@ import org.apache.avro.util.Utf8;
 import org.apache.cassandra.io.SerDeUtils;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
+import org.apache.cassandra.thrift.KsDef;
+
 import org.apache.commons.lang.StringUtils;
 
 public final class KSMetaData
@@ -48,7 +50,22 @@ public final class KSMetaData
             cfmap.put(cfm.cfName, cfm);
         this.cfMetaData = Collections.unmodifiableMap(cfmap);
     }
-    
+
+    public static Map<String, String> backwardsCompatibleOptions(KsDef ks_def)
+    {
+        Map<String, String> options;
+        if (ks_def.isSetReplication_factor())
+        {
+            options = new HashMap<String, String>(ks_def.strategy_options == null ? Collections.<String, String>emptyMap() : ks_def.strategy_options);
+            options.put("replication_factor", String.valueOf(ks_def.replication_factor));
+        }
+        else
+        {
+            options = ks_def.strategy_options;
+        }
+        return options;
+    }
+
     public int hashCode()
     {
         return name.hashCode();

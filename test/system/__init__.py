@@ -33,7 +33,7 @@ import Cassandra
 def get_thrift_client(host='127.0.0.1', port=9170):
     socket = TSocket.TSocket(host, port)
     transport = TTransport.TFramedTransport(socket)
-    protocol = TBinaryProtocol.TBinaryProtocolAccelerated(transport)
+    protocol = TBinaryProtocol.TBinaryProtocol(transport)
     client = Cassandra.Client(protocol)
     client.transport = transport
     return client
@@ -149,7 +149,7 @@ class ThriftTester(BaseTester):
         
     def define_schema(self):
         keyspace1 = Cassandra.KsDef('Keyspace1', 'org.apache.cassandra.locator.SimpleStrategy', {'replication_factor':'1'},
-        [
+        cf_defs=[
             Cassandra.CfDef('Keyspace1', 'Standard1'),
             Cassandra.CfDef('Keyspace1', 'Standard2'), 
             Cassandra.CfDef('Keyspace1', 'StandardLong1', comparator_type='LongType'), 
@@ -168,7 +168,7 @@ class ThriftTester(BaseTester):
         ])
 
         keyspace2 = Cassandra.KsDef('Keyspace2', 'org.apache.cassandra.locator.SimpleStrategy', {'replication_factor':'1'},
-        [
+        cf_defs=[
             Cassandra.CfDef('Keyspace2', 'Standard1'),
             Cassandra.CfDef('Keyspace2', 'Standard3'),
             Cassandra.CfDef('Keyspace2', 'Super3', column_type='Super', subcomparator_type='BytesType'),

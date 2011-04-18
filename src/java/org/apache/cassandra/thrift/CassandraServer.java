@@ -24,7 +24,6 @@ import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.util.*;
-import java.util.Map.Entry;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -55,7 +54,6 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.thrift.TException;
 
 public class CassandraServer implements Cassandra.Iface
@@ -858,21 +856,10 @@ public class CassandraServer implements Cassandra.Iface
                 cfDefs.add(CFMetaData.convertToCFMetaData(cfDef));
             }
 
-            // Attempt to instantiate the ARS, which will throw a ConfigException if
-            //  the strategy_options aren't fully formed or if the ARS Classname is invalid.
-            TokenMetadata tmd = StorageService.instance.getTokenMetadata();
-            IEndpointSnitch eps = DatabaseDescriptor.getEndpointSnitch();
-            Class<? extends AbstractReplicationStrategy> cls = AbstractReplicationStrategy.getClass(ks_def.strategy_class);
-            AbstractReplicationStrategy strat = AbstractReplicationStrategy
-                                                    .createReplicationStrategy(ks_def.name,
-                                                                               cls,
-                                                                               tmd,
-                                                                               eps,
-                                                                               ks_def.strategy_options);
-
+            ThriftValidation.validateKsDef(ks_def);
             KSMetaData ksm = new KSMetaData(ks_def.name,
                                             AbstractReplicationStrategy.getClass(ks_def.strategy_class),
-                                            ks_def.strategy_options,
+                                            KSMetaData.backwardsCompatibleOptions(ks_def),
                                             cfDefs.toArray(new CFMetaData[cfDefs.size()]));
 
             applyMigrationOnStage(new AddKeyspace(ksm));
@@ -891,7 +878,7 @@ public class CassandraServer implements Cassandra.Iface
             throw ex;
         }
     }
-    
+
     public synchronized String system_drop_keyspace(String keyspace)
     throws InvalidRequestException, SchemaDisagreementException, TException
     {
@@ -932,9 +919,10 @@ public class CassandraServer implements Cassandra.Iface
 
         try
         {
+            ThriftValidation.validateKsDef(ks_def);
             KSMetaData ksm = new KSMetaData(ks_def.name,
                                             AbstractReplicationStrategy.getClass(ks_def.strategy_class),
-                                            ks_def.strategy_options);
+                                            KSMetaData.backwardsCompatibleOptions(ks_def));
             applyMigrationOnStage(new UpdateKeyspace(ksm));
             return DatabaseDescriptor.getDefsVersion().toString();
         }

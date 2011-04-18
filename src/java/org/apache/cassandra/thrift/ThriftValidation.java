@@ -23,16 +23,16 @@ package org.apache.cassandra.thrift;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.locator.AbstractReplicationStrategy;
+import org.apache.cassandra.locator.IEndpointSnitch;
+import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -553,5 +553,16 @@ public class ThriftValidation
         {
             throw new InvalidRequestException("cannot achieve CL > CL.ONE without replicate_on_write on columnfamily " + metadata.cfName);
         }
+    }
+
+    static void validateKsDef(KsDef ks_def) throws ConfigurationException
+    {
+        // Attempt to instantiate the ARS, which will throw a ConfigException if
+        //  the strategy_options aren't fully formed or if the ARS Classname is invalid.
+        Map<String, String> options = KSMetaData.backwardsCompatibleOptions(ks_def);
+        TokenMetadata tmd = StorageService.instance.getTokenMetadata();
+        IEndpointSnitch eps = DatabaseDescriptor.getEndpointSnitch();
+        Class<? extends AbstractReplicationStrategy> cls = AbstractReplicationStrategy.getClass(ks_def.strategy_class);
+        AbstractReplicationStrategy.createReplicationStrategy(ks_def.name, cls, tmd, eps, options);
     }
 }
