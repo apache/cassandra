@@ -272,6 +272,7 @@ public class AntiEntropyService
         private transient long validated;
         private transient MerkleTree.TreeRange range;
         private transient MerkleTree.TreeRangeIterator ranges;
+        private transient DecoratedKey lastKey;
 
         public final static MerkleTree.RowHash EMPTY_ROW = new MerkleTree.RowHash(null, new byte[0]);
         
@@ -342,6 +343,10 @@ public class AntiEntropyService
          */
         public void add(AbstractCompactedRow row)
         {
+            assert lastKey == null || lastKey.compareTo(row.key) < 0
+                   : "row " + row.key + " received out of order wrt " + lastKey;
+            lastKey = row.key;
+
             if (mintoken != null)
             {
                 assert ranges != null : "Validator was not prepared()";
