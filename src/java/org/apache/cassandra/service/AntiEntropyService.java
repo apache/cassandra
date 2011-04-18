@@ -41,6 +41,7 @@ import org.apache.cassandra.db.Table;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.io.AbstractCompactedRow;
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.io.sstable.SSTableReader;
@@ -774,6 +775,16 @@ public class AntiEntropyService
                 requestsMade.signalAll();
                 logger.info("No neighbors to repair with for " + tablename + " on " + range + ": " + getName() + " completed.");
                 return;
+            }
+
+            // Checking all nodes are live
+            for (InetAddress endpoint : endpoints)
+            {
+                if (!FailureDetector.instance.isAlive(endpoint))
+                {
+                    logger.info("Could not proceed on repair because a neighbor (" + endpoint + ") is dead: " + getName() + " failed.");
+                    return;
+                }
             }
 
             // begin a repair session
