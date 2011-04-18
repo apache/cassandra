@@ -309,6 +309,11 @@ public class SSTableWriter extends SSTable
                 while (rowPosition < dfile.length())
                 {
                     key = SSTableReader.decodeKey(StorageService.getPartitioner(), desc, ByteBufferUtil.readWithShortLength(dfile));
+
+                    // If the key is in (row) cache, we need the cache to be aware of the streamed row. To keep this simple, we
+                    // simply invalidate the row (we always invalidate but invalidating a key not in the cache is a no-op).
+                    cfs.invalidateCachedRow(key);
+
                     iwriter.afterAppend(key, rowPosition);
 
                     long dataSize = SSTableReader.readRowSize(dfile, desc);
