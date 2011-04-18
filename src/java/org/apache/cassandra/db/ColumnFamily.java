@@ -35,6 +35,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.io.IColumnSerializer;
 import org.apache.cassandra.io.util.IIterableColumns;
 import org.apache.cassandra.utils.FBUtilities;
@@ -423,5 +424,19 @@ public class ColumnFamily implements IColumnContainer, IIterableColumns
     {
         remove(column.name());
         addColumn(column.deepCopy());
+    }
+
+    /**
+     * Goes over all columns and check the fields are valid (as far as we can
+     * tell).
+     * This is used to detect corruption after deserialization.
+     */
+    public void validateColumnFields() throws MarshalException
+    {
+        CFMetaData metadata = metadata();
+        for (IColumn column : getSortedColumns())
+        {
+            column.validateFields(metadata);
+        }
     }
 }

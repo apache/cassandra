@@ -22,7 +22,9 @@ import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.util.Collection;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.utils.FBUtilities;
 
 public interface IColumn
@@ -45,6 +47,7 @@ public interface IColumn
     public void updateDigest(MessageDigest digest);
     public int getLocalDeletionTime(); // for tombstone GC, so int is sufficient granularity
     public String getString(AbstractType comparator);
+    public void validateFields(CFMetaData metadata) throws MarshalException;
 
     /** clones the column, making copies of any underlying byte buffers */
     IColumn deepCopy();

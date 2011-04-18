@@ -34,6 +34,7 @@ import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.columniterator.IColumnIterator;
+import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
 import org.apache.cassandra.utils.Filter;
 
@@ -55,6 +56,8 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
     // Used by lazilyCompactedRow, so that we see the same things when deserializing the first and second time
     private final int expireBefore;
 
+    private final boolean validateColumns;
+
     /**
      * Used to iterate through the columns of a row.
      * @param sstable SSTable we are reading ffrom.
@@ -70,7 +73,17 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
         this(sstable, file, key, dataStart, dataSize, false);
     }
 
-    public SSTableIdentityIterator(SSTableReader sstable, BufferedRandomAccessFile file, DecoratedKey key, long dataStart, long dataSize, boolean deserializeRowHeader)
+    /**
+     * Used to iterate through the columns of a row.
+     * @param sstable SSTable we are reading ffrom.
+     * @param file Reading using this file.
+     * @param key Key of this row.
+     * @param dataStart Data for this row starts at this pos.
+     * @param dataSize length of row data
+     * @param checkData if true, do its best to deserialize and check the coherence of row data
+     * @throws IOException
+     */
+    public SSTableIdentityIterator(SSTableReader sstable, BufferedRandomAccessFile file, DecoratedKey key, long dataStart, long dataSize, boolean checkData)
     throws IOException
     {
         this.sstable = sstable;
@@ -79,12 +92,13 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
         this.dataStart = dataStart;
         this.dataSize = dataSize;
         this.expireBefore = (int)(System.currentTimeMillis() / 1000);
+        this.validateColumns = checkData;
         finishedAt = dataStart + dataSize;
 
         try
         {
             file.seek(this.dataStart);
-            if (deserializeRowHeader)
+            if (checkData)
             {
                 try
                 {
@@ -141,11 +155,18 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
     {
         try
         {
-            return sstable.getColumnSerializer().deserialize(file, expireBefore);
+            IColumn column = sstable.getColumnSerializer().deserialize(file, expireBefore);
+            if (validateColumns)
+                column.validateFields(sstable.metadata);
+            return column;
         }
         catch (IOException e)
         {
             throw new IOError(e);
+        }
+        catch (MarshalException e)
+        {
+            throw new IOError(new IOException("Error validating row " + key, e));
         }
     }
 
@@ -178,6 +199,17 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
         file.seek(columnPosition - 4); // seek to before column count int
         ColumnFamily cf = columnFamily.cloneMeShallow();
         ColumnFamily.serializer().deserializeColumns(file, cf);
+        if (validateColumns)
+        {
+            try
+            {
+                cf.validateColumnFields();
+            }
+            catch (MarshalException e)
+            {
+                throw new IOException("Error validating row " + key, e);
+            }
+        }
         return cf;
     }
 

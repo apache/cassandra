@@ -23,6 +23,8 @@ import java.nio.ByteBuffer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class DeletedColumn extends Column
@@ -61,5 +63,15 @@ public class DeletedColumn extends Column
     public IColumn deepCopy()
     {
         return new DeletedColumn(ByteBufferUtil.clone(name), ByteBufferUtil.clone(value), timestamp);
+    }
+
+    @Override
+    public void validateFields(CFMetaData metadata) throws MarshalException
+    {
+        validateName(metadata);
+        if (value().remaining() != 4)
+            throw new MarshalException("A tombstone value should be 4 bytes long");
+        if (getLocalDeletionTime() < 0)
+            throw new MarshalException("The local deletion time should not be negative");
     }
 }
