@@ -55,7 +55,6 @@ Upgrading
       data files before rebuilding, just in case.
 
 
->>>>>>> .merge-right.r1073884
 0.7.1
 =====
 
