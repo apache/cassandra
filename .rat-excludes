@@ -2,7 +2,8 @@
 debian/**
 .classpath
 .rat-excludes
-.project
+**/.project
+**/.pydevproject
 CHANGES.txt
 .git/**
 **/*.json

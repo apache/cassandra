@@ -1,3 +1,24 @@
+<!--
+ 
+ Licensed to the Apache Software Foundation (ASF) under one
+ or more contributor license agreements.  See the NOTICE file
+ distributed with this work for additional information
+ regarding copyright ownership.  The ASF licenses this file
+ to you under the Apache License, Version 2.0 (the
+ "License"); you may not use this file except in compliance
+ with the License.  You may obtain a copy of the License at
+ 
+   http://www.apache.org/licenses/LICENSE-2.0
+ 
+ Unless required by applicable law or agreed to in writing,
+ software distributed under the License is distributed on an
+ "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ KIND, either express or implied.  See the License for the
+ specific language governing permissions and limitations
+ under the License.
+ 
+-->
+
 <?xml version='1.0' encoding='utf-8' ?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8"/></head><body><h1 id="CassandraQueryLanguageCQLv1.0.0">Cassandra Query Language (CQL) v1.0.0</h1><h2 id="TableofContents">Table of Contents</h2><ol style="list-style: none;"><li><a href="#CassandraQueryLanguageCQLv1.0.0">Cassandra Query Language (CQL) v1.0.0</a><ol style="list-style: none;"><li><a href="#TableofContents">Table of Contents</a></li><li><a href="#USE">USE</a></li><li><a href="#SELECT">SELECT</a><ol style="list-style: none;"><li><a href="#SpecifyingColumns">Specifying Columns</a></li><li><a href="#ColumnFamily">Column Family</a></li><li><a href="#ConsistencyLevel">Consistency Level</a></li><li><a href="#Filteringrows">Filtering rows</a></li><li><a href="#Limits">Limits</a></li></ol></li><li><a href="#UPDATE">UPDATE</a><ol style="list-style: none;"><li><a href="#ColumnFamily2">Column Family</a></li><li><a href="#ConsistencyLevel2">Consistency Level</a></li><li><a href="#SpecifyingColumnsandRow">Specifying Columns and Row</a></li></ol></li><li><a href="#DELETE">DELETE</a><ol style="list-style: none;"><li><a href="#SpecifyingColumns2">Specifying Columns</a></li><li><a href="#ColumnFamily3">Column Family</a></li><li><a href="#ConsistencyLevel3">Consistency Level</a></li><li><a href="#deleterows">Specifying Rows</a></li></ol></li><li><a href="#TRUNCATE">TRUNCATE</a></li><li><a href="#CREATEKEYSPACE">CREATE KEYSPACE</a></li><li><a href="#CREATECOLUMNFAMILY">CREATE COLUMNFAMILY</a><ol style="list-style: none;"><li><a href="#keytypes">Specifying Key Type</a></li><li><a href="#columntypes">Specifying Column Type (optional)</a></li><li><a href="#ColumnFamilyOptionsoptional">Column Family Options (optional)</a></li></ol></li><li><a href="#CREATEINDEX">CREATE INDEX</a></li><li><a href="#DROP">DROP</a></li><li><a href="#CommonIdioms">Common Idioms</a><ol style="list-style: none;"><li><a href="#consistency">Specifying Consistency</a></li><li><a href="#terms">Term specification</a></li></ol></li></ol></li><li><a href="#Versioning">Versioning</a></li><li><a href="#Changes">Changes</a></li></ol><h2 id="USE">USE</h2><p><i>Synopsis:</i></p><pre><code>USE &lt;KEYSPACE&gt;;
 </code></pre><p>A <code>USE</code> statement consists of the <code>USE</code> keyword, followed by a valid keyspace name.  Its purpose is to assign the per-connection, current working keyspace.  All subsequent keyspace-specific actions will be performed in the context of the supplied value.</p><h2 id="SELECT">SELECT</h2><p><i>Synopsis:</i></p><pre><code>SELECT [FIRST N] [REVERSED] &lt;SELECT EXPR&gt; FROM &lt;COLUMN FAMILY&gt; [USING &lt;CONSISTENCY&gt;]
         [WHERE &lt;CLAUSE&gt;] [LIMIT N];
