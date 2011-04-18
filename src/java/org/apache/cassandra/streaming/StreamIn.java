@@ -49,11 +49,6 @@ public class StreamIn
     /**
      * Request ranges to be transferred from source to local node
      */
-    public static void requestRanges(InetAddress source, String tableName, Collection<Range> ranges)
-    {
-        requestRanges(source, tableName, ranges, null);
-    }
-
     public static void requestRanges(InetAddress source, String tableName, Collection<Range> ranges, Runnable callback)
     {
         assert ranges.size() > 0;
@@ -74,7 +69,7 @@ public class StreamIn
         // new local sstable
         Table table = Table.open(remotedesc.ksname);
         ColumnFamilyStore cfStore = table.getColumnFamilyStore(remotedesc.cfname);
-        Descriptor localdesc = Descriptor.fromFilename(cfStore.getFlushPath());
+        Descriptor localdesc = Descriptor.fromFilename(cfStore.getFlushPath(remote.desc.version));
 
         return new PendingFile(localdesc, remote);
      }

@@ -50,9 +50,9 @@ public class SerializationsTest extends AbstractSerializationsTester
     private void testPendingFileWrite() throws IOException
     {
         // make sure to test serializing null and a pf with no sstable.
-        PendingFile normal = makePendingFile(true, "fake_component", 100);
-        PendingFile noSections = makePendingFile(true, "not_real", 0);
-        PendingFile noSST = makePendingFile(false, "also_fake", 100);
+        PendingFile normal = makePendingFile(true, 100);
+        PendingFile noSections = makePendingFile(true, 0);
+        PendingFile noSST = makePendingFile(false, 100);
         
         DataOutputStream out = getOutput("streaming.PendingFile.bin");
         PendingFile.serializer().serialize(normal, out);
@@ -78,14 +78,14 @@ public class SerializationsTest extends AbstractSerializationsTester
     
     private void testStreamHeaderWrite() throws IOException
     {
-        StreamHeader sh0 = new StreamHeader("Keyspace1", 123L, makePendingFile(true, "zz", 100));
-        StreamHeader sh1 = new StreamHeader("Keyspace1", 124L, makePendingFile(false, "zz", 100));
+        StreamHeader sh0 = new StreamHeader("Keyspace1", 123L, makePendingFile(true, 100));
+        StreamHeader sh1 = new StreamHeader("Keyspace1", 124L, makePendingFile(false, 100));
         Collection<PendingFile> files = new ArrayList<PendingFile>();
         for (int i = 0; i < 50; i++)
-            files.add(makePendingFile(i % 2 == 0, "aa", 100));
-        StreamHeader sh2 = new StreamHeader("Keyspace1", 125L, makePendingFile(true, "bb", 100), files);
+            files.add(makePendingFile(i % 2 == 0, 100));
+        StreamHeader sh2 = new StreamHeader("Keyspace1", 125L, makePendingFile(true, 100), files);
         StreamHeader sh3 = new StreamHeader("Keyspace1", 125L, null, files);
-        StreamHeader sh4 = new StreamHeader("Keyspace1", 125L, makePendingFile(true, "bb", 100), new ArrayList<PendingFile>());
+        StreamHeader sh4 = new StreamHeader("Keyspace1", 125L, makePendingFile(true, 100), new ArrayList<PendingFile>());
         
         DataOutputStream out = getOutput("streaming.StreamHeader.bin");
         StreamHeader.serializer().serialize(sh0, out);
@@ -132,13 +132,13 @@ public class SerializationsTest extends AbstractSerializationsTester
         in.close();
     }
     
-    private static PendingFile makePendingFile(boolean sst, String comp, int numSecs)
+    private static PendingFile makePendingFile(boolean sst, int numSecs)
     {
         Descriptor desc = new Descriptor("z", new File("path/doesn't/matter"), "Keyspace1", "Standard1", 23, false);
         List<Pair<Long, Long>> sections = new ArrayList<Pair<Long, Long>>();
         for (int i = 0; i < numSecs; i++)
             sections.add(new Pair<Long, Long>(new Long(i), new Long(i * i)));
-        return new PendingFile(sst ? makeSSTable() : null, desc, comp, sections);
+        return new PendingFile(sst ? makeSSTable() : null, desc, SSTable.COMPONENT_DATA, sections);
     }
     
     private void testStreamRequestMessageWrite() throws IOException
@@ -147,8 +147,8 @@ public class SerializationsTest extends AbstractSerializationsTester
         for (int i = 0; i < 5; i++)
             ranges.add(new Range(new BytesToken(ByteBufferUtil.bytes(Integer.toString(10*i))), new BytesToken(ByteBufferUtil.bytes(Integer.toString(10*i+5)))));
         StreamRequestMessage msg0 = new StreamRequestMessage(FBUtilities.getLocalAddress(), ranges, "Keyspace1", 123L);
-        StreamRequestMessage msg1 = new StreamRequestMessage(FBUtilities.getLocalAddress(), makePendingFile(true, "aa", 100), 124L);
-        StreamRequestMessage msg2 = new StreamRequestMessage(FBUtilities.getLocalAddress(), makePendingFile(false, "aa", 100), 124L);
+        StreamRequestMessage msg1 = new StreamRequestMessage(FBUtilities.getLocalAddress(), makePendingFile(true, 100), 124L);
+        StreamRequestMessage msg2 = new StreamRequestMessage(FBUtilities.getLocalAddress(), makePendingFile(false, 100), 124L);
         
         DataOutputStream out = getOutput("streaming.StreamRequestMessage.bin");
         StreamRequestMessage.serializer().serialize(msg0, out);

@@ -657,28 +657,39 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return columnFamily;
     }
 
+    public String getFlushPath()
+    {
+        return getFlushPath(Descriptor.CURRENT_VERSION);
+    }
+
     /*
      * @return a temporary file name for an sstable.
      * When the sstable object is closed, it will be renamed to a non-temporary
      * format, so incomplete sstables can be recognized and removed on startup.
      */
-    public String getFlushPath()
+    public String getFlushPath(String version)
     {
         long guessedSize = 2L * memsize.value() * 1024*1024; // 2* adds room for keys, column indexes
         String location = DatabaseDescriptor.getDataFileLocationForTable(table.name, guessedSize);
         if (location == null)
             throw new RuntimeException("Insufficient disk space to flush");
-        return getTempSSTablePath(location);
+        return getTempSSTablePath(location, version);
     }
 
-    public String getTempSSTablePath(String directory)
+    public String getTempSSTablePath(String directory, String version)
     {
-        Descriptor desc = new Descriptor(new File(directory),
+        Descriptor desc = new Descriptor(version,
+                                         new File(directory),
                                          table.name,
                                          columnFamily,
                                          fileIndexGenerator.incrementAndGet(),
                                          true);
         return desc.filenameFor(Component.DATA);
+    }
+
+    public String getTempSSTablePath(String directory)
+    {
+        return getTempSSTablePath(directory, Descriptor.CURRENT_VERSION);
     }
 
     /** flush the given memtable and swap in a new one for its CFS, if it hasn't been frozen already.  threadsafe. */
