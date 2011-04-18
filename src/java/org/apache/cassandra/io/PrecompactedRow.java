@@ -131,4 +131,15 @@ public class PrecompactedRow extends AbstractCompactedRow
     {
         return compactedCf == null ? 0 : compactedCf.getColumnCount();
     }
+
+    /**
+     * @return the full column family represented by this compacted row.
+     *
+     * We do not provide this method for other AbstractCompactedRow, because this fits the whole row into
+     * memory and don't make sense for those other implementations.
+     */
+    public ColumnFamily getFullColumnFamily()  throws IOException
+    {
+        return compactedCf;
+    }
 }

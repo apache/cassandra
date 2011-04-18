@@ -23,8 +23,6 @@ package org.apache.cassandra.streaming;
  */
 public enum OperationType
 {
-    // TODO: the only types of operation that are currently distinguised are AES and everything else.  There is no
-    // sense in having the other types (yet).
     AES,
     BOOTSTRAP,
     UNBOOTSTRAP,

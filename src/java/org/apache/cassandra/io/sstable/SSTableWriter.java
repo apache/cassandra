@@ -285,9 +285,9 @@ public class SSTableWriter extends SSTable
             try
             {
                 if (cfs.metadata.getDefaultValidator().isCommutative())
-                    indexer = new CommutativeRowIndexer(desc, cfs.metadata);
+                    indexer = new CommutativeRowIndexer(desc, cfs, type);
                 else
-                    indexer = new RowIndexer(desc, cfs.metadata);
+                    indexer = new RowIndexer(desc, cfs, type);
             }
             catch (IOException e)
             {
@@ -320,20 +320,22 @@ public class SSTableWriter extends SSTable
     {
         protected final Descriptor desc;
         public final BufferedRandomAccessFile dfile;
+        private final OperationType type;
 
         protected IndexWriter iwriter;
-        protected CFMetaData metadata;
+        protected ColumnFamilyStore cfs;
 
-        RowIndexer(Descriptor desc, CFMetaData metadata) throws IOException
+        RowIndexer(Descriptor desc, ColumnFamilyStore cfs, OperationType type) throws IOException
         {
-            this(desc, new BufferedRandomAccessFile(new File(desc.filenameFor(SSTable.COMPONENT_DATA)), "r", 8 * 1024 * 1024, true), metadata);
+            this(desc, new BufferedRandomAccessFile(new File(desc.filenameFor(SSTable.COMPONENT_DATA)), "r", 8 * 1024 * 1024, true), cfs, type);
         }
 
-        protected RowIndexer(Descriptor desc, BufferedRandomAccessFile dfile, CFMetaData metadata) throws IOException
+        protected RowIndexer(Descriptor desc, BufferedRandomAccessFile dfile, ColumnFamilyStore cfs, OperationType type) throws IOException
         {
             this.desc = desc;
             this.dfile = dfile;
-            this.metadata = metadata;
+            this.type = type;
+            this.cfs = cfs;
         }
 
         long prepareIndexing() throws IOException
@@ -377,6 +379,53 @@ public class SSTableWriter extends SSTable
             iwriter.close();
         }
 
+        /*
+         * If the key is cached, we should:
+         *   - For AES: run the newly received row by the cache
+         *   - For other: invalidate the cache (even if very unlikely, a key could be in cache in theory if a neighbor was boostrapped and
+         *     then removed quickly afterward (a key that we had lost but become responsible again could have stayed in cache). That key
+         *     would be obsolete and so we must invalidate the cache).
+         */
+        protected void updateCache(DecoratedKey key, long dataSize, AbstractCompactedRow row) throws IOException
+        {
+            ColumnFamily cached = cfs.getRawCachedRow(key);
+            if (cached != null)
+            {
+                switch (type)
+                {
+                    case AES:
+                        if (dataSize > DatabaseDescriptor.getInMemoryCompactionLimit())
+                        {
+                            // We have a key in cache for a very big row, that is fishy. We don't fail here however because that would prevent the sstable
+                            // from being build (and there is no real point anyway), so we just invalidate the row for correction and log a warning.
+                            logger.warn("Found a cached row over the in memory compaction limit during post-streaming rebuilt; it is highly recommended to avoid huge row on column family with row cache enabled.");
+                            cfs.invalidateCachedRow(key);
+                        }
+                        else
+                        {
+                            ColumnFamily cf;
+                            if (row == null)
+                            {
+                                // If not provided, read from disk.
+                                cf = ColumnFamily.create(cfs.metadata);
+                                ColumnFamily.serializer().deserializeColumns(dfile, cf, true, true);
+                            }
+                            else
+                            {
+                                assert row instanceof PrecompactedRow;
+                                // we do not purge so we should not get a null here
+                                cf = ((PrecompactedRow)row).getFullColumnFamily();
+                            }
+                            cfs.updateRowCache(key, cf);
+                        }
+                        break;
+                    default:
+                        cfs.invalidateCachedRow(key);
+                        break;
+                }
+            }
+        }
+
         protected long doIndexing() throws IOException
         {
             EstimatedHistogram rowSizes = SSTable.defaultRowHistogram();
@@ -393,10 +442,14 @@ public class SSTableWriter extends SSTable
                 // seek to next key
                 long dataSize = SSTableReader.readRowSize(dfile, desc);
                 rowPosition = dfile.getFilePointer() + dataSize;
-                
+
                 IndexHelper.skipBloomFilter(dfile);
                 IndexHelper.skipIndex(dfile);
-                ColumnFamily.serializer().deserializeFromSSTableNoColumns(ColumnFamily.create(metadata), dfile);
+                ColumnFamily.serializer().deserializeFromSSTableNoColumns(ColumnFamily.create(cfs.metadata), dfile);
+
+                // don't move that statement around, it expects the dfile to be before the columns
+                updateCache(key, dataSize, null);
+
                 rowSizes.add(dataSize);
                 columnCounts.add(dfile.readInt());
                 
@@ -424,9 +477,9 @@ public class SSTableWriter extends SSTable
     {
         protected BufferedRandomAccessFile writerDfile;
 
-        CommutativeRowIndexer(Descriptor desc, CFMetaData metadata) throws IOException
+        CommutativeRowIndexer(Descriptor desc, ColumnFamilyStore cfs, OperationType type) throws IOException
         {
-            super(desc, new BufferedRandomAccessFile(new File(desc.filenameFor(SSTable.COMPONENT_DATA)), "r", 8 * 1024 * 1024, true), metadata);
+            super(desc, new BufferedRandomAccessFile(new File(desc.filenameFor(SSTable.COMPONENT_DATA)), "r", 8 * 1024 * 1024, true), cfs, type);
             writerDfile = new BufferedRandomAccessFile(new File(desc.filenameFor(SSTable.COMPONENT_DATA)), "rw", 8 * 1024 * 1024, true);
         }
 
@@ -448,7 +501,7 @@ public class SSTableWriter extends SSTable
 
                 // skip data size, bloom filter, column index
                 long dataSize = SSTableReader.readRowSize(dfile, desc);
-                SSTableIdentityIterator iter = new SSTableIdentityIterator(metadata, dfile, key, dfile.getFilePointer(), dataSize, true);
+                SSTableIdentityIterator iter = new SSTableIdentityIterator(cfs.metadata, dfile, key, dfile.getFilePointer(), dataSize, true);
 
                 AbstractCompactedRow row;
                 if (dataSize > DatabaseDescriptor.getInMemoryCompactionLimit())
@@ -460,6 +513,8 @@ public class SSTableWriter extends SSTable
                 {
                     row = new PrecompactedRow(controller, Collections.singletonList(iter));
                 }
+
+                updateCache(key, dataSize, row);
 
                 rowSizes.add(dataSize);
                 columnCounts.add(row.columnCount());

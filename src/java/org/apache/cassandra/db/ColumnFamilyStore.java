@@ -735,6 +735,20 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         submitFlush(binaryMemtable.get(), new CountDownLatch(1));
     }
 
+    public void updateRowCache(DecoratedKey key, ColumnFamily columnFamily)
+    {
+        if (rowCache.isPutCopying())
+        {
+            invalidateCachedRow(key);
+        }
+        else
+        {
+            ColumnFamily cachedRow = getRawCachedRow(key);
+            if (cachedRow != null)
+                cachedRow.addAll(columnFamily);
+        }
+    }
+
     /**
      * Insert/Update the column family for this key.
      * Caller is responsible for acquiring Table.flusherLock!
@@ -749,17 +763,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         Memtable mt = getMemtableThreadSafe();
         boolean flushRequested = mt.isThresholdViolated();
         mt.put(key, columnFamily);
-        if (rowCache.isPutCopying())
-        {
-            invalidateCachedRow(key);
-        }
-        else
-        {
-            ColumnFamily cachedRow = getRawCachedRow(key);
-            if (cachedRow != null)
-                cachedRow.addAll(columnFamily);
-            writeStats.addNano(System.nanoTime() - start);
-        }
+        updateRowCache(key, columnFamily);
+        writeStats.addNano(System.nanoTime() - start);
 
         if (DatabaseDescriptor.estimatesRealMemtableSize())
         {
