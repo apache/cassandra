@@ -93,6 +93,8 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>
     }
     
     public abstract T compose(ByteBuffer bytes);
+    
+    public abstract ByteBuffer decompose(T value);
 
     /** get a string representation of a particular type. */
     public abstract String toString(T t);

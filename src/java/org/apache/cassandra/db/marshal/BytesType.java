@@ -30,18 +30,28 @@ public class BytesType extends AbstractType<ByteBuffer>
 {
     public static final BytesType instance = new BytesType();
 
+    public static BytesType getInstance()
+    {
+        return instance;
+    }
+
     BytesType() {} // singleton
 
     public ByteBuffer compose(ByteBuffer bytes)
     {
         return bytes.duplicate();
     }
+
+    public ByteBuffer decompose(ByteBuffer value)
+    {
+        return value;
+    }
     
     public int compare(ByteBuffer o1, ByteBuffer o2)
     {
         return BytesType.bytesCompare(o1, o2);
     }
-    
+
     public static int bytesCompare(ByteBuffer o1, ByteBuffer o2)
     {
         if(null == o1){
