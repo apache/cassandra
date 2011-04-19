@@ -39,6 +39,7 @@ import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.PrecompactedRow;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
@@ -83,7 +84,9 @@ public class AntiEntropyServiceTest extends CleanupHelper
         StorageService.instance.setToken(StorageService.getPartitioner().getRandomToken());
         tmd.updateNormalToken(StorageService.getPartitioner().getMinimumToken(), REMOTE);
         assert tmd.isMember(REMOTE);
-        
+
+        Gossiper.instance.initializeNodeUnsafe(REMOTE, 1);
+
         // random session id for each test
         request = new TreeRequest(UUID.randomUUID().toString(), LOCAL, new CFPair(tablename, cfname));
     }
