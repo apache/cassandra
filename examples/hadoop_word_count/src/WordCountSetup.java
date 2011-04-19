@@ -51,13 +51,19 @@ public class WordCountSetup
         // text0: no rows
 
         // text1: 1 row, 1 word
-        c = new Column(ByteBufferUtil.bytes("text1"), ByteBufferUtil.bytes("word1"), System.currentTimeMillis());
+        c = new Column()
+            .setName(ByteBufferUtil.bytes("text1"))
+            .setValue(ByteBufferUtil.bytes("word1"))
+            .setTimestamp(System.currentTimeMillis());
         mutationMap = getMutationMap(ByteBufferUtil.bytes("key0"), WordCount.COLUMN_FAMILY, c);
         client.batch_mutate(mutationMap, ConsistencyLevel.ONE);
         logger.info("added text1");
 
         // text1: 1 row, 2 word
-        c = new Column(ByteBufferUtil.bytes("text2"), ByteBufferUtil.bytes("word1 word2"), System.currentTimeMillis());
+        c = new Column()
+            .setName(ByteBufferUtil.bytes("text2"))
+            .setValue(ByteBufferUtil.bytes("word1 word2"))
+            .setTimestamp(System.currentTimeMillis());
         mutationMap = getMutationMap(ByteBufferUtil.bytes("key0"), WordCount.COLUMN_FAMILY, c);
         client.batch_mutate(mutationMap, ConsistencyLevel.ONE);
         logger.info("added text2");
@@ -66,7 +72,10 @@ public class WordCountSetup
         mutationMap = new HashMap<ByteBuffer,Map<String,List<Mutation>>>();
         for (int i=0; i<1000; i++)
         {
-            c = new Column(ByteBufferUtil.bytes("text3"), ByteBufferUtil.bytes("word1"), System.currentTimeMillis());
+            c = new Column()
+                .setName(ByteBufferUtil.bytes("text3"))
+                .setValue(ByteBufferUtil.bytes("word1"))
+                .setTimestamp(System.currentTimeMillis());
             addToMutationMap(mutationMap, ByteBufferUtil.bytes("key" + i), WordCount.COLUMN_FAMILY, c);
         }
         client.batch_mutate(mutationMap, ConsistencyLevel.ONE);
@@ -96,19 +105,20 @@ public class WordCountSetup
         mutationMap.put(key, cfMutation);
     }
 
-    private static void setupKeyspace(Cassandra.Iface client) throws TException, InvalidRequestException
-    {
+    private static void setupKeyspace(Cassandra.Iface client) throws TException, InvalidRequestException, SchemaDisagreementException {
         List<CfDef> cfDefList = new ArrayList<CfDef>();
         CfDef input = new CfDef(WordCount.KEYSPACE, WordCount.COLUMN_FAMILY);
-       input.setComparator_type("AsciiType");
-       input.setDefault_validation_class("AsciiType");
-       cfDefList.add(input);
+        input.setComparator_type("AsciiType");
+        input.setDefault_validation_class("AsciiType");
+        cfDefList.add(input);
         CfDef output = new CfDef(WordCount.KEYSPACE, WordCount.OUTPUT_COLUMN_FAMILY);
-       output.setComparator_type("AsciiType");
-       output.setDefault_validation_class("AsciiType");
+        output.setComparator_type("AsciiType");
+        output.setDefault_validation_class("AsciiType");
         cfDefList.add(output);
 
-        client.system_add_keyspace(new KsDef(WordCount.KEYSPACE, "org.apache.cassandra.locator.SimpleStrategy", 1, cfDefList));
+        KsDef ksDef = new KsDef(WordCount.KEYSPACE, "org.apache.cassandra.locator.SimpleStrategy", cfDefList);
+        ksDef.putToStrategy_options("replication_factor", "1");
+        client.system_add_keyspace(ksDef);
         int magnitude = client.describe_ring(WordCount.KEYSPACE).size();
         try
         {
