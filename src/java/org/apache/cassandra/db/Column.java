@@ -26,7 +26,9 @@ import java.util.Collection;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -236,6 +238,20 @@ public class Column implements IColumn
     public boolean isLive()
     {
         return !isMarkedForDelete();
+    }
+
+    protected void validateName(CFMetaData metadata) throws MarshalException
+    {
+        AbstractType nameValidator = metadata.cfType == ColumnFamilyType.Super ? metadata.subcolumnComparator : metadata.comparator;
+        nameValidator.validate(name());
+    }
+
+    public void validateFields(CFMetaData metadata) throws MarshalException
+    {
+        validateName(metadata);
+        AbstractType valueValidator = metadata.getValueValidator(name());
+        if (valueValidator != null)
+            valueValidator.validate(value());
     }
 }
 

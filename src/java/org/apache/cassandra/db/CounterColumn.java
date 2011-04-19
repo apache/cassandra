@@ -27,9 +27,11 @@ import java.util.Map;
 
 import org.apache.log4j.Logger;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.context.IContext.ContextRelationship;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -204,6 +206,15 @@ public class CounterColumn extends Column
         return ColumnSerializer.COUNTER_MASK;
     }
 
+    @Override
+    public void validateFields(CFMetaData metadata) throws MarshalException
+    {
+        validateName(metadata);
+        // We cannot use the value validator as for other columns as the CounterColumnType validate a long,
+        // which is not the internal representation of counters
+        contextManager.validateContext(value());
+    }
+
     /**
      * Check if a given nodeId is found in this CounterColumn context.
      */
@@ -269,4 +280,5 @@ public class CounterColumn extends Column
             }
         }
     }
+
 }

@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.util.*;
 
+import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.db.DBConstants;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.NodeId;
@@ -450,6 +451,13 @@ public class CounterContext implements IContext
                 cleaned.position() + HEADER_SIZE_LENGTH,
                 context.remaining() - headerLength);
         return cleaned;
+    }
+
+    public void validateContext(ByteBuffer context) throws MarshalException
+    {
+        int headerLength = headerLength(context);
+        if (headerLength < 0 || (context.remaining() - headerLength) %  STEP_LENGTH != 0)
+            throw new MarshalException("Invalid size for a counter context");
     }
 
     /**
