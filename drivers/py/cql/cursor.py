@@ -22,8 +22,12 @@ import cql
 from cql.marshal import prepare
 from cql.decoders import SchemaDecoder
 from cql.results import ResultSet
-from cql.cassandra.ttypes import (Compression, CqlResultType, InvalidRequestException,
-                                       TApplicationException)
+from cql.cassandra.ttypes import (
+    Compression, 
+    CqlResultType, 
+    InvalidRequestException,
+    TApplicationException,
+    SchemaDisagreementException)
 
 class Cursor:
 
