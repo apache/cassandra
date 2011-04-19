@@ -41,6 +41,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.PrecompactedRow;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.utils.FBUtilities;
@@ -101,6 +102,8 @@ public abstract class AntiEntropyServiceTestAbstract extends CleanupHelper
         StorageService.instance.setToken(StorageService.getPartitioner().getRandomToken());
         tmd.updateNormalToken(StorageService.getPartitioner().getMinimumToken(), REMOTE);
         assert tmd.isMember(REMOTE);
+
+        Gossiper.instance.initializeNodeUnsafe(REMOTE, 1);
 
         local_range = StorageService.instance.getLocalPrimaryRange();
         
