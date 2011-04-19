@@ -29,7 +29,9 @@ import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.io.IColumnSerializer;
 import org.apache.cassandra.io.util.ColumnSortedMap;
 import org.apache.cassandra.io.util.DataOutputBuffer;
@@ -320,6 +322,15 @@ public class SuperColumn implements IColumn, IColumnContainer
     public int serializationFlags()
     {
         throw new UnsupportedOperationException("Super columns don't have a serialization mask");
+    }
+
+    public void validateFields(CFMetaData metadata) throws MarshalException
+    {
+        metadata.comparator.validate(name());
+        for (IColumn column : getSubColumns())
+        {
+            column.validateFields(metadata);
+        }
     }
 }
 
