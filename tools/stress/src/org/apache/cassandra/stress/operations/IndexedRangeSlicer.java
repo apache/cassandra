@@ -48,8 +48,8 @@ public class IndexedRangeSlicer extends Operation
 
         int received = 0;
 
-        String startOffset = "0";
-        ByteBuffer value = values.get(index % values.size());
+        String startOffset = String.format(format, 0);
+        ByteBuffer value = values.get(1); // only C1 column is indexed
 
         IndexExpression expression = new IndexExpression(columnName, IndexOperator.EQ, value);
 
