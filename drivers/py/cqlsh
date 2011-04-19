@@ -90,14 +90,15 @@ class Shell(cmd.Cmd):
         cursor.execute(statement)
         
         if isinstance(cursor.result, ResultSet):
-            for row in cursor.result.rows:
-                self.printout(row.key, BLUE, False)
-                for column in row.columns:
+            for x in range(cursor.rowcount):
+                row = cursor.fetchone()
+                self.printout(row[0], BLUE, False)
+                for (i, value) in enumerate(row[1:]):
+                    name = cursor.description[i+1][0]
                     self.printout(" | ", newline=False)
-                    # XXX: repr() is better than trying to print binary
-                    self.printout(repr(column.name), MAGENTA, False)
+                    self.printout(repr(name), MAGENTA, False)
                     self.printout(",", newline=False)
-                    self.printout(repr(column.value), YELLOW, False)
+                    self.printout(repr(value), YELLOW, False)
                 self.printout("")
         else:
             if cursor.result: print cursor.result[0]
