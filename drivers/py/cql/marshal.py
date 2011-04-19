@@ -66,11 +66,12 @@ def unmarshal_utf8(bytestr):
 def unmarshal_int(bytestr):
     return decode_bigint(bytestr)
 
-def unmarshal_long(bytestr):
-    if _have_struct:
+if _have_struct:
+    def unmarshal_long(bytestr):
         return _long_packer.unpack(bytestr)[0]
-    else:
-        return unpack(">q", bytestr)[0]
+else:
+    def unmarshal_long(bytestr):
+        return struct.unpack(">q", bytestr)[0]
 
 def unmarshal_uuid(bytestr):
     return UUID(bytes=bytestr)

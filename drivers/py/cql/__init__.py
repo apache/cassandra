@@ -17,6 +17,7 @@
 
 import exceptions
 import datetime
+import time
 
 import connection
 import marshal
