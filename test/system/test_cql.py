@@ -136,13 +136,16 @@ class TestCql(ThriftTester):
     def test_select_columns(self):
         "retrieve multiple columns"
         cursor = init()
+        # we deliberately request columns in non-comparator order
         cursor.execute("""
-            SELECT 'cd1', 'col' FROM StandardString1 WHERE KEY = 'kd'
+            SELECT ca1, col, cd1 FROM StandardString1 WHERE KEY = 'kd'
         """)
 
         d = cursor.description
-        assert "cd1" in [col_dscptn[0] for col_dscptn in d]
-        assert "col" in [col_dscptn[0] for col_dscptn in d]
+        assert ['Row Key', 'ca1', 'col', 'cd1'] == [col_dscptn[0] for col_dscptn in d], d
+        row = cursor.fetchone()
+        # check that the column that didn't exist in the row comes back as null
+        assert ['kd', None, 'val', 'vd1'] == row, row
 
     def test_select_row_range(self):
         "retrieve a range of rows with columns"
@@ -307,9 +310,8 @@ class TestCql(ThriftTester):
         cursor.execute("""
             SELECT 'cd1', 'col' FROM StandardString1 WHERE KEY = 'kd'
         """)
-        colnames = [col_d[0] for col_d in cursor.description]
-        assert "cd1" in colnames
-        assert "col" in colnames
+        assert ['Row Key', 'cd1', 'col'] == [col_d[0] for col_d in cursor.description]
+
         cursor.execute("""
             DELETE 'cd1', 'col' FROM StandardString1 WHERE KEY = 'kd'
         """)
@@ -317,7 +319,7 @@ class TestCql(ThriftTester):
             SELECT 'cd1', 'col' FROM StandardString1 WHERE KEY = 'kd'
         """)
         r = cursor.fetchone()
-        assert len(r) == 1
+        assert ['kd', None, None] == r, r
 
     def test_delete_columns_multi_rows(self):
         "delete columns from multiple rows"
@@ -325,22 +327,22 @@ class TestCql(ThriftTester):
 
         cursor.execute("SELECT 'col' FROM StandardString1 WHERE KEY = 'kc'")
         r = cursor.fetchone()
-        assert  len(r) == 2
+        assert ['kc', 'val'] == r, r
 
         cursor.execute("SELECT 'col' FROM StandardString1 WHERE KEY = 'kd'")
         r = cursor.fetchone()
-        assert  len(r) == 2
+        assert ['kd', 'val'] == r, r
 
         cursor.execute("""
             DELETE 'col' FROM StandardString1 WHERE KEY IN ('kc', 'kd')
         """)
         cursor.execute("SELECT 'col' FROM StandardString1 WHERE KEY = 'kc'")
         r = cursor.fetchone()
-        assert  len(r) == 1
+        assert ['kc', None] == r, r
 
         cursor.execute("SELECT 'col' FROM StandardString1 WHERE KEY = 'kd'")
         r = cursor.fetchone()
-        assert  len(r) == 1
+        assert ['kd', None] == r, r
 
     def test_delete_rows(self):
         "delete entire rows"
@@ -348,15 +350,13 @@ class TestCql(ThriftTester):
         cursor.execute("""
             SELECT 'cd1', 'col' FROM StandardString1 WHERE KEY = 'kd'
         """)
-        colnames = [col_d[0] for col_d in cursor.description]
-        assert "cd1" in colnames
-        assert "col" in colnames
+        assert ['Row Key', 'cd1', 'col'] == [col_d[0] for col_d in cursor.description]
         cursor.execute("DELETE FROM StandardString1 WHERE KEY = 'kd'")
         cursor.execute("""
             SELECT 'cd1', 'col' FROM StandardString1 WHERE KEY = 'kd'
         """)
         r = cursor.fetchone()
-        assert len(r) == 1
+        assert ['kd', None, None] == r, r
 
     def test_create_keyspace(self):
         "create a new keyspace"

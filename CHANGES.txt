@@ -1,10 +1,10 @@
-0.8-dev
+0.8.0-beta1
  * remove Avro RPC support (CASSANDRA-926)
  * adds support for columns that act as incr/decr counters 
    (CASSANDRA-1072, 1937, 1944, 1936, 2101, 2093, 2288, 2105, 2384, 2236, 2342,
    2454)
  * CQL (CASSANDRA-1703, 1704, 1705, 1706, 1707, 1708, 1710, 1711, 1940, 
-   2124, 2302, 2277)
+   2124, 2302, 2277, 2493)
  * avoid double RowMutation serialization on write path (CASSANDRA-1800)
  * make NetworkTopologyStrategy the default (CASSANDRA-1960)
  * configurable internode encryption (CASSANDRA-1567, 2152)
@@ -55,6 +55,8 @@
  * Try harder to close files after compaction (CASSANDRA-2431)
  * re-set bootstrapped flag after move finishes (CASSANDRA-2435)
  * use 64KB flush buffer instead of in_memory_compaction_limit (CASSANDRA-2463)
+ * fix duplicate results from CFS.scan (CASSANDRA-2406)
+ * avoid caching token-only decoratedkeys (CASSANDRA-2416)
 
 
 0.7.4

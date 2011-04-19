@@ -39,11 +39,11 @@ class TypedColumn<N, V>
     public TypedColumn(AbstractType<N> comparator, byte[] name, AbstractType<V> validator, byte[] value)
     {
         ByteBuffer bbName = ByteBuffer.wrap(name);
-        ByteBuffer bbValue = ByteBuffer.wrap(value);
+        ByteBuffer bbValue = value == null ? null : ByteBuffer.wrap(value);
         this.name = comparator.compose(bbName);
-        this.value = validator.compose(bbValue);
+        this.value = value == null ? null : validator.compose(bbValue);
         nameString = comparator.getString(bbName);
-        valueString = validator.getString(bbValue);
+        valueString = value == null ? null : validator.getString(bbValue);
         this.validator = validator;
     }
     

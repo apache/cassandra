@@ -500,8 +500,9 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
 
     public void cacheKey(DecoratedKey key, Long info)
     {
+        assert key.key != null;
         // avoid keeping a permanent reference to the original key buffer
-        DecoratedKey copiedKey = new DecoratedKey(key.token, key.key == null ? null : ByteBufferUtil.clone(key.key));
+        DecoratedKey copiedKey = new DecoratedKey(key.token, ByteBufferUtil.clone(key.key));
         keyCache.put(new Pair<Descriptor, DecoratedKey>(descriptor, copiedKey), info);
     }
 
@@ -570,7 +571,8 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
                             if (op == Operator.EQ)
                                 bloomFilterTracker.addTruePositive();
                             // store exact match for the key
-                            cacheKey(decoratedKey, dataPosition);
+                            if (decoratedKey.key != null)
+                                cacheKey(decoratedKey, dataPosition);
                         }
                         return dataPosition;
                     }

@@ -246,10 +246,6 @@ class Column:
     def validate(self):
       if self.name is None:
         raise TProtocol.TProtocolException(message='Required field name is unset!')
-      if self.value is None:
-        raise TProtocol.TProtocolException(message='Required field value is unset!')
-      if self.timestamp is None:
-        raise TProtocol.TProtocolException(message='Required field timestamp is unset!')
       return
 
 
@@ -2666,6 +2662,7 @@ class KsDef:
    - name
    - strategy_class
    - strategy_options
+   - replication_factor: deprecated
    - cf_defs
   """
 
@@ -2674,13 +2671,15 @@ class KsDef:
     (1, TType.STRING, 'name', None, None, ), # 1
     (2, TType.STRING, 'strategy_class', None, None, ), # 2
     (3, TType.MAP, 'strategy_options', (TType.STRING,None,TType.STRING,None), None, ), # 3
-    (4, TType.LIST, 'cf_defs', (TType.STRUCT,(CfDef, CfDef.thrift_spec)), None, ), # 4
+    (4, TType.I32, 'replication_factor', None, None, ), # 4
+    (5, TType.LIST, 'cf_defs', (TType.STRUCT,(CfDef, CfDef.thrift_spec)), None, ), # 5
   )
 
-  def __init__(self, name=None, strategy_class=None, strategy_options=None, cf_defs=None,):
+  def __init__(self, name=None, strategy_class=None, strategy_options=None, replication_factor=None, cf_defs=None,):
     self.name = name
     self.strategy_class = strategy_class
     self.strategy_options = strategy_options
+    self.replication_factor = replication_factor
     self.cf_defs = cf_defs
 
   def read(self, iprot):
@@ -2714,6 +2713,11 @@ class KsDef:
         else:
           iprot.skip(ftype)
       elif fid == 4:
+        if ftype == TType.I32:
+          self.replication_factor = iprot.readI32();
+        else:
+          iprot.skip(ftype)
+      elif fid == 5:
         if ftype == TType.LIST:
           self.cf_defs = []
           (_etype68, _size65) = iprot.readListBegin()
@@ -2750,8 +2754,12 @@ class KsDef:
         oprot.writeString(viter72)
       oprot.writeMapEnd()
       oprot.writeFieldEnd()
+    if self.replication_factor != None:
+      oprot.writeFieldBegin('replication_factor', TType.I32, 4)
+      oprot.writeI32(self.replication_factor)
+      oprot.writeFieldEnd()
     if self.cf_defs != None:
-      oprot.writeFieldBegin('cf_defs', TType.LIST, 4)
+      oprot.writeFieldBegin('cf_defs', TType.LIST, 5)
       oprot.writeListBegin(TType.STRUCT, len(self.cf_defs))
       for iter73 in self.cf_defs:
         iter73.write(oprot)

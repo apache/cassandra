@@ -55,7 +55,7 @@
     <property name="test.long.src" value="${test.dir}/long"/>
     <property name="test.distributed.src" value="${test.dir}/distributed"/>
     <property name="dist.dir" value="${build.dir}/dist"/>
-    <property name="base.version" value="0.8.0"/>
+    <property name="base.version" value="0.8.0-beta1"/>
     <property name="cql.driver.version" value="1.0.0" />
     <condition property="version" value="${base.version}">
       <isset property="release"/>

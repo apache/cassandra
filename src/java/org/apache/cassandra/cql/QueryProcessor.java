@@ -467,20 +467,22 @@ public class QueryProcessor
         if (StatementType.requiresKeyspace.contains(statement.type))
             keyspace = clientState.getKeyspace();
         
-        CqlResult avroResult = new CqlResult();
+        CqlResult result = new CqlResult();
         
         logger.debug("CQL statement type: {}", statement.type.toString());
-        
+        CFMetaData metadata;
+        AbstractType<?> comparator;
         switch (statement.type)
         {
             case SELECT:
                 SelectStatement select = (SelectStatement)statement.statement;
                 clientState.hasColumnFamilyAccess(select.getColumnFamily(), Permission.READ);
-                validateColumnFamily(keyspace, select.getColumnFamily(), false);
+                metadata = validateColumnFamily(keyspace, select.getColumnFamily(), false);
+                comparator = metadata.getComparatorFor(null);
                 validateSelect(keyspace, select);
                 
                 List<org.apache.cassandra.db.Row> rows = null;
-                
+
                 // By-key
                 if (!select.isKeyRange() && (select.getKeys().size() > 0))
                 {
@@ -489,12 +491,12 @@ public class QueryProcessor
                     // Only return the column count, (of the at-most 1 row).
                     if (select.isCountOperation())
                     {
-                        avroResult.type = CqlResultType.INT;
+                        result.type = CqlResultType.INT;
                         if (rows.size() > 0)
-                            avroResult.setNum(rows.get(0).cf != null ? rows.get(0).cf.getSortedColumns().size() : 0);
+                            result.setNum(rows.get(0).cf != null ? rows.get(0).cf.getSortedColumns().size() : 0);
                         else
-                            avroResult.setNum(0);
-                        return avroResult;
+                            result.setNum(0);
+                        return result;
                     }
                 }
                 else
@@ -511,8 +513,8 @@ public class QueryProcessor
                     }
                 }
                 
-                List<CqlRow> avroRows = new ArrayList<CqlRow>();
-                avroResult.type = CqlResultType.ROWS;
+                List<CqlRow> cqlRows = new ArrayList<CqlRow>();
+                result.type = CqlResultType.ROWS;
                 
                 // Create the result set
                 for (org.apache.cassandra.db.Row row : rows)
@@ -520,38 +522,26 @@ public class QueryProcessor
                     /// No results for this row
                     if (row.cf == null)
                         continue;
-                    
-                    List<Column> avroColumns = new ArrayList<Column>();
-                    
-                    for (IColumn column : row.cf.getSortedColumns())
-                    {
-                        if (column.isMarkedForDelete())
-                            continue;
-                        Column avroColumn = new Column();
-                        avroColumn.name = column.name();
-                        avroColumn.value = column.value();
-                        avroColumn.timestamp = column.timestamp();
-                        avroColumns.add(avroColumn);
-                    }
-                    
+
+                    List<Column> thriftColumns = extractThriftColumns(select, comparator, row);
                     // Create a new row, add the columns to it, and then add it to the list of rows
-                    CqlRow avroRow = new CqlRow();
-                    avroRow.key = row.key.key;
-                    avroRow.columns = avroColumns;
+                    CqlRow cqlRow = new CqlRow();
+                    cqlRow.key = row.key.key;
+                    cqlRow.columns = thriftColumns;
                     if (select.isColumnsReversed())
-                        Collections.reverse(avroRow.columns);
-                    avroRows.add(avroRow);
+                        Collections.reverse(cqlRow.columns);
+                    cqlRows.add(cqlRow);
                 }
                 
-                avroResult.rows = avroRows;
-                return avroResult;
+                result.rows = cqlRows;
+                return result;
 
             case INSERT: // insert uses UpdateStatement
             case UPDATE:
                 UpdateStatement update = (UpdateStatement)statement.statement;
                 batchUpdate(clientState, Collections.singletonList(update), update.getConsistencyLevel());
-                avroResult.type = CqlResultType.VOID;
-                return avroResult;
+                result.type = CqlResultType.VOID;
+                return result;
                 
             case BATCH_UPDATE:
                 BatchUpdateStatement batch = (BatchUpdateStatement)statement.statement;
@@ -562,14 +552,14 @@ public class QueryProcessor
                                 "Consistency level must be set on the BATCH, not individual UPDATE statements");
                 
                 batchUpdate(clientState, batch.getUpdates(), batch.getConsistencyLevel());
-                avroResult.type = CqlResultType.VOID;
-                return avroResult;
+                result.type = CqlResultType.VOID;
+                return result;
                 
             case USE:
                 clientState.setKeyspace((String)statement.statement);
-                avroResult.type = CqlResultType.VOID;
+                result.type = CqlResultType.VOID;
                 
-                return avroResult;
+                return result;
             
             case TRUNCATE:
                 String columnFamily = (String)statement.statement;
@@ -588,14 +578,14 @@ public class QueryProcessor
                     throw (UnavailableException) new UnavailableException().initCause(e);
                 }
                 
-                avroResult.type = CqlResultType.VOID;
-                return avroResult;
+                result.type = CqlResultType.VOID;
+                return result;
             
             case DELETE:
                 DeleteStatement delete = (DeleteStatement)statement.statement;
                 clientState.hasColumnFamilyAccess(delete.getColumnFamily(), Permission.WRITE);
-                CFMetaData metadata = validateColumnFamily(keyspace, delete.getColumnFamily(), false);
-                AbstractType<?> comparator = metadata.getComparatorFor(null);
+                metadata = validateColumnFamily(keyspace, delete.getColumnFamily(), false);
+                comparator = metadata.getComparatorFor(null);
                 AbstractType<?> keyType = DatabaseDescriptor.getCFMetaData(keyspace,
                                                                            delete.getColumnFamily()).getKeyValidator();
                 
@@ -627,8 +617,8 @@ public class QueryProcessor
                     throw new TimedOutException();
                 }
                 
-                avroResult.type = CqlResultType.VOID;
-                return avroResult;
+                result.type = CqlResultType.VOID;
+                return result;
                 
             case CREATE_KEYSPACE:
                 CreateKeyspaceStatement create = (CreateKeyspaceStatement)statement.statement;
@@ -656,8 +646,8 @@ public class QueryProcessor
                     throw ex;
                 }
                 
-                avroResult.type = CqlResultType.VOID;
-                return avroResult;
+                result.type = CqlResultType.VOID;
+                return result;
                
             case CREATE_COLUMNFAMILY:
                 CreateColumnFamilyStatement createCf = (CreateColumnFamilyStatement)statement.statement;
@@ -681,8 +671,8 @@ public class QueryProcessor
                     throw ex;
                 }
                 
-                avroResult.type = CqlResultType.VOID;
-                return avroResult;
+                result.type = CqlResultType.VOID;
+                return result;
                 
             case CREATE_INDEX:
                 CreateIndexStatement createIdx = (CreateIndexStatement)statement.statement;
@@ -737,8 +727,8 @@ public class QueryProcessor
                     throw ex;
                 }
                 
-                avroResult.type = CqlResultType.VOID;
-                return avroResult;
+                result.type = CqlResultType.VOID;
+                return result;
                 
             case DROP_KEYSPACE:
                 String deleteKeyspace = (String)statement.statement;
@@ -762,8 +752,8 @@ public class QueryProcessor
                     throw ex;
                 }
                 
-                avroResult.type = CqlResultType.VOID;
-                return avroResult;
+                result.type = CqlResultType.VOID;
+                return result;
             
             case DROP_COLUMNFAMILY:
                 String deleteColumnFamily = (String)statement.statement;
@@ -787,14 +777,51 @@ public class QueryProcessor
                     throw ex;
                 }
                 
-                avroResult.type = CqlResultType.VOID;
-                return avroResult;
+                result.type = CqlResultType.VOID;
+                return result;
                 
         }
         
         return null;    // We should never get here.
     }
-    
+
+    private static List<Column> extractThriftColumns(SelectStatement select, AbstractType<?> comparator, Row row)
+    {
+        List<Column> thriftColumns = new ArrayList<Column>();
+        if (select.isColumnRange())
+        {
+            // preserve comparator order
+            for (IColumn c : row.cf.getSortedColumns())
+            {
+                if (c.isMarkedForDelete())
+                    continue;
+                thriftColumns.add(new Column(c.name()).setValue(c.value()).setTimestamp(c.timestamp()));
+            }
+        }
+        else
+        {
+            // order columns in the order they were asked for
+            for (Term term : select.getColumnNames())
+            {
+                ByteBuffer name;
+                try
+                {
+                    name = term.getByteBuffer(comparator);
+                }
+                catch (InvalidRequestException e)
+                {
+                    throw new AssertionError(e);
+                }
+                IColumn c = row.cf.getColumn(name);
+                if (c == null || c.isMarkedForDelete())
+                    thriftColumns.add(new Column().setName(name));
+                else
+                    thriftColumns.add(new Column(c.name()).setValue(c.value()).setTimestamp(c.timestamp()));
+            }
+        }
+        return thriftColumns;
+    }
+
     private static CQLStatement getStatement(String queryStr) throws InvalidRequestException, RecognitionException
     {
         // Lexer and parser

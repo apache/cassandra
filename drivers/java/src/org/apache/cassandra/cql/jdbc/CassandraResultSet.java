@@ -75,11 +75,13 @@ class CassandraResultSet implements ResultSet
     private List<TypedColumn> values = new ArrayList<TypedColumn>();
     
     /** The value map. */
+    // TODO should map <String, TypedColumn> so we can throw appropriate exception if user asks for non-existant column name
     private Map<String, Object> valueMap = new WeakHashMap<String, Object>();
     
     private final RsMetaData meta;
     
     private final AbstractType nameType;
+    private boolean wasNull;
 
     /**
      * Instantiates a new cassandra result set.
@@ -356,7 +358,11 @@ class CassandraResultSet implements ResultSet
      */
     public byte[] getBytes(int index) throws SQLException
     {
-        return values.get(index-1) != null ? ((ByteBuffer)values.get(index-1).getValue()).array() : null;
+        TypedColumn column = values.get(index - 1);
+        assert column != null;
+        Object value = column.getValue();
+        wasNull = value == null;
+        return value == null ? null : ((ByteBuffer) value).array();
     }
 
     /**
@@ -367,7 +373,9 @@ class CassandraResultSet implements ResultSet
     public byte[] getBytes(String name) throws SQLException
     {
         String nameAsString = decoder.colNameAsString(keyspace, columnFamily, name);
-        return valueMap.get(nameAsString) != null ? ((ByteBuffer)valueMap.get(nameAsString)).array() : null;
+        Object value = valueMap.get(nameAsString);
+        wasNull = value == null;
+        return value == null ? null : ((ByteBuffer) value).array();
     }
 
     /**
@@ -544,7 +552,11 @@ class CassandraResultSet implements ResultSet
      */
     public int getInt(int index) throws SQLException
     {
-        return values.get(index-1) != null ? ((BigInteger)values.get(index-1).getValue()).intValue() : null;
+        TypedColumn column = values.get(index - 1);
+        assert column != null;
+        Object value = column.getValue();
+        wasNull = value == null;
+        return value == null ? 0 : ((BigInteger) value).intValue();
     }
 
     /**
@@ -555,7 +567,9 @@ class CassandraResultSet implements ResultSet
     public int getInt(String name) throws SQLException
     {
         String nameAsString = decoder.colNameAsString(keyspace, columnFamily, name);
-        return valueMap.get(nameAsString) != null ? ((BigInteger)valueMap.get(nameAsString)).intValue() : null;
+        Object value = valueMap.get(nameAsString);
+        wasNull = value == null;
+        return value == null ? 0 : ((BigInteger) value).intValue();
     }
 
     /**
@@ -565,7 +579,12 @@ class CassandraResultSet implements ResultSet
      */
     public long getLong(int index) throws SQLException
     {
-        return values.get(index-1) != null ? (Long)values.get(index-1).getValue() : null;
+        assert values != null;
+        TypedColumn column = values.get(index - 1);
+        assert column != null;
+        Object value = column.getValue();
+        wasNull = value == null;
+        return value == null ? 0 : (Long) value;
     }
 
     /**
@@ -576,7 +595,9 @@ class CassandraResultSet implements ResultSet
     public long getLong(String name) throws SQLException
     {
         String nameAsString = decoder.colNameAsString(keyspace, columnFamily, name);
-        return valueMap.get(nameAsString) != null ? (Long)valueMap.get(nameAsString) : null;
+        Object value = valueMap.get(nameAsString);
+        wasNull = value == null;
+        return value == null ? 0 : (Long) value;
     }
 
     /**
@@ -655,7 +676,11 @@ class CassandraResultSet implements ResultSet
      */
     public Object getObject(int index) throws SQLException
     {
-        return values.get(index-1) == null ? null : values.get(index-1).getValue();
+        TypedColumn column = values.get(index - 1);
+        assert column != null;
+        Object value = column.getValue();
+        wasNull = value == null;
+        return value;
     }
 
     /**
@@ -666,7 +691,9 @@ class CassandraResultSet implements ResultSet
     public Object getObject(String name) throws SQLException
     {
         String nameAsString = decoder.colNameAsString(keyspace, columnFamily, name);
-        return valueMap.get(nameAsString);
+        Object value = valueMap.get(nameAsString);
+        wasNull = value == null;
+        return value;
     }
 
     /**
@@ -796,7 +823,11 @@ class CassandraResultSet implements ResultSet
      */
     public String getString(int index) throws SQLException 
     {
-        return values.get(index-1) != null ? ColumnDecoder.colValueAsString(values.get(index-1).getValue()) : null;
+        TypedColumn column = values.get(index - 1);
+        assert column != null;
+        Object value = column.getValue();
+        wasNull = value == null;
+        return value == null ? null : ColumnDecoder.colValueAsString(value);
     }
 
     /**
@@ -807,7 +838,9 @@ class CassandraResultSet implements ResultSet
     public String getString(String name) throws SQLException
     {
         String nameAsString = this.decoder.colNameAsString(this.keyspace, this.columnFamily, name);
-        return valueMap.get(nameAsString) != null ? ColumnDecoder.colValueAsString(valueMap.get(nameAsString)) : null;
+        Object value = valueMap.get(nameAsString);
+        wasNull = value == null;
+        return value == null ? null : ColumnDecoder.colValueAsString(value);
     }
 
     /**
@@ -1999,7 +2032,7 @@ class CassandraResultSet implements ResultSet
      */
     public boolean wasNull() throws SQLException
     {
-        throw new UnsupportedOperationException("method not supported");
+        return wasNull;
     }
     
     /**

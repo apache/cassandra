@@ -181,7 +181,7 @@ class ColumnDecoder
         else if (value instanceof byte[])
             return ByteBufferUtil.bytesToHex(ByteBuffer.wrap((byte[])value));
         else
-            return value.toString();
+            return value == null ? null : value.toString();
     }
     
     /** constructs a typed column */

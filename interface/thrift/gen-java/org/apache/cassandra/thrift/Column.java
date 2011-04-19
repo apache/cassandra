@@ -139,9 +139,9 @@ public class Column implements org.apache.thrift.TBase<Column, Column._Fields>, 
     Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
     tmpMap.put(_Fields.NAME, new org.apache.thrift.meta_data.FieldMetaData("name", org.apache.thrift.TFieldRequirementType.REQUIRED, 
         new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING        , true)));
-    tmpMap.put(_Fields.VALUE, new org.apache.thrift.meta_data.FieldMetaData("value", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+    tmpMap.put(_Fields.VALUE, new org.apache.thrift.meta_data.FieldMetaData("value", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
         new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING        , true)));
-    tmpMap.put(_Fields.TIMESTAMP, new org.apache.thrift.meta_data.FieldMetaData("timestamp", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+    tmpMap.put(_Fields.TIMESTAMP, new org.apache.thrift.meta_data.FieldMetaData("timestamp", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
         new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I64)));
     tmpMap.put(_Fields.TTL, new org.apache.thrift.meta_data.FieldMetaData("ttl", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
         new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32)));
@@ -153,15 +153,10 @@ public class Column implements org.apache.thrift.TBase<Column, Column._Fields>, 
   }
 
   public Column(
-    ByteBuffer name,
-    ByteBuffer value,
-    long timestamp)
+    ByteBuffer name)
   {
     this();
     this.name = name;
-    this.value = value;
-    this.timestamp = timestamp;
-    setTimestampIsSet(true);
   }
 
   /**
@@ -415,8 +410,8 @@ public class Column implements org.apache.thrift.TBase<Column, Column._Fields>, 
         return false;
     }
 
-    boolean this_present_timestamp = true;
-    boolean that_present_timestamp = true;
+    boolean this_present_timestamp = true && this.isSetTimestamp();
+    boolean that_present_timestamp = true && that.isSetTimestamp();
     if (this_present_timestamp || that_present_timestamp) {
       if (!(this_present_timestamp && that_present_timestamp))
         return false;
@@ -450,7 +445,7 @@ public class Column implements org.apache.thrift.TBase<Column, Column._Fields>, 
     if (present_value)
       builder.append(value);
 
-    boolean present_timestamp = true;
+    boolean present_timestamp = true && (isSetTimestamp());
     builder.append(present_timestamp);
     if (present_timestamp)
       builder.append(timestamp);
@@ -566,9 +561,6 @@ public class Column implements org.apache.thrift.TBase<Column, Column._Fields>, 
     iprot.readStructEnd();
 
     // check for required fields of primitive type, which can't be checked in the validate method
-    if (!isSetTimestamp()) {
-      throw new org.apache.thrift.protocol.TProtocolException("Required field 'timestamp' was not found in serialized data! Struct: " + toString());
-    }
     validate();
   }
 
@@ -582,13 +574,17 @@ public class Column implements org.apache.thrift.TBase<Column, Column._Fields>, 
       oprot.writeFieldEnd();
     }
     if (this.value != null) {
-      oprot.writeFieldBegin(VALUE_FIELD_DESC);
-      oprot.writeBinary(this.value);
+      if (isSetValue()) {
+        oprot.writeFieldBegin(VALUE_FIELD_DESC);
+        oprot.writeBinary(this.value);
+        oprot.writeFieldEnd();
+      }
+    }
+    if (isSetTimestamp()) {
+      oprot.writeFieldBegin(TIMESTAMP_FIELD_DESC);
+      oprot.writeI64(this.timestamp);
       oprot.writeFieldEnd();
     }
-    oprot.writeFieldBegin(TIMESTAMP_FIELD_DESC);
-    oprot.writeI64(this.timestamp);
-    oprot.writeFieldEnd();
     if (isSetTtl()) {
       oprot.writeFieldBegin(TTL_FIELD_DESC);
       oprot.writeI32(this.ttl);
@@ -610,18 +606,22 @@ public class Column implements org.apache.thrift.TBase<Column, Column._Fields>, 
       org.apache.thrift.TBaseHelper.toString(this.name, sb);
     }
     first = false;
-    if (!first) sb.append(", ");
-    sb.append("value:");
-    if (this.value == null) {
-      sb.append("null");
-    } else {
-      org.apache.thrift.TBaseHelper.toString(this.value, sb);
+    if (isSetValue()) {
+      if (!first) sb.append(", ");
+      sb.append("value:");
+      if (this.value == null) {
+        sb.append("null");
+      } else {
+        org.apache.thrift.TBaseHelper.toString(this.value, sb);
+      }
+      first = false;
     }
-    first = false;
-    if (!first) sb.append(", ");
-    sb.append("timestamp:");
-    sb.append(this.timestamp);
-    first = false;
+    if (isSetTimestamp()) {
+      if (!first) sb.append(", ");
+      sb.append("timestamp:");
+      sb.append(this.timestamp);
+      first = false;
+    }
     if (isSetTtl()) {
       if (!first) sb.append(", ");
       sb.append("ttl:");
@@ -637,10 +637,6 @@ public class Column implements org.apache.thrift.TBase<Column, Column._Fields>, 
     if (name == null) {
       throw new org.apache.thrift.protocol.TProtocolException("Required field 'name' was not present! Struct: " + toString());
     }
-    if (value == null) {
-      throw new org.apache.thrift.protocol.TProtocolException("Required field 'value' was not present! Struct: " + toString());
-    }
-    // alas, we cannot check 'timestamp' because it's a primitive and you chose the non-beans generator.
   }
 
   private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {

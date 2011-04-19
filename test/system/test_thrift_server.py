@@ -1192,20 +1192,20 @@ class TestMutations(ThriftTester):
 
     def test_invalid_ks_names(self):
         def invalid_keyspace():
-            client.system_add_keyspace(KsDef('in-valid', 'org.apache.cassandra.locator.SimpleStrategy', {'replication_factor':'1'}, []))
+            client.system_add_keyspace(KsDef('in-valid', 'org.apache.cassandra.locator.SimpleStrategy', {'replication_factor':'1'}, cf_defs=[]))
         _expect_exception(invalid_keyspace, InvalidRequestException)
 
     def test_invalid_strategy_class(self):
         def add_invalid_keyspace():
-            client.system_add_keyspace(KsDef('ValidKs', 'InvalidStrategyClass', {}, []))
+            client.system_add_keyspace(KsDef('ValidKs', 'InvalidStrategyClass', {}, cf_defs=[]))
         exc = _expect_exception(add_invalid_keyspace, InvalidRequestException)
         s = str(exc)
         assert s.find("InvalidStrategyClass") > -1, s
         assert s.find("Unable to find replication strategy") > -1, s
 
         def update_invalid_keyspace():
-            client.system_add_keyspace(KsDef('ValidKsForUpdate', 'org.apache.cassandra.locator.SimpleStrategy', {'replication_factor':'1'}, []))
-            client.system_update_keyspace(KsDef('ValidKsForUpdate', 'InvalidStrategyClass', {}, []))
+            client.system_add_keyspace(KsDef('ValidKsForUpdate', 'org.apache.cassandra.locator.SimpleStrategy', {'replication_factor':'1'}, cf_defs=[]))
+            client.system_update_keyspace(KsDef('ValidKsForUpdate', 'InvalidStrategyClass', {}, cf_defs=[]))
 
         exc = _expect_exception(update_invalid_keyspace, InvalidRequestException)
         s = str(exc)
@@ -1222,7 +1222,7 @@ class TestMutations(ThriftTester):
         def invalid_cf_inside_new_ks():
             cf = CfDef('ValidKsName_invalid_cf', 'in-valid')
             _set_keyspace('system')
-            client.system_add_keyspace(KsDef('ValidKsName_invalid_cf', 'org.apache.cassandra.locator.SimpleStrategy', {'replication_factor': '1'}, [cf]))
+            client.system_add_keyspace(KsDef('ValidKsName_invalid_cf', 'org.apache.cassandra.locator.SimpleStrategy', {'replication_factor': '1'}, cf_defs=[cf]))
         _expect_exception(invalid_cf_inside_new_ks, InvalidRequestException)
     
     def test_system_cf_recreate(self):
@@ -1234,7 +1234,7 @@ class TestMutations(ThriftTester):
             
             # create
             newcf = CfDef(keyspace, cf_name)
-            newks = KsDef(keyspace, 'org.apache.cassandra.locator.SimpleStrategy', {'replication_factor':'1'}, [newcf])
+            newks = KsDef(keyspace, 'org.apache.cassandra.locator.SimpleStrategy', {'replication_factor':'1'}, cf_defs=[newcf])
             client.system_add_keyspace(newks)
             _set_keyspace(keyspace)
             
@@ -1261,7 +1261,7 @@ class TestMutations(ThriftTester):
         keyspace = KsDef('CreateKeyspace', 
                          'org.apache.cassandra.locator.SimpleStrategy', 
                          {'replication_factor': '10'},
-                         [CfDef('CreateKeyspace', 'CreateKsCf')])
+                         cf_defs=[CfDef('CreateKeyspace', 'CreateKsCf')])
         client.system_add_keyspace(keyspace)
         newks = client.describe_keyspace('CreateKeyspace')
         assert 'CreateKsCf' in [x.name for x in newks.cf_defs]
@@ -1272,7 +1272,7 @@ class TestMutations(ThriftTester):
         modified_keyspace = KsDef('CreateKeyspace', 
                                   'org.apache.cassandra.locator.OldNetworkTopologyStrategy', 
                                   {'replication_factor': '1'},
-                                  [])
+                                  cf_defs=[])
         client.system_update_keyspace(modified_keyspace)
         modks = client.describe_keyspace('CreateKeyspace')
         assert modks.strategy_class == modified_keyspace.strategy_class

@@ -46,7 +46,7 @@ namespace rb CassandraThrift
 #           for every edit that doesn't result in a change to major/minor.
 #
 # See the Semantic Versioning Specification (SemVer) http://semver.org.
-const string VERSION = "20.1.0"
+const string VERSION = "19.10.0"
 
 
 #
@@ -61,8 +61,8 @@ const string VERSION = "20.1.0"
  */
 struct Column {
    1: required binary name,
-   2: required binary value,
-   3: required i64 timestamp,
+   2: optional binary value,
+   3: optional i64 timestamp,
    4: optional i32 ttl,
 }
 
@@ -402,7 +402,11 @@ struct KsDef {
     1: required string name,
     2: required string strategy_class,
     3: optional map<string,string> strategy_options,
-    4: required list<CfDef> cf_defs,
+
+    /** @deprecated */
+    4: optional i32 replication_factor, 
+
+    5: required list<CfDef> cf_defs,
 }
 
 /** CQL query compression */

@@ -1,4 +1,25 @@
 package org.apache.cassandra.cql.jdbc;
+/*
+ * 
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ * 
+ */
+
 
 import org.apache.cassandra.cql.EmbeddedServiceBase;
 import org.apache.cassandra.utils.FBUtilities;
@@ -80,7 +101,8 @@ public class PreparedStatementTest extends EmbeddedServiceBase
             stmt.setBytes(2, FBUtilities.toByteArray(i+100));
             stmt.setBytes(3, key);
             ResultSet rs = stmt.executeQuery();
-            assert !rs.next();
+            rs.next();
+            assert rs.getString(1) == null;  assert rs.getString(2) == null;
             rs.close();
         }
     }
@@ -139,7 +161,8 @@ public class PreparedStatementTest extends EmbeddedServiceBase
             stmt.setString(2, "2\u6543\u3435\u6554");
             stmt.setBytes(3, key);
             ResultSet rs = stmt.executeQuery();
-            assert !rs.next();
+            rs.next();
+            assert rs.getString(1) == null;  assert rs.getString(2) == null;
             rs.close();
         }
     }
@@ -198,7 +221,8 @@ public class PreparedStatementTest extends EmbeddedServiceBase
             stmt.setString(2, "2");
             stmt.setBytes(3, key);
             ResultSet rs = stmt.executeQuery();
-            assert !rs.next();
+            rs.next();
+            assert rs.getString(1) == null;  assert rs.getString(2) == null;
             rs.close();
         }
     }
@@ -257,7 +281,9 @@ public class PreparedStatementTest extends EmbeddedServiceBase
             stmt.setLong(2, 2);
             stmt.setBytes(3, key);
             ResultSet rs = stmt.executeQuery();
-            assert !rs.next();
+            rs.next();
+            rs.getLong(1);
+            assert rs.wasNull();
             rs.close();
         }
     }
@@ -316,7 +342,9 @@ public class PreparedStatementTest extends EmbeddedServiceBase
             stmt.setInt(2, 2);
             stmt.setBytes(3, key);
             ResultSet rs = stmt.executeQuery();
-            assert !rs.next();
+            rs.next();
+            rs.getInt(1);
+            assert rs.wasNull();
             rs.close();
         }
     }

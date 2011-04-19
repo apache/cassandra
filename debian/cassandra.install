@@ -10,6 +10,5 @@ bin/clustertool usr/bin
 bin/json2sstable usr/bin
 bin/sstable2json usr/bin
 bin/sstablekeys usr/bin
-bin/schematool usr/bin
 lib/*.jar usr/share/cassandra
 lib/licenses usr/share/doc/cassandra

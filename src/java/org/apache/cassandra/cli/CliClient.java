@@ -802,7 +802,7 @@ public class CliClient
         if(superColumnName != null)
             parent.setSuper_column(superColumnName);
 
-        Column columnToInsert = new Column(columnName, columnValueInBytes, FBUtilities.timestampMicros());
+        Column columnToInsert = new Column(columnName).setValue(columnValueInBytes).setTimestamp(FBUtilities.timestampMicros());
         
         // children count = 3 mean that we have ttl in arguments
         if (statement.getChildCount() == 3)

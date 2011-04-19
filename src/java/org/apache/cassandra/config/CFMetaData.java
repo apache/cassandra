@@ -254,7 +254,9 @@ public final class CFMetaData
                       .gcGraceSeconds(0)
                       .memSize(memtableThroughPutInMB)
                       .memOps(sizeMemtableOperations(memtableThroughPutInMB))
-                      .mergeShardsChance(0.0);
+                      .mergeShardsChance(0.0)
+                      .rowCacheSavePeriod(0)
+                      .keyCacheSavePeriod(0);
     }
 
     public static CFMetaData newIndexMetadata(CFMetaData parent, ColumnDefinition info, AbstractType columnComparator)

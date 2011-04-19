@@ -84,8 +84,10 @@ public class EmbeddedCassandraServiceTest extends CleanupHelper
         cp.column = ByteBufferUtil.bytes("name");
 
         // insert
-        client.insert(key_user_id, par, new Column(ByteBufferUtil.bytes("name"),
-                      ByteBufferUtil.bytes("Ran"), timestamp), ConsistencyLevel.ONE);
+        client.insert(key_user_id,
+                      par,
+                      new Column(ByteBufferUtil.bytes("name")).setValue(ByteBufferUtil.bytes("Ran")).setTimestamp(timestamp),
+                      ConsistencyLevel.ONE);
 
         // read
         ColumnOrSuperColumn got = client.get(key_user_id, cp, ConsistencyLevel.ONE);
