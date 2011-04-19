@@ -215,4 +215,17 @@ public class CliTest extends CleanupHelper
             errStream.reset(); // no errors to the end user.
         }
     }
+
+    @Test
+    public void testEscape()
+    {
+        //escaped is the string read from the cli.
+        String escaped = "backspace \\b tab \\t linefeed \\n form feed \\f carriage return \\r duble quote \\\" " +
+                "single quote \\' backslash \\\\";
+        String unescaped = "backspace \b tab \t linefeed \n form feed \f carriage return \r duble quote \" " +
+                "single quote ' backslash \\";
+        // when read from the cli may have single quotes around it
+        assertEquals(unescaped, CliUtils.unescapeSQLString("'" + escaped + "'"));
+        assertEquals(escaped, CliUtils.escapeSQLString(unescaped));
+    }
 }
