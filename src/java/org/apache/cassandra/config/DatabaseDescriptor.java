@@ -86,7 +86,7 @@ public class DatabaseDescriptor
     private static RequestSchedulerOptions requestSchedulerOptions;
 
     public static final UUID INITIAL_VERSION = new UUID(4096, 0); // has type nibble set to 1, everything else to zero.
-    private static UUID defsVersion = INITIAL_VERSION;
+    private static volatile UUID defsVersion = INITIAL_VERSION;
 
     /**
      * Inspect the classpath to find storage configuration file

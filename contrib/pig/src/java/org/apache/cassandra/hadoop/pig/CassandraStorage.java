@@ -68,7 +68,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface
     public final static String PIG_INITIAL_ADDRESS = "PIG_INITIAL_ADDRESS";
     public final static String PIG_PARTITIONER = "PIG_PARTITIONER";
 
-    private static String UDFCONTEXT_SCHEMA_KEY = "cassandra.schema";
+    private static String UDFCONTEXT_SCHEMA_KEY_PREFIX = "cassandra.schema";
 
     private final static ByteBuffer BOUND = ByteBufferUtil.EMPTY_BYTE_BUFFER;
     private static final Log logger = LogFactory.getLog(CassandraStorage.class);
@@ -169,7 +169,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface
     {
         UDFContext context = UDFContext.getUDFContext();
         Properties property = context.getUDFProperties(CassandraStorage.class);
-        return cfdefFromString(property.getProperty(UDFCONTEXT_SCHEMA_KEY));
+        return cfdefFromString(property.getProperty(getSchemaContextKey()));
     }
 
     private List<AbstractType> getDefaultMarshallers(CfDef cfDef) throws IOException
@@ -226,7 +226,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface
         this.reader = reader;
     }
 
-     private void setLocationFromUri(String location) throws IOException
+    private void setLocationFromUri(String location) throws IOException
     {
         // parse uri into keyspace and columnfamily
         String names[];
@@ -396,7 +396,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface
                        if (validators.get(column.name) == null)
                            // Have to special case BytesType to convert DataByteArray into ByteBuffer
                            if (marshallers.get(1) instanceof BytesType)
-                               column.value = ByteBuffer.wrap(((DataByteArray) pair.get(1)).get());
+                               column.value = objToBB(pair.get(1));
                            else
                                column.value = marshallers.get(1).decompose(pair.get(1));
                        else
@@ -434,9 +434,10 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface
     {
         UDFContext context = UDFContext.getUDFContext();
         Properties property = context.getUDFProperties(CassandraStorage.class);
-        
+
+        String schemaContextKey = getSchemaContextKey();
         // Only get the schema if we haven't already gotten it
-        if (!property.containsKey(UDFCONTEXT_SCHEMA_KEY))
+        if (!property.containsKey(schemaContextKey))
         {
             Cassandra.Client client = null;
             try
@@ -454,7 +455,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface
                         break;
                     }
                 }
-                property.setProperty(UDFCONTEXT_SCHEMA_KEY, cfdefToString(cfDef));
+                property.setProperty(schemaContextKey, cfdefToString(cfDef));
             }
             catch (TException e)
             {
@@ -519,5 +520,15 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface
             throw new RuntimeException(e);
         }
         return cfDef;
+    }
+
+    private String getSchemaContextKey()
+    {
+        StringBuilder sb = new StringBuilder(UDFCONTEXT_SCHEMA_KEY_PREFIX);
+        sb.append('.');
+        sb.append(keyspace);
+        sb.append('.');
+        sb.append(column_family);
+        return sb.toString();
     }
 }
