@@ -149,11 +149,9 @@ public abstract class TestBase
     protected void insert(Cassandra.Client client, ByteBuffer key, String cf, String name, String value, long timestamp, ConsistencyLevel cl)
         throws InvalidRequestException, UnavailableException, TimedOutException, TException
     {
-        Column col = new Column(
-             ByteBuffer.wrap(name.getBytes()),
-             ByteBuffer.wrap(value.getBytes()),
-             timestamp
-             );
+        Column col = new Column(ByteBuffer.wrap(name.getBytes()))
+            .setValue(ByteBuffer.wrap(value.getBytes()))
+            .setTimestamp(timestamp);
         client.insert(key, new ColumnParent(cf), col, cl);
     }
 

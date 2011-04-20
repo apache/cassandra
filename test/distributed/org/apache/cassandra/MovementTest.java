@@ -50,16 +50,12 @@ public class MovementTest extends TestBase
     private static Map<ByteBuffer,List<ColumnOrSuperColumn>> insertBatch(Cassandra.Client client) throws Exception
     {
         final int N = 1000;
-        Column col1 = new Column(
-            ByteBufferUtil.bytes("c1"),
-            ByteBufferUtil.bytes("v1"),
-            0
-            );
-        Column col2 = new Column(
-            ByteBufferUtil.bytes("c2"),
-            ByteBufferUtil.bytes("v2"),
-            0
-            );
+        Column col1 = new Column(ByteBufferUtil.bytes("c1"))
+            .setValue(ByteBufferUtil.bytes("v1"))
+            .setTimestamp(0);
+        Column col2 = new Column(ByteBufferUtil.bytes("c2"))
+            .setValue(ByteBufferUtil.bytes("v2"))
+            .setTimestamp(0);
 
         // build N rows
         Map<ByteBuffer,List<ColumnOrSuperColumn>> rows = new HashMap<ByteBuffer, List<ColumnOrSuperColumn>>();
