@@ -43,6 +43,11 @@ public class LocalByPartionerType<T extends Token> extends AbstractType<ByteBuff
         throw new UnsupportedOperationException("You can't do this with a local partitioner.");
     }
 
+    public ByteBuffer decompose(ByteBuffer bytes)
+    {
+        throw new UnsupportedOperationException("You can't do this with a local partitioner.");
+    }
+
     public String getString(ByteBuffer bytes)
     {
         return ByteBufferUtil.bytesToHex(bytes);

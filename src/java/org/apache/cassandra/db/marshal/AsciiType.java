@@ -61,9 +61,14 @@ public class AsciiType extends AbstractType<String>
         return getString(bytes);
     }
 
+    public ByteBuffer decompose(String value)
+    {
+        return ByteBufferUtil.bytes(value, Charsets.US_ASCII);
+    }
+
     public ByteBuffer fromString(String source)
     {
-        return ByteBufferUtil.bytes(source, Charsets.US_ASCII);
+        return decompose(source);
     }
 
     public void validate(ByteBuffer bytes) throws MarshalException

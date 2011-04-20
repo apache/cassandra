@@ -487,7 +487,7 @@ public class CliClient
         sessionState.out.println("Returned " + columns.size() + " results.");
     }
 
-    private AbstractType getFormatTypeForColumn(String compareWith)
+    private AbstractType getFormatType(String compareWith)
     {
         Function function;
         
@@ -597,7 +597,7 @@ public class CliClient
             // .getText() will give us <type>
             String typeName = CliUtils.unescapeSQLString(typeTree.getText());
             // building AbstractType from <type>
-            AbstractType valueValidator = getFormatTypeForColumn(typeName);
+            AbstractType valueValidator = getFormatType(typeName);
 
             // setting value for output
             valueAsString = valueValidator.getString(ByteBuffer.wrap(columnValue));
@@ -1597,8 +1597,9 @@ public class CliClient
                     String leftSpace = "      ";
                     String columnLeftSpace = leftSpace + "    ";
 
-                    AbstractType columnNameValidator = getFormatTypeForColumn(isSuper ? cf_def.subcomparator_type
-                                                                                      : cf_def.comparator_type);
+                    String compareWith = isSuper ? cf_def.subcomparator_type
+                                                                                      : cf_def.comparator_type;
+                    AbstractType columnNameValidator = getFormatType(compareWith);
 
                     sessionState.out.println(leftSpace + "Column Metadata:");
                     for (ColumnDef columnDef : cf_def.getColumn_metadata())
@@ -1927,7 +1928,7 @@ public class CliClient
     private ByteBuffer columnNameAsBytes(String column, CfDef columnFamilyDef) 
     {
         String comparatorClass = columnFamilyDef.comparator_type;
-        return getBytesAccordingToType(column, getFormatTypeForColumn(comparatorClass));   
+        return getBytesAccordingToType(column, getFormatType(comparatorClass));
     }
 
     /**
@@ -1980,7 +1981,7 @@ public class CliClient
             comparatorClass = "BytesType";
         }
 
-        return getBytesAccordingToType(superColumn, getFormatTypeForColumn(comparatorClass));   
+        return getBytesAccordingToType(superColumn, getFormatType(comparatorClass));
     }
 
     /**
@@ -2025,7 +2026,7 @@ public class CliClient
                 try
                 {
                     String validationClass = columnDefinition.getValidation_class();
-                    return getBytesAccordingToType(columnValue, getFormatTypeForColumn(validationClass));
+                    return getBytesAccordingToType(columnValue, getFormatType(validationClass));
                 }
                 catch (Exception e)
                 {
@@ -2054,13 +2055,13 @@ public class CliClient
 
             if (Arrays.equals(nameInBytes, columnNameInBytes))
             {
-                return getFormatTypeForColumn(columnDefinition.getValidation_class());
+                return getFormatType(columnDefinition.getValidation_class());
             }
         }
 
         if (defaultValidator != null && !defaultValidator.isEmpty()) 
         {
-            return getFormatTypeForColumn(defaultValidator);
+            return getFormatType(defaultValidator);
         }
 
         return null;
@@ -2254,7 +2255,7 @@ public class CliClient
     {
         AbstractType validator;
         String columnFamilyName = columnFamilyDef.getName();
-        AbstractType keyComparator = this.cfKeysComparators.get(columnFamilyName);
+        AbstractType keyComparator = getKeyComparatorForCF(columnFamilyName);
 
         for (KeySlice ks : slices)
         {
@@ -2321,14 +2322,14 @@ public class CliClient
     private String formatSubcolumnName(String keyspace, String columnFamily, ByteBuffer name)
             throws NotFoundException, TException, IllegalAccessException, InstantiationException, NoSuchFieldException
     {
-        return getFormatTypeForColumn(getCfDef(keyspace,columnFamily).subcomparator_type).getString(name);
+        return getFormatType(getCfDef(keyspace, columnFamily).subcomparator_type).getString(name);
     }
 
     // retuns column name in human-readable format
     private String formatColumnName(String keyspace, String columnFamily, ByteBuffer name)
             throws NotFoundException, TException, IllegalAccessException, InstantiationException, NoSuchFieldException
     {
-        return getFormatTypeForColumn(getCfDef(keyspace, columnFamily).comparator_type).getString(name);
+        return getFormatType(getCfDef(keyspace, columnFamily).comparator_type).getString(name);
     }
 
     private ByteBuffer getColumnName(String columnFamily, Tree columnTree)
@@ -2352,8 +2353,21 @@ public class CliClient
 
         String key = CliUtils.unescapeSQLString(keyTree.getText());
 
-        AbstractType keyComparator = this.cfKeysComparators.get(columnFamily);
-        return getBytesAccordingToType(key, keyComparator);
+        return getBytesAccordingToType(key, getKeyComparatorForCF(columnFamily));
+    }
+
+    private AbstractType getKeyComparatorForCF(String columnFamily)
+    {
+        AbstractType keyComparator = cfKeysComparators.get(columnFamily);
+
+        if (keyComparator == null)
+        {
+            String defaultValidationClass = getCfDef(columnFamily).getKey_validation_class();
+            assert defaultValidationClass != null;
+            keyComparator = getFormatType(defaultValidationClass);
+        }
+
+        return keyComparator;
     }
 
     private static class KsDefNamesComparator implements Comparator<KsDef>
@@ -2417,7 +2431,7 @@ public class CliClient
         String defaultValidator = cfdef.default_validation_class;
         if (defaultValidator != null && !defaultValidator.isEmpty())
         {
-            return (getFormatTypeForColumn(defaultValidator) instanceof CounterColumnType);
+            return (getFormatType(defaultValidator) instanceof CounterColumnType);
         }
         return false;
     }

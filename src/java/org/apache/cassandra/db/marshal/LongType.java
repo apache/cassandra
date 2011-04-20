@@ -36,6 +36,11 @@ public class LongType extends AbstractType<Long>
         return ByteBufferUtil.toLong(bytes);
     }
 
+    public ByteBuffer decompose(Long value)
+    {
+        return ByteBufferUtil.bytes(value);
+    }
+
     public int compare(ByteBuffer o1, ByteBuffer o2)
     {
         if (o1.remaining() == 0)
@@ -91,7 +96,7 @@ public class LongType extends AbstractType<Long>
             throw new MarshalException(String.format("unable to make long from '%s'", source), e);
         }
 
-        return ByteBufferUtil.bytes(longType);
+        return decompose(longType);
     }
 
     public void validate(ByteBuffer bytes) throws MarshalException

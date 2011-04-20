@@ -48,12 +48,13 @@ def startswith(words, text):
 class Shell(cmd.Cmd):
     default_prompt  = "cqlsh> "
     continue_prompt = "   ... "
-    
+
     def __init__(self, hostname, port, color=False, username=None,
             password=None):
         cmd.Cmd.__init__(self)
         self.conn = cql.connect(hostname, port, user=username, password=password)
-                               
+        self.cursor = self.conn.cursor()
+
         if os.path.exists(HISTORY):
             readline.read_history_file(HISTORY)
 
@@ -64,12 +65,33 @@ class Shell(cmd.Cmd):
         
         self.statement = StringIO()
         self.color = color
+        self.in_comment = False
     
     def reset_statement(self):
         self.set_prompt(Shell.default_prompt)
         self.statement.truncate(0)
         
     def get_statement(self, line):
+        if self.in_comment:
+            if "*/" in line:
+                fragment = line[line.index("*/")+2:]
+                if fragment.strip():
+                    line = fragment
+                    self.in_comment = False
+                else:
+                    self.in_comment = False
+                    self.set_prompt(Shell.default_prompt)
+                    return None
+            else:
+                return None
+        
+        if "/*" in line and (not self.in_comment):
+            self.in_comment = True
+            self.set_prompt(Shell.continue_prompt)
+            if line.lstrip().index("/*") != 0:
+                self.statement.write(line[:line.lstrip().index("/*")])
+            return None
+        
         self.statement.write("%s\n" % line)
             
         if not line.endswith(";"):
@@ -82,25 +104,31 @@ class Shell(cmd.Cmd):
             self.reset_statement()
 
     def default(self, arg):
-        if not arg.strip(): return
-        statement = self.get_statement(arg)
+        def scrub_oneline_comments(s):
+            res = re.sub(r'\/\*.*\*\/', '', s)
+            res = re.sub(r'--.*$', '', res)
+            return res
+        
+        input = scrub_oneline_comments(arg)
+        if not input.strip(): return
+        statement = self.get_statement(input)
         if not statement: return
-        
-        cursor = self.conn.cursor()
-        cursor.execute(statement)
-        
-        if isinstance(cursor.result, ResultSet):
-            for row in cursor.result.rows:
-                self.printout(row.key, BLUE, False)
-                for column in row.columns:
+
+        self.cursor.execute(statement)
+
+        if isinstance(self.cursor.result, ResultSet):
+            for x in range(self.cursor.rowcount):
+                row = self.cursor.fetchone()
+                self.printout(repr(row[0]), BLUE, False)
+                for (i, value) in enumerate(row[1:]):
+                    name = self.cursor.description[i+1][0]
                     self.printout(" | ", newline=False)
-                    # XXX: repr() is better than trying to print binary
-                    self.printout(repr(column.name), MAGENTA, False)
+                    self.printout(repr(name), MAGENTA, False)
                     self.printout(",", newline=False)
-                    self.printout(repr(column.value), YELLOW, False)
+                    self.printout(repr(value), YELLOW, False)
                 self.printout("")
         else:
-            if cursor.result: print cursor.result[0]
+            if self.cursor.result: print self.cursor.result[0]
 
     def emptyline(self):
         pass
@@ -109,19 +137,19 @@ class Shell(cmd.Cmd):
         keywords = ('FIRST', 'REVERSED', 'FROM', 'WHERE', 'KEY')
         return startswith(keywords, text.upper())
     complete_SELECT = complete_select
-    
+
     def complete_update(self, text, line, begidx, endidx):
         keywords = ('WHERE', 'KEY', 'SET')
         return startswith(keywords, text.upper())
     complete_UPDATE = complete_update
-    
+
     def complete_create(self, text, line, begidx, endidx):
         words = line.split()
         if len(words) < 3:
             return startswith(['COLUMNFAMILY', 'KEYSPACE'], text.upper())
-        
+
         common = ['WITH', 'AND']
-        
+
         if words[1].upper() == 'COLUMNFAMILY':
             types = startswith(CQLTYPES, text)
             keywords = startswith(('KEY', 'PRIMARY'), text.upper())
@@ -141,12 +169,12 @@ class Shell(cmd.Cmd):
                                 "memtable_operations_in_millions",
                                 "replicate_on_write"), text)
             return startswith(common, text.upper()) + types + keywords + props
-            
+
         if words[1].upper() == 'KEYSPACE':
             props = ("replication_factor", "strategy_options", "strategy_class")
             return startswith(common, text.upper()) + startswith(props, text)
     complete_CREATE = complete_create
-        
+
     def complete_drop(self, text, line, begidx, endidx):
         words = line.split()
         if len(words) < 3:
@@ -161,27 +189,27 @@ class Shell(cmd.Cmd):
     def set_prompt(self, prompt):
         if sys.stdin.isatty():
             self.prompt = prompt
-        
+
     def do_EOF(self, arg):
         if sys.stdin.isatty(): print
         self.do_exit(None)
-    
+
     def do_exit(self, arg):
         sys.exit()
     do_quit = do_exit
-    
+
     def printout(self, text, color=None, newline=True, out=sys.stdout):
         if not color or not self.color:
             out.write(text)
         else:
             out.write(color % text)
-            
+
         if newline:
             out.write("\n");
-    
+
     def printerr(self, text, color=None, newline=True):
         self.printout(text, color, newline, sys.stderr)
-        
+
 if __name__ == '__main__':
     parser = OptionParser(usage = "Usage: %prog [host [port]]")
     parser.add_option("-C",
@@ -191,9 +219,9 @@ if __name__ == '__main__':
     parser.add_option("-u", "--username", help="Authenticate as user.")
     parser.add_option("-p", "--password", help="Authenticate using password.")
     (options, arguments) = parser.parse_args()
-    
+
     hostname = len(arguments) > 0 and arguments[0] or "localhost"
-    
+
     if len(arguments) > 1:
         try:
             port = int(arguments[1])
@@ -203,8 +231,8 @@ if __name__ == '__main__':
             sys.exit(1)
     else:
         port = 9160
-        
-    
+
+
     shell = Shell(hostname,
                   port,
                   color=options.color,
@@ -223,4 +251,4 @@ if __name__ == '__main__':
             print
         except Exception, err:
             shell.printerr("Exception: %s" % err, color=RED)
-    
+

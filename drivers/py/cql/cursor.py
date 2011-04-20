@@ -62,6 +62,7 @@ class Cursor:
 
     def prepare(self, query, params):
         prepared_query = prepare(query, params)
+        self._schema_update_needed = False
 
         # Snag the keyspace or column family and stash it for later use in
         # decoding columns.  These regexes don't match every query, but the
@@ -78,9 +79,7 @@ class Cursor:
         # If this is a CREATE, then refresh the schema for decoding purposes.
         match = Cursor._ddl_re.match(prepared_query)
         if match:
-            if isinstance(self.decoder, SchemaDecoder):
-                self.decoder.schema = self.__get_schema()
-
+            self._schema_update_needed = True
         return prepared_query
 
     def __get_schema(self):
@@ -110,6 +109,9 @@ class Cursor:
 
     def execute(self, cql_query, params={}):
         self.__checksock()
+        self.rs_idx = 0
+        self.rowcount = 0
+        self.description = None
         try:
             prepared_q = self.prepare(cql_query, params)
         except KeyError, e:
@@ -131,6 +133,9 @@ class Cursor:
             raise cql.IntegrityError("Schema versions disagree, (try again later).")
         except TApplicationException, tapp:
             raise cql.InternalError("Internal application error")
+
+        if self._schema_update_needed and isinstance(self.decoder, SchemaDecoder):
+            self.decoder.schema = self.__get_schema()
 
         if response.type == CqlResultType.ROWS:
             self.result = ResultSet(response.rows,

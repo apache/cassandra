@@ -49,7 +49,7 @@ public class Inserter extends Operation
         {
             String columnName = ("C" + Integer.toString(i));
             ByteBuffer columnValue = values.get(i % values.size());
-            columns.add(new Column(ByteBufferUtil.bytes(columnName), columnValue, System.currentTimeMillis()));
+            columns.add(new Column(ByteBufferUtil.bytes(columnName)).setValue(columnValue).setTimestamp(System.currentTimeMillis()));
         }
 
         if (session.getColumnFamilyType() == ColumnFamilyType.Super)

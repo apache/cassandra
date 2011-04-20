@@ -33,8 +33,8 @@ import org.apache.commons.lang.time.DateUtils;
 
 public class TimeUUIDType extends AbstractType<UUID>
 {
-    
     public static final TimeUUIDType instance = new TimeUUIDType();
+
     static final Pattern regexPattern = Pattern.compile("[A-Fa-f0-9]{8}\\-[A-Fa-f0-9]{4}\\-[A-Fa-f0-9]{4}\\-[A-Fa-f0-9]{4}\\-[A-Fa-f0-9]{12}");
     static final String[] iso8601Patterns = new String[] {
         "yyyy-MM-dd HH:mm",
@@ -54,6 +54,11 @@ public class TimeUUIDType extends AbstractType<UUID>
     public UUID compose(ByteBuffer bytes)
     {
         return UUIDGen.getUUID(bytes);
+    }
+
+    public ByteBuffer decompose(UUID value)
+    {
+        return ByteBuffer.wrap(UUIDGen.decompose(value));
     }
 
     public int compare(ByteBuffer o1, ByteBuffer o2)
@@ -139,7 +144,7 @@ public class TimeUUIDType extends AbstractType<UUID>
             try
             {
                 uuid = UUID.fromString(source);
-                idBytes = ByteBuffer.wrap(UUIDGen.decompose(uuid));
+                idBytes = decompose(uuid);
             }
             catch (IllegalArgumentException e)
             {

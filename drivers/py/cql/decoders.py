@@ -26,9 +26,8 @@ class SchemaDecoder(object):
         self.schema = schema
 
     def __get_column_family_def(self, keyspace, column_family):
-        if self.schema.has_key(keyspace):
-            if self.schema[keyspace].has_key(column_family):
-                return self.schema[keyspace][column_family]
+        if keyspace in self.schema and column_family in self.schema[keyspace]:
+            return self.schema[keyspace][column_family]
         return None
 
     def __comparator_for(self, keyspace, column_family):

@@ -185,7 +185,10 @@ def make_keyspaces():
         colms = [ColumnDef(name='C1', validation_class='UTF8Type', index_type=IndexType.KEYS_BITMAP)]
     cfams = [CfDef(keyspace='Keyspace1', name='Standard1', column_metadata=colms),
              CfDef(keyspace='Keyspace1', name='Super1', column_type='Super')]
-    keyspace = KsDef(name='Keyspace1', strategy_class='org.apache.cassandra.locator.SimpleStrategy', replication_factor=options.replication, cf_defs=cfams)
+    keyspace = KsDef(name='Keyspace1',
+                     strategy_class='org.apache.cassandra.locator.SimpleStrategy',
+                     strategy_options={'replication_factor': str(options.replication)}, 
+                     cf_defs=cfams)
     client = get_client(nodes[0], options.port)
     client.transport.open()
     try:

@@ -102,10 +102,12 @@ public class DatacenterSyncWriteResponseHandler extends AbstractWriteResponseHan
             dcEndpoints.put(dc, new AtomicInteger());
         for (InetAddress destination : hintedEndpoints.keySet())
         {
-            assert writeEndpoints.contains(destination);
-            // figure out the destination dc
-            String destinationDC = snitch.getDatacenter(destination);
-            dcEndpoints.get(destinationDC).incrementAndGet();
+            if (writeEndpoints.contains(destination))
+            {
+                // figure out the destination dc
+                String destinationDC = snitch.getDatacenter(destination);
+                dcEndpoints.get(destinationDC).incrementAndGet();
+            }
         }
 
         // Throw exception if any of the DC doesn't have livenodes to accept write.

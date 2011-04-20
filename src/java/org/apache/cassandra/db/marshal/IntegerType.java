@@ -62,6 +62,11 @@ public final class IntegerType extends AbstractType<BigInteger>
         return new BigInteger(ByteBufferUtil.getArray(bytes));
     }
 
+    public ByteBuffer decompose(BigInteger value)
+    {
+        return ByteBuffer.wrap(value.toByteArray());
+    }
+
     public int compare(ByteBuffer lhs, ByteBuffer rhs)
     {
         int lhsLen = lhs.remaining();
@@ -152,7 +157,7 @@ public final class IntegerType extends AbstractType<BigInteger>
             throw new MarshalException(String.format("unable to make int from '%s'", source), e);
         }
 
-        return ByteBuffer.wrap(integerType.toByteArray());
+        return decompose(integerType);
     }
 
     public void validate(ByteBuffer bytes) throws MarshalException

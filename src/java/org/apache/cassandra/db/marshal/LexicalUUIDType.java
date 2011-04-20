@@ -38,6 +38,11 @@ public class LexicalUUIDType extends AbstractType<UUID>
         return UUIDGen.getUUID(bytes);
     }
 
+    public ByteBuffer decompose(UUID value)
+    {
+        return ByteBuffer.wrap(UUIDGen.decompose(value));
+    }
+
     public int compare(ByteBuffer o1, ByteBuffer o2)
     {
         if (o1.remaining() == 0)
@@ -78,7 +83,7 @@ public class LexicalUUIDType extends AbstractType<UUID>
 
         try
         {
-            return ByteBuffer.wrap(UUIDGen.decompose(UUID.fromString(source)));
+            return decompose(UUID.fromString(source));
         }
         catch (IllegalArgumentException e)
         {

@@ -100,6 +100,7 @@ public class WriteResponseHandler extends AbstractWriteResponseHandler
             // ensure there are blockFor distinct living nodes (hints are ok).
             if (hintedEndpoints.keySet().size() < responses.get())
                 throw new UnavailableException();
+            return;
         }
 
         // count destinations that are part of the desired target set

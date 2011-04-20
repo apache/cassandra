@@ -204,6 +204,11 @@ public class UUIDType extends AbstractType<UUID>
         return uuid.toString();
     }
 
+    public ByteBuffer decompose(UUID value)
+    {
+        return ByteBuffer.wrap(UUIDGen.decompose(value));
+    }
+
     @Override
     public ByteBuffer fromString(String source) throws MarshalException
     {

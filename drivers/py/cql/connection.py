@@ -19,6 +19,7 @@ from cursor import Cursor
 from cassandra import Cassandra
 from thrift.transport import TTransport, TSocket
 from thrift.protocol import TBinaryProtocol
+from cql.cassandra.ttypes import AuthenticationRequest
 
 
 class Connection(object):
@@ -62,7 +63,7 @@ class Connection(object):
 
     def close(self):
         if not self.open_socket:
-            raise InternalError("Connection has been closed.")
+            return
 
         self.transport.close()
         self.open_socket = False
@@ -75,9 +76,11 @@ class Connection(object):
         return
 
     def rollback(self):
+        from cql import NotSupportedError
         raise NotSupportedError("Rollback functionality not present in Cassandra.")
 
     def cursor(self):
+        from cql import ProgrammingError
         if not self.open_socket:
-            raise InternalError("Connection has been closed.")
+            raise ProgrammingError("Connection has been closed.")
         return Cursor(self)
