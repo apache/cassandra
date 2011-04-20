@@ -24,6 +24,7 @@ import java.nio.ByteBuffer;
 
 import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.context.CounterContext;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 public abstract class AbstractCommutativeType extends AbstractType<Long>
 {
@@ -35,6 +36,11 @@ public abstract class AbstractCommutativeType extends AbstractType<Long>
     public Long compose(ByteBuffer bytes)
     {
         return CounterContext.instance().total(bytes);
+    }
+
+    public ByteBuffer decompose(Long value)
+    {
+        return ByteBufferUtil.bytes(value);
     }
 
     /**
