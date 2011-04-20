@@ -32,6 +32,8 @@
  * avoid caching token-only decoratedkeys (CASSANDRA-2416)
  * preserve version when streaming data from old sstables (CASSANDRA-2283)
  * fix backslash substitutions in CLI (CASSANDRA-2492)
+ * count a row deletion as one operation towards memtable threshold 
+   (CASSANDRA-2519)
 
 
 0.7.4
