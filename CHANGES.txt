@@ -34,6 +34,8 @@
  * fix backslash substitutions in CLI (CASSANDRA-2492)
  * count a row deletion as one operation towards memtable threshold 
    (CASSANDRA-2519)
+ * fixes for verifying destination availability under hinted conditions
+   so UE can be thrown intead of timing out (CASSANDRA-2514)
 
 
 0.7.4

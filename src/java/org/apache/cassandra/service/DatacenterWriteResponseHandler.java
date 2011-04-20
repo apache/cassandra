@@ -84,9 +84,9 @@ public class DatacenterWriteResponseHandler extends WriteResponseHandler
     public void assureSufficientLiveNodes() throws UnavailableException
     {
         int liveNodes = 0;
-        for (InetAddress destination : writeEndpoints)
+        for (InetAddress destination : hintedEndpoints.keySet())
         {
-            if (localdc.equals(snitch.getDatacenter(destination)))
+            if (localdc.equals(snitch.getDatacenter(destination)) && writeEndpoints.contains(destination))
                 liveNodes++;
         }
 
