@@ -31,11 +31,6 @@ public class LexicalUUIDType extends AbstractType<UUID>
 {
     public static final LexicalUUIDType instance = new LexicalUUIDType();
 
-    public static LexicalUUIDType getInstance()
-    {
-        return instance;
-    }
-
     LexicalUUIDType() {} // singleton
 
     public UUID compose(ByteBuffer bytes)

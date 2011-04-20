@@ -29,11 +29,6 @@ public final class IntegerType extends AbstractType<BigInteger>
 {
     public static final IntegerType instance = new IntegerType();
 
-    public static IntegerType getInstance()
-    {
-        return instance;
-    }
-
     private static int findMostSignificantByte(ByteBuffer bytes)
     {
         int len = bytes.remaining() - 1;

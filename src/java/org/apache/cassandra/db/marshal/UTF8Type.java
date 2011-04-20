@@ -32,11 +32,6 @@ public class UTF8Type extends AbstractType<String>
 
     UTF8Type() {} // singleton
 
-    public static UTF8Type getInstance()
-    {
-        return instance;
-    }
-
     public String compose(ByteBuffer bytes)
     {
         return getString(bytes);

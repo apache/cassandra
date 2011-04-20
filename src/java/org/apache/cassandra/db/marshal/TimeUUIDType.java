@@ -35,11 +35,6 @@ public class TimeUUIDType extends AbstractType<UUID>
 {
     public static final TimeUUIDType instance = new TimeUUIDType();
 
-    public static TimeUUIDType getInstance()
-    {
-        return instance;
-    }
-
     static final Pattern regexPattern = Pattern.compile("[A-Fa-f0-9]{8}\\-[A-Fa-f0-9]{4}\\-[A-Fa-f0-9]{4}\\-[A-Fa-f0-9]{4}\\-[A-Fa-f0-9]{12}");
     static final String[] iso8601Patterns = new String[] {
         "yyyy-MM-dd HH:mm",

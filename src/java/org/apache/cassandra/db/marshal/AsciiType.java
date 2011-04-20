@@ -32,12 +32,6 @@ public class AsciiType extends AbstractType<String>
 {
     public static final AsciiType instance = new AsciiType();
 
-    public static AsciiType getInstance()
-    {
-        return instance;
-    }
-
-
     AsciiType() {} // singleton
 
     public String getString(ByteBuffer bytes)

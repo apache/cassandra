@@ -41,11 +41,6 @@ public class LongType extends AbstractType<Long>
         return ByteBufferUtil.bytes(value);
     }
 
-    public static LongType getInstance()
-    {
-        return instance;
-    }
-
     public int compare(ByteBuffer o1, ByteBuffer o2)
     {
         if (o1.remaining() == 0)
