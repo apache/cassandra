@@ -226,27 +226,6 @@ public class RowMutation implements IMutation, MessageProducer
         return new Message(FBUtilities.getLocalAddress(), verb, getSerializedBuffer(version), version);
     }
 
-    public static RowMutation getRowMutationFromMutations(String keyspace, ByteBuffer key, Map<String, List<Mutation>> cfmap)
-    {
-        RowMutation rm = new RowMutation(keyspace, key);
-        for (Map.Entry<String, List<Mutation>> entry : cfmap.entrySet())
-        {
-            String cfName = entry.getKey();
-            for (Mutation mutation : entry.getValue())
-            {
-                if (mutation.deletion != null)
-                {
-                    deleteColumnOrSuperColumnToRowMutation(rm, cfName, mutation.deletion);
-                }
-                if (mutation.column_or_supercolumn != null)
-                {
-                    addColumnOrSuperColumnToRowMutation(rm, cfName, mutation.column_or_supercolumn);
-                }
-            }
-        }
-        return rm;
-    }
-
     public synchronized byte[] getSerializedBuffer(int version) throws IOException
     {
         byte[] preserializedBuffer = preserializedBuffers.get(version);
@@ -288,47 +267,47 @@ public class RowMutation implements IMutation, MessageProducer
         return buff.append("])").toString();
     }
 
-    private static void addColumnOrSuperColumnToRowMutation(RowMutation rm, String cfName, ColumnOrSuperColumn cosc)
+    public void addColumnOrSuperColumn(String cfName, ColumnOrSuperColumn cosc)
     {
         if (cosc.super_column != null)
         {
             for (org.apache.cassandra.thrift.Column column : cosc.super_column.columns)
             {
-                rm.add(new QueryPath(cfName, cosc.super_column.name, column.name), column.value, column.timestamp, column.ttl);
+                add(new QueryPath(cfName, cosc.super_column.name, column.name), column.value, column.timestamp, column.ttl);
             }
         }
         else if (cosc.column != null)
         {
-            rm.add(new QueryPath(cfName, null, cosc.column.name), cosc.column.value, cosc.column.timestamp, cosc.column.ttl);
+            add(new QueryPath(cfName, null, cosc.column.name), cosc.column.value, cosc.column.timestamp, cosc.column.ttl);
         }
         else if (cosc.counter_super_column != null)
         {
             for (org.apache.cassandra.thrift.CounterColumn column : cosc.counter_super_column.columns)
             {
-                rm.addCounter(new QueryPath(cfName, cosc.counter_super_column.name, column.name), column.value);
+                addCounter(new QueryPath(cfName, cosc.counter_super_column.name, column.name), column.value);
             }
         }
         else // cosc.counter_column != null
         {
-            rm.addCounter(new QueryPath(cfName, null, cosc.counter_column.name), cosc.counter_column.value);
+            addCounter(new QueryPath(cfName, null, cosc.counter_column.name), cosc.counter_column.value);
         }
     }
 
-    private static void deleteColumnOrSuperColumnToRowMutation(RowMutation rm, String cfName, Deletion del)
+    public void deleteColumnOrSuperColumn(String cfName, Deletion del)
     {
         if (del.predicate != null && del.predicate.column_names != null)
         {
             for(ByteBuffer c : del.predicate.column_names)
             {
-                if (del.super_column == null && DatabaseDescriptor.getColumnFamilyType(rm.table_, cfName) == ColumnFamilyType.Super)
-                    rm.delete(new QueryPath(cfName, c), del.timestamp);
+                if (del.super_column == null && DatabaseDescriptor.getColumnFamilyType(table_, cfName) == ColumnFamilyType.Super)
+                    delete(new QueryPath(cfName, c), del.timestamp);
                 else
-                    rm.delete(new QueryPath(cfName, del.super_column, c), del.timestamp);
+                    delete(new QueryPath(cfName, del.super_column, c), del.timestamp);
             }
         }
         else
         {
-            rm.delete(new QueryPath(cfName, del.super_column), del.timestamp);
+            delete(new QueryPath(cfName, del.super_column), del.timestamp);
         }
     }
 

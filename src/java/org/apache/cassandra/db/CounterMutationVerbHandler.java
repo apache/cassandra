@@ -25,12 +25,10 @@ import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 
-import org.apache.cassandra.net.IVerbHandler;
-import org.apache.cassandra.net.Message;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.net.*;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.service.StorageProxy;
@@ -53,7 +51,8 @@ public class CounterMutationVerbHandler implements IVerbHandler
             if (logger.isDebugEnabled())
               logger.debug("Applying forwarded " + cm);
 
-            StorageProxy.applyCounterMutationOnLeader(cm);
+            String localDataCenter = DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getLocalAddress());
+            StorageProxy.applyCounterMutationOnLeader(cm, localDataCenter).get();
             WriteResponse response = new WriteResponse(cm.getTable(), cm.key(), true);
             Message responseMessage = WriteResponse.makeWriteResponseMessage(message, response);
             MessagingService.instance().sendReply(responseMessage, id, message.getFrom());

@@ -440,12 +440,17 @@ public class CassandraServer implements Cassandra.Iface
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
         List<String> cfamsSeen = new ArrayList<String>();
-        List<RowMutation> rowMutations = new ArrayList<RowMutation>();
+        List<IMutation> rowMutations = new ArrayList<IMutation>();
         String keyspace = state().getKeyspace();
 
         for (Map.Entry<ByteBuffer, Map<String, List<Mutation>>> mutationEntry: mutation_map.entrySet())
         {
             ByteBuffer key = mutationEntry.getKey();
+
+            // We need to separate row mutation for standard cf and counter cf (that will be encapsulated in a
+            // CounterMutation) because it doesn't follow the same code path
+            RowMutation rmStandard = null;
+            RowMutation rmCounter = null;
 
             Map<String, List<Mutation>> columnFamilyToMutations = mutationEntry.getValue();
             for (Map.Entry<String, List<Mutation>> columnFamilyMutations : columnFamilyToMutations.entrySet())
@@ -462,17 +467,37 @@ public class CassandraServer implements Cassandra.Iface
                 CFMetaData metadata = ThriftValidation.validateColumnFamily(keyspace, cfName);
                 ThriftValidation.validateKey(metadata, key);
 
+                RowMutation rm;
                 if (metadata.getDefaultValidator().isCommutative())
+                {
                     ThriftValidation.validateCommutativeForWrite(metadata, consistency_level);
+                    rmCounter = rmCounter == null ? new RowMutation(keyspace, key) : rmCounter;
+                    rm = rmCounter;
+                }
+                else
+                {
+                    rmStandard = rmStandard == null ? new RowMutation(keyspace, key) : rmStandard;
+                    rm = rmStandard;
+                }
 
                 for (Mutation mutation : columnFamilyMutations.getValue())
                 {
                     ThriftValidation.validateMutation(metadata, mutation);
+
+                    if (mutation.deletion != null)
+                    {
+                        rm.deleteColumnOrSuperColumn(cfName, mutation.deletion);
+                    }
+                    if (mutation.column_or_supercolumn != null)
+                    {
+                        rm.addColumnOrSuperColumn(cfName, mutation.column_or_supercolumn);
+                    }
                 }
             }
-            RowMutation rm = RowMutation.getRowMutationFromMutations(keyspace, key, columnFamilyToMutations);
-            if (!rm.isEmpty())
-                rowMutations.add(rm);
+            if (rmStandard != null && !rmStandard.isEmpty())
+                rowMutations.add(rmStandard);
+            if (rmCounter != null && !rmCounter.isEmpty())
+                rowMutations.add(new org.apache.cassandra.db.CounterMutation(rmCounter, consistency_level));
         }
 
         doInsert(consistency_level, rowMutations);
@@ -500,7 +525,10 @@ public class CassandraServer implements Cassandra.Iface
         RowMutation rm = new RowMutation(state().getKeyspace(), key);
         rm.delete(new QueryPath(column_path), timestamp); 
 
-        doInsert(consistency_level, Arrays.asList(rm));
+        if (isCommutativeOp)
+            doInsert(consistency_level, Arrays.asList(new CounterMutation(rm, consistency_level)));
+        else
+            doInsert(consistency_level, Arrays.asList(rm));
     }
 
     public void remove(ByteBuffer key, ColumnPath column_path, long timestamp, ConsistencyLevel consistency_level)
@@ -511,7 +539,7 @@ public class CassandraServer implements Cassandra.Iface
         internal_remove(key, column_path, timestamp, consistency_level, false);
     }
 
-    private void doInsert(ConsistencyLevel consistency_level, List<RowMutation> mutations) throws UnavailableException, TimedOutException
+    private void doInsert(ConsistencyLevel consistency_level, List<? extends IMutation> mutations) throws UnavailableException, TimedOutException
     {
         try
         {
@@ -520,22 +548,7 @@ public class CassandraServer implements Cassandra.Iface
             try
             {
                 if (!mutations.isEmpty())
-                {
-                    // FIXME: Mighty ugly but we've made sure above this will always work
-                    if (mutations.iterator().next().getColumnFamilies().iterator().next().metadata().getDefaultValidator().isCommutative())
-                    {
-                        List<org.apache.cassandra.db.CounterMutation> cmutations = new ArrayList<org.apache.cassandra.db.CounterMutation>(mutations.size());
-                        for (RowMutation mutation : mutations)
-                        {
-                            cmutations.add(new org.apache.cassandra.db.CounterMutation(mutation, consistency_level));
-                        }
-                        StorageProxy.mutateCounters(cmutations);
-                    }
-                    else
-                    {
-                        StorageProxy.mutate(mutations, consistency_level);
-                    }
-                }
+                    StorageProxy.mutate(mutations, consistency_level);
             }
             catch (TimeoutException e)
             {
@@ -1045,7 +1058,7 @@ public class CassandraServer implements Cassandra.Iface
         {
             throw new InvalidRequestException(e.getMessage());
         }
-        doInsert(consistency_level, Arrays.asList(rm));
+        doInsert(consistency_level, Arrays.asList(new CounterMutation(rm, consistency_level)));
     }
 
     public void remove_counter(ByteBuffer key, ColumnPath path, ConsistencyLevel consistency_level)

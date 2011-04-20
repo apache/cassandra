@@ -67,9 +67,6 @@ public class StorageProxy implements StorageProxyMBean
     private static final LatencyTracker readStats = new LatencyTracker();
     private static final LatencyTracker rangeStats = new LatencyTracker();
     private static final LatencyTracker writeStats = new LatencyTracker();
-    // we keep counter latency appart from normal write because write with
-    // consistency > CL.ONE involves a read in the write path
-    private static final LatencyTracker counterWriteStats = new LatencyTracker();
     private static boolean hintedHandoffEnabled = DatabaseDescriptor.hintedHandoffEnabled();
     private static int maxHintWindow = DatabaseDescriptor.getMaxHintWindow();
     public static final String UNREACHABLE = "UNREACHABLE";
@@ -127,7 +124,7 @@ public class StorageProxy implements StorageProxyMBean
     }
 
     /**
-     * Use this method to have these RowMutations applied
+     * Use this method to have these Mutations applied
      * across all replicas. This method will take care
      * of the possibility of a replica being down and hint
      * the data across to some other replica.
@@ -135,27 +132,7 @@ public class StorageProxy implements StorageProxyMBean
      * @param mutations the mutations to be applied across the replicas
      * @param consistency_level the consistency level for the operation
     */
-    public static void mutate(List<RowMutation> mutations, ConsistencyLevel consistency_level) throws UnavailableException, TimeoutException
-    {
-        write(mutations, consistency_level, standardWritePerformer, true);
-    }
-
-    /**
-     * Perform the write of a batch of mutations given a WritePerformer.
-     * For each mutation, gather the list of write endpoints, apply locally and/or
-     * forward the mutation to said write endpoint (deletaged to the actual
-     * WritePerformer) and wait for the responses based on consistency level.
-     *
-     * @param mutations the mutations to be applied
-     * @param consistency_level the consistency level for the write operation
-     * @param performer the WritePerformer in charge of appliying the mutation
-     * given the list of write endpoints (either standardWritePerformer for
-     * standard writes or counterWritePerformer for counter writes).
-     * @param updateStats whether or not to update the writeStats. This must be
-     * true for standard writes but false for counter writes as the latency of
-     * the latter is tracked in mutateCounters() by counterWriteStats.
-     */
-    public static void write(List<? extends IMutation> mutations, ConsistencyLevel consistency_level, WritePerformer performer, boolean updateStats) throws UnavailableException, TimeoutException
+    public static void mutate(List<? extends IMutation> mutations, ConsistencyLevel consistency_level) throws UnavailableException, TimeoutException
     {
         final String localDataCenter = DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getLocalAddress());
 
@@ -168,19 +145,14 @@ public class StorageProxy implements StorageProxyMBean
             for (IMutation mutation : mutations)
             {
                 mostRecentMutation = mutation;
-                String table = mutation.getTable();
-                AbstractReplicationStrategy rs = Table.open(table).getReplicationStrategy();
-
-                Collection<InetAddress> writeEndpoints = getWriteEndpoints(table, mutation.key());
-                Multimap<InetAddress, InetAddress> hintedEndpoints = rs.getHintedEndpoints(writeEndpoints);
-
-                final IWriteResponseHandler responseHandler = rs.getWriteResponseHandler(writeEndpoints, hintedEndpoints, consistency_level);
-
-                // exit early if we can't fulfill the CL at this time
-                responseHandler.assureSufficientLiveNodes();
-
-                responseHandlers.add(responseHandler);
-                performer.apply(mutation, hintedEndpoints, responseHandler, localDataCenter, consistency_level);
+                if (mutation instanceof CounterMutation)
+                {
+                    responseHandlers.add(mutateCounter((CounterMutation)mutation, localDataCenter));
+                }
+                else
+                {
+                    responseHandlers.add(performWrite(mutation, consistency_level, localDataCenter, standardWritePerformer));
+                }
             }
             // wait for writes.  throws timeoutexception if necessary
             for (IWriteResponseHandler responseHandler : responseHandlers)
@@ -195,9 +167,37 @@ public class StorageProxy implements StorageProxyMBean
         }
         finally
         {
-            if (updateStats)
-                writeStats.addNano(System.nanoTime() - startTime);
+            writeStats.addNano(System.nanoTime() - startTime);
         }
+    }
+
+    /**
+     * Perform the write of a mutation given a WritePerformer.
+     * Gather the list of write endpoints, apply locally and/or forward the mutation to
+     * said write endpoint (deletaged to the actual WritePerformer) and wait for the
+     * responses based on consistency level.
+     *
+     * @param mutations the mutations to be applied
+     * @param consistency_level the consistency level for the write operation
+     * @param performer the WritePerformer in charge of appliying the mutation
+     * given the list of write endpoints (either standardWritePerformer for
+     * standard writes or counterWritePerformer for counter writes).
+     */
+    public static IWriteResponseHandler performWrite(IMutation mutation, ConsistencyLevel consistency_level, String localDataCenter, WritePerformer performer) throws UnavailableException, TimeoutException, IOException
+    {
+        String table = mutation.getTable();
+        AbstractReplicationStrategy rs = Table.open(table).getReplicationStrategy();
+
+        Collection<InetAddress> writeEndpoints = getWriteEndpoints(table, mutation.key());
+        Multimap<InetAddress, InetAddress> hintedEndpoints = rs.getHintedEndpoints(writeEndpoints);
+
+        IWriteResponseHandler responseHandler = rs.getWriteResponseHandler(writeEndpoints, hintedEndpoints, consistency_level);
+
+        // exit early if we can't fulfill the CL at this time
+        responseHandler.assureSufficientLiveNodes();
+
+        performer.apply(mutation, hintedEndpoints, responseHandler, localDataCenter, consistency_level);
+        return responseHandler;
     }
 
     private static Collection<InetAddress> getWriteEndpoints(String table, ByteBuffer key)
@@ -351,13 +351,12 @@ public class StorageProxy implements StorageProxyMBean
     }
 
     /**
-     * The equivalent of mutate() for counters.
-     * (Note that each CounterMutation ship the consistency level)
+     * Handle counter mutation on the coordinator host.
      *
      * A counter mutation needs to first be applied to a replica (that we'll call the leader for the mutation) before being
      * replicated to the other endpoint. To achieve so, there is two case:
      *   1) the coordinator host is a replica: we proceed to applying the update locally and replicate throug
-     *   applyCounterMutationOnLeader
+     *   applyCounterMutationOnCoordinator
      *   2) the coordinator is not a replica: we forward the (counter)mutation to a chosen replica (that will proceed through
      *   applyCounterMutationOnLeader upon receive) and wait for its acknowledgment.
      *
@@ -365,60 +364,31 @@ public class StorageProxy implements StorageProxyMBean
      * quicker response and because the WriteResponseHandlers don't make it easy to send back an error. We also always gather
      * the write latencies at the coordinator node to make gathering point similar to the case of standard writes.
      */
-    public static void mutateCounters(List<CounterMutation> mutations) throws UnavailableException, TimeoutException
+    public static IWriteResponseHandler mutateCounter(CounterMutation cm, String localDataCenter) throws UnavailableException, TimeoutException, IOException
     {
-        long startTime = System.nanoTime();
-        ArrayList<IWriteResponseHandler> responseHandlers = new ArrayList<IWriteResponseHandler>();
+        InetAddress endpoint = findSuitableEndpoint(cm.getTable(), cm.key());
 
-        CounterMutation mostRecentMutation = null;
-        StorageService ss = StorageService.instance;
-
-        try
+        if (endpoint.equals(FBUtilities.getLocalAddress()))
         {
-            for (CounterMutation cm : mutations)
-            {
-                mostRecentMutation = cm;
-                InetAddress endpoint = findSuitableEndpoint(cm.getTable(), cm.key());
-
-                if (endpoint.equals(FBUtilities.getLocalAddress()))
-                {
-                    applyCounterMutationOnCoordinator(cm);
-                }
-                else
-                {
-                    // Exit now if we can't fulfill the CL here instead of forwarding to the leader replica
-                    String table = cm.getTable();
-                    AbstractReplicationStrategy rs = Table.open(table).getReplicationStrategy();
-                    Collection<InetAddress> writeEndpoints = getWriteEndpoints(table, cm.key());
-                    Multimap<InetAddress, InetAddress> hintedEndpoints = rs.getHintedEndpoints(writeEndpoints);
-                    rs.getWriteResponseHandler(writeEndpoints, hintedEndpoints, cm.consistency()).assureSufficientLiveNodes();
-
-                    // Forward the actual update to the chosen leader replica
-                    IWriteResponseHandler responseHandler = WriteResponseHandler.create(endpoint);
-                    responseHandlers.add(responseHandler);
-
-                    Message message = cm.makeMutationMessage(Gossiper.instance.getVersion(endpoint));
-                    if (logger.isDebugEnabled())
-                        logger.debug("forwarding counter update of key " + ByteBufferUtil.bytesToHex(cm.key()) + " to " + endpoint);
-                    MessagingService.instance().sendRR(message, endpoint, responseHandler);
-                }
-            }
-            // wait for writes.  throws timeoutexception if necessary
-            for (IWriteResponseHandler responseHandler : responseHandlers)
-            {
-                responseHandler.get();
-            }
+            return applyCounterMutationOnCoordinator(cm, localDataCenter);
         }
-        catch (IOException e)
+        else
         {
-            if (mostRecentMutation == null)
-                throw new RuntimeException("no mutations were seen but found an error during write anyway", e);
-            else
-                throw new RuntimeException("error writing key " + ByteBufferUtil.bytesToHex(mostRecentMutation.key()), e);
-        }
-        finally
-        {
-            counterWriteStats.addNano(System.nanoTime() - startTime);
+            // Exit now if we can't fulfill the CL here instead of forwarding to the leader replica
+            String table = cm.getTable();
+            AbstractReplicationStrategy rs = Table.open(table).getReplicationStrategy();
+            Collection<InetAddress> writeEndpoints = getWriteEndpoints(table, cm.key());
+            Multimap<InetAddress, InetAddress> hintedEndpoints = rs.getHintedEndpoints(writeEndpoints);
+            rs.getWriteResponseHandler(writeEndpoints, hintedEndpoints, cm.consistency()).assureSufficientLiveNodes();
+
+            // Forward the actual update to the chosen leader replica
+            IWriteResponseHandler responseHandler = WriteResponseHandler.create(endpoint);
+
+            Message message = cm.makeMutationMessage(Gossiper.instance.getVersion(endpoint));
+            if (logger.isDebugEnabled())
+                logger.debug("forwarding counter update of key " + ByteBufferUtil.bytesToHex(cm.key()) + " to " + endpoint);
+            MessagingService.instance().sendRR(message, endpoint, responseHandler);
+            return responseHandler;
         }
     }
 
@@ -433,16 +403,16 @@ public class StorageProxy implements StorageProxyMBean
 
     // Must be called on a replica of the mutation. This replica becomes the
     // leader of this mutation.
-    public static void applyCounterMutationOnLeader(CounterMutation cm) throws UnavailableException, TimeoutException, IOException
+    public static IWriteResponseHandler applyCounterMutationOnLeader(CounterMutation cm, String localDataCenter) throws UnavailableException, TimeoutException, IOException
     {
-        write(Collections.singletonList(cm), cm.consistency(), counterWritePerformer, false);
+        return performWrite(cm, cm.consistency(), localDataCenter, counterWritePerformer);
     }
 
     // Same as applyCounterMutationOnLeader but must with the difference that it use the MUTATION stage to execute the write (while
     // applyCounterMutationOnLeader assumes it is on the MUTATION stage already)
-    public static void applyCounterMutationOnCoordinator(CounterMutation cm) throws UnavailableException, TimeoutException, IOException
+    public static IWriteResponseHandler applyCounterMutationOnCoordinator(CounterMutation cm, String localDataCenter) throws UnavailableException, TimeoutException, IOException
     {
-        write(Collections.singletonList(cm), cm.consistency(), counterWriteOnCoordinatorPerformer, false);
+        return performWrite(cm, cm.consistency(), localDataCenter, counterWriteOnCoordinatorPerformer);
     }
 
     private static void applyCounterMutation(final IMutation mutation, final Multimap<InetAddress, InetAddress> hintedEndpoints, final IWriteResponseHandler responseHandler, final String localDataCenter, final ConsistencyLevel consistency_level, boolean executeOnMutationStage)
@@ -946,31 +916,6 @@ public class StorageProxy implements StorageProxyMBean
     public long[] getRecentWriteLatencyHistogramMicros()
     {
         return writeStats.getRecentLatencyHistogramMicros();
-    }
-
-    public long getCounterWriteOperations()
-    {
-        return counterWriteStats.getOpCount();
-    }
-
-    public long getTotalCounterWriteLatencyMicros()
-    {
-        return counterWriteStats.getTotalLatencyMicros();
-    }
-
-    public double getRecentCounterWriteLatencyMicros()
-    {
-        return counterWriteStats.getRecentLatencyMicros();
-    }
-
-    public long[] getTotalCounterWriteLatencyHistogramMicros()
-    {
-        return counterWriteStats.getTotalLatencyHistogramMicros();
-    }
-
-    public long[] getRecentCounterWriteLatencyHistogramMicros()
-    {
-        return counterWriteStats.getRecentLatencyHistogramMicros();
     }
 
     public static List<Row> scan(final String keyspace, String column_family, IndexClause index_clause, SlicePredicate column_predicate, ConsistencyLevel consistency_level)
