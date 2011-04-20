@@ -30,11 +30,6 @@ public class TimeUUIDType extends AbstractType<UUID>
 {
     public static final TimeUUIDType instance = new TimeUUIDType();
 
-    public static TimeUUIDType getInstance()
-    {
-        return instance;
-    }
-
     TimeUUIDType() {} // singleton
 
     public UUID compose(ByteBuffer bytes)

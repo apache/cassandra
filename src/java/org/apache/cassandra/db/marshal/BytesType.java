@@ -29,11 +29,6 @@ public class BytesType extends AbstractType<ByteBuffer>
 {
     public static final BytesType instance = new BytesType();
 
-    public static BytesType getInstance()
-    {
-        return instance;
-    }
-
     BytesType() {} // singleton
 
     public ByteBuffer compose(ByteBuffer bytes)

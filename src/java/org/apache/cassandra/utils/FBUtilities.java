@@ -511,7 +511,6 @@ public class FBUtilities
 
     /**
      * Constructs an instance of the given class, which must have a no-arg constructor.
-     * TODO: Similar method for our 'instance member' singleton pattern would be nice.
      * @param classname Fully qualified classname.
      * @param readable Descriptive noun for the role the class plays.
      * @throws ConfigurationException If the class cannot be found.
@@ -541,31 +540,6 @@ public class FBUtilities
                 throw (ConfigurationException)e.getCause();
             throw new ConfigurationException(String.format("Error instantiating %s class '%s'.", readable, classname), e);
         }
-    }
-
-    public static <T> T getInstance(String classname, String readable) throws ConfigurationException
-    {
-        Class cls = classForName(classname,  readable);
-        T rval = null;
-        try
-        {
-            rval = (T) cls.getDeclaredMethod("getInstance").invoke(new Object[] {null, null});
-
-        }
-        catch (NoSuchMethodException e)
-        {
-            throw new ConfigurationException("Class does not have the getInstance method with no arguments");
-        }
-        catch (InvocationTargetException e)
-        {
-            throw new ConfigurationException(String.format("Could not call method getInstance on %s class %s", readable, classname));
-        }
-        catch (IllegalAccessException e)
-        {
-            throw new ConfigurationException(String.format("Could not call method getInstance on %s class %s", readable, classname));
-        }
-
-        return rval;
     }
 
     public static <T extends Comparable> SortedSet<T> singleton(T column)

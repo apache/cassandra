@@ -179,8 +179,8 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface
         AbstractType default_validator = null;
         try
         {
-            comparator = FBUtilities.getInstance(cfDef.comparator_type, "comparator");
-            default_validator = FBUtilities.getInstance(cfDef.default_validation_class, "validator");
+            comparator = FBUtilities.getComparator(cfDef.comparator_type);
+            default_validator = FBUtilities.getComparator(cfDef.default_validation_class);
         }
         catch (ConfigurationException e)
         {
@@ -202,7 +202,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface
                 AbstractType validator = null;
                 try
                 {
-                    validator = FBUtilities.getInstance(cd.getValidation_class(), "validator");
+                    validator = FBUtilities.getComparator(cd.getValidation_class());
                     validators.put(cd.name, validator);
                 }
                 catch (ConfigurationException e)

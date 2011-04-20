@@ -29,11 +29,6 @@ public class LongType extends AbstractType<Long>
 {
     public static final LongType instance = new LongType();
 
-    public static LongType getInstance()
-    {
-        return instance;
-    }
-
     LongType() {} // singleton
 
     public Long compose(ByteBuffer bytes)
