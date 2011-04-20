@@ -208,7 +208,9 @@ public class Memtable implements Comparable<Memtable>, IFlushable
     private void resolve(DecoratedKey key, ColumnFamily cf)
     {
         currentThroughput.addAndGet(cf.size());
-        currentOperations.addAndGet(cf.getColumnCount());
+        currentOperations.addAndGet((cf.getColumnCount() == 0)
+                                    ? cf.isMarkedForDelete() ? 1 : 0
+                                    : cf.getColumnCount());
 
         ColumnFamily oldCf = columnFamilies.putIfAbsent(key, cf);
         if (oldCf == null)
