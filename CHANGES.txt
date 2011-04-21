@@ -1,3 +1,7 @@
+0.8.0-?
+ * fix NPE compacting index CFs (CASSANDRA-2528)
+
+
 0.8.0-beta1
  * remove Avro RPC support (CASSANDRA-926)
  * adds support for columns that act as incr/decr counters 
