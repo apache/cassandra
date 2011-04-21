@@ -143,25 +143,4 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
     {
         return datacenters.keySet();
     }
-
-    /**
-     * This method will generate the QRH object and returns. If the Consistency
-     * level is LOCAL_QUORUM then it will return a DCQRH with a map of local rep
-     * factor alone. If the consistency level is EACH_QUORUM then it will
-     * return a DCQRH with a map of all the DC rep factor.
-     */
-    @Override
-    public IWriteResponseHandler getWriteResponseHandler(Collection<InetAddress> writeEndpoints, Multimap<InetAddress, InetAddress> hintedEndpoints, ConsistencyLevel consistency_level)
-    {
-        if (consistency_level == ConsistencyLevel.LOCAL_QUORUM)
-        {
-            // block for in this context will be localnodes block.
-            return DatacenterWriteResponseHandler.create(writeEndpoints, hintedEndpoints, consistency_level, table);
-        }
-        else if (consistency_level == ConsistencyLevel.EACH_QUORUM)
-        {
-            return DatacenterSyncWriteResponseHandler.create(writeEndpoints, hintedEndpoints, consistency_level, table);
-        }
-        return super.getWriteResponseHandler(writeEndpoints, hintedEndpoints, consistency_level);
-    }
 }

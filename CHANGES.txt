@@ -36,6 +36,7 @@
    (CASSANDRA-2519)
  * fixes for verifying destination availability under hinted conditions
    so UE can be thrown intead of timing out (CASSANDRA-2514)
+ * support LOCAL_QUORUM, EACH_QUORUM CLs outside of NTS (CASSANDRA-2516)
 
 
 0.7.4

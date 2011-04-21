@@ -122,9 +122,18 @@ public abstract class AbstractReplicationStrategy
 
     public IWriteResponseHandler getWriteResponseHandler(Collection<InetAddress> writeEndpoints,
                                                          Multimap<InetAddress, InetAddress> hintedEndpoints,
-                                                         ConsistencyLevel consistencyLevel)
+                                                         ConsistencyLevel consistency_level)
     {
-        return WriteResponseHandler.create(writeEndpoints, hintedEndpoints, consistencyLevel, table);
+        if (consistency_level == ConsistencyLevel.LOCAL_QUORUM)
+        {
+            // block for in this context will be localnodes block.
+            return DatacenterWriteResponseHandler.create(writeEndpoints, hintedEndpoints, consistency_level, table);
+        }
+        else if (consistency_level == ConsistencyLevel.EACH_QUORUM)
+        {
+            return DatacenterSyncWriteResponseHandler.create(writeEndpoints, hintedEndpoints, consistency_level, table);
+        }
+        return WriteResponseHandler.create(writeEndpoints, hintedEndpoints, consistency_level, table);
     }
 
     public int getReplicationFactor()
