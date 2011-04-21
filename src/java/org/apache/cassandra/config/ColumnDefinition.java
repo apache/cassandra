@@ -35,7 +35,7 @@ public class ColumnDefinition
     public final static String D_COLDEF_INDEXTYPE = "KEYS";
     public final static String D_COLDEF_INDEXNAME = null;
     public final ByteBuffer name;
-    public final AbstractType validator;
+    private AbstractType validator;
     private IndexType index_type;
     private String index_name;
 
@@ -181,5 +181,15 @@ public class ColumnDefinition
     public void setIndexType(IndexType index_type)
     {
         this.index_type = index_type;
+    }
+
+    public AbstractType getValidator()
+    {
+        return validator;
+    }
+
+    public void setValidator(AbstractType validator)
+    {
+        this.validator = validator;
     }
 }
