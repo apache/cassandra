@@ -602,7 +602,7 @@ public class FBUtilities
 
     public static String toString(Map<?,?> map)
     {
-        Joiner.MapJoiner joiner = Joiner.on(",").withKeyValueSeparator(":");
+        Joiner.MapJoiner joiner = Joiner.on(", ").withKeyValueSeparator(":");
         return joiner.join(map);
     }
 

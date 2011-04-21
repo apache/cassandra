@@ -55,6 +55,7 @@ import org.apache.cassandra.db.migration.RenameKeyspace;
 import org.apache.cassandra.db.migration.UpdateColumnFamily;
 import org.apache.cassandra.db.migration.UpdateKeyspace;
 import org.apache.cassandra.io.SerDeUtils;
+import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.locator.OldNetworkTopologyStrategy;
 import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.net.MessagingService;
@@ -319,7 +320,7 @@ public class DefsTest extends CleanupHelper
         ColumnFamilyStore store = Table.open(cfm.ksName).getColumnFamilyStore(cfm.cfName);
         assert store != null;
         store.forceBlockingFlush();
-        store.getFlushPath(1024);
+        store.getFlushPath(1024, Descriptor.CURRENT_VERSION);
         assert DefsTable.getFiles(cfm.ksName, cfm.cfName).size() > 0;
         
         new DropColumnFamily(ks.name, cfm.cfName).apply();

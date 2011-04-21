@@ -106,7 +106,7 @@ public abstract class AntiEntropyServiceTestAbstract extends CleanupHelper
         Gossiper.instance.initializeNodeUnsafe(REMOTE, 1);
 
         local_range = StorageService.instance.getLocalPrimaryRange();
-        
+
         // random session id for each test
         request = new TreeRequest(UUID.randomUUID().toString(), LOCAL, local_range, new CFPair(tablename, cfname));
     }
