@@ -57,11 +57,15 @@
  * use 64KB flush buffer instead of in_memory_compaction_limit (CASSANDRA-2463)
  * fix duplicate results from CFS.scan (CASSANDRA-2406)
  * avoid caching token-only decoratedkeys (CASSANDRA-2416)
+<<<<<<< .working
  * count a row deletion as one operation towards memtable threshold 
    (CASSANDRA-2519)
  * fixes for verifying destination availability under hinted conditions
    so UE can be thrown intead of timing out (CASSANDRA-2514)
  * support LOCAL_QUORUM, EACH_QUORUM CLs outside of NTS (CASSANDRA-2516)
+=======
+ * preserve version when streaming data from old sstables (CASSANDRA-2283)
+>>>>>>> .merge-right.r1094789
 
 
 0.7.4

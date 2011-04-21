@@ -590,22 +590,28 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * When the sstable object is closed, it will be renamed to a non-temporary
      * format, so incomplete sstables can be recognized and removed on startup.
      */
-    public String getFlushPath(long estimatedSize)
+    public String getFlushPath(long estimatedSize, String version)
     {
         String location = DatabaseDescriptor.getDataFileLocationForTable(table.name, estimatedSize);
         if (location == null)
             throw new RuntimeException("Insufficient disk space to flush " + estimatedSize + " bytes");
-        return getTempSSTablePath(location);
+        return getTempSSTablePath(location, version);
     }
 
-    public String getTempSSTablePath(String directory)
+    public String getTempSSTablePath(String directory, String version)
     {
-        Descriptor desc = new Descriptor(new File(directory),
+        Descriptor desc = new Descriptor(version,
+                                         new File(directory),
                                          table.name,
                                          columnFamily,
                                          fileIndexGenerator.incrementAndGet(),
                                          true);
         return desc.filenameFor(Component.DATA);
+    }
+
+    public String getTempSSTablePath(String directory)
+    {
+        return getTempSSTablePath(directory, Descriptor.CURRENT_VERSION);
     }
 
     /** flush the given memtable and swap in a new one for its CFS, if it hasn't been frozen already.  threadsafe. */
@@ -2097,7 +2103,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public SSTableWriter createFlushWriter(long estimatedRows, long estimatedSize) throws IOException
     {
-        return new SSTableWriter(getFlushPath(estimatedSize), estimatedRows, metadata, partitioner);
+        return new SSTableWriter(getFlushPath(estimatedSize, Descriptor.CURRENT_VERSION), estimatedRows, metadata, partitioner);
     }
 
     public SSTableWriter createCompactionWriter(long estimatedRows, String location) throws IOException
