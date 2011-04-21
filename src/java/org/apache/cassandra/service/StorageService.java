@@ -29,9 +29,7 @@ import java.util.concurrent.*;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
-import com.google.common.base.Charsets;
 import com.google.common.collect.HashMultimap;
-import com.google.common.collect.Iterables;
 import com.google.common.collect.Multimap;
 
 import org.apache.cassandra.db.commitlog.CommitLog;
@@ -2079,7 +2077,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                     rcd.index_name = cd.getIndexName();
                     rcd.index_type = cd.getIndexType();
                     rcd.name = ByteBufferUtil.string(cd.name);
-                    rcd.validator_class = cd.validator.getClass().getName();
+                    rcd.validator_class = cd.getValidator().getClass().getName();
                     rcf.column_metadata[j++] = rcd;
                 }
                 if (j == 0)

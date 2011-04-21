@@ -582,7 +582,7 @@ public final class CFMetaData
         AbstractType validator = defaultValidator;
         ColumnDefinition columnDefinition = column_metadata.get(column);
         if (columnDefinition != null)
-            validator = columnDefinition.validator;
+            validator = columnDefinition.getValidator();
         return validator;
     }
     
@@ -684,10 +684,12 @@ public final class CFMetaData
         // update the ones staying
         for (org.apache.cassandra.avro.ColumnDef def : cf_def.column_metadata)
         {
-            if (!column_metadata.containsKey(def.name))
+            ColumnDefinition oldDef = column_metadata.get(def.name);
+            if (oldDef == null)
                 continue;
-            column_metadata.get(def.name).setIndexType(def.index_type == null ? null : org.apache.cassandra.thrift.IndexType.valueOf(def.index_type.name()));
-            column_metadata.get(def.name).setIndexName(def.index_name == null ? null : def.index_name.toString());
+            oldDef.setValidator(DatabaseDescriptor.getComparator(def.validation_class));
+            oldDef.setIndexType(def.index_type == null ? null : org.apache.cassandra.thrift.IndexType.valueOf(def.index_type.name()));
+            oldDef.setIndexName(def.index_name == null ? null : def.index_name.toString());
         }
         // add the new ones coming in.
         for (org.apache.cassandra.avro.ColumnDef def : toAdd)
@@ -732,7 +734,7 @@ public final class CFMetaData
             tcd.setIndex_name(cd.getIndexName());
             tcd.setIndex_type(cd.getIndexType());
             tcd.setName(cd.name);
-            tcd.setValidation_class(cd.validator.getClass().getName());
+            tcd.setValidation_class(cd.getValidator().getClass().getName());
             column_meta.add(tcd);
         }
         def.setColumn_metadata(column_meta);
@@ -773,7 +775,7 @@ public final class CFMetaData
             tcd.index_name = cd.getIndexName();
             tcd.index_type = cd.getIndexType() == null ? null : org.apache.cassandra.avro.IndexType.valueOf(cd.getIndexType().name());
             tcd.name = ByteBufferUtil.clone(cd.name);
-            tcd.validation_class = cd.validator.getClass().getName();
+            tcd.validation_class = cd.getValidator().getClass().getName();
             column_meta.add(tcd);
         }
         def.column_metadata = column_meta;   

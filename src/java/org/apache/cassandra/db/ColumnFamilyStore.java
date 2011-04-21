@@ -327,7 +327,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         final CFMetaData indexedCfMetadata = CFMetaData.newIndexMetadata(metadata, info, columnComparator);
         ColumnFamilyStore indexedCfs = ColumnFamilyStore.createColumnFamilyStore(table,
                                                                                  indexedCfMetadata.cfName,
-                                                                                 new LocalPartitioner(metadata.getColumn_metadata().get(info.name).validator),
+                                                                                 new LocalPartitioner(metadata.getColumn_metadata().get(info.name).getValidator()),
                                                                                  indexedCfMetadata);
 
         // link in indexedColumns.  this means that writes will add new data to the index immediately,
