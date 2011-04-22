@@ -28,41 +28,70 @@
 
 
 0.7.5
- * Avoid seeking when sstable2json exports the entire file (CASSANDRA-2318)
- * fix tombstone handling in repair and sstable2json (CASSANDRA-2279)
- * clear Built flag in system table when dropping an index (CASSANDRA-2320)
+ * improvements/fixes to PIG driver (CASSANDRA-1618, CASSANDRA-2387,
+   CASSANDRA-2465, CASSANDRA-2484)
  * validate index names (CASSANDRA-1761)
- * add memtable_flush_queue_size defaulting to 4 (CASSANDRA-2333)
- * allow job configuration to set the CL used in Hadoop jobs (CASSANDRA-2331)
- * queue secondary indexes for flush before the parent (CASSANDRA-2330)
- * shut down server for OOM on a Thrift thread (CASSANDRA-2269)
  * reduce contention on Table.flusherLock (CASSANDRA-1954)
+ * try harder to detect failures during streaming, cleaning up temporary
+   files more reliably (CASSANDRA-2088)
+ * shut down server for OOM on a Thrift thread (CASSANDRA-2269)
+ * fix tombstone handling in repair and sstable2json (CASSANDRA-2279)
+ * preserve version when streaming data from old sstables (CASSANDRA-2283)
+ * don't start repair if a neighboring node is marked as dead (CASSANDRA-2290)
+ * purge tombstones from row cache (CASSANDRA-2305)
+ * Avoid seeking when sstable2json exports the entire file (CASSANDRA-2318)
+ * clear Built flag in system table when dropping an index (CASSANDRA-2320)
+ * don't allow arbitrary argument for stress.java (CASSANDRA-2323)
+ * validate values for index predicates in get_indexed_slice (CASSANDRA-2328)
+ * queue secondary indexes for flush before the parent (CASSANDRA-2330)
+ * allow job configuration to set the CL used in Hadoop jobs (CASSANDRA-2331)
+ * add memtable_flush_queue_size defaulting to 4 (CASSANDRA-2333)
+ * Allow overriding of initial_token, storage_port and rpc_port from system
+   properties (CASSANDRA-2343)
  * fix comparator used for non-indexed secondary expressions in index scan
    (CASSANDRA-2347)
  * ensure size calculation and write phase of large-row compaction use
    the same threshold for TTL expiration (CASSANDRA-2349)
  * fix race when iterating CFs during add/drop (CASSANDRA-2350)
  * add ConsistencyLevel command to CLI (CASSANDRA-2354)
+ * allow negative numbers in the cli (CASSANDRA-2358)
+ * hard code serialVersionUID for tokens class (CASSANDRA-2361)
  * fix potential infinite loop in ByteBufferUtil.inputStream (CASSANDRA-2365)
  * fix encoding bugs in HintedHandoffManager, SystemTable when default
    charset is not UTF8 (CASSANDRA-2367)
- * fsync statistics component on write (CASSANDRA-2382)
- * fix incorrect truncation of long to int when reading columns via block 
+ * avoids having removed node reappearing in Gossip (CASSANDRA-2371)
+ * fix incorrect truncation of long to int when reading columns via block
    index (CASSANDRA-2376)
- * fix race condition that could leave orphaned data files when
-   dropping CF or KS (CASSANDRA-2381)
+ * fix NPE during stream session (CASSANDRA-2377)
+ * fix race condition that could leave orphaned data files when dropping CF or
+   KS (CASSANDRA-2381)
+ * fsync statistics component on write (CASSANDRA-2382)
+ * fix duplicate results from CFS.scan (CASSANDRA-2406)
+ * add IntegerType to CLI help (CASSANDRA-2414)
+ * avoid caching token-only decoratedkeys (CASSANDRA-2416)
  * convert mmap assertion to if/throw so scrub can catch it (CASSANDRA-2417)
+ * don't overwrite gc log (CASSANDR-2418)
+ * invalidate row cache for streamed row to avoid inconsitencies
+   (CASSANDRA-2420)
+ * avoid copies in range/index scans (CASSANDRA-2425)
+ * make sure we don't wipe data during cleanup if the node has not join
+   the ring (CASSANDRA-2428)
  * Try harder to close files after compaction (CASSANDRA-2431)
  * re-set bootstrapped flag after move finishes (CASSANDRA-2435)
+ * display validation_class in CLI 'describe keyspace' (CASSANDRA-2442)
+ * make cleanup compactions cleanup the row cache (CASSANDRA-2451)
+ * add column fields validation to scrub (CASSANDRA-2460)
  * use 64KB flush buffer instead of in_memory_compaction_limit (CASSANDRA-2463)
- * fix duplicate results from CFS.scan (CASSANDRA-2406)
- * avoid caching token-only decoratedkeys (CASSANDRA-2416)
+ * fix backslash substitutions in CLI (CASSANDRA-2492)
+ * disable cache saving for system CFS (CASSANDRA-2502)
+ * fixes for verifying destination availability under hinted conditions
+   so UE can be thrown intead of timing out (CASSANDRA-2514)
+ * fix update of validation class in column metadata (CASSANDRA-2512)
+ * support LOCAL_QUORUM, EACH_QUORUM CLs outside of NTS (CASSANDRA-2516)
  * preserve version when streaming data from old sstables (CASSANDRA-2283)
  * fix backslash substitutions in CLI (CASSANDRA-2492)
  * count a row deletion as one operation towards memtable threshold 
    (CASSANDRA-2519)
- * fixes for verifying destination availability under hinted conditions
-   so UE can be thrown intead of timing out (CASSANDRA-2514)
  * support LOCAL_QUORUM, EACH_QUORUM CLs outside of NTS (CASSANDRA-2516)
 
 
