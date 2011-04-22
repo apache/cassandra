@@ -73,7 +73,7 @@ h2. UPDATE
 _Synopsis:_
 
 bc. 
-UPDATE <COLUMN FAMILY> [USING CONSISTENCY <CL>]
+UPDATE <COLUMN FAMILY> [USING <CONSISTENCY>]
         SET name1 = value1, name2 = value2 WHERE KEY = keyname;
         
 An @UPDATE@ is used to write one or more columns to a record in a Cassandra column family. No results are returned.

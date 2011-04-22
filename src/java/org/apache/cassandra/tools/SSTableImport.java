@@ -278,7 +278,7 @@ public class SSTableImport
 
         for (Map.Entry<DecoratedKey, String> rowKey : decoratedKeys.entrySet())
         {
-            if (columnFamily.getColumnFamilyType() == ColumnFamilyType.Super)
+            if (columnFamily.getType() == ColumnFamilyType.Super)
             {
                 addToSuperCF((Map<?, ?>) data.get(rowKey.getValue()), columnFamily);
             }
@@ -350,7 +350,7 @@ public class SSTableImport
 
                 if (tokenName.equals("START_ARRAY"))
                 {
-                    if (columnFamily.getColumnFamilyType() == ColumnFamilyType.Super)
+                    if (columnFamily.getType() == ColumnFamilyType.Super)
                     {
                         throw new RuntimeException("Can't write Standard columns to the Super Column Family.");
                     }
@@ -360,7 +360,7 @@ public class SSTableImport
                 }
                 else if (tokenName.equals("START_OBJECT"))
                 {
-                    if (columnFamily.getColumnFamilyType() == ColumnFamilyType.Standard)
+                    if (columnFamily.getType() == ColumnFamilyType.Standard)
                     {
                         throw new RuntimeException("Can't write Super columns to the Standard Column Family.");
                     }

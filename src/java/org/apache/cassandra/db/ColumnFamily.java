@@ -36,7 +36,6 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.filter.QueryPath;
-import org.apache.cassandra.db.marshal.AbstractCommutativeType;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.io.IColumnSerializer;
@@ -49,6 +48,7 @@ public class ColumnFamily implements IColumnContainer, IIterableColumns
 
     /* The column serializer for this Column Family. Create based on config. */
     private static ColumnFamilySerializer serializer = new ColumnFamilySerializer();
+    private final CFMetaData cfm;
 
     public static ColumnFamilySerializer serializer()
     {
@@ -67,29 +67,25 @@ public class ColumnFamily implements IColumnContainer, IIterableColumns
 
     public static ColumnFamily create(CFMetaData cfm)
     {
-        assert cfm != null;
-        return new ColumnFamily(cfm.cfType, cfm.comparator, cfm.subcolumnComparator, cfm.cfId);
+        return new ColumnFamily(cfm);
     }
-
-    private final Integer cfid;
-    private final ColumnFamilyType type;
 
     private transient IColumnSerializer columnSerializer;
     final AtomicLong markedForDeleteAt = new AtomicLong(Long.MIN_VALUE);
     final AtomicInteger localDeletionTime = new AtomicInteger(Integer.MIN_VALUE);
     private ConcurrentSkipListMap<ByteBuffer, IColumn> columns;
     
-    public ColumnFamily(ColumnFamilyType type, AbstractType comparator, AbstractType subcolumnComparator, Integer cfid)
+    public ColumnFamily(CFMetaData cfm)
     {
-        this.type = type;
-        columnSerializer = type == ColumnFamilyType.Standard ? Column.serializer() : SuperColumn.serializer(subcolumnComparator);
-        columns = new ConcurrentSkipListMap<ByteBuffer, IColumn>(comparator);
-        this.cfid = cfid;
+        assert cfm != null;
+        this.cfm = cfm;
+        columnSerializer = cfm.cfType == ColumnFamilyType.Standard ? Column.serializer() : SuperColumn.serializer(cfm.subcolumnComparator);
+        columns = new ConcurrentSkipListMap<ByteBuffer, IColumn>(cfm.comparator);
      }
     
     public ColumnFamily cloneMeShallow()
     {
-        ColumnFamily cf = new ColumnFamily(type, getComparator(), getSubComparator(), cfid);
+        ColumnFamily cf = new ColumnFamily(cfm);
         cf.markedForDeleteAt.set(markedForDeleteAt.get());
         cf.localDeletionTime.set(localDeletionTime.get());
         return cf;
@@ -100,9 +96,9 @@ public class ColumnFamily implements IColumnContainer, IIterableColumns
         return (columnSerializer instanceof SuperColumnSerializer) ? ((SuperColumnSerializer)columnSerializer).getComparator() : null;
     }
 
-    public ColumnFamilyType getColumnFamilyType()
+    public ColumnFamilyType getType()
     {
-        return type;
+        return cfm.cfType;
     }
 
     public ColumnFamily cloneMe()
@@ -114,15 +110,15 @@ public class ColumnFamily implements IColumnContainer, IIterableColumns
 
     public Integer id()
     {
-        return cfid;
+        return cfm.cfId;
     }
 
     /**
-     * @return The CFMetaData for this row, or null if the column family was dropped.
+     * @return The CFMetaData for this row
      */
     public CFMetaData metadata()
     {
-        return DatabaseDescriptor.getCFMetaData(cfid);
+        return cfm;
     }
 
     /*
@@ -148,7 +144,7 @@ public class ColumnFamily implements IColumnContainer, IIterableColumns
 
     public boolean isSuper()
     {
-        return type == ColumnFamilyType.Super;
+        return getType() == ColumnFamilyType.Super;
     }
 
     public void addColumn(QueryPath path, ByteBuffer value, long timestamp)
@@ -294,7 +290,8 @@ public class ColumnFamily implements IColumnContainer, IIterableColumns
      */
     public ColumnFamily diff(ColumnFamily cfComposite)
     {
-        ColumnFamily cfDiff = new ColumnFamily(cfComposite.type, getComparator(), getSubComparator(), cfComposite.id());
+        assert cfComposite.id().equals(id());
+        ColumnFamily cfDiff = new ColumnFamily(cfm);
         if (cfComposite.getMarkedForDeleteAt() > getMarkedForDeleteAt())
         {
             cfDiff.delete(cfComposite.getLocalDeletionTime(), cfComposite.getMarkedForDeleteAt());
