@@ -1,6 +1,6 @@
 0.8.0-?
  * fix NPE compacting index CFs (CASSANDRA-2528)
-
+ * Remove checking all column families on startup for compaction candidates (CASSANDRA-2444)
 
 0.8.0-beta1
  * remove Avro RPC support (CASSANDRA-926)
