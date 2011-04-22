@@ -169,10 +169,9 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
             logger.warn("Unable to start GCInspector (currently only supported on the Sun JVM)");
         }
 
-        // replay the log if necessary and check for compaction candidates
+        // replay the log if necessary
         CommitLog.recover();
-        CompactionManager.instance.checkAllColumnFamilies();
-        
+
         // check to see if CL.recovery modified the lastMigrationId. if it did, we need to re apply migrations. this isn't
         // the same as merely reloading the schema (which wouldn't perform file deletion after a DROP). The solution
         // is to read those migrations from disk and apply them.
