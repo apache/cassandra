@@ -634,9 +634,9 @@ public class Table
         }
     }
 
-    public String getDataFileLocation(long expectedCompactedFileSize)
+    public String getDataFileLocation(long expectedSize)
     {
-        String path = DatabaseDescriptor.getDataFileLocationForTable(name, expectedCompactedFileSize);
+        String path = DatabaseDescriptor.getDataFileLocationForTable(name, expectedSize);
         if (path == null)
         {
             // retry after GCing to force unmap of compacted SSTables so they can be deleted
@@ -649,7 +649,7 @@ public class Table
             {
                 throw new AssertionError(e);
             }
-            path = DatabaseDescriptor.getDataFileLocationForTable(name, expectedCompactedFileSize);
+            path = DatabaseDescriptor.getDataFileLocationForTable(name, expectedSize);
         }
         return path;
     }
