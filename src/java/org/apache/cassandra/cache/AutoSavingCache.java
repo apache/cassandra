@@ -99,10 +99,10 @@ public abstract class AutoSavingCache<K, V> extends InstrumentingCache<K, V>
                     submitWrite();
                 }
             };
-            saveTask = StorageService.scheduledTasks.scheduleWithFixedDelay(runnable,
-                                                                            savePeriodInSeconds,
-                                                                            savePeriodInSeconds,
-                                                                            TimeUnit.SECONDS);
+            saveTask = StorageService.tasks.scheduleWithFixedDelay(runnable,
+                                                                   savePeriodInSeconds,
+                                                                   savePeriodInSeconds,
+                                                                   TimeUnit.SECONDS);
         }
     }
 

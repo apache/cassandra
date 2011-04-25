@@ -332,6 +332,10 @@ public class NodeCmd
             outs.println("column family: " + c.getColumnFamily());
             outs.println("bytes compacted: " + c.getBytesComplete());
             outs.println("bytes total: " + c.getTotalBytes());
+            String percentComplete = c.getTotalBytes() == 0
+                                   ? "n/a"
+                                   : new DecimalFormat("#.##").format((double) c.getBytesComplete() / c.getTotalBytes() * 100) + "%";
+            outs.println("compaction progress: " + percentComplete);
             outs.println("-----------------");
         }
         outs.println("pending tasks: " + cm.getPendingTasks());
