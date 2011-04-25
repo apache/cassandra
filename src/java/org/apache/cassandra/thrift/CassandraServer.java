@@ -115,7 +115,6 @@ public class CassandraServer implements Cassandra.Iface
         }
         catch (TimeoutException e) 
         {
-            logger.debug("... timed out");
         	throw new TimedOutException();
         }
         catch (IOException e)
@@ -552,7 +551,6 @@ public class CassandraServer implements Cassandra.Iface
             }
             catch (TimeoutException e)
             {
-                logger.debug("... timed out");
                 throw new TimedOutException();
             }
         }
@@ -620,7 +618,6 @@ public class CassandraServer implements Cassandra.Iface
         }
         catch (TimeoutException e)
         {
-            logger.debug("... timed out");
         	throw new TimedOutException();
         }
         catch (IOException e)
@@ -666,7 +663,6 @@ public class CassandraServer implements Cassandra.Iface
         }
         catch (TimeoutException e)
         {
-            logger.debug("... timed out");
             throw new TimedOutException();
         }
         return thriftifyKeySlices(rows, column_parent, column_predicate);
@@ -1064,10 +1060,7 @@ public class CassandraServer implements Cassandra.Iface
     public void remove_counter(ByteBuffer key, ColumnPath path, ConsistencyLevel consistency_level)
             throws InvalidRequestException, UnavailableException, TimedOutException, TException
     {
-        if (logger.isDebugEnabled())
-            logger.debug("remove_counter");
-
-        String keyspace = state().getKeyspace();
+        logger.debug("remove_counter");
 
         internal_remove(key, path, System.currentTimeMillis(), consistency_level, true);
     }
