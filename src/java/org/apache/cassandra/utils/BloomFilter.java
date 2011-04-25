@@ -46,23 +46,9 @@ public class BloomFilter extends Filter
         return serializer_;
     }
 
-    long emptyBuckets()
-    {
-        long n = 0;
-        for (long i = 0; i < buckets(); i++)
-        {
-            if (!bitset.get(i))
-            {
-                n++;
-            }
-        }
-        return n;
-    }
-    
     private static OpenBitSet bucketsFor(long numElements, int bucketsPer)
     {
-        long numBits = numElements * bucketsPer + EXCESS; //TODO overflow?
-        return new OpenBitSet((long)Math.min(Long.MAX_VALUE, numBits));
+        return new OpenBitSet(numElements * bucketsPer + EXCESS);
     }
 
     /**
@@ -76,7 +62,7 @@ public class BloomFilter extends Filter
         if (bucketsPerElement < targetBucketsPerElem)
         {
             logger.warn(String.format("Cannot provide an optimal BloomFilter for %d elements (%d/%d buckets per element).",
-                                    numElements, bucketsPerElement, targetBucketsPerElem));
+                                      numElements, bucketsPerElement, targetBucketsPerElem));
         }
         BloomCalculations.BloomSpecification spec = BloomCalculations.computeBloomSpec(bucketsPerElement);
         return new BloomFilter(spec.K, bucketsFor(numElements, spec.bucketsPerElement));
