@@ -33,7 +33,6 @@ import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.concurrent.RetryingScheduledThreadPoolExecutor;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.net.Message;
@@ -53,8 +52,6 @@ import org.apache.cassandra.service.StorageService;
 
 public class Gossiper implements IFailureDetectionEventListener
 {
-    private static final RetryingScheduledThreadPoolExecutor executor = new RetryingScheduledThreadPoolExecutor("GossipTasks");
-
     static final ApplicationState[] STATES = ApplicationState.values();
     private ScheduledFuture<?> scheduledGossipTask;
     public final static int intervalInMillis = 1000;
@@ -850,10 +847,10 @@ public class Gossiper implements IFailureDetectionEventListener
         if (logger.isTraceEnabled())
             logger.trace("gossip started with generation " + localState.getHeartBeatState().getGeneration());
 
-        scheduledGossipTask = executor.scheduleWithFixedDelay(new GossipTask(),
-                                                              Gossiper.intervalInMillis,
-                                                              Gossiper.intervalInMillis,
-                                                              TimeUnit.MILLISECONDS);
+        scheduledGossipTask = StorageService.scheduledTasks.scheduleWithFixedDelay(new GossipTask(),
+                                                                                   Gossiper.intervalInMillis,
+                                                                                   Gossiper.intervalInMillis,
+                                                                                   TimeUnit.MILLISECONDS);
     }
 
     /**
