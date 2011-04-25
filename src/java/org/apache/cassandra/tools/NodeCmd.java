@@ -592,8 +592,8 @@ public class NodeCmd
                 break;
 
             case SETCOMPACTIONTHROUGHPUT :
-                if (arguments.length != 2) { badUse("Missing value argument."); }
-                probe.setCompactionThroughput(Integer.valueOf(arguments[1]));
+                if (arguments.length != 1) { badUse("Missing value argument."); }
+                probe.setCompactionThroughput(Integer.valueOf(arguments[0]));
                 break;
 
             case REMOVETOKEN :
