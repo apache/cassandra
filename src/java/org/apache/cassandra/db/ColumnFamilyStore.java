@@ -657,22 +657,16 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return columnFamily;
     }
 
-    public String getFlushPath()
-    {
-        return getFlushPath(Descriptor.CURRENT_VERSION);
-    }
-
     /*
      * @return a temporary file name for an sstable.
      * When the sstable object is closed, it will be renamed to a non-temporary
      * format, so incomplete sstables can be recognized and removed on startup.
      */
-    public String getFlushPath(String version)
+    public String getFlushPath(long estimatedSize, String version)
     {
-        long guessedSize = 2L * memsize.value() * 1024*1024; // 2* adds room for keys, column indexes
-        String location = DatabaseDescriptor.getDataFileLocationForTable(table.name, guessedSize);
+        String location = table.getDataFileLocation(estimatedSize);
         if (location == null)
-            throw new RuntimeException("Insufficient disk space to flush");
+            throw new RuntimeException("Insufficient disk space to flush " + estimatedSize + " bytes");
         return getTempSSTablePath(location, version);
     }
 
@@ -2221,9 +2215,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
     }
 
-    public SSTableWriter createFlushWriter(long estimatedRows) throws IOException
+    public SSTableWriter createFlushWriter(long estimatedRows, long estimatedSize) throws IOException
     {
-        return new SSTableWriter(getFlushPath(), estimatedRows, metadata, partitioner);
+        return new SSTableWriter(getFlushPath(estimatedSize, Descriptor.CURRENT_VERSION), estimatedRows, metadata, partitioner);
     }
 
     public SSTableWriter createCompactionWriter(long estimatedRows, String location) throws IOException

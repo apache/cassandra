@@ -29,7 +29,6 @@ import java.util.concurrent.ConcurrentNavigableMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.collect.Iterators;
@@ -93,7 +92,7 @@ public class Memtable implements Comparable<Memtable>, IFlushable
     {
         return currentThroughput.get();
     }
-    
+
     public long getCurrentOperations()
     {
         return currentOperations.get();
@@ -156,7 +155,15 @@ public class Memtable implements Comparable<Memtable>, IFlushable
     private SSTableReader writeSortedContents() throws IOException
     {
         logger.info("Writing " + this);
-        SSTableWriter writer = cfs.createFlushWriter(columnFamilies.size());
+
+        long keySize = 0;
+        for (DecoratedKey key : columnFamilies.keySet())
+            keySize += key.key.remaining();
+        long estimatedSize = (long) ((keySize // index entries
+                                      + keySize // keys in data file
+                                      + currentThroughput.get()) // data
+                                     * 1.2); // bloom filter and row index overhead
+        SSTableWriter writer = cfs.createFlushWriter(columnFamilies.size(), estimatedSize);
 
         for (Map.Entry<DecoratedKey, ColumnFamily> entry : columnFamilies.entrySet())
             writer.append(entry.getKey(), entry.getValue());

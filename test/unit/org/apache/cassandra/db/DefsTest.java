@@ -300,7 +300,6 @@ public class DefsTest extends CleanupHelper
         ColumnFamilyStore store = Table.open(cfm.tableName).getColumnFamilyStore(cfm.cfName);
         assert store != null;
         store.forceBlockingFlush();
-        store.getFlushPath();
         assert DefsTable.getFiles(cfm.tableName, cfm.cfName).size() > 0;
         
         new DropColumnFamily(ks.name, cfm.cfName).apply();

@@ -1,3 +1,7 @@
+0.7.6
+ * force GC to reclaim disk space on flush, if necessary (CASSANDRA-2404)
+
+
 0.7.5
  * improvements/fixes to PIG driver (CASSANDRA-1618, CASSANDRA-2387,
    CASSANDRA-2465, CASSANDRA-2484)
