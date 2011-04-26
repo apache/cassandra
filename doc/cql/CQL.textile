@@ -139,15 +139,15 @@ The column family name follows the list of column names.
 h3. Consistency Level
 
 bc. 
-UPDATE ... [USING <CONSISTENCY>] ...
+DELETE ... [USING <CONSISTENCY>] ...
 
 Following the column family identifier is an optional "consistency level specification":#consistency.
 
 h3(#deleterows). Specifying Rows
 
 bc. 
-UPDATE ... WHERE KEY = keyname1
-UPDATE ... WHERE KEY IN (keyname1, keyname2)
+DELETE ... WHERE KEY = keyname1
+DELETE ... WHERE KEY IN (keyname1, keyname2)
 
 The @WHERE@ clause is used to determine which row(s) a @DELETE@ applies to.  The first form allows the specification of a single keyname using the @KEY@ keyword and the @=@ operator.  The second form allows a list of keyname terms to be specified using the @IN@ notation and a parenthesized list of comma-delimited keyname terms.
      
