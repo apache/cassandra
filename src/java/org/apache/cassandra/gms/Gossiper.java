@@ -695,6 +695,8 @@ public class Gossiper implements IFailureDetectionEventListener
 	                }
                     else if (logger.isTraceEnabled())
                             logger.trace("Ignoring remote version " + remoteMaxVersion + " <= " + localMaxVersion + " for " + ep);
+                    if (!localEpStatePtr.isAlive()) // unless of course, it was dead
+                        markAlive(ep, localEpStatePtr);
             	}
                 else
                 {
