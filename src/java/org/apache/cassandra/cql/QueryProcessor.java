@@ -367,7 +367,7 @@ public class QueryProcessor
         }
     }
     
-    private static void validateKey(ByteBuffer key) throws InvalidRequestException
+    public static void validateKey(ByteBuffer key) throws InvalidRequestException
     {
         if (key == null || key.remaining() == 0)
         {
@@ -396,13 +396,13 @@ public class QueryProcessor
         }
     }
 
-    private static void validateColumnName(ByteBuffer column)
+    public static void validateColumnName(ByteBuffer column)
     throws InvalidRequestException
     {
         validateColumnNames(Arrays.asList(column));
     }
     
-    private static void validateColumn(CFMetaData metadata, ByteBuffer name, ByteBuffer value)
+    public static void validateColumn(CFMetaData metadata, ByteBuffer name, ByteBuffer value)
     throws InvalidRequestException
     {
         validateColumnName(name);
@@ -543,15 +543,27 @@ public class QueryProcessor
                 result.type = CqlResultType.VOID;
                 return result;
                 
-            case BATCH_UPDATE:
-                BatchUpdateStatement batch = (BatchUpdateStatement)statement.statement;
-                
-                for (UpdateStatement up : batch.getUpdates())
+            case BATCH:
+                BatchStatement batch = (BatchStatement) statement.statement;
+
+                for (AbstractModification up : batch.getStatements())
                     if (up.isSetConsistencyLevel())
                         throw new InvalidRequestException(
-                                "Consistency level must be set on the BATCH, not individual UPDATE statements");
-                
-                batchUpdate(clientState, batch.getUpdates(), batch.getConsistencyLevel());
+                                "Consistency level must be set on the BATCH, not individual statements");
+
+                try
+                {
+                    StorageProxy.mutate(batch.getMutations(keyspace, clientState), batch.getConsistencyLevel());
+                }
+                catch (org.apache.cassandra.thrift.UnavailableException e)
+                {
+                    throw new UnavailableException();
+                }
+                catch (TimeoutException e)
+                {
+                    throw new TimedOutException();
+                }
+
                 result.type = CqlResultType.VOID;
                 return result;
                 
@@ -583,34 +595,10 @@ public class QueryProcessor
             
             case DELETE:
                 DeleteStatement delete = (DeleteStatement)statement.statement;
-                clientState.hasColumnFamilyAccess(delete.getColumnFamily(), Permission.WRITE);
-                metadata = validateColumnFamily(keyspace, delete.getColumnFamily(), false);
-                comparator = metadata.getComparatorFor(null);
-                AbstractType<?> keyType = DatabaseDescriptor.getCFMetaData(keyspace,
-                                                                           delete.getColumnFamily()).getKeyValidator();
-                
-                List<RowMutation> rowMutations = new ArrayList<RowMutation>();
-                for (Term key : delete.getKeys())
-                {
-                    RowMutation rm = new RowMutation(keyspace, key.getByteBuffer(keyType));
-                    if (delete.getColumns().size() < 1)     // No columns, delete the row
-                        rm.delete(new QueryPath(delete.getColumnFamily()), System.currentTimeMillis());
-                    else    // Delete specific columns
-                    {
-                        for (Term column : delete.getColumns())
-                        {
-                            ByteBuffer columnName = column.getByteBuffer(comparator);
-                            validateColumnName(columnName);
-                            rm.delete(new QueryPath(delete.getColumnFamily(), null, columnName),
-                                      System.currentTimeMillis());
-                        }
-                    }
-                    rowMutations.add(rm);
-                }
-                
+
                 try
                 {
-                    StorageProxy.mutate(rowMutations, delete.getConsistencyLevel());
+                    StorageProxy.mutate(delete.prepareRowMutations(keyspace, clientState), delete.getConsistencyLevel());
                 }
                 catch (TimeoutException e)
                 {

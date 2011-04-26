@@ -21,24 +21,29 @@
 package org.apache.cassandra.cql;
 
 import java.nio.ByteBuffer;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
+import org.apache.cassandra.auth.Permission;
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.RowMutation;
+import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.thrift.InvalidRequestException;
+
+import static org.apache.cassandra.cql.QueryProcessor.validateKey;
+import static org.apache.cassandra.cql.QueryProcessor.validateColumn;
+
+import static org.apache.cassandra.thrift.ThriftValidation.validateColumnFamily;
 
 /**
  * An <code>UPDATE</code> statement parsed from a CQL query statement.
  *
  */
-public class UpdateStatement
+public class UpdateStatement extends AbstractModification
 {
-    public static final ConsistencyLevel defaultConsistency = ConsistencyLevel.ONE;
-    private String columnFamily;
-    private ConsistencyLevel cLevel = null;
     private Map<Term, Term> columns;
     private List<Term> columnNames, columnValues;
     private Term key;
@@ -54,8 +59,8 @@ public class UpdateStatement
      */
     public UpdateStatement(String columnFamily, ConsistencyLevel cLevel, Map<Term, Term> columns, Term key)
     {
-        this.columnFamily = columnFamily;
-        this.cLevel = cLevel;
+        super(columnFamily, cLevel);
+
         this.columns = columns;
         this.key = key;
     }
@@ -86,8 +91,8 @@ public class UpdateStatement
      */
     public UpdateStatement(String columnFamily, ConsistencyLevel cLevel, List<Term> columnNames, List<Term> columnValues, Term key)
     {
-        this.columnFamily = columnFamily;
-        this.cLevel = cLevel;
+        super(columnFamily, cLevel);
+
         this.columnNames = columnNames;
         this.columnValues = columnValues;
         this.key = key;
@@ -112,6 +117,37 @@ public class UpdateStatement
     public boolean isSetConsistencyLevel()
     {
         return (cLevel != null);
+    }
+
+    /** {@inheritDoc} */
+    public List<RowMutation> prepareRowMutations(String keyspace, ClientState clientState) throws InvalidRequestException
+    {
+        List<String> cfamsSeen = new ArrayList<String>();
+
+        CFMetaData metadata = validateColumnFamily(keyspace, columnFamily, false);
+
+        // Avoid unnecessary authorizations.
+        if (!(cfamsSeen.contains(columnFamily)))
+        {
+            clientState.hasColumnFamilyAccess(columnFamily, Permission.WRITE);
+            cfamsSeen.add(columnFamily);
+        }
+
+        ByteBuffer key = this.key.getByteBuffer(getKeyType(keyspace));
+        validateKey(key);
+        AbstractType<?> comparator = getComparator(keyspace);
+
+        RowMutation rm = new RowMutation(keyspace, key);
+        for (Map.Entry<Term, Term> column : getColumns().entrySet())
+        {
+            ByteBuffer colName = column.getKey().getByteBuffer(comparator);
+            ByteBuffer colValue = column.getValue().getByteBuffer(getValueValidator(keyspace, colName));
+
+            validateColumn(metadata, colName, colValue);
+            rm.add(new QueryPath(columnFamily, null, colName), colValue, System.currentTimeMillis());
+        }
+
+        return Arrays.asList(rm);
     }
 
     public String getColumnFamily()

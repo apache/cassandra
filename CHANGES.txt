@@ -3,6 +3,7 @@
  * Remove checking all column families on startup for compaction candidates (CASSANDRA-2444)
  * validate CQL create keyspace options (CASSANDRA-2525)
  * fix nodetool setcompactionthroughput (CASSANDRA-2550)
+ * add support for insert, delete in cql BATCH (CASSANDRA-2537)
 
 
 0.8.0-beta1

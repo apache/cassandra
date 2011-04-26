@@ -99,19 +99,6 @@ UPDATE ... SET name1 = value1, name2 = value2 WHERE KEY = keyname;
 
 Rows are created or updated by supplying column names and values in term assignment format. Multiple columns can be set by separating the name/value pairs using commas.  Each update statement requires exactly one key to be specified using a WHERE clause and the @KEY@ keyword.
 
-Additionally, it is also possible to send multiple UPDATES to a node at once using a batch syntax:
-
-bc. 
-BEGIN BATCH [USING <CONSISTENCY>]
-UPDATE CF1 SET name1 = value1, name2 = value2 WHERE KEY = keyname1;
-UPDATE CF1 SET name3 = value3 WHERE KEY = keyname2;
-UPDATE CF2 SET name4 = value4, name5 = value5 WHERE KEY = keyname3;
-APPLY BATCH
-
-When batching UPDATEs, a single consistency level is used for the entire batch, it appears after the @BEGIN BATCH@ statement, and uses the standard "consistency level specification":#consistency. Batch UPDATEs default to @CONSISTENCY.ONE@ when left unspecified.
-
-_NOTE: While there are no isolation guarantees,  @UPDATE@ queries are atomic within a give record._
-
 h2. DELETE
 
 _Synopsis:_
@@ -150,6 +137,30 @@ UPDATE ... WHERE KEY = keyname1
 UPDATE ... WHERE KEY IN (keyname1, keyname2)
 
 The @WHERE@ clause is used to determine which row(s) a @DELETE@ applies to.  The first form allows the specification of a single keyname using the @KEY@ keyword and the @=@ operator.  The second form allows a list of keyname terms to be specified using the @IN@ notation and a parenthesized list of comma-delimited keyname terms.
+
+h2. BATCH
+
+_Synopsis:_
+
+bc.
+BATCH BEGIN BATCH [USING CONSISTENCY <LEVEL>]
+    INSERT or UPDATE or DELETE statements separated by semicolon or "end of line"
+APPLY BATCH
+
+A single consistency level is used for the entire batch, it appears after the @BEGIN BATCH@ statement, and uses the standard "consistency level specification":#consistency. Batch default to @CONSISTENCY.ONE@ when left unspecified.
+
+_NOTE: While there are no isolation guarantees,  @UPDATE@ queries are atomic within a give record._
+
+_Example:_
+
+bc.
+BEGIN BATCH USING CONSISTENCY QUORUM
+  INSERT INTO users (KEY, password, name) VALUES ('user2', 'ch@ngem3b', 'second user')
+  UPDATE users SET password = 'ps22dhds' WHERE KEY = 'user2'
+  INSERT INTO users (KEY, password) VALUES ('user3', 'ch@ngem3c')
+  DELETE name FROM users WHERE key = 'user2'
+  INSERT INTO users (KEY, password, name) VALUES ('user4', 'ch@ngem3c', 'Andrew')
+APPLY BATCH
      
 h2. TRUNCATE
 

@@ -699,3 +699,60 @@ class TestCql(ThriftTester):
         r = cursor.fetchone()
         assert r[1] == "some_value", \
                "unrecognized value '%s'" % r[1]
+
+    def test_batch_with_mixed_statements(self):
+        "handle BATCH with INSERT/UPDATE/DELETE statements mixed in it"
+        cursor = init()
+        cursor.compression = 'NONE'
+        cursor.execute("""
+          BEGIN BATCH USING CONSISTENCY ONE
+            UPDATE StandardString1 SET :name = :val WHERE KEY = :key1
+            INSERT INTO StandardString1 (KEY, :col1) VALUES (:key2, :val)
+            INSERT INTO StandardString1 (KEY, :col2) VALUES (:key3, :val)
+            DELETE :col2 FROM StandardString1 WHERE key = :key3
+          APPLY BATCH
+        """,
+        dict(key1="bKey1", key2="bKey2", key3="bKey3", name="bName", col1="bCol1", col2="bCol2", val="bVal"))
+
+        cursor.execute("SELECT :name FROM StandardString1 WHERE KEY = :key",
+                       dict(name="bName", key="bKey1"))
+
+        assert cursor.rowcount == 1, "expected 1 result, got %d" % cursor.rowcount
+        colnames = [col_d[0] for col_d in cursor.description]
+        assert colnames[1] == "bName", \
+               "unrecognized name '%s'" % colnames[1]
+        r = cursor.fetchone()
+        assert r[1] == "bVal", \
+               "unrecognized value '%s'" % r[1]
+
+        cursor.execute("SELECT :name FROM StandardString1 WHERE KEY = :key",
+                       dict(name="bCol2", key="bKey3"))
+
+        assert cursor.rowcount == 1, "expected 1 result, got %d" % cursor.rowcount
+        colnames = [col_d[0] for col_d in cursor.description]
+        assert colnames[1] == "bCol2", \
+               "unrecognized name '%s'" % colnames[1]
+        # was deleted by DELETE statement
+        r = cursor.fetchone()
+        assert r[1] == None, \
+               "unrecognized value '%s'" % r[1]
+
+        cursor.execute("SELECT :name FROM StandardString1 WHERE KEY = :key",
+                       dict(name="bCol1", key="bKey2"))
+
+        assert cursor.rowcount == 1, "expected 1 result, got %d" % cursor.rowcount
+        colnames = [col_d[0] for col_d in cursor.description]
+        assert colnames[1] == "bCol1", \
+               "unrecognized name '%s'" % colnames[1]
+        r = cursor.fetchone()
+        assert r[1] == "bVal", \
+               "unrecognized value '%s'" % r[1]
+
+        assert_raises(cql.ProgrammingError,
+                      cursor.execute,
+                      """
+                      BEGIN BATCH USING CONSISTENCY ONE
+                          UPDATE USING CONSISTENCY QUORUM StandardString1 SET 'name' = 'value' WHERE KEY = 'bKey4'
+                          DELETE 'name' FROM StandardString1 WHERE KEY = 'bKey4'
+                      APPLY BATCH
+                      """)
