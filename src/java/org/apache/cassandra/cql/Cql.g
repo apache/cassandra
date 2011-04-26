@@ -121,14 +121,16 @@ useStatement returns [String keyspace]
     ;
 
 /**
- * SELECT FROM
+ * SELECT
+ *  (REVERSED)? <expression>
+ * FROM
  *     <CF>
  * USING
- *     CONSISTENCY.ONE
+ *     CONSISTENCY <LEVEL>
  * WHERE
  *     KEY = "key1" AND KEY = "key2" AND
  *     COL > 1 AND COL < 100
- * COLLIMIT 10 DESC;
+ * LIMIT <NUMBER>;
  */
 selectStatement returns [SelectStatement expr]
     : { 
@@ -174,8 +176,14 @@ selectExpression returns [SelectExpression expr]
 
 // relation [[AND relation] ...]
 whereClause returns [WhereClause clause]
+    @init {
+        WhereClause inClause = new WhereClause();
+    }
     : first=relation { $clause = new WhereClause(first); } 
           (K_AND next=relation { $clause.and(next); })*
+      | K_KEY K_IN '(' f1=term { inClause.andKeyEquals(f1); }
+                      (',' fN=term { inClause.andKeyEquals(fN); } )* ')'
+        { $clause = inClause; }
     ;
 
 /**
@@ -203,7 +211,7 @@ insertStatement returns [UpdateStatement expr]
           '(' key=term ( ',' column_value=term { columnValues.add($column_value.item); })+ ')'
         ( K_USING K_CONSISTENCY K_LEVEL { cLevel = ConsistencyLevel.valueOf($K_LEVEL.text); } )?
       {
-          return new UpdateStatement($columnFamily.text, cLevel, columnNames, columnValues, key);
+          return new UpdateStatement($columnFamily.text, cLevel, columnNames, columnValues, Collections.singletonList(key));
       }
     ;
 
@@ -265,13 +273,16 @@ updateStatement returns [UpdateStatement expr]
     : {
           ConsistencyLevel cLevel = null;
           Map<Term, Term> columns = new HashMap<Term, Term>();
+          List<Term> keyList = null;
       }
       K_UPDATE columnFamily=( IDENT | STRING_LITERAL | INTEGER )
           (K_USING K_CONSISTENCY K_LEVEL { cLevel = ConsistencyLevel.valueOf($K_LEVEL.text); })?
           K_SET termPair[columns] (',' termPair[columns])*
-          K_WHERE K_KEY '=' key=term
+          K_WHERE ( K_KEY '=' key=term { keyList = Collections.singletonList(key); }
+                    |
+                    K_KEY K_IN '(' keys=termList { keyList = $keys.items; } ')' )
       {
-          return new UpdateStatement($columnFamily.text, cLevel, columns, key);
+          return new UpdateStatement($columnFamily.text, cLevel, columns, keyList);
       }
     ;
 

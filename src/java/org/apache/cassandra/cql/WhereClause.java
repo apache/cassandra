@@ -69,7 +69,16 @@ public class WhereClause
         else
             columns.add(relation);
     }
-    
+
+    /**
+     * The same as KEY = <key> to avoid using Relation object
+     * @param key key to include into clause
+     */
+    public void andKeyEquals(Term key)
+    {
+        keys.add(key);
+    }
+
     public List<Relation> getColumnRelations()
     {
         return columns;

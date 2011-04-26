@@ -56,6 +56,7 @@ h3. Filtering rows
 bc. 
 SELECT ... WHERE KEY = keyname AND name1 = value1
 SELECT ... WHERE KEY >= startkey and KEY =< endkey AND name1 = value1
+SELECT ... WHERE KEY IN ('<key>', '<key>', '<key>', ...)
 
 The WHERE clause provides for filtering the rows that appear in results.  The clause can filter on a key name, or range of keys, and in the case of indexed columns, on column values.  Key filters are specified using the @KEY@ keyword, a relational operator, (one of @=@, @>@, @>=@, @<@, and @<=@), and a term value.  When terms appear on both sides of a relational operator it is assumed the filter applies to an indexed column. With column index filters, the term on the left of the operator is the name, the term on the right is the value to filter __on__.
 
@@ -96,6 +97,7 @@ h3. Specifying Columns and Row
 
 bc. 
 UPDATE ... SET name1 = value1, name2 = value2 WHERE KEY = keyname;
+UPDATE ... SET name1 = value1, name2 = value2 WHERE KEY IN ('<key>', '<key>', ...)
 
 Rows are created or updated by supplying column names and values in term assignment format. Multiple columns can be set by separating the name/value pairs using commas.  Each update statement requires exactly one key to be specified using a WHERE clause and the @KEY@ keyword.
 

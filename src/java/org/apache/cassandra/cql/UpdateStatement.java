@@ -46,7 +46,7 @@ public class UpdateStatement extends AbstractModification
 {
     private Map<Term, Term> columns;
     private List<Term> columnNames, columnValues;
-    private Term key;
+    private List<Term> keys;
     
     /**
      * Creates a new UpdateStatement from a column family name, columns map, consistency
@@ -55,14 +55,14 @@ public class UpdateStatement extends AbstractModification
      * @param columnFamily column family name
      * @param cLevel the thrift consistency level
      * @param columns a map of column name/values pairs
-     * @param key the key name
+     * @param keys the keys to update
      */
-    public UpdateStatement(String columnFamily, ConsistencyLevel cLevel, Map<Term, Term> columns, Term key)
+    public UpdateStatement(String columnFamily, ConsistencyLevel cLevel, Map<Term, Term> columns, List<Term> keys)
     {
         super(columnFamily, cLevel);
 
         this.columns = columns;
-        this.key = key;
+        this.keys = keys;
     }
 
     /**
@@ -71,11 +71,11 @@ public class UpdateStatement extends AbstractModification
      * 
      * @param columnFamily column family name
      * @param columns a map of column name/values pairs
-     * @param key the key name
+     * @param keys the keys to update
      */
-    public UpdateStatement(String columnFamily, Map<Term, Term> columns, Term key)
+    public UpdateStatement(String columnFamily, Map<Term, Term> columns, List<Term> keys)
     {
-        this(columnFamily, null, columns, key);
+        this(columnFamily, null, columns, keys);
     }
     
     /**
@@ -87,15 +87,15 @@ public class UpdateStatement extends AbstractModification
      * @param cLevel the thrift consistency level
      * @param columnNames list of column names
      * @param columnValues list of column values (corresponds to names)
-     * @param key the key name
+     * @param keys the keys to update
      */
-    public UpdateStatement(String columnFamily, ConsistencyLevel cLevel, List<Term> columnNames, List<Term> columnValues, Term key)
+    public UpdateStatement(String columnFamily, ConsistencyLevel cLevel, List<Term> columnNames, List<Term> columnValues, List<Term> keys)
     {
         super(columnFamily, cLevel);
 
         this.columnNames = columnNames;
         this.columnValues = columnValues;
-        this.key = key;
+        this.keys = keys;
     }
 
     /**
@@ -133,8 +133,31 @@ public class UpdateStatement extends AbstractModification
             cfamsSeen.add(columnFamily);
         }
 
-        ByteBuffer key = this.key.getByteBuffer(getKeyType(keyspace));
+        List<RowMutation> rowMutations = new LinkedList<RowMutation>();
+
+        for (Term key: keys)
+        {
+            rowMutations.add(mutationForKey(keyspace, key.getByteBuffer(getKeyType(keyspace)), metadata));
+        }
+
+        return rowMutations;
+    }
+
+    /**
+     * Compute a row mutation for a single key
+     *
+     * @param keyspace working keyspace
+     * @param key key to change
+     * @param metadata information about CF
+     *
+     * @return row mutation
+     *
+     * @throws InvalidRequestException on the wrong request
+     */
+    private RowMutation mutationForKey(String keyspace, ByteBuffer key, CFMetaData metadata) throws InvalidRequestException
+    {
         validateKey(key);
+
         AbstractType<?> comparator = getComparator(keyspace);
 
         RowMutation rm = new RowMutation(keyspace, key);
@@ -147,7 +170,7 @@ public class UpdateStatement extends AbstractModification
             rm.add(new QueryPath(columnFamily, null, colName), colValue, System.currentTimeMillis());
         }
 
-        return Arrays.asList(rm);
+        return rm;
     }
 
     public String getColumnFamily()
@@ -155,9 +178,9 @@ public class UpdateStatement extends AbstractModification
         return columnFamily;
     }
     
-    public Term getKey()
+    public List<Term> getKeys()
     {
-        return key;
+        return keys;
     }
     
     public Map<Term, Term> getColumns() throws InvalidRequestException
@@ -184,9 +207,9 @@ public class UpdateStatement extends AbstractModification
     
     public String toString()
     {
-        return String.format("UpdateStatement(columnFamily=%s, key=%s, columns=%s, consistency=%s)",
+        return String.format("UpdateStatement(columnFamily=%s, keys=%s, columns=%s, consistency=%s)",
                              columnFamily,
-                             key,
+                             keys,
                              columns,
                              cLevel);
     }

@@ -72,20 +72,15 @@ import static org.apache.cassandra.thrift.ThriftValidation.validateColumnFamily;
 public class QueryProcessor
 {
     private static final Logger logger = LoggerFactory.getLogger(QueryProcessor.class);
-    
+
     private static List<org.apache.cassandra.db.Row> getSlice(String keyspace, SelectStatement select)
     throws InvalidRequestException, TimedOutException, UnavailableException
     {
-        List<org.apache.cassandra.db.Row> rows = null;
         QueryPath queryPath = new QueryPath(select.getColumnFamily());
         AbstractType<?> comparator = select.getComparator(keyspace);
         List<ReadCommand> commands = new ArrayList<ReadCommand>();
-        
-        assert select.getKeys().size() == 1;
-        
+
         CFMetaData metadata = validateColumnFamily(keyspace, select.getColumnFamily(), false);
-        ByteBuffer key = select.getKeys().get(0).getByteBuffer(metadata.getKeyValidator());
-        validateKey(key);
 
         // ...of a list of column names
         if (!select.isColumnRange())
@@ -93,29 +88,42 @@ public class QueryProcessor
             Collection<ByteBuffer> columnNames = new ArrayList<ByteBuffer>();
             for (Term column : select.getColumnNames())
                 columnNames.add(column.getByteBuffer(comparator));
-            
+
             validateColumnNames(columnNames);
-            commands.add(new SliceByNamesReadCommand(keyspace, key, queryPath, columnNames));
+
+            for (Term rawKey: select.getKeys())
+            {
+                ByteBuffer key = rawKey.getByteBuffer(metadata.getKeyValidator());
+
+                validateKey(key);
+                commands.add(new SliceByNamesReadCommand(keyspace, key, queryPath, columnNames));
+            }
         }
         // ...a range (slice) of column names
         else
         {
             ByteBuffer start = select.getColumnStart().getByteBuffer(comparator);
             ByteBuffer finish = select.getColumnFinish().getByteBuffer(comparator);
-            
-            validateSliceRange(metadata, start, finish, select.isColumnsReversed());
-            commands.add(new SliceFromReadCommand(keyspace,
-                                                  key,
-                                                  queryPath,
-                                                  start,
-                                                  finish,
-                                                  select.isColumnsReversed(),
-                                                  select.getColumnsLimit()));
+
+            for (Term rawKey : select.getKeys())
+            {
+                ByteBuffer key = rawKey.getByteBuffer(metadata.getKeyValidator());
+
+                validateKey(key);
+                validateSliceRange(metadata, start, finish, select.isColumnsReversed());
+                commands.add(new SliceFromReadCommand(keyspace,
+                                                      key,
+                                                      queryPath,
+                                                      start,
+                                                      finish,
+                                                      select.isColumnsReversed(),
+                                                      select.getColumnsLimit()));
+            }
         }
 
         try
         {
-            rows = StorageProxy.read(commands, select.getConsistencyLevel());
+            return StorageProxy.read(commands, select.getConsistencyLevel());
         }
         catch (TimeoutException e)
         {
@@ -125,15 +133,11 @@ public class QueryProcessor
         {
             throw new RuntimeException(e);
         }
-        
-        return rows;
     }
-    
+
     private static List<org.apache.cassandra.db.Row> multiRangeSlice(String keyspace, SelectStatement select)
     throws TimedOutException, UnavailableException, InvalidRequestException
     {
-        List<org.apache.cassandra.db.Row> rows = null;
-        
         AbstractType<?> keyType = DatabaseDescriptor.getCFMetaData(keyspace,
                                                                    select.getColumnFamily()).getKeyValidator();
         ByteBuffer startKey = (select.getKeyStart() != null) ? select.getKeyStart().getByteBuffer(keyType) : (new Term()).getByteBuffer();
@@ -149,13 +153,13 @@ public class QueryProcessor
 
         try
         {
-            rows = StorageProxy.getRangeSlice(new RangeSliceCommand(keyspace,
+            return StorageProxy.getRangeSlice(new RangeSliceCommand(keyspace,
                                                                     select.getColumnFamily(),
                                                                     null,
                                                                     thriftSlicePredicate,
                                                                     bounds,
                                                                     select.getNumRecords()),
-                                              select.getConsistencyLevel());
+                                                                    select.getConsistencyLevel());
         }
         catch (IOException e)
         {
@@ -169,8 +173,6 @@ public class QueryProcessor
         {
             throw new TimedOutException();
         }
-        
-        return rows;
     }
     
     private static List<org.apache.cassandra.db.Row> getIndexedSlices(String keyspace, SelectStatement select)
@@ -229,29 +231,14 @@ public class QueryProcessor
 
         for (UpdateStatement update : updateStatements)
         {
-            CFMetaData metadata = validateColumnFamily(keyspace, update.getColumnFamily(), false);
             // Avoid unnecessary authorizations.
             if (!(cfamsSeen.contains(update.getColumnFamily())))
             {
                 clientState.hasColumnFamilyAccess(update.getColumnFamily(), Permission.WRITE);
                 cfamsSeen.add(update.getColumnFamily());
             }
-            
-            ByteBuffer key = update.getKey().getByteBuffer(update.getKeyType(keyspace));
-            validateKey(key);
-            AbstractType<?> comparator = update.getComparator(keyspace);
-            
-            RowMutation rm = new RowMutation(keyspace, key);
-            for (Map.Entry<Term, Term> column : update.getColumns().entrySet())
-            {
-                ByteBuffer colName = column.getKey().getByteBuffer(comparator);
-                ByteBuffer colValue = column.getValue().getByteBuffer(update.getValueValidator(keyspace, colName));
-                
-                validateColumn(metadata, colName, colValue);
-                rm.add(new QueryPath(update.getColumnFamily(), null, colName), colValue, System.currentTimeMillis());
-            }
-            
-            rowMutations.add(rm);
+
+            rowMutations.addAll(update.prepareRowMutations(keyspace, clientState));
         }
         
         try
@@ -310,10 +297,6 @@ public class QueryProcessor
         // Start and finish keys, *and* column relations (KEY > foo AND KEY < bar and name1 = value1).
         if (select.isKeyRange() && (select.getKeyFinish() != null) && (select.getColumnRelations().size() > 0))
             throw new InvalidRequestException("You cannot combine key range and by-column clauses in a SELECT");
-        
-        // Multiget scenario (KEY = foo AND KEY = bar ...)
-        if (select.getKeys().size() > 1)
-            throw new InvalidRequestException("SELECTs can contain only by by-key clause");
         
         AbstractType<?> comparator = select.getComparator(keyspace);
         
@@ -481,13 +464,13 @@ public class QueryProcessor
                 comparator = metadata.getComparatorFor(null);
                 validateSelect(keyspace, select);
                 
-                List<org.apache.cassandra.db.Row> rows = null;
+                List<org.apache.cassandra.db.Row> rows;
 
                 // By-key
                 if (!select.isKeyRange() && (select.getKeys().size() > 0))
                 {
                     rows = getSlice(keyspace, select);
-                    
+
                     // Only return the column count, (of the at-most 1 row).
                     if (select.isCountOperation())
                     {

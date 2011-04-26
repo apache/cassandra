@@ -233,13 +233,6 @@ class TestCql(ThriftTester):
         assert r[1] == "3"
         assert r[2] == "2"
 
-    def test_error_on_multiple_key_by(self):
-        "ensure multiple key-bys in where clause excepts"
-        cursor = init()
-        assert_raises(cql.ProgrammingError, cursor.execute, """
-            SELECT 'col' FROM StandardString1 WHERE KEY = 'ka' AND KEY = 'kb';
-        """)
-
     def test_index_scan_equality(self):
         "indexed scan where column equals value"
         cursor = init()
@@ -756,3 +749,29 @@ class TestCql(ThriftTester):
                           DELETE 'name' FROM StandardString1 WHERE KEY = 'bKey4'
                       APPLY BATCH
                       """)
+
+    def test_multiple_keys_on_select_and_update(self):
+        "select/update statements should support multiple keys by KEY IN construction"
+        cursor = init()
+        cursor.compression = 'NONE'
+
+        # inserting the same data to the multiple keys
+        cursor.execute("""
+          UPDATE StandardString1 USING CONSISTENCY ONE SET password = 'p4ssw0rd', login = 'same' WHERE KEY IN ('mUser1', 'mUser2')
+        """)
+
+        cursor.execute("SELECT * FROM StandardString1 WHERE KEY IN ('mUser1', 'mUser2')")
+        assert cursor.rowcount == 2, "expected 2 results, got %d" % cursor.rowcount
+        colnames = [col_d[0] for col_d in cursor.description]
+
+        assert colnames[1] == "login", \
+               "unrecognized name '%s'" % colnames[1]
+        assert colnames[2] == "password", \
+               "unrecognized name '%s'" % colnames[2]
+
+        for i in range(2):
+            r = cursor.fetchone()
+            assert r[1] == "same", \
+                   "unrecognized value '%s'" % r[1]
+            assert r[2] == "p4ssw0rd", \
+                   "unrecognized value '%s'" % r[1]
