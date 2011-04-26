@@ -265,9 +265,8 @@ public class StorageProxy implements StorageProxyMBean
                 else
                     MessagingService.instance().sendOneWay(hintedMessage, destination);
             }
-
-            sendMessages(localDataCenter, dcMessages, responseHandler);
         }
+        sendMessages(localDataCenter, dcMessages, responseHandler);
     }
 
     /**
