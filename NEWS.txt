@@ -41,6 +41,26 @@ JMX
     - By default, JMX now listens on port 7199.
 
 
+0.7.5
+=====
+
+Upgrading
+---------
+    - Nothing specific to 0.7.5, but see 0.7.3 Upgrading if upgrading
+      from earlier than 0.7.1.
+
+Changes
+-------
+    - system_update_column_family no longer snapshots before applying
+      the schema change. (_update_keyspace never did.  _drop_keyspace
+      and _drop_column_family continue to snapshot.)
+    - added memtable_flush_queue_size option to cassandra.yaml to
+      avoid blocking writes when multiple column families (or a colum
+      family with indexes) are flushed at the same time.
+    - allow overriding initial_token, storage_port and rpc_port using
+      system properties
+
+
 0.7.4
 =====
 

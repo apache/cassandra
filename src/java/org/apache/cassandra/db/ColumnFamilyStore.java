@@ -592,7 +592,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public String getFlushPath(long estimatedSize, String version)
     {
-        String location = DatabaseDescriptor.getDataFileLocationForTable(table.name, estimatedSize);
+        String location = table.getDataFileLocation(estimatedSize);
         if (location == null)
             throw new RuntimeException("Insufficient disk space to flush " + estimatedSize + " bytes");
         return getTempSSTablePath(location, version);

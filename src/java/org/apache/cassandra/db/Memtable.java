@@ -26,8 +26,6 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.collect.Iterators;
@@ -236,7 +234,15 @@ public class Memtable implements Comparable<Memtable>, IFlushable
     private SSTableReader writeSortedContents() throws IOException
     {
         logger.info("Writing " + this);
-        SSTableWriter writer = cfs.createFlushWriter(columnFamilies.size(), 2 * getSerializedSize()); // 2* for keys
+
+        long keySize = 0;
+        for (DecoratedKey key : columnFamilies.keySet())
+            keySize += key.key.remaining();
+        long estimatedSize = (long) ((keySize // index entries
+                                      + keySize // keys in data file
+                                      + currentThroughput.get()) // data
+                                     * 1.2); // bloom filter and row index overhead
+        SSTableWriter writer = cfs.createFlushWriter(columnFamilies.size(), estimatedSize);
 
         // (we can't clear out the map as-we-go to free up memory,
         //  since the memtable is being used for queries in the "pending flush" category)

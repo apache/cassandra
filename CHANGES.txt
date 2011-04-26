@@ -1,6 +1,9 @@
 0.8.0-?
  * fix NPE compacting index CFs (CASSANDRA-2528)
  * Remove checking all column families on startup for compaction candidates (CASSANDRA-2444)
+ * validate CQL create keyspace options (CASSANDRA-2525)
+ * fix nodetool setcompactionthroughput (CASSANDRA-2550)
+
 
 0.8.0-beta1
  * remove Avro RPC support (CASSANDRA-926)

@@ -160,6 +160,17 @@ public class StorageProxy implements StorageProxyMBean
                 responseHandler.get();
             }
         }
+        catch (TimeoutException ex)
+        {
+            if (logger.isDebugEnabled())
+            {
+                List<String> mstrings = new ArrayList<String>();
+                for (IMutation mutation : mutations)
+                    mstrings.add(mutation.toString(true));
+                logger.debug("Write timeout {} for one (or more) of: ", ex.toString(), mstrings);
+            }
+            throw ex;
+        }
         catch (IOException e)
         {
             assert mostRecentMutation != null;
@@ -567,11 +578,16 @@ public class StorageProxy implements StorageProxyMBean
                 if (logger.isDebugEnabled())
                     logger.debug("Read: " + (System.currentTimeMillis() - startTime2) + " ms.");
             }
+            catch (TimeoutException ex)
+            {
+                if (logger.isDebugEnabled())
+                    logger.debug("Read timeout: {}", ex.toString());
+                throw ex;
+            }
             catch (DigestMismatchException ex)
             {
                 if (logger.isDebugEnabled())
-                    logger.debug("Digest mismatch:", ex);
-
+                    logger.debug("Digest mismatch: {}", ex.toString());
                 RowRepairResolver resolver = new RowRepairResolver(command.table, command.key);
                 RepairCallback<Row> repairHandler = new RepairCallback<Row>(resolver, handler.endpoints);
                 for (InetAddress endpoint : handler.endpoints)
@@ -701,6 +717,12 @@ public class StorageProxy implements StorageProxyMBean
                             rows.add(row);
                             logger.debug("range slices read {}", row.key);
                         }
+                    }
+                    catch (TimeoutException ex)
+                    {
+                        if (logger.isDebugEnabled())
+                            logger.debug("Range slice timeout: {}", ex.toString());
+                        throw ex;
                     }
                     catch (DigestMismatchException e)
                     {
@@ -961,6 +983,12 @@ public class StorageProxy implements StorageProxyMBean
                     rows.add(row);
                     logger.debug("read {}", row);
                 }
+            }
+            catch (TimeoutException ex)
+            {
+                if (logger.isDebugEnabled())
+                    logger.debug("Index scan timeout: {}", ex.toString());
+                throw ex;
             }
             catch (DigestMismatchException e)
             {

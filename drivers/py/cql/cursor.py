@@ -26,6 +26,8 @@ from cql.cassandra.ttypes import (
     Compression, 
     CqlResultType, 
     InvalidRequestException,
+    UnavailableException,
+    TimedOutException,
     TApplicationException,
     SchemaDisagreementException)
 
@@ -131,6 +133,11 @@ class Cursor:
             raise cql.ProgrammingError("Bad Request: %s" % ire.why)
         except SchemaDisagreementException, sde:
             raise cql.IntegrityError("Schema versions disagree, (try again later).")
+        except UnavailableException:
+            raise cql.OperationalError("Unable to complete request: one or "
+                                       "more nodes were unavailable.")
+        except TimedOutException:
+            raise cql.OperationalError("Request did not complete within rpc_timeout.")
         except TApplicationException, tapp:
             raise cql.InternalError("Internal application error")
 

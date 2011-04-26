@@ -332,6 +332,10 @@ public class NodeCmd
             outs.println("column family: " + c.getColumnFamily());
             outs.println("bytes compacted: " + c.getBytesComplete());
             outs.println("bytes total: " + c.getTotalBytes());
+            String percentComplete = c.getTotalBytes() == 0
+                                   ? "n/a"
+                                   : new DecimalFormat("#.##").format((double) c.getBytesComplete() / c.getTotalBytes() * 100) + "%";
+            outs.println("compaction progress: " + percentComplete);
             outs.println("-----------------");
         }
         outs.println("pending tasks: " + cm.getPendingTasks());
@@ -592,8 +596,8 @@ public class NodeCmd
                 break;
 
             case SETCOMPACTIONTHROUGHPUT :
-                if (arguments.length != 2) { badUse("Missing value argument."); }
-                probe.setCompactionThroughput(Integer.valueOf(arguments[1]));
+                if (arguments.length != 1) { badUse("Missing value argument."); }
+                probe.setCompactionThroughput(Integer.valueOf(arguments[0]));
                 break;
 
             case REMOVETOKEN :
