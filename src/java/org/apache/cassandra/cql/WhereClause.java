@@ -56,7 +56,7 @@ public class WhereClause
      */
     public void and(Relation relation)
     {
-        if (relation.isKey())
+        if ((relation != null) && relation.isKey())
         {
             if (relation.operator().equals(RelationType.EQ))
                 keys.add(relation.getValue());
