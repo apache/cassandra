@@ -255,7 +255,7 @@ public class Table
                 }
             }
         };
-        flushTask = StorageService.scheduledTasks.scheduleWithFixedDelay(runnable, 10, 10, TimeUnit.SECONDS);
+        flushTask = StorageService.tasks.scheduleWithFixedDelay(runnable, 10, 10, TimeUnit.SECONDS);
     }
 
     public void createReplicationStrategy(KSMetaData ksm) throws ConfigurationException

@@ -146,12 +146,12 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
 
     /**
-     * This pool is used for periodic short time execution tasks.
+     * This pool is used for periodic short (sub-second) tasks.
      */
      public static final RetryingScheduledThreadPoolExecutor scheduledTasks = new RetryingScheduledThreadPoolExecutor("ScheduledTasks");
 
     /**
-     * This pool is used by tasks that can have long execution, (and usually are non periodic).
+     * This pool is used by tasks that can have longer execution times, and usually are non periodic.
      */
     public static final RetryingScheduledThreadPoolExecutor tasks = new RetryingScheduledThreadPoolExecutor("NonPeriodicTasks");
 

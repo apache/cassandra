@@ -26,6 +26,7 @@ import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.*;
 
+import org.apache.cassandra.concurrent.RetryingScheduledThreadPoolExecutor;
 import org.apache.cassandra.utils.FBUtilities;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.slf4j.Logger;
@@ -51,6 +52,7 @@ public class Gossiper implements IFailureDetectionEventListener
 {
     static final ApplicationState[] STATES = ApplicationState.values();
     private ScheduledFuture<?> scheduledGossipTask;
+    private static final RetryingScheduledThreadPoolExecutor executor = new RetryingScheduledThreadPoolExecutor("GossipTasks");
 
     private class GossipTask implements Runnable
     {
@@ -909,10 +911,10 @@ public class Gossiper implements IFailureDetectionEventListener
         //notify snitches that Gossiper is about to start
         DatabaseDescriptor.getEndpointSnitch().gossiperStarting();
 
-        scheduledGossipTask = StorageService.scheduledTasks.scheduleWithFixedDelay(new GossipTask(),
-                                                                                   Gossiper.intervalInMillis_,
-                                                                                   Gossiper.intervalInMillis_,
-                                                                                   TimeUnit.MILLISECONDS);
+        scheduledGossipTask = executor.scheduleWithFixedDelay(new GossipTask(),
+                                                              Gossiper.intervalInMillis_,
+                                                              Gossiper.intervalInMillis_,
+                                                              TimeUnit.MILLISECONDS);
     }
 
     /**

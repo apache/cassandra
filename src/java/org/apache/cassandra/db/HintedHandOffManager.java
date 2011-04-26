@@ -218,7 +218,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                 }
             }
         };
-        StorageService.scheduledTasks.execute(runnable);
+        StorageService.tasks.execute(runnable);
     }
 
     private static boolean pagingFinished(ColumnFamily hintColumnFamily, ByteBuffer startColumn)

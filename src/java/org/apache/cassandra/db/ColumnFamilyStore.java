@@ -576,10 +576,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     submitRowCacheWrite();
                 }
             };
-            saveRowCacheTask = StorageService.scheduledTasks.scheduleWithFixedDelay(runnable,
-                                                                                    rowCacheSavePeriodInSeconds,
-                                                                                    rowCacheSavePeriodInSeconds,
-                                                                                    TimeUnit.SECONDS);
+            saveRowCacheTask = StorageService.tasks.scheduleWithFixedDelay(runnable,
+                                                                           rowCacheSavePeriodInSeconds,
+                                                                           rowCacheSavePeriodInSeconds,
+                                                                           TimeUnit.SECONDS);
         }
 
         if (saveKeyCacheTask != null)
@@ -596,10 +596,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     submitKeyCacheWrite();
                 }
             };
-            saveKeyCacheTask = StorageService.scheduledTasks.scheduleWithFixedDelay(runnable,
-                                                                                    keyCacheSavePeriodInSeconds,
-                                                                                    keyCacheSavePeriodInSeconds,
-                                                                                    TimeUnit.SECONDS);
+            saveKeyCacheTask = StorageService.tasks.scheduleWithFixedDelay(runnable,
+                                                                           keyCacheSavePeriodInSeconds,
+                                                                           keyCacheSavePeriodInSeconds,
+                                                                           TimeUnit.SECONDS);
         }
     }
 
