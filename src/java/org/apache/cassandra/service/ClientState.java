@@ -129,11 +129,7 @@ public class ClientState
     {
         validateLogin();
         validateKeyspace();
-
-        // hardcode disallowing messing with system keyspace
-        if (keyspace.equalsIgnoreCase("system"))
-            throw new InvalidRequestException("system keyspace is not user-modifiable");
-
+        
         resourceClear();
         resource.add(keyspace);
         Set<Permission> perms = DatabaseDescriptor.getAuthority().authorize(user, resource);
