@@ -136,7 +136,7 @@ class Cursor:
         except UnavailableException:
             raise cql.OperationalError("Unable to complete request: one or "
                                        "more nodes were unavailable.")
-        except TimedOutException::
+        except TimedOutException:
             raise cql.OperationalError("Request did not complete within rpc_timeout.")
         except TApplicationException, tapp:
             raise cql.InternalError("Internal application error")
