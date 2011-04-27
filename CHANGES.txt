@@ -5,6 +5,7 @@
  * fix nodetool setcompactionthroughput (CASSANDRA-2550)
  * move	gossip heartbeat back to its own thread (CASSANDRA-2554)
  * validate cql TRUNCATE columnfamily before truncating (CASSANDRA-2570)
+ * disallow making schema changes to system keyspace (CASSANDRA-2563)
 
 
 0.8.0-beta1
