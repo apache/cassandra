@@ -69,6 +69,17 @@ SELECT ... WHERE <CLAUSE> [LIMIT N] ...
 
 Limiting the number of rows returned can be achieved by adding the @LIMIT@ option to a @SELECT@ expression. @LIMIT@ defaults to 10,000 when left unset.
 
+h2. INSERT
+
+_Synopsis:_
+
+bc.
+INSERT INTO <COLUMN FAMILY> (KEY, <col>, <col>, ...) VALUES (<key>, <val>, <val>, ...) [USING CONSISTENCY <LEVEL];
+
+An @INSERT@ is used to write one or more columns to a record in a Cassandra column family. No results are returned. 
+
+@INSERT@ works exactly like @UPDATE@ so for information about Column Family and Consistency Level arguments please take at the @UPDATE@ section.
+
 h2. UPDATE
 
 _Synopsis:_
@@ -128,15 +139,15 @@ The column family name follows the list of column names.
 h3. Consistency Level
 
 bc. 
-UPDATE ... [USING <CONSISTENCY>] ...
+DELETE ... [USING <CONSISTENCY>] ...
 
 Following the column family identifier is an optional "consistency level specification":#consistency.
 
 h3(#deleterows). Specifying Rows
 
 bc. 
-UPDATE ... WHERE KEY = keyname1
-UPDATE ... WHERE KEY IN (keyname1, keyname2)
+DELETE ... WHERE KEY = keyname1
+DELETE ... WHERE KEY IN (keyname1, keyname2)
 
 The @WHERE@ clause is used to determine which row(s) a @DELETE@ applies to.  The first form allows the specification of a single keyname using the @KEY@ keyword and the @=@ operator.  The second form allows a list of keyname terms to be specified using the @IN@ notation and a parenthesized list of comma-delimited keyname terms.
 

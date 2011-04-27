@@ -66,6 +66,7 @@ class Shell(cmd.Cmd):
         self.statement = StringIO()
         self.color = color
         self.in_comment = False
+        self.in_batch = False
     
     def reset_statement(self):
         self.set_prompt(Shell.default_prompt)
@@ -92,9 +93,23 @@ class Shell(cmd.Cmd):
                 self.statement.write(line[:line.lstrip().index("/*")])
             return None
         
+        if ["BEGIN", "BATCH"] == line.upper().split()[:2]:
+            self.set_prompt(Shell.continue_prompt)
+            self.in_batch = True
+            self.statement.write("%s\n" % line)
+            return None
+        elif (["APPLY", "BATCH"] == line.upper().split()) and self.in_batch:
+            self.in_batch = False
+            self.statement.write("%s\n" % line)
+            try:
+                return self.statement.getvalue()
+            finally:
+                self.reset_statement()
+        
         self.statement.write("%s\n" % line)
-            
-        if not line.endswith(";"):
+        
+        # The end of a statement    
+        if not line.endswith(";") or self.in_batch:
             self.set_prompt(Shell.continue_prompt)
             return None
         
