@@ -95,7 +95,7 @@ JVM_OPTS="$JVM_OPTS -ea"
 check_openjdk=$(java -version 2>&1 | awk '{if (NR == 2) {print $1}}')
 if [ "$check_openjdk" != "OpenJDK" ]
 then
-    JVM_OPTS="$JVM_OPTS -javaagent:$CASSANDRA_HOME/lib/jamm-0.2.1.jar"
+    JVM_OPTS="$JVM_OPTS -javaagent:$CASSANDRA_HOME/lib/jamm-0.2.2.jar"
 fi
 
 # enable thread priorities, primarily so we can give periodic tasks
