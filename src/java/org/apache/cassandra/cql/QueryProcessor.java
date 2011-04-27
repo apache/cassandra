@@ -563,6 +563,7 @@ public class QueryProcessor
             
             case TRUNCATE:
                 String columnFamily = (String)statement.statement;
+                validateColumnFamily(keyspace, columnFamily);
                 clientState.hasColumnFamilyAccess(columnFamily, Permission.WRITE);
                 
                 try

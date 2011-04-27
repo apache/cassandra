@@ -304,6 +304,11 @@ class TestCql(ThriftTester):
         cursor.execute("SELECT 'cd1' FROM StandardString1 WHERE KEY = 'kd'")
         assert cursor.rowcount == 0
 
+        # truncate against non-existing CF
+        assert_raises(cql.ProgrammingError,
+                      cursor.execute,
+                      "TRUNCATE notExistingCFAAAABB")
+
     def test_delete_columns(self):
         "delete columns from a row"
         cursor = init()
