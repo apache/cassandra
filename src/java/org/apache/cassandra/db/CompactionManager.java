@@ -414,10 +414,11 @@ public class CompactionManager implements CompactionManagerMBean
                     // attempt to schedule the set
                     else if ((sstables = cfs.getDataTracker().markCompacting(sstables, 1, Integer.MAX_VALUE)) != null)
                     {
+                        String location = cfs.table.getDataFileLocation(1);
                         // success: perform the compaction
                         try
                         {
-                            doCompaction(cfs, sstables, gcBefore);
+                            doCompactionWithoutSizeEstimation(cfs, sstables, gcBefore, location);
                         }
                         finally
                         {
@@ -489,11 +490,32 @@ public class CompactionManager implements CompactionManagerMBean
         }
     }
 
+    int doCompaction(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, int gcBefore) throws IOException
+    {
+        Table table = cfs.table;
+
+        // If the compaction file path is null that means we have no space left for this compaction.
+        // try again w/o the largest one.
+        Set<SSTableReader> smallerSSTables = new HashSet<SSTableReader>(sstables);
+        while (smallerSSTables.size() > 1)
+        {
+            String compactionFileLocation = table.getDataFileLocation(cfs.getExpectedCompactedFileSize(smallerSSTables));
+            if (compactionFileLocation != null)
+                return doCompactionWithoutSizeEstimation(cfs, smallerSSTables, gcBefore, compactionFileLocation);
+
+            logger.warn("insufficient space to compact all requested files " + StringUtils.join(smallerSSTables, ", "));
+            smallerSSTables.remove(cfs.getMaxSizeFile(smallerSSTables));
+        }
+
+        logger.error("insufficient space to compact even the two smallest files, aborting");
+        return 0;
+    }
+
     /**
      * For internal use and testing only.  The rest of the system should go through the submit* methods,
      * which are properly serialized.
      */
-    int doCompaction(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, int gcBefore) throws IOException
+    int doCompactionWithoutSizeEstimation(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, int gcBefore, String compactionFileLocation) throws IOException
     {
         // The collection of sstables passed may be empty (but not null); even if
         // it is not empty, it may compact down to nothing if all rows are deleted.
@@ -506,23 +528,6 @@ public class CompactionManager implements CompactionManagerMBean
         // sanity check: all sstables must belong to the same cfs
         for (SSTableReader sstable : sstables)
             assert sstable.descriptor.cfname.equals(cfs.columnFamily);
-
-        String compactionFileLocation = table.getDataFileLocation(cfs.getExpectedCompactedFileSize(sstables));
-        // If the compaction file path is null that means we have no space left for this compaction.
-        // try again w/o the largest one.
-        List<SSTableReader> smallerSSTables = new ArrayList<SSTableReader>(sstables);
-        while (compactionFileLocation == null && smallerSSTables.size() > 1)
-        {
-            logger.warn("insufficient space to compact all requested files " + StringUtils.join(smallerSSTables, ", "));
-            smallerSSTables.remove(cfs.getMaxSizeFile(smallerSSTables));
-            compactionFileLocation = table.getDataFileLocation(cfs.getExpectedCompactedFileSize(smallerSSTables));
-        }
-        if (compactionFileLocation == null)
-        {
-            logger.error("insufficient space to compact even the two smallest files, aborting");
-            return 0;
-        }
-        sstables = smallerSSTables;
 
         // new sstables from flush can be added during a compaction, but only the compaction can remove them,
         // so in our single-threaded compaction world this is a valid way of determining if we're compacting
