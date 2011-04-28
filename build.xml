@@ -618,7 +618,7 @@
         <jvmarg value="-Dstorage-config=${test.conf}"/>
         <jvmarg value="-Daccess.properties=${test.conf}/access.properties"/>
         <jvmarg value="-Dlog4j.configuration=log4j-junit.properties" />
-        <jvmarg value="-javaagent:${basedir}/lib/jamm-0.2.1.jar" />
+        <jvmarg value="-javaagent:${basedir}/lib/jamm-0.2.2.jar" />
         <jvmarg value="-ea"/>
         <optjvmargs/>
         <classpath>

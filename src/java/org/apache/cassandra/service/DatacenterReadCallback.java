@@ -23,7 +23,6 @@ package org.apache.cassandra.service;
 
 import java.net.InetAddress;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ReadResponse;
@@ -42,43 +41,26 @@ public class DatacenterReadCallback<T> extends ReadCallback<T>
 {
     private static final IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
     private static final String localdc = snitch.getDatacenter(FBUtilities.getLocalAddress());
-    private AtomicInteger localResponses;
-    
+
     public DatacenterReadCallback(IResponseResolver resolver, ConsistencyLevel consistencyLevel, IReadCommand command, List<InetAddress> endpoints)
     {
         super(resolver, consistencyLevel, command, endpoints);
-        localResponses = new AtomicInteger(blockfor);
     }
 
     @Override
-    public void response(Message message)
+    protected boolean waitingFor(Message message)
     {
-        resolver.preprocess(message);
-
-        int n = localdc.equals(snitch.getDatacenter(message.getFrom()))
-                ? localResponses.decrementAndGet()
-                : localResponses.get();
-
-        if (n == 0 && resolver.isDataPresent())
-        {
-            condition.signal();
-        }
+        return localdc.equals(snitch.getDatacenter(message.getFrom()));
     }
-    
+
     @Override
-    public void response(ReadResponse result)
+    protected boolean waitingFor(ReadResponse response)
     {
-        ((RowDigestResolver) resolver).injectPreProcessed(result);
-
-        int n = localResponses.decrementAndGet();
-        if (n == 0 && resolver.isDataPresent())
-        {
-            condition.signal();
-        }
-
-        maybeResolveForRepair();
+        // cheat and leverage our knowledge that a local read is the only way the ReadResponse
+        // version of this method gets called
+        return true;
     }
-    
+        
     @Override
     public int determineBlockFor(ConsistencyLevel consistency_level, String table)
 	{

@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
@@ -63,6 +64,7 @@ public class ReadCallback<T> implements IAsyncCallback
     protected final int blockfor;
     final List<InetAddress> endpoints;
     private final IReadCommand command;
+    protected final AtomicInteger received = new AtomicInteger(0);
 
     /**
      * Constructor when response count has to be calculated and blocked for.
@@ -115,7 +117,7 @@ public class ReadCallback<T> implements IAsyncCallback
             StringBuilder sb = new StringBuilder("");
             for (Message message : resolver.getMessages())
                 sb.append(message.getFrom()).append(", ");
-            throw new TimeoutException("Operation timed out - received only " + resolver.getMessageCount() + " responses from " + sb.toString() + " .");
+            throw new TimeoutException("Operation timed out - received only " + received.get() + " responses from " + sb.toString() + " .");
         }
 
         return blockfor == 1 ? resolver.getData() : resolver.resolve();
@@ -124,23 +126,40 @@ public class ReadCallback<T> implements IAsyncCallback
     public void response(Message message)
     {
         resolver.preprocess(message);
-        assert resolver.getMessageCount() <= endpoints.size();
-        if (resolver.getMessageCount() < blockfor)
-            return;
-        if (resolver.isDataPresent())
+        int n = waitingFor(message)
+              ? received.incrementAndGet()
+              : received.get();
+        if (n >= blockfor && resolver.isDataPresent())
         {
             condition.signal();
             maybeResolveForRepair();
         }
     }
 
+    /**
+     * @return true if the message counts towards the blockfor threshold
+     * TODO turn the Message into a response so we don't need two versions of this method
+     */
+    protected boolean waitingFor(Message message)
+    {
+        return true;
+    }
+
+    /**
+     * @return true if the response counts towards the blockfor threshold
+     */
+    protected boolean waitingFor(ReadResponse response)
+    {
+        return true;
+    }
+
     public void response(ReadResponse result)
     {
         ((RowDigestResolver) resolver).injectPreProcessed(result);
-        assert resolver.getMessageCount() <= endpoints.size();
-        if (resolver.getMessageCount() < blockfor)
-            return;
-        if (resolver.isDataPresent())
+        int n = waitingFor(result)
+              ? received.incrementAndGet()
+              : received.get();
+        if (n >= blockfor && resolver.isDataPresent())
         {
             condition.signal();
             maybeResolveForRepair();
@@ -153,7 +172,7 @@ public class ReadCallback<T> implements IAsyncCallback
      */
     protected void maybeResolveForRepair()
     {
-        if (blockfor < endpoints.size() && resolver.getMessageCount() == endpoints.size())
+        if (blockfor < endpoints.size() && received.get() == endpoints.size())
         {
             assert resolver.isDataPresent();
             StageManager.getStage(Stage.READ_REPAIR).execute(new AsyncRepairRunner());

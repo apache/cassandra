@@ -43,5 +43,4 @@ public interface IResponseResolver<T> {
 
     public void preprocess(Message message);
     public Iterable<Message> getMessages();
-    public int getMessageCount();
 }
