@@ -7,6 +7,7 @@
  * validate cql TRUNCATE columnfamily before truncating (CASSANDRA-2570)
  * disallow making schema changes to system keyspace (CASSANDRA-2563)
  * fix batch_mutate for mixed standard-counter mutations (CASSANDRA-2457)
+ * fix sending mutation messages multiple times (CASSANDRA-2557)
 
 
 0.8.0-beta1
