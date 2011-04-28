@@ -146,9 +146,4 @@ public class RangeSliceResponseResolver implements IResponseResolver<Iterable<Ro
     {
         return responses;
     }
-
-    public int getMessageCount()
-    {
-        return responses.size();
-    }
 }

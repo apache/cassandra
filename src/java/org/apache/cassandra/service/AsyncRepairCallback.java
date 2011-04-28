@@ -22,6 +22,7 @@ package org.apache.cassandra.service;
 
 
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
@@ -32,18 +33,19 @@ import org.apache.cassandra.utils.WrappedRunnable;
 public class AsyncRepairCallback implements IAsyncCallback
 {
     private final RowRepairResolver repairResolver;
-    private final int count;
+    private final int blockfor;
+    protected final AtomicInteger received = new AtomicInteger(0);
 
-    public AsyncRepairCallback(RowRepairResolver repairResolver, int count)
+    public AsyncRepairCallback(RowRepairResolver repairResolver, int blockfor)
     {
         this.repairResolver = repairResolver;
-        this.count = count;
+        this.blockfor = blockfor;
     }
 
     public void response(Message message)
     {
         repairResolver.preprocess(message);
-        if (repairResolver.getMessageCount() == count)
+        if (received.incrementAndGet() == blockfor)
         {
             StageManager.getStage(Stage.READ_REPAIR).execute(new WrappedRunnable()
             {
