@@ -32,11 +32,18 @@ public abstract class AbstractModification
 
     protected final String columnFamily;
     protected final ConsistencyLevel cLevel;
+    protected final Long timestamp;
 
     public AbstractModification(String columnFamily, ConsistencyLevel cLevel)
     {
+        this(columnFamily, cLevel, null);
+    }
+
+    public AbstractModification(String columnFamily, ConsistencyLevel cLevel, Long timestamp)
+    {
         this.columnFamily = columnFamily;
         this.cLevel = cLevel;
+        this.timestamp = timestamp;
     }
 
     public String getColumnFamily()
@@ -59,6 +66,16 @@ public abstract class AbstractModification
         return cLevel != null;
     }
 
+    public long getTimestamp()
+    {
+        return timestamp == null ? System.currentTimeMillis() : timestamp;
+    }
+
+    public boolean isSetTimestamp()
+    {
+        return timestamp != null;
+    }
+
     /**
      * Convert statement into a list of mutations to apply on the server
      *
@@ -70,5 +87,19 @@ public abstract class AbstractModification
      * @throws org.apache.cassandra.thrift.InvalidRequestException on the wrong request
      */
     public abstract List<RowMutation> prepareRowMutations(String keyspace, ClientState clientState)
+            throws org.apache.cassandra.thrift.InvalidRequestException;
+
+    /**
+     * Convert statement into a list of mutations to apply on the server
+     *
+     * @param keyspace The working keyspace
+     * @param clientState current client status
+     * @param timestamp global timestamp to use for all mutations
+     *
+     * @return list of the mutations
+     *
+     * @throws org.apache.cassandra.thrift.InvalidRequestException on the wrong request
+     */
+    public abstract List<RowMutation> prepareRowMutations(String keyspace, ClientState clientState, Long timestamp)
             throws org.apache.cassandra.thrift.InvalidRequestException;
 }

@@ -56,10 +56,11 @@ public class UpdateStatement extends AbstractModification
      * @param cLevel the thrift consistency level
      * @param columns a map of column name/values pairs
      * @param keys the keys to update
+     * @param timestamp timestamp to use for mutation, if set to null then System.currentTimeMillis()
      */
-    public UpdateStatement(String columnFamily, ConsistencyLevel cLevel, Map<Term, Term> columns, List<Term> keys)
+    public UpdateStatement(String columnFamily, ConsistencyLevel cLevel, Map<Term, Term> columns, List<Term> keys, Long timestamp)
     {
-        super(columnFamily, cLevel);
+        super(columnFamily, cLevel, timestamp);
 
         this.columns = columns;
         this.keys = keys;
@@ -72,10 +73,11 @@ public class UpdateStatement extends AbstractModification
      * @param columnFamily column family name
      * @param columns a map of column name/values pairs
      * @param keys the keys to update
+     * @param timestamp timestamp to use for mutation, if set to null then System.currentTimeMillis()
      */
-    public UpdateStatement(String columnFamily, Map<Term, Term> columns, List<Term> keys)
+    public UpdateStatement(String columnFamily, Map<Term, Term> columns, List<Term> keys, Long timestamp)
     {
-        this(columnFamily, null, columns, keys);
+        this(columnFamily, null, columns, keys, timestamp);
     }
     
     /**
@@ -88,10 +90,16 @@ public class UpdateStatement extends AbstractModification
      * @param columnNames list of column names
      * @param columnValues list of column values (corresponds to names)
      * @param keys the keys to update
+     * @param timestamp timestamp to use for mutation, if set to null then System.currentTimeMillis()
      */
-    public UpdateStatement(String columnFamily, ConsistencyLevel cLevel, List<Term> columnNames, List<Term> columnValues, List<Term> keys)
+    public UpdateStatement(String columnFamily,
+                           ConsistencyLevel cLevel,
+                           List<Term> columnNames,
+                           List<Term> columnValues,
+                           List<Term> keys,
+                           Long timestamp)
     {
-        super(columnFamily, cLevel);
+        super(columnFamily, cLevel, timestamp);
 
         this.columnNames = columnNames;
         this.columnValues = columnValues;
@@ -122,6 +130,12 @@ public class UpdateStatement extends AbstractModification
     /** {@inheritDoc} */
     public List<RowMutation> prepareRowMutations(String keyspace, ClientState clientState) throws InvalidRequestException
     {
+        return prepareRowMutations(keyspace, clientState, null);
+    }
+
+    /** {@inheritDoc} */
+    public List<RowMutation> prepareRowMutations(String keyspace, ClientState clientState, Long timestamp) throws InvalidRequestException
+    {
         List<String> cfamsSeen = new ArrayList<String>();
 
         CFMetaData metadata = validateColumnFamily(keyspace, columnFamily, false);
@@ -137,7 +151,7 @@ public class UpdateStatement extends AbstractModification
 
         for (Term key: keys)
         {
-            rowMutations.add(mutationForKey(keyspace, key.getByteBuffer(getKeyType(keyspace)), metadata));
+            rowMutations.add(mutationForKey(keyspace, key.getByteBuffer(getKeyType(keyspace)), metadata, timestamp));
         }
 
         return rowMutations;
@@ -149,12 +163,13 @@ public class UpdateStatement extends AbstractModification
      * @param keyspace working keyspace
      * @param key key to change
      * @param metadata information about CF
+     * @param timestamp global timestamp to use for every key mutation
      *
      * @return row mutation
      *
      * @throws InvalidRequestException on the wrong request
      */
-    private RowMutation mutationForKey(String keyspace, ByteBuffer key, CFMetaData metadata) throws InvalidRequestException
+    private RowMutation mutationForKey(String keyspace, ByteBuffer key, CFMetaData metadata, Long timestamp) throws InvalidRequestException
     {
         validateKey(key);
 
@@ -167,7 +182,9 @@ public class UpdateStatement extends AbstractModification
             ByteBuffer colValue = column.getValue().getByteBuffer(getValueValidator(keyspace, colName));
 
             validateColumn(metadata, colName, colValue);
-            rm.add(new QueryPath(columnFamily, null, colName), colValue, System.currentTimeMillis());
+            rm.add(new QueryPath(columnFamily, null, colName),
+                   colValue,
+                   (timestamp == null) ? getTimestamp() : timestamp);
         }
 
         return rm;

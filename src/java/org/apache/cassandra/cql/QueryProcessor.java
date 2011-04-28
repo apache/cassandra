@@ -530,9 +530,15 @@ public class QueryProcessor
                 BatchStatement batch = (BatchStatement) statement.statement;
 
                 for (AbstractModification up : batch.getStatements())
+                {
                     if (up.isSetConsistencyLevel())
                         throw new InvalidRequestException(
                                 "Consistency level must be set on the BATCH, not individual statements");
+
+                    if (batch.isSetTimestamp() && up.isSetTimestamp())
+                        throw new InvalidRequestException(
+                                "Timestamp must be set either on BATCH or individual statements");
+                }
 
                 try
                 {

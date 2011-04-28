@@ -74,7 +74,7 @@ h2. INSERT
 _Synopsis:_
 
 bc.
-INSERT INTO <COLUMN FAMILY> (KEY, <col>, <col>, ...) VALUES (<key>, <val>, <val>, ...) [USING CONSISTENCY <LEVEL];
+INSERT INTO <COLUMN FAMILY> (KEY, <col>, <col>, ...) VALUES (<key>, <val>, <val>, ...) [USING CONSISTENCY <LEVEL> [AND TIMESTAMP <timestamp>]];
 
 An @INSERT@ is used to write one or more columns to a record in a Cassandra column family. No results are returned. 
 
@@ -85,7 +85,7 @@ h2. UPDATE
 _Synopsis:_
 
 bc. 
-UPDATE <COLUMN FAMILY> [USING <CONSISTENCY>]
+UPDATE <COLUMN FAMILY> [USING <CONSISTENCY> [AND TIMESTAMP <timestamp>]]
         SET name1 = value1, name2 = value2 WHERE KEY = keyname;
         
 An @UPDATE@ is used to write one or more columns to a record in a Cassandra column family. No results are returned.
@@ -103,6 +103,13 @@ bc.
 UPDATE ... [USING <CONSISTENCY>] ...
 
 Following the column family identifier is an optional "consistency level specification":#consistency.
+
+h3. Timestamp
+
+bc.
+UPDATE ... [USING TIMESTAMP <timestamp>] ...
+
+@UPDATE@ supports setting client-supplied optional timestamp for modification.
 
 h3. Specifying Columns and Row
 
@@ -156,9 +163,11 @@ h2. BATCH
 _Synopsis:_
 
 bc.
-BATCH BEGIN BATCH [USING CONSISTENCY <LEVEL>]
+BATCH BEGIN BATCH [USING CONSISTENCY <LEVEL> [AND TIMESTAMP <timestamp>]]
     INSERT or UPDATE or DELETE statements separated by semicolon or "end of line"
 APPLY BATCH
+
+@BATCH@ supports setting client-supplied optional global timestamp which will be used for each of the operations included in batch.
 
 A single consistency level is used for the entire batch, it appears after the @BEGIN BATCH@ statement, and uses the standard "consistency level specification":#consistency. Batch default to @CONSISTENCY.ONE@ when left unspecified.
 

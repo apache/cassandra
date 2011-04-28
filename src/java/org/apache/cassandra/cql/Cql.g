@@ -193,13 +193,17 @@ whereClause returns [WhereClause clause]
  * VALUES
  *    (<key>, <value>, <value>, ...)
  * (USING
- *    CONSISTENCY <level>)?;
+ *    CONSISTENCY <level>
+ *   (AND TIMESTAMP <long>)?
+ * )?;
  *
  * Consistency level is set to ONE by default
  */
 insertStatement returns [UpdateStatement expr]
     : {
+          Long timestamp = null;
           ConsistencyLevel cLevel = null;
+
           Map<Term, Term> columns = new HashMap<Term, Term>();
 
           List<Term> columnNames  = new ArrayList<Term>();
@@ -209,10 +213,19 @@ insertStatement returns [UpdateStatement expr]
           '(' K_KEY    ( ',' column_name=term  { columnNames.add($column_name.item); } )+ ')'
         K_VALUES
           '(' key=term ( ',' column_value=term { columnValues.add($column_value.item); })+ ')'
-        ( K_USING K_CONSISTENCY K_LEVEL { cLevel = ConsistencyLevel.valueOf($K_LEVEL.text); } )?
+        ( usingClause[cLevel, timestamp] )?
       {
-          return new UpdateStatement($columnFamily.text, cLevel, columnNames, columnValues, Collections.singletonList(key));
+          return new UpdateStatement($columnFamily.text, cLevel, columnNames, columnValues, Collections.singletonList(key), timestamp);
       }
+    ;
+
+usingClause[ConsistencyLevel cLevel, Long timestamp]
+    : K_USING usingClauseObjective[cLevel, timestamp] ( K_AND? usingClauseObjective[cLevel, timestamp] )?
+    ;
+
+usingClauseObjective[ConsistencyLevel cLevel, Long timestamp]
+    : K_CONSISTENCY K_LEVEL  { cLevel = ConsistencyLevel.valueOf($K_LEVEL.text); }
+    | K_TIMESTAMP ts=INTEGER { timestamp = Long.valueOf($ts.text); }
     ;
 
 /**
@@ -241,14 +254,15 @@ insertStatement returns [UpdateStatement expr]
  */
 batchStatement returns [BatchStatement expr]
     : {
+          Long timestamp = null;
           ConsistencyLevel cLevel = ConsistencyLevel.ONE;
           List<AbstractModification> statements = new ArrayList<AbstractModification>();
       }
-      K_BEGIN K_BATCH ( K_USING K_CONSISTENCY K_LEVEL { cLevel = ConsistencyLevel.valueOf($K_LEVEL.text); } )?
+      K_BEGIN K_BATCH ( usingClause[cLevel, timestamp] )?
           s1=batchStatementObjective ';'? { statements.add(s1); } ( sN=batchStatementObjective ';'? { statements.add(sN); } )*
       K_APPLY K_BATCH endStmnt
       {
-          return new BatchStatement(statements, cLevel);
+          return new BatchStatement(statements, cLevel, timestamp);
       }
     ;
 
@@ -261,8 +275,10 @@ batchStatementObjective returns [AbstractModification statement]
 /**
  * UPDATE
  *     <CF>
- * USING
+ * (USING
  *     CONSISTENCY.ONE
+ *    (AND TIMESTAMP <long>)?
+ * )?
  * SET
  *     name1 = value1,
  *     name2 = value2
@@ -271,18 +287,19 @@ batchStatementObjective returns [AbstractModification statement]
  */
 updateStatement returns [UpdateStatement expr]
     : {
+          Long timestamp = null;
           ConsistencyLevel cLevel = null;
           Map<Term, Term> columns = new HashMap<Term, Term>();
           List<Term> keyList = null;
       }
       K_UPDATE columnFamily=( IDENT | STRING_LITERAL | INTEGER )
-          (K_USING K_CONSISTENCY K_LEVEL { cLevel = ConsistencyLevel.valueOf($K_LEVEL.text); })?
+          ( usingClause[cLevel, timestamp] )?
           K_SET termPair[columns] (',' termPair[columns])*
           K_WHERE ( K_KEY '=' key=term { keyList = Collections.singletonList(key); }
                     |
                     K_KEY K_IN '(' keys=termList { keyList = $keys.items; } ')' )
       {
-          return new UpdateStatement($columnFamily.text, cLevel, columns, keyList);
+          return new UpdateStatement($columnFamily.text, cLevel, columns, keyList, timestamp);
       }
     ;
 
@@ -448,6 +465,7 @@ K_DROP:        D R O P;
 K_PRIMARY:     P R I M A R Y;
 K_INTO:        I N T O;
 K_VALUES:      V A L U E S;
+K_TIMESTAMP:   T I M E S T A M P;
 
 // Case-insensitive alpha characters
 fragment A: ('a'|'A');

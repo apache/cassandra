@@ -48,7 +48,7 @@ public class DeleteStatement extends AbstractModification
     
     public DeleteStatement(List<Term> columns, String columnFamily, ConsistencyLevel cLevel, List<Term> keys)
     {
-        super(columnFamily, cLevel);
+        super(columnFamily, cLevel, null);
 
         this.columns = columns;
         this.keys = keys;
@@ -66,6 +66,12 @@ public class DeleteStatement extends AbstractModification
 
     /** {@inheritDoc} */
     public List<RowMutation> prepareRowMutations(String keyspace, ClientState clientState) throws InvalidRequestException
+    {
+        return prepareRowMutations(keyspace, clientState, null);
+    }
+
+    /** {@inheritDoc} */
+    public List<RowMutation> prepareRowMutations(String keyspace, ClientState clientState, Long timestamp) throws InvalidRequestException
     {
         clientState.hasColumnFamilyAccess(columnFamily, Permission.WRITE);
         CFMetaData metadata = validateColumnFamily(keyspace, columnFamily, false);
@@ -87,7 +93,7 @@ public class DeleteStatement extends AbstractModification
                 {
                     ByteBuffer columnName = column.getByteBuffer(comparator);
                     validateColumnName(columnName);
-                    rm.delete(new QueryPath(columnFamily, null, columnName), System.currentTimeMillis());
+                    rm.delete(new QueryPath(columnFamily, null, columnName), (timestamp == null) ? getTimestamp() : timestamp);
                 }
             }
 

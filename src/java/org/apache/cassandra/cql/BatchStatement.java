@@ -40,6 +40,8 @@ public class BatchStatement
     // global consistency level
     protected final ConsistencyLevel consistency;
 
+    // global timestamp to apply for each mutation
+    protected final Long timestamp;
 
     /**
      * Creates a new BatchStatement from a list of statements and a
@@ -48,10 +50,11 @@ public class BatchStatement
      * @param statements a list of UpdateStatements
      * @param level Thrift consistency level enum
      */
-    public BatchStatement(List<AbstractModification> statements, ConsistencyLevel level)
+    public BatchStatement(List<AbstractModification> statements, ConsistencyLevel level, Long timestamp)
     {
         this.statements = statements;
         consistency = level;
+        this.timestamp = timestamp;
     }
 
     public List<AbstractModification> getStatements()
@@ -70,12 +73,16 @@ public class BatchStatement
 
         for (AbstractModification statement : statements)
         {
-            batch.addAll(statement.prepareRowMutations(keyspace, clientState));
+            batch.addAll(statement.prepareRowMutations(keyspace, clientState, timestamp));
         }
 
         return batch;
     }
 
+    public boolean isSetTimestamp()
+    {
+        return timestamp != null;
+    }
 
     public String toString()
     {
