@@ -3,6 +3,7 @@
  * move gossip heartbeat back to its own thread (CASSANDRA-2554)
  * fix incorrect use of NBHM.size in ReadCallback that could cause
    reads to time out even when responses were received (CASSAMDRA-2552)
+ * trigger read repair correctly for LOCAL_QUORUM reads (CASSANDRA-2556)
 
 
 0.7.5

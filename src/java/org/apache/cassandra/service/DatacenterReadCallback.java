@@ -48,31 +48,17 @@ public class DatacenterReadCallback<T> extends ReadCallback<T>
     }
 
     @Override
-    public void response(Message message)
+    protected boolean waitingFor(Message message)
     {
-        resolver.preprocess(message);
-
-        int n = localdc.equals(snitch.getDatacenter(message.getFrom()))
-              ? received.incrementAndGet()
-              : received.get();
-
-        if (n == blockfor && resolver.isDataPresent())
-        {
-            condition.signal();
-            maybeResolveForRepair();
-        }
+        return localdc.equals(snitch.getDatacenter(message.getFrom()));
     }
-    
-    @Override
-    public void response(ReadResponse result)
-    {
-        ((RowDigestResolver) resolver).injectPreProcessed(result);
 
-        if (received.incrementAndGet() == blockfor && resolver.isDataPresent())
-        {
-            condition.signal();
-            maybeResolveForRepair();
-        }
+    @Override
+    protected boolean waitingFor(ReadResponse response)
+    {
+        // cheat and leverage our knowledge that a local read is the only way the ReadResponse
+        // version of this method gets called
+        return true;
     }
     
     @Override
