@@ -126,17 +126,40 @@ public class ReadCallback<T> implements IAsyncCallback
     public void response(Message message)
     {
         resolver.preprocess(message);
-        if (received.incrementAndGet() >= blockfor && resolver.isDataPresent())
+        int n = waitingFor(message)
+              ? received.incrementAndGet()
+              : received.get();
+        if (n >= blockfor && resolver.isDataPresent())
         {
             condition.signal();
             maybeResolveForRepair();
         }
     }
 
+    /**
+     * @return true if the message counts towards the blockfor threshold
+     * TODO turn the Message into a response so we don't need two versions of this method
+     */
+    protected boolean waitingFor(Message message)
+    {
+        return true;
+    }
+
+    /**
+     * @return true if the response counts towards the blockfor threshold
+     */
+    protected boolean waitingFor(ReadResponse response)
+    {
+        return true;
+    }
+
     public void response(ReadResponse result)
     {
         ((RowDigestResolver) resolver).injectPreProcessed(result);
-        if (received.incrementAndGet() >= blockfor && resolver.isDataPresent())
+        int n = waitingFor(result)
+              ? received.incrementAndGet()
+              : received.get();
+        if (n >= blockfor && resolver.isDataPresent())
         {
             condition.signal();
             maybeResolveForRepair();
