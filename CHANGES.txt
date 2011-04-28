@@ -6,6 +6,7 @@
  * move	gossip heartbeat back to its own thread (CASSANDRA-2554)
  * validate cql TRUNCATE columnfamily before truncating (CASSANDRA-2570)
  * disallow making schema changes to system keyspace (CASSANDRA-2563)
+ * fix batch_mutate for mixed standard-counter mutations (CASSANDRA-2457)
 
 
 0.8.0-beta1
