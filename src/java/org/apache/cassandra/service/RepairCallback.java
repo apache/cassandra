@@ -26,6 +26,7 @@ import java.net.InetAddress;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.net.IAsyncCallback;
@@ -38,6 +39,7 @@ public class RepairCallback<T> implements IAsyncCallback
     private final List<InetAddress> endpoints;
     private final SimpleCondition condition = new SimpleCondition();
     private final long startTime;
+    protected final AtomicInteger received = new AtomicInteger(0);
 
     /**
      * The main difference between this and ReadCallback is, ReadCallback has a ConsistencyLevel
@@ -66,13 +68,13 @@ public class RepairCallback<T> implements IAsyncCallback
             throw new AssertionError(ex);
         }
 
-        return resolver.getMessageCount() > 1 ? resolver.resolve() : null;
+        return received.get() > 1 ? resolver.resolve() : null;
     }
 
     public void response(Message message)
     {
         resolver.preprocess(message);
-        if (resolver.getMessageCount() == endpoints.size())
+        if (received.incrementAndGet() == endpoints.size())
             condition.signal();
     }
 

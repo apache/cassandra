@@ -83,9 +83,4 @@ public abstract class AbstractRowResolver implements IResponseResolver<Row>
     {
         return replies.keySet();
     }
-
-    public int getMessageCount()
-    {
-        return replies.size();
-    }
 }
