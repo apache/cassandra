@@ -412,6 +412,13 @@ public class CassandraServer implements Cassandra.Iface
         state().hasColumnFamilyAccess(column_parent.column_family, Permission.WRITE);
 
         CFMetaData metadata = ThriftValidation.validateColumnFamily(state().getKeyspace(), column_parent.column_family, false);
+        ThriftValidation.validateKey(metadata, key);
+        ThriftValidation.validateColumnParent(metadata, column_parent);
+        // SuperColumn field is usually optional, but not when we're inserting
+        if (metadata.cfType == ColumnFamilyType.Super && column_parent.super_column == null)
+        {
+            throw new InvalidRequestException("missing mandatory super column name for super CF " + column_parent.column_family);
+        }
         ThriftValidation.validateColumnNames(metadata, column_parent, Arrays.asList(column.name));
         ThriftValidation.validateColumnData(metadata, column);
 
@@ -1043,6 +1050,11 @@ public class CassandraServer implements Cassandra.Iface
         ThriftValidation.validateKey(metadata, key);
         ThriftValidation.validateCommutativeForWrite(metadata, consistency_level);
         ThriftValidation.validateColumnParent(metadata, column_parent);
+        // SuperColumn field is usually optional, but not when we're adding
+        if (metadata.cfType == ColumnFamilyType.Super && column_parent.super_column == null)
+        {
+            throw new InvalidRequestException("missing mandatory super column name for super CF " + column_parent.column_family);
+        }
         ThriftValidation.validateColumnNames(metadata, column_parent, Arrays.asList(column.name));
 
         RowMutation rm = new RowMutation(keyspace, key);
