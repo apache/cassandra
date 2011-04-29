@@ -341,8 +341,11 @@ public class DatabaseDescriptor
                 throw new ConfigurationException("in_memory_compaction_limit_in_mb must be a positive integer");
             }
 
-            if (conf.compaction_multithreading == null)
-                conf.compaction_multithreading = true;
+            if (conf.concurrent_compactors == null)
+                conf.concurrent_compactors = Runtime.getRuntime().availableProcessors();
+
+            if (conf.concurrent_compactors <= 0)
+                throw new ConfigurationException("concurrent_compactors should be strictly greater than 0");
 
             if (conf.compaction_throughput_mb_per_sec == null)
                 conf.compaction_throughput_mb_per_sec = 16;
@@ -729,9 +732,9 @@ public class DatabaseDescriptor
         return conf.in_memory_compaction_limit_in_mb * 1024 * 1024;
     }
 
-    public static boolean getCompactionMultithreading()
+    public static int getConcurrentCompactors()
     {
-        return conf.compaction_multithreading;
+        return conf.concurrent_compactors;
     }
 
     public static int getCompactionThroughputMbPerSec()

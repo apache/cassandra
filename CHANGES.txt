@@ -16,6 +16,7 @@
    automatic compactions will only compact 2 or more sstables (CASSANDRA-2575)
  * refuse to apply migrations with older timestamps than the current 
    schema (CASSANDRA-2536)
+ * Allow configuring the number of compaction thread (CASSANDRA-2558)
 
 
 0.8.0-beta1
