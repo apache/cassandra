@@ -280,6 +280,7 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
                     groupId="org.apache.cassandra"
                     artifactId="cassandra-parent"
                     version="${version}"
+                    packaging="pom"
                     url="http://cassandra.apache.org"
                     name="Apache Cassandra"
                     inceptionYear="2009"
@@ -472,6 +473,7 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
 
     <target name="maven-write-poms" depends="maven-declare-dependencies" description="Create Maven POM files">
       <artifact:writepom pomRefId="all-pom" file="${build.dir}/${final.name}.pom"/>
+      <artifact:writepom pomRefId="parent-pom" file="${build.dir}/${final.name}-parent.pom"/>
       <artifact:writepom pomRefId="dist-pom" file="${build.dir}/${final.name}-dist.pom"/>
     </target>
 
@@ -1114,6 +1116,11 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
           depends="mvn-install"
           if="release"
           description="Publishes the artifacts to the Maven repository">
+    <!-- the parent pom -->
+    <deploy pomFile="${build.dir}/${final.name}-parent.pom"
+            file="${build.dir}/${final.name}-parent.pom"
+            packaging="pom"/>
+
     <!-- the distribution -->
     <deploy pomFile="${build.dir}/${final.name}-dist.pom"
             file="${build.dir}/${final.name}-dist.pom"
