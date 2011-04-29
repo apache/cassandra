@@ -17,6 +17,7 @@
  * fix incorrect use of NBHM.size in ReadCallback that could cause
    reads to time out even when responses were received (CASSAMDRA-2552)
  * trigger read repair correctly for LOCAL_QUORUM reads (CASSANDRA-2556)
+ * Allow configuring the number of compaction thread (CASSANDRA-2558)
 
 
 0.8.0-beta1

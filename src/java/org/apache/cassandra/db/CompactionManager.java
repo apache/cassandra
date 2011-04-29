@@ -1212,9 +1212,7 @@ public class CompactionManager implements CompactionManagerMBean
 
         private static int getThreadCount()
         {
-            if (!DatabaseDescriptor.getCompactionMultithreading())
-                return 1;
-            return Math.max(2, Runtime.getRuntime().availableProcessors());
+            return Math.max(1, DatabaseDescriptor.getConcurrentCompactors());
         }
 
         void beginCompaction(CompactionInfo.Holder ci)
