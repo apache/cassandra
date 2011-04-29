@@ -99,6 +99,8 @@ public abstract class Migration
         // ensure migration is serial. don't apply unless the previous version matches.
         if (!DatabaseDescriptor.getDefsVersion().equals(lastVersion))
             throw new ConfigurationException("Previous version mismatch. cannot apply.");
+        if (newVersion.timestamp() <= lastVersion.timestamp())
+            throw new ConfigurationException("New version timestamp is not newer than the current version timestamp.");
         // write to schema
         assert rm != null;
         if (!clientMode)

@@ -14,6 +14,8 @@
  * forceUserDefinedCompaction will attempt to compact what it is given
    even if the pessimistic estimate is that there is not enough disk space;
    automatic compactions will only compact 2 or more sstables (CASSANDRA-2575)
+ * refuse to apply migrations with older timestamps than the current 
+   schema (CASSANDRA-2536)
 
 
 0.8.0-beta1
