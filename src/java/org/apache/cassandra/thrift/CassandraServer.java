@@ -337,6 +337,12 @@ public class CassandraServer implements Cassandra.Iface
 
         ThriftValidation.validateKey(key);
         ThriftValidation.validateColumnParent(state().getKeyspace(), column_parent);
+        // SuperColumn field is usually optional, but not when we're inserting
+        if (DatabaseDescriptor.getColumnFamilyType(state().getKeyspace(), column_parent.column_family) == ColumnFamilyType.Super
+            && column_parent.super_column == null)
+        {
+            throw new InvalidRequestException("missing mandatory super column name for super CF " + column_parent.column_family);
+        }
         ThriftValidation.validateColumnNames(state().getKeyspace(), column_parent, Arrays.asList(column.name));
         ThriftValidation.validateColumnData(state().getKeyspace(), column_parent.column_family, column);
 

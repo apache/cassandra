@@ -132,6 +132,7 @@ public class ThriftValidation
                 throw new InvalidRequestException("columnfamily alone is required for standard CF " + column_parent.column_family);
             }
         }
+
         if (column_parent.super_column != null)
         {
             validateColumnNames(tablename, column_parent.column_family, null, Arrays.asList(column_parent.super_column));
@@ -290,6 +291,10 @@ public class ThriftValidation
     public static void validateDeletion(String keyspace, String cfName, Deletion del) throws InvalidRequestException
     {
         validateColumnFamily(keyspace, cfName);
+
+        if (del.super_column != null)
+            validateColumnNames(keyspace, cfName, null, Arrays.asList(del.super_column));
+
         if (del.predicate != null)
         {
             validateSlicePredicate(keyspace, cfName, del.super_column, del.predicate);

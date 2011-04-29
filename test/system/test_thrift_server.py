@@ -619,6 +619,12 @@ class TestMutations(ThriftTester):
         _expect_exception(lambda: client.insert(None, None, None, None), TApplicationException)
         # supercolumn in a non-super CF
         _expect_exception(lambda: client.insert('key1', ColumnParent('Standard1', 'x'), Column('y', 'value', 0), ConsistencyLevel.ONE), InvalidRequestException)
+        # no supercolumn in a super CF
+        _expect_exception(lambda: client.insert('key1', ColumnParent('Super1'), Column('y', 'value', 0), ConsistencyLevel.ONE), InvalidRequestException)
+        # column but no supercolumn in remove
+        _expect_exception(lambda: client.remove('key1', ColumnPath('Super1', column='x'), 0, ConsistencyLevel.ONE), InvalidRequestException)
+        # super column in non-super CF
+        _expect_exception(lambda: client.remove('key1', ColumnPath('Standard1', 'y', 'x'), 0, ConsistencyLevel.ONE), InvalidRequestException)
         # key too long
         _expect_exception(lambda: client.get('x' * 2**16, ColumnPath('Standard1', column='c1'), ConsistencyLevel.ONE), InvalidRequestException)
         # empty key
@@ -670,6 +676,11 @@ class TestMutations(ThriftTester):
         mutations = {'key' : {'Standard1' : [mutation]}}
         _expect_exception(lambda: client.batch_mutate(mutations, ConsistencyLevel.QUORUM),
                           InvalidRequestException)
+        # 'x' is not a valid long
+        deletion = Deletion(1, 'x', None)
+        mutation = Mutation(deletion=deletion)
+        mutations = {'key' : {'Super5' : [mutation]}}
+        _expect_exception(lambda: client.batch_mutate(mutations, ConsistencyLevel.QUORUM), InvalidRequestException)
 
     def test_batch_insert_super(self):
          _set_keyspace('Keyspace1')
