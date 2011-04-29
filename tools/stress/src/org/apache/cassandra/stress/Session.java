@@ -438,7 +438,6 @@ public class Session
         catch (InvalidRequestException e)
         {
             out.println("Unable to create stress keyspace: " + e.getWhy());
-            System.exit(1);
         }
         catch (Exception e)
         {
