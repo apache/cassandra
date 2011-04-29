@@ -28,6 +28,8 @@ import java.util.List;
 
 public class IndexedRangeSlicer extends Operation
 {
+    private static List<ByteBuffer> values = null;
+
     public IndexedRangeSlicer(int index)
     {
         super(index);
@@ -35,12 +37,14 @@ public class IndexedRangeSlicer extends Operation
 
     public void run(Cassandra.Client client) throws IOException
     {
+        if (values == null)
+            values = generateValues();
+
         String format = "%0" + session.getTotalKeysLength() + "d";
         SlicePredicate predicate = new SlicePredicate().setSlice_range(new SliceRange(ByteBufferUtil.EMPTY_BYTE_BUFFER,
                                                                                       ByteBufferUtil.EMPTY_BYTE_BUFFER,
                                                                                       false, session.getColumnsPerKey()));
 
-        List<ByteBuffer> values = super.generateValues();
         ColumnParent parent = new ColumnParent("Standard1");
         int expectedPerValue = session.getNumKeys() / values.size();
 

@@ -31,6 +31,7 @@ import java.util.Map;
 
 public class Inserter extends Operation
 {
+    private static List<ByteBuffer> values = null;
 
     public Inserter(int index)
     {
@@ -39,7 +40,9 @@ public class Inserter extends Operation
 
     public void run(Cassandra.Client client) throws IOException
     {
-        List<ByteBuffer> values = generateValues();
+        if (values == null)
+            values = generateValues();
+
         List<Column> columns = new ArrayList<Column>();
         List<SuperColumn> superColumns = new ArrayList<SuperColumn>();
 
