@@ -378,7 +378,7 @@ public class CompactionManager implements CompactionManagerMBean
         submitUserDefined(cfs, descriptors, getDefaultGcBefore(cfs));
     }
 
-    private Future<Object> submitUserDefined(final ColumnFamilyStore cfs, final Collection<Descriptor> dataFiles, final int gcBefore)
+    public Future<Object> submitUserDefined(final ColumnFamilyStore cfs, final Collection<Descriptor> dataFiles, final int gcBefore)
     {
         Callable<Object> callable = new Callable<Object>()
         {
