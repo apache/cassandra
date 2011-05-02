@@ -21,6 +21,7 @@ package org.apache.cassandra.db;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.concurrent.ExecutionException;
 
 import org.junit.Test;
@@ -28,6 +29,7 @@ import org.junit.Test;
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.Util;
 
@@ -148,7 +150,7 @@ public class CompactionsPurgeTest extends CleanupHelper
 
         Table table = Table.open(TABLE1);
         String cfName = "Standard2";
-        ColumnFamilyStore store = table.getColumnFamilyStore(cfName);
+        ColumnFamilyStore cfs = table.getColumnFamilyStore(cfName);
 
         DecoratedKey key = Util.dk("key1");
         RowMutation rm;
@@ -168,13 +170,14 @@ public class CompactionsPurgeTest extends CleanupHelper
             rm.delete(new QueryPath(cfName, null, ByteBufferUtil.bytes(String.valueOf(i))), 1);
             rm.apply();
         }
-        store.forceBlockingFlush();
+        cfs.forceBlockingFlush();
 
-        assert store.getSSTables().size() == 1 : store.getSSTables(); // inserts & deletes were in the same memtable -> only deletes in sstable
+        assert cfs.getSSTables().size() == 1 : cfs.getSSTables(); // inserts & deletes were in the same memtable -> only deletes in sstable
 
         // compact and test that the row is completely gone
-        CompactionManager.instance.submitMajor(store, 0, Integer.MAX_VALUE).get();
-        assert store.getSSTables().isEmpty();
+        Descriptor descriptor = cfs.getSSTables().iterator().next().descriptor;
+        CompactionManager.instance.submitUserDefined(cfs, Collections.singletonList(descriptor), Integer.MAX_VALUE).get();
+        assert cfs.getSSTables().isEmpty();
         ColumnFamily cf = table.getColumnFamilyStore(cfName).getColumnFamily(QueryFilter.getIdentityFilter(key, new QueryPath(cfName)));
         assert cf == null : cf;
     }
@@ -210,8 +213,9 @@ public class CompactionsPurgeTest extends CleanupHelper
 
         // flush and major compact
         cfs.forceBlockingFlush();
-        CompactionManager.instance.submitMajor(cfs, 0, Integer.MAX_VALUE).get();
-        //cfs.invalidateCachedRow(key);
+        assert cfs.getSSTables().size() == 1;
+        Descriptor descriptor = cfs.getSSTables().iterator().next().descriptor;
+        CompactionManager.instance.submitUserDefined(cfs, Collections.singletonList(descriptor), Integer.MAX_VALUE).get();
 
         // re-inserts with timestamp lower than delete
         rm = new RowMutation(tableName, key.key);
