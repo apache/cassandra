@@ -35,11 +35,14 @@ import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 
+import static junit.framework.Assert.assertEquals;
+
 public class KeyCacheTest extends CleanupHelper
 {
     private static final String TABLE1 = "KeyCacheSpace";
     private static final String COLUMN_FAMILY1 = "Standard1";
     private static final String COLUMN_FAMILY2 = "Standard2";
+    private static final String COLUMN_FAMILY3 = "Standard3";
 
     @Test
     public void testKeyCache50() throws IOException, ExecutionException, InterruptedException
@@ -58,19 +61,19 @@ public class KeyCacheTest extends CleanupHelper
     {
         CompactionManager.instance.disableAutoCompaction();
 
-        ColumnFamilyStore store = Table.open(TABLE1).getColumnFamilyStore(COLUMN_FAMILY2);
+        ColumnFamilyStore store = Table.open(TABLE1).getColumnFamilyStore(COLUMN_FAMILY3);
 
         // empty the cache
         store.invalidateKeyCache();
         assert store.getKeyCacheSize() == 0;
 
         // insert data and force to disk
-        insertData(TABLE1, COLUMN_FAMILY2, 0, 100);
+        insertData(TABLE1, COLUMN_FAMILY3, 0, 100);
         store.forceBlockingFlush();
 
         // populate the cache
-        readData(TABLE1, COLUMN_FAMILY2, 0, 100);
-        assert store.getKeyCacheSize() == 100;
+        readData(TABLE1, COLUMN_FAMILY3, 0, 100);
+        assertEquals(100, store.getKeyCacheSize());
 
         // really? our caches don't implement the map interface? (hence no .addAll)
         Map<Pair<Descriptor, DecoratedKey>, Long> savedMap = new HashMap<Pair<Descriptor, DecoratedKey>, Long>();
@@ -88,7 +91,7 @@ public class KeyCacheTest extends CleanupHelper
 
         // load the cache from disk
         store.unregisterMBean(); // unregistering old MBean to test how key cache will be loaded
-        ColumnFamilyStore newStore = ColumnFamilyStore.createColumnFamilyStore(Table.open(TABLE1), COLUMN_FAMILY2);
+        ColumnFamilyStore newStore = ColumnFamilyStore.createColumnFamilyStore(Table.open(TABLE1), COLUMN_FAMILY3);
         assert newStore.getKeyCacheSize() == 100;
 
         assert savedMap.size() == 100;
@@ -103,10 +106,10 @@ public class KeyCacheTest extends CleanupHelper
         CompactionManager.instance.disableAutoCompaction();
 
         Table table = Table.open(TABLE1);
-        ColumnFamilyStore store = table.getColumnFamilyStore(cfName);
+        ColumnFamilyStore cfs = table.getColumnFamilyStore(cfName);
 
         // KeyCache should start at size 1 if we're caching X% of zero data.
-        int keyCacheSize = store.getKeyCacheCapacity();
+        int keyCacheSize = cfs.getKeyCacheCapacity();
         assert keyCacheSize == 1 : keyCacheSize;
 
         DecoratedKey key1 = Util.dk("key1");
@@ -130,13 +133,13 @@ public class KeyCacheTest extends CleanupHelper
         rm.apply();
 
         // After a flush, the cache should expand to be X% of indices * INDEX_INTERVAL.
-        store.forceBlockingFlush();
-        keyCacheSize = store.getKeyCacheCapacity();
+        cfs.forceBlockingFlush();
+        keyCacheSize = cfs.getKeyCacheCapacity();
         assert keyCacheSize == expectedCacheSize : keyCacheSize;
 
         // After a compaction, the cache should expand to be X% of zero data.
-        CompactionManager.instance.submitMajor(store, 0, Integer.MAX_VALUE).get();
-        keyCacheSize = store.getKeyCacheCapacity();
+        Util.compactAll(cfs).get();
+        keyCacheSize = cfs.getKeyCacheCapacity();
         assert keyCacheSize == 1 : keyCacheSize;
     }
 }

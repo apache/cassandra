@@ -24,8 +24,11 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
@@ -34,6 +37,8 @@ import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.VersionedValue;
+import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.NodeId;
@@ -179,4 +184,13 @@ public class Util
         for (int i=0; i<endpointTokens.size(); ++i)
             assertTrue(ss.getTokenMetadata().isMember(hosts.get(i)));
     }
+
+    public static Future<?> compactAll(ColumnFamilyStore cfs)
+    {
+        List<Descriptor> descriptors = new ArrayList<Descriptor>();
+        for (SSTableReader sstable : cfs.getSSTables())
+            descriptors.add(sstable.descriptor);
+        return CompactionManager.instance.submitUserDefined(cfs, descriptors, Integer.MAX_VALUE);
+    }
+
 }

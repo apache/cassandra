@@ -188,6 +188,8 @@ public class SchemaLoader
                                   standardCFMD(ks_kcs, "Standard1")
                                               .keyCacheSize(0.5),
                                   standardCFMD(ks_kcs, "Standard2")
+                                              .keyCacheSize(1.0),
+                                  standardCFMD(ks_kcs, "Standard3")
                                               .keyCacheSize(1.0)));
 
         // RowCacheSpace

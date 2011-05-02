@@ -35,12 +35,17 @@ Features
 
 Other
 -----
-    In the past, sstable2json would write column names and values as hex
-    strings, and now creates human readable values based on the
-    comparator/validator.  As a result, JSON dumps created with older 
-    versions of sstable2json are no longer compatible with json2sstable,
-    and imports must be made with a configuration that is identical to
-    the export.
+    - In the past, sstable2json would write column names and values as
+      hex strings, and now creates human readable values based on the
+      comparator/validator.  As a result, JSON dumps created with
+      older versions of sstable2json are no longer compatible with
+      json2sstable, and imports must be made with a configuration that
+      is identical to the export.
+    - manually-forced compactions ("nodetool compact") will do nothing
+      if only a single SSTable remains for a ColumnFamily. To force it
+      to compact that anyway (which will free up space if there are
+      a lot of expired tombstones), use the new forceUserDefinedCompaction
+      JMX method on CompactionManager.
 
 JMX
 ---

@@ -171,12 +171,10 @@ public class CompactionsPurgeTest extends CleanupHelper
             rm.apply();
         }
         cfs.forceBlockingFlush();
-
         assert cfs.getSSTables().size() == 1 : cfs.getSSTables(); // inserts & deletes were in the same memtable -> only deletes in sstable
 
         // compact and test that the row is completely gone
-        Descriptor descriptor = cfs.getSSTables().iterator().next().descriptor;
-        CompactionManager.instance.submitUserDefined(cfs, Collections.singletonList(descriptor), Integer.MAX_VALUE).get();
+        Util.compactAll(cfs).get();
         assert cfs.getSSTables().isEmpty();
         ColumnFamily cf = table.getColumnFamilyStore(cfName).getColumnFamily(QueryFilter.getIdentityFilter(key, new QueryPath(cfName)));
         assert cf == null : cf;
@@ -213,9 +211,7 @@ public class CompactionsPurgeTest extends CleanupHelper
 
         // flush and major compact
         cfs.forceBlockingFlush();
-        assert cfs.getSSTables().size() == 1;
-        Descriptor descriptor = cfs.getSSTables().iterator().next().descriptor;
-        CompactionManager.instance.submitUserDefined(cfs, Collections.singletonList(descriptor), Integer.MAX_VALUE).get();
+        Util.compactAll(cfs).get();
 
         // re-inserts with timestamp lower than delete
         rm = new RowMutation(tableName, key.key);
