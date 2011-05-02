@@ -17,6 +17,7 @@
  * refuse to apply migrations with older timestamps than the current 
    schema (CASSANDRA-2536)
  * Allow configuring the number of compaction thread (CASSANDRA-2558)
+ * remove unframed Thrift transport option
 
 
 0.8.0-beta1

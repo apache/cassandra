@@ -119,18 +119,10 @@ public class CassandraDaemon extends org.apache.cassandra.service.AbstractCassan
 
             // Transport factory
             TTransportFactory inTransportFactory, outTransportFactory;
-            if (DatabaseDescriptor.isThriftFramed())
-            {
-                int tFramedTransportSize = DatabaseDescriptor.getThriftFramedTransportSize();
-                inTransportFactory  = new TFramedTransport.Factory(tFramedTransportSize);
-                outTransportFactory = new TFramedTransport.Factory(tFramedTransportSize);
-                logger.info("Using TFastFramedTransport with a max frame size of {} bytes.", tFramedTransportSize);
-            }
-            else
-            {
-                inTransportFactory = new TTransportFactory();
-                outTransportFactory = new TTransportFactory();
-            }
+            int tFramedTransportSize = DatabaseDescriptor.getThriftFramedTransportSize();
+            inTransportFactory  = new TFramedTransport.Factory(tFramedTransportSize);
+            outTransportFactory = new TFramedTransport.Factory(tFramedTransportSize);
+            logger.info("Using TFastFramedTransport with a max frame size of {} bytes.", tFramedTransportSize);
 
             // ThreadPool Server
             TThreadPoolServer.Args args = new TThreadPoolServer.Args(tServerSocket)
