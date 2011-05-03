@@ -1,4 +1,4 @@
-0.8.0-?
+0.8.0-beta2
  * fix NPE compacting index CFs (CASSANDRA-2528)
  * Remove checking all column families on startup for compaction candidates (CASSANDRA-2444)
  * validate CQL create keyspace options (CASSANDRA-2525)
