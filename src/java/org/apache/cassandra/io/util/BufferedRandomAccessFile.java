@@ -343,7 +343,7 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
 
         current = newPosition;
 
-        if (newPosition >= bufferOffset + validBufferBytes || newPosition < bufferOffset)
+        if (newPosition > (bufferOffset + validBufferBytes) || newPosition < bufferOffset)
             reBuffer(); // this will set bufferEnd for us
     }
 

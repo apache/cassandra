@@ -8,6 +8,8 @@
    super column name in Deletion (CASSANDRA-2571)
  * refuse to apply migrations with older timestamps than the current 
    schema (CASSANDRA-2536)
+ * faster flushes and compaction from fixing excessively pessimistic 
+   rebuffering in BRAF (CASSANDRA-2581)
 
 
 0.7.5
