@@ -40,6 +40,8 @@ import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.io.sstable.Component;
+import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.*;
@@ -560,10 +562,11 @@ public class ColumnFamilyStoreTest extends CleanupHelper
 
         File backupDir = new File(DatabaseDescriptor.getDataFileLocationForTable("Keyspace2", 0), "backups");
 
-        for (String f : Arrays.asList("Standard1-f-1-Data.db", "Standard1-f-1-Index.db", "Standard1-f-2-Data.db", "Standard1-f-2-Index.db",
-                                      "Standard1-f-1-Filter.db", "Standard1-f-1-Statistics.db", "Standard1-f-2-Filter.db", "Standard1-f-2-Statistics.db"))
+        for (int version = 1; version <= 2; ++version)
         {
-            assertTrue("can not find backedup file:" + f, new File(backupDir, f).exists());
+            Descriptor desc = new Descriptor(backupDir, "Keyspace2", "Standard1", version, false);
+            for (Component c : new Component[]{ Component.DATA, Component.PRIMARY_INDEX, Component.FILTER, Component.STATS })
+                assertTrue("can not find backedup file:" + desc.filenameFor(c), new File(desc.filenameFor(c)).exists());
         }
     }
 }
