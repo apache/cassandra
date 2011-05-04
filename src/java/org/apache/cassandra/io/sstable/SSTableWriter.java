@@ -345,7 +345,7 @@ public class SSTableWriter extends SSTable
             }
 
             logger.debug("estimated row count was %s of real count", ((double)estimatedRows) / rows);
-            return SSTableReader.open(rename(desc, SSTable.componentsFor(desc)));
+            return SSTableReader.open(rename(desc, componentsFor(desc, false)));
         }
 
         public long getTotalBytes()

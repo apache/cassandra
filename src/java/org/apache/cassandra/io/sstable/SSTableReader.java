@@ -137,7 +137,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
 
     public static SSTableReader open(Descriptor desc) throws IOException
     {
-        Set<Component> components = SSTable.componentsFor(desc);
+        Set<Component> components = componentsFor(desc, false);
         return open(desc, components, DatabaseDescriptor.getCFMetaData(desc.ksname, desc.cfname), StorageService.getPartitioner());
     }
 
