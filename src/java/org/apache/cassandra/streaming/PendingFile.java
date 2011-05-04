@@ -99,7 +99,7 @@ public class PendingFile
 
     public String toString()
     {
-        return getFilename() + "/" + StringUtils.join(sections, ",") + "\n\t progress=" + progress + "/" + size + " - " + progress*100/size + "%";
+        return getFilename() + " sections=" + sections.size() + " progress=" + progress + "/" + size + " - " + progress*100/size + "%";
     }
 
     public static class PendingFileSerializer implements ICompactSerializer<PendingFile>
