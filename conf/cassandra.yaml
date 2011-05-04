@@ -257,7 +257,7 @@ in_memory_compaction_limit_in_mb: 64
 # problems with compaction running too slowly or too fast, you should look at
 # compaction_throughput_mb_per_sec first.
 # Uncomment to make compaction mono-threaded.
-#concurrent_compacters: 1
+#concurrent_compactors: 1
 
 # Throttles compaction to the given total throughput across the entire
 # system. The faster you insert data, the faster you need to compact in
