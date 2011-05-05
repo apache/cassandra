@@ -258,7 +258,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         assert rows.size() == 1 : StringUtils.join(rows, ",");
         String key = new String(rows.get(0).key.key.array(),rows.get(0).key.key.position(),rows.get(0).key.key.remaining()); 
         assert "k1".equals( key );
-    
+
         // delete the column directly
         rm = new RowMutation("Keyspace3", ByteBufferUtil.bytes("k1"));
         rm.delete(new QueryPath("Indexed1", null, ByteBufferUtil.bytes("birthdate")), 1);
@@ -280,12 +280,37 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         rm.apply();
         rows = cfs.scan(clause, range, filter);
         assert rows.size() == 1 : StringUtils.join(rows, ",");
-        key = new String(rows.get(0).key.key.array(),rows.get(0).key.key.position(),rows.get(0).key.key.remaining()); 
-        assert "k1".equals( key );  
+        key = new String(rows.get(0).key.key.array(),rows.get(0).key.key.position(),rows.get(0).key.key.remaining());
+        assert "k1".equals( key );
 
-        // delete the entire row
+        // verify that row and delete w/ older timestamp does nothing
+        rm = new RowMutation("Keyspace3", ByteBufferUtil.bytes("k1"));
+        rm.delete(new QueryPath("Indexed1"), 1);
+        rm.apply();
+        rows = cfs.scan(clause, range, filter);
+        assert rows.size() == 1 : StringUtils.join(rows, ",");
+        key = new String(rows.get(0).key.key.array(),rows.get(0).key.key.position(),rows.get(0).key.key.remaining());
+        assert "k1".equals( key );
+
+        // similarly, column delete w/ older timestamp should do nothing
+        rm = new RowMutation("Keyspace3", ByteBufferUtil.bytes("k1"));
+        rm.delete(new QueryPath("Indexed1", null, ByteBufferUtil.bytes("birthdate")), 1);
+        rm.apply();
+        rows = cfs.scan(clause, range, filter);
+        assert rows.size() == 1 : StringUtils.join(rows, ",");
+        key = new String(rows.get(0).key.key.array(),rows.get(0).key.key.position(),rows.get(0).key.key.remaining());
+        assert "k1".equals( key );
+
+        // delete the entire row (w/ newer timestamp this time)
         rm = new RowMutation("Keyspace3", ByteBufferUtil.bytes("k1"));
         rm.delete(new QueryPath("Indexed1"), 3);
+        rm.apply();
+        rows = cfs.scan(clause, range, filter);
+        assert rows.isEmpty() : StringUtils.join(rows, ",");
+
+        // make sure obsolete mutations don't generate an index entry
+        rm = new RowMutation("Keyspace3", ByteBufferUtil.bytes("k1"));
+        rm.add(new QueryPath("Indexed1", null, ByteBufferUtil.bytes("birthdate")), ByteBufferUtil.bytes(1L), 3);
         rm.apply();
         rows = cfs.scan(clause, range, filter);
         assert rows.isEmpty() : StringUtils.join(rows, ",");

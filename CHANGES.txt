@@ -11,6 +11,7 @@
  * faster flushes and compaction from fixing excessively pessimistic 
    rebuffering in BRAF (CASSANDRA-2581)
  * include indexes in snapshots (CASSANDRA-2596)
+ * improve ignoring of obsolete mutations in index maintenance (CASSANDRA-2401)
 
 
 0.7.5

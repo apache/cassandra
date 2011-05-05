@@ -1566,8 +1566,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
              * But, if the calling StorageProxy is doing a good job estimating data from each range, the range
              * should be pretty close to `start_key`. */
             if (logger.isDebugEnabled())
-                logger.debug(String.format("Scanning index row %s:%s starting with %s",
-                                           indexCFS.columnFamily, indexKey, indexCFS.getComparator().getString(startKey)));
+                logger.debug(String.format("Scanning index %s starting with %s",
+                                           expressionString(primary), indexCFS.getComparator().getString(startKey)));
             QueryFilter indexFilter = QueryFilter.getSliceFilter(indexKey,
                                                                  new QueryPath(indexCFS.getColumnFamilyName()),
                                                                  startKey,
@@ -1596,6 +1596,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
                 // get the row columns requested, and additional columns for the expressions if necessary
                 ColumnFamily data = getColumnFamily(new QueryFilter(dk, path, firstFilter));
+                assert data != null : String.format("No data found for %s in %s:%s (original filter %s) from expression %s",
+                                                    firstFilter, dk, path, dataFilter, expressionString(primary));
                 logger.debug("fetched data row {}", data);
                 if (extraFilter != null)
                 {
@@ -1637,6 +1639,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
 
         return rows;
+    }
+
+    private String expressionString(IndexExpression expr)
+    {
+        return String.format("'%s.%s %s %s'",
+                             columnFamily,
+                             getComparator().getString(expr.column_name),
+                             expr.op,
+                             metadata.getColumn_metadata().get(expr.column_name).getValidator().getString(expr.value));
     }
 
     private IndexExpression highestSelectivityPredicate(IndexClause clause)
