@@ -1702,24 +1702,27 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     private void snapshotWithoutFlush(String snapshotName)
     {
-        for (SSTableReader ssTable : ssTables)
+        for (ColumnFamilyStore cfs : concatWithIndexes())
         {
-            try
+            for (SSTableReader ssTable : cfs.ssTables)
             {
-                // mkdir
-                File dataDirectory = ssTable.descriptor.directory.getParentFile();
-                String snapshotDirectoryPath = Table.getSnapshotPath(dataDirectory.getAbsolutePath(), table.name, snapshotName);
-                FileUtils.createDirectory(snapshotDirectoryPath);
+                try
+                {
+                    // mkdir
+                    File dataDirectory = ssTable.descriptor.directory.getParentFile();
+                    String snapshotDirectoryPath = Table.getSnapshotPath(dataDirectory.getAbsolutePath(), table.name, snapshotName);
+                    FileUtils.createDirectory(snapshotDirectoryPath);
 
-                // hard links
-                ssTable.createLinks(snapshotDirectoryPath);
-                if (logger.isDebugEnabled())
-                    logger.debug("Snapshot for " + table + " keyspace data file " + ssTable.getFilename() +
-                        " created in " + snapshotDirectoryPath);
-            }
-            catch (IOException e)
-            {
-                throw new IOError(e);
+                    // hard links
+                    ssTable.createLinks(snapshotDirectoryPath);
+                    if (logger.isDebugEnabled())
+                        logger.debug("Snapshot for " + table + " keyspace data file " + ssTable.getFilename() +
+                            " created in " + snapshotDirectoryPath);
+                }
+                catch (IOException e)
+                {
+                    throw new IOError(e);
+                }
             }
         }
     }
