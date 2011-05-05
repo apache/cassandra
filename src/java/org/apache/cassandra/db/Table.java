@@ -485,23 +485,26 @@ public class Table
         if (oldIndexedColumns == null)
             return;
 
-        ColumnFamily cf2 = cf.cloneMe();
-        for (IColumn oldColumn : oldIndexedColumns)
+        for (Iterator<ByteBuffer> iter = mutatedIndexedColumns.iterator(); iter.hasNext(); )
         {
-            cf2.addColumn(oldColumn);
-        }
-        ColumnFamily resolved = ColumnFamilyStore.removeDeleted(cf2, Integer.MAX_VALUE);
+            ByteBuffer name = iter.next();
+            IColumn newColumn = cf.getColumn(name); // null == row delete or it wouldn't be marked Mutated
+            if (newColumn != null && cf.isMarkedForDelete())
+                throw new UnsupportedOperationException("Index manager cannot support deleting and inserting into a row in the same mutation");
+            IColumn oldColumn = oldIndexedColumns.getColumn(name);
 
-        for (IColumn oldColumn : oldIndexedColumns)
-        {
-            IColumn resolvedColumn = resolved == null ? null : resolved.getColumn(oldColumn.name());
-            if (resolvedColumn != null && resolvedColumn.equals(oldColumn))
+            // deletions are irrelevant to the index unless we're changing state from live -> deleted, i.e.,
+            // just updating w/ a newer tombstone doesn't matter
+            boolean bothDeleted = (newColumn == null || newColumn.isMarkedForDelete())
+                                  && (oldColumn == null || oldColumn.isMarkedForDelete());
+            // obsolete means either the row or the column timestamp we're applying is older than existing data
+            boolean obsoleteRowTombstone = newColumn == null && oldColumn != null && cf.getMarkedForDeleteAt() < oldColumn.timestamp();
+            boolean obsoleteColumn = newColumn != null && (newColumn.timestamp() <= oldIndexedColumns.getMarkedForDeleteAt()
+                                                           || (oldColumn != null && oldColumn.reconcile(newColumn) == oldColumn));
+            if (bothDeleted || obsoleteRowTombstone || obsoleteColumn)
             {
-                if (logger.isDebugEnabled())
-                    logger.debug("ignoring obsolete mutation of " + cf.getComparator().getString(oldColumn.name()));
-                cf.remove(oldColumn.name());
-                mutatedIndexedColumns.remove(oldColumn.name());
-                oldIndexedColumns.remove(oldColumn.name());
+                iter.remove();
+                oldIndexedColumns.remove(name);
             }
         }
     }

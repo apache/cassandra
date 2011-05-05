@@ -27,6 +27,7 @@
  * Allow configuring the number of compaction thread (CASSANDRA-2558)
  * remove unframed Thrift transport option
  * include indexes in snapshots (CASSANDRA-2596)
+ * improve ignoring of obsolete mutations in index maintenance (CASSANDRA-2401)
 
 
 0.8.0-beta1
