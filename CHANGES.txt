@@ -7,6 +7,7 @@
 0.8.0-?
  * faster flushes and compaction from fixing excessively pessimistic 
    rebuffering in BRAF (CASSANDRA-2581)
+ * fix merkle tree splitting exiting early (CASSANDRA-2605)
  
 
 0.8.0-beta2
