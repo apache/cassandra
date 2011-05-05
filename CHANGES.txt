@@ -8,7 +8,7 @@
  * faster flushes and compaction from fixing excessively pessimistic 
    rebuffering in BRAF (CASSANDRA-2581)
  * fix merkle tree splitting exiting early (CASSANDRA-2605)
- 
+ * Disable compaction throttling during bootstrap (CASSANDRA-2612) 
 
 0.8.0-beta2
  * fix NPE compacting index CFs (CASSANDRA-2528)
