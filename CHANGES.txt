@@ -4,7 +4,7 @@
  * fix returning null column values in the python cql driver (CASSANDRA-2593)
  * fix merkle tree splitting exiting early (CASSANDRA-2605)
  * snapshot_before_compaction directory name fix (CASSANDRA-2598)
- 
+ * Disable compaction throttling during bootstrap (CASSANDRA-2612) 
 
 0.8.0-beta2
  * fix NPE compacting index CFs (CASSANDRA-2528)
