@@ -30,6 +30,7 @@
  * refuse to apply migrations with older timestamps than the current 
    schema (CASSANDRA-2536)
  * remove unframed Thrift transport option
+ * include indexes in snapshots (CASSANDRA-2596)
 
 
 0.8.0-beta1
