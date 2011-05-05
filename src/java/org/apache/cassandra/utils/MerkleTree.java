@@ -445,21 +445,21 @@ public class MerkleTree implements Serializable
 
         if (hashable instanceof Leaf)
         {
+            Token midpoint = partitioner.midpoint(pleft, pright);
+
+            // We should not create a non-sensical range where start and end are the same token (this is non-sensical because range are
+            // start exclusive). Note that we shouldn't hit that unless the full range is very small or we are fairly deep
+            if (midpoint.equals(pleft) || midpoint.equals(pright))
+                throw new StopRecursion.TooDeep();
+
             // split
             size++;
-            Token midpoint = partitioner.midpoint(pleft, pright);
             return new Inner(midpoint, new Leaf(), new Leaf());
         }
         // else: node.
 
         // recurse on the matching child
         Inner node = (Inner)hashable;
-
-        // FIXME: we are not really 'TooDeep', however we cannot say that the
-        // split was successfull otherwise we could have a chance of infinite
-        // loop given how we split.
-        if (t.equals(node.token) || t.equals(pright))
-            throw new StopRecursion.TooDeep();
 
         if (Range.contains(pleft, node.token, t))
             // left child contains token
