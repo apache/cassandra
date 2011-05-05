@@ -3,6 +3,7 @@
    rebuffering in BRAF (CASSANDRA-2581)
  * fix returning null column values in the python cql driver (CASSANDRA-2593)
  * fix merkle tree splitting exiting early (CASSANDRA-2605)
+ * snapshot_before_compaction directory name fix (CASSANDRA-2598)
  
 
 0.8.0-beta2
