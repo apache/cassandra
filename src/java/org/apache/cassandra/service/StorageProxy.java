@@ -188,7 +188,7 @@ public class StorageProxy implements StorageProxyMBean
      * said write endpoint (deletaged to the actual WritePerformer) and wait for the
      * responses based on consistency level.
      *
-     * @param mutations the mutations to be applied
+     * @param mutation the mutation to be applied
      * @param consistency_level the consistency level for the write operation
      * @param performer the WritePerformer in charge of appliying the mutation
      * given the list of write endpoints (either standardWritePerformer for

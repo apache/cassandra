@@ -186,17 +186,15 @@ public class Table
     }
 
     /**
-     * Take a snapshot of the entire set of column families with a given timestamp.
+     * Take a snapshot of the entire set of column families with a given timestamp
      * 
-     * @param clientSuppliedName the tag associated with the name of the snapshot.  This
-     *                           value can be null.
+     * @param snapshotName the tag associated with the name of the snapshot.  This value may not be null
      */
     public void snapshot(String snapshotName)
     {
+        assert snapshotName != null;
         for (ColumnFamilyStore cfStore : columnFamilyStores.values())
-        {
             cfStore.snapshot(snapshotName);
-        }
     }
 
     /**
