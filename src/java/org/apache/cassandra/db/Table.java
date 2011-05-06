@@ -441,6 +441,8 @@ public class Table
                                                            || (oldColumn != null && oldColumn.reconcile(newColumn) == oldColumn));
             if (bothDeleted || obsoleteRowTombstone || obsoleteColumn)
             {
+                if (logger.isDebugEnabled())
+                    logger.debug("skipping index update for obsolete mutation of " + cf.getComparator().getString(oldColumn.name()));
                 iter.remove();
                 oldIndexedColumns.remove(name);
             }
