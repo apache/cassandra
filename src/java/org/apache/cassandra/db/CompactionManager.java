@@ -523,7 +523,7 @@ public class CompactionManager implements CompactionManagerMBean
 
         Table table = cfs.table;
         if (DatabaseDescriptor.isSnapshotBeforeCompaction())
-            table.snapshot("compact-" + cfs.columnFamily);
+            table.snapshot(System.currentTimeMillis() + "-" + "compact-" + cfs.columnFamily);
 
         // sanity check: all sstables must belong to the same cfs
         for (SSTableReader sstable : sstables)

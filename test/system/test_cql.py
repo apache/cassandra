@@ -44,6 +44,10 @@ def load_sample(dbconn):
             WITH comparator = ascii AND default_validation = ascii;
     """)
     dbconn.execute("""
+        CREATE COLUMNFAMILY StandardString2 (KEY text PRIMARY KEY)
+            WITH comparator = ascii AND default_validation = ascii;
+    """)
+    dbconn.execute("""
         CREATE COLUMNFAMILY StandardUtf82 (KEY text PRIMARY KEY)
             WITH comparator = text AND default_validation = ascii;
     """)
@@ -219,6 +223,35 @@ class TestCql(ThriftTester):
         assert len(r) == 2
         assert r[0] == "aa"
         assert r[1] == "1"
+
+    def test_select_range_with_single_column_results(self):
+        "range should not fail when keys were not set"
+        cursor = init()
+        cursor.execute("""
+          BEGIN BATCH
+            UPDATE StandardString2 SET name='1',password='pass1' WHERE KEY = 'user1'
+            UPDATE StandardString2 SET name='2',password='pass2' WHERE KEY = 'user2'
+            UPDATE StandardString2 SET password='pass3' WHERE KEY = 'user3'
+          APPLY BATCH
+        """)
+
+        cursor.execute("""
+          SELECT name FROM StandardString2
+        """)
+
+        assert cursor.rowcount == 3, "expected 3 results, got %d" % cursor.rowcount
+
+        # two of three results should contain one column "name", third should be empty
+        for i in range(1, 3):
+            r = cursor.fetchone()
+            assert len(r) == 2
+            assert r[0] == "user%d" % i
+            assert r[1] == "%s" % i
+
+        r = cursor.fetchone()
+        assert len(r) == 2
+        assert r[0] == "user3"
+        assert r[1] == None
 
     def test_select_columns_slice_reversed(self):
         "range of columns (slice) by row reversed"

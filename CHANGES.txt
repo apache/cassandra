@@ -9,6 +9,9 @@
    rebuffering in BRAF (CASSANDRA-2581)
  * fix merkle tree splitting exiting early (CASSANDRA-2605)
  * Disable compaction throttling during bootstrap (CASSANDRA-2612) 
+ * fix returning null column values in the python cql driver (CASSANDRA-2593)
+ * snapshot_before_compaction directory name fix (CASSANDRA-2598)
+ 
 
 0.8.0-beta2
  * fix NPE compacting index CFs (CASSANDRA-2528)
@@ -31,6 +34,7 @@
    schema (CASSANDRA-2536)
  * remove unframed Thrift transport option
  * include indexes in snapshots (CASSANDRA-2596)
+ * improve ignoring of obsolete mutations in index maintenance (CASSANDRA-2401)
 
 
 0.8.0-beta1

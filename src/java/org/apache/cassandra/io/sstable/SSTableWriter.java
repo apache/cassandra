@@ -312,7 +312,7 @@ public class SSTableWriter extends SSTable
             long rows = indexer.index();
 
             logger.debug("estimated row count was {} of real count", ((double)estimatedRows) / rows);
-            return SSTableReader.open(rename(desc, SSTable.componentsFor(desc)));
+            return SSTableReader.open(rename(desc, SSTable.componentsFor(desc, false)));
         }
     }
 

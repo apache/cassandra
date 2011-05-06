@@ -183,7 +183,7 @@ public abstract class SSTable
     /**
      * Discovers existing components for the descriptor. Slow: only intended for use outside the critical path.
      */
-    static Set<Component> componentsFor(final Descriptor desc) 
+    static Set<Component> componentsFor(final Descriptor desc, final boolean liveOnly)
     {
         final Set<Component> components = new HashSet<Component>();
         desc.directory.list(new FilenameFilter()
@@ -191,7 +191,7 @@ public abstract class SSTable
             public boolean accept(File dir, String name)
             {
                 Pair<Descriptor,Component> component = tryComponentFromFilename(dir, name);
-                if (component != null && component.left.equals(desc))
+                if (component != null && component.left.equals(desc) && (!liveOnly || !component.left.temporary))
                     components.add(component.right);
                 return false;
             }

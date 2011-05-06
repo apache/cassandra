@@ -74,6 +74,13 @@ public class SSTableTest extends CleanupHelper
         verifyMany(ssTable, map);
         ssTable = SSTableReader.open(ssTable.descriptor); // read the index from disk
         verifyMany(ssTable, map);
+
+        Set<Component> live = SSTable.componentsFor(ssTable.descriptor, true);
+        assert !live.isEmpty() : "SSTable has live components";
+        Set<Component> all = SSTable.componentsFor(ssTable.descriptor, false);
+        assert live.equals(all) : "live components same as all components";
+        all.removeAll(live);
+        assert all.isEmpty() : "SSTable has no temp components";
     }
 
     private void verifyMany(SSTableReader sstable, Map<ByteBuffer, ByteBuffer> map) throws IOException

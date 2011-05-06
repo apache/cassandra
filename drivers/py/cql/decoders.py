@@ -59,6 +59,9 @@ class SchemaDecoder(object):
         unmarshal = unmarshallers.get(comparator, unmarshal_noop)
         values = [key]
         for column in row.columns:
+            if column.value == None:
+                continue
+
             description.append((unmarshal(column.name), comparator, None, None, None, None, True))
             validator = self.__validator_for(keyspace, column_family, column.name)
             values.append(unmarshallers.get(validator, unmarshal_noop)(column.value))
