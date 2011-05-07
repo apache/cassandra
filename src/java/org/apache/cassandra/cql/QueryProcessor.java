@@ -76,11 +76,11 @@ public class QueryProcessor
     private static List<org.apache.cassandra.db.Row> getSlice(String keyspace, SelectStatement select)
     throws InvalidRequestException, TimedOutException, UnavailableException
     {
-        List<org.apache.cassandra.db.Row> rows = null;
+        List<org.apache.cassandra.db.Row> rows;
         QueryPath queryPath = new QueryPath(select.getColumnFamily());
         AbstractType<?> comparator = select.getComparator(keyspace);
         List<ReadCommand> commands = new ArrayList<ReadCommand>();
-        
+
         assert select.getKeys().size() == 1;
         
         CFMetaData metadata = validateColumnFamily(keyspace, select.getColumnFamily(), false);
@@ -125,20 +125,27 @@ public class QueryProcessor
         {
             throw new RuntimeException(e);
         }
-        
+
         return rows;
     }
     
     private static List<org.apache.cassandra.db.Row> multiRangeSlice(String keyspace, SelectStatement select)
     throws TimedOutException, UnavailableException, InvalidRequestException
     {
-        List<org.apache.cassandra.db.Row> rows = null;
-        
+        List<org.apache.cassandra.db.Row> rows;
+        IPartitioner<?> p = StorageService.getPartitioner();
+
         AbstractType<?> keyType = DatabaseDescriptor.getCFMetaData(keyspace,
                                                                    select.getColumnFamily()).getKeyValidator();
-        ByteBuffer startKey = (select.getKeyStart() != null) ? select.getKeyStart().getByteBuffer(keyType) : (new Term()).getByteBuffer();
-        ByteBuffer finishKey = (select.getKeyFinish() != null) ? select.getKeyFinish().getByteBuffer(keyType) : (new Term()).getByteBuffer();
-        IPartitioner<?> p = StorageService.getPartitioner();
+
+        ByteBuffer startKey = (select.getKeyStart() != null)
+                               ? select.getKeyStart().getByteBuffer(keyType)
+                               : (new Term()).getByteBuffer();
+
+        ByteBuffer finishKey = (select.getKeyFinish() != null)
+                                ? select.getKeyFinish().getByteBuffer(keyType)
+                                : (new Term()).getByteBuffer();
+
         AbstractBounds bounds = new Bounds(p.getToken(startKey), p.getToken(finishKey));
         
         CFMetaData metadata = validateColumnFamily(keyspace, select.getColumnFamily(), false);
@@ -147,6 +154,10 @@ public class QueryProcessor
         SlicePredicate thriftSlicePredicate = slicePredicateFromSelect(select, comparator);
         validateSlicePredicate(metadata, thriftSlicePredicate);
 
+        int limit = select.isKeyRange() && select.getKeyStart() != null
+                  ? select.getNumRecords() + 1
+                  : select.getNumRecords();
+
         try
         {
             rows = StorageProxy.getRangeSlice(new RangeSliceCommand(keyspace,
@@ -154,8 +165,8 @@ public class QueryProcessor
                                                                     null,
                                                                     thriftSlicePredicate,
                                                                     bounds,
-                                                                    select.getNumRecords()),
-                                              select.getConsistencyLevel());
+                                                                    limit),
+                                                                    select.getConsistencyLevel());
         }
         catch (IOException e)
         {
@@ -169,8 +180,23 @@ public class QueryProcessor
         {
             throw new TimedOutException();
         }
-        
-        return rows;
+
+        // if start key was set and relation was "greater than"
+        if (select.getKeyStart() != null && !select.includeStartKey())
+        {
+            if (rows.get(0).key.key.equals(startKey))
+                rows.remove(0);
+        }
+
+        // if finish key was set and relation was "less than"
+        if (select.getKeyFinish() != null && !select.includeFinishKey())
+        {
+            int lastIndex = rows.size() - 1;
+            if (rows.get(lastIndex).key.key.equals(finishKey))
+                rows.remove(lastIndex);
+        }
+
+        return rows.subList(0, select.getNumRecords() < rows.size() ? select.getNumRecords() : rows.size());
     }
     
     private static List<org.apache.cassandra.db.Row> getIndexedSlices(String keyspace, SelectStatement select)

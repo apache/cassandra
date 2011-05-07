@@ -152,29 +152,68 @@ class TestCql(ThriftTester):
     def test_select_row_range(self):
         "retrieve a range of rows with columns"
         cursor = init()
-        cursor.execute("""
-            SELECT 4 FROM StandardLongA WHERE KEY > 'ad' AND KEY < 'ag';
-        """)
-        rows = [row[0] for row in cursor.fetchall()]
-        assert ['ad', 'ae', 'af', 'ag'] == rows, rows
 
-    def test_select_row_range_with_limit(self):
-        "retrieve a limited range of rows with columns"
-        cursor = init()
-        cursor.execute("""
-            SELECT 1,5,9 FROM StandardLongA WHERE KEY > 'aa'
-                    AND KEY < 'ag' LIMIT 3
-        """)
-        assert cursor.rowcount == 3
+        # everything
+        cursor.execute("SELECT * FROM StandardLongA")
+        keys = [row[0] for row in cursor.fetchall()]
+        assert ['aa', 'ab', 'ac', 'ad', 'ae', 'af', 'ag'] == keys, keys
 
-        cursor.execute("""
-            SELECT 20,40 FROM StandardIntegerA WHERE KEY > 'k1'
-                    AND KEY < 'k7' LIMIT 5
-        """)
-        assert cursor.rowcount == 5
-        for i in range(5):
-            r = cursor.fetchone()
-            assert r[0] == "k%d" % (i+1)
+        # [start, end], mid-row
+        cursor.execute("SELECT * FROM StandardLongA WHERE KEY >= 'ad' AND KEY <= 'ag'")
+        keys = [row[0] for row in cursor.fetchall()]
+        assert ['ad', 'ae', 'af', 'ag'] == keys, keys
+
+        # (start, end), mid-row
+        cursor.execute("SELECT * FROM StandardLongA WHERE KEY > 'ad' AND KEY < 'ag'")
+        keys = [row[0] for row in cursor.fetchall()]
+        assert ['ae', 'af'] == keys, keys
+
+        # [start, end], full-row
+        cursor.execute("SELECT * FROM StandardLongA WHERE KEY >= 'aa' AND KEY <= 'ag'")
+        keys = [row[0] for row in cursor.fetchall()]
+        assert ['aa', 'ab', 'ac', 'ad', 'ae', 'af', 'ag'] == keys, keys
+
+        # (start, end), full-row
+        cursor.execute("SELECT * FROM StandardLongA WHERE KEY > 'a' AND KEY < 'g'")
+        keys = [row[0] for row in cursor.fetchall()]
+        assert ['aa', 'ab', 'ac', 'ad', 'ae', 'af', 'ag'] == keys, keys
+
+        # LIMIT tests
+
+        # no WHERE
+        cursor.execute("SELECT * FROM StandardLongA LIMIT 1")
+        keys = [row[0] for row in cursor.fetchall()]
+        assert ['aa'] == keys, keys
+
+        # with >=, non-existing key
+        cursor.execute("SELECT * FROM StandardLongA WHERE KEY >= 'a' LIMIT 1")
+        keys = [row[0] for row in cursor.fetchall()]
+        assert ['aa'] == keys, keys
+
+        # with >=, existing key
+        cursor.execute("SELECT * FROM StandardLongA WHERE KEY >= 'aa' LIMIT 1")
+        keys = [row[0] for row in cursor.fetchall()]
+        assert ['aa'] == keys, keys
+
+        # with >, non-existing key
+        cursor.execute("SELECT * FROM StandardLongA WHERE KEY > 'a' LIMIT 1")
+        keys = [row[0] for row in cursor.fetchall()]
+        assert ['aa'] == keys, keys
+
+        # with >, existing key
+        cursor.execute("SELECT * FROM StandardLongA WHERE KEY > 'aa' LIMIT 1")
+        keys = [row[0] for row in cursor.fetchall()]
+        assert ['ab'] == keys, keys
+
+        # with both > and <, existing keys
+        cursor.execute("SELECT * FROM StandardLongA WHERE KEY > 'aa' and KEY < 'ag' LIMIT 5")
+        keys = [row[0] for row in cursor.fetchall()]
+        assert ['ab', 'ac', 'ad', 'ae', 'af'] == keys, keys
+
+        # with both > and <, non-existing keys
+        cursor.execute("SELECT * FROM StandardLongA WHERE KEY > 'a' and KEY < 'b' LIMIT 5")
+        keys = [row[0] for row in cursor.fetchall()]
+        assert ['aa', 'ab', 'ac', 'ad', 'ae'] == keys, keys
 
     def test_select_columns_slice(self):
         "column slice tests"
@@ -294,7 +333,7 @@ class TestCql(ThriftTester):
         cursor = init()
         cursor.execute("""
             SELECT 'birthdate' FROM IndexedA WHERE 'birthdate' = 100
-                    AND KEY > 'asmithZ'
+                    AND KEY >= 'asmithZ'
         """)
         assert cursor.rowcount == 1
         r = cursor.fetchone()

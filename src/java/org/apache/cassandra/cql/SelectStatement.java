@@ -126,7 +126,17 @@ public class SelectStatement
     {
         return isCountOper;
     }
-    
+
+    public boolean includeStartKey()
+    {
+        return clause.includeStartKey();
+    }
+
+    public boolean includeFinishKey()
+    {
+        return clause.includeFinishKey();
+    }
+
     public AbstractType getComparator(String keyspace)
     {
         return DatabaseDescriptor.getComparator(keyspace, columnFamily);
