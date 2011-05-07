@@ -502,7 +502,7 @@ public class Table
             if (bothDeleted || obsoleteRowTombstone || obsoleteColumn)
             {
                 if (logger.isDebugEnabled())
-                    logger.debug("skipping index update for obsolete mutation of " + cf.getComparator().getString(oldColumn.name()));
+                    logger.debug("skipping index update for obsolete mutation of " + cf.getComparator().getString(name));
                 iter.remove();
                 oldIndexedColumns.remove(name);
             }
