@@ -179,7 +179,7 @@ public final class CFMetaData
     public CFMetaData mergeShardsChance(double prop) {mergeShardsChance = prop; return this;}
     public CFMetaData keyAlias(ByteBuffer prop) {keyAlias = prop; return this;}
     public CFMetaData columnMetadata(Map<ByteBuffer,ColumnDefinition> prop) {column_metadata = prop; return this;}
-    public CFMetaData rowCacheProvider(IRowCacheProvider prop) { rowCacheProvider = prop; return this;};
+    public CFMetaData rowCacheProvider(IRowCacheProvider prop) { rowCacheProvider = prop; return this;}
 
     public CFMetaData(String keyspace, String name, ColumnFamilyType type, AbstractType comp, AbstractType subcc)
     {
@@ -718,19 +718,19 @@ public final class CFMetaData
             rowCacheProvider = FBUtilities.newCacheProvider(cf_def.row_cache_provider.toString());
         keyAlias = cf_def.key_alias;
 
-        // adjust secondary indexes. figure out who is coming and going.
+        // adjust column definitions. figure out who is coming and going.
         Set<ByteBuffer> toRemove = new HashSet<ByteBuffer>();
-        Set<ByteBuffer> newIndexNames = new HashSet<ByteBuffer>();
+        Set<ByteBuffer> newColumns = new HashSet<ByteBuffer>();
         Set<org.apache.cassandra.db.migration.avro.ColumnDef> toAdd = new HashSet<org.apache.cassandra.db.migration.avro.ColumnDef>();
         for (org.apache.cassandra.db.migration.avro.ColumnDef def : cf_def.column_metadata)
         {
-            newIndexNames.add(def.name);
+            newColumns.add(def.name);
             if (!column_metadata.containsKey(def.name))
                 toAdd.add(def);
         }
-        for (ByteBuffer indexName : column_metadata.keySet())
-            if (!newIndexNames.contains(indexName))
-                toRemove.add(indexName);
+        for (ByteBuffer name : column_metadata.keySet())
+            if (!newColumns.contains(name))
+                toRemove.add(name);
         
         // remove the ones leaving.
         for (ByteBuffer indexName : toRemove)

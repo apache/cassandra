@@ -64,6 +64,7 @@ public class SchemaLoader
         String ks3 = "Keyspace3";
         String ks4 = "Keyspace4";
         String ks5 = "Keyspace5";
+        String ks6 = "Keyspace6";
         String ks_kcs = "KeyCacheSpace";
         String ks_rcs = "RowCacheSpace";
 
@@ -181,6 +182,12 @@ public class SchemaLoader
                                   standardCFMD(ks5, "Counter1")
                                                .defaultValidator(CounterColumnType.instance)));
 
+        // Keyspace 6
+        schema.add(new KSMetaData(ks6,
+                                  simple,
+                                  opts_rf1,
+                                  indexCFMD(ks6, "Indexed1", true)));
+
         // KeyCacheSpace
         schema.add(new KSMetaData(ks_kcs,
                                   simple,
@@ -214,13 +221,12 @@ public class SchemaLoader
     private static CFMetaData indexCFMD(String ksName, String cfName, final Boolean withIdxType)
     {
         return standardCFMD(ksName, cfName)
-                .columnMetadata(Collections.unmodifiableMap(new HashMap<ByteBuffer, ColumnDefinition>()
+                .columnMetadata(new HashMap<ByteBuffer, ColumnDefinition>()
                     {{
                         ByteBuffer cName = ByteBuffer.wrap("birthdate".getBytes(Charsets.UTF_8));
                         IndexType keys = withIdxType ? IndexType.KEYS : null;
-                        put(cName,
-                            new ColumnDefinition(cName, LongType.instance, keys, null));
-                    }}));
+                        put(cName, new ColumnDefinition(cName, LongType.instance, keys, null));
+                    }});
     }
     private static CFMetaData jdbcCFMD(String ksName, String cfName, AbstractType comp)
     {
