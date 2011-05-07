@@ -71,9 +71,9 @@ public class JdbcDriverTest extends EmbeddedServiceBase
             "UPDATE JdbcInteger SET 1 = 11, 2 = 22, 42='fortytwo' WHERE KEY = '" + jsmith + "'",
             "UPDATE JdbcInteger SET 3 = 33, 4 = 44 WHERE KEY = '" + jsmith + "'",
             "UPDATE JdbcLong SET 1 = 11, 2 = 22 WHERE KEY = '" + jsmith + "'",
-            "UPDATE JdbcAscii SET 'first' = 'firstrec', 'last' = 'lastrec' WHERE key = '" + jsmith + "'",
+            "UPDATE JdbcAscii SET 'first' = 'firstrec', last = 'lastrec' WHERE key = '" + jsmith + "'",
             String.format("UPDATE JdbcBytes SET '%s' = '%s', '%s' = '%s' WHERE key = '%s'", first, firstrec, last, lastrec, jsmith),
-            "UPDATE JdbcUtf8 SET 'first' = 'firstrec', 'fortytwo' = '42', 'last' = 'lastrec' WHERE key = '" + jsmith + "'",
+            "UPDATE JdbcUtf8 SET 'first' = 'firstrec', fortytwo = '42', last = 'lastrec' WHERE key = '" + jsmith + "'",
         };
         for (String q : inserts)
         {
@@ -137,8 +137,8 @@ public class JdbcDriverTest extends EmbeddedServiceBase
         expectedMetaData(md, 2, BigInteger.class.getName(), "JdbcInteger", "Keyspace1", "2", Types.BIGINT, IntegerType.class.getSimpleName(), true, false);
         expectedMetaData(md, 3, String.class.getName(), "JdbcInteger", "Keyspace1", "42", Types.VARCHAR, UTF8Type.class.getSimpleName(), false, true);
         
-        stmt.executeUpdate("update JdbcUtf8 set 'a'='aa', 'b'='bb', 'fortytwo'='4242' where key='" + key + "'");
-        rs = stmt.executeQuery("select 'a', 'b', 'fortytwo' from JdbcUtf8 where key='" + key + "'");
+        stmt.executeUpdate("update JdbcUtf8 set a='aa', b='bb', fortytwo='4242' where key='" + key + "'");
+        rs = stmt.executeQuery("select a, b, fortytwo from JdbcUtf8 where key='" + key + "'");
         assert rs.next();
         assert rs.getString("a").equals("aa");
         assert rs.getString("b").equals("bb");
@@ -205,10 +205,10 @@ public class JdbcDriverTest extends EmbeddedServiceBase
         String aKey = FBUtilities.bytesToHex("ascii".getBytes());
         String uKey = FBUtilities.bytesToHex("utf8".getBytes());
         Statement stmt = con.createStatement();
-        stmt.executeUpdate("UPDATE JdbcAscii SET 'a'='aa', 'b'='bb' WHERE KEY = '" + aKey + "'");
-        stmt.executeUpdate("UPDATE JdbcUtf8 SET 'a'='aa', 'b'='bb' WHERE KEY = '" + uKey + "'");
-        ResultSet rs0 = stmt.executeQuery("SELECT 'a', 'b' FROM JdbcAscii WHERE KEY = '" + aKey + "'");
-        ResultSet rs1 = stmt.executeQuery("SELECT 'a', 'b' FROM JdbcUtf8 WHERE KEY = '" + uKey + "'");
+        stmt.executeUpdate("UPDATE JdbcAscii SET a='aa', b='bb' WHERE KEY = '" + aKey + "'");
+        stmt.executeUpdate("UPDATE JdbcUtf8 SET a='aa', b='bb' WHERE KEY = '" + uKey + "'");
+        ResultSet rs0 = stmt.executeQuery("SELECT a, b FROM JdbcAscii WHERE KEY = '" + aKey + "'");
+        ResultSet rs1 = stmt.executeQuery("SELECT a, b FROM JdbcUtf8 WHERE KEY = '" + uKey + "'");
         for (ResultSet rs : new ResultSet[] { rs0, rs1 }) 
         {
             assert rs.next();
@@ -305,13 +305,13 @@ public class JdbcDriverTest extends EmbeddedServiceBase
         selectQ = "SELECT 1, 2 FROM JdbcLong WHERE KEY='" + jsmith + "'";
         checkResultSet(stmt.executeQuery(selectQ), "Long", 1, "1", "2");
         
-        selectQ = "SELECT 'first', 'last' FROM JdbcAscii WHERE KEY='" + jsmith + "'";
+        selectQ = "SELECT 'first', last FROM JdbcAscii WHERE KEY='" + jsmith + "'";
         checkResultSet(stmt.executeQuery(selectQ), "String", 1, "first", "last");
         
         selectQ = String.format("SELECT '%s', '%s' FROM JdbcBytes WHERE KEY='%s'", first, last, jsmith);
         checkResultSet(stmt.executeQuery(selectQ), "Bytes", 1, first, last);
         
-        selectQ = "SELECT 'first', 'last' FROM JdbcUtf8 WHERE KEY='" + jsmith + "'";
+        selectQ = "SELECT 'first', last FROM JdbcUtf8 WHERE KEY='" + jsmith + "'";
         checkResultSet(stmt.executeQuery(selectQ), "String", 1, "first", "last");
     }
     
@@ -344,13 +344,13 @@ public class JdbcDriverTest extends EmbeddedServiceBase
         selectQ = "SELECT 1, 2 FROM JdbcLong WHERE KEY='" + jsmith + "'";
         checkResultSet(executePreparedStatementWithResults(con, selectQ), "Long", 1, "1", "2");
         
-        selectQ = "SELECT 'first', 'last' FROM JdbcAscii WHERE KEY='" + jsmith + "'";
+        selectQ = "SELECT 'first', last FROM JdbcAscii WHERE KEY='" + jsmith + "'";
         checkResultSet(executePreparedStatementWithResults(con, selectQ), "String", 1, "first", "last");
         
         selectQ = String.format("SELECT '%s', '%s' FROM JdbcBytes WHERE KEY='%s'", first, last, jsmith);
         checkResultSet(executePreparedStatementWithResults(con, selectQ), "Bytes", 1, first, last);
         
-        selectQ = "SELECT 'first', 'last' FROM JdbcUtf8 WHERE KEY='" + jsmith + "'";
+        selectQ = "SELECT 'first', last FROM JdbcUtf8 WHERE KEY='" + jsmith + "'";
         checkResultSet(executePreparedStatementWithResults(con, selectQ), "String", 1, "first", "last");
     }
 
@@ -383,7 +383,7 @@ public class JdbcDriverTest extends EmbeddedServiceBase
                 
                 "DELETE 'first' FROM JdbcAscii WHERE KEY='" + jsmith + "'",
                 "SELECT 'first' FROM JdbcAscii WHERE KEY='" + jsmith + "'",
-                "SELECT 'last' FROM JdbcAscii WHERE KEY='" + jsmith + "'",
+                "SELECT last FROM JdbcAscii WHERE KEY='" + jsmith + "'",
                 
                 String.format("DELETE '%s' FROM JdbcBytes WHERE KEY='%s'", first, jsmith),
                 String.format("SELECT '%s' FROM JdbcBytes WHERE KEY='%s'", first, jsmith),
@@ -391,7 +391,7 @@ public class JdbcDriverTest extends EmbeddedServiceBase
                 
                 "DELETE 'first' FROM JdbcUtf8 WHERE KEY='" + jsmith + "'",
                 "SELECT 'first' FROM JdbcUtf8 WHERE KEY='" + jsmith + "'",
-                "SELECT 'last' FROM JdbcUtf8 WHERE KEY='" + jsmith + "'",
+                "SELECT last FROM JdbcUtf8 WHERE KEY='" + jsmith + "'",
         };
         
         for (int i = 0; i < statements.length/3; i++) 
