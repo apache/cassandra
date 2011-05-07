@@ -186,17 +186,15 @@ public class Table
     }
 
     /**
-     * Take a snapshot of the entire set of column families with a given timestamp.
+     * Take a snapshot of the entire set of column families with a given timestamp
      * 
-     * @param clientSuppliedName the tag associated with the name of the snapshot.  This
-     *                           value can be null.
+     * @param snapshotName the tag associated with the name of the snapshot.  This value may not be null
      */
     public void snapshot(String snapshotName)
     {
+        assert snapshotName != null;
         for (ColumnFamilyStore cfStore : columnFamilyStores.values())
-        {
             cfStore.snapshot(snapshotName);
-        }
     }
 
     /**
@@ -213,7 +211,7 @@ public class Table
         return snapshotName;
     }
 
-    /**
+    /**?
      * Clear snapshots for this table. If no tag is given we will clear all
      * snapshots
      *
@@ -503,6 +501,8 @@ public class Table
                                                            || (oldColumn != null && oldColumn.reconcile(newColumn) == oldColumn));
             if (bothDeleted || obsoleteRowTombstone || obsoleteColumn)
             {
+                if (logger.isDebugEnabled())
+                    logger.debug("skipping index update for obsolete mutation of " + cf.getComparator().getString(name));
                 iter.remove();
                 oldIndexedColumns.remove(name);
             }

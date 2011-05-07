@@ -125,7 +125,7 @@ def init(keyspace="Keyspace1"):
 
 class TestCql(ThriftTester):
     def test_select_simple(self):
-        "retrieve a column"
+        "single-row named column queries"
         cursor = init()
         cursor.execute("SELECT 'ca1' FROM StandardString1 WHERE KEY='ka'")
         r = cursor.fetchone()
@@ -137,10 +137,8 @@ class TestCql(ThriftTester):
         assert d[1][0] == 'ca1'
         assert r[1] == 'va1'
 
-    def test_select_columns(self):
-        "retrieve multiple columns"
-        cursor = init()
-        # we deliberately request columns in non-comparator order
+        # retrieve multiple columns
+        # (we deliberately request columns in non-comparator order)
         cursor.execute("""
             SELECT ca1, col, cd1 FROM StandardString1 WHERE KEY = 'kd'
         """)
@@ -157,12 +155,8 @@ class TestCql(ThriftTester):
         cursor.execute("""
             SELECT 4 FROM StandardLongA WHERE KEY > 'ad' AND KEY < 'ag';
         """)
-        keys = ['ad', 'ae', 'af']
-        assert cursor.rowcount == 4
-        for i in range(3):
-            r = cursor.fetchone()
-            assert len(r) == 2
-            assert r[0] == keys[i]
+        rows = [row[0] for row in cursor.fetchall()]
+        assert ['ad', 'ae', 'af', 'ag'] == rows, rows
 
     def test_select_row_range_with_limit(self):
         "retrieve a limited range of rows with columns"
@@ -183,9 +177,18 @@ class TestCql(ThriftTester):
             assert r[0] == "k%d" % (i+1)
 
     def test_select_columns_slice(self):
-        "range of columns (slice) by row"
+        "column slice tests"
         cursor = init()
 
+        # all columns
+        cursor.execute("SELECT * FROM StandardString1 WHERE KEY = 'ka';")
+        r = cursor.fetchone()
+        assert len(r) == 3
+        cursor.execute("SELECT ''..'' FROM StandardString1 WHERE KEY = 'ka';")
+        r = cursor.fetchone()
+        assert len(r) == 3
+
+        # column subsets
         cursor.execute("SELECT 1..3 FROM StandardLongA WHERE KEY = 'aa';")
         assert cursor.rowcount == 1
         r = cursor.fetchone()
@@ -193,7 +196,7 @@ class TestCql(ThriftTester):
         assert r[1] == "1"
         assert r[2] == "2"
         assert r[3] == "3"
-
+        
         cursor.execute("SELECT 10..30 FROM StandardIntegerA WHERE KEY='k1'")
         assert cursor.rowcount == 1
         r = cursor.fetchone()
@@ -202,19 +205,7 @@ class TestCql(ThriftTester):
         assert r[2] == "b"
         assert r[3] == "c"
 
-    def test_select_columns_slice_all(self):
-        "slice all columns in a row"
-        cursor = init()
-        cursor.execute("SELECT * FROM StandardString1 WHERE KEY = 'ka';")
-        r = cursor.fetchone()
-        assert len(r) == 3
-        cursor.execute("SELECT ''..'' FROM StandardString1 WHERE KEY = 'ka';")
-        r = cursor.fetchone()
-        assert len(r) == 3
-
-    def test_select_columns_slice_with_limit(self):
-        "range of columns (slice) by row with limit"
-        cursor = init()
+        # range of columns (slice) by row with FIRST
         cursor.execute("""
             SELECT FIRST 1 1..3 FROM StandardLongA WHERE KEY = 'aa';
         """)
@@ -223,6 +214,17 @@ class TestCql(ThriftTester):
         assert len(r) == 2
         assert r[0] == "aa"
         assert r[1] == "1"
+
+        # range of columns (slice) by row reversed
+        cursor.execute("""
+            SELECT FIRST 2 REVERSED 3..1 FROM StandardLongA WHERE KEY = 'aa';
+        """)
+        assert cursor.rowcount == 1, "%d != 1" % cursor.rowcount
+        r = cursor.fetchone()
+        assert len(r) == 3
+        assert r[0] == 'aa'
+        assert r[1] == "3"
+        assert r[2] == "2"
 
     def test_select_range_with_single_column_results(self):
         "range should not fail when keys were not set"
@@ -252,19 +254,6 @@ class TestCql(ThriftTester):
         assert len(r) == 2
         assert r[0] == "user3"
         assert r[1] == None
-
-    def test_select_columns_slice_reversed(self):
-        "range of columns (slice) by row reversed"
-        cursor= init()
-        cursor.execute("""
-            SELECT FIRST 2 REVERSED 3..1 FROM StandardLongA WHERE KEY = 'aa';
-        """)
-        assert cursor.rowcount == 1, "%d != 1" % cursor.rowcount
-        r = cursor.fetchone()
-        assert len(r) == 3
-        assert r[0] == 'aa'
-        assert r[1] == "3"
-        assert r[2] == "2"
 
     def test_index_scan_equality(self):
         "indexed scan where column equals value"

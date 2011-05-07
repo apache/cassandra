@@ -285,7 +285,14 @@ class AdaptiveLatencyTracker extends AbstractStatsDeque
     {
         if (!latencies.offer(i))
         {
-            latencies.remove();
+            try
+            {
+                latencies.remove();
+            }
+            catch (NoSuchElementException e)
+            {
+                // oops, clear() beat us to it
+            }
             latencies.offer(i);
         }
     }

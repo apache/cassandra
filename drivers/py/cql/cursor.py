@@ -21,7 +21,6 @@ import zlib
 import cql
 from cql.marshal import prepare
 from cql.decoders import SchemaDecoder
-from cql.results import ResultSet
 from cql.cassandra.ttypes import (
     Compression, 
     CqlResultType, 
@@ -30,6 +29,8 @@ from cql.cassandra.ttypes import (
     TimedOutException,
     TApplicationException,
     SchemaDisagreementException)
+
+_COUNT_DESCRIPTION = (None, None, None, None, None, None, None)
 
 class Cursor:
 
@@ -41,7 +42,6 @@ class Cursor:
         self.open_socket = True
         self.parent_connection = parent_connection
 
-        self.result = None      # Populate on execute()
         self.description = None # A list of 7-tuples: 
                                 #  (column_name, type_code, none, none,
                                 #   none, none, nulls_ok=True)
@@ -145,20 +145,18 @@ class Cursor:
             self.decoder.schema = self.__get_schema()
 
         if response.type == CqlResultType.ROWS:
-            self.result = ResultSet(response.rows,
-                                    self._query_ks,
-                                    self._query_cf,
-                                    self.decoder)
+            self.result = response.rows
             self.rs_idx = 0
             self.rowcount = len(self.result)
-            self.description = self.result.description
+            if self.result:
+                self.description = self.decoder.decode_description(self._query_ks, self._query_cf, self.result[0])
 
         if response.type == CqlResultType.INT:
             self.result = [(response.num,)]
             self.rs_idx = 0
             self.rowcount = 1
             # TODO: name could be the COUNT expression
-            self.description = (None, None, None, None, None, None, None)
+            self.description = _COUNT_DESCRIPTION
 
         # 'Return values are not defined.'
         return True
@@ -178,27 +176,28 @@ class Cursor:
 
     def fetchone(self):
         self.__checksock()
-        ret = self.result[self.rs_idx]
+        row = self.result[self.rs_idx]
         self.rs_idx += 1
-        self.description = getattr(self.result, 'description', self.description)
-        return ret
+        if self.description != _COUNT_DESCRIPTION:
+            self.description = self.decoder.decode_description(self._query_ks, self._query_cf, row)
+            return self.decoder.decode_row(self._query_ks, self._query_cf, row)
+        else:
+            return row
 
     def fetchmany(self, size=None):
         self.__checksock()
         if size is None:
             size = self.arraysize
-        end = self.rs_idx + size
-        ret = self.result[self.rs_idx:end]
-        self.rs_idx = end
-        self.description = getattr(self.result, 'description', self.description)
-        return ret
+        # we avoid leveraging fetchone here to avoid calling decode_description unnecessarily
+        L = []
+        while len(L) < size and self.rs_idx < len(self.result):
+            row = self.result[self.rs_idx]
+            self.rs_idx += 1
+            L.append(self.decoder.decode_row(self._query_ks, self._query_cf, row))
+        return L
 
     def fetchall(self):
-        self.__checksock()
-        ret = self.result[self.rs_idx:]
-        self.rs_idx = len(self.result)
-        self.description = self.result.description
-        return ret
+        return self.fetchmany(len(self.result) - self.rs_idx)
 
     ###
     # Iterator extension

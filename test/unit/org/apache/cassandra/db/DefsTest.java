@@ -23,14 +23,7 @@ import static org.junit.Assert.assertEquals;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.SortedSet;
-import java.util.TreeSet;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 
 import org.apache.avro.util.Utf8;
@@ -55,6 +48,7 @@ import org.apache.cassandra.db.migration.RenameKeyspace;
 import org.apache.cassandra.db.migration.UpdateColumnFamily;
 import org.apache.cassandra.db.migration.UpdateKeyspace;
 import org.apache.cassandra.io.SerDeUtils;
+import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.locator.OldNetworkTopologyStrategy;
 import org.apache.cassandra.locator.SimpleStrategy;
@@ -793,6 +787,33 @@ public class DefsTest extends CleanupHelper
         {
             cf_def.max_compaction_threshold = 33;
         }
+    }
+
+    @Test
+    public void testDropIndex() throws IOException, ExecutionException, InterruptedException, ConfigurationException
+    {
+        // insert some data.  save the sstable descriptor so we can make sure it's marked for delete after the drop
+        RowMutation rm = new RowMutation("Keyspace6", ByteBufferUtil.bytes("k1"));
+        rm.add(new QueryPath("Indexed1", null, ByteBufferUtil.bytes("notbirthdate")), ByteBufferUtil.bytes(1L), 0);
+        rm.add(new QueryPath("Indexed1", null, ByteBufferUtil.bytes("birthdate")), ByteBufferUtil.bytes(1L), 0);
+        rm.apply();
+        ColumnFamilyStore cfs = Table.open("Keyspace6").getColumnFamilyStore("Indexed1");
+        cfs.forceBlockingFlush();
+        ColumnFamilyStore indexedCfs = cfs.getIndexedColumnFamilyStore(cfs.getIndexedColumns().iterator().next());
+        Descriptor desc = indexedCfs.getSSTables().iterator().next().descriptor;
+
+        // drop the index
+        CFMetaData meta = CFMetaData.rename(cfs.metadata, cfs.metadata.cfName); // abusing rename to clone
+        ColumnDefinition cdOld = meta.getColumn_metadata().values().iterator().next();
+        ColumnDefinition cdNew = new ColumnDefinition(cdOld.name, cdOld.getValidator(), null, null);
+        meta.columnMetadata(Collections.singletonMap(cdOld.name, cdNew));
+        UpdateColumnFamily update = new UpdateColumnFamily(CFMetaData.convertToAvro(meta));
+        update.apply();
+
+        // check
+        assert cfs.getIndexedColumns().isEmpty();
+        ColumnFamilyStore.scrubDataDirectories("Keyspace6", "Indexed1");
+        assert !new File(desc.filenameFor(Component.DATA)).exists();
     }
 
     private CFMetaData addTestCF(String ks, String cf, String comment)

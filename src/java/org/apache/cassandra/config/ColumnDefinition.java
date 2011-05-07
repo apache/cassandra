@@ -130,21 +130,6 @@ public class ColumnDefinition
         return cds;
     }
     
-    public static Map<ByteBuffer, ColumnDefinition> fromColumnDefs(Iterable<org.apache.cassandra.db.migration.avro.ColumnDef> avroDefs) throws ConfigurationException
-    {
-        if (avroDefs == null)
-            return Collections.emptyMap();
-
-        Map<ByteBuffer, ColumnDefinition> cds = new TreeMap<ByteBuffer, ColumnDefinition>();
-        for (org.apache.cassandra.db.migration.avro.ColumnDef avroColumnDef : avroDefs)
-        {
-            validateIndexType(avroColumnDef);
-            cds.put(avroColumnDef.name, fromColumnDef(avroColumnDef));
-        }
-
-        return Collections.unmodifiableMap(cds);
-    }
-
     public static void validateIndexType(org.apache.cassandra.db.migration.avro.ColumnDef avroColumnDef) throws ConfigurationException
     {
         if ((avroColumnDef.index_name != null) && (avroColumnDef.index_type == null))
