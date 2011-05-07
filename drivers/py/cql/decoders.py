@@ -50,20 +50,27 @@ class SchemaDecoder(object):
             return cfam["key_validation_class"]
         return None
 
+    def decode_description(self, keyspace, column_family, row):
+        key_type = self.__keytype_for(keyspace, column_family)
+        description = [(cql.ROW_KEY, key_type, None, None, None, None, None, False)]
+        comparator = self.__comparator_for(keyspace, column_family)
+        unmarshal = unmarshallers.get(comparator, unmarshal_noop)
+        for column in row.columns:
+            description.append((unmarshal(column.name), comparator, None, None, None, None, True))
+
+        return description
+
     def decode_row(self, keyspace, column_family, row):
         key_type = self.__keytype_for(keyspace, column_family)
         key = unmarshallers.get(key_type, unmarshal_noop)(row.key)
-        description = [(cql.ROW_KEY, key_type, None, None, None, None, None, False)]
-
         comparator = self.__comparator_for(keyspace, column_family)
         unmarshal = unmarshallers.get(comparator, unmarshal_noop)
         values = [key]
         for column in row.columns:
-            description.append((unmarshal(column.name), comparator, None, None, None, None, True))
             validator = self.__validator_for(keyspace, column_family, column.name)
             if column.value is None:
                 values.append(None)
             else:
                 values.append(unmarshallers.get(validator, unmarshal_noop)(column.value))
 
-        return description, values
+        return values
