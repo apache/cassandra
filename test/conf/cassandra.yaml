@@ -207,3 +207,16 @@ keyspaces:
           rows_cached: 100
         - name: CFWithoutCache
           rows_cached: 0
+
+    - name: Keyspace6
+      replica_placement_strategy: org.apache.cassandra.locator.SimpleStrategy
+      replication_factor: 1
+      column_families:
+        - name: Indexed1
+          column_metadata:
+            - name: birthdate
+              validator_class: LongType
+              index_type: KEYS
+          rows_cached: 0
+          keys_cached: 0
+

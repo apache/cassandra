@@ -159,7 +159,7 @@ public final class CFMetaData
     private double memtableOperationsInMillions;      // default based on throughput
     // NOTE: if you find yourself adding members to this class, make sure you keep the convert methods in lockstep.
 
-    private final Map<ByteBuffer, ColumnDefinition> column_metadata;
+    final Map<ByteBuffer, ColumnDefinition> column_metadata;
 
     private CFMetaData(String tableName,
                        String cfName,
@@ -664,19 +664,19 @@ public final class CFMetaData
         memtableThroughputInMb = cf_def.memtable_throughput_in_mb;
         memtableOperationsInMillions = cf_def.memtable_operations_in_millions;
         
-        // adjust secondary indexes. figure out who is coming and going.
+        // adjust column definitions. figure out who is coming and going.
         Set<ByteBuffer> toRemove = new HashSet<ByteBuffer>();
-        Set<ByteBuffer> newIndexNames = new HashSet<ByteBuffer>();
+        Set<ByteBuffer> newColumns = new HashSet<ByteBuffer>();
         Set<org.apache.cassandra.avro.ColumnDef> toAdd = new HashSet<org.apache.cassandra.avro.ColumnDef>();
         for (org.apache.cassandra.avro.ColumnDef def : cf_def.column_metadata)
         {
-            newIndexNames.add(def.name);
+            newColumns.add(def.name);
             if (!column_metadata.containsKey(def.name))
                 toAdd.add(def);
         }
-        for (ByteBuffer indexName : column_metadata.keySet())
-            if (!newIndexNames.contains(indexName))
-                toRemove.add(indexName);
+        for (ByteBuffer name : column_metadata.keySet())
+            if (!newColumns.contains(name))
+                toRemove.add(name);
         
         // remove the ones leaving.
         for (ByteBuffer indexName : toRemove)

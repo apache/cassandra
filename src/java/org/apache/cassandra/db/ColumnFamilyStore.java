@@ -177,7 +177,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         // future: if/when we have modifiable settings for secondary indexes, they'll need to be handled here.
         for (ByteBuffer indexedColumn : indexedColumns.keySet())
         {
-            if (!metadata.getColumn_metadata().containsKey(indexedColumn))
+            ColumnDefinition def = metadata.getColumn_metadata().get(indexedColumn);
+            if (def == null || def.getIndexType() == null)
                 removeIndex(indexedColumn);
         }
 
