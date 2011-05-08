@@ -223,7 +223,7 @@ public class CompactionsPurgeTest extends CleanupHelper
 
         // Check that the second insert did went in
         ColumnFamily cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(key, new QueryPath(cfName)));
-        assert cf.getColumnCount() == 10;
+        assertEquals(10, cf.getColumnCount());
         for (IColumn c : cf)
             assert !c.isMarkedForDelete();
     }

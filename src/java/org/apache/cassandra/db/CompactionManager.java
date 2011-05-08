@@ -564,7 +564,7 @@ public class CompactionManager implements CompactionManagerMBean
                 return 0;
             }
 
-            writer = cfs.createCompactionWriter(expectedBloomFilterSize, compactionFileLocation);
+            writer = cfs.createCompactionWriter(expectedBloomFilterSize, compactionFileLocation, sstables);
             while (nni.hasNext())
             {
                 AbstractCompactedRow row = nni.next();
@@ -652,7 +652,7 @@ public class CompactionManager implements CompactionManagerMBean
                 assert firstRowPositionFromIndex == 0 : firstRowPositionFromIndex;
             }
 
-            SSTableWriter writer = maybeCreateWriter(cfs, compactionFileLocation, expectedBloomFilterSize, null);
+            SSTableWriter writer = maybeCreateWriter(cfs, compactionFileLocation, expectedBloomFilterSize, null, Collections.singletonList(sstable));
             executor.beginCompaction(new ScrubInfo(dataFile, sstable));
             int goodRows = 0, badRows = 0, emptyRows = 0;
 
@@ -840,7 +840,7 @@ public class CompactionManager implements CompactionManagerMBean
                         SSTableIdentityIterator row = (SSTableIdentityIterator) scanner.next();
                         if (Range.isTokenInRanges(row.getKey().token, ranges))
                         {
-                            writer = maybeCreateWriter(cfs, compactionFileLocation, expectedBloomFilterSize, writer);
+                            writer = maybeCreateWriter(cfs, compactionFileLocation, expectedBloomFilterSize, writer, Collections.singletonList(sstable));
                             writer.append(getCompactedRow(row, sstable.descriptor, false));
                             totalkeysWritten++;
                         }
@@ -921,13 +921,13 @@ public class CompactionManager implements CompactionManagerMBean
                : new PrecompactedRow(CompactionController.getBasicController(forceDeserialize), Arrays.asList(row));
     }
 
-    private SSTableWriter maybeCreateWriter(ColumnFamilyStore cfs, String compactionFileLocation, int expectedBloomFilterSize, SSTableWriter writer)
+    private SSTableWriter maybeCreateWriter(ColumnFamilyStore cfs, String compactionFileLocation, int expectedBloomFilterSize, SSTableWriter writer, Collection<SSTableReader> sstables)
             throws IOException
     {
         if (writer == null)
         {
             FileUtils.createDirectory(compactionFileLocation);
-            writer = cfs.createCompactionWriter(expectedBloomFilterSize, compactionFileLocation);
+            writer = cfs.createCompactionWriter(expectedBloomFilterSize, compactionFileLocation, sstables);
         }
         return writer;
     }

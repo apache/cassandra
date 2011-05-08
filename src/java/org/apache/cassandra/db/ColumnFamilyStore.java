@@ -52,7 +52,7 @@ import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.columniterator.IColumnIterator;
 import org.apache.cassandra.db.commitlog.CommitLog;
-import org.apache.cassandra.db.commitlog.CommitLogSegment;
+import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
@@ -645,7 +645,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
             assert getMemtableThreadSafe() == oldMemtable;
             oldMemtable.freeze();
-            final CommitLogSegment.CommitLogContext ctx = writeCommitLog ? CommitLog.instance.getContext() : null;
+            final ReplayPosition ctx = writeCommitLog ? CommitLog.instance.getContext() : null;
 
             // submit the memtable for any indexed sub-cfses, and our own.
             List<ColumnFamilyStore> icc = new ArrayList<ColumnFamilyStore>(indexedColumns.size());
@@ -657,7 +657,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
             final CountDownLatch latch = new CountDownLatch(icc.size());
             for (ColumnFamilyStore cfs : icc)
-                submitFlush(cfs.data.switchMemtable(), latch);
+                submitFlush(cfs.data.switchMemtable(), latch, ctx);
 
             // we marked our memtable as frozen as part of the concurrency control,
             // so even if there was nothing to flush we need to switch it out
@@ -739,7 +739,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         if (binaryMemtable.get().isClean())
             return;
 
-        submitFlush(binaryMemtable.get(), new CountDownLatch(1));
+        submitFlush(binaryMemtable.get(), new CountDownLatch(1), null);
     }
 
     public void updateRowCache(DecoratedKey key, ColumnFamily columnFamily)
@@ -1006,10 +1006,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * flushing thread finishes sorting, which will almost always be longer than any of the flushSorter threads proper
      * (since, by definition, it started last).
      */
-    void submitFlush(IFlushable flushable, CountDownLatch latch)
+    void submitFlush(IFlushable flushable, CountDownLatch latch, ReplayPosition context)
     {
         logger.info("Enqueuing flush of {}", flushable);
-        flushable.flushAndSignal(latch, flushSorter, flushWriter);
+        flushable.flushAndSignal(latch, flushSorter, flushWriter, context);
     }
 
     public long getMemtableColumnsCount()
@@ -2116,14 +2116,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return intern(name);
     }
 
-    public SSTableWriter createFlushWriter(long estimatedRows, long estimatedSize) throws IOException
+    public SSTableWriter createFlushWriter(long estimatedRows, long estimatedSize, ReplayPosition context) throws IOException
     {
-        return new SSTableWriter(getFlushPath(estimatedSize, Descriptor.CURRENT_VERSION), estimatedRows, metadata, partitioner);
+        return new SSTableWriter(getFlushPath(estimatedSize, Descriptor.CURRENT_VERSION), estimatedRows, metadata, partitioner, context);
     }
 
-    public SSTableWriter createCompactionWriter(long estimatedRows, String location) throws IOException
+    public SSTableWriter createCompactionWriter(long estimatedRows, String location, Collection<SSTableReader> sstables) throws IOException
     {
-        return new SSTableWriter(getTempSSTablePath(location), estimatedRows, metadata, partitioner);
+        ReplayPosition rp = ReplayPosition.getReplayPosition(sstables);
+        return new SSTableWriter(getTempSSTablePath(location), estimatedRows, metadata, partitioner, rp);
     }
 
     public Iterable<ColumnFamilyStore> concatWithIndexes()

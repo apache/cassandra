@@ -35,6 +35,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.sstable.SSTableWriter;
@@ -83,7 +84,7 @@ public class BinaryMemtable implements IFlushable
                 if (!isFrozen)
                 {
                     isFrozen = true;
-                    cfs.submitFlush(this, new CountDownLatch(1));
+                    cfs.submitFlush(this, new CountDownLatch(1), null);
                     cfs.switchBinaryMemtable(key, buffer);
                 }
                 else
@@ -122,10 +123,10 @@ public class BinaryMemtable implements IFlushable
         return keys;
     }
 
-    private SSTableReader writeSortedContents(List<DecoratedKey> sortedKeys) throws IOException
+    private SSTableReader writeSortedContents(List<DecoratedKey> sortedKeys, ReplayPosition context) throws IOException
     {
         logger.info("Writing " + this);
-        SSTableWriter writer = cfs.createFlushWriter(sortedKeys.size(), DatabaseDescriptor.getBMTThreshold());
+        SSTableWriter writer = cfs.createFlushWriter(sortedKeys.size(), DatabaseDescriptor.getBMTThreshold(), context);
 
         for (DecoratedKey key : sortedKeys)
         {
@@ -138,7 +139,7 @@ public class BinaryMemtable implements IFlushable
         return sstable;
     }
 
-    public void flushAndSignal(final CountDownLatch latch, ExecutorService sorter, final ExecutorService writer)
+    public void flushAndSignal(final CountDownLatch latch, ExecutorService sorter, final ExecutorService writer, final ReplayPosition context)
     {
         sorter.execute(new Runnable()
         {
@@ -149,7 +150,7 @@ public class BinaryMemtable implements IFlushable
                 {
                     public void runMayThrow() throws IOException
                     {
-                        cfs.addSSTable(writeSortedContents(sortedKeys));
+                        cfs.addSSTable(writeSortedContents(sortedKeys, context));
                         latch.countDown();
                     }
                 });

@@ -27,36 +27,15 @@ import org.junit.Test;
 
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.db.commitlog.CommitLog;
-import org.apache.cassandra.db.commitlog.CommitLogHeader;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.utils.Pair;
 
 public class CommitLogTest extends CleanupHelper
 {
     @Test
-    public void testRecoveryWithEmptyHeader() throws Exception
-    {
-        testRecovery(new byte[0], new byte[10]);
-    }
-
-    @Test
-    public void testRecoveryWithShortHeader() throws Exception
-    {
-        testRecovery(new byte[2], new byte[10]);
-    }
-
-    @Test
-    public void testRecoveryWithGarbageHeader() throws Exception
-    {
-        byte[] garbage = new byte[100];
-        (new java.util.Random()).nextBytes(garbage);
-        testRecovery(garbage, garbage);
-    }
-
-    @Test
     public void testRecoveryWithEmptyLog() throws Exception
     {
-        CommitLog.recover(new File[] {tmpFiles().right});
+        CommitLog.recover(new File[] {tmpFile()});
     }
 
     @Test
@@ -69,13 +48,13 @@ public class CommitLogTest extends CleanupHelper
     @Test
     public void testRecoveryWithShortSize() throws Exception
     {
-        testRecovery(new byte[0], new byte[2]);
+        testRecovery(new byte[2]);
     }
 
     @Test
     public void testRecoveryWithShortCheckSum() throws Exception
     {
-        testRecovery(new byte[0], new byte[6]);
+        testRecovery(new byte[6]);
     }
 
     @Test
@@ -83,7 +62,7 @@ public class CommitLogTest extends CleanupHelper
     {
         byte[] garbage = new byte[100];
         (new java.util.Random()).nextBytes(garbage);
-        testRecovery(new byte[0], garbage);
+        testRecovery(garbage);
     }
 
     @Test
@@ -108,30 +87,6 @@ public class CommitLogTest extends CleanupHelper
         testRecoveryWithBadSizeArgument(-10, 10); // negative size, but no EOF
     }
 
-    @Test
-    public void testRecoveryWithHeaderPositionGreaterThanLogLength() throws Exception
-    {
-        // Note: this can actually happen (in periodic mode) when data is flushed
-        // before it had time to hit the commitlog (since the header is flushed by the system)
-        // see https://issues.apache.org/jira/browse/CASSANDRA-2285
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        DataOutputStream dos = new DataOutputStream(out);
-        Checksum checksum = new CRC32();
-
-        // write the first checksum after the fixed-size part, so we won't read garbage lastFlushedAt data.
-        dos.writeInt(1);
-        checksum.update(1);
-        dos.writeLong(checksum.getValue());
-        dos.writeInt(0);
-        checksum.update(0);
-        dos.writeInt(200);
-        checksum.update(200);
-        dos.writeLong(checksum.getValue());
-        dos.close();
-
-        testRecovery(out.toByteArray(), new byte[0]);
-    }
-
     protected void testRecoveryWithBadSizeArgument(int size, int dataSize) throws Exception
     {
         Checksum checksum = new CRC32();
@@ -147,29 +102,22 @@ public class CommitLogTest extends CleanupHelper
         dout.writeLong(checksum);
         dout.write(new byte[dataSize]);
         dout.close();
-        testRecovery(new byte[0], out.toByteArray());
+        testRecovery(out.toByteArray());
     }
 
-    protected Pair<File, File> tmpFiles() throws IOException
+    protected File tmpFile() throws IOException
     {
         File logFile = File.createTempFile("testRecoveryWithPartiallyWrittenHeaderTestFile", null);
-        File headerFile = new File(CommitLogHeader.getHeaderPathFromSegmentPath(logFile.getAbsolutePath()));
         logFile.deleteOnExit();
-        headerFile.deleteOnExit();
         assert logFile.length() == 0;
-        assert headerFile.length() == 0;
-        return new Pair<File, File>(headerFile, logFile);
+        return logFile;
     }
 
-    protected void testRecovery(byte[] headerData, byte[] logData) throws Exception
+    protected void testRecovery(byte[] logData) throws Exception
     {
-        Pair<File, File> tmpFiles = tmpFiles();
-        File logFile = tmpFiles.right;
-        File headerFile = tmpFiles.left;
+        File logFile = tmpFile();
         OutputStream lout = new FileOutputStream(logFile);
-        OutputStream hout = new FileOutputStream(headerFile);
         lout.write(logData);
-        hout.write(headerData);
         //statics make it annoying to test things correctly
         CommitLog.recover(new File[] {logFile}); //CASSANDRA-1119 / CASSANDRA-1179 throw on failure*/
     }

@@ -6,6 +6,8 @@
  * snapshot_before_compaction directory name fix (CASSANDRA-2598)
  * Disable compaction throttling during bootstrap (CASSANDRA-2612) 
  * fix CQL treatment of > and < operators in range slices (CASSANDRA-2592)
+ * fix potential double-application of counter updates on commitlog replay
+   (CASSANDRA-2419)
 
 
 0.8.0-beta2

@@ -28,6 +28,7 @@ import java.util.Set;
 
 import com.google.common.collect.Sets;
 
+import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.io.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.slf4j.Logger;
@@ -62,14 +63,15 @@ public class SSTableWriter extends SSTable
 
     public SSTableWriter(String filename, long keyCount) throws IOException
     {
-        this(filename, keyCount, DatabaseDescriptor.getCFMetaData(Descriptor.fromFilename(filename)), StorageService.getPartitioner());
+        this(filename, keyCount, DatabaseDescriptor.getCFMetaData(Descriptor.fromFilename(filename)), StorageService.getPartitioner(), ReplayPosition.NONE);
     }
 
-    public SSTableWriter(String filename, long keyCount, CFMetaData metadata, IPartitioner partitioner) throws IOException
+    public SSTableWriter(String filename, long keyCount, CFMetaData metadata, IPartitioner partitioner, ReplayPosition replayPosition) throws IOException
     {
         super(Descriptor.fromFilename(filename),
               new HashSet<Component>(Arrays.asList(Component.DATA, Component.FILTER, Component.PRIMARY_INDEX, Component.STATS)),
               metadata,
+              replayPosition,
               partitioner,
               SSTable.defaultRowHistogram(),
               SSTable.defaultColumnHistogram());
@@ -182,7 +184,7 @@ public class SSTableWriter extends SSTable
         FileUtils.truncate(dataFile.getPath(), position);
 
         // write sstable statistics
-        writeStatistics(descriptor, estimatedRowSize, estimatedColumnCount);
+        writeMetadata(descriptor, estimatedRowSize, estimatedColumnCount, replayPosition);
 
         // remove the 'tmp' marker from all components
         final Descriptor newdesc = rename(descriptor, components);
@@ -190,20 +192,21 @@ public class SSTableWriter extends SSTable
         // finalize in-memory state for the reader
         SegmentedFile ifile = iwriter.builder.complete(newdesc.filenameFor(SSTable.COMPONENT_INDEX));
         SegmentedFile dfile = dbuilder.complete(newdesc.filenameFor(SSTable.COMPONENT_DATA));
-        SSTableReader sstable = SSTableReader.internalOpen(newdesc, components, metadata, partitioner, ifile, dfile, iwriter.summary, iwriter.bf, maxDataAge, estimatedRowSize, estimatedColumnCount);
+        SSTableReader sstable = SSTableReader.internalOpen(newdesc, components, metadata, replayPosition, partitioner, ifile, dfile, iwriter.summary, iwriter.bf, maxDataAge, estimatedRowSize, estimatedColumnCount);
         iwriter = null;
         dbuilder = null;
         return sstable;
     }
 
-    private static void writeStatistics(Descriptor desc, EstimatedHistogram rowSizes, EstimatedHistogram columnnCounts) throws IOException
+    private static void writeMetadata(Descriptor desc, EstimatedHistogram rowSizes, EstimatedHistogram columnCounts, ReplayPosition rp) throws IOException
     {
         BufferedRandomAccessFile out = new BufferedRandomAccessFile(new File(desc.filenameFor(SSTable.COMPONENT_STATS)),
                                                                      "rw",
                                                                      BufferedRandomAccessFile.DEFAULT_BUFFER_SIZE,
                                                                      true);
         EstimatedHistogram.serializer.serialize(rowSizes, out);
-        EstimatedHistogram.serializer.serialize(columnnCounts, out);
+        EstimatedHistogram.serializer.serialize(columnCounts, out);
+        ReplayPosition.serializer.serialize(rp, out);
         out.close();
     }
 
@@ -457,7 +460,7 @@ public class SSTableWriter extends SSTable
 
                 rows++;
             }
-            writeStatistics(desc, rowSizes, columnCounts);
+            writeMetadata(desc, rowSizes, columnCounts, ReplayPosition.NONE);
             return rows;
         }
     }
@@ -527,7 +530,7 @@ public class SSTableWriter extends SSTable
 
                 rows++;
             }
-            writeStatistics(desc, rowSizes, columnCounts);
+            writeMetadata(desc, rowSizes, columnCounts, ReplayPosition.NONE);
 
             if (writerDfile.getFilePointer() != dfile.getFilePointer())
             {

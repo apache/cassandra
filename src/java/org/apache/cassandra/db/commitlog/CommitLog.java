@@ -27,6 +27,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Ordering;
+
+import org.apache.cassandra.db.*;
+import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
@@ -37,10 +42,6 @@ import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.RowMutation;
-import org.apache.cassandra.db.Table;
-import org.apache.cassandra.db.UnserializableColumnFamilyException;
 import org.apache.cassandra.io.DeletionService;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
 import org.apache.cassandra.io.util.FileUtils;
@@ -133,7 +134,7 @@ public class CommitLog
         return false;
     }
 
-    public static void recover() throws IOException
+    public static int recover() throws IOException
     {
         String directory = DatabaseDescriptor.getCommitLogLocation();
         File[] files = new File(directory).listFiles(new FilenameFilter()
@@ -149,49 +150,63 @@ public class CommitLog
         if (files.length == 0)
         {
             logger.info("No commitlog files found; skipping replay");
-            return;
+            return 0;
         }
 
         Arrays.sort(files, new FileUtils.FileComparator());
         logger.info("Replaying " + StringUtils.join(files, ", "));
-        recover(files);
+        int replayed = recover(files);
         for (File f : files)
         {
-            FileUtils.delete(CommitLogHeader.getHeaderPathFromSegmentPath(f.getAbsolutePath())); // may not actually exist
             if (!f.delete())
                 logger.error("Unable to remove " + f + "; you should remove it manually or next restart will replay it again (harmless, but time-consuming)");
         }
-        logger.info("Log replay complete");
+        logger.info("Log replay complete, " + replayed + " replayed mutations");
+        return replayed;
     }
 
-    public static void recover(File[] clogs) throws IOException
+    // returns the number of replayed mutation (useful for tests in particular)
+    public static int recover(File[] clogs) throws IOException
     {
         Set<Table> tablesRecovered = new HashSet<Table>();
         List<Future<?>> futures = new ArrayList<Future<?>>();
         byte[] bytes = new byte[4096];
         Map<Integer, AtomicInteger> invalidMutations = new HashMap<Integer, AtomicInteger>();
 
-        for (File file : clogs)
+        // count the number of replayed mutation. We don't really care about atomicity, but we need it to be a reference.
+        final AtomicInteger replayedCount = new AtomicInteger();
+
+        // compute per-CF and global replay positions
+        final Map<Integer, ReplayPosition> cfPositions = new HashMap<Integer, ReplayPosition>();
+        for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
         {
+            // it's important to call RP.gRP per-cf, before aggregating all the positions w/ the Ordering.min call
+            // below: gRP will return NONE if there are no flushed sstables, which is important to have in the
+            // list (otherwise we'll just start replay from the first flush position that we do have, which is not correct).
+            ReplayPosition rp = ReplayPosition.getReplayPosition(cfs.getSSTables());
+            cfPositions.put(cfs.metadata.cfId, rp);
+        }
+        final ReplayPosition globalPosition = Ordering.from(ReplayPosition.comparator).min(cfPositions.values());
+
+        for (final File file : clogs)
+        {
+            final long segment = CommitLogSegment.idFromFilename(file.getName());
+
             int bufferSize = (int) Math.min(Math.max(file.length(), 1), 32 * 1024 * 1024);
             BufferedRandomAccessFile reader = new BufferedRandomAccessFile(new File(file.getAbsolutePath()), "r", bufferSize, true);
+            assert reader.length() <= Integer.MAX_VALUE;
 
             try
             {
-                CommitLogHeader clHeader = null;
-                int replayPosition = 0;
-                String headerPath = CommitLogHeader.getHeaderPathFromSegmentPath(file.getAbsolutePath());
-                try
-                {
-                    clHeader = CommitLogHeader.readCommitLogHeader(headerPath);
-                    replayPosition = clHeader.getReplayPosition();
-                }
-                catch (IOException ioe)
-                {
-                    logger.info(headerPath + " incomplete, missing or corrupt.  Everything is ok, don't panic.  CommitLog will be replayed from the beginning");
-                    logger.debug("exception was", ioe);
-                }
-                if (replayPosition < 0 || replayPosition > reader.length())
+                int replayPosition;
+                if (globalPosition.segment < segment)
+                    replayPosition = 0;
+                else if (globalPosition.segment == segment)
+                    replayPosition = globalPosition.position;
+                else
+                    replayPosition = (int) reader.length();
+
+                if (replayPosition < 0 || replayPosition >= reader.length())
                 {
                     // replayPosition > reader.length() can happen if some data gets flushed before it is written to the commitlog
                     // (see https://issues.apache.org/jira/browse/CASSANDRA-2285)
@@ -277,7 +292,6 @@ public class CommitLog
                     tablesRecovered.add(table);
                     final Collection<ColumnFamily> columnFamilies = new ArrayList<ColumnFamily>(rm.getColumnFamilies());
                     final long entryLocation = reader.getFilePointer();
-                    final CommitLogHeader finalHeader = clHeader;
                     final RowMutation frm = rm;
                     Runnable runnable = new WrappedRunnable()
                     {
@@ -294,8 +308,15 @@ public class CommitLog
                                     // null means the cf has been dropped
                                     continue;
 
-                                if (finalHeader == null || (finalHeader.isDirty(columnFamily.id()) && entryLocation > finalHeader.getPosition(columnFamily.id())))
+                                ReplayPosition rp = cfPositions.get(columnFamily.id());
+
+                                // replay if current segment is newer than last flushed one or, if it is the last known
+                                // segment, if we are after the replay position
+                                if (segment > rp.segment || (segment == rp.segment && entryLocation > rp.position))
+                                {
                                     newRm.add(columnFamily);
+                                    replayedCount.incrementAndGet();
+                                }
                             }
                             if (!newRm.isEmpty())
                             {
@@ -330,6 +351,8 @@ public class CommitLog
         for (Table table : tablesRecovered)
             futures.addAll(table.flush());
         FBUtilities.waitOnFutures(futures);
+
+        return replayedCount.get();
     }
 
     private CommitLogSegment currentSegment()
@@ -337,11 +360,11 @@ public class CommitLog
         return segments.getLast();
     }
     
-    public CommitLogSegment.CommitLogContext getContext()
+    public ReplayPosition getContext()
     {
-        Callable<CommitLogSegment.CommitLogContext> task = new Callable<CommitLogSegment.CommitLogContext>()
+        Callable<ReplayPosition> task = new Callable<ReplayPosition>()
         {
-            public CommitLogSegment.CommitLogContext call() throws Exception
+            public ReplayPosition call() throws Exception
             {
                 return currentSegment().getContext();
             }
@@ -377,7 +400,7 @@ public class CommitLog
      * The bit flag associated with this column family is set in the
      * header and this is used to decide if the log file can be deleted.
     */
-    public void discardCompletedSegments(final Integer cfId, final CommitLogSegment.CommitLogContext context) throws IOException
+    public void discardCompletedSegments(final Integer cfId, final ReplayPosition context) throws IOException
     {
         Callable task = new Callable()
         {
@@ -408,7 +431,7 @@ public class CommitLog
      * param @ id id of the columnFamily being flushed to disk.
      *
     */
-    private void discardCompletedSegmentsInternal(CommitLogSegment.CommitLogContext context, Integer id) throws IOException
+    private void discardCompletedSegmentsInternal(ReplayPosition context, Integer id) throws IOException
     {
         if (logger.isDebugEnabled())
             logger.debug("discard completed log segments for " + context + ", column family " + id + ".");
@@ -423,26 +446,20 @@ public class CommitLog
         while (iter.hasNext())
         {
             CommitLogSegment segment = iter.next();
-            CommitLogHeader header = segment.getHeader();
-            if (segment.equals(context.getSegment()))
+            if (segment.id == context.segment)
             {
                 // we can't just mark the segment where the flush happened clean,
                 // since there may have been writes to it between when the flush
-                // started and when it finished. so mark the flush position as
-                // the replay point for this CF, instead.
-                if (logger.isDebugEnabled())
-                    logger.debug("Marking replay position " + context.position + " on commit log " + segment);
-                header.turnOn(id, context.position);
-                segment.writeHeader();
+                // started and when it finished.
+                segment.turnOn(id);
                 break;
             }
 
-            header.turnOff(id);
-            if (header.isSafeToDelete() && iter.hasNext())
+            segment.turnOff(id);
+            if (segment.isSafeToDelete() && iter.hasNext())
             {
                 logger.info("Discarding obsolete commit log:" + segment);
                 segment.close();
-                DeletionService.executeDelete(segment.getHeaderPath());
                 DeletionService.executeDelete(segment.getPath());
                 // usually this will be the first (remaining) segment, but not always, if segment A contains
                 // writes to a CF that is unflushed but is followed by segment B whose CFs are all flushed.
@@ -451,8 +468,7 @@ public class CommitLog
             else
             {
                 if (logger.isDebugEnabled())
-                    logger.debug("Not safe to delete commit log " + segment + "; dirty is " + header.dirtyString());
-                segment.writeHeader();
+                    logger.debug("Not safe to delete commit log " + segment + "; dirty is " + segment.dirtyString() + "; hasNext: " + iter.hasNext());
             }
         }
     }
