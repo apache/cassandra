@@ -24,6 +24,7 @@ package org.apache.cassandra.cql.jdbc;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.thrift.CfDef;
+import org.apache.cassandra.thrift.Column;
 import org.apache.cassandra.thrift.ColumnDef;
 import org.apache.cassandra.thrift.KsDef;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -41,7 +42,7 @@ class ColumnDecoder
 {
     private static final Logger logger = LoggerFactory.getLogger(ColumnDecoder.class);
     private static final String MapFormatString = "%s.%s.%s.%s";
-    
+
     // basically denotes column or value.
     enum Specifier
     {
@@ -183,13 +184,13 @@ class ColumnDecoder
         else
             return value == null ? null : value.toString();
     }
-    
+
     /** constructs a typed column */
-    public TypedColumn makeCol(String keyspace, String columnFamily, byte[] name, byte[] value)
+    public TypedColumn makeCol(String keyspace, String columnFamily, Column column)
     {
         CfDef cfDef = cfDefs.get(String.format("%s.%s", keyspace, columnFamily));
         AbstractType comparator = getComparator(keyspace, columnFamily, Specifier.Comparator, cfDef);
-        AbstractType validator = getComparator(keyspace, columnFamily, name, Specifier.ColumnSpecific, null);
-        return new TypedColumn(comparator, name, validator, value);
+        AbstractType validator = getComparator(keyspace, columnFamily, column.getName(), Specifier.ColumnSpecific, null);
+        return new TypedColumn(column, comparator, validator);
     }
 }
