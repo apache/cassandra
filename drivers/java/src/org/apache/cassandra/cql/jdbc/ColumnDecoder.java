@@ -47,7 +47,7 @@ class ColumnDecoder
     {
         Comparator,
         Validator,
-        Key,
+        KeyValidator,
         ColumnSpecific
     }
     
@@ -120,7 +120,7 @@ class ColumnDecoder
             {
                 switch (specifier)
                 {
-                    case Key:
+                    case KeyValidator:
                         comparator = FBUtilities.getComparator(def.getKey_validation_class());
                         break;
                     case ColumnSpecific:
