@@ -183,7 +183,7 @@ public class Memtable implements Comparable<Memtable>, IFlushable
                 }
                 if (newRatio > MAX_SANE_LIVE_RATIO)
                 {
-                    logger.warn("setting live ratio to maximum of 64 instead of {}, newRatio");
+                    logger.warn("setting live ratio to maximum of 64 instead of {}", newRatio);
                     newRatio = MAX_SANE_LIVE_RATIO;
                 }
                 cfs.liveRatio = Math.max(cfs.liveRatio, newRatio);
