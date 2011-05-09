@@ -24,7 +24,9 @@ package org.apache.cassandra.db.marshal;
 import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.Map;
 
+import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.IColumn;
 import static org.apache.cassandra.io.sstable.IndexHelper.IndexInfo;
 
@@ -159,4 +161,28 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>
     public abstract int getScale(T obj);
     public abstract int getJdbcType();
     public abstract boolean needsQuotes();
+
+    public static AbstractType parseDefaultParameters(AbstractType baseType, TypeParser parser) throws ConfigurationException
+    {
+        Map<String, String> parameters = parser.getKeyValueParameters();
+        String reversed = parameters.get("reversed");
+        if (reversed != null && (reversed.isEmpty() || reversed.equals("true")))
+        {
+            return ReversedType.getInstance(baseType);
+        }
+        else
+        {
+            return baseType;
+        }
+    }
+
+    /**
+     * This must be overriden by subclasses if necessary so that for any
+     * AbstractType, this == TypeParser.parse(toString()).
+     */
+    @Override
+    public String toString()
+    {
+        return getClass().getName();
+    }
 }

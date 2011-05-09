@@ -602,7 +602,7 @@ public class CliClient
             // setting value for output
             valueAsString = valueValidator.getString(ByteBuffer.wrap(columnValue));
             // updating column value validator class
-            updateColumnMetaData(cfDef, columnName, valueValidator.getClass().getName());
+            updateColumnMetaData(cfDef, columnName, valueValidator.toString());
         }
         else
         {
@@ -2159,7 +2159,7 @@ public class CliClient
             // performing ColumnDef local validator update
             if (withUpdate)
             {
-                updateColumnMetaData(columnFamily, columnName, validator.getClass().getName());
+                updateColumnMetaData(columnFamily, columnName, validator.toString());
             }
 
             return value;
