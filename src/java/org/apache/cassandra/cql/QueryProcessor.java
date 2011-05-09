@@ -29,6 +29,8 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
 
+import com.google.common.base.Predicates;
+import com.google.common.collect.Maps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,25 +38,15 @@ import org.antlr.runtime.*;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryPath;
-import org.apache.cassandra.db.migration.AddColumnFamily;
-import org.apache.cassandra.db.migration.AddKeyspace;
-import org.apache.cassandra.db.migration.DropColumnFamily;
-import org.apache.cassandra.db.migration.DropKeyspace;
-import org.apache.cassandra.db.migration.Migration;
-import org.apache.cassandra.db.migration.UpdateColumnFamily;
-import org.apache.cassandra.db.migration.avro.CfDef;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.MarshalException;
-import org.apache.cassandra.dht.AbstractBounds;
-import org.apache.cassandra.dht.Bounds;
-import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.db.migration.*;
+import org.apache.cassandra.db.migration.avro.CfDef;
+import org.apache.cassandra.dht.*;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.StorageProxy;
@@ -63,9 +55,6 @@ import org.apache.cassandra.thrift.Column;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
-
-import com.google.common.base.Predicates;
-import com.google.common.collect.Maps;
 
 import static org.apache.cassandra.thrift.ThriftValidation.validateColumnFamily;
 
@@ -146,7 +135,15 @@ public class QueryProcessor
                                 ? select.getKeyFinish().getByteBuffer(keyType)
                                 : (new Term()).getByteBuffer();
 
-        AbstractBounds bounds = new Bounds(p.getToken(startKey), p.getToken(finishKey));
+        Token startToken = p.getToken(startKey), finishToken = p.getToken(finishKey);
+        if (startToken.compareTo(finishToken) > 0 && !finishToken.equals(p.getMinimumToken()))
+        {
+            if (p instanceof RandomPartitioner)
+                throw new InvalidRequestException("Start key's md5 sorts after end key's md5. This is not allowed; you probably should not specify end key at all, under RandomPartitioner");
+            else
+                throw new InvalidRequestException("Start key must sort before (or equal to) finish key in your partitioner!");
+        }
+        AbstractBounds bounds = new Bounds(startToken, finishToken);
         
         CFMetaData metadata = validateColumnFamily(keyspace, select.getColumnFamily(), false);
         AbstractType<?> comparator = metadata.getComparatorFor(null);
