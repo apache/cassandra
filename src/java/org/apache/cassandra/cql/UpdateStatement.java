@@ -53,31 +53,19 @@ public class UpdateStatement extends AbstractModification
      * level, and key term.
      * 
      * @param columnFamily column family name
-     * @param cLevel the thrift consistency level
      * @param columns a map of column name/values pairs
      * @param keys the keys to update
-     * @param timestamp timestamp to use for mutation, if set to null then System.currentTimeMillis()
+     * @param attrs additional attributes for statement (CL, timestamp, timeToLive)
      */
-    public UpdateStatement(String columnFamily, ConsistencyLevel cLevel, Map<Term, Term> columns, List<Term> keys, Long timestamp)
+    public UpdateStatement(String columnFamily,
+                           Map<Term, Term> columns,
+                           List<Term> keys,
+                           Attributes attrs)
     {
-        super(columnFamily, cLevel, timestamp);
+        super(columnFamily, attrs);
 
         this.columns = columns;
         this.keys = keys;
-    }
-
-    /**
-     * Creates a new UpdateStatement from a column family name, columns map,
-     * and key term.
-     * 
-     * @param columnFamily column family name
-     * @param columns a map of column name/values pairs
-     * @param keys the keys to update
-     * @param timestamp timestamp to use for mutation, if set to null then System.currentTimeMillis()
-     */
-    public UpdateStatement(String columnFamily, Map<Term, Term> columns, List<Term> keys, Long timestamp)
-    {
-        this(columnFamily, null, columns, keys, timestamp);
     }
     
     /**
@@ -86,20 +74,18 @@ public class UpdateStatement extends AbstractModification
      * alternate update format, <code>INSERT</code>.
      * 
      * @param columnFamily column family name
-     * @param cLevel the thrift consistency level
      * @param columnNames list of column names
      * @param columnValues list of column values (corresponds to names)
      * @param keys the keys to update
-     * @param timestamp timestamp to use for mutation, if set to null then System.currentTimeMillis()
+     * @param attrs additional attributes for statement (CL, timestamp, timeToLive)
      */
     public UpdateStatement(String columnFamily,
-                           ConsistencyLevel cLevel,
                            List<Term> columnNames,
                            List<Term> columnValues,
                            List<Term> keys,
-                           Long timestamp)
+                           Attributes attrs)
     {
-        super(columnFamily, cLevel, timestamp);
+        super(columnFamily, attrs);
 
         this.columnNames = columnNames;
         this.columnValues = columnValues;
@@ -184,7 +170,8 @@ public class UpdateStatement extends AbstractModification
             validateColumn(metadata, colName, colValue);
             rm.add(new QueryPath(columnFamily, null, colName),
                    colValue,
-                   (timestamp == null) ? getTimestamp() : timestamp);
+                   (timestamp == null) ? getTimestamp() : timestamp,
+                   getTimeToLive());
         }
 
         return rm;
@@ -224,11 +211,13 @@ public class UpdateStatement extends AbstractModification
     
     public String toString()
     {
-        return String.format("UpdateStatement(columnFamily=%s, keys=%s, columns=%s, consistency=%s)",
+        return String.format("UpdateStatement(columnFamily=%s, keys=%s, columns=%s, consistency=%s, timestamp=%s, timeToLive=%s)",
                              columnFamily,
                              keys,
                              columns,
-                             cLevel);
+                             getConsistencyLevel(),
+                             timestamp,
+                             timeToLive);
     }
     
     public AbstractType<?> getKeyType(String keyspace)

@@ -1,12 +1,15 @@
 1.0-dev
+
+
+0.8.1
  * add support for insert, delete in cql BATCH (CASSANDRA-2537)
  * add support for IN to cql SELECT, UPDATE (CASSANDRA-2553)
  * add timestamp support to cql INSERT, UPDATE, and BATCH (CASSANDRA-2555)
-
-0.8.1
  * add support for comparator parameters and a generic ReverseType
    (CASSANDRA-2355)
  * add CompositeType and DynamicCompositeType (CASSANDRA-2231)
+ * add CQL TTL support (CASSANDRA-2476)
+
 
 0.8.0-?
  * faster flushes and compaction from fixing excessively pessimistic 

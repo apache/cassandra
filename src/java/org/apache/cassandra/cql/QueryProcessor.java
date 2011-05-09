@@ -559,6 +559,9 @@ public class QueryProcessor
             case BATCH:
                 BatchStatement batch = (BatchStatement) statement.statement;
 
+                if (batch.getTimeToLive() != 0)
+                    throw new InvalidRequestException("Global TTL on the BATCH statement is not supported.");
+
                 for (AbstractModification up : batch.getStatements())
                 {
                     if (up.isSetConsistencyLevel())
