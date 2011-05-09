@@ -235,7 +235,7 @@ class CassandraStatement implements Statement
         {
             CqlResult rSet = connection.execute(query);
             // todo: encapsulate.
-            return new CassandraResultSet(rSet, connection.decoder, connection.curKeyspace, connection.curColumnFamily);
+            return new CResultSet(rSet, connection.decoder, connection.curKeyspace, connection.curColumnFamily);
         }
         catch (InvalidRequestException e)
         {

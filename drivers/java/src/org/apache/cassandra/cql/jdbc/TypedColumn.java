@@ -22,37 +22,36 @@ package org.apache.cassandra.cql.jdbc;
 
 
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.thrift.Column;
 
 import java.nio.ByteBuffer;
 
-class TypedColumn<N, V>
+class TypedColumn
 {
-    private final N name;
-    private final V value;
-    
-    // we cache the string versions of the byte buffers here.  It turns out that {N|V}.toString() isn't always the same
-    // (a good example is byte buffers) as the stringified versions supplied by the AbstractTypes.
+    private final Column rawColumn;
+
+    // we cache the frequently-accessed forms: java object for value, String for name.
+    // Note that {N|V}.toString() isn't always the same as Type.getString
+    // (a good example is byte buffers).
+    private final Object value;
     private final String nameString;
-    private final String valueString;
-    private final AbstractType<V> validator;
-    
-    public TypedColumn(AbstractType<N> comparator, byte[] name, AbstractType<V> validator, byte[] value)
+    private final AbstractType nameType, valueType;
+
+    public TypedColumn(Column column, AbstractType comparator, AbstractType validator)
     {
-        ByteBuffer bbName = ByteBuffer.wrap(name);
-        ByteBuffer bbValue = value == null ? null : ByteBuffer.wrap(value);
-        this.name = comparator.compose(bbName);
-        this.value = value == null ? null : validator.compose(bbValue);
-        nameString = comparator.getString(bbName);
-        valueString = value == null ? null : validator.getString(bbValue);
-        this.validator = validator;
+        rawColumn = column;
+        this.value = column.value == null ? null : validator.compose(column.value);
+        nameString = comparator.getString(column.name);
+        nameType = comparator;
+        valueType = validator;
+    }
+
+    public Column getRawColumn()
+    {
+        return rawColumn;
     }
     
-    public N getName()
-    {
-        return name;
-    }
-    
-    public V getValue()
+    public Object getValue()
     {
         return value;
     }
@@ -64,11 +63,16 @@ class TypedColumn<N, V>
     
     public String getValueString()
     {
-        return valueString;
+        return valueType.getString(rawColumn.value);
     }
     
-    public AbstractType<V> getValidator()
+    public AbstractType getNameType()
     {
-        return validator;
+        return nameType;
+    }
+
+    public AbstractType getValueType()
+    {
+        return valueType;
     }
 }

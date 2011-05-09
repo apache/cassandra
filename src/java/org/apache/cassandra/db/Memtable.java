@@ -36,6 +36,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.db.columniterator.IColumnIterator;
 import org.apache.cassandra.db.columniterator.SimpleAbstractColumnIterator;
+import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.db.filter.AbstractColumnIterator;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
@@ -231,7 +232,7 @@ public class Memtable implements Comparable<Memtable>, IFlushable
     }
 
 
-    private SSTableReader writeSortedContents() throws IOException
+    private SSTableReader writeSortedContents(ReplayPosition context) throws IOException
     {
         logger.info("Writing " + this);
 
@@ -242,7 +243,7 @@ public class Memtable implements Comparable<Memtable>, IFlushable
                                       + keySize // keys in data file
                                       + currentThroughput.get()) // data
                                      * 1.2); // bloom filter and row index overhead
-        SSTableWriter writer = cfs.createFlushWriter(columnFamilies.size(), estimatedSize);
+        SSTableWriter writer = cfs.createFlushWriter(columnFamilies.size(), estimatedSize, context);
 
         // (we can't clear out the map as-we-go to free up memory,
         //  since the memtable is being used for queries in the "pending flush" category)
@@ -255,7 +256,7 @@ public class Memtable implements Comparable<Memtable>, IFlushable
         return ssTable;
     }
 
-    public void flushAndSignal(final CountDownLatch latch, ExecutorService sorter, final ExecutorService writer)
+    public void flushAndSignal(final CountDownLatch latch, ExecutorService sorter, final ExecutorService writer, final ReplayPosition context)
     {
         writer.execute(new WrappedRunnable()
         {
@@ -266,7 +267,7 @@ public class Memtable implements Comparable<Memtable>, IFlushable
                 {
                     if (!cfs.isDropped())
                     {
-                        SSTableReader sstable = writeSortedContents();
+                        SSTableReader sstable = writeSortedContents(context);
                         cfs.replaceFlushed(Memtable.this, sstable);
                     }
                 }

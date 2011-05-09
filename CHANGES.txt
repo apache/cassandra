@@ -12,6 +12,12 @@
  * fix returning null column values in the python cql driver (CASSANDRA-2593)
  * snapshot_before_compaction directory name fix (CASSANDRA-2598)
  
+ * fix CQL treatment of > and < operators in range slices (CASSANDRA-2592)
+ * fix potential double-application of counter updates on commitlog replay
+   (CASSANDRA-2419)
+ * JDBC CQL driver exposes getColumn for access to timestamp
+ * JDBC ResultSetMetadata properties added to AbstractType
+
 
 0.8.0-beta2
  * fix NPE compacting index CFs (CASSANDRA-2528)

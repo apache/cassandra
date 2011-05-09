@@ -77,4 +77,39 @@ public class LocalByPartionerType<T extends Token> extends AbstractType<ByteBuff
     {
         return ByteBuffer.class;
     }
+
+    public boolean isSigned()
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    public boolean isCaseSensitive()
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    public boolean isCurrency()
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    public int getPrecision(ByteBuffer obj)
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    public int getScale(ByteBuffer obj)
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    public int getJdbcType()
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    public boolean needsQuotes()
+    {
+        throw new UnsupportedOperationException();
+    }
 }

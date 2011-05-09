@@ -43,7 +43,7 @@ import org.apache.cassandra.utils.UUIDGen;
  * @see "com.fasterxml.uuid.UUIDComparator"
  * 
  */
-public class UUIDType extends AbstractType<UUID>
+public class UUIDType extends AbstractUUIDType
 {
     public static final UUIDType instance = new UUIDType();
 

@@ -34,6 +34,7 @@ import org.apache.cassandra.cache.InstrumentingCache;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.AbstractBounds;
@@ -156,15 +157,18 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         EstimatedHistogram rowSizes;
         EstimatedHistogram columnCounts;
         File statsFile = new File(descriptor.filenameFor(SSTable.COMPONENT_STATS));
+        ReplayPosition rp = ReplayPosition.NONE;
         if (statsFile.exists())
         {
             DataInputStream dis = null;
             try
             {
-                logger.debug("Load statistics for {}", descriptor);
+                logger.debug("Load metadata for {}", descriptor);
                 dis = new DataInputStream(new BufferedInputStream(new FileInputStream(statsFile)));
                 rowSizes = EstimatedHistogram.serializer.deserialize(dis);
                 columnCounts = EstimatedHistogram.serializer.deserialize(dis);
+                if (descriptor.hasReplayPosition())
+                    rp = ReplayPosition.serializer.deserialize(dis);
             }
             finally
             {
@@ -178,7 +182,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
             columnCounts = SSTable.defaultColumnHistogram();
         }
 
-        SSTableReader sstable = new SSTableReader(descriptor, components, metadata, partitioner, null, null, null, null, System.currentTimeMillis(), rowSizes, columnCounts);
+        SSTableReader sstable = new SSTableReader(descriptor, components, metadata, rp, partitioner, null, null, null, null, System.currentTimeMillis(), rowSizes, columnCounts);
         sstable.setTrackedBy(tracker);
 
         // versions before 'c' encoded keys as utf-16 before hashing to the filter
@@ -203,16 +207,17 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
     /**
      * Open a RowIndexedReader which already has its state initialized (by SSTableWriter).
      */
-    static SSTableReader internalOpen(Descriptor desc, Set<Component> components, CFMetaData metadata, IPartitioner partitioner, SegmentedFile ifile, SegmentedFile dfile, IndexSummary isummary, Filter bf, long maxDataAge, EstimatedHistogram rowsize,
+    static SSTableReader internalOpen(Descriptor desc, Set<Component> components, CFMetaData metadata, ReplayPosition replayPosition, IPartitioner partitioner, SegmentedFile ifile, SegmentedFile dfile, IndexSummary isummary, Filter bf, long maxDataAge, EstimatedHistogram rowsize,
                                       EstimatedHistogram columncount) throws IOException
     {
         assert desc != null && partitioner != null && ifile != null && dfile != null && isummary != null && bf != null;
-        return new SSTableReader(desc, components, metadata, partitioner, ifile, dfile, isummary, bf, maxDataAge, rowsize, columncount);
+        return new SSTableReader(desc, components, metadata, replayPosition, partitioner, ifile, dfile, isummary, bf, maxDataAge, rowsize, columncount);
     }
 
     private SSTableReader(Descriptor desc,
                           Set<Component> components,
                           CFMetaData metadata,
+                          ReplayPosition replayPosition,
                           IPartitioner partitioner,
                           SegmentedFile ifile,
                           SegmentedFile dfile,
@@ -223,7 +228,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
                           EstimatedHistogram columnCounts)
     throws IOException
     {
-        super(desc, components, metadata, partitioner, rowSizes, columnCounts);
+        super(desc, components, metadata, replayPosition, partitioner, rowSizes, columnCounts);
         this.maxDataAge = maxDataAge;
 
         this.ifile = ifile;

@@ -33,7 +33,8 @@ public class WhereClause
     private List<Term> keys = new ArrayList<Term>();
     private Term startKey, finishKey;
     private List<Relation> columns = new ArrayList<Relation>();
-    
+    private boolean includeStartKey = false, includeFinishKey = false;
+
     /**
      * Create a new WhereClause with the first parsed relation.
      * 
@@ -61,9 +62,15 @@ public class WhereClause
             if (relation.operator().equals(RelationType.EQ))
                 keys.add(relation.getValue());
             else if ((relation.operator().equals(RelationType.GT) || relation.operator().equals(RelationType.GTE)))
+            {
                 startKey = relation.getValue();
+                includeStartKey = relation.operator().equals(RelationType.GTE);
+            }
             else if ((relation.operator().equals(RelationType.LT) || relation.operator().equals(RelationType.LTE)))
+            {
                 finishKey = relation.getValue();
+                includeFinishKey = relation.operator().equals(RelationType.LTE);
+            }
             
         }
         else
@@ -107,5 +114,15 @@ public class WhereClause
     public List<Term> getKeys()
     {
         return keys;
+    }
+
+    public boolean includeStartKey()
+    {
+        return includeStartKey;
+    }
+
+    public boolean includeFinishKey()
+    {
+        return includeFinishKey;
     }
 }

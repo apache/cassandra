@@ -31,6 +31,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
 import org.apache.cassandra.io.util.FileUtils;
@@ -67,17 +68,41 @@ public abstract class SSTable
     public final CFMetaData metadata;
     public final IPartitioner partitioner;
 
+    public final ReplayPosition replayPosition;
+
     protected final EstimatedHistogram estimatedRowSize;
     protected final EstimatedHistogram estimatedColumnCount;
 
-    protected SSTable(Descriptor descriptor, CFMetaData metadata, IPartitioner partitioner)
+    protected SSTable(Descriptor descriptor, CFMetaData metadata, ReplayPosition replayPosition, IPartitioner partitioner)
     {
-        this(descriptor, new HashSet<Component>(), metadata, partitioner);
+        this(descriptor, new HashSet<Component>(), metadata, replayPosition, partitioner);
     }
 
-    protected SSTable(Descriptor descriptor, Set<Component> components, CFMetaData metadata, IPartitioner partitioner)
+    protected SSTable(Descriptor descriptor, Set<Component> components, CFMetaData metadata, ReplayPosition replayPosition, IPartitioner partitioner)
     {
-        this(descriptor, components, metadata, partitioner, defaultRowHistogram(), defaultColumnHistogram());
+        this(descriptor, components, metadata, replayPosition, partitioner, defaultRowHistogram(), defaultColumnHistogram());
+    }
+
+    protected SSTable(Descriptor descriptor, Set<Component> components, CFMetaData metadata, ReplayPosition replayPosition, IPartitioner partitioner, EstimatedHistogram rowSizes, EstimatedHistogram columnCounts)
+    {
+        assert descriptor != null;
+        assert components != null;
+        assert metadata != null;
+        assert replayPosition != null;
+        assert partitioner != null;
+        assert rowSizes != null;
+        assert columnCounts != null;
+
+        this.descriptor = descriptor;
+        Set<Component> dataComponents = new HashSet<Component>(components);
+        for (Component component : components)
+            assert component.type != Component.Type.COMPACTED_MARKER;
+        this.components = Collections.unmodifiableSet(dataComponents);
+        this.metadata = metadata;
+        this.replayPosition = replayPosition;
+        this.partitioner = partitioner;
+        estimatedRowSize = rowSizes;
+        estimatedColumnCount = columnCounts;
     }
 
     static EstimatedHistogram defaultColumnHistogram()
@@ -88,19 +113,6 @@ public abstract class SSTable
     static EstimatedHistogram defaultRowHistogram()
     {
         return new EstimatedHistogram(150);
-    }
-
-    protected SSTable(Descriptor descriptor, Set<Component> components, CFMetaData metadata, IPartitioner partitioner, EstimatedHistogram rowSizes, EstimatedHistogram columnCounts)
-    {
-        this.descriptor = descriptor;
-        Set<Component> dataComponents = new HashSet<Component>(components);
-        for (Component component : components)
-            assert component.type != Component.Type.COMPACTED_MARKER;
-        this.components = Collections.unmodifiableSet(dataComponents);
-        this.metadata = metadata;
-        this.partitioner = partitioner;
-        estimatedRowSize = rowSizes;
-        estimatedColumnCount = columnCounts;
     }
 
     public EstimatedHistogram getEstimatedRowSize()

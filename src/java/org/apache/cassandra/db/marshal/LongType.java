@@ -22,6 +22,7 @@ package org.apache.cassandra.db.marshal;
 
 
 import java.nio.ByteBuffer;
+import java.sql.Types;
 
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -108,5 +109,40 @@ public class LongType extends AbstractType<Long>
     public Class<Long> getType()
     {
         return Long.class;
+    }
+
+    public boolean isSigned()
+    {
+        return true;
+    }
+
+    public boolean isCaseSensitive()
+    {
+        return false;
+    }
+
+    public boolean isCurrency()
+    {
+        return false;
+    }
+
+    public int getPrecision(Long obj)
+    {
+        return obj.toString().length();
+    }
+
+    public int getScale(Long obj)
+    {
+        return 0;
+    }
+
+    public int getJdbcType()
+    {
+        return Types.INTEGER;
+    }
+
+    public boolean needsQuotes()
+    {
+        return false;
     }
 }

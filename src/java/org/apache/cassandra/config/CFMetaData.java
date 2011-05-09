@@ -984,6 +984,11 @@ public final class CFMetaData
             comparator.validate(cf_def.key_alias);
     }
 
+    public ColumnDefinition getColumnDefinition(ByteBuffer name)
+    {
+        return column_metadata.get(name);
+    }
+
     @Override
     public String toString()
     {

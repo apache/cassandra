@@ -36,6 +36,7 @@ import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.dht.LocalToken;
@@ -748,7 +749,8 @@ public class Table
     }
 
     @Override
-    public String toString() {
+    public String toString()
+    {
         return getClass().getSimpleName() + "(name='" + name + "')";
     }
 }

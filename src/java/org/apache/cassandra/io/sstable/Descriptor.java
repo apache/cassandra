@@ -38,7 +38,7 @@ import org.apache.cassandra.utils.Pair;
 public class Descriptor
 {
     public static final String LEGACY_VERSION = "a";
-    public static final String CURRENT_VERSION = "f";
+    public static final String CURRENT_VERSION = "g";
 
     public final File directory;
     public final String version;
@@ -78,6 +78,11 @@ public class Descriptor
         hasEncodedKeys = version.compareTo("e") < 0;
         usesOldBloomFilter = version.compareTo("f") < 0;
         isLatestVersion = version.compareTo(CURRENT_VERSION) == 0;
+    }
+
+    public boolean hasReplayPosition()
+    {
+        return version.compareTo("g") >= 0;
     }
 
     public String filenameFor(Component component)

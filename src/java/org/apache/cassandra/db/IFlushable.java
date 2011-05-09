@@ -24,7 +24,9 @@ package org.apache.cassandra.db;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 
+import org.apache.cassandra.db.commitlog.ReplayPosition;
+
 public interface IFlushable
 {
-    public void flushAndSignal(CountDownLatch condition, ExecutorService sorter, ExecutorService writer);
+    public void flushAndSignal(CountDownLatch condition, ExecutorService sorter, ExecutorService writer, ReplayPosition context);
 }

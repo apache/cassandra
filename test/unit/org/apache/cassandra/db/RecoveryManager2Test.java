@@ -59,17 +59,12 @@ public class RecoveryManager2Test extends CleanupHelper
         logger.debug("forcing flush");
         cfs.forceBlockingFlush();
 
-        // remove Standard1 SSTable/MemTables
-        cfs.clearUnsafe();
-
         logger.debug("begin manual replay");
-        // replay the commit log (nothing should be replayed since everything was flushed)
+        // replay the commit log (nothing on Standard1 should be replayed since everything was flushed, so only the row on Standard2
+        // will be replayed)
         CommitLog.instance.resetUnsafe();
-        CommitLog.recover();
-
-        // since everything that was flushed was removed (i.e. clearUnsafe)
-        // and the commit shouldn't have replayed anything, there should be no data
-        assert Util.getRangeSlice(cfs).isEmpty();
+        int replayed = CommitLog.recover();
+        assert replayed == 1 : "Expecting only 1 replayed mutation, got " + replayed;
     }
 
     private void insertRow(String cfname, String key) throws IOException
