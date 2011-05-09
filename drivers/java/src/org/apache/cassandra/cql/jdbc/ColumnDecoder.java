@@ -29,6 +29,7 @@ import org.apache.cassandra.thrift.ColumnDef;
 import org.apache.cassandra.thrift.KsDef;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -37,8 +38,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Decodes columns from bytes into instances of their respective expected types. */
-class ColumnDecoder 
+/**
+ * Decodes columns from bytes into instances of their respective expected types.
+ */
+class ColumnDecoder
 {
     private static final Logger logger = LoggerFactory.getLogger(ColumnDecoder.class);
     private static final String MapFormatString = "%s.%s.%s.%s";
@@ -51,34 +54,37 @@ class ColumnDecoder
         KeyValidator,
         ColumnSpecific
     }
-    
+
     private Map<String, CfDef> cfDefs = new HashMap<String, CfDef>();
-    
+
     // cache the comparators for efficiency.
     private Map<String, AbstractType> comparators = new HashMap<String, AbstractType>();
-    
-    /** is specific per set of keyspace definitions. */
+
+    /**
+     * is specific per set of keyspace definitions.
+     */
     public ColumnDecoder(List<KsDef> defs)
     {
-        for (KsDef ks : defs) 
+        for (KsDef ks : defs)
         {
             for (CfDef cf : ks.getCf_defs())
             {
                 cfDefs.put(String.format("%s.%s", ks.getName(), cf.getName()), cf);
-                for (ColumnDef cd : cf.getColumn_metadata()) 
+                for (ColumnDef cd : cf.getColumn_metadata())
                 {
-                    try 
+                    try
                     {
                         // prefill the validators (because they aren't kept in a convenient lookup map and we don't
                         // want to iterate over the list for every miss in getComparator.
-                        comparators.put(String.format(MapFormatString, 
-                                ks.getName(), 
-                                cf.getName(),
-                                Specifier.ColumnSpecific.name(),
-                                ByteBufferUtil.bytesToHex(cd.bufferForName())), 
-                                   FBUtilities.getComparator(cd.getValidation_class()));
-                    } 
-                    catch (ConfigurationException ex) {
+                        comparators.put(String.format(MapFormatString,
+                                                      ks.getName(),
+                                                      cf.getName(),
+                                                      Specifier.ColumnSpecific.name(),
+                                                      ByteBufferUtil.bytesToHex(cd.bufferForName())),
+                                        FBUtilities.getComparator(cd.getValidation_class()));
+                    }
+                    catch (ConfigurationException ex)
+                    {
                         throw new RuntimeException(ex);
                     }
                 }
@@ -87,37 +93,37 @@ class ColumnDecoder
     }
 
     /**
-     * @param keyspace ALWAYS specify
+     * @param keyspace     ALWAYS specify
      * @param columnFamily ALWAYS specify
-     * @param specifier ALWAYS specify
-     * @param def avoids additional map lookup if specified. null is ok though.
+     * @param specifier    ALWAYS specify
+     * @param def          avoids additional map lookup if specified. null is ok though.
      * @return
      */
     AbstractType getComparator(String keyspace, String columnFamily, Specifier specifier, CfDef def)
     {
         return getComparator(keyspace, columnFamily, null, specifier, def);
     }
-    
+
     // same as above, but can get column-specific validators.
-    AbstractType getComparator(String keyspace, String columnFamily, byte[] column, Specifier specifier, CfDef def) 
+    AbstractType getComparator(String keyspace, String columnFamily, byte[] column, Specifier specifier, CfDef def)
     {
         // check cache first.
-        String key = String.format(MapFormatString, 
-                                   keyspace, 
-                                   columnFamily, 
-                                   specifier.name(), 
-                                   FBUtilities.bytesToHex(column == null ? new byte[] {} : column));
+        String key = String.format(MapFormatString,
+                                   keyspace,
+                                   columnFamily,
+                                   specifier.name(),
+                                   FBUtilities.bytesToHex(column == null ? new byte[]{ } : column));
         AbstractType comparator = comparators.get(key);
 
         // make and put in cache.
-        if (comparator == null) 
+        if (comparator == null)
         {
             if (def == null)
                 def = cfDefs.get(String.format("%s.%s", keyspace, columnFamily));
             if (def == null)
                 // no point in proceeding. these values are bad.
                 return null;
-            try 
+            try
             {
                 switch (specifier)
                 {
@@ -146,18 +152,21 @@ class ColumnDecoder
 
     /**
      * uses the AbstractType to map a column name to a string.
+     *
      * @param keyspace
      * @param columnFamily
      * @param name
      * @return
      */
-    public String colNameAsString(String keyspace, String columnFamily, byte[] name) 
+    public String colNameAsString(String keyspace, String columnFamily, byte[] name)
     {
         AbstractType comparator = getComparator(keyspace, columnFamily, Specifier.Comparator, null);
         return comparator.getString(ByteBuffer.wrap(name));
     }
 
-    /** constructs a typed column */
+    /**
+     * constructs a typed column
+     */
     public TypedColumn makeCol(String keyspace, String columnFamily, Column column)
     {
         CfDef cfDef = cfDefs.get(String.format("%s.%s", keyspace, columnFamily));
