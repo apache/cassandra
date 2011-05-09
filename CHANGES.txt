@@ -43,6 +43,7 @@
  * improve ignoring of obsolete mutations in index maintenance (CASSANDRA-2401)
  * recognize attempt to drop just the index while leaving the column
    definition alone (CASSANDRA-2619)
+ * Don't allow {LOCAL|EACH}_QUORUM unless strategy is NTS (CASSANDRA-2627)
 
 
 0.8.0-beta1
