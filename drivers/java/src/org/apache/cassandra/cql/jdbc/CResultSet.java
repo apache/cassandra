@@ -26,21 +26,8 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.URL;
 import java.nio.ByteBuffer;
-import java.sql.Array;
-import java.sql.Blob;
-import java.sql.Clob;
+import java.sql.*;
 import java.sql.Date;
-import java.sql.NClob;
-import java.sql.Ref;
-import java.sql.ResultSetMetaData;
-import java.sql.RowId;
-import java.sql.SQLException;
-import java.sql.SQLFeatureNotSupportedException;
-import java.sql.SQLWarning;
-import java.sql.SQLXML;
-import java.sql.Statement;
-import java.sql.Time;
-import java.sql.Timestamp;
 import java.util.*;
 
 import org.apache.cassandra.db.marshal.CounterColumnType;
@@ -49,7 +36,7 @@ import org.apache.cassandra.thrift.CqlResult;
 import org.apache.cassandra.thrift.CqlRow;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-public class CResultSet implements CassandraResultSet
+public class CResultSet extends AbstractResultSet implements CassandraResultSet
 {
     private final ColumnDecoder decoder;
     private final String keyspace;
@@ -57,6 +44,7 @@ public class CResultSet implements CassandraResultSet
     
     /** The r set iter. */
     private Iterator<CqlRow> rSetIter;
+    int rowNumber = 0;
     
     // the current row key when iterating through results.
     private byte[] curRowKey = null;
@@ -101,72 +89,10 @@ public class CResultSet implements CassandraResultSet
         throw new UnsupportedOperationException("need to convert valueMap to TypedColumn first");
     }
 
-    public boolean absolute(int arg0) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void afterLast() throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void beforeFirst() throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void cancelRowUpdates() throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void clearWarnings() throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
     public void close() throws SQLException
     {
-        valueMap.clear();
-        values.clear();
         valueMap = null;
         values = null;
-    }
-
-    public void deleteRow() throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public int findColumn(String arg0) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public boolean first() throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public Array getArray(int arg0) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public Array getArray(String arg0) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public InputStream getAsciiStream(int arg0) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public InputStream getAsciiStream(String arg0) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
     }
 
     public BigDecimal getBigDecimal(int arg0) throws SQLException
@@ -189,46 +115,6 @@ public class CResultSet implements CassandraResultSet
         throw new UnsupportedOperationException("method not supported");
     }
 
-    public InputStream getBinaryStream(int arg0) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public InputStream getBinaryStream(String arg0) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public Blob getBlob(int arg0) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public Blob getBlob(String arg0) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public boolean getBoolean(int arg0) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public boolean getBoolean(String arg0) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public byte getByte(int arg0) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public byte getByte(String arg0) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
     public byte[] getBytes(int index) throws SQLException
     {
         TypedColumn column = values.get(index - 1);
@@ -244,44 +130,6 @@ public class CResultSet implements CassandraResultSet
         Object value = valueMap.get(nameAsString);
         wasNull = value == null;
         return value == null ? null : ByteBufferUtil.clone((ByteBuffer) value).array();
-    }
-
-    public Reader getCharacterStream(int arg0) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public Reader getCharacterStream(String arg0) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public Clob getClob(int arg0) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public Clob getClob(String arg0) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    /**
-     * @return
-     * @throws SQLException
-     */
-    public int getConcurrency() throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    /**
-     * @return
-     * @throws SQLException
-     */
-    public String getCursorName() throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
     }
 
     public Date getDate(int arg0) throws SQLException
@@ -314,16 +162,6 @@ public class CResultSet implements CassandraResultSet
         throw new UnsupportedOperationException("method not supported");
     }
 
-    public int getFetchDirection() throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public int getFetchSize() throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
     public float getFloat(int arg0) throws SQLException
     {
         throw new UnsupportedOperationException("method not supported");
@@ -334,7 +172,12 @@ public class CResultSet implements CassandraResultSet
         throw new UnsupportedOperationException("method not supported");
     }
 
-    public int getHoldability() throws SQLException
+    public boolean getBoolean(int arg0) throws SQLException
+    {
+        throw new UnsupportedOperationException("method not supported");
+    }
+
+    public boolean getBoolean(String arg0) throws SQLException
     {
         throw new UnsupportedOperationException("method not supported");
     }
@@ -366,11 +209,6 @@ public class CResultSet implements CassandraResultSet
         return value == null ? 0 : (Long) value;
     }
 
-    /**
-     * @param name
-     * @return
-     * @throws SQLException
-     */
     public long getLong(String name) throws SQLException
     {
         String nameAsString = decoder.colNameAsString(keyspace, columnFamily, name);
@@ -382,36 +220,6 @@ public class CResultSet implements CassandraResultSet
     public ResultSetMetaData getMetaData() throws SQLException
     {
         return meta;
-    }
-
-    public Reader getNCharacterStream(int arg0) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public Reader getNCharacterStream(String arg0) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public NClob getNClob(int arg0) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public NClob getNClob(String arg0) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public String getNString(int arg0) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public String getNString(String arg0) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
     }
 
     public Object getObject(int index) throws SQLException
@@ -441,54 +249,9 @@ public class CResultSet implements CassandraResultSet
         throw new UnsupportedOperationException("method not supported");
     }
 
-    public Ref getRef(int arg0) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public Ref getRef(String arg0) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
     public int getRow() throws SQLException
     {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public RowId getRowId(int arg0) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public RowId getRowId(String arg0) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public SQLXML getSQLXML(int arg0) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public SQLXML getSQLXML(String arg0) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public short getShort(int arg0) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public short getShort(String arg0) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public Statement getStatement() throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
+        return rowNumber;
     }
 
     public String getString(int index) throws SQLException
@@ -550,62 +313,32 @@ public class CResultSet implements CassandraResultSet
 
     public int getType() throws SQLException
     {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public URL getURL(int arg0) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public URL getURL(String arg0) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public InputStream getUnicodeStream(int arg0) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public InputStream getUnicodeStream(String arg0) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public SQLWarning getWarnings() throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void insertRow() throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
+        return ResultSet.TYPE_FORWARD_ONLY;
     }
 
     public boolean isAfterLast() throws SQLException
     {
-        throw new UnsupportedOperationException("method not supported");
+        return rowNumber == Integer.MAX_VALUE;
     }
 
     public boolean isBeforeFirst() throws SQLException
     {
-        throw new UnsupportedOperationException("method not supported");
+        return rowNumber == 0;
     }
 
     public boolean isClosed() throws SQLException
     {
-        throw new UnsupportedOperationException("method not supported");
+        return valueMap == null;
     }
 
     public boolean isFirst() throws SQLException
     {
-        throw new UnsupportedOperationException("method not supported");
+        return rowNumber == 1;
     }
 
     public boolean isLast() throws SQLException
     {
-        throw new UnsupportedOperationException("method not supported");
+        return !rSetIter.hasNext();
     }
 
     public boolean last() throws SQLException
@@ -613,16 +346,6 @@ public class CResultSet implements CassandraResultSet
         throw new UnsupportedOperationException("method not supported");
     }
 
-    public void moveToCurrentRow() throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void moveToInsertRow() throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-    
     public <T> T unwrap(Class<T> iface) throws SQLException
     {
         if (iface.equals(CassandraResultSet.class))
@@ -635,10 +358,6 @@ public class CResultSet implements CassandraResultSet
         return CassandraResultSet.class.isAssignableFrom(iface);
     }
 
-    /**
-     * @return
-     * @throws SQLException
-     */
     public synchronized boolean next() throws SQLException
     {
         if (!values.isEmpty() || !valueMap.isEmpty())
@@ -649,6 +368,7 @@ public class CResultSet implements CassandraResultSet
         if (rSetIter != null && rSetIter.hasNext())
         {
             CqlRow row = rSetIter.next();
+            rowNumber++;
             curRowKey = row.getKey();
             List<Column> cols = row.getColumns();
             for (Column col : cols)
@@ -662,468 +382,9 @@ public class CResultSet implements CassandraResultSet
         } 
         else
         {
+            rowNumber = Integer.MAX_VALUE;
             return false;
         }
-    }
-
-    public boolean previous() throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void refreshRow() throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public boolean relative(int arg0) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public boolean rowDeleted() throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public boolean rowInserted() throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public boolean rowUpdated() throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void setFetchDirection(int arg0) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void setFetchSize(int arg0) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateArray(int arg0, Array arg1) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateArray(String arg0, Array arg1) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateAsciiStream(int arg0, InputStream arg1) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateAsciiStream(String arg0, InputStream arg1) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateAsciiStream(int arg0, InputStream arg1, int arg2) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateAsciiStream(String arg0, InputStream arg1, int arg2) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateAsciiStream(int arg0, InputStream arg1, long arg2) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateAsciiStream(String arg0, InputStream arg1, long arg2) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateBigDecimal(int arg0, BigDecimal arg1) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateBigDecimal(String arg0, BigDecimal arg1) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateBinaryStream(int arg0, InputStream arg1) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateBinaryStream(String arg0, InputStream arg1) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateBinaryStream(int arg0, InputStream arg1, int arg2) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateBinaryStream(String arg0, InputStream arg1, int arg2) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateBinaryStream(int arg0, InputStream arg1, long arg2) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateBinaryStream(String arg0, InputStream arg1, long arg2) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    /**
-     * @param arg0
-     * @param arg1
-     * @throws SQLException
-     */
-    public void updateBlob(int arg0, Blob arg1) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateBlob(String arg0, Blob arg1) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateBlob(int arg0, InputStream arg1) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateBlob(String arg0, InputStream arg1) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateBlob(int arg0, InputStream arg1, long arg2) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateBlob(String arg0, InputStream arg1, long arg2) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateBoolean(int arg0, boolean arg1) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateBoolean(String arg0, boolean arg1) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateByte(int arg0, byte arg1) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateByte(String arg0, byte arg1) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateBytes(int arg0, byte[] arg1) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateBytes(String arg0, byte[] arg1) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateCharacterStream(int arg0, Reader arg1) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateCharacterStream(String arg0, Reader arg1) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateCharacterStream(int arg0, Reader arg1, int arg2) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateCharacterStream(String arg0, Reader arg1, int arg2) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateCharacterStream(int arg0, Reader arg1, long arg2) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateCharacterStream(String arg0, Reader arg1, long arg2) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateClob(int arg0, Clob arg1) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateClob(String arg0, Clob arg1) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateClob(int arg0, Reader arg1) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateClob(String arg0, Reader arg1) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateClob(int arg0, Reader arg1, long arg2) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateClob(String arg0, Reader arg1, long arg2) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateDate(int arg0, Date arg1) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateDate(String arg0, Date arg1) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateDouble(int arg0, double arg1) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateDouble(String arg0, double arg1) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateFloat(int arg0, float arg1) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateFloat(String arg0, float arg1) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateInt(int arg0, int arg1) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateInt(String arg0, int arg1) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateLong(int arg0, long arg1) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateLong(String arg0, long arg1) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateNCharacterStream(int arg0, Reader arg1) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateNCharacterStream(String arg0, Reader arg1) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateNCharacterStream(int arg0, Reader arg1, long arg2) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateNCharacterStream(String arg0, Reader arg1, long arg2) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateNClob(int arg0, NClob arg1) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateNClob(String arg0, NClob arg1) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateNClob(int arg0, Reader arg1) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateNClob(String arg0, Reader arg1) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateNClob(int arg0, Reader arg1, long arg2) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateNClob(String arg0, Reader arg1, long arg2) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateNString(int arg0, String arg1) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateNString(String arg0, String arg1) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateNull(int arg0) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateNull(String arg0) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateObject(int arg0, Object arg1) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateObject(String arg0, Object arg1) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateObject(int arg0, Object arg1, int arg2) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateObject(String arg0, Object arg1, int arg2) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateRef(int arg0, Ref arg1) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateRef(String arg0, Ref arg1) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateRow() throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateRowId(int arg0, RowId arg1) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateRowId(String arg0, RowId arg1) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateSQLXML(int arg0, SQLXML arg1) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateSQLXML(String arg0, SQLXML arg1) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateShort(int arg0, short arg1) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateShort(String arg0, short arg1) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateString(int arg0, String arg1) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateString(String arg0, String arg1) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateTime(int arg0, Time arg1) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateTime(String arg0, Time arg1) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateTimestamp(int arg0, Timestamp arg1) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public void updateTimestamp(String arg0, Timestamp arg1) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
     }
 
     public boolean wasNull() throws SQLException
