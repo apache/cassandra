@@ -108,7 +108,7 @@ public class CResultSet extends AbstractResultSet implements CassandraResultSet
 
     public byte[] getBytes(String name) throws SQLException
     {
-        return getBytes(valueMap.get(decoder.colNameAsString(keyspace, columnFamily, name)));
+        return getBytes(valueMap.get(name));
     }
 
     public Date getDate(int arg0) throws SQLException
@@ -175,7 +175,7 @@ public class CResultSet extends AbstractResultSet implements CassandraResultSet
 
     public BigInteger getBigInteger(String name)
     {
-        return getBigInteger(valueMap.get(decoder.colNameAsString(keyspace, columnFamily, name)));
+        return getBigInteger(valueMap.get(name));
     }
 
     private int getInt(TypedColumn column) throws SQLException
@@ -196,7 +196,7 @@ public class CResultSet extends AbstractResultSet implements CassandraResultSet
 
     public int getInt(String name) throws SQLException
     {
-        return getInt(valueMap.get(decoder.colNameAsString(keyspace, columnFamily, name)));
+        return getInt(valueMap.get(name));
     }
 
     private Long getLong(TypedColumn column)
@@ -213,7 +213,7 @@ public class CResultSet extends AbstractResultSet implements CassandraResultSet
 
     public long getLong(String name) throws SQLException
     {
-        return getLong(valueMap.get(decoder.colNameAsString(keyspace, columnFamily, name)));
+        return getLong(valueMap.get(name));
     }
 
     public ResultSetMetaData getMetaData() throws SQLException
@@ -235,7 +235,7 @@ public class CResultSet extends AbstractResultSet implements CassandraResultSet
 
     public Object getObject(String name) throws SQLException
     {
-        return getObject(valueMap.get(decoder.colNameAsString(keyspace, columnFamily, name)));
+        return getObject(valueMap.get(name));
     }
 
     public Object getObject(int arg0, Map<String, Class<?>> arg1) throws SQLException
@@ -267,7 +267,7 @@ public class CResultSet extends AbstractResultSet implements CassandraResultSet
 
     public String getString(String name) throws SQLException
     {
-        return getString(valueMap.get(this.decoder.colNameAsString(this.keyspace, this.columnFamily, name)));
+        return getString(valueMap.get(name));
     }
 
     public Time getTime(int arg0) throws SQLException

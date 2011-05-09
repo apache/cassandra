@@ -145,20 +145,6 @@ class ColumnDecoder
     }
 
     /**
-     * uses the AbstractType to map a column name to a string.  Relies on AT.fromString() and AT.getString()
-     * @param keyspace
-     * @param columnFamily
-     * @param name
-     * @return
-     */
-    public String colNameAsString(String keyspace, String columnFamily, String name) 
-    {
-        AbstractType comparator = getComparator(keyspace, columnFamily, Specifier.Comparator, null);
-        ByteBuffer bb = comparator.fromString(name);
-        return comparator.getString(bb);
-    }
-
-    /**
      * uses the AbstractType to map a column name to a string.
      * @param keyspace
      * @param columnFamily
@@ -169,20 +155,6 @@ class ColumnDecoder
     {
         AbstractType comparator = getComparator(keyspace, columnFamily, Specifier.Comparator, null);
         return comparator.getString(ByteBuffer.wrap(name));
-    }
-
-    /**
-     * converts a column value to a string.
-     * @param value
-     * @return
-     */
-    public static String colValueAsString(Object value) {
-        if (value instanceof String)
-            return (String)value;
-        else if (value instanceof byte[])
-            return ByteBufferUtil.bytesToHex(ByteBuffer.wrap((byte[])value));
-        else
-            return value == null ? null : value.toString();
     }
 
     /** constructs a typed column */
