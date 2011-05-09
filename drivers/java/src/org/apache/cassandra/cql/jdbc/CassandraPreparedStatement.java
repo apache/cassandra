@@ -185,7 +185,7 @@ public class CassandraPreparedStatement extends CassandraStatement implements Pr
             throw new SQLException("Could not find comparator for " + keyspace + "." + columnFamily);
         left = applySimpleBindings(left, leftType, params);
         String right = cql.substring(pivot);
-        AbstractType keyVald = connection.decoder.getComparator(keyspace, columnFamily, ColumnDecoder.Specifier.KeyValidator, null);
+        AbstractType keyVald = connection.decoder.getKeyValidator(keyspace, columnFamily);
         if (keyVald == null)
             throw new SQLException("Could not find key validator for " + keyspace + "." + columnFamily);
         right = applySimpleBindings(right, keyVald, params);
@@ -204,7 +204,7 @@ public class CassandraPreparedStatement extends CassandraStatement implements Pr
             throw new SQLException("Could not find comparator for " + keyspace + "." + columnFamily);
         left = applySimpleBindings(left, leftType, params);
         String right = cql.substring(pivot);
-        AbstractType keyVald = connection.decoder.getComparator(keyspace, columnFamily, ColumnDecoder.Specifier.KeyValidator, null);
+        AbstractType keyVald = connection.decoder.getKeyValidator(keyspace, columnFamily);
         if (keyVald == null)
             throw new SQLException("Could not find key validator for " + keyspace + "." + columnFamily);
         right = applySimpleBindings(right, keyVald, params);
@@ -228,7 +228,7 @@ public class CassandraPreparedStatement extends CassandraStatement implements Pr
             throw new SQLException("Could not find validator for " + keyspace + "." + columnFamily);
         left = applyDualBindings(left, leftComp, leftVald, params);
         String right = cql.substring(pivot);
-        AbstractType keyVald = connection.decoder.getComparator(keyspace, columnFamily, ColumnDecoder.Specifier.KeyValidator, null);
+        AbstractType keyVald = connection.decoder.getKeyValidator(keyspace, columnFamily);
         if (keyVald == null)
             throw new SQLException("Could not find key validator for " + keyspace + "." + columnFamily);
         right = applySimpleBindings(right, keyVald, params);
