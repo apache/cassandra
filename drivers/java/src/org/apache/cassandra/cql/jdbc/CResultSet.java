@@ -375,7 +375,7 @@ public class CResultSet extends AbstractResultSet implements CassandraResultSet
 
                 TypedColumn c = decoder.makeCol(keyspace, columnFamily, col);
                 values.add(c);
-                valueMap.put(decoder.colNameAsString(keyspace, columnFamily, col.getName()), c);
+                valueMap.put(decoder.colNameAsString(keyspace, columnFamily, col.name), c);
             }
             return !(values.isEmpty() && valueMap.isEmpty());
         } 

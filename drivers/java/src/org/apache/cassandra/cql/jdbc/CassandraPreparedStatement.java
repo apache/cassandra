@@ -180,7 +180,7 @@ public class CassandraPreparedStatement extends CassandraStatement implements Pr
         String columnFamily = connection.getColumnFamily(cql);
         ParameterIterator params = new ParameterIterator();
         String left = cql.substring(0, pivot);
-        AbstractType leftType = connection.decoder.getComparator(keyspace, columnFamily, ColumnDecoder.Specifier.Comparator, null);
+        AbstractType leftType = connection.decoder.getComparator(keyspace, columnFamily);
         if (leftType == null)
             throw new SQLException("Could not find comparator for " + keyspace + "." + columnFamily);
         left = applySimpleBindings(left, leftType, params);
@@ -199,7 +199,7 @@ public class CassandraPreparedStatement extends CassandraStatement implements Pr
         String columnFamily = connection.getColumnFamily(cql);
         ParameterIterator params = new ParameterIterator();
         String left = cql.substring(0, pivot);
-        AbstractType leftType = connection.decoder.getComparator(keyspace, columnFamily, ColumnDecoder.Specifier.Comparator, null);
+        AbstractType leftType = connection.decoder.getComparator(keyspace, columnFamily);
         if (leftType == null)
             throw new SQLException("Could not find comparator for " + keyspace + "." + columnFamily);
         left = applySimpleBindings(left, leftType, params);
@@ -220,10 +220,10 @@ public class CassandraPreparedStatement extends CassandraStatement implements Pr
         String columnFamily = connection.getColumnFamily(cql);
         ParameterIterator params = new ParameterIterator();
         String left = cql.substring(0, pivot);
-        AbstractType leftComp = connection.decoder.getComparator(keyspace, columnFamily, ColumnDecoder.Specifier.Comparator, null);
+        AbstractType leftComp = connection.decoder.getComparator(keyspace, columnFamily);
         if (leftComp == null)
             throw new SQLException("Could not find comparator for " + keyspace + "." + columnFamily);
-        AbstractType leftVald = connection.decoder.getComparator(keyspace, columnFamily, ColumnDecoder.Specifier.Validator, null);
+        AbstractType leftVald = connection.decoder.getComparator(keyspace, columnFamily);
         if (leftVald == null)
             throw new SQLException("Could not find validator for " + keyspace + "." + columnFamily);
         left = applyDualBindings(left, leftComp, leftVald, params);

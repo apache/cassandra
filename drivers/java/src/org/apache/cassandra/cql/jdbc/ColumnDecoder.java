@@ -22,6 +22,7 @@ package org.apache.cassandra.cql.jdbc;
 
 
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.thrift.*;
@@ -43,15 +44,7 @@ class ColumnDecoder
 {
     private static final Logger logger = LoggerFactory.getLogger(ColumnDecoder.class);
 
-    // basically denotes column or value.
-    enum Specifier
-    {
-        Comparator,
-        Validator,
-        ColumnSpecific
-    }
-
-    private Map<String, CFMetaData> metadata = new HashMap<String, CFMetaData>();
+    private final Map<String, CFMetaData> metadata = new HashMap<String, CFMetaData>();
 
     /**
      * is specific per set of keyspace definitions.
@@ -78,67 +71,42 @@ class ColumnDecoder
         }
     }
 
-    /**
-     * @param keyspace     ALWAYS specify
-     * @param columnFamily ALWAYS specify
-     * @param specifier    ALWAYS specify
-     * @param def          avoids additional map lookup if specified. null is ok though.
-     * @return
-     */
-    AbstractType getComparator(String keyspace, String columnFamily, Specifier specifier, CFMetaData def)
+    AbstractType getComparator(String keyspace, String columnFamily)
     {
-        return getComparator(keyspace, columnFamily, null, specifier, def);
+        return metadata.get(String.format("%s.%s", keyspace, columnFamily)).comparator;
     }
 
-    // same as above, but can get column-specific validators.
-    AbstractType getComparator(String keyspace, String columnFamily, byte[] column, Specifier specifier, CFMetaData def)
+    AbstractType getNameType(String keyspace, String columnFamily, ByteBuffer name)
     {
-        if (def == null)
-            def = metadata.get(String.format("%s.%s", keyspace, columnFamily));
-        if (def == null)
-            // no point in proceeding. these values are bad.
-            throw new AssertionError();
-        switch (specifier)
-        {
-            case ColumnSpecific:
-                return def.getValueValidator(ByteBuffer.wrap(column));
-            case Validator:
-                return def.getDefaultValidator();
-            case Comparator:
-                return def.comparator;
-            default:
-                throw new AssertionError();
-        }
+
+        CFMetaData md = metadata.get(String.format("%s.%s", keyspace, columnFamily));
+        return md.comparator;
     }
 
-    /**
-     * uses the AbstractType to map a column name to a string.
-     *
-     * @param keyspace
-     * @param columnFamily
-     * @param name
-     * @return
-     */
-    public String colNameAsString(String keyspace, String columnFamily, byte[] name)
+    AbstractType getValueType(String keyspace, String columnFamily, ByteBuffer name)
     {
-        AbstractType comparator = getComparator(keyspace, columnFamily, Specifier.Comparator, null);
-        return comparator.getString(ByteBuffer.wrap(name));
-    }
-
-    /**
-     * constructs a typed column
-     */
-    public TypedColumn makeCol(String keyspace, String columnFamily, Column column)
-    {
-        CFMetaData cfDef = metadata.get(String.format("%s.%s", keyspace, columnFamily));
-        AbstractType comparator = getComparator(keyspace, columnFamily, Specifier.Comparator, cfDef);
-        AbstractType validator = getComparator(keyspace, columnFamily, column.getName(), Specifier.ColumnSpecific, null);
-        return new TypedColumn(column, comparator, validator);
+        CFMetaData md = metadata.get(String.format("%s.%s", keyspace, columnFamily));
+        ColumnDefinition cd = md.getColumnDefinition(name);
+        return cd == null ? md.getDefaultValidator() : cd.getValidator();
     }
 
     public AbstractType getKeyValidator(String keyspace, String columnFamily)
     {
-        CFMetaData def = metadata.get(String.format("%s.%s", keyspace, columnFamily));
-        return def.getKeyValidator();
+        return metadata.get(String.format("%s.%s", keyspace, columnFamily)).getKeyValidator();
+    }
+
+    /** uses the AbstractType to map a column name to a string. */
+    public String colNameAsString(String keyspace, String columnFamily, ByteBuffer name)
+    {
+        AbstractType comparator = getNameType(keyspace, columnFamily, name);
+        return comparator.getString(name);
+    }
+
+    /** constructs a typed column */
+    public TypedColumn makeCol(String keyspace, String columnFamily, Column column)
+    {
+        return new TypedColumn(column,
+                               getNameType(keyspace, columnFamily, column.name),
+                               getValueType(keyspace, columnFamily, column.name));
     }
 }
