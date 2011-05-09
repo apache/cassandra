@@ -36,6 +36,8 @@ import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.locator.AbstractReplicationStrategy;
+import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -71,6 +73,19 @@ public class ThriftValidation
         if (!DatabaseDescriptor.getTables().contains(tablename))
         {
             throw new KeyspaceNotDefinedException("Keyspace " + tablename + " does not exist");
+        }
+    }
+
+    // Don't check that the table exists, validateTable or validateColumnFamily must be called beforehand.
+    public static void validateConsistencyLevel(String table, ConsistencyLevel cl) throws InvalidRequestException
+    {
+        switch (cl)
+        {
+            case LOCAL_QUORUM:
+            case EACH_QUORUM:
+                AbstractReplicationStrategy strategy = Table.open(table).getReplicationStrategy();
+                if (!(strategy instanceof NetworkTopologyStrategy))
+                    throw new InvalidRequestException("consistency level " + cl + " not compatible with replication strategy (" + strategy.getClass().getName() + ")");
         }
     }
 

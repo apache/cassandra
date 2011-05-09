@@ -250,6 +250,7 @@ public class CassandraServer implements Cassandra.Iface
     {
         ThriftValidation.validateColumnParent(keyspace, column_parent);
         ThriftValidation.validatePredicate(keyspace, column_parent, predicate);
+        ThriftValidation.validateConsistencyLevel(keyspace, consistency_level);
 
         List<ReadCommand> commands = new ArrayList<ReadCommand>();
         if (predicate.column_names != null)
@@ -282,6 +283,7 @@ public class CassandraServer implements Cassandra.Iface
         String keyspace = state().getKeyspace();
 
         ThriftValidation.validateColumnPath(keyspace, column_path);
+        ThriftValidation.validateConsistencyLevel(keyspace, consistency_level);
 
         QueryPath path = new QueryPath(column_path.column_family, column_path.column == null ? null : column_path.super_column);
         List<ByteBuffer> nameAsList = Arrays.asList(column_path.column == null ? column_path.super_column : column_path.column);
@@ -410,8 +412,9 @@ public class CassandraServer implements Cassandra.Iface
         doInsert(consistency_level, Arrays.asList(rm));
     }
 
-    private void doInsert(ConsistencyLevel consistency_level, List<RowMutation> mutations) throws UnavailableException, TimedOutException
+    private void doInsert(ConsistencyLevel consistency_level, List<RowMutation> mutations) throws UnavailableException, TimedOutException, InvalidRequestException
     {
+        ThriftValidation.validateConsistencyLevel(state().getKeyspace(), consistency_level);
         try
         {
             schedule();
@@ -459,6 +462,7 @@ public class CassandraServer implements Cassandra.Iface
         ThriftValidation.validateColumnParent(keyspace, column_parent);
         ThriftValidation.validatePredicate(keyspace, column_parent, predicate);
         ThriftValidation.validateKeyRange(range);
+        ThriftValidation.validateConsistencyLevel(keyspace, consistency_level);
 
         List<Row> rows;
         try
@@ -522,6 +526,7 @@ public class CassandraServer implements Cassandra.Iface
         ThriftValidation.validateColumnParent(keyspace, column_parent);
         ThriftValidation.validatePredicate(keyspace, column_parent, column_predicate);
         ThriftValidation.validateIndexClauses(keyspace, column_parent.column_family, index_clause);
+        ThriftValidation.validateConsistencyLevel(keyspace, consistency_level);
 
         List<Row> rows;
         try
