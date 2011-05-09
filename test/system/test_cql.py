@@ -127,11 +127,11 @@ class TestCql(ThriftTester):
     def test_select_simple(self):
         "single-row named column queries"
         cursor = init()
-        cursor.execute("SELECT 'ca1' FROM StandardString1 WHERE KEY='ka'")
+        cursor.execute("SELECT KEY, ca1 FROM StandardString1 WHERE KEY='ka'")
         r = cursor.fetchone()
         d = cursor.description
 
-        assert d[0][0] == cql.ROW_KEY
+        assert d[0][0] == 'KEY'
         assert r[0] == 'ka'
 
         assert d[1][0] == 'ca1'
@@ -144,10 +144,10 @@ class TestCql(ThriftTester):
         """)
 
         d = cursor.description
-        assert ['Row Key', 'ca1', 'col', 'cd1'] == [col_dscptn[0] for col_dscptn in d], d
+        assert ['ca1', 'col', 'cd1'] == [col_dscptn[0] for col_dscptn in d], d
         row = cursor.fetchone()
         # check that the column that didn't exist in the row comes back as null
-        assert ['kd', None, 'val', 'vd1'] == row, row
+        assert [None, 'val', 'vd1'] == row, row
 
     def test_select_row_range(self):
         "retrieve a range of rows with columns"
@@ -219,51 +219,39 @@ class TestCql(ThriftTester):
         "column slice tests"
         cursor = init()
 
-        # all columns
+        # * includes row key, explicit slice does not
         cursor.execute("SELECT * FROM StandardString1 WHERE KEY = 'ka';")
-        r = cursor.fetchone()
-        assert len(r) == 3
+        row = cursor.fetchone()
+        assert ['ka', 'va1', 'val'] == row, row
+
         cursor.execute("SELECT ''..'' FROM StandardString1 WHERE KEY = 'ka';")
-        r = cursor.fetchone()
-        assert len(r) == 3
+        row = cursor.fetchone()
+        assert ['va1', 'val'] == row, row
 
         # column subsets
         cursor.execute("SELECT 1..3 FROM StandardLongA WHERE KEY = 'aa';")
         assert cursor.rowcount == 1
-        r = cursor.fetchone()
-        assert r[0] == "aa"
-        assert r[1] == "1"
-        assert r[2] == "2"
-        assert r[3] == "3"
+        row = cursor.fetchone()
+        assert ['1', '2', '3'] == row, row
         
-        cursor.execute("SELECT 10..30 FROM StandardIntegerA WHERE KEY='k1'")
-        assert cursor.rowcount == 1
-        r = cursor.fetchone()
-        assert r[0] == "k1"
-        assert r[1] == "a"
-        assert r[2] == "b"
-        assert r[3] == "c"
+        cursor.execute("""
+            SELECT key,20,40 FROM StandardIntegerA
+            WHERE KEY > 'k1' AND KEY < 'k7' LIMIT 5
+        """)
+        row = cursor.fetchone()
+        assert ['k2', 'f', 'h'] == row, row
 
         # range of columns (slice) by row with FIRST
-        cursor.execute("""
-            SELECT FIRST 1 1..3 FROM StandardLongA WHERE KEY = 'aa';
-        """)
+        cursor.execute("SELECT FIRST 1 1..3 FROM StandardLongA WHERE KEY = 'aa'")
         assert cursor.rowcount == 1
-        r = cursor.fetchone()
-        assert len(r) == 2
-        assert r[0] == "aa"
-        assert r[1] == "1"
+        row = cursor.fetchone()
+        assert ['1'] == row, row
 
         # range of columns (slice) by row reversed
-        cursor.execute("""
-            SELECT FIRST 2 REVERSED 3..1 FROM StandardLongA WHERE KEY = 'aa';
-        """)
+        cursor.execute("SELECT FIRST 2 REVERSED 3..1 FROM StandardLongA WHERE KEY = 'aa'")
         assert cursor.rowcount == 1, "%d != 1" % cursor.rowcount
-        r = cursor.fetchone()
-        assert len(r) == 3
-        assert r[0] == 'aa'
-        assert r[1] == "3"
-        assert r[2] == "2"
+        row = cursor.fetchone()
+        assert ['3', '2'] == row, row
 
     def test_select_range_with_single_column_results(self):
         "range should not fail when keys were not set"
@@ -277,7 +265,7 @@ class TestCql(ThriftTester):
         """)
 
         cursor.execute("""
-          SELECT name FROM StandardString2
+          SELECT KEY, name FROM StandardString2
         """)
 
         assert cursor.rowcount == 3, "expected 3 results, got %d" % cursor.rowcount
@@ -298,7 +286,7 @@ class TestCql(ThriftTester):
         "indexed scan where column equals value"
         cursor = init()
         cursor.execute("""
-            SELECT 'birthdate' FROM IndexedA WHERE 'birthdate' = 100
+            SELECT KEY, birthdate FROM IndexedA WHERE birthdate = 100
         """)
         assert cursor.rowcount == 2
 
@@ -314,19 +302,19 @@ class TestCql(ThriftTester):
         "indexed scan where a column is greater than a value"
         cursor = init()
         cursor.execute("""
-            SELECT 'birthdate' FROM IndexedA WHERE 'birthdate' = 100
-                    AND 'unindexed' > 200
+            SELECT KEY, 'birthdate' FROM IndexedA 
+            WHERE 'birthdate' = 100 AND 'unindexed' > 200
         """)
         assert cursor.rowcount == 1
-        r = cursor.fetchone()
-        assert r[0] == "asmith"
+        row = cursor.fetchone()
+        assert row[0] == "asmith", row
 
     def test_index_scan_with_start_key(self):
         "indexed scan with a starting key"
         cursor = init()
         cursor.execute("""
-            SELECT 'birthdate' FROM IndexedA WHERE 'birthdate' = 100
-                    AND KEY >= 'asmithZ'
+            SELECT KEY, 'birthdate' FROM IndexedA 
+            WHERE 'birthdate' = 100 AND KEY >= 'asmithZ'
         """)
         assert cursor.rowcount == 1
         r = cursor.fetchone()
@@ -335,7 +323,7 @@ class TestCql(ThriftTester):
     def test_no_where_clause(self):
         "empty where clause (range query w/o start key)"
         cursor = init()
-        cursor.execute("SELECT 'col' FROM StandardString1 LIMIT 3")
+        cursor.execute("SELECT KEY, 'col' FROM StandardString1 LIMIT 3")
         assert cursor.rowcount == 3
         rows = cursor.fetchmany(3)
         assert rows[0][0] == "ka"
@@ -369,7 +357,8 @@ class TestCql(ThriftTester):
         cursor.execute("""
             SELECT 'cd1', 'col' FROM StandardString1 WHERE KEY = 'kd'
         """)
-        assert ['Row Key', 'cd1', 'col'] == [col_d[0] for col_d in cursor.description]
+        desc = [col_d[0] for col_d in cursor.description]
+        assert ['cd1', 'col'] == desc, desc
 
         cursor.execute("""
             DELETE 'cd1', 'col' FROM StandardString1 WHERE KEY = 'kd'
@@ -377,31 +366,31 @@ class TestCql(ThriftTester):
         cursor.execute("""
             SELECT 'cd1', 'col' FROM StandardString1 WHERE KEY = 'kd'
         """)
-        r = cursor.fetchone()
-        assert ['kd', None, None] == r, r
+        row = cursor.fetchone()
+        assert [None, None] == row, row
 
     def test_delete_columns_multi_rows(self):
         "delete columns from multiple rows"
         cursor = init()
 
+        # verify rows exist initially
         cursor.execute("SELECT 'col' FROM StandardString1 WHERE KEY = 'kc'")
-        r = cursor.fetchone()
-        assert ['kc', 'val'] == r, r
-
+        row = cursor.fetchone()
+        assert ['val'] == row, row
         cursor.execute("SELECT 'col' FROM StandardString1 WHERE KEY = 'kd'")
-        r = cursor.fetchone()
-        assert ['kd', 'val'] == r, r
+        row = cursor.fetchone()
+        assert ['val'] == row, row
 
+        # delete and verify data is gone
         cursor.execute("""
             DELETE 'col' FROM StandardString1 WHERE KEY IN ('kc', 'kd')
         """)
         cursor.execute("SELECT 'col' FROM StandardString1 WHERE KEY = 'kc'")
-        r = cursor.fetchone()
-        assert ['kc', None] == r, r
-
+        row = cursor.fetchone()
+        assert [None] == row, row
         cursor.execute("SELECT 'col' FROM StandardString1 WHERE KEY = 'kd'")
         r = cursor.fetchone()
-        assert ['kd', None] == r, r
+        assert [None] == r, r
 
     def test_delete_rows(self):
         "delete entire rows"
@@ -409,13 +398,13 @@ class TestCql(ThriftTester):
         cursor.execute("""
             SELECT 'cd1', 'col' FROM StandardString1 WHERE KEY = 'kd'
         """)
-        assert ['Row Key', 'cd1', 'col'] == [col_d[0] for col_d in cursor.description]
+        assert ['cd1', 'col'] == [col_d[0] for col_d in cursor.description]
         cursor.execute("DELETE FROM StandardString1 WHERE KEY = 'kd'")
         cursor.execute("""
             SELECT 'cd1', 'col' FROM StandardString1 WHERE KEY = 'kd'
         """)
-        r = cursor.fetchone()
-        assert ['kd', None, None] == r, r
+        row = cursor.fetchone()
+        assert [None, None] == row, row
 
     def test_create_keyspace(self):
         "create a new keyspace"
@@ -571,7 +560,7 @@ class TestCql(ThriftTester):
             SELECT '%s' FROM StandardTimeUUID WHERE KEY = 'uuidtest'
         """ % str(timeuuid))
         d = cursor.description
-        assert d[1][0] == timeuuid, "%s, %s" % (str(d[1][0]), str(timeuuid))
+        assert d[0][0] == timeuuid, "%s, %s" % (str(d[1][0]), str(timeuuid))
 
         # Tests a node-side conversion from bigint to UUID.
         ms = uuid1bytes_to_millis(uuid.uuid1().bytes)
@@ -583,7 +572,7 @@ class TestCql(ThriftTester):
             SELECT 'id' FROM StandardTimeUUIDValues WHERE KEY = 'uuidtest'
         """)
         r = cursor.fetchone()
-        assert uuid1bytes_to_millis(r[1].bytes) == ms
+        assert uuid1bytes_to_millis(r[0].bytes) == ms
 
         # Tests a node-side conversion from ISO8601 to UUID.
         cursor.execute("""
@@ -596,7 +585,7 @@ class TestCql(ThriftTester):
         """)
         # 2011-01-31 17:00:00-0000 == 1296493200000ms
         r = cursor.fetchone()
-        ms = uuid1bytes_to_millis(r[1].bytes)
+        ms = uuid1bytes_to_millis(r[0].bytes)
         assert ms == 1296493200000, \
                 "%d != 1296493200000 (2011-01-31 17:00:00-0000)" % ms
 
@@ -610,7 +599,7 @@ class TestCql(ThriftTester):
             SELECT 'id3' FROM StandardTimeUUIDValues WHERE KEY = 'uuidtest'
         """)
         r = cursor.fetchone()
-        ms = uuid1bytes_to_millis(r[1].bytes)
+        ms = uuid1bytes_to_millis(r[0].bytes)
         assert ((time.time() * 1e3) - ms) < 100, \
             "new timeuuid not within 100ms of now (UPDATE vs. SELECT)"
 
@@ -624,7 +613,7 @@ class TestCql(ThriftTester):
             SELECT :start..:finish FROM StandardTimeUUID WHERE KEY = slicetest
             """, dict(start=uuid_range[0], finish=uuid_range[len(uuid_range)-1]))
         d = cursor.description
-        for (i, col_d) in enumerate(d[1:]):
+        for (i, col_d) in enumerate(d):
             assert uuid_range[i] == col_d[0]
 
 
@@ -638,7 +627,7 @@ class TestCql(ThriftTester):
         cursor.execute("SELECT :name FROM StandardUUID WHERE KEY = 'uuidtest'",
                        dict(name=uid))
         d = cursor.description
-        assert d[1][0] == uid, "expected %s, got %s (%s)" % \
+        assert d[0][0] == uid, "expected %s, got %s (%s)" % \
                 (uid.bytes.encode('hex'), str(d[1][0]).encode('hex'), d[1][1])
 
         # TODO: slices of uuids from cf w/ LexicalUUIDType comparator
@@ -654,18 +643,19 @@ class TestCql(ThriftTester):
 
         cursor.execute("SELECT * FROM StandardUtf82 WHERE KEY = k1")
         d = cursor.description
+        assert d[0][0] == 'KEY', d[0][0]
         assert d[1][0] == u"¢", d[1][0]
         assert d[2][0] == u"©", d[2][0]
         assert d[3][0] == u"®", d[3][0]
         assert d[4][0] == u"¿", d[4][0]
 
         cursor.execute("SELECT :start..'' FROM StandardUtf82 WHERE KEY = k1", dict(start="©"))
-        r = cursor.fetchone()
-        assert len(r) == 4
+        row = cursor.fetchone()
+        assert len(row) == 3, row
         d = cursor.description
-        assert d[1][0] == u"©"
-        assert d[2][0] == u"®"
-        assert d[3][0] == u"¿"
+        assert d[0][0] == u"©"
+        assert d[1][0] == u"®"
+        assert d[2][0] == u"¿"
 
     def test_read_write_negative_numerics(self):
         "reading and writing negative numeric values"
@@ -678,11 +668,11 @@ class TestCql(ThriftTester):
             cursor.execute("SELECT :start..:finish FROM :cf WHERE KEY = negatives;",
                            dict(start=-10, finish=-1, cf=cf))
             r = cursor.fetchone()
-            assert len(r) == 11, \
+            assert len(r) == 10, \
                 "returned %d columns, expected %d" % (len(r) - 1, 10)
             d = cursor.description
-            assert d[1][0] == -10
-            assert d[10][0] == -1
+            assert d[0][0] == -10
+            assert d[9][0] == -1
 
     def test_escaped_quotes(self):
         "reading and writing strings w/ escaped quotes"
@@ -697,17 +687,17 @@ class TestCql(ThriftTester):
                        """, dict(key="test_escaped_quotes"))
         assert cursor.rowcount == 1
         r = cursor.fetchone()
-        assert len(r) == 2, "wrong number of results"
+        assert len(r) == 1, "wrong number of results"
         d = cursor.description
-        assert d[1][0] == "x\'and\'y"
-
+        assert d[0][0] == "x'and'y"
+        
     def test_typed_keys(self):
         "using typed keys"
         cursor = init()
         cursor.execute("SELECT * FROM StandardString1 WHERE KEY = :key", dict(key="ka"))
-        r = cursor.fetchone()
-        assert isinstance(r[0], unicode), \
-            "wrong key-type returned, expected unicode, got %s" % type(r[0])
+        row = cursor.fetchone()
+        assert isinstance(row[0], unicode), \
+            "wrong key-type returned, expected unicode, got %s" % type(row[0])
 
         # FIXME: The above is woefully inadequate, but the test config uses
         # CollatingOrderPreservingPartitioner which only supports UTF8.
@@ -753,11 +743,9 @@ class TestCql(ThriftTester):
 
         assert cursor.rowcount == 1, "expected 1 result, got %d" % cursor.rowcount
         colnames = [col_d[0] for col_d in cursor.description]
-        assert colnames[1] == "some_name", \
-               "unrecognized name '%s'" % colnames[1]
-        r = cursor.fetchone()
-        assert r[1] == "some_value", \
-               "unrecognized value '%s'" % r[1]
+        assert ['some_name'] == colnames, colnames
+        row = cursor.fetchone()
+        assert ['some_value'] == row, row
 
     def test_batch_with_mixed_statements(self):
         "handle BATCH with INSERT/UPDATE/DELETE statements mixed in it"
@@ -778,34 +766,28 @@ class TestCql(ThriftTester):
 
         assert cursor.rowcount == 1, "expected 1 result, got %d" % cursor.rowcount
         colnames = [col_d[0] for col_d in cursor.description]
-        assert colnames[1] == "bName", \
-               "unrecognized name '%s'" % colnames[1]
+        assert ['bName'] == colnames, colnames
         r = cursor.fetchone()
-        assert r[1] == "bVal", \
-               "unrecognized value '%s'" % r[1]
+        assert ['bVal'] == r, r
 
         cursor.execute("SELECT :name FROM StandardString1 WHERE KEY = :key",
                        dict(name="bCol2", key="bKey3"))
 
         assert cursor.rowcount == 1, "expected 1 result, got %d" % cursor.rowcount
         colnames = [col_d[0] for col_d in cursor.description]
-        assert colnames[1] == "bCol2", \
-               "unrecognized name '%s'" % colnames[1]
+        assert ['bCol2'] == colnames, colnames
         # was deleted by DELETE statement
         r = cursor.fetchone()
-        assert r[1] == None, \
-               "unrecognized value '%s'" % r[1]
+        assert [None] == r, r
 
         cursor.execute("SELECT :name FROM StandardString1 WHERE KEY = :key",
                        dict(name="bCol1", key="bKey2"))
 
         assert cursor.rowcount == 1, "expected 1 result, got %d" % cursor.rowcount
         colnames = [col_d[0] for col_d in cursor.description]
-        assert colnames[1] == "bCol1", \
-               "unrecognized name '%s'" % colnames[1]
+        assert ['bCol1'] == colnames, colnames
         r = cursor.fetchone()
-        assert r[1] == "bVal", \
-               "unrecognized value '%s'" % r[1]
+        assert ['bVal'] == r, r
 
         # using all 3 types of statements allowed in batch to test timestamp
         cursor.execute("""
@@ -929,5 +911,3 @@ class TestCql(ThriftTester):
         r = cursor.fetchone()
         assert r[1] == "name here", \
                "unrecognized value '%s'" % r[1]
-
-

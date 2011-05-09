@@ -25,6 +25,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -33,6 +34,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -80,12 +82,30 @@ class ColumnDecoder
     {
 
         CFMetaData md = metadata.get(String.format("%s.%s", keyspace, columnFamily));
+        try
+        {
+            if (ByteBufferUtil.string(name).equalsIgnoreCase(ByteBufferUtil.string(md.getKeyName())))
+                return AsciiType.instance;
+        }
+        catch (CharacterCodingException e)
+        {
+            // not be the key name
+        }
         return md.comparator;
     }
 
     AbstractType getValueType(String keyspace, String columnFamily, ByteBuffer name)
     {
         CFMetaData md = metadata.get(String.format("%s.%s", keyspace, columnFamily));
+        try
+        {
+            if (ByteBufferUtil.string(name).equalsIgnoreCase(ByteBufferUtil.string(md.getKeyName())))
+                return md.getKeyValidator();
+        }
+        catch (CharacterCodingException e)
+        {
+            // not be the key name
+        }
         ColumnDefinition cd = md.getColumnDefinition(name);
         return cd == null ? md.getDefaultValidator() : cd.getValidator();
     }

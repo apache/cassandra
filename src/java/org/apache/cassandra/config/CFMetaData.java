@@ -78,6 +78,7 @@ public final class CFMetaData
     public static final CFMetaData SchemaCf = newSystemMetadata(Migration.SCHEMA_CF, 3, "current state of the schema", UTF8Type.instance, null, DEFAULT_SYSTEM_MEMTABLE_THROUGHPUT_IN_MB);
     public static final CFMetaData IndexCf = newSystemMetadata(SystemTable.INDEX_CF, 5, "indexes that have been completed", UTF8Type.instance, null, DEFAULT_SYSTEM_MEMTABLE_THROUGHPUT_IN_MB);
     public static final CFMetaData NodeIdCf = newSystemMetadata(SystemTable.NODE_ID_CF, 6, "nodeId and their metadata", TimeUUIDType.instance, null, DEFAULT_SYSTEM_MEMTABLE_THROUGHPUT_IN_MB);
+    private static final ByteBuffer DEFAULT_KEY_NAME = ByteBufferUtil.bytes("KEY");
 
     /**
      * @return A calculated memtable throughput size for this machine.
@@ -504,9 +505,9 @@ public final class CFMetaData
         return rowCacheProvider;
     }
 
-    public ByteBuffer getKeyAlias()
+    public ByteBuffer getKeyName()
     {
-        return keyAlias;
+        return keyAlias == null ? DEFAULT_KEY_NAME : keyAlias;
     }
 
     public Map<ByteBuffer, ColumnDefinition> getColumn_metadata()
@@ -640,7 +641,6 @@ public final class CFMetaData
 
         validateMinMaxCompactionThresholds(cf_def);
         validateMemtableSettings(cf_def);
-        validateAliasCompares(cf_def);
 
         CFMetaData newCFMD = new CFMetaData(cf_def.keyspace,
                                             cf_def.name,
@@ -785,7 +785,7 @@ public final class CFMetaData
         def.setMemtable_throughput_in_mb(cfm.memtableThroughputInMb);
         def.setMemtable_operations_in_millions(cfm.memtableOperationsInMillions);
         def.setMerge_shards_chance(cfm.mergeShardsChance);
-        def.setKey_alias(cfm.keyAlias);
+        def.setKey_alias(cfm.getKeyName());
         List<org.apache.cassandra.thrift.ColumnDef> column_meta = new ArrayList< org.apache.cassandra.thrift.ColumnDef>(cfm.column_metadata.size());
         for (ColumnDefinition cd : cfm.column_metadata.values())
         {
@@ -968,13 +968,6 @@ public final class CFMetaData
             DatabaseDescriptor.validateMemtableThroughput(cf_def.memtable_throughput_in_mb);
         if (cf_def.memtable_operations_in_millions != null)
             DatabaseDescriptor.validateMemtableOperations(cf_def.memtable_operations_in_millions);
-    }
-
-    public static void validateAliasCompares(org.apache.cassandra.thrift.CfDef cf_def) throws ConfigurationException
-    {
-        AbstractType comparator = DatabaseDescriptor.getComparator(cf_def.comparator_type);
-        if (cf_def.key_alias != null)
-            comparator.validate(cf_def.key_alias);
     }
 
     public static void validateAliasCompares(org.apache.cassandra.db.migration.avro.CfDef cf_def) throws ConfigurationException

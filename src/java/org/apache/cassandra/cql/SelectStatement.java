@@ -81,6 +81,11 @@ public class SelectStatement
     {
         return expression.isColumnRange();
     }
+
+    public boolean isWildcard()
+    {
+        return expression.isWildcard();
+    }
     
     public List<Term> getColumnNames()
     {
