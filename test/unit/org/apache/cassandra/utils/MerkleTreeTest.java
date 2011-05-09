@@ -447,13 +447,14 @@ public class MerkleTreeTest
         // split the leftmost
         Iterator<TreeRange> ranges = mt.invalids();
         leftmost = ranges.next();
-        mt.split(leftmost.left);
-        
-        // set the hash for the left neighbor of rightmost
+        mt.split(leftmost.right);
+
+        // set the hashes for the leaf of the created split
         middle = mt.get(leftmost.right);
         middle.hash("arbitrary!".getBytes());
+        mt.get(partitioner.midpoint(leftmost.left, leftmost.right)).hash("even more arbitrary!".getBytes());
 
-        // trees should disagree for (middle.left, rightmost.right]
+        // trees should disagree for (leftmost.left, middle.right]
         List<TreeRange> diffs = MerkleTree.difference(mt, mt2);
         assertEquals(diffs + " contains wrong number of differences:", 1, diffs.size());
         assertTrue(diffs.contains(new Range(leftmost.left, middle.right)));
