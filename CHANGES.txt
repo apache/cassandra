@@ -10,6 +10,7 @@
    (CASSANDRA-2419)
  * JDBC CQL driver exposes getColumn for access to timestamp
  * JDBC ResultSetMetadata properties added to AbstractType
+ * r/m clustertool (CASSANDRA-2607)
 
 
 0.8.0-beta2

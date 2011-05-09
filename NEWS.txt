@@ -37,6 +37,13 @@ Features
       will be removed in a future major release once we are satisfied that
       memtable_total_space_in_mb works adequately.
 
+Tools
+-----
+    - stress and py_stress moved from contrib/ to tools/
+    - clustertool was removed (see 
+      https://issues.apache.org/jira/browse/CASSANDRA-2607 for examples
+      of how to script nodetool across the cluster instead)
+
 Other
 -----
     - In the past, sstable2json would write column names and values as
