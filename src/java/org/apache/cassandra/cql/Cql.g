@@ -167,8 +167,8 @@ selectExpression returns [SelectExpression expr]
       ( K_REVERSED { reversed = true; } )?
       ( first=term { $expr = new SelectExpression(first, count, reversed); }
             (',' next=term { $expr.and(next); })*
-      | start=term RANGEOP finish=term { $expr = new SelectExpression(start, finish, count, reversed); }
-      | '\*' { $expr = new SelectExpression(new Term(), new Term(), count, reversed); }
+      | start=term RANGEOP finish=term { $expr = new SelectExpression(start, finish, count, reversed, false); }
+      | '\*' { $expr = new SelectExpression(new Term(), new Term(), count, reversed, true); }
       )
     ;
 
@@ -346,7 +346,7 @@ comparatorType
     ;
 
 term returns [Term item]
-    : ( t=STRING_LITERAL | t=INTEGER | t=UUID | t=IDENT ) { $item = new Term($t.text, $t.type); }
+    : ( t=K_KEY | t=STRING_LITERAL | t=INTEGER | t=UUID | t=IDENT ) { $item = new Term($t.text, $t.type); }
     ;
 
 termList returns [List<Term> items]
