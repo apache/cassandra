@@ -22,6 +22,7 @@ package org.apache.cassandra.db.marshal;
 
 
 import java.nio.ByteBuffer;
+import java.sql.Types;
 
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -87,5 +88,40 @@ public class BytesType extends AbstractType<ByteBuffer>
     public Class<ByteBuffer> getType()
     {
         return ByteBuffer.class;
+    }
+
+    public boolean isSigned()
+    {
+        return false;
+    }
+
+    public boolean isCaseSensitive()
+    {
+        return false;
+    }
+
+    public boolean isCurrency()
+    {
+        return false;
+    }
+
+    public int getPrecision(ByteBuffer obj)
+    {
+        return -1;
+    }
+
+    public int getScale(ByteBuffer obj)
+    {
+        return -1;
+    }
+
+    public int getJdbcType()
+    {
+        return Types.BINARY;
+    }
+
+    public boolean needsQuotes()
+    {
+        return true;
     }
 }

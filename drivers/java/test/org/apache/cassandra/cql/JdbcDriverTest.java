@@ -82,15 +82,15 @@ public class JdbcDriverTest extends EmbeddedServiceBase
     private static void expectedMetaData(ResultSetMetaData md, int col, String colClass, String table, String schema,
                                   String label, int type, String typeName, boolean signed, boolean caseSensitive) throws SQLException
     {
-        assert colClass.equals(md.getColumnClassName(col)); // full class name of type<T>
-        assert table.equals(md.getTableName(col));
-        assert schema.equals(md.getSchemaName(col));
-        assert label.equals(md.getColumnLabel(col)) : "expected " + label + " got " + md.getColumnLabel(col);
-        assert label.equals(md.getColumnName(col));
-        assert type == md.getColumnType(col);
-        assert typeName.equals(md.getColumnTypeName(col)) : "expected " + typeName + " got " + md.getColumnTypeName(col); // simple name of abstract type.
-        assert md.isSigned(col) == signed;
-        assert md.isCaseSensitive(col) == caseSensitive;
+        assertEquals(colClass, md.getColumnClassName(col)); // full class name of type<T>
+        assertEquals(table, md.getTableName(col));
+        assertEquals(schema, md.getSchemaName(col));
+        assertEquals(label, md.getColumnLabel(col));
+        assertEquals(label, md.getColumnName(col));
+        assertEquals(type, md.getColumnType(col));
+        assertEquals(typeName, md.getColumnTypeName(col));
+        assertEquals(signed, md.isSigned(col));
+        assertEquals(caseSensitive, md.isCaseSensitive(col));
     }
     
     private static void expectedMetaData(ResultSetMetaData md, int col,
@@ -174,19 +174,13 @@ public class JdbcDriverTest extends EmbeddedServiceBase
         
         ResultSetMetaData md = rs.getMetaData();
         assert md.getColumnCount() == 2;
-        expectedMetaData(md, 1, Long.class.getName(), "JdbcLong", "Keyspace1", "1", Types.BIGINT, LongType.class.getSimpleName(), true, false);
-        expectedMetaData(md, 2, Long.class.getName(), "JdbcLong", "Keyspace1", "2", Types.BIGINT, LongType.class.getSimpleName(), true, false);
+        expectedMetaData(md, 1, Long.class.getName(), "JdbcLong", "Keyspace1", "1", Types.INTEGER, LongType.class.getSimpleName(), true, false);
+        expectedMetaData(md, 2, Long.class.getName(), "JdbcLong", "Keyspace1", "2", Types.INTEGER, LongType.class.getSimpleName(), true, false);
         
         for (int i = 0; i < md.getColumnCount(); i++)
-            expectedMetaData(md,
-                             i + 1,
-                             Long.class.getName(),
-                             Types.BIGINT,
-                             LongType.class.getSimpleName(),
-                             true,
-                             false);
+            expectedMetaData(md, i + 1, Long.class.getName(), Types.INTEGER, LongType.class.getSimpleName(), true, false);
     }
-    
+
     @Test
     public void testStringMetadata() throws SQLException
     {

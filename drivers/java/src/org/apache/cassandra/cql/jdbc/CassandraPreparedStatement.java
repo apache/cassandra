@@ -72,21 +72,7 @@ public class CassandraPreparedStatement extends CassandraStatement implements Pr
     }
     
     // impl specific methods start here.
-    
-    // determines which types need to be quoted.
-    private static boolean needsQuotes(AbstractType type) 
-    {
-        if (type instanceof ColumnMetaData)
-            return ((ColumnMetaData)type).needsQuotes();
-        else
-            return type == BytesType.instance ||
-                   type == AsciiType.instance ||
-                   type == UTF8Type.instance ||
-                   type == LexicalUUIDType.instance ||
-                   type == TimeUUIDType.instance ||
-                   type == UUIDType.instance;
-    }
-    
+
     // double quotes strings (in parameters)
     private static String makeCqlString(String s) 
     {
@@ -116,7 +102,7 @@ public class CassandraPreparedStatement extends CassandraStatement implements Pr
                     Object param = params.nextParam();
                     String stringParam = type == null ? param.toString() : type.toString(param);
                     stringParam = makeCqlString(stringParam);
-                    if (type == null || needsQuotes(type))
+                    if (type == null || type.needsQuotes())
                         stringParam = "'" + stringParam + "'";
                     sb.append(stringParam);
                 }
@@ -153,7 +139,7 @@ public class CassandraPreparedStatement extends CassandraStatement implements Pr
                     Object param = params.nextParam();
                     AbstractType type = left ? ltype : rtype;
                     String stringParam = makeCqlString(type.toString(param));
-                    if (needsQuotes(type))
+                    if (type.needsQuotes())
                         stringParam = "'" + stringParam + "'";
                     sb.append(stringParam);
                 }

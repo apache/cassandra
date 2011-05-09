@@ -27,7 +27,7 @@ import java.util.UUID;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.UUIDGen;
 
-public class LexicalUUIDType extends AbstractType<UUID>
+public class LexicalUUIDType extends AbstractUUIDType
 {
     public static final LexicalUUIDType instance = new LexicalUUIDType();
 

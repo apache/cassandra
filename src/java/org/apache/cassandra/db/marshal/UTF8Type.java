@@ -22,6 +22,7 @@ package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
+import java.sql.Types;
 
 import com.google.common.base.Charsets;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -195,5 +196,40 @@ public class UTF8Type extends AbstractType<String>
     public Class<String> getType()
     {
         return String.class;
+    }
+
+    public boolean isSigned()
+    {
+        return false;
+    }
+
+    public boolean isCaseSensitive()
+    {
+        return true;
+    }
+
+    public boolean isCurrency()
+    {
+        return false;
+    }
+
+    public int getPrecision(String obj)
+    {
+        return -1;
+    }
+
+    public int getScale(String obj)
+    {
+        return -1;
+    }
+
+    public int getJdbcType()
+    {
+        return Types.VARCHAR;
+    }
+
+    public boolean needsQuotes()
+    {
+        return true;
     }
 }

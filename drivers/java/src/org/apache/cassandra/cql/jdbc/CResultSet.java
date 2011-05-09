@@ -32,7 +32,6 @@ import java.sql.Clob;
 import java.sql.Date;
 import java.sql.NClob;
 import java.sql.Ref;
-import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.RowId;
 import java.sql.SQLException;
@@ -44,9 +43,7 @@ import java.sql.Time;
 import java.sql.Timestamp;
 import java.util.*;
 
-import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.CounterColumnType;
-import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.thrift.Column;
 import org.apache.cassandra.thrift.CqlResult;
 import org.apache.cassandra.thrift.CqlRow;
@@ -1163,10 +1160,7 @@ public class CResultSet implements CassandraResultSet
             column--;
             checkIndex(column);
             TypedColumn tc = values.get(column);
-            if (tc.getValueType() instanceof ColumnMetaData)
-                return ((ColumnMetaData)tc.getValueType()).isCaseSensitive();
-            else
-                return tc.getValueType().getType().equals(String.class);
+            return tc.getValueType().isCaseSensitive();
         }
 
         public boolean isSearchable(int column) throws SQLException
@@ -1179,16 +1173,13 @@ public class CResultSet implements CassandraResultSet
             column--;
             checkIndex(column);
             TypedColumn tc = values.get(column);
-            if (tc.getValueType() instanceof ColumnMetaData)
-                return ((ColumnMetaData)tc.getValueType()).isCurrency();
-            else
-                return false;
+            return tc.getValueType().isCurrency();
         }
 
+        /** absence is the equivalent of null in Cassandra */
         public int isNullable(int column) throws SQLException
         {
-            // no such thing as null in cassandra.
-            return ResultSetMetaData.columnNullableUnknown;
+            return ResultSetMetaData.columnNullable;
         }
 
         public boolean isSigned(int column) throws SQLException
@@ -1196,7 +1187,7 @@ public class CResultSet implements CassandraResultSet
             column--;
             checkIndex(column);
             TypedColumn tc = values.get(column);
-            return Utils.isTypeSigned(tc.getValueType());
+            return tc.getValueType().isSigned();
         }
 
         public int getColumnDisplaySize(int column) throws SQLException
@@ -1228,25 +1219,15 @@ public class CResultSet implements CassandraResultSet
             column--;
             checkIndex(column);
             TypedColumn col = values.get(column);
-            if (col.getValueType() instanceof ColumnMetaData)
-                return ((ColumnMetaData)col.getValueType()).getPrecision();
-            else if (col.getValueType().getType().equals(String.class))
-                return col.getValueString().length();
-            else if (col.getValueType() == BytesType.instance)
-                return col.getValueString().length();
-            else if (col.getValueType().getType().equals(UUID.class))
-                return 36; // xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-            else if (col.getValueType() == LongType.instance)
-                return 19; // number of digits in 2**63-1.
-            else
-                return 0;
+            return col.getValueType().getPrecision(col.getValue());
         }
 
         public int getScale(int column) throws SQLException
         {
             column--;
             checkIndex(column);
-            return Utils.getTypeScale(values.get(column).getValueType());
+            TypedColumn tc = values.get(column);
+            return tc.getValueType().getScale(tc.getValue());
         }
 
         public String getTableName(int column) throws SQLException
@@ -1263,7 +1244,7 @@ public class CResultSet implements CassandraResultSet
         {
             column--;
             checkIndex(column);
-            return Utils.getJdbcType(values.get(column).getValueType());
+            return values.get(column).getValueType().getJdbcType();
         }
 
         // todo: spec says "database specific type name". this means the abstract type.

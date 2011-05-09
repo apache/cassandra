@@ -31,7 +31,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 import org.apache.commons.lang.time.DateUtils;
 
-public class TimeUUIDType extends AbstractType<UUID>
+public class TimeUUIDType extends AbstractUUIDType
 {
     public static final TimeUUIDType instance = new TimeUUIDType();
 

@@ -63,40 +63,4 @@ class Utils
         
         return ByteBuffer.wrap(byteArray.toByteArray());
     }
-    
-    static int getJdbcType(AbstractType type) throws SQLException
-    {   
-        if (type instanceof ColumnMetaData)
-            return ((ColumnMetaData)type).getType();
-        else if (type == IntegerType.instance)
-            return Types.BIGINT;
-        else if (type.getType().equals(Long.class))
-            return Types.BIGINT; // not the best fit.
-        else if (type.getType().equals(String.class))
-            return Types.VARCHAR;
-        else if (type.getType().equals(UUID.class))
-            return Types.TIMESTAMP;
-        else if (type == BytesType.instance)
-            return Types.BINARY;
-        else
-            throw new SQLException("Uninterpretable JDBC type " + type.getClass().getName());
-    }
-    
-    static boolean isTypeSigned(AbstractType type)
-    {
-        if (type == IntegerType.instance || type == LongType.instance)
-            return true;
-        else if (type instanceof ColumnMetaData) 
-            return ((ColumnMetaData)type).isSigned();
-        else
-            return false;
-    }
-    
-    static int getTypeScale(AbstractType type) 
-    {
-        if (type instanceof ColumnMetaData)
-            return ((ColumnMetaData)type).getScale();
-        else
-            return 0;
-    }
 }
