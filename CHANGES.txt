@@ -6,6 +6,7 @@
 0.8.1
  * add support for comparator parameters and a generic ReverseType
    (CASSANDRA-2355)
+ * add CompositeType and DynamicCompositeType (CASSANDRA-2231)
 
 0.8.0-?
  * faster flushes and compaction from fixing excessively pessimistic 

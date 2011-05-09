@@ -27,6 +27,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.commons.lang.StringUtils;
+
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -414,17 +416,7 @@ public class TypeParser
     public static String stringifyTypeParameters(List<AbstractType> types)
     {
         StringBuilder sb = new StringBuilder();
-        sb.append('(');
-        Iterator<AbstractType> iter = types.iterator();
-        if (iter.hasNext())
-        {
-            sb.append(iter.next());
-        }
-        while (iter.hasNext())
-        {
-            sb.append(',').append(iter.next());
-        }
-        sb.append(')');
+        sb.append('(').append(StringUtils.join(types, ",")).append(')');
         return sb.toString();
     }
 }
