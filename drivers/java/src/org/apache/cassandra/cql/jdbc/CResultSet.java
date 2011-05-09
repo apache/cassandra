@@ -53,8 +53,7 @@ public class CResultSet extends AbstractResultSet implements CassandraResultSet
     private List<TypedColumn> values = new ArrayList<TypedColumn>();
     
     /** The value map. */
-    // TODO should map <String, TypedColumn> so we can throw appropriate exception if user asks for non-existant column name
-    private Map<String, Object> valueMap = new WeakHashMap<String, Object>();
+    private Map<String, TypedColumn> valueMap = new HashMap<String, TypedColumn>();
     
     private final CResultSetMetaData meta;
     
@@ -86,7 +85,7 @@ public class CResultSet extends AbstractResultSet implements CassandraResultSet
 
     public TypedColumn getColumn(String name)
     {
-        throw new UnsupportedOperationException("need to convert valueMap to TypedColumn first");
+        return valueMap.get(name);
     }
 
     public void close() throws SQLException
@@ -95,41 +94,21 @@ public class CResultSet extends AbstractResultSet implements CassandraResultSet
         values = null;
     }
 
-    public BigDecimal getBigDecimal(int arg0) throws SQLException
+    private byte[] getBytes(TypedColumn column)
     {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public BigDecimal getBigDecimal(String arg0) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public BigDecimal getBigDecimal(int arg0, int arg1) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
-    }
-
-    public BigDecimal getBigDecimal(String arg0, int arg1) throws SQLException
-    {
-        throw new UnsupportedOperationException("method not supported");
+        ByteBuffer value = (ByteBuffer) column.getValue();
+        wasNull = value == null;
+        return value == null ? null : ByteBufferUtil.clone(value).array();
     }
 
     public byte[] getBytes(int index) throws SQLException
     {
-        TypedColumn column = values.get(index - 1);
-        assert column != null;
-        Object value = column.getValue();
-        wasNull = value == null;
-        return value == null ? null : ByteBufferUtil.clone((ByteBuffer) value).array();
+        return getBytes(values.get(index - 1));
     }
 
     public byte[] getBytes(String name) throws SQLException
     {
-        String nameAsString = decoder.colNameAsString(keyspace, columnFamily, name);
-        Object value = valueMap.get(nameAsString);
-        wasNull = value == null;
-        return value == null ? null : ByteBufferUtil.clone((ByteBuffer) value).array();
+        return getBytes(valueMap.get(decoder.colNameAsString(keyspace, columnFamily, name)));
     }
 
     public Date getDate(int arg0) throws SQLException
@@ -182,39 +161,59 @@ public class CResultSet extends AbstractResultSet implements CassandraResultSet
         throw new UnsupportedOperationException("method not supported");
     }
 
+    private BigInteger getBigInteger(TypedColumn column)
+    {
+        BigInteger value = (BigInteger) column.getValue();
+        wasNull = value == null;
+        return value;
+    }
+
+    public BigInteger getBigInteger(int i)
+    {
+        return getBigInteger(values.get(i - 1));
+    }
+
+    public BigInteger getBigInteger(String name)
+    {
+        return getBigInteger(valueMap.get(decoder.colNameAsString(keyspace, columnFamily, name)));
+    }
+
+    private int getInt(TypedColumn column) throws SQLException
+    {
+        // bit of a hack, this, but asking for getInt seems so common that we should accomodate it
+        if (column.getValue() instanceof BigInteger)
+            return getBigInteger(column).intValue();
+        else if (column.getValue() instanceof Long)
+            return getLong(column).intValue();
+        else
+            throw new SQLException("Non-integer value " + column.getValue());
+    }
+
     public int getInt(int index) throws SQLException
     {
-        TypedColumn column = values.get(index - 1);
-        assert column != null;
-        Object value = column.getValue();
-        wasNull = value == null;
-        return value == null ? 0 : ((BigInteger) value).intValue();
+        return getInt(values.get(index - 1));
     }
 
     public int getInt(String name) throws SQLException
     {
-        String nameAsString = decoder.colNameAsString(keyspace, columnFamily, name);
-        Object value = valueMap.get(nameAsString);
+        return getInt(valueMap.get(decoder.colNameAsString(keyspace, columnFamily, name)));
+    }
+
+    private Long getLong(TypedColumn column)
+    {
+        Long value = (Long) column.getValue();
         wasNull = value == null;
-        return value == null ? 0 : ((BigInteger) value).intValue();
+        return value == null ? 0 : value;
     }
 
     public long getLong(int index) throws SQLException
     {
-        assert values != null;
-        TypedColumn column = values.get(index - 1);
-        assert column != null;
-        Object value = column.getValue();
-        wasNull = value == null;
-        return value == null ? 0 : (Long) value;
+        return getLong(values.get(index - 1));
     }
 
     public long getLong(String name) throws SQLException
     {
-        String nameAsString = decoder.colNameAsString(keyspace, columnFamily, name);
-        Object value = valueMap.get(nameAsString);
-        wasNull = value == null;
-        return value == null ? 0 : (Long) value;
+        return getLong(valueMap.get(decoder.colNameAsString(keyspace, columnFamily, name)));
     }
 
     public ResultSetMetaData getMetaData() throws SQLException
@@ -222,21 +221,21 @@ public class CResultSet extends AbstractResultSet implements CassandraResultSet
         return meta;
     }
 
-    public Object getObject(int index) throws SQLException
+    private Object getObject(TypedColumn column)
     {
-        TypedColumn column = values.get(index - 1);
-        assert column != null;
         Object value = column.getValue();
         wasNull = value == null;
         return value;
     }
 
+    public Object getObject(int index) throws SQLException
+    {
+        return getObject(values.get(index - 1));
+    }
+
     public Object getObject(String name) throws SQLException
     {
-        String nameAsString = decoder.colNameAsString(keyspace, columnFamily, name);
-        Object value = valueMap.get(nameAsString);
-        wasNull = value == null;
-        return value;
+        return getObject(valueMap.get(decoder.colNameAsString(keyspace, columnFamily, name)));
     }
 
     public Object getObject(int arg0, Map<String, Class<?>> arg1) throws SQLException
@@ -254,21 +253,21 @@ public class CResultSet extends AbstractResultSet implements CassandraResultSet
         return rowNumber;
     }
 
+    private String getString(TypedColumn column)
+    {
+        String value = (String) column.getValue();
+        wasNull = value == null;
+        return value == null ? null : value;
+    }
+
     public String getString(int index) throws SQLException
     {
-        TypedColumn column = values.get(index - 1);
-        assert column != null;
-        Object value = column.getValue();
-        wasNull = value == null;
-        return value == null ? null : ColumnDecoder.colValueAsString(value);
+        return getString(values.get(index - 1));
     }
 
     public String getString(String name) throws SQLException
     {
-        String nameAsString = this.decoder.colNameAsString(this.keyspace, this.columnFamily, name);
-        Object value = valueMap.get(nameAsString);
-        wasNull = value == null;
-        return value == null ? null : ColumnDecoder.colValueAsString(value);
+        return getString(valueMap.get(this.decoder.colNameAsString(this.keyspace, this.columnFamily, name)));
     }
 
     public Time getTime(int arg0) throws SQLException
@@ -376,7 +375,7 @@ public class CResultSet extends AbstractResultSet implements CassandraResultSet
 
                 TypedColumn c = decoder.makeCol(keyspace, columnFamily, col);
                 values.add(c);
-                valueMap.put(decoder.colNameAsString(keyspace, columnFamily, col.getName()), c.getValue());
+                valueMap.put(decoder.colNameAsString(keyspace, columnFamily, col.getName()), c);
             }
             return !(values.isEmpty() && valueMap.isEmpty());
         } 

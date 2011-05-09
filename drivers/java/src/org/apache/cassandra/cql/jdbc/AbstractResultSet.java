@@ -299,6 +299,26 @@ class AbstractResultSet
         throw new UnsupportedOperationException("method not supported");
     }
 
+    public BigDecimal getBigDecimal(int arg0) throws SQLException
+    {
+        throw new UnsupportedOperationException("method not supported");
+    }
+
+    public BigDecimal getBigDecimal(String arg0) throws SQLException
+    {
+        throw new UnsupportedOperationException("method not supported");
+    }
+
+    public BigDecimal getBigDecimal(int arg0, int arg1) throws SQLException
+    {
+        throw new UnsupportedOperationException("method not supported");
+    }
+
+    public BigDecimal getBigDecimal(String arg0, int arg1) throws SQLException
+    {
+        throw new UnsupportedOperationException("method not supported");
+    }
+
     //
     // all the update methods are unsupported, requires a separate statement in Cassandra
     //

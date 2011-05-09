@@ -108,11 +108,10 @@ public class JdbcDriverTest extends EmbeddedServiceBase
     {
         String key = FBUtilities.bytesToHex("Integer".getBytes());
         Statement stmt = con.createStatement();
-        stmt.executeUpdate("update JdbcInteger set 1=1111, 2=2222, 42='fortytwofortytwo' where key='" + key + "'");
+        stmt.executeUpdate("update JdbcInteger set 1=36893488147419103232, 42='fortytwofortytwo' where key='" + key + "'");
         ResultSet rs = stmt.executeQuery("select 1, 2, 42 from JdbcInteger where key='" + key + "'");
         assert rs.next();
-        assert rs.getInt("1") == 1111;
-        assert rs.getInt("2") == 2222;
+        assert rs.getObject("1").equals(new BigInteger("36893488147419103232"));
         assert rs.getString("42").equals("fortytwofortytwo") : rs.getString("42");
         
         ResultSetMetaData md = rs.getMetaData();
@@ -133,34 +132,7 @@ public class JdbcDriverTest extends EmbeddedServiceBase
         expectedMetaData(md, 2, String.class.getName(), "JdbcUtf8", "Keyspace1", "b", Types.VARCHAR, UTF8Type.class.getSimpleName(), false, true);
         expectedMetaData(md, 3, BigInteger.class.getName(), "JdbcUtf8", "Keyspace1", "fortytwo", Types.BIGINT, IntegerType.class.getSimpleName(), true, false);
     }
-    
-    @Test 
-    public void testIntegerMetadata() throws SQLException
-    {
-        String key = FBUtilities.bytesToHex("Integer".getBytes());
-        Statement stmt = con.createStatement();
-        stmt.executeUpdate("UPDATE JdbcInteger SET 1=111, 2=222 WHERE KEY = '" + key + "'");
-        ResultSet rs = stmt.executeQuery("SELECT 1, 2 from JdbcInteger WHERE KEY = '" + key + "'");
-        assert rs.next();
-        assert rs.getInt("1") == 111;
-        assert rs.getInt("2") == 222;
         
-        ResultSetMetaData md = rs.getMetaData();
-        assert md.getColumnCount() == 2;
-        expectedMetaData(md, 1, BigInteger.class.getName(), "JdbcInteger", "Keyspace1", "1", Types.BIGINT, IntegerType.class.getSimpleName(), true, false);
-        expectedMetaData(md, 2, BigInteger.class.getName(), "JdbcInteger", "Keyspace1", "2", Types.BIGINT, IntegerType.class.getSimpleName(), true, false);
-
-        for (int i = 0; i < md.getColumnCount(); i++)
-            expectedMetaData(md,
-                             i + 1,
-                             BigInteger.class.getName(),
-                             Types.BIGINT,
-                             IntegerType.class.getSimpleName(),
-                             true,
-                             false);
-        
-    }
-    
     @Test
     public void testLongMetadata() throws SQLException
     {
@@ -257,15 +229,9 @@ public class JdbcDriverTest extends EmbeddedServiceBase
         expectedMetaData(md, 2, ByteBuffer.class.getName(), "JdbcBytes", "Keyspace1", FBUtilities.bytesToHex(b), Types.BINARY, BytesType.class.getSimpleName(), false, false);
         
         for (int i = 0; i < md.getColumnCount(); i++)
-            expectedMetaData(md,
-                             i + 1,
-                             ByteBuffer.class.getName(),
-                             Types.BINARY,
-                             BytesType.class.getSimpleName(),
-                             false,
-                             false);
+            expectedMetaData(md, i + 1, ByteBuffer.class.getName(), Types.BINARY, BytesType.class.getSimpleName(), false, false);
     }
-    
+
     @Test
     public void testWithStatementBytesType() throws SQLException
     {
@@ -446,9 +412,7 @@ public class JdbcDriverTest extends EmbeddedServiceBase
             actualRows++;
             for (int c = 0; c < cols.length; c++)
             {
-                // getString and getObject should always work.
-                assert rs.getString(cols[c]) != null;
-                assert rs.getString(c+1) != null;
+                // getObject should always work.
                 assert rs.getObject(cols[c]) != null;
                 assert rs.getObject(c+1) != null;
                 
