@@ -9,6 +9,8 @@
    (CASSANDRA-2355)
  * add CompositeType and DynamicCompositeType (CASSANDRA-2231)
  * add CQL TTL support (CASSANDRA-2476)
+ * optimize batches containing multiple updates to the same row
+   (CASSANDRA-2583)
 
 
 0.8.0-?

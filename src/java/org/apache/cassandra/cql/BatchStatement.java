@@ -20,13 +20,22 @@
  */
 package org.apache.cassandra.cql;
 
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
 
+import org.apache.cassandra.auth.Permission;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.RowMutation;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.thrift.InvalidRequestException;
+
+import static org.apache.cassandra.thrift.ThriftValidation.validateColumnFamily;
 
 /**
  * A <code>BATCH</code> statement parsed from a CQL query.
@@ -78,11 +87,39 @@ public class BatchStatement
 
     public List<RowMutation> getMutations(String keyspace, ClientState clientState) throws InvalidRequestException
     {
+        // To avoid unnecessary authorizations.
+        List<String> seenColumnFamilies = new ArrayList<String>();
+
         List<RowMutation> batch = new LinkedList<RowMutation>();
 
         for (AbstractModification statement : statements)
         {
-            batch.addAll(statement.prepareRowMutations(keyspace, clientState, timestamp));
+            final String columnFamily = statement.getColumnFamily();
+
+            authorizeColumnFamily(keyspace, columnFamily, clientState, seenColumnFamilies);
+
+            AbstractType<?> keyValidator = getKeyType(keyspace, columnFamily);
+
+            for (Term rawKey : statement.getKeys()) // for each key of the statement
+            {
+                ByteBuffer key = rawKey.getByteBuffer(keyValidator);
+
+                boolean found = false;
+
+                for (RowMutation mutation : batch)
+                {
+                    if (mutation.key().equals(key) && hasColumnFamily(mutation.getColumnFamilies(), columnFamily))
+                    {
+                        statement.mutationForKey(mutation, keyspace, timestamp);
+
+                        found = true;
+                        break;
+                    }
+                }
+
+                if (!found) // if mutation was not found we should add a new one
+                    batch.add(statement.mutationForKey(key, keyspace, timestamp));
+            }
         }
 
         return batch;
@@ -91,6 +128,34 @@ public class BatchStatement
     public boolean isSetTimestamp()
     {
         return timestamp != null;
+    }
+
+    private boolean hasColumnFamily(Collection<ColumnFamily> columnFamilies, String columnFamily)
+    {
+        for (ColumnFamily cf : columnFamilies)
+        {
+            if (cf.metadata().cfName.equals(columnFamily))
+                return true;
+        }
+
+        return false;
+    }
+
+    private void authorizeColumnFamily(String keyspace, String columnFamily, ClientState state, List<String> seenCFs)
+    throws InvalidRequestException
+    {
+        validateColumnFamily(keyspace, columnFamily, false);
+
+        if (!seenCFs.contains(columnFamily))
+        {
+            state.hasColumnFamilyAccess(columnFamily, Permission.WRITE);
+            seenCFs.add(columnFamily);
+        }
+    }
+
+    public AbstractType<?> getKeyType(String keyspace, String columnFamily)
+    {
+        return DatabaseDescriptor.getCFMetaData(keyspace, columnFamily).getKeyValidator();
     }
 
     public String toString()
