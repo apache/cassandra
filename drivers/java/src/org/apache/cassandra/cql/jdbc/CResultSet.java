@@ -182,11 +182,21 @@ public class CResultSet extends AbstractResultSet implements CassandraResultSet
     {
         // bit of a hack, this, but asking for getInt seems so common that we should accomodate it
         if (column.getValue() instanceof BigInteger)
+        {
+            wasNull = false;
             return getBigInteger(column).intValue();
+        }
         else if (column.getValue() instanceof Long)
+        {
+            wasNull = false;
             return getLong(column).intValue();
-        else
-            throw new SQLException("Non-integer value " + column.getValue());
+        }
+        else if (column.getValue() == null)
+        {
+            wasNull = true;
+            return 0;
+        }
+        throw new SQLException("Non-integer value " + column.getValue());
     }
 
     public int getInt(int index) throws SQLException
