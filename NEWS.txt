@@ -5,19 +5,19 @@ Upgrading
 ---------
     - Upgrading from version 0.7.1 or later can be done with a rolling
       restart, one node at a time.  You do not need to bring down the
-      whole cluster.
+      whole cluster at once.
     - Running nodetool drain before shutting down the 0.7 node is
       recommended but not required. (Skipping this will result in
       replay of entire commitlog, so it will take longer to restart but
       is otherwise harmless.)
+    - 0.8 is API-compatible with 0.7 with the exception of keyspace
+      modifications. For everything else, you can continue to use your
+      0.7 clients.
     - Avro record classes used in map/reduce and Hadoop streaming code have
       moved from org.apache.cassandra.avro to org.apache.cassandra.hadoop.avro,
       applications using these classes will need to be updated accordingly.
     - The loadbalance command has been removed from nodetool.  For similar
       behavior, decommission then rebootstrap with empty initial_token.
-    - repair now works on a token range, rather than the entire ring. This
-      means that "run repair against each node" will now repair the ring with
-      no redundant work.
 
 Features
 --------

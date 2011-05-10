@@ -13,6 +13,7 @@
  * r/m clustertool (CASSANDRA-2607)
  * add support for presenting row key as a column in CQL result sets 
    (CASSANDRA-2622)
+ * Don't allow {LOCAL|EACH}_QUORUM unless strategy is NTS (CASSANDRA-2627)
 
 
 0.8.0-beta2
@@ -40,12 +41,11 @@
  * improve ignoring of obsolete mutations in index maintenance (CASSANDRA-2401)
  * recognize attempt to drop just the index while leaving the column
    definition alone (CASSANDRA-2619)
- * Don't allow {LOCAL|EACH}_QUORUM unless strategy is NTS (CASSANDRA-2627)
 
 
 0.8.0-beta1
  * remove Avro RPC support (CASSANDRA-926)
- * adds support for columns that act as incr/decr counters 
+ * support for columns that act as incr/decr counters 
    (CASSANDRA-1072, 1937, 1944, 1936, 2101, 2093, 2288, 2105, 2384, 2236, 2342,
    2454)
  * CQL (CASSANDRA-1703, 1704, 1705, 1706, 1707, 1708, 1710, 1711, 1940, 
