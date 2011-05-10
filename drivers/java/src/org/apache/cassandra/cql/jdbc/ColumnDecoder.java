@@ -28,7 +28,6 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -59,7 +58,7 @@ class ColumnDecoder
             {
                 try
                 {
-                    metadata.put(String.format("%s.%s", ks.getName(), cf.getName()), CFMetaData.convertToCFMetaData(cf));
+                    metadata.put(String.format("%s.%s", ks.getName(), cf.getName()), CFMetaData.fromThrift(cf));
                 }
                 catch (InvalidRequestException e)
                 {
