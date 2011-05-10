@@ -629,7 +629,7 @@ public final class CFMetaData
             cf_def.setRow_cache_provider(CFMetaData.DEFAULT_ROW_CACHE_PROVIDER);
     }
 
-    public static CFMetaData convertToCFMetaData(org.apache.cassandra.thrift.CfDef cf_def) throws InvalidRequestException, ConfigurationException
+    public static CFMetaData fromThrift(org.apache.cassandra.thrift.CfDef cf_def) throws InvalidRequestException, ConfigurationException
     {
         ColumnFamilyType cfType = ColumnFamilyType.create(cf_def.column_type);
         if (cfType == null)

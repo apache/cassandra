@@ -638,10 +638,12 @@ public class QueryProcessor
                 
                 try
                 {
-                    KSMetaData ksm = new KSMetaData(create.getName(),
-                                                    AbstractReplicationStrategy.getClass(create.getStrategyClass()),
-                                                    create.getStrategyOptions());
-                    applyMigrationOnStage(new AddKeyspace(ksm));
+                    KsDef ksd = new KsDef(create.getName(),
+                                          create.getStrategyClass(),
+                                          Collections.<org.apache.cassandra.thrift.CfDef>emptyList())
+                                .setStrategy_options(create.getStrategyOptions());
+                    ThriftValidation.validateKsDef(ksd);
+                    applyMigrationOnStage(new AddKeyspace(KSMetaData.fromThrift(ksd)));
                 }
                 catch (ConfigurationException e)
                 {

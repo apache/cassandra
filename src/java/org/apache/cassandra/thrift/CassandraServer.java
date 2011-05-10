@@ -578,12 +578,7 @@ public class CassandraServer implements Cassandra.Iface
         if (ksm == null)
             throw new NotFoundException();
 
-        List<CfDef> cfDefs = new ArrayList<CfDef>();
-        for (CFMetaData cfm : ksm.cfMetaData().values())
-            cfDefs.add(CFMetaData.convertToThrift(cfm));
-        KsDef ksdef = new KsDef(ksm.name, ksm.strategyClass.getName(), cfDefs);
-        ksdef.setStrategy_options(ksm.strategyOptions);
-        return ksdef;
+        return KSMetaData.toThrift(ksm);
     }
 
     public List<KeySlice> get_range_slices(ColumnParent column_parent, SlicePredicate predicate, KeyRange range, ConsistencyLevel consistency_level)
@@ -809,7 +804,7 @@ public class CassandraServer implements Cassandra.Iface
 
         try
         {
-            applyMigrationOnStage(new AddColumnFamily(CFMetaData.convertToCFMetaData(cf_def)));
+            applyMigrationOnStage(new AddColumnFamily(CFMetaData.fromThrift(cf_def)));
             return DatabaseDescriptor.getDefsVersion().toString();
         }
         catch (ConfigurationException e)
@@ -874,16 +869,11 @@ public class CassandraServer implements Cassandra.Iface
             for (CfDef cfDef : ks_def.cf_defs)
             {
                 ThriftValidation.validateCfDef(cfDef);
-                cfDefs.add(CFMetaData.convertToCFMetaData(cfDef));
+                cfDefs.add(CFMetaData.fromThrift(cfDef));
             }
 
             ThriftValidation.validateKsDef(ks_def);
-            KSMetaData ksm = new KSMetaData(ks_def.name,
-                                            AbstractReplicationStrategy.getClass(ks_def.strategy_class),
-                                            KSMetaData.backwardsCompatibleOptions(ks_def),
-                                            cfDefs.toArray(new CFMetaData[cfDefs.size()]));
-
-            applyMigrationOnStage(new AddKeyspace(ksm));
+            applyMigrationOnStage(new AddKeyspace(KSMetaData.fromThrift(ks_def, cfDefs.toArray(new CFMetaData[cfDefs.size()]))));
             return DatabaseDescriptor.getDefsVersion().toString();
         }
         catch (ConfigurationException e)
@@ -941,10 +931,7 @@ public class CassandraServer implements Cassandra.Iface
         try
         {
             ThriftValidation.validateKsDef(ks_def);
-            KSMetaData ksm = new KSMetaData(ks_def.name,
-                                            AbstractReplicationStrategy.getClass(ks_def.strategy_class),
-                                            KSMetaData.backwardsCompatibleOptions(ks_def));
-            applyMigrationOnStage(new UpdateKeyspace(ksm));
+            applyMigrationOnStage(new UpdateKeyspace(KSMetaData.fromThrift(ks_def)));
             return DatabaseDescriptor.getDefsVersion().toString();
         }
         catch (ConfigurationException e)
