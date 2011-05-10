@@ -289,4 +289,19 @@ public abstract class AbstractReplicationStrategy
         String className = cls.contains(".") ? cls : "org.apache.cassandra.locator." + cls;
         return FBUtilities.classForName(className, "replication strategy");
     }
+
+    protected void validateReplicationFactor(String rf) throws ConfigurationException
+    {
+        try
+        {
+            if (Integer.parseInt(rf) < 0)
+            {
+                throw new ConfigurationException("Replication factor must be non-negative; found " + rf);
+            }
+        }
+        catch (NumberFormatException e2)
+        {
+            throw new ConfigurationException("Replication factor must be numeric; found " + rf);
+        }
+    }
 }

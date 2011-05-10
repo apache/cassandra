@@ -146,13 +146,9 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
 
     public void validateOptions() throws ConfigurationException
     {
-        for (Entry<String,String> e : this.configOptions.entrySet())
+        for (Entry<String, String> e : this.configOptions.entrySet())
         {
-            int rf = Integer.parseInt(e.getValue());
-            if (rf < 0)
-            {
-                throw new ConfigurationException("Replication factor for NTS must be non-negative. dc: " +e.getKey()+", rf: "+rf);
-            }
+            validateReplicationFactor(e.getValue());
         }
 
     }
