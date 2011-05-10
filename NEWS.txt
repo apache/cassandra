@@ -10,9 +10,8 @@ Upgrading
       recommended but not required. (Skipping this will result in
       replay of entire commitlog, so it will take longer to restart but
       is otherwise harmless.)
-    - 0.8 is API-compatible with 0.7 with the exception of keyspace
-      modifications. For everything else, you can continue to use your
-      0.7 clients.
+    - 0.8 is fully API-compatible with 0.7.  You can continue
+      to use your 0.7 clients.
     - Avro record classes used in map/reduce and Hadoop streaming code have
       moved from org.apache.cassandra.avro to org.apache.cassandra.hadoop.avro,
       applications using these classes will need to be updated accordingly.
