@@ -48,7 +48,7 @@ public class DeleteStatement extends AbstractModification
     
     public DeleteStatement(List<Term> columns, String columnFamily, ConsistencyLevel cLevel, List<Term> keys)
     {
-        super(columnFamily, cLevel, null);
+        super(columnFamily, cLevel, null, 0);
 
         this.columns = columns;
         this.keys = keys;

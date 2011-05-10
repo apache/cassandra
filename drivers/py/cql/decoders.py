@@ -32,45 +32,44 @@ class SchemaDecoder(object):
 
     def __comparator_for(self, keyspace, column_family):
         cfam = self.__get_column_family_def(keyspace, column_family)
-        if cfam and "comparator" in cfam:
+        if "comparator" in cfam:
             return cfam["comparator"]
         return None
 
     def __validator_for(self, keyspace, column_family, name):
         cfam = self.__get_column_family_def(keyspace, column_family)
-        if cfam:
-            if name in cfam["columns"]:
-                return cfam["columns"][name]
-            return cfam["default_validation_class"]
-        return None
+        if name in cfam["columns"]:
+            return cfam["columns"][name]
+        return cfam["default_validation_class"]
 
     def __keytype_for(self, keyspace, column_family):
         cfam = self.__get_column_family_def(keyspace, column_family)
-        if cfam and "key_validation_class" in cfam:
+        if "key_validation_class" in cfam:
             return cfam["key_validation_class"]
         return None
 
     def decode_description(self, keyspace, column_family, row):
-        key_type = self.__keytype_for(keyspace, column_family)
-        description = [(cql.ROW_KEY, key_type, None, None, None, None, None, False)]
+        description = []
         comparator = self.__comparator_for(keyspace, column_family)
         unmarshal = unmarshallers.get(comparator, unmarshal_noop)
         for column in row.columns:
-            description.append((unmarshal(column.name), comparator, None, None, None, None, True))
-
+            if column.name == self.__get_column_family_def(keyspace, column_family)['key_alias']:
+                description.append((column.name, 'text', None, None, None, None, True))
+            else:
+                description.append((unmarshal(column.name), comparator, None, None, None, None, True))
         return description
 
     def decode_row(self, keyspace, column_family, row):
-        key_type = self.__keytype_for(keyspace, column_family)
-        key = unmarshallers.get(key_type, unmarshal_noop)(row.key)
         comparator = self.__comparator_for(keyspace, column_family)
         unmarshal = unmarshallers.get(comparator, unmarshal_noop)
-        values = [key]
+        values = []
         for column in row.columns:
-            validator = self.__validator_for(keyspace, column_family, column.name)
             if column.value is None:
                 values.append(None)
+                continue
+            if column.name == self.__get_column_family_def(keyspace, column_family)['key_alias']:
+                validator = self.__keytype_for(keyspace, column_family)
             else:
-                values.append(unmarshallers.get(validator, unmarshal_noop)(column.value))
-
+                validator = self.__validator_for(keyspace, column_family, column.name)
+            values.append(unmarshallers.get(validator, unmarshal_noop)(column.value))
         return values

@@ -33,17 +33,19 @@ public abstract class AbstractModification
     protected final String columnFamily;
     protected final ConsistencyLevel cLevel;
     protected final Long timestamp;
+    protected final int timeToLive;
 
-    public AbstractModification(String columnFamily, ConsistencyLevel cLevel)
+    public AbstractModification(String columnFamily, Attributes attrs)
     {
-        this(columnFamily, cLevel, null);
+        this(columnFamily, attrs.getConsistencyLevel(), attrs.getTimestamp(), attrs.getTimeToLive());
     }
 
-    public AbstractModification(String columnFamily, ConsistencyLevel cLevel, Long timestamp)
+    public AbstractModification(String columnFamily, ConsistencyLevel cLevel, Long timestamp, int timeToLive)
     {
         this.columnFamily = columnFamily;
         this.cLevel = cLevel;
         this.timestamp = timestamp;
+        this.timeToLive = timeToLive;
     }
 
     public String getColumnFamily()
@@ -74,6 +76,11 @@ public abstract class AbstractModification
     public boolean isSetTimestamp()
     {
         return timestamp != null;
+    }
+
+    public int getTimeToLive()
+    {
+        return timeToLive;
     }
 
     /**

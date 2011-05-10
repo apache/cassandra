@@ -79,7 +79,7 @@ public class ColumnDefinition
     {
         org.apache.cassandra.db.migration.avro.ColumnDef cd = new org.apache.cassandra.db.migration.avro.ColumnDef();
         cd.name = name;
-        cd.validation_class = new Utf8(validator.getClass().getName());
+        cd.validation_class = new Utf8(validator.toString());
         cd.index_type = index_type == null ? null :
             Enum.valueOf(org.apache.cassandra.db.migration.avro.IndexType.class, index_type.name());
         cd.index_name = index_name == null ? null : new Utf8(index_name);

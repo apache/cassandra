@@ -92,16 +92,14 @@ class Cursor:
             return results
 
         def column_families(cf_defs):
-            cfresults = {}
-            if cf_defs:
-                for cf in cf_defs:
-                    cfresults[cf.name] = {"comparator": cf.comparator_type}
-                    cfresults[cf.name]["default_validation_class"] = \
-                             cf.default_validation_class
-                    cfresults[cf.name]["key_validation_class"] = \
-                             cf.key_validation_class
-                    cfresults[cf.name]["columns"] = columns(cf.column_metadata)
-            return cfresults
+            d = {}
+            for cf in cf_defs:
+                d[cf.name] = {'comparator': cf.comparator_type,
+                              'default_validation_class': cf.default_validation_class,
+                              'key_validation_class': cf.key_validation_class,
+                              'columns': columns(cf.column_metadata),
+                              'key_alias': cf.key_alias}
+            return d
 
         schema = {}
         client = self.parent_connection.client

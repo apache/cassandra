@@ -111,18 +111,10 @@ public class OldNetworkTopologyStrategy extends AbstractReplicationStrategy
 
     public void validateOptions() throws ConfigurationException
     {
-        if (this.configOptions == null)
+        if (configOptions == null || configOptions.get("replication_factor") == null)
         {
-            throw new ConfigurationException("OldNetworkTopologyStrategy requires a replication_factor strategy option.");
+            throw new ConfigurationException("SimpleStrategy requires a replication_factor strategy option.");
         }
-        if (this.configOptions.get("replication_factor") == null)
-        {
-            throw new ConfigurationException("OldNetworkTopologyStrategy requires a replication_factor strategy option.");
-        }
-        int rf = Integer.parseInt(this.configOptions.get("replication_factor"));
-        if (rf < 0)
-        {
-            throw new ConfigurationException("Replication factor for OldNetworkTopologyStrategy must be non-negative, "+rf+" given.");
-        }
+        validateReplicationFactor(configOptions.get("replication_factor"));
     }
 }

@@ -33,6 +33,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static junit.framework.Assert.assertEquals;
@@ -120,6 +121,12 @@ public class JdbcDriverTest extends EmbeddedServiceBase
         expectedMetaData(md, 2, BigInteger.class.getName(), "JdbcInteger", "Keyspace1", "2", Types.BIGINT, IntegerType.class.getSimpleName(), true, false);
         expectedMetaData(md, 3, String.class.getName(), "JdbcInteger", "Keyspace1", "42", Types.VARCHAR, UTF8Type.class.getSimpleName(), false, true);
         
+        rs = stmt.executeQuery("select key, 1, 2, 42 from JdbcInteger where key='" + key + "'");
+        assert rs.next();
+        assert Arrays.equals(rs.getBytes("key"), FBUtilities.hexToBytes(key));
+        assert rs.getObject("1").equals(new BigInteger("36893488147419103232"));
+        assert rs.getString("42").equals("fortytwofortytwo") : rs.getString("42");
+
         stmt.executeUpdate("update JdbcUtf8 set a='aa', b='bb', fortytwo='4242' where key='" + key + "'");
         rs = stmt.executeQuery("select a, b, fortytwo from JdbcUtf8 where key='" + key + "'");
         assert rs.next();

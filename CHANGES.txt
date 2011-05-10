@@ -1,7 +1,14 @@
 1.0-dev
+
+
+0.8.1
  * add support for insert, delete in cql BATCH (CASSANDRA-2537)
  * add support for IN to cql SELECT, UPDATE (CASSANDRA-2553)
  * add timestamp support to cql INSERT, UPDATE, and BATCH (CASSANDRA-2555)
+ * add support for comparator parameters and a generic ReverseType
+   (CASSANDRA-2355)
+ * add CompositeType and DynamicCompositeType (CASSANDRA-2231)
+ * add CQL TTL support (CASSANDRA-2476)
 
 
 0.8.0-?
@@ -17,11 +24,17 @@
    (CASSANDRA-2419)
  * JDBC CQL driver exposes getColumn for access to timestamp
  * JDBC ResultSetMetadata properties added to AbstractType
+ * r/m clustertool (CASSANDRA-2607)
+ * add support for presenting row key as a column in CQL result sets 
+   (CASSANDRA-2622)
+ * Don't allow {LOCAL|EACH}_QUORUM unless strategy is NTS (CASSANDRA-2627)
+ * validate keyspace strategy_options during CQL create (CASSANDRA-2624)
 
 
 0.8.0-beta2
  * fix NPE compacting index CFs (CASSANDRA-2528)
- * Remove checking all column families on startup for compaction candidates (CASSANDRA-2444)
+ * Remove checking all column families on startup for compaction candidates 
+   (CASSANDRA-2444)
  * validate CQL create keyspace options (CASSANDRA-2525)
  * fix nodetool setcompactionthroughput (CASSANDRA-2550)
  * move	gossip heartbeat back to its own thread (CASSANDRA-2554)
@@ -43,12 +56,11 @@
  * improve ignoring of obsolete mutations in index maintenance (CASSANDRA-2401)
  * recognize attempt to drop just the index while leaving the column
    definition alone (CASSANDRA-2619)
- * Don't allow {LOCAL|EACH}_QUORUM unless strategy is NTS (CASSANDRA-2627)
 
 
 0.8.0-beta1
  * remove Avro RPC support (CASSANDRA-926)
- * adds support for columns that act as incr/decr counters 
+ * support for columns that act as incr/decr counters 
    (CASSANDRA-1072, 1937, 1944, 1936, 2101, 2093, 2288, 2105, 2384, 2236, 2342,
    2454)
  * CQL (CASSANDRA-1703, 1704, 1705, 1706, 1707, 1708, 1710, 1711, 1940, 

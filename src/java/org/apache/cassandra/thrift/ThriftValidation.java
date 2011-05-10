@@ -26,6 +26,7 @@ import java.util.*;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
@@ -515,6 +516,22 @@ public class ThriftValidation
     {
         try
         {
+            if (cf_def.key_alias != null)
+            {
+                if (!cf_def.key_alias.hasRemaining())
+                    throw new InvalidRequestException("key_alias may not be empty");
+                try
+                {
+                    // it's hard to use a key in a select statement if we can't type it.
+                    // for now let's keep it simple and require ascii.
+                    AsciiType.instance.validate(cf_def.key_alias);
+                }
+                catch (MarshalException e)
+                {
+                    throw new InvalidRequestException("Key aliases must be ascii");
+                }
+            }
+
             ColumnFamilyType cfType = ColumnFamilyType.create(cf_def.column_type);
             if (cfType == null)
                 throw new InvalidRequestException("invalid column type " + cf_def.column_type);
@@ -574,11 +591,11 @@ public class ThriftValidation
         }
     }
 
-    static void validateKsDef(KsDef ks_def) throws ConfigurationException
+    public static void validateKsDef(KsDef ks_def) throws ConfigurationException
     {
         // Attempt to instantiate the ARS, which will throw a ConfigException if
         //  the strategy_options aren't fully formed or if the ARS Classname is invalid.
-        Map<String, String> options = KSMetaData.backwardsCompatibleOptions(ks_def);
+        Map<String, String> options = KSMetaData.forwardsCompatibleOptions(ks_def);
         TokenMetadata tmd = StorageService.instance.getTokenMetadata();
         IEndpointSnitch eps = DatabaseDescriptor.getEndpointSnitch();
         Class<? extends AbstractReplicationStrategy> cls = AbstractReplicationStrategy.getClass(ks_def.strategy_class);

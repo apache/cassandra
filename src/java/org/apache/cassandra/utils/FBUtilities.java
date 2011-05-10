@@ -44,6 +44,7 @@ import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -523,25 +524,7 @@ public class FBUtilities
 
     public static AbstractType getComparator(String compareWith) throws ConfigurationException
     {
-        String className = compareWith.contains(".") ? compareWith : "org.apache.cassandra.db.marshal." + compareWith;
-        Class<? extends AbstractType> typeClass = FBUtilities.<AbstractType>classForName(className, "abstract-type");
-        try
-        {
-            Field field = typeClass.getDeclaredField("instance");
-            return (AbstractType) field.get(null);
-        }
-        catch (NoSuchFieldException e)
-        {
-            ConfigurationException ex = new ConfigurationException("Invalid comparator " + compareWith + " : must define a public static instance field.");
-            ex.initCause(e);
-            throw ex;
-        }
-        catch (IllegalAccessException e)
-        {
-            ConfigurationException ex = new ConfigurationException("Invalid comparator " + compareWith + " : must define a public static instance field.");
-            ex.initCause(e);
-            throw ex;
-        }
+        return TypeParser.parse(compareWith);
     }
 
     /**

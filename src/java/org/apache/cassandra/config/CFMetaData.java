@@ -78,6 +78,7 @@ public final class CFMetaData
     public static final CFMetaData SchemaCf = newSystemMetadata(Migration.SCHEMA_CF, 3, "current state of the schema", UTF8Type.instance, null, DEFAULT_SYSTEM_MEMTABLE_THROUGHPUT_IN_MB);
     public static final CFMetaData IndexCf = newSystemMetadata(SystemTable.INDEX_CF, 5, "indexes that have been completed", UTF8Type.instance, null, DEFAULT_SYSTEM_MEMTABLE_THROUGHPUT_IN_MB);
     public static final CFMetaData NodeIdCf = newSystemMetadata(SystemTable.NODE_ID_CF, 6, "nodeId and their metadata", TimeUUIDType.instance, null, DEFAULT_SYSTEM_MEMTABLE_THROUGHPUT_IN_MB);
+    private static final ByteBuffer DEFAULT_KEY_NAME = ByteBufferUtil.bytes("KEY");
 
     /**
      * @return A calculated memtable throughput size for this machine.
@@ -322,17 +323,17 @@ public final class CFMetaData
         cf.keyspace = new Utf8(ksName);
         cf.name = new Utf8(cfName);
         cf.column_type = new Utf8(cfType.name());
-        cf.comparator_type = new Utf8(comparator.getClass().getName());
+        cf.comparator_type = new Utf8(comparator.toString());
         if (subcolumnComparator != null)
-            cf.subcomparator_type = new Utf8(subcolumnComparator.getClass().getName());
+            cf.subcomparator_type = new Utf8(subcolumnComparator.toString());
         cf.comment = new Utf8(comment);
         cf.row_cache_size = rowCacheSize;
         cf.key_cache_size = keyCacheSize;
         cf.read_repair_chance = readRepairChance;
         cf.replicate_on_write = replicateOnWrite;
         cf.gc_grace_seconds = gcGraceSeconds;
-        cf.default_validation_class = new Utf8(defaultValidator.getClass().getName());
-        cf.key_validation_class = new Utf8(keyValidator.getClass().getName());
+        cf.default_validation_class = new Utf8(defaultValidator.toString());
+        cf.key_validation_class = new Utf8(keyValidator.toString());
         cf.min_compaction_threshold = minCompactionThreshold;
         cf.max_compaction_threshold = maxCompactionThreshold;
         cf.row_cache_save_period_in_seconds = rowCacheSavePeriodInSeconds;
@@ -504,9 +505,9 @@ public final class CFMetaData
         return rowCacheProvider;
     }
 
-    public ByteBuffer getKeyAlias()
+    public ByteBuffer getKeyName()
     {
-        return keyAlias;
+        return keyAlias == null ? DEFAULT_KEY_NAME : keyAlias;
     }
 
     public Map<ByteBuffer, ColumnDefinition> getColumn_metadata()
@@ -628,7 +629,7 @@ public final class CFMetaData
             cf_def.setRow_cache_provider(CFMetaData.DEFAULT_ROW_CACHE_PROVIDER);
     }
 
-    public static CFMetaData convertToCFMetaData(org.apache.cassandra.thrift.CfDef cf_def) throws InvalidRequestException, ConfigurationException
+    public static CFMetaData fromThrift(org.apache.cassandra.thrift.CfDef cf_def) throws InvalidRequestException, ConfigurationException
     {
         ColumnFamilyType cfType = ColumnFamilyType.create(cf_def.column_type);
         if (cfType == null)
@@ -640,7 +641,6 @@ public final class CFMetaData
 
         validateMinMaxCompactionThresholds(cf_def);
         validateMemtableSettings(cf_def);
-        validateAliasCompares(cf_def);
 
         CFMetaData newCFMD = new CFMetaData(cf_def.keyspace,
                                             cf_def.name,
@@ -763,10 +763,10 @@ public final class CFMetaData
         org.apache.cassandra.thrift.CfDef def = new org.apache.cassandra.thrift.CfDef(cfm.ksName, cfm.cfName);
         def.setId(cfm.cfId);
         def.setColumn_type(cfm.cfType.name());
-        def.setComparator_type(cfm.comparator.getClass().getName());
+        def.setComparator_type(cfm.comparator.toString());
         if (cfm.subcolumnComparator != null)
         {
-            def.setSubcomparator_type(cfm.subcolumnComparator.getClass().getName());
+            def.setSubcomparator_type(cfm.subcolumnComparator.toString());
             def.setColumn_type("Super");
         }
         def.setComment(enforceCommentNotNull(cfm.comment));
@@ -775,8 +775,8 @@ public final class CFMetaData
         def.setRead_repair_chance(cfm.readRepairChance);
         def.setReplicate_on_write(cfm.replicateOnWrite);
         def.setGc_grace_seconds(cfm.gcGraceSeconds);
-        def.setDefault_validation_class(cfm.defaultValidator.getClass().getName());
-        def.setKey_validation_class(cfm.keyValidator.getClass().getName());
+        def.setDefault_validation_class(cfm.defaultValidator.toString());
+        def.setKey_validation_class(cfm.keyValidator.toString());
         def.setMin_compaction_threshold(cfm.minCompactionThreshold);
         def.setMax_compaction_threshold(cfm.maxCompactionThreshold);
         def.setRow_cache_save_period_in_seconds(cfm.rowCacheSavePeriodInSeconds);
@@ -785,7 +785,7 @@ public final class CFMetaData
         def.setMemtable_throughput_in_mb(cfm.memtableThroughputInMb);
         def.setMemtable_operations_in_millions(cfm.memtableOperationsInMillions);
         def.setMerge_shards_chance(cfm.mergeShardsChance);
-        def.setKey_alias(cfm.keyAlias);
+        def.setKey_alias(cfm.getKeyName());
         List<org.apache.cassandra.thrift.ColumnDef> column_meta = new ArrayList< org.apache.cassandra.thrift.ColumnDef>(cfm.column_metadata.size());
         for (ColumnDefinition cd : cfm.column_metadata.values())
         {
@@ -793,7 +793,7 @@ public final class CFMetaData
             tcd.setIndex_name(cd.getIndexName());
             tcd.setIndex_type(cd.getIndexType());
             tcd.setName(cd.name);
-            tcd.setValidation_class(cd.getValidator().getClass().getName());
+            tcd.setValidation_class(cd.getValidator().toString());
             column_meta.add(tcd);
         }
         def.setColumn_metadata(column_meta);
@@ -808,10 +808,10 @@ public final class CFMetaData
         def.keyspace = cfm.ksName;
         def.id = cfm.cfId;
         def.column_type = cfm.cfType.name();
-        def.comparator_type = cfm.comparator.getClass().getName();
+        def.comparator_type = cfm.comparator.toString();
         if (cfm.subcolumnComparator != null)
         {
-            def.subcomparator_type = cfm.subcolumnComparator.getClass().getName();
+            def.subcomparator_type = cfm.subcolumnComparator.toString();
             def.column_type = "Super";
         }
         def.comment = enforceCommentNotNull(cfm.comment);
@@ -820,7 +820,7 @@ public final class CFMetaData
         def.read_repair_chance = cfm.readRepairChance;
         def.replicate_on_write = cfm.replicateOnWrite;
         def.gc_grace_seconds = cfm.gcGraceSeconds;
-        def.default_validation_class = cfm.defaultValidator == null ? null : cfm.defaultValidator.getClass().getName();
+        def.default_validation_class = cfm.defaultValidator == null ? null : cfm.defaultValidator.toString();
         def.min_compaction_threshold = cfm.minCompactionThreshold;
         def.max_compaction_threshold = cfm.maxCompactionThreshold;
         def.row_cache_save_period_in_seconds = cfm.rowCacheSavePeriodInSeconds;
@@ -838,7 +838,7 @@ public final class CFMetaData
             tcd.index_name = cd.getIndexName();
             tcd.index_type = cd.getIndexType() == null ? null : org.apache.cassandra.db.migration.avro.IndexType.valueOf(cd.getIndexType().name());
             tcd.name = ByteBufferUtil.clone(cd.name);
-            tcd.validation_class = cd.getValidator().getClass().getName();
+            tcd.validation_class = cd.getValidator().toString();
             column_meta.add(tcd);
         }
         def.column_metadata = column_meta; 
@@ -968,13 +968,6 @@ public final class CFMetaData
             DatabaseDescriptor.validateMemtableThroughput(cf_def.memtable_throughput_in_mb);
         if (cf_def.memtable_operations_in_millions != null)
             DatabaseDescriptor.validateMemtableOperations(cf_def.memtable_operations_in_millions);
-    }
-
-    public static void validateAliasCompares(org.apache.cassandra.thrift.CfDef cf_def) throws ConfigurationException
-    {
-        AbstractType comparator = DatabaseDescriptor.getComparator(cf_def.comparator_type);
-        if (cf_def.key_alias != null)
-            comparator.validate(cf_def.key_alias);
     }
 
     public static void validateAliasCompares(org.apache.cassandra.db.migration.avro.CfDef cf_def) throws ConfigurationException

@@ -43,18 +43,22 @@ public class BatchStatement
     // global timestamp to apply for each mutation
     protected final Long timestamp;
 
+    // global time to live
+    protected final int timeToLive;
+
     /**
      * Creates a new BatchStatement from a list of statements and a
      * Thrift consistency level.
      *
      * @param statements a list of UpdateStatements
-     * @param level Thrift consistency level enum
+     * @param attrs additional attributes for statement (CL, timestamp, timeToLive)
      */
-    public BatchStatement(List<AbstractModification> statements, ConsistencyLevel level, Long timestamp)
+    public BatchStatement(List<AbstractModification> statements, Attributes attrs)
     {
         this.statements = statements;
-        consistency = level;
-        this.timestamp = timestamp;
+        this.consistency = attrs.getConsistencyLevel();
+        this.timestamp = attrs.getTimestamp();
+        this.timeToLive = attrs.getTimeToLive();
     }
 
     public List<AbstractModification> getStatements()
@@ -65,6 +69,11 @@ public class BatchStatement
     public ConsistencyLevel getConsistencyLevel()
     {
         return consistency;
+    }
+
+    public int getTimeToLive()
+    {
+        return timeToLive;
     }
 
     public List<RowMutation> getMutations(String keyspace, ClientState clientState) throws InvalidRequestException

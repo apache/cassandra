@@ -70,18 +70,10 @@ public class SimpleStrategy extends AbstractReplicationStrategy
 
     public void validateOptions() throws ConfigurationException
     {
-        if (this.configOptions == null)
+        if (configOptions == null || configOptions.get("replication_factor") == null)
         {
             throw new ConfigurationException("SimpleStrategy requires a replication_factor strategy option.");
         }
-        if (this.configOptions.get("replication_factor") == null)
-        {
-            throw new ConfigurationException("SimpleStrategy requires a replication_factor strategy option.");
-        }
-        int rf = Integer.parseInt(this.configOptions.get("replication_factor"));
-        if (rf < 0)
-        {
-            throw new ConfigurationException("Replication factor for SimpleStrategy must be non-negative, "+rf+" given.");
-        }
+        validateReplicationFactor(configOptions.get("replication_factor"));
     }
 }

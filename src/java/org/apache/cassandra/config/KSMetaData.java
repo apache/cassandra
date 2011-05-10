@@ -18,10 +18,7 @@
 
 package org.apache.cassandra.config;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
+import java.util.*;
 
 import org.apache.commons.lang.ObjectUtils;
 
@@ -29,6 +26,7 @@ import org.apache.avro.util.Utf8;
 import org.apache.cassandra.io.SerDeUtils;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
+import org.apache.cassandra.thrift.CfDef;
 import org.apache.cassandra.thrift.KsDef;
 
 import org.apache.commons.lang.StringUtils;
@@ -51,7 +49,7 @@ public final class KSMetaData
         this.cfMetaData = Collections.unmodifiableMap(cfmap);
     }
 
-    public static Map<String, String> backwardsCompatibleOptions(KsDef ks_def)
+    public static Map<String, String> forwardsCompatibleOptions(KsDef ks_def)
     {
         Map<String, String> options;
         if (ks_def.isSetReplication_factor())
@@ -164,5 +162,25 @@ public final class KSMetaData
         Map<String, String> ret = new HashMap<String,String>();
         ret.put("replication_factor", rf.toString());
         return ret;
+    }
+
+    public static KSMetaData fromThrift(KsDef ksd, CFMetaData... cfDefs) throws ConfigurationException
+    {
+        return new KSMetaData(ksd.name,
+                              AbstractReplicationStrategy.getClass(ksd.strategy_class),
+                              forwardsCompatibleOptions(ksd),
+                              cfDefs);
+    }
+
+    public static KsDef toThrift(KSMetaData ksm)
+    {
+        List<CfDef> cfDefs = new ArrayList<CfDef>();
+        for (CFMetaData cfm : ksm.cfMetaData().values())
+            cfDefs.add(CFMetaData.convertToThrift(cfm));
+        KsDef ksdef = new KsDef(ksm.name, ksm.strategyClass.getName(), cfDefs);
+        ksdef.setStrategy_options(ksm.strategyOptions);
+        if (ksm.strategyOptions != null && ksm.strategyOptions.containsKey("replication_factor"))
+            ksdef.setReplication_factor(Integer.parseInt(ksm.strategyOptions.get("replication_factor")));
+        return ksdef;
     }
 }
