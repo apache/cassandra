@@ -15,6 +15,8 @@
  * recognize attempt to drop just the index while leaving the column
    definition alone (CASSANDRA-2619)
  * Don't allow {LOCAL|EACH}_QUORUM unless strategy is NTS (CASSANDRA-2627)
+ * Fix regression where bootstrapping a node with no schema fails
+   (CASSANDRA-2625)
 
 
 0.7.5
