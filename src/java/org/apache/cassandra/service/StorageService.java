@@ -458,7 +458,12 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                 bootstrap(token);
                 assert !isBootstrapMode; // bootstrap will block until finished
             }
-            // else nothing to do, go directly to participating in ring
+            else
+            {
+                // nothing to bootstrap, go directly to participating in ring
+                SystemTable.setBootstrapped(true);
+                setToken(token);
+            }
         }
         else
         {
