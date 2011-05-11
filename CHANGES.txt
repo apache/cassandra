@@ -1,4 +1,4 @@
-0.8.0-?
+0.8.0-rc1
  * faster flushes and compaction from fixing excessively pessimistic 
    rebuffering in BRAF (CASSANDRA-2581)
  * fix returning null column values in the python cql driver (CASSANDRA-2593)
