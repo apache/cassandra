@@ -228,18 +228,9 @@ public class SystemTable
         if (cf == null)
         {
             // this is either a brand new node (there will be no files), or the partitioner was changed from RP to OPP.
-            for (String path : DatabaseDescriptor.getAllDataFileLocationsForTable("system"))
-            {
-                File[] dbContents = new File(path).listFiles(new FilenameFilter()
-                {
-                    public boolean accept(File dir, String name)
-                    {
-                        return name.endsWith(".db");
-                    }
-                }); 
-                if (dbContents.length > 0)
-                    throw new ConfigurationException("Found system table files, but they couldn't be loaded. Did you change the partitioner?");
-            }
+            ColumnFamilyStore cfs = table.getColumnFamilyStore(STATUS_CF);
+            if (!cfs.getSSTables().isEmpty())
+                throw new ConfigurationException("Found system table files, but they couldn't be loaded. Did you change the partitioner?");
 
             // no system files.  this is a new node.
             RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, LOCATION_KEY);
