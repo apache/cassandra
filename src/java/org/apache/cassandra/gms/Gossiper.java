@@ -838,14 +838,8 @@ public class Gossiper implements IFailureDetectionEventListener
         }
 
         /* initialize the heartbeat state for this localEndpoint */
+        maybeInitializeLocalState(generationNbr);
         EndpointState localState = endpointStateMap.get(FBUtilities.getLocalAddress());
-        if ( localState == null )
-        {
-            HeartBeatState hbState = new HeartBeatState(generationNbr);
-            localState = new EndpointState(hbState);
-            localState.markAlive();
-            endpointStateMap.put(FBUtilities.getLocalAddress(), localState);
-        }
 
         //notify snitches that Gossiper is about to start
         DatabaseDescriptor.getEndpointSnitch().gossiperStarting();
@@ -857,6 +851,20 @@ public class Gossiper implements IFailureDetectionEventListener
                                                               Gossiper.intervalInMillis,
                                                               TimeUnit.MILLISECONDS);
     }
+    
+    // initialize local HB state if needed.
+    public void maybeInitializeLocalState(int generationNbr) 
+    {
+        EndpointState localState = endpointStateMap.get(FBUtilities.getLocalAddress());
+        if ( localState == null )
+        {
+            HeartBeatState hbState = new HeartBeatState(generationNbr);
+            localState = new EndpointState(hbState);
+            localState.markAlive();
+            endpointStateMap.put(FBUtilities.getLocalAddress(), localState);
+        }
+    }
+    
 
     /**
      * Add an endpoint we knew about previously, but whose state is unknown
