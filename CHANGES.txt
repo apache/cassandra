@@ -44,6 +44,7 @@
    definition alone (CASSANDRA-2619)
  * Fix regression where bootstrapping a node with no schema fails
    (CASSANDRA-2625)
+ * Allow removing LocationInfo sstables (CASSANDRA-2632)
 
 
 0.8.0-beta1
