@@ -17,6 +17,7 @@
  * Don't allow {LOCAL|EACH}_QUORUM unless strategy is NTS (CASSANDRA-2627)
  * Fix regression where bootstrapping a node with no schema fails
    (CASSANDRA-2625)
+ * Allow removing LocationInfo sstables (CASSANDRA-2632)
 
 
 0.7.5
