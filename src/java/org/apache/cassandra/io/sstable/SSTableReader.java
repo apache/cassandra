@@ -488,12 +488,12 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
                     {
                         if (comparison == 0 && keyCache != null && keyCache.getCapacity() > 0)
                         {
-                            if (op == Operator.EQ)
-                                bloomFilterTracker.addTruePositive();
                             // store exact match for the key
                             if (decoratedKey.key != null)
                                 cacheKey(decoratedKey, dataPosition);
                         }
+                        if (op == Operator.EQ)
+                            bloomFilterTracker.addTruePositive();
                         return dataPosition;
                     }
                     if (v < 0)

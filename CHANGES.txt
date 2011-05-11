@@ -20,6 +20,7 @@
  * Allow removing LocationInfo sstables (CASSANDRA-2632)
  * avoid attempting to replay mutations from dropped keyspaces (CASSANDRA-2631)
  * avoid using cached position of a key when GT is requested (CASSANDRA-2633)
+ * fix counting bloom filter true positives (CASSANDRA-2637)
 
 
 0.7.5
