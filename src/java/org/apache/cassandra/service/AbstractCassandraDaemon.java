@@ -29,6 +29,7 @@ import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.cassandra.gms.Gossiper;
 import org.apache.log4j.PropertyConfigurator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -181,6 +182,7 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
         UUID lastMigration = Migration.getLastMigrationId();
         if ((lastMigration != null) && (lastMigration.timestamp() > currentMigration.timestamp()))
         {
+            Gossiper.instance.maybeInitializeLocalState(SystemTable.incrementAndGetGeneration());
             MigrationManager.applyMigrations(currentMigration, lastMigration);
         }
         
