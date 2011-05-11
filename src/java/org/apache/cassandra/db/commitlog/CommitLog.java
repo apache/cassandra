@@ -165,7 +165,7 @@ public class CommitLog
 
     public static void recover(File[] clogs) throws IOException
     {
-        Set<Table> tablesRecovered = new HashSet<Table>();
+        final Set<Table> tablesRecovered = new HashSet<Table>();
         List<Future<?>> futures = new ArrayList<Future<?>>();
         byte[] bytes = new byte[4096];
         Map<Integer, AtomicInteger> invalidMutations = new HashMap<Integer, AtomicInteger>();
@@ -270,9 +270,7 @@ public class CommitLog
                                                     rm.getTable(),
                                                     ByteBufferUtil.bytesToHex(rm.key()),
                                                     "{" + StringUtils.join(rm.getColumnFamilies(), ", ") + "}"));
-                    final Table table = Table.open(rm.getTable());
-                    tablesRecovered.add(table);
-                    final Collection<ColumnFamily> columnFamilies = new ArrayList<ColumnFamily>(rm.getColumnFamilies());
+
                     final long entryLocation = reader.getFilePointer();
                     final CommitLogHeader finalHeader = clHeader;
                     final RowMutation frm = rm;
@@ -280,12 +278,15 @@ public class CommitLog
                     {
                         public void runMayThrow() throws IOException
                         {
+                            if (DatabaseDescriptor.getKSMetaData(frm.getTable()) == null)
+                                return;
+                            final Table table = Table.open(frm.getTable());
                             RowMutation newRm = new RowMutation(frm.getTable(), frm.key());
 
                             // Rebuild the row mutation, omitting column families that a) have already been flushed,
                             // b) are part of a cf that was dropped. Keep in mind that the cf.name() is suspect. do every
                             // thing based on the cfid instead.
-                            for (ColumnFamily columnFamily : columnFamilies)
+                            for (ColumnFamily columnFamily : frm.getColumnFamilies())
                             {
                                 if (CFMetaData.getCF(columnFamily.id()) == null)
                                     // null means the cf has been dropped
@@ -297,6 +298,7 @@ public class CommitLog
                             if (!newRm.isEmpty())
                             {
                                 Table.open(newRm.getTable()).apply(newRm, null, false);
+                                tablesRecovered.add(table);
                             }
                         }
                     };
