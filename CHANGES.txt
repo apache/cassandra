@@ -1,6 +1,3 @@
-1.0-dev
-
-
 0.8.1
  * add support for insert, delete in cql BATCH (CASSANDRA-2537)
  * add support for IN to cql SELECT, UPDATE (CASSANDRA-2553)
@@ -14,13 +11,22 @@
 
 
 0.8.0-?
+=======
+ * Fix regression where bootstrapping a node with no schema fails
+   (CASSANDRA-2625)
+ * Allow removing LocationInfo sstables (CASSANDRA-2632)
+ * avoid attempting to replay mutations from dropped keyspaces (CASSANDRA-2631)
+ * avoid using cached position of a key when GT is requested (CASSANDRA-2633)
+ * fix counting bloom filter true positives (CASSANDRA-2637)
+
+
+0.8.0-rc1
  * faster flushes and compaction from fixing excessively pessimistic 
    rebuffering in BRAF (CASSANDRA-2581)
- * fix merkle tree splitting exiting early (CASSANDRA-2605)
- * Disable compaction throttling during bootstrap (CASSANDRA-2612) 
  * fix returning null column values in the python cql driver (CASSANDRA-2593)
+ * fix merkle tree splitting exiting early (CASSANDRA-2605)
  * snapshot_before_compaction directory name fix (CASSANDRA-2598)
- 
+ * Disable compaction throttling during bootstrap (CASSANDRA-2612) 
  * fix CQL treatment of > and < operators in range slices (CASSANDRA-2592)
  * fix potential double-application of counter updates on commitlog replay
    (CASSANDRA-2419)
@@ -58,9 +64,6 @@
  * improve ignoring of obsolete mutations in index maintenance (CASSANDRA-2401)
  * recognize attempt to drop just the index while leaving the column
    definition alone (CASSANDRA-2619)
- * Fix regression where bootstrapping a node with no schema fails
-   (CASSANDRA-2625)
- * Allow removing LocationInfo sstables (CASSANDRA-2632)
 
 
 0.8.0-beta1
