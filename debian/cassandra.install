@@ -6,7 +6,6 @@ debian/cassandra.conf etc/security/limits.d
 bin/cassandra usr/sbin
 bin/cassandra-cli usr/bin
 bin/nodetool usr/bin
-bin/clustertool usr/bin
 bin/json2sstable usr/bin
 bin/sstable2json usr/bin
 bin/sstablekeys usr/bin

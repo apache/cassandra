@@ -12,6 +12,10 @@
 
 
 0.8.0-?
+* initialize local ep state prior to gossip startup if needed (CASSANDRA-2638)
+
+
+0.8.0-rc1
  * faster flushes and compaction from fixing excessively pessimistic 
    rebuffering in BRAF (CASSANDRA-2581)
  * fix merkle tree splitting exiting early (CASSANDRA-2605)
