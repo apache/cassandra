@@ -539,10 +539,13 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         }
 
         // next, the key cache
-        Pair<Descriptor, DecoratedKey> unifiedKey = new Pair<Descriptor, DecoratedKey>(descriptor, decoratedKey);
-        Long cachedPosition = getCachedPosition(unifiedKey);
-        if (cachedPosition != null)
-            return cachedPosition;
+        if (op == Operator.EQ || op == Operator.GE)
+        {
+            Pair<Descriptor, DecoratedKey> unifiedKey = new Pair<Descriptor, DecoratedKey>(descriptor, decoratedKey);
+            Long cachedPosition = getCachedPosition(unifiedKey);
+            if (cachedPosition != null)
+                return cachedPosition;
+        }
 
         // next, see if the sampled index says it's impossible for the key to be present
         IndexSummary.KeyPosition sampledPosition = getIndexScanPosition(decoratedKey);
@@ -573,12 +576,12 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
                     {
                         if (comparison == 0 && keyCache != null && keyCache.getCapacity() > 0)
                         {
-                            if (op == Operator.EQ)
-                                bloomFilterTracker.addTruePositive();
                             // store exact match for the key
                             if (decoratedKey.key != null)
                                 cacheKey(decoratedKey, dataPosition);
                         }
+                        if (op == Operator.EQ)
+                            bloomFilterTracker.addTruePositive();
                         return dataPosition;
                     }
                     if (v < 0)
