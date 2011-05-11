@@ -451,10 +451,13 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         }
 
         // next, the key cache
-        Pair<Descriptor, DecoratedKey> unifiedKey = new Pair<Descriptor, DecoratedKey>(descriptor, decoratedKey);
-        Long cachedPosition = getCachedPosition(unifiedKey);
-        if (cachedPosition != null)
-            return cachedPosition;
+        if (op == Operator.EQ || op == Operator.GE)
+        {
+            Pair<Descriptor, DecoratedKey> unifiedKey = new Pair<Descriptor, DecoratedKey>(descriptor, decoratedKey);
+            Long cachedPosition = getCachedPosition(unifiedKey);
+            if (cachedPosition != null)
+                return cachedPosition;
+        }
 
         // next, see if the sampled index says it's impossible for the key to be present
         IndexSummary.KeyPosition sampledPosition = getIndexScanPosition(decoratedKey);

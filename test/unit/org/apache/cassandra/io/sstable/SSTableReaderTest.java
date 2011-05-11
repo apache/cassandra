@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.concurrent.ExecutionException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import org.junit.Test;
@@ -147,5 +148,49 @@ public class SSTableReaderTest extends CleanupHelper
         }
         store.forceBlockingFlush();
         assert store.getMaxRowSize() != 0;
+    }
+
+    @Test
+    public void testGetPositionsForRangesWithKeyCache() throws IOException, ExecutionException, InterruptedException
+    {
+        Table table = Table.open("Keyspace1");
+        ColumnFamilyStore store = table.getColumnFamilyStore("Standard2");
+        store.getKeyCache().setCapacity(100);
+
+        // insert data and compact to a single sstable
+        CompactionManager.instance.disableAutoCompaction();
+        for (int j = 0; j < 10; j++)
+        {
+            ByteBuffer key = ByteBufferUtil.bytes(String.valueOf(j));
+            RowMutation rm = new RowMutation("Keyspace1", key);
+            rm.add(new QueryPath("Standard2", null, ByteBufferUtil.bytes("0")), ByteBufferUtil.EMPTY_BYTE_BUFFER, j);
+            rm.apply();
+        }
+        store.forceBlockingFlush();
+        CompactionManager.instance.performMajor(store);
+
+        SSTableReader sstable = store.getSSTables().iterator().next();
+        long p2 = sstable.getPosition(k(2), SSTableReader.Operator.EQ);
+        long p3 = sstable.getPosition(k(3), SSTableReader.Operator.EQ);
+        long p6 = sstable.getPosition(k(6), SSTableReader.Operator.EQ);
+        long p7 = sstable.getPosition(k(7), SSTableReader.Operator.EQ);
+
+        Pair<Long, Long> p = sstable.getPositionsForRanges(makeRanges(t(2), t(6))).iterator().next();
+
+        // range are start exclusive so we should start at 3
+        assert p.left == p3;
+
+        // to capture 6 we have to stop at the start of 7
+        assert p.right == p7;
+    }
+
+    private List<Range> makeRanges(Token left, Token right)
+    {
+        return Arrays.asList(new Range[]{ new Range(left, right) });
+    }
+
+    private DecoratedKey k(int i)
+    {
+        return new DecoratedKey(t(i), ByteBufferUtil.bytes(String.valueOf(i)));
     }
 }
