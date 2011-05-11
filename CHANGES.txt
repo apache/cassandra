@@ -15,6 +15,10 @@
    (CASSANDRA-2622)
  * Don't allow {LOCAL|EACH}_QUORUM unless strategy is NTS (CASSANDRA-2627)
  * validate keyspace strategy_options during CQL create (CASSANDRA-2624)
+ * Fix regression where bootstrapping a node with no schema fails
+   (CASSANDRA-2625)
+ * Allow removing LocationInfo sstables (CASSANDRA-2632)
+ * avoid attempting to replay mutations from dropped keyspaces (CASSANDRA-2631)
 
 
 0.8.0-beta2
@@ -42,9 +46,6 @@
  * improve ignoring of obsolete mutations in index maintenance (CASSANDRA-2401)
  * recognize attempt to drop just the index while leaving the column
    definition alone (CASSANDRA-2619)
- * Fix regression where bootstrapping a node with no schema fails
-   (CASSANDRA-2625)
- * Allow removing LocationInfo sstables (CASSANDRA-2632)
 
 
 0.8.0-beta1
