@@ -56,6 +56,8 @@
  * improve ignoring of obsolete mutations in index maintenance (CASSANDRA-2401)
  * recognize attempt to drop just the index while leaving the column
    definition alone (CASSANDRA-2619)
+ * Fix regression where bootstrapping a node with no schema fails
+   (CASSANDRA-2625)
 
 
 0.8.0-beta1
