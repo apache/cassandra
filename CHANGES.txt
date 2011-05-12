@@ -22,7 +22,8 @@
  * avoid using cached position of a key when GT is requested (CASSANDRA-2633)
  * fix counting bloom filter true positives (CASSANDRA-2637)
  * initialize local ep state prior to gossip startup if needed (CASSANDRA-2638)
-  
+ * fix empty Result with secondary index when limit=1 (CASSANDRA-2628)
+
 
 0.7.5
  * improvements/fixes to PIG driver (CASSANDRA-1618, CASSANDRA-2387,
