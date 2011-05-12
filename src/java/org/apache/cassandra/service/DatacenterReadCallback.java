@@ -48,17 +48,11 @@ public class DatacenterReadCallback<T> extends ReadCallback<T>
     }
 
     @Override
-    protected boolean waitingFor(Message message)
-    {
-        return localdc.equals(snitch.getDatacenter(message.getFrom()));
-    }
-
-    @Override
-    protected boolean waitingFor(ReadResponse response)
+    protected boolean waitingFor(ReadResponse response, InetAddress from)
     {
         // cheat and leverage our knowledge that a local read is the only way the ReadResponse
         // version of this method gets called
-        return true;
+        return localdc.equals(snitch.getDatacenter(from));
     }
         
     @Override
