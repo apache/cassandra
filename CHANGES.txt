@@ -24,6 +24,8 @@
  * initialize local ep state prior to gossip startup if needed (CASSANDRA-2638)
  * fix empty Result with secondary index when limit=1 (CASSANDRA-2628)
  * add quote-escaping via backslash to CLI (CASSANDRA-2623)
+ * fig pig example script (CASSANDRA-2487)
+ * fix dynamic snitch race in adding latencies (CASSANDRA-2618)
 
 
 0.7.5
