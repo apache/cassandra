@@ -581,9 +581,56 @@ Identifier
 
 // literals
 StringLiteral
-    :
-    '\'' (~'\'')* '\'' ( '\'' (~'\'')* '\'' )*
+    : '\'' SingleStringCharacter* '\''
     ;
+
+fragment SingleStringCharacter
+	: ~('\'' | '\\')
+	| '\\' EscapeSequence
+	;
+
+fragment EscapeSequence
+	: CharacterEscapeSequence
+	| '0'
+	| HexEscapeSequence
+	| UnicodeEscapeSequence
+	;
+
+fragment CharacterEscapeSequence
+	: SingleEscapeCharacter
+	| NonEscapeCharacter
+	;
+
+fragment NonEscapeCharacter
+	: ~(EscapeCharacter)
+	;
+
+fragment SingleEscapeCharacter
+	: '\'' | '"' | '\\' | 'b' | 'f' | 'n' | 'r' | 't' | 'v'
+	;
+
+fragment EscapeCharacter
+	: SingleEscapeCharacter
+	| DecimalDigit
+	| 'x'
+	| 'u'
+	;
+
+fragment HexEscapeSequence
+	: 'x' HexDigit HexDigit
+	;
+
+fragment UnicodeEscapeSequence
+	: 'u' HexDigit HexDigit HexDigit HexDigit
+	;
+
+fragment HexDigit
+	: DecimalDigit | ('a'..'f') | ('A'..'F')
+	;
+
+fragment DecimalDigit
+	: ('0'..'9')
+	;
 
 //
 // syntactic elements

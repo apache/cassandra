@@ -55,16 +55,15 @@ public abstract class AbstractRowResolver implements IResponseResolver<Row>
         this.table = table;
     }
 
-    public void preprocess(Message message)
+    public ReadResponse preprocess(Message message)
     {
         byte[] body = message.getMessageBody();
         ByteArrayInputStream bufIn = new ByteArrayInputStream(body);
         try
         {
             ReadResponse result = ReadResponse.serializer().deserialize(new DataInputStream(bufIn));
-            if (logger.isDebugEnabled())
-                logger.debug("Preprocessed {} response", result.isDigestQuery() ? "digest" : "data");
             replies.put(message, result);
+            return result;
         }
         catch (IOException e)
         {
