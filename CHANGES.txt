@@ -6,6 +6,7 @@
  * avoid using cached position of a key when GT is requested (CASSANDRA-2633)
  * fix counting bloom filter true positives (CASSANDRA-2637)
  * initialize local ep state prior to gossip startup if needed (CASSANDRA-2638)
+ * fix counter increment lost after restart (CASSANDRA-2642)
 
 
 0.8.0-rc1

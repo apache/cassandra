@@ -355,7 +355,7 @@ public class RowMutation implements IMutation, MessageProducer
             }
         }
 
-        public RowMutation deserialize(DataInputStream dis, int version) throws IOException
+        public RowMutation deserialize(DataInputStream dis, int version, boolean fromRemote) throws IOException
         {
             String table = dis.readUTF();
             ByteBuffer key = ByteBufferUtil.readWithShortLength(dis);
@@ -364,11 +364,15 @@ public class RowMutation implements IMutation, MessageProducer
             for (int i = 0; i < size; ++i)
             {
                 Integer cfid = Integer.valueOf(dis.readInt());
-                // This is coming from a remote host
-                ColumnFamily cf = ColumnFamily.serializer().deserialize(dis, true, true);
+                ColumnFamily cf = ColumnFamily.serializer().deserialize(dis, true, fromRemote);
                 modifications.put(cfid, cf);
             }
             return new RowMutation(table, key, modifications);
+        }
+
+        public RowMutation deserialize(DataInputStream dis, int version) throws IOException
+        {
+            return deserialize(dis, version, true);
         }
     }
 }
