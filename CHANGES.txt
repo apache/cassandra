@@ -25,6 +25,7 @@
    (CASSANDRA-2622)
  * Don't allow {LOCAL|EACH}_QUORUM unless strategy is NTS (CASSANDRA-2627)
  * validate keyspace strategy_options during CQL create (CASSANDRA-2624)
+ * fix empty Result with secondary index when limit=1 (CASSANDRA-2628)
 
 
 0.8.0-beta2
@@ -52,7 +53,6 @@
  * improve ignoring of obsolete mutations in index maintenance (CASSANDRA-2401)
  * recognize attempt to drop just the index while leaving the column
    definition alone (CASSANDRA-2619)
-
 
 0.8.0-beta1
  * remove Avro RPC support (CASSANDRA-926)

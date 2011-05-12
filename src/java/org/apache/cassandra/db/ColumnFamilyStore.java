@@ -1482,12 +1482,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             if (logger.isDebugEnabled())
                 logger.debug(String.format("Scanning index %s starting with %s",
                                            expressionString(primary), indexCFS.getComparator().getString(startKey)));
+
+            // We shouldn't fetch only 1 row as this provides buggy paging in case the first row doesn't satisfy all clauses
+            int count = Math.max(clause.count, 2);
             QueryFilter indexFilter = QueryFilter.getSliceFilter(indexKey,
                                                                  new QueryPath(indexCFS.getColumnFamilyName()),
                                                                  startKey,
                                                                  ByteBufferUtil.EMPTY_BYTE_BUFFER,
                                                                  false,
-                                                                 clause.count);
+                                                                 count);
             ColumnFamily indexRow = indexCFS.getColumnFamily(indexFilter);
             logger.debug("fetched {}", indexRow);
             if (indexRow == null)
