@@ -268,7 +268,7 @@ public class CommitLog
                     {
                         // assuming version here. We've gone to lengths to make sure what gets written to the CL is in
                         // the current version.  so do make sure the CL is drained prior to upgrading a node.
-                        rm = RowMutation.serializer().deserialize(new DataInputStream(bufIn), MessagingService.version_);
+                        rm = RowMutation.serializer().deserialize(new DataInputStream(bufIn), MessagingService.version_, false);
                     }
                     catch (UnserializableColumnFamilyException ex)
                     {

@@ -26,6 +26,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 import org.apache.cassandra.Util;
 import static org.apache.cassandra.Util.column;
@@ -68,5 +69,37 @@ public class RecoveryManagerTest extends CleanupHelper
 
         assertColumns(Util.getColumnFamily(table1, dk, "Standard1"), "col1");
         assertColumns(Util.getColumnFamily(table2, dk, "Standard3"), "col2");
+    }
+
+    @Test
+    public void testRecoverCounter() throws IOException, ExecutionException, InterruptedException
+    {
+        Table table1 = Table.open("Keyspace1");
+
+        RowMutation rm;
+        DecoratedKey dk = Util.dk("key");
+        ColumnFamily cf;
+
+        for (int i = 0; i < 10; ++i)
+        {
+            rm = new RowMutation("Keyspace1", dk.key);
+            cf = ColumnFamily.create("Keyspace1", "Counter1");
+            cf.addColumn(new CounterColumn(ByteBufferUtil.bytes("col"), 1L, 1L));
+            rm.add(cf);
+            rm.apply();
+        }
+
+        table1.getColumnFamilyStore("Counter1").clearUnsafe();
+
+        CommitLog.instance.resetUnsafe(); // disassociate segments from live CL
+        CommitLog.recover();
+
+        cf = Util.getColumnFamily(table1, dk, "Counter1");
+
+        assert cf.getColumnCount() == 1;
+        IColumn c = cf.getColumn(ByteBufferUtil.bytes("col"));
+
+        assert c != null;
+        assert ((CounterColumn)c).total() == 10L;
     }
 }
