@@ -42,7 +42,6 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.thrift.UnavailableException;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.SimpleCondition;
 import org.apache.cassandra.utils.WrappedRunnable;
 
@@ -128,13 +127,10 @@ public class ReadCallback<T> implements IAsyncCallback
 
     public void response(Message message)
     {
-        ReadResponse result = resolver.preprocess(message);
-        int n = waitingFor(result, message.getFrom())
+        resolver.preprocess(message);
+        int n = waitingFor(message)
               ? received.incrementAndGet()
               : received.get();
-        if (logger.isDebugEnabled())
-            logger.debug("{} response; {} qualifying responses seen.  Data is {}present",
-                         new Object[] { result.isDigestQuery() ? "digest" : "data", n, resolver.isDataPresent() ? "" : "not " });
         if (n >= blockfor && resolver.isDataPresent())
         {
             condition.signal();
@@ -143,9 +139,18 @@ public class ReadCallback<T> implements IAsyncCallback
     }
 
     /**
+     * @return true if the message counts towards the blockfor threshold
+     * TODO turn the Message into a response so we don't need two versions of this method
+     */
+    protected boolean waitingFor(Message message)
+    {
+        return true;
+    }
+
+    /**
      * @return true if the response counts towards the blockfor threshold
      */
-    protected boolean waitingFor(ReadResponse response, InetAddress from)
+    protected boolean waitingFor(ReadResponse response)
     {
         return true;
     }
@@ -153,9 +158,7 @@ public class ReadCallback<T> implements IAsyncCallback
     public void response(ReadResponse result)
     {
         ((RowDigestResolver) resolver).injectPreProcessed(result);
-        if (logger.isDebugEnabled())
-            logger.debug("Preprocessed {} response", result.isDigestQuery() ? "digest" : "data");
-        int n = waitingFor(result, FBUtilities.getLocalAddress())
+        int n = waitingFor(result)
               ? received.incrementAndGet()
               : received.get();
         if (n >= blockfor && resolver.isDataPresent())

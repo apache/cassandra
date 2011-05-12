@@ -20,7 +20,6 @@ package org.apache.cassandra.service;
 
 import java.io.IOException;
 
-import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.net.Message;
 
 public interface IResponseResolver<T> {
@@ -42,6 +41,6 @@ public interface IResponseResolver<T> {
      */
     public T getData() throws IOException;
 
-    public ReadResponse preprocess(Message message);
+    public void preprocess(Message message);
     public Iterable<Message> getMessages();
 }

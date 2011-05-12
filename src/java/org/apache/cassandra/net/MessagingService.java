@@ -259,7 +259,6 @@ public final class MessagingService implements MessagingServiceMBean
     public String sendRR(Message message, InetAddress to, IMessageCallback cb)
     {        
         String id = nextId();
-        logger_.debug("Message id to {} is {}", to, id);
         addCallback(cb, id, to);
         sendOneWay(message, id, to);
         return id;
@@ -267,9 +266,7 @@ public final class MessagingService implements MessagingServiceMBean
 
     public void sendOneWay(Message message, InetAddress to)
     {
-        String id = nextId();
-        logger_.debug("Message id to {} is {}", to, id);
-        sendOneWay(message, id, to);
+        sendOneWay(message, nextId(), to);
     }
 
     public void sendReply(Message message, String id, InetAddress to)

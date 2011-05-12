@@ -24,11 +24,16 @@ import java.util.*;
 import java.util.concurrent.LinkedBlockingQueue;
 
 import com.google.common.collect.AbstractIterator;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Iterators;
 import org.apache.commons.collections.iterators.CollatingIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.RangeSliceReply;
+import org.apache.cassandra.db.Row;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.ReducingIterator;
@@ -109,7 +114,7 @@ public class RangeSliceResponseResolver implements IResponseResolver<Iterable<Ro
         };
     }
 
-    public ReadResponse preprocess(Message message)
+    public void preprocess(Message message)
     {
         responses.add(message);
     }
