@@ -26,6 +26,8 @@
  * add quote-escaping via backslash to CLI (CASSANDRA-2623)
  * fig pig example script (CASSANDRA-2487)
  * fix dynamic snitch race in adding latencies (CASSANDRA-2618)
+ * Start/stop cassandra after more important services such as mdadm in
+   debian packaging (CASSANDRA-2481)
 
 
 0.7.5
