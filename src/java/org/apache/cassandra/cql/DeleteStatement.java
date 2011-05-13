@@ -59,6 +59,7 @@ public class DeleteStatement extends AbstractModification
         return columns;
     }
 
+    /** {@inheritDoc} */
     public List<Term> getKeys()
     {
         return keys;
@@ -74,33 +75,45 @@ public class DeleteStatement extends AbstractModification
     public List<RowMutation> prepareRowMutations(String keyspace, ClientState clientState, Long timestamp) throws InvalidRequestException
     {
         clientState.hasColumnFamilyAccess(columnFamily, Permission.WRITE);
-        CFMetaData metadata = validateColumnFamily(keyspace, columnFamily, false);
-
-        AbstractType comparator = metadata.getComparatorFor(null);
         AbstractType<?> keyType = DatabaseDescriptor.getCFMetaData(keyspace, columnFamily).getKeyValidator();
 
         List<RowMutation> rowMutations = new ArrayList<RowMutation>();
 
         for (Term key : keys)
         {
-            RowMutation rm = new RowMutation(keyspace, key.getByteBuffer(keyType));
-
-            if (columns.size() < 1) // No columns, delete the row
-                rm.delete(new QueryPath(columnFamily), System.currentTimeMillis());
-            else    // Delete specific columns
-            {
-                for (Term column : columns)
-                {
-                    ByteBuffer columnName = column.getByteBuffer(comparator);
-                    validateColumnName(columnName);
-                    rm.delete(new QueryPath(columnFamily, null, columnName), (timestamp == null) ? getTimestamp() : timestamp);
-                }
-            }
-
-            rowMutations.add(rm);
+            rowMutations.add(mutationForKey(key.getByteBuffer(keyType), keyspace, timestamp));
         }
 
         return rowMutations;
+    }
+
+    /** {@inheritDoc} */
+    public RowMutation mutationForKey(ByteBuffer key, String keyspace, Long timestamp) throws InvalidRequestException
+    {
+        RowMutation rm = new RowMutation(keyspace, key);
+
+        mutationForKey(rm, keyspace, timestamp);
+
+        return rm;
+    }
+
+    /** {@inheritDoc} */
+    public void mutationForKey(RowMutation mutation, String keyspace, Long timestamp) throws InvalidRequestException
+    {
+        CFMetaData metadata = validateColumnFamily(keyspace, columnFamily, false);
+        AbstractType comparator = metadata.getComparatorFor(null);
+
+        if (columns.size() < 1) // No columns, delete the row
+            mutation.delete(new QueryPath(columnFamily), System.currentTimeMillis());
+        else    // Delete specific columns
+        {
+            for (Term column : columns)
+            {
+                ByteBuffer columnName = column.getByteBuffer(comparator);
+                validateColumnName(columnName);
+                mutation.delete(new QueryPath(columnFamily, null, columnName), (timestamp == null) ? getTimestamp() : timestamp);
+            }
+        }
     }
 
     public String toString()

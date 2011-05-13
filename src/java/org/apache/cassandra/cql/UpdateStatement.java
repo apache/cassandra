@@ -33,7 +33,6 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.thrift.InvalidRequestException;
 
-import static org.apache.cassandra.cql.QueryProcessor.validateKey;
 import static org.apache.cassandra.cql.QueryProcessor.validateColumn;
 
 import static org.apache.cassandra.thrift.ThriftValidation.validateColumnFamily;
@@ -157,36 +156,54 @@ public class UpdateStatement extends AbstractModification
      */
     private RowMutation mutationForKey(String keyspace, ByteBuffer key, CFMetaData metadata, Long timestamp) throws InvalidRequestException
     {
-        validateKey(key);
+        RowMutation rm = new RowMutation(keyspace, key);
 
+        mutationForKey(rm, keyspace, metadata, timestamp);
+
+        return rm;
+    }
+
+    /** {@inheritDoc} */
+    public RowMutation mutationForKey(ByteBuffer key, String keyspace, Long timestamp) throws InvalidRequestException
+    {
+        return mutationForKey(keyspace, key, validateColumnFamily(keyspace, columnFamily, false), timestamp);
+    }
+
+    /** {@inheritDoc} */
+    public void mutationForKey(RowMutation mutation, String keyspace, Long timestamp) throws InvalidRequestException
+    {
+        mutationForKey(mutation, keyspace, validateColumnFamily(keyspace, columnFamily, false), timestamp);
+    }
+
+    private void mutationForKey(RowMutation mutation, String keyspace, CFMetaData metadata, Long timestamp) throws InvalidRequestException
+    {
         AbstractType<?> comparator = getComparator(keyspace);
 
-        RowMutation rm = new RowMutation(keyspace, key);
         for (Map.Entry<Term, Term> column : getColumns().entrySet())
         {
             ByteBuffer colName = column.getKey().getByteBuffer(comparator);
             ByteBuffer colValue = column.getValue().getByteBuffer(getValueValidator(keyspace, colName));
 
             validateColumn(metadata, colName, colValue);
-            rm.add(new QueryPath(columnFamily, null, colName),
-                   colValue,
-                   (timestamp == null) ? getTimestamp() : timestamp,
-                   getTimeToLive());
-        }
 
-        return rm;
+            mutation.add(new QueryPath(columnFamily, null, colName),
+                         colValue,
+                         (timestamp == null) ? getTimestamp() : timestamp,
+                         getTimeToLive());
+        }
     }
 
     public String getColumnFamily()
     {
         return columnFamily;
     }
-    
+
+    /** {@inheritDoc} */
     public List<Term> getKeys()
     {
         return keys;
     }
-    
+
     public Map<Term, Term> getColumns() throws InvalidRequestException
     {
         // Created from an UPDATE
