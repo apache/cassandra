@@ -10,17 +10,6 @@
    (CASSANDRA-2583)
 
 
-0.8.0-?
- * Fix regression where bootstrapping a node with no schema fails
-   (CASSANDRA-2625)
- * Allow removing LocationInfo sstables (CASSANDRA-2632)
- * avoid attempting to replay mutations from dropped keyspaces (CASSANDRA-2631)
- * avoid using cached position of a key when GT is requested (CASSANDRA-2633)
- * fix counting bloom filter true positives (CASSANDRA-2637)
- * initialize local ep state prior to gossip startup if needed (CASSANDRA-2638)
- * fix counter increment lost after restart (CASSANDRA-2642)
-
-
 0.8.0-rc1
  * faster flushes and compaction from fixing excessively pessimistic 
    rebuffering in BRAF (CASSANDRA-2581)
@@ -39,6 +28,17 @@
  * Don't allow {LOCAL|EACH}_QUORUM unless strategy is NTS (CASSANDRA-2627)
  * validate keyspace strategy_options during CQL create (CASSANDRA-2624)
  * fix empty Result with secondary index when limit=1 (CASSANDRA-2628)
+ * Fix regression where bootstrapping a node with no schema fails
+   (CASSANDRA-2625)
+ * Allow removing LocationInfo sstables (CASSANDRA-2632)
+ * avoid attempting to replay mutations from dropped keyspaces (CASSANDRA-2631)
+ * avoid using cached position of a key when GT is requested (CASSANDRA-2633)
+ * fix counting bloom filter true positives (CASSANDRA-2637)
+ * initialize local ep state prior to gossip startup if needed (CASSANDRA-2638)
+ * fix counter increment lost after restart (CASSANDRA-2642)
+ * add quote-escaping via backslash to CLI (CASSANDRA-2623)
+ * fig pig example script (CASSANDRA-2487)
+ * fix dynamic snitch race in adding latencies (CASSANDRA-2618)
 
 
 0.8.0-beta2
