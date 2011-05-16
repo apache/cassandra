@@ -115,7 +115,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         logger_.debug("Created HHOM instance, registered MBean.");
     }
 
-    private static boolean sendMessage(InetAddress endpoint, String tableName, String cfName, ByteBuffer key) throws IOException
+    private static boolean sendRow(InetAddress endpoint, String tableName, String cfName, ByteBuffer key) throws IOException
     {
         if (!Gossiper.instance.isKnownEndpoint(endpoint))
         {
@@ -130,10 +130,21 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         Table table = Table.open(tableName);
         DecoratedKey<?> dkey = StorageService.getPartitioner().decorateKey(key);
         ColumnFamilyStore cfs = table.getColumnFamilyStore(cfName);
+
+        int pageSize = PAGE_SIZE;
+        // send less columns per page if they are very large
+        if (cfs.getMeanColumns() > 0)
+        {
+            int averageColumnSize = (int) (cfs.getMeanRowSize() / cfs.getMeanColumns());
+            pageSize = Math.min(PAGE_SIZE, DatabaseDescriptor.getInMemoryCompactionLimit() / averageColumnSize);
+            pageSize = Math.max(2, pageSize); // page size of 1 does not allow actual paging b/c of >= behavior on startColumn
+            logger_.debug("average hinted-row column size is {}; using pageSize of {}", averageColumnSize, pageSize);
+        }
+
         ByteBuffer startColumn = ByteBufferUtil.EMPTY_BYTE_BUFFER;
         while (true)
         {
-            QueryFilter filter = QueryFilter.getSliceFilter(dkey, new QueryPath(cfs.getColumnFamilyName()), startColumn, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, PAGE_SIZE);
+            QueryFilter filter = QueryFilter.getSliceFilter(dkey, new QueryPath(cfs.getColumnFamilyName()), startColumn, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, pageSize);
             ColumnFamily cf = cfs.getColumnFamily(filter);
             if (pagingFinished(cf, startColumn))
                 break;
@@ -326,7 +337,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                 for (IColumn tableCF : tableCFs)
                 {
                     String[] parts = getTableAndCFNames(tableCF.name());
-                    if (sendMessage(endpoint, parts[0], parts[1], keyColumn.name()))
+                    if (sendRow(endpoint, parts[0], parts[1], keyColumn.name()))
                     {
                         deleteHintKey(endpointAsUTF8, keyColumn.name(), tableCF.name(), tableCF.timestamp());
                         rowsReplayed++;
