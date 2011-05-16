@@ -1,6 +1,7 @@
 0.8-?
  * adjust hinted handoff page size to avoid OOM with large columns 
    (CASSANDRA-2652)
+ * update CQL consistency levels (CASSANDRA-2566)
 
 
 0.8.0-rc1
