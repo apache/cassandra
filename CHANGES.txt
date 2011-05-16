@@ -1,3 +1,8 @@
+0.7.7
+ * adjust hinted handoff page size to avoid OOM with large columns 
+   (CASSANDRA-2652)
+
+
 0.7.6
  * force GC to reclaim disk space on flush, if necessary (CASSANDRA-2404)
  * move gossip heartbeat back to its own thread (CASSANDRA-2554)
@@ -24,7 +29,7 @@
  * initialize local ep state prior to gossip startup if needed (CASSANDRA-2638)
  * fix empty Result with secondary index when limit=1 (CASSANDRA-2628)
  * add quote-escaping via backslash to CLI (CASSANDRA-2623)
- * fig pig example script (CASSANDRA-2487)
+ * fix pig example script (CASSANDRA-2487)
  * fix dynamic snitch race in adding latencies (CASSANDRA-2618)
  * Start/stop cassandra after more important services such as mdadm in
    debian packaging (CASSANDRA-2481)
