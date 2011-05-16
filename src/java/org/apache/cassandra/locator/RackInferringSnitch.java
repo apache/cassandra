@@ -28,11 +28,11 @@ public class RackInferringSnitch extends AbstractNetworkTopologySnitch
 {
     public String getRack(InetAddress endpoint)
     {
-        return Byte.toString(endpoint.getAddress()[2]);
+        return Integer.toString(endpoint.getAddress()[2] & 0xFF, 10);
     }
 
     public String getDatacenter(InetAddress endpoint)
     {
-        return Byte.toString(endpoint.getAddress()[1]);
+        return Integer.toString(endpoint.getAddress()[1] & 0xFF, 10);
     }
 }
