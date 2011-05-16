@@ -845,19 +845,19 @@ public class CompactionManager implements CompactionManagerMBean
                             totalkeysWritten++;
                         }
                         else
-			{
-			    cfs.invalidateCachedRow(row.getKey());
-			    if (!indexedColumns.isEmpty() || isCommutative)
+                        {
+                            cfs.invalidateCachedRow(row.getKey());
+                            if (!indexedColumns.isEmpty() || isCommutative)
                             {
                                 while (row.hasNext())
                                 {
                                     IColumn column = row.next();
                                     if (column instanceof CounterColumn)
-                                        renewer.maybeRenew((CounterColumn)column);
+                                        renewer.maybeRenew((CounterColumn) column);
                                     if (indexedColumns.contains(column.name()))
                                         Table.cleanupIndexEntry(cfs, row.getKey().key, column);
                                 }
-			    }
+                            }
                         }
                     }
                 }
