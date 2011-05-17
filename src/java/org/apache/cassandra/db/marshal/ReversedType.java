@@ -21,6 +21,9 @@ package org.apache.cassandra.db.marshal;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.List;
+
+import org.apache.cassandra.config.ConfigurationException;
 
 public class ReversedType<T> extends AbstractType<T>
 {
@@ -29,6 +32,14 @@ public class ReversedType<T> extends AbstractType<T>
 
     // package protected for unit tests sake
     final AbstractType<T> baseType;
+
+    public static <T> ReversedType<T> getInstance(TypeParser parser) throws ConfigurationException
+    {
+        List<AbstractType> types = parser.getTypeParameters();
+        if (types.size() != 1)
+            throw new ConfigurationException("ReversedType takes exactly one argument, " + types.size() + " given");
+        return getInstance(types.get(0));
+    }
 
     public static synchronized <T> ReversedType<T> getInstance(AbstractType<T> baseType)
     {
