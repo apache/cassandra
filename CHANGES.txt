@@ -10,6 +10,14 @@
    (CASSANDRA-2583)
 
 
+0.8-?
+ * adjust hinted handoff page size to avoid OOM with large columns 
+   (CASSANDRA-2652)
+ * update CQL consistency levels (CASSANDRA-2566)
+ * mark BRAF buffer invalid post-flush so we don't re-flush partial
+   buffers again, especially on CL writes (CASSANDRA-2660)
+
+
 0.8.0-rc1
  * faster flushes and compaction from fixing excessively pessimistic 
    rebuffering in BRAF (CASSANDRA-2581)
@@ -37,8 +45,10 @@
  * initialize local ep state prior to gossip startup if needed (CASSANDRA-2638)
  * fix counter increment lost after restart (CASSANDRA-2642)
  * add quote-escaping via backslash to CLI (CASSANDRA-2623)
- * fig pig example script (CASSANDRA-2487)
+ * fix pig example script (CASSANDRA-2487)
  * fix dynamic snitch race in adding latencies (CASSANDRA-2618)
+ * Start/stop cassandra after more important services such as mdadm in
+   debian packaging (CASSANDRA-2481)
 
 
 0.8.0-beta2

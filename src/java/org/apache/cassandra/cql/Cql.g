@@ -440,9 +440,10 @@ K_USING:       U S I N G;
 K_CONSISTENCY: C O N S I S T E N C Y;
 K_LEVEL:       ( O N E 
                | Q U O R U M 
-               | A L L 
-               | D C Q U O R U M 
-               | D C Q U O R U M S Y N C
+               | A L L
+               | A N Y
+               | L O C A L '_' Q U O R U M
+               | E A C H '_' Q U O R U M
                )
                ;
 K_USE:         U S E;

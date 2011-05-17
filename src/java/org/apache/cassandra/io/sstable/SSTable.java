@@ -156,7 +156,7 @@ public abstract class SSTable
         {
             throw new IOError(e);
         }
-        logger.info("Deleted " + desc);
+        logger.debug("Deleted {}", desc);
         return true;
     }
 

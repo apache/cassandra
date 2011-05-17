@@ -62,6 +62,15 @@ JMX
     - By default, JMX now listens on port 7199.
 
 
+0.7.6
+=====
+
+Upgrading
+---------
+    - Nothing specific to 0.7.6, but see 0.7.3 Upgrading if upgrading
+      from earlier than 0.7.1.
+
+
 0.7.5
 =====
 

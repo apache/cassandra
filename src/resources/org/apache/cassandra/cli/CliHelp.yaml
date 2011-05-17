@@ -1074,13 +1074,13 @@ commands:
         - type: Validator type to use when processing values.
 
           Supported values are:
-            - AsciiType
-            - BytesType
-            - CounterColumnType (distributed counter column)
-            - IntegerType (a generic variable-length integer type)
-            - LexicalUUIDType
-            - LongType
-            - UTF8Type
+            - ascii
+            - bytes
+            - counterColumn (distributed counter column)
+            - integer (a generic variable-length integer type)
+            - lexicalUUID
+            - long
+            - utf8
 
           It is also valid to specify the fully-qualified class name to a class that
           extends org.apache.Cassandra.db.marshal.AbstractType.

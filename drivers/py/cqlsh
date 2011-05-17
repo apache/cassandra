@@ -30,7 +30,7 @@ try:
 except ImportError:
     sys.path.append(os.path.abspath(os.path.dirname(__file__)))
     import cql
-from cql.results import ResultSet
+from cql.cursor import _COUNT_DESCRIPTION
 
 HISTORY = os.path.join(os.path.expanduser('~'), '.cqlsh')
 CQLTYPES = ("bytes", "ascii", "utf8", "timeuuid", "uuid", "long", "int")
@@ -131,7 +131,9 @@ class Shell(cmd.Cmd):
 
         self.cursor.execute(statement)
 
-        if isinstance(self.cursor.result, ResultSet):
+        if self.cursor.description is _COUNT_DESCRIPTION:
+            if self.cursor.result: print self.cursor.result[0]
+        else:
             for x in range(self.cursor.rowcount):
                 row = self.cursor.fetchone()
                 self.printout(repr(row[0]), BLUE, False)
@@ -142,8 +144,6 @@ class Shell(cmd.Cmd):
                     self.printout(",", newline=False)
                     self.printout(repr(value), YELLOW, False)
                 self.printout("")
-        else:
-            if self.cursor.result: print self.cursor.result[0]
 
     def emptyline(self):
         pass

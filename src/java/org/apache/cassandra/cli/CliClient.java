@@ -61,13 +61,14 @@ public class CliClient
      */
     public enum Function
     {
-        BYTES       (BytesType.instance),
-        INTEGER     (IntegerType.instance),
-        LONG        (LongType.instance),
-        LEXICALUUID (LexicalUUIDType.instance),
-        TIMEUUID    (TimeUUIDType.instance),
-        UTF8        (UTF8Type.instance),
-        ASCII       (AsciiType.instance);
+        BYTES         (BytesType.instance),
+        INTEGER       (IntegerType.instance),
+        LONG          (LongType.instance),
+        LEXICALUUID   (LexicalUUIDType.instance),
+        TIMEUUID      (TimeUUIDType.instance),
+        UTF8          (UTF8Type.instance),
+        ASCII         (AsciiType.instance),
+        COUNTERCOLUMN (CounterColumnType.instance);
 
         private AbstractType validator;
         
@@ -1375,6 +1376,9 @@ public class CliClient
             sessionState.out.println("Type '" + defaultType + "' was not found. Available: " + functions);
             return;
         }
+
+        // making string representation look property e.g. o.a.c.db.marshal.UTF8Type
+        defaultType = comparator.getClass().getName();
 
         if (assumptionElement.equals("COMPARATOR"))
         {
