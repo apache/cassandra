@@ -32,11 +32,13 @@ public class ExpiringMap<K, V>
     {
         private final T value;
         private final long age;
+        private final long expiration;
 
-        CacheableObject(T o)
+        CacheableObject(T o, long e)
         {
             assert o != null;
             value = o;
+            expiration = e;
             age = System.currentTimeMillis();
         }
 
@@ -45,26 +47,21 @@ public class ExpiringMap<K, V>
             return value;
         }
 
-        boolean isReadyToDie(long expiration)
+        boolean isReadyToDie(long start)
         {
-            return ((System.currentTimeMillis() - age) > expiration);
+            return ((start - age) > expiration);
         }
     }
 
     private class CacheMonitor extends TimerTask
     {
-        private final long expiration;
-
-        CacheMonitor(long expiration)
-        {
-            this.expiration = expiration;
-        }
 
         public void run()
         {
+            long start = System.currentTimeMillis();
             for (Map.Entry<K, CacheableObject<V>> entry : cache.entrySet())
             {
-                if (entry.getValue().isReadyToDie(expiration))
+                if (entry.getValue().isReadyToDie(start))
                 {
                     cache.remove(entry.getKey());
                     if (postExpireHook != null)
@@ -77,6 +74,7 @@ public class ExpiringMap<K, V>
     private final NonBlockingHashMap<K, CacheableObject<V>> cache = new NonBlockingHashMap<K, CacheableObject<V>>();
     private final Timer timer;
     private static int counter = 0;
+    private final long expiration;
 
     public ExpiringMap(long expiration)
     {
@@ -90,13 +88,15 @@ public class ExpiringMap<K, V>
     public ExpiringMap(long expiration, Function<Pair<K,V>, ?> postExpireHook)
     {
         this.postExpireHook = postExpireHook;
+        this.expiration = expiration;
+
         if (expiration <= 0)
         {
             throw new IllegalArgumentException("Argument specified must be a positive number");
         }
 
         timer = new Timer("EXPIRING-MAP-TIMER-" + (++counter), true);
-        timer.schedule(new CacheMonitor(expiration), expiration / 2, expiration / 2);
+        timer.schedule(new CacheMonitor(), expiration / 2, expiration / 2);
     }
 
     public void shutdown()
@@ -106,7 +106,12 @@ public class ExpiringMap<K, V>
 
     public V put(K key, V value)
     {
-        CacheableObject<V> previous = cache.put(key, new CacheableObject<V>(value));
+        return put(key, value, this.expiration);
+    }
+
+    public V put(K key, V value, long timeout)
+    {
+        CacheableObject<V> previous = cache.put(key, new CacheableObject<V>(value, timeout));
         return (previous == null) ? null : previous.getValue();
     }
 
