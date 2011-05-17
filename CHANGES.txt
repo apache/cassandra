@@ -1,6 +1,8 @@
 0.7.7
  * adjust hinted handoff page size to avoid OOM with large columns 
    (CASSANDRA-2652)
+ * mark BRAF buffer invalid post-flush so we don't re-flush partial
+   buffers again, especially on CL writes (CASSANDRA-2660)
 
 
 0.7.6
