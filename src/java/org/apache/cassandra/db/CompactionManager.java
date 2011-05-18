@@ -1169,31 +1169,6 @@ public class CompactionManager implements CompactionManagerMBean
         }
     }
 
-    public void checkAllColumnFamilies() throws IOException
-    {
-        // perform estimates
-        for (final ColumnFamilyStore cfs : ColumnFamilyStore.all())
-        {
-            Runnable runnable = new Runnable()
-            {
-                public void run ()
-                {
-                    logger.debug("Estimating compactions for " + cfs.columnFamily);
-                    final Set<List<SSTableReader>> buckets = getBuckets(convertSSTablesToPairs(cfs.getSSTables()), 50L * 1024L * 1024L);
-                    updateEstimateFor(cfs, buckets);
-                }
-            };
-            executor.submit(runnable);
-        }
-
-        // actually schedule compactions.  done in a second pass so all the estimates occur before we
-        // bog down the executor in actual compactions.
-        for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
-        {
-            submitMinorIfNeeded(cfs);
-        }
-    }
-
     public int getActiveCompactions()
     {
         return executor.getActiveCount();
