@@ -110,6 +110,7 @@ public class CliTest extends CleanupHelper
         "get Counter1['hello']['cassandra'];",
         "get Counter1['hello'];",
         "truncate CF1;",
+        "drop index on CF1.world2;",
         "update keyspace TestKeySpace with placement_strategy='org.apache.cassandra.locator.LocalStrategy';",
         "update keyspace TestKeySpace with strategy_options=[{DC1:3, DC2:4, DC5:1}];",
         "assume CF1 comparator as utf8;",

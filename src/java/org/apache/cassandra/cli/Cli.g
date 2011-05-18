@@ -61,6 +61,7 @@ tokens {
     NODE_TRUNCATE;
     NODE_ASSUME;
     NODE_CONSISTENCY_LEVEL;
+    NODE_DROP_INDEX;
 
     // Internal Nodes.
     NODE_COLUMN_ACCESS;
@@ -160,6 +161,7 @@ statement
     | truncateStatement
     | assumeStatement
     | consistencyLevelStatement
+    | dropIndex
     | -> ^(NODE_NO_OP)
     ;
 
@@ -203,6 +205,8 @@ helpStatement
         -> ^(NODE_HELP NODE_DEL_KEYSPACE)
     | HELP DROP COLUMN FAMILY 
         -> ^(NODE_HELP NODE_DEL_COLUMN_FAMILY)
+    | HELP DROP INDEX
+        -> ^(NODE_HELP NODE_DROP_INDEX)
     | HELP GET 
         -> ^(NODE_HELP NODE_THRIFT_GET)
     | HELP SET 
@@ -335,6 +339,11 @@ delKeyspace
 delColumnFamily
     : DROP COLUMN FAMILY columnFamily 
         -> ^(NODE_DEL_COLUMN_FAMILY columnFamily)
+    ;
+
+dropIndex
+    : DROP INDEX ON columnFamily '.' columnName
+        -> ^(NODE_DROP_INDEX columnFamily columnName)
     ;
 
 showVersion
@@ -562,6 +571,8 @@ TRUNCATE:    'TRUNCATE';
 ASSUME:      'ASSUME';
 TTL:         'TTL';
 CONSISTENCYLEVEL:   'CONSISTENCYLEVEL';
+INDEX:       'INDEX';
+ON:          'ON';
 
 IP_ADDRESS 
     : IntegerPositiveLiteral '.' IntegerPositiveLiteral '.' IntegerPositiveLiteral '.' IntegerPositiveLiteral

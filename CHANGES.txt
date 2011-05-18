@@ -4,9 +4,10 @@
  * update CQL consistency levels (CASSANDRA-2566)
  * mark BRAF buffer invalid post-flush so we don't re-flush partial
    buffers again, especially on CL writes (CASSANDRA-2660)
+ * add DROP INDEX support to CLI (CASSANDRA-2616)
 
 
-0.8.0-rc1
+0.8.0-rc1 
  * faster flushes and compaction from fixing excessively pessimistic 
    rebuffering in BRAF (CASSANDRA-2581)
  * fix returning null column values in the python cql driver (CASSANDRA-2593)
