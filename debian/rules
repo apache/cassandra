@@ -46,7 +46,7 @@ binary-indep: build install
 	dh_testdir
 	dh_testroot
 	dh_installchangelogs
-	dh_installinit -u'start 50 2 3 4 5 . stop 50 0 1 6'
+	dh_installinit -u'start 50 2 3 4 5 . stop 50 0 1 6 .'
 	dh_installdocs README.txt CHANGES.txt NEWS.txt
 	dh_compress
 	dh_fixperms
