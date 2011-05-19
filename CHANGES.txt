@@ -2,6 +2,7 @@
  * fix grammar warning and cqlsh regression from CASSANDRA-2622
  * add ant generate-cql-html target (CASSANDRA-2526)
  * update CQL consistency levels (CASSANDRA-2566)
+ * fix debian packaging runlevels (CASSANDRA-2481)
 
 
 0.8.0-rc1
