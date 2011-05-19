@@ -452,7 +452,7 @@ public class Gossiper implements IFailureDetectionEventListener
 
                 // check if this is a fat client. fat clients are removed automatically from
                 // gosip after FatClientTimeout
-                if (!epState.getHasToken() && !epState.isAlive() && (duration > FatClientTimeout))
+                if (!epState.hasToken() && !epState.isAlive() && (duration > FatClientTimeout))
                 {
                     if (StorageService.instance.getTokenMetadata().isMember(endpoint))
                         epState.setHasToken(true);
@@ -475,7 +475,7 @@ public class Gossiper implements IFailureDetectionEventListener
         
         if (!justRemovedEndpoints.isEmpty())
         {
-            for (Map.Entry<InetAddress, Long> entry : justRemovedEndpoints.entrySet())
+            for (Entry<InetAddress, Long> entry : justRemovedEndpoints.entrySet())
             {
                 if ((now - entry.getValue()) > QUARANTINE_DELAY)
                 {
