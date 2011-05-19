@@ -1,5 +1,5 @@
 0.8.0-final
- * fix grammar warning from CASSANDRA-2622
+ * fix grammar warning and cqlsh regression from CASSANDRA-2622
 
 
 0.8.0-rc1
