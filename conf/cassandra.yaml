@@ -102,6 +102,7 @@ seed_provider:
     - class_name: org.apache.cassandra.locator.SimpleSeedProvider
       parameters:
           # seeds is actually a comma-delimited list of addresses.
+          # Ex: "<ip1>,<ip2>,<ip3>"
           - seeds: "127.0.0.1"
 
 # emergency pressure valve: each time heap usage after a full (CMS)

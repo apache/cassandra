@@ -1,8 +1,10 @@
 #! /bin/sh
 ### BEGIN INIT INFO
 # Provides:          cassandra
-# Required-Start:    $remote_fs
-# Required-Stop:     $remote_fs
+# Required-Start:    $remote_fs $network $named $time
+# Required-Stop:     $remote_fs $network $named $time
+# Should-Start:      ntp mdadm
+# Should-Stop:       ntp mdadm
 # Default-Start:     2 3 4 5
 # Default-Stop:      0 1 6
 # Short-Description: distributed storage system for structured data
@@ -19,6 +21,7 @@ SCRIPTNAME=/etc/init.d/$NAME
 CONFDIR=/etc/cassandra
 JSVC=/usr/bin/jsvc
 WAIT_FOR_START=10
+CASSANDRA_HOME=/usr/share/cassandra
 
 # The first existing directory is used for JAVA_HOME if needed.
 JVM_SEARCH_DIRS="/usr/lib/jvm/java-6-openjdk /usr/lib/jvm/java-6-sun"
@@ -78,6 +81,9 @@ fi
 classpath()
 {
     cp="$EXTRA_CLASSPATH"
+    for j in /usr/share/$NAME/lib/*.jar; do
+        [ "x$cp" = "x" ] && cp=$j || cp=$cp:$j
+    done
     for j in /usr/share/$NAME/*.jar; do
         [ "x$cp" = "x" ] && cp=$j || cp=$cp:$j
     done

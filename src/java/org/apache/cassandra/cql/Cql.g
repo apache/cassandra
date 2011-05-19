@@ -412,7 +412,7 @@ termPair[Map<Term, Term> columns]
 // Note: ranges are inclusive so >= and >, and < and <= all have the same semantics.  
 relation returns [Relation rel]
     : { Term entity = new Term("KEY", STRING_LITERAL); }
-      (K_KEY | name=term { entity = $name.item; } ) type=('=' | '<' | '<=' | '>=' | '>') t=term
+      (name=term { entity = $name.item; } ) type=('=' | '<' | '<=' | '>=' | '>') t=term
       { return new Relation(entity, $type.text, $t.item); }
     ;
 
@@ -440,9 +440,10 @@ K_USING:       U S I N G;
 K_CONSISTENCY: C O N S I S T E N C Y;
 K_LEVEL:       ( O N E 
                | Q U O R U M 
-               | A L L 
-               | D C Q U O R U M 
-               | D C Q U O R U M S Y N C
+               | A L L
+               | A N Y
+               | L O C A L '_' Q U O R U M
+               | E A C H '_' Q U O R U M
                )
                ;
 K_USE:         U S E;

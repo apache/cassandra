@@ -61,13 +61,14 @@ public class CliClient
      */
     public enum Function
     {
-        BYTES       (BytesType.instance),
-        INTEGER     (IntegerType.instance),
-        LONG        (LongType.instance),
-        LEXICALUUID (LexicalUUIDType.instance),
-        TIMEUUID    (TimeUUIDType.instance),
-        UTF8        (UTF8Type.instance),
-        ASCII       (AsciiType.instance);
+        BYTES         (BytesType.instance),
+        INTEGER       (IntegerType.instance),
+        LONG          (LongType.instance),
+        LEXICALUUID   (LexicalUUIDType.instance),
+        TIMEUUID      (TimeUUIDType.instance),
+        UTF8          (UTF8Type.instance),
+        ASCII         (AsciiType.instance),
+        COUNTERCOLUMN (CounterColumnType.instance);
 
         private AbstractType validator;
         
@@ -268,6 +269,10 @@ public class CliClient
                 case CliParser.NODE_THRIFT_DECR:
                     executeIncr(tree, -1L);
                     break;
+                case CliParser.NODE_DROP_INDEX:
+                    executeDropIndex(tree);
+                    break;
+
                 case CliParser.NODE_NO_OP:
                     // comment lines come here; they are treated as no ops.
                     break;
@@ -1321,6 +1326,58 @@ public class CliClient
         printSliceList(columnFamilyDef, keySlices);
     }
 
+    // DROP INDEX ON <CF>.<COLUMN>
+    private void executeDropIndex(Tree statement)
+    {
+        if (!CliMain.isConnected() || !hasKeySpace())
+            return;
+
+        // getColumnFamily will check if CF exists for us
+        String columnFamily = CliCompiler.getColumnFamily(statement, keyspacesMap.get(keySpace).cf_defs);
+        String rawColumName = statement.getChild(1).getText();
+
+        CfDef cfDef = getCfDef(columnFamily);
+
+        ByteBuffer columnName = columnNameAsBytes(rawColumName, cfDef);
+
+        boolean foundColumn = false;
+
+        for (ColumnDef column : cfDef.getColumn_metadata())
+        {
+            if (column.name.equals(columnName))
+            {
+                foundColumn = true;
+
+                if (column.getIndex_type() == null)
+                    throw new RuntimeException(String.format("Column '%s' does not have an index.", rawColumName));
+
+                column.setIndex_name(null);
+                column.setIndex_type(null);
+            }
+        }
+
+        if (!foundColumn)
+            throw new RuntimeException(String.format("Column '%s' definition was not found in ColumnFamily '%s'.",
+                                                     rawColumName,
+                                                     columnFamily));
+
+        try
+        {
+            String mySchemaVersion = thriftClient.system_update_column_family(cfDef);
+            sessionState.out.println(mySchemaVersion);
+            validateSchemaIsSettled(mySchemaVersion);
+            keyspacesMap.put(keySpace, thriftClient.describe_keyspace(keySpace));
+        }
+        catch (InvalidRequestException e)
+        {
+            System.err.println(e.why);
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException(e.getMessage(), e);
+        }
+    }
+
     // TRUNCATE <columnFamily>
     private void executeTruncate(String columnFamily)
     {
@@ -1402,6 +1459,9 @@ public class CliClient
             sessionState.out.println("Type '" + defaultType + "' was not found. Available: " + functions);
             return;
         }
+
+        // making string representation look property e.g. o.a.c.db.marshal.UTF8Type
+        defaultType = comparator.getClass().getName();
 
         if (assumptionElement.equals("COMPARATOR"))
         {

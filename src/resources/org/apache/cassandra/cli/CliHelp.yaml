@@ -44,6 +44,7 @@ help: |
     describe keyspace       Describe a keyspace and it's column families.
     drop column family      Remove a column family and it's data.
     drop keyspace           Remove a keyspace and it's data.
+    drop index              Remove an existing index from specific column.
     get                     Get rows and columns.
     incr                    Increments a counter column.
     list                    List rows in a column family.
@@ -827,6 +828,18 @@ commands:
 
         Example:
         drop column family Standard2;
+    - name: NODE_DROP_INDEX
+      help: |
+        drop index on <cf>.<column>;
+
+        Drops index on specified column of the column family.
+
+        Required Parameters:
+          - cf: Name of the column family.
+          - column: Name of the column to delete index on.
+
+        Example:
+        drop index on Users.name;
     - name: NODE_THRIFT_GET
       help: |
         get <cf>['<key>'];
@@ -1074,13 +1087,13 @@ commands:
         - type: Validator type to use when processing values.
 
           Supported values are:
-            - AsciiType
-            - BytesType
-            - CounterColumnType (distributed counter column)
-            - IntegerType (a generic variable-length integer type)
-            - LexicalUUIDType
-            - LongType
-            - UTF8Type
+            - ascii
+            - bytes
+            - counterColumn (distributed counter column)
+            - integer (a generic variable-length integer type)
+            - lexicalUUID
+            - long
+            - utf8
 
           It is also valid to specify the fully-qualified class name to a class that
           extends org.apache.Cassandra.db.marshal.AbstractType.

@@ -299,12 +299,12 @@ bc.
 
 Consistency level specifications are made up the keyword @USING@, followed by a consistency level identifier. Valid consistency levels are as follows:
 
-* @CONSISTENCY ZERO@
+* @CONSISTENCY ANY@
 * @CONSISTENCY ONE@ (default)
 * @CONSISTENCY QUORUM@
 * @CONSISTENCY ALL@
-* @CONSISTENCY DCQUORUM@
-* @CONSISTENCY DCQUORUMSYNC@
+* @CONSISTENCY LOCAL_QUORUM@
+* @CONSISTENCY EACH_QUORUM@
 
 h3(#terms). Term specification
 

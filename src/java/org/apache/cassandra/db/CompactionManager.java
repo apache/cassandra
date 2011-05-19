@@ -845,19 +845,19 @@ public class CompactionManager implements CompactionManagerMBean
                             totalkeysWritten++;
                         }
                         else
-			{
-			    cfs.invalidateCachedRow(row.getKey());
-			    if (!indexedColumns.isEmpty() || isCommutative)
+                        {
+                            cfs.invalidateCachedRow(row.getKey());
+                            if (!indexedColumns.isEmpty() || isCommutative)
                             {
                                 while (row.hasNext())
                                 {
                                     IColumn column = row.next();
                                     if (column instanceof CounterColumn)
-                                        renewer.maybeRenew((CounterColumn)column);
+                                        renewer.maybeRenew((CounterColumn) column);
                                     if (indexedColumns.contains(column.name()))
                                         Table.cleanupIndexEntry(cfs, row.getKey().key, column);
                                 }
-			    }
+                            }
                         }
                     }
                 }
@@ -1166,31 +1166,6 @@ public class CompactionManager implements CompactionManagerMBean
                 iter.addIterator(sstable.getDirectScanner(FILE_BUFFER_SIZE, range));
             }
             return iter;
-        }
-    }
-
-    public void checkAllColumnFamilies() throws IOException
-    {
-        // perform estimates
-        for (final ColumnFamilyStore cfs : ColumnFamilyStore.all())
-        {
-            Runnable runnable = new Runnable()
-            {
-                public void run ()
-                {
-                    logger.debug("Estimating compactions for " + cfs.columnFamily);
-                    final Set<List<SSTableReader>> buckets = getBuckets(convertSSTablesToPairs(cfs.getSSTables()), 50L * 1024L * 1024L);
-                    updateEstimateFor(cfs, buckets);
-                }
-            };
-            executor.submit(runnable);
-        }
-
-        // actually schedule compactions.  done in a second pass so all the estimates occur before we
-        // bog down the executor in actual compactions.
-        for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
-        {
-            submitMinorIfNeeded(cfs);
         }
     }
 

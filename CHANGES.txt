@@ -8,9 +8,22 @@
  * add CQL TTL support (CASSANDRA-2476)
  * optimize batches containing multiple updates to the same row
    (CASSANDRA-2583)
+ * adjust hinted handoff page size to avoid OOM with large columns 
+   (CASSANDRA-2652)
+ * mark BRAF buffer invalid post-flush so we don't re-flush partial
+   buffers again, especially on CL writes (CASSANDRA-2660)
+ * add DROP INDEX support to CLI (CASSANDRA-2616)
+ * don't perform HH to client-mode [storageproxy] nodes (CASSANDRA-2668)
 
 
-0.8.0-rc1
+0.8.0-final
+ * fix CQL grammar warning and cqlsh regression from CASSANDRA-2622
+ * add ant generate-cql-html target (CASSANDRA-2526)
+ * update CQL consistency levels (CASSANDRA-2566)
+ * debian packaging fixes (CASSANDRA-2481, 2647)
+
+
+0.8.0-rc1 
  * faster flushes and compaction from fixing excessively pessimistic 
    rebuffering in BRAF (CASSANDRA-2581)
  * fix returning null column values in the python cql driver (CASSANDRA-2593)
@@ -37,8 +50,10 @@
  * initialize local ep state prior to gossip startup if needed (CASSANDRA-2638)
  * fix counter increment lost after restart (CASSANDRA-2642)
  * add quote-escaping via backslash to CLI (CASSANDRA-2623)
- * fig pig example script (CASSANDRA-2487)
+ * fix pig example script (CASSANDRA-2487)
  * fix dynamic snitch race in adding latencies (CASSANDRA-2618)
+ * Start/stop cassandra after more important services such as mdadm in
+   debian packaging (CASSANDRA-2481)
 
 
 0.8.0-beta2
