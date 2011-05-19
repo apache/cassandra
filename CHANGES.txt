@@ -1,3 +1,7 @@
+0.8.0-final
+ * fix grammar warning from CASSANDRA-2622
+
+
 0.8.0-rc1
  * faster flushes and compaction from fixing excessively pessimistic 
    rebuffering in BRAF (CASSANDRA-2581)
