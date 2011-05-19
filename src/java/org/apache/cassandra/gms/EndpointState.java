@@ -128,7 +128,7 @@ public class EndpointState
         hasToken = value;
     }
 
-    public boolean getHasToken()
+    public boolean hasToken()
     {
         return hasToken;
     }
