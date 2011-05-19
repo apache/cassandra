@@ -83,6 +83,7 @@ public final class MessagingService implements MessagingServiceMBean
     private final SimpleCondition listenGate;
     private final Map<StorageService.Verb, AtomicInteger> droppedMessages = new EnumMap<StorageService.Verb, AtomicInteger>(StorageService.Verb.class);
     private final List<ILatencySubscriber> subscribers = new ArrayList<ILatencySubscriber>();
+    private static final long DEFAULT_CALLBACK_TIMEOUT = (long) (1.1 * DatabaseDescriptor.getRpcTimeout());
 
     {
         for (StorageService.Verb verb : StorageService.Verb.values())
@@ -121,7 +122,7 @@ public final class MessagingService implements MessagingServiceMBean
                 return null;
             }
         };
-        callbacks = new ExpiringMap<String, Pair<InetAddress, IMessageCallback>>((long) (1.1 * DatabaseDescriptor.getRpcTimeout()), timeoutReporter);
+        callbacks = new ExpiringMap<String, Pair<InetAddress, IMessageCallback>>(DEFAULT_CALLBACK_TIMEOUT, timeoutReporter);
 
         MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
         try
@@ -256,7 +257,12 @@ public final class MessagingService implements MessagingServiceMBean
 
     private void addCallback(IMessageCallback cb, String messageId, InetAddress to)
     {
-        Pair<InetAddress, IMessageCallback> previous = callbacks.put(messageId, new Pair<InetAddress, IMessageCallback>(to, cb));
+        addCallback(cb, messageId, to, DEFAULT_CALLBACK_TIMEOUT);
+    }
+
+    private void addCallback(IMessageCallback cb, String messageId, InetAddress to, long timeout)
+    {
+        Pair<InetAddress, IMessageCallback> previous = callbacks.put(messageId, new Pair<InetAddress, IMessageCallback>(to, cb), timeout);
         assert previous == null;
     }
     
@@ -267,6 +273,14 @@ public final class MessagingService implements MessagingServiceMBean
         return Integer.toString(idGen.incrementAndGet());
     }
 
+    /*
+     * @see #sendRR(Message message, InetAddress to, IMessageCallback cb, long timeout)
+     */
+    public String sendRR(Message message, InetAddress to, IMessageCallback cb)
+    {
+        return sendRR(message, to, cb, DEFAULT_CALLBACK_TIMEOUT);
+    }
+
     /**
      * Send a message to a given endpoint. This method specifies a callback
      * which is invoked with the actual response.
@@ -275,12 +289,13 @@ public final class MessagingService implements MessagingServiceMBean
      * @param cb callback interface which is used to pass the responses or
      *           suggest that a timeout occurred to the invoker of the send().
      *           suggest that a timeout occurred to the invoker of the send().
+     * @param timeout the timeout used for expiration
      * @return an reference to message id used to match with the result
      */
-    public String sendRR(Message message, InetAddress to, IMessageCallback cb)
+    public String sendRR(Message message, InetAddress to, IMessageCallback cb, long timeout)
     {
         String id = nextId();
-        addCallback(cb, id, to);
+        addCallback(cb, id, to, timeout);
         sendOneWay(message, id, to);
         return id;
     }
@@ -623,5 +638,10 @@ public final class MessagingService implements MessagingServiceMBean
         for (Map.Entry<InetAddress, OutboundTcpConnectionPool> entry : connectionManagers_.entrySet())
             completedTasks.put(entry.getKey().getHostAddress(), entry.getValue().ackCon.getCompletedMesssages());
         return completedTasks;
+    }
+
+    public static long getDefaultCallbackTimeout()
+    {
+        return DEFAULT_CALLBACK_TIMEOUT;
     }
 }

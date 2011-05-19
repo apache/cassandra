@@ -21,56 +21,50 @@
 package org.apache.cassandra.cql;
 
 import java.nio.ByteBuffer;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
+import org.apache.cassandra.auth.Permission;
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.RowMutation;
+import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.thrift.InvalidRequestException;
+
+import static org.apache.cassandra.cql.QueryProcessor.validateColumn;
+
+import static org.apache.cassandra.thrift.ThriftValidation.validateColumnFamily;
 
 /**
  * An <code>UPDATE</code> statement parsed from a CQL query statement.
  *
  */
-public class UpdateStatement
+public class UpdateStatement extends AbstractModification
 {
-    public static final ConsistencyLevel defaultConsistency = ConsistencyLevel.ONE;
-    private String columnFamily;
-    private ConsistencyLevel cLevel = null;
     private Map<Term, Term> columns;
     private List<Term> columnNames, columnValues;
-    private Term key;
+    private List<Term> keys;
     
     /**
      * Creates a new UpdateStatement from a column family name, columns map, consistency
      * level, and key term.
      * 
      * @param columnFamily column family name
-     * @param cLevel the thrift consistency level
      * @param columns a map of column name/values pairs
-     * @param key the key name
+     * @param keys the keys to update
+     * @param attrs additional attributes for statement (CL, timestamp, timeToLive)
      */
-    public UpdateStatement(String columnFamily, ConsistencyLevel cLevel, Map<Term, Term> columns, Term key)
+    public UpdateStatement(String columnFamily,
+                           Map<Term, Term> columns,
+                           List<Term> keys,
+                           Attributes attrs)
     {
-        this.columnFamily = columnFamily;
-        this.cLevel = cLevel;
-        this.columns = columns;
-        this.key = key;
-    }
+        super(columnFamily, attrs);
 
-    /**
-     * Creates a new UpdateStatement from a column family name, columns map,
-     * and key term.
-     * 
-     * @param columnFamily column family name
-     * @param columns a map of column name/values pairs
-     * @param key the key name
-     */
-    public UpdateStatement(String columnFamily, Map<Term, Term> columns, Term key)
-    {
-        this(columnFamily, null, columns, key);
+        this.columns = columns;
+        this.keys = keys;
     }
     
     /**
@@ -79,18 +73,22 @@ public class UpdateStatement
      * alternate update format, <code>INSERT</code>.
      * 
      * @param columnFamily column family name
-     * @param cLevel the thrift consistency level
      * @param columnNames list of column names
      * @param columnValues list of column values (corresponds to names)
-     * @param key the key name
+     * @param keys the keys to update
+     * @param attrs additional attributes for statement (CL, timestamp, timeToLive)
      */
-    public UpdateStatement(String columnFamily, ConsistencyLevel cLevel, List<Term> columnNames, List<Term> columnValues, Term key)
+    public UpdateStatement(String columnFamily,
+                           List<Term> columnNames,
+                           List<Term> columnValues,
+                           List<Term> keys,
+                           Attributes attrs)
     {
-        this.columnFamily = columnFamily;
-        this.cLevel = cLevel;
+        super(columnFamily, attrs);
+
         this.columnNames = columnNames;
         this.columnValues = columnValues;
-        this.key = key;
+        this.keys = keys;
     }
 
     /**
@@ -114,16 +112,98 @@ public class UpdateStatement
         return (cLevel != null);
     }
 
+    /** {@inheritDoc} */
+    public List<RowMutation> prepareRowMutations(String keyspace, ClientState clientState) throws InvalidRequestException
+    {
+        return prepareRowMutations(keyspace, clientState, null);
+    }
+
+    /** {@inheritDoc} */
+    public List<RowMutation> prepareRowMutations(String keyspace, ClientState clientState, Long timestamp) throws InvalidRequestException
+    {
+        List<String> cfamsSeen = new ArrayList<String>();
+
+        CFMetaData metadata = validateColumnFamily(keyspace, columnFamily, false);
+
+        // Avoid unnecessary authorizations.
+        if (!(cfamsSeen.contains(columnFamily)))
+        {
+            clientState.hasColumnFamilyAccess(columnFamily, Permission.WRITE);
+            cfamsSeen.add(columnFamily);
+        }
+
+        List<RowMutation> rowMutations = new LinkedList<RowMutation>();
+
+        for (Term key: keys)
+        {
+            rowMutations.add(mutationForKey(keyspace, key.getByteBuffer(getKeyType(keyspace)), metadata, timestamp));
+        }
+
+        return rowMutations;
+    }
+
+    /**
+     * Compute a row mutation for a single key
+     *
+     * @param keyspace working keyspace
+     * @param key key to change
+     * @param metadata information about CF
+     * @param timestamp global timestamp to use for every key mutation
+     *
+     * @return row mutation
+     *
+     * @throws InvalidRequestException on the wrong request
+     */
+    private RowMutation mutationForKey(String keyspace, ByteBuffer key, CFMetaData metadata, Long timestamp) throws InvalidRequestException
+    {
+        RowMutation rm = new RowMutation(keyspace, key);
+
+        mutationForKey(rm, keyspace, metadata, timestamp);
+
+        return rm;
+    }
+
+    /** {@inheritDoc} */
+    public RowMutation mutationForKey(ByteBuffer key, String keyspace, Long timestamp) throws InvalidRequestException
+    {
+        return mutationForKey(keyspace, key, validateColumnFamily(keyspace, columnFamily, false), timestamp);
+    }
+
+    /** {@inheritDoc} */
+    public void mutationForKey(RowMutation mutation, String keyspace, Long timestamp) throws InvalidRequestException
+    {
+        mutationForKey(mutation, keyspace, validateColumnFamily(keyspace, columnFamily, false), timestamp);
+    }
+
+    private void mutationForKey(RowMutation mutation, String keyspace, CFMetaData metadata, Long timestamp) throws InvalidRequestException
+    {
+        AbstractType<?> comparator = getComparator(keyspace);
+
+        for (Map.Entry<Term, Term> column : getColumns().entrySet())
+        {
+            ByteBuffer colName = column.getKey().getByteBuffer(comparator);
+            ByteBuffer colValue = column.getValue().getByteBuffer(getValueValidator(keyspace, colName));
+
+            validateColumn(metadata, colName, colValue);
+
+            mutation.add(new QueryPath(columnFamily, null, colName),
+                         colValue,
+                         (timestamp == null) ? getTimestamp() : timestamp,
+                         getTimeToLive());
+        }
+    }
+
     public String getColumnFamily()
     {
         return columnFamily;
     }
-    
-    public Term getKey()
+
+    /** {@inheritDoc} */
+    public List<Term> getKeys()
     {
-        return key;
+        return keys;
     }
-    
+
     public Map<Term, Term> getColumns() throws InvalidRequestException
     {
         // Created from an UPDATE
@@ -148,11 +228,13 @@ public class UpdateStatement
     
     public String toString()
     {
-        return String.format("UpdateStatement(columnFamily=%s, key=%s, columns=%s, consistency=%s)",
+        return String.format("UpdateStatement(columnFamily=%s, keys=%s, columns=%s, consistency=%s, timestamp=%s, timeToLive=%s)",
                              columnFamily,
-                             key,
+                             keys,
                              columns,
-                             cLevel);
+                             getConsistencyLevel(),
+                             timestamp,
+                             timeToLive);
     }
     
     public AbstractType<?> getKeyType(String keyspace)

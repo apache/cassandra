@@ -102,12 +102,12 @@ options {
 
 query returns [CQLStatement stmnt]
     : selectStatement   { $stmnt = new CQLStatement(StatementType.SELECT, $selectStatement.expr); }
-    | insertStatement   { $stmnt = new CQLStatement(StatementType.INSERT, $insertStatement.expr); }
+    | insertStatement endStmnt { $stmnt = new CQLStatement(StatementType.INSERT, $insertStatement.expr); }
     | updateStatement endStmnt { $stmnt = new CQLStatement(StatementType.UPDATE, $updateStatement.expr); }
-    | batchUpdateStatement { $stmnt = new CQLStatement(StatementType.BATCH_UPDATE, $batchUpdateStatement.expr); }
+    | batchStatement { $stmnt = new CQLStatement(StatementType.BATCH, $batchStatement.expr); }
     | useStatement      { $stmnt = new CQLStatement(StatementType.USE, $useStatement.keyspace); }
     | truncateStatement { $stmnt = new CQLStatement(StatementType.TRUNCATE, $truncateStatement.cfam); }
-    | deleteStatement   { $stmnt = new CQLStatement(StatementType.DELETE, $deleteStatement.expr); }
+    | deleteStatement endStmnt { $stmnt = new CQLStatement(StatementType.DELETE, $deleteStatement.expr); }
     | createKeyspaceStatement { $stmnt = new CQLStatement(StatementType.CREATE_KEYSPACE, $createKeyspaceStatement.expr); }
     | createColumnFamilyStatement { $stmnt = new CQLStatement(StatementType.CREATE_COLUMNFAMILY, $createColumnFamilyStatement.expr); }
     | createIndexStatement { $stmnt = new CQLStatement(StatementType.CREATE_INDEX, $createIndexStatement.expr); }
@@ -121,14 +121,16 @@ useStatement returns [String keyspace]
     ;
 
 /**
- * SELECT FROM
+ * SELECT
+ *  (REVERSED)? <expression>
+ * FROM
  *     <CF>
  * USING
- *     CONSISTENCY.ONE
+ *     CONSISTENCY <LEVEL>
  * WHERE
  *     KEY = "key1" AND KEY = "key2" AND
  *     COL > 1 AND COL < 100
- * COLLIMIT 10 DESC;
+ * LIMIT <NUMBER>;
  */
 selectStatement returns [SelectStatement expr]
     : { 
@@ -174,8 +176,14 @@ selectExpression returns [SelectExpression expr]
 
 // relation [[AND relation] ...]
 whereClause returns [WhereClause clause]
+    @init {
+        WhereClause inClause = new WhereClause();
+    }
     : first=relation { $clause = new WhereClause(first); } 
           (K_AND next=relation { $clause.and(next); })*
+      | K_KEY K_IN '(' f1=term { inClause.andKeyEquals(f1); }
+                      (',' fN=term { inClause.andKeyEquals(fN); } )* ')'
+        { $clause = inClause; }
     ;
 
 /**
@@ -185,13 +193,15 @@ whereClause returns [WhereClause clause]
  * VALUES
  *    (<key>, <value>, <value>, ...)
  * (USING
- *    CONSISTENCY <level>)?;
+ *    CONSISTENCY <level>
+ *   (AND TIMESTAMP <long>)?
+ * )?;
  *
  * Consistency level is set to ONE by default
  */
 insertStatement returns [UpdateStatement expr]
     : {
-          ConsistencyLevel cLevel = ConsistencyLevel.ONE;
+          Attributes attrs = new Attributes();
           Map<Term, Term> columns = new HashMap<Term, Term>();
 
           List<Term> columnNames  = new ArrayList<Term>();
@@ -201,38 +211,74 @@ insertStatement returns [UpdateStatement expr]
           '(' K_KEY    ( ',' column_name=term  { columnNames.add($column_name.item); } )+ ')'
         K_VALUES
           '(' key=term ( ',' column_value=term { columnValues.add($column_value.item); })+ ')'
-        ( K_USING K_CONSISTENCY K_LEVEL { cLevel = ConsistencyLevel.valueOf($K_LEVEL.text); } )?
-      endStmnt
+        ( usingClause[attrs] )?
       {
-          return new UpdateStatement($columnFamily.text, cLevel, columnNames, columnValues, key);
+          return new UpdateStatement($columnFamily.text, columnNames, columnValues, Collections.singletonList(key), attrs);
       }
     ;
 
+usingClause[Attributes attrs]
+    : K_USING usingClauseObjective[attrs] ( K_AND? usingClauseObjective[attrs] )*
+    ;
+
+usingClauseObjective[Attributes attrs]
+    : K_CONSISTENCY K_LEVEL  { attrs.setConsistencyLevel(ConsistencyLevel.valueOf($K_LEVEL.text)); }
+    | K_TIMESTAMP ts=INTEGER { attrs.setTimestamp(Long.valueOf($ts.text)); }
+    | K_TTL t=INTEGER        { attrs.setTimeToLive(Integer.parseInt($t.text)); }
+    ;
+
 /**
- * BEGIN BATCH [USING CONSISTENCY.<LVL>]
- * UPDATE <CF> SET name1 = value1 WHERE KEY = keyname1;
- * UPDATE <CF> SET name2 = value2 WHERE KEY = keyname2;
- * UPDATE <CF> SET name3 = value3 WHERE KEY = keyname3;
+ * BEGIN BATCH [USING CONSISTENCY <LVL>]
+ *   UPDATE <CF> SET name1 = value1 WHERE KEY = keyname1;
+ *   UPDATE <CF> SET name2 = value2 WHERE KEY = keyname2;
+ *   UPDATE <CF> SET name3 = value3 WHERE KEY = keyname3;
+ *   ...
+ * APPLY BATCH
+ *
+ * OR
+ *
+ * BEGIN BATCH [USING CONSISTENCY <LVL>]
+ *   INSERT INTO <CF> (KEY, <name>) VALUES ('<key>', '<value>');
+ *   INSERT INTO <CF> (KEY, <name>) VALUES ('<key>', '<value>');
+ *   ...
+ * APPLY BATCH
+ *
+ * OR
+ *
+ * BEGIN BATCH [USING CONSISTENCY <LVL>]
+ *   DELETE name1, name2 FROM <CF> WHERE key = <key>
+ *   DELETE name3, name4 FROM <CF> WHERE key = <key>
+ *   ...
  * APPLY BATCH
  */
-batchUpdateStatement returns [BatchUpdateStatement expr]
+batchStatement returns [BatchStatement expr]
     : {
-          ConsistencyLevel cLevel = ConsistencyLevel.ONE;
-          List<UpdateStatement> updates = new ArrayList<UpdateStatement>();
+          Attributes attrs = new Attributes();
+          attrs.setConsistencyLevel(ConsistencyLevel.ONE);
+
+          List<AbstractModification> statements = new ArrayList<AbstractModification>();
       }
-      K_BEGIN K_BATCH ( K_USING K_CONSISTENCY K_LEVEL { cLevel = ConsistencyLevel.valueOf($K_LEVEL.text); } )?
-          u1=updateStatement ';'? { updates.add(u1); } ( uN=updateStatement ';'? { updates.add(uN); } )*
-      K_APPLY K_BATCH EOF
+      K_BEGIN K_BATCH ( usingClause[attrs] )?
+          s1=batchStatementObjective ';'? { statements.add(s1); } ( sN=batchStatementObjective ';'? { statements.add(sN); } )*
+      K_APPLY K_BATCH endStmnt
       {
-          return new BatchUpdateStatement(updates, cLevel);
+          return new BatchStatement(statements, attrs);
       }
+    ;
+
+batchStatementObjective returns [AbstractModification statement]
+    : i=insertStatement  { $statement = i; }
+    | u=updateStatement  { $statement = u; }
+    | d=deleteStatement  { $statement = d; }
     ;
 
 /**
  * UPDATE
  *     <CF>
- * USING
+ * (USING
  *     CONSISTENCY.ONE
+ *    (AND TIMESTAMP <long>)?
+ * )?
  * SET
  *     name1 = value1,
  *     name2 = value2
@@ -241,15 +287,18 @@ batchUpdateStatement returns [BatchUpdateStatement expr]
  */
 updateStatement returns [UpdateStatement expr]
     : {
-          ConsistencyLevel cLevel = null;
+          Attributes attrs = new Attributes();
           Map<Term, Term> columns = new HashMap<Term, Term>();
+          List<Term> keyList = null;
       }
       K_UPDATE columnFamily=( IDENT | STRING_LITERAL | INTEGER )
-          (K_USING K_CONSISTENCY K_LEVEL { cLevel = ConsistencyLevel.valueOf($K_LEVEL.text); })?
+          ( usingClause[attrs] )?
           K_SET termPair[columns] (',' termPair[columns])*
-          K_WHERE K_KEY '=' key=term
+          K_WHERE ( K_KEY '=' key=term { keyList = Collections.singletonList(key); }
+                    |
+                    K_KEY K_IN '(' keys=termList { keyList = $keys.items; } ')' )
       {
-          return new UpdateStatement($columnFamily.text, cLevel, columns, key);
+          return new UpdateStatement($columnFamily.text, columns, keyList, attrs);
       }
     ;
 
@@ -265,16 +314,17 @@ updateStatement returns [UpdateStatement expr]
  */
 deleteStatement returns [DeleteStatement expr]
     : {
-          ConsistencyLevel cLevel = ConsistencyLevel.ONE;
+          ConsistencyLevel cLevel = null;
           List<Term> keyList = null;
           List<Term> columnsList = Collections.emptyList();
       }
       K_DELETE
           ( cols=termList { columnsList = $cols.items; })?
-          K_FROM columnFamily=( IDENT | STRING_LITERAL | INTEGER ) ( K_USING K_CONSISTENCY K_LEVEL )?
+          K_FROM columnFamily=( IDENT | STRING_LITERAL | INTEGER )
+          ( K_USING K_CONSISTENCY K_LEVEL { cLevel = ConsistencyLevel.valueOf($K_LEVEL.text); } )?
           K_WHERE ( K_KEY '=' key=term           { keyList = Collections.singletonList(key); }
                   | K_KEY K_IN '(' keys=termList { keyList = $keys.items; } ')'
-                  )? endStmnt
+                  )?
       {
           return new DeleteStatement(columnsList, $columnFamily.text, cLevel, keyList);
       }
@@ -416,6 +466,8 @@ K_DROP:        D R O P;
 K_PRIMARY:     P R I M A R Y;
 K_INTO:        I N T O;
 K_VALUES:      V A L U E S;
+K_TIMESTAMP:   T I M E S T A M P;
+K_TTL:         T T L;
 
 // Case-insensitive alpha characters
 fragment A: ('a'|'A');

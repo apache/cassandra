@@ -841,7 +841,7 @@ public class Gossiper implements IFailureDetectionEventListener
         /* initialize the heartbeat state for this localEndpoint */
         maybeInitializeLocalState(generationNbr);
         EndpointState localState = endpointStateMap.get(FBUtilities.getLocalAddress());
-        
+
         //notify snitches that Gossiper is about to start
         DatabaseDescriptor.getEndpointSnitch().gossiperStarting();
         if (logger.isTraceEnabled())
@@ -865,6 +865,7 @@ public class Gossiper implements IFailureDetectionEventListener
             endpointStateMap.put(FBUtilities.getLocalAddress(), localState);
         }
     }
+    
 
     /**
      * Add an endpoint we knew about previously, but whose state is unknown

@@ -56,6 +56,7 @@ h3. Filtering rows
 bc. 
 SELECT ... WHERE KEY = keyname AND name1 = value1
 SELECT ... WHERE KEY >= startkey and KEY =< endkey AND name1 = value1
+SELECT ... WHERE KEY IN ('<key>', '<key>', '<key>', ...)
 
 The WHERE clause provides for filtering the rows that appear in results.  The clause can filter on a key name, or range of keys, and in the case of indexed columns, on column values.  Key filters are specified using the @KEY@ keyword, a relational operator, (one of @=@, @>@, @>=@, @<@, and @<=@), and a term value.  When terms appear on both sides of a relational operator it is assumed the filter applies to an indexed column. With column index filters, the term on the left of the operator is the name, the term on the right is the value to filter __on__.
 
@@ -73,7 +74,7 @@ h2. INSERT
 _Synopsis:_
 
 bc.
-INSERT INTO <COLUMN FAMILY> (KEY, <col>, <col>, ...) VALUES (<key>, <val>, <val>, ...) [USING CONSISTENCY <LEVEL];
+INSERT INTO <COLUMN FAMILY> (KEY, <col>, <col>, ...) VALUES (<key>, <val>, <val>, ...) [USING CONSISTENCY <LEVEL> [AND TIMESTAMP <timestamp>] [AND TTL <timeToLive>]];
 
 An @INSERT@ is used to write one or more columns to a record in a Cassandra column family. No results are returned. 
 
@@ -84,7 +85,7 @@ h2. UPDATE
 _Synopsis:_
 
 bc. 
-UPDATE <COLUMN FAMILY> [USING <CONSISTENCY>]
+UPDATE <COLUMN FAMILY> [USING <CONSISTENCY> [AND TIMESTAMP <timestamp>] [AND TTL <timeToLive>]]
         SET name1 = value1, name2 = value2 WHERE KEY = keyname;
         
 An @UPDATE@ is used to write one or more columns to a record in a Cassandra column family. No results are returned.
@@ -103,25 +104,27 @@ UPDATE ... [USING <CONSISTENCY>] ...
 
 Following the column family identifier is an optional "consistency level specification":#consistency.
 
+h3. Timestamp
+
+bc.
+UPDATE ... [USING TIMESTAMP <timestamp>] ...
+
+@UPDATE@ supports setting client-supplied optional timestamp for modification.
+
+h3. TTL
+
+bc.
+UPDATE ... [USING TTL <timeToLive>] ...
+
+@UPDATE@ supports setting time to live (TTL) for each of the columns in @UPDATE@ statement.
+
 h3. Specifying Columns and Row
 
 bc. 
 UPDATE ... SET name1 = value1, name2 = value2 WHERE KEY = keyname;
+UPDATE ... SET name1 = value1, name2 = value2 WHERE KEY IN ('<key>', '<key>', ...)
 
 Rows are created or updated by supplying column names and values in term assignment format. Multiple columns can be set by separating the name/value pairs using commas.  Each update statement requires exactly one key to be specified using a WHERE clause and the @KEY@ keyword.
-
-Additionally, it is also possible to send multiple UPDATES to a node at once using a batch syntax:
-
-bc. 
-BEGIN BATCH [USING <CONSISTENCY>]
-UPDATE CF1 SET name1 = value1, name2 = value2 WHERE KEY = keyname1;
-UPDATE CF1 SET name3 = value3 WHERE KEY = keyname2;
-UPDATE CF2 SET name4 = value4, name5 = value5 WHERE KEY = keyname3;
-APPLY BATCH
-
-When batching UPDATEs, a single consistency level is used for the entire batch, it appears after the @BEGIN BATCH@ statement, and uses the standard "consistency level specification":#consistency. Batch UPDATEs default to @CONSISTENCY.ONE@ when left unspecified.
-
-_NOTE: While there are no isolation guarantees,  @UPDATE@ queries are atomic within a give record._
 
 h2. DELETE
 
@@ -161,6 +164,32 @@ DELETE ... WHERE KEY = keyname1
 DELETE ... WHERE KEY IN (keyname1, keyname2)
 
 The @WHERE@ clause is used to determine which row(s) a @DELETE@ applies to.  The first form allows the specification of a single keyname using the @KEY@ keyword and the @=@ operator.  The second form allows a list of keyname terms to be specified using the @IN@ notation and a parenthesized list of comma-delimited keyname terms.
+
+h2. BATCH
+
+_Synopsis:_
+
+bc.
+BATCH BEGIN BATCH [USING CONSISTENCY <LEVEL> [AND TIMESTAMP <timestamp>]]
+    INSERT or UPDATE or DELETE statements separated by semicolon or "end of line"
+APPLY BATCH
+
+@BATCH@ supports setting client-supplied optional global timestamp which will be used for each of the operations included in batch.
+
+A single consistency level is used for the entire batch, it appears after the @BEGIN BATCH@ statement, and uses the standard "consistency level specification":#consistency. Batch default to @CONSISTENCY.ONE@ when left unspecified.
+
+_NOTE: While there are no isolation guarantees,  @UPDATE@ queries are atomic within a give record._
+
+_Example:_
+
+bc.
+BEGIN BATCH USING CONSISTENCY QUORUM
+  INSERT INTO users (KEY, password, name) VALUES ('user2', 'ch@ngem3b', 'second user')
+  UPDATE users SET password = 'ps22dhds' WHERE KEY = 'user2'
+  INSERT INTO users (KEY, password) VALUES ('user3', 'ch@ngem3c')
+  DELETE name FROM users WHERE key = 'user2'
+  INSERT INTO users (KEY, password, name) VALUES ('user4', 'ch@ngem3c', 'Andrew')
+APPLY BATCH
      
 h2. TRUNCATE
 

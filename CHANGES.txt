@@ -1,3 +1,15 @@
+0.8.1
+ * add support for insert, delete in cql BATCH (CASSANDRA-2537)
+ * add support for IN to cql SELECT, UPDATE (CASSANDRA-2553)
+ * add timestamp support to cql INSERT, UPDATE, and BATCH (CASSANDRA-2555)
+ * add support for comparator parameters and a generic ReverseType
+   (CASSANDRA-2355)
+ * add CompositeType and DynamicCompositeType (CASSANDRA-2231)
+ * add CQL TTL support (CASSANDRA-2476)
+ * optimize batches containing multiple updates to the same row
+   (CASSANDRA-2583)
+
+
 0.8-?
  * adjust hinted handoff page size to avoid OOM with large columns 
    (CASSANDRA-2652)
@@ -49,23 +61,24 @@
  * fix nodetool setcompactionthroughput (CASSANDRA-2550)
  * move	gossip heartbeat back to its own thread (CASSANDRA-2554)
  * validate cql TRUNCATE columnfamily before truncating (CASSANDRA-2570)
- * disallow making schema changes to system keyspace (CASSANDRA-2563)
  * fix batch_mutate for mixed standard-counter mutations (CASSANDRA-2457)
+ * disallow making schema changes to system keyspace (CASSANDRA-2563)
  * fix sending mutation messages multiple times (CASSANDRA-2557)
  * fix incorrect use of NBHM.size in ReadCallback that could cause
    reads to time out even when responses were received (CASSAMDRA-2552)
  * trigger read repair correctly for LOCAL_QUORUM reads (CASSANDRA-2556)
+ * Allow configuring the number of compaction thread (CASSANDRA-2558)
  * forceUserDefinedCompaction will attempt to compact what it is given
    even if the pessimistic estimate is that there is not enough disk space;
    automatic compactions will only compact 2 or more sstables (CASSANDRA-2575)
  * refuse to apply migrations with older timestamps than the current 
    schema (CASSANDRA-2536)
- * Allow configuring the number of compaction thread (CASSANDRA-2558)
  * remove unframed Thrift transport option
  * include indexes in snapshots (CASSANDRA-2596)
  * improve ignoring of obsolete mutations in index maintenance (CASSANDRA-2401)
  * recognize attempt to drop just the index while leaving the column
    definition alone (CASSANDRA-2619)
+  
 
 0.8.0-beta1
  * remove Avro RPC support (CASSANDRA-926)
@@ -88,10 +101,10 @@
  * purge tombstones from row cache (CASSANDRA-2305)
  * push replication_factor into strategy_options (CASSANDRA-1263)
  * give snapshots the same name on each node (CASSANDRA-1791)
- * add key type information and alias (CASSANDRA-2311, 2396)
  * remove "nodetool loadbalance" (CASSANDRA-2448)
  * multithreaded compaction (CASSANDRA-2191)
  * compaction throttling (CASSANDRA-2156)
+ * add key type information and alias (CASSANDRA-2311, 2396)
  * cli no longer divides read_repair_chance by 100 (CASSANDRA-2458)
  * made CompactionInfo.getTaskType return an enum (CASSANDRA-2482)
  * add a server-wide cap on measured memtable memory usage (CASSANDRA-2006)

@@ -62,26 +62,27 @@ import static org.apache.cassandra.thrift.ThriftValidation.validateColumnFamily;
 public class QueryProcessor
 {
     private static final Logger logger = LoggerFactory.getLogger(QueryProcessor.class);
-    
+
     private static List<org.apache.cassandra.db.Row> getSlice(String keyspace, SelectStatement select)
     throws InvalidRequestException, TimedOutException, UnavailableException
     {
-        List<org.apache.cassandra.db.Row> rows;
         QueryPath queryPath = new QueryPath(select.getColumnFamily());
-        List<ReadCommand> commands = new ArrayList<ReadCommand>();
-
-        assert select.getKeys().size() == 1;
-        
         CFMetaData metadata = validateColumnFamily(keyspace, select.getColumnFamily(), false);
-        ByteBuffer key = select.getKeys().get(0).getByteBuffer(metadata.getKeyValidator());
-        validateKey(key);
+        List<ReadCommand> commands = new ArrayList<ReadCommand>();
 
         // ...of a list of column names
         if (!select.isColumnRange())
         {
             Collection<ByteBuffer> columnNames = getColumnNames(select, metadata);
             validateColumnNames(columnNames);
-            commands.add(new SliceByNamesReadCommand(keyspace, key, queryPath, columnNames));
+
+            for (Term rawKey: select.getKeys())
+            {
+                ByteBuffer key = rawKey.getByteBuffer(metadata.getKeyValidator());
+
+                validateKey(key);
+                commands.add(new SliceByNamesReadCommand(keyspace, key, queryPath, columnNames));
+            }
         }
         // ...a range (slice) of column names
         else
@@ -89,20 +90,26 @@ public class QueryProcessor
             AbstractType<?> comparator = select.getComparator(keyspace);
             ByteBuffer start = select.getColumnStart().getByteBuffer(comparator);
             ByteBuffer finish = select.getColumnFinish().getByteBuffer(comparator);
-            
-            validateSliceRange(metadata, start, finish, select.isColumnsReversed());
-            commands.add(new SliceFromReadCommand(keyspace,
-                                                  key,
-                                                  queryPath,
-                                                  start,
-                                                  finish,
-                                                  select.isColumnsReversed(),
-                                                  select.getColumnsLimit()));
+
+            for (Term rawKey : select.getKeys())
+            {
+                ByteBuffer key = rawKey.getByteBuffer(metadata.getKeyValidator());
+
+                validateKey(key);
+                validateSliceRange(metadata, start, finish, select.isColumnsReversed());
+                commands.add(new SliceFromReadCommand(keyspace,
+                                                      key,
+                                                      queryPath,
+                                                      start,
+                                                      finish,
+                                                      select.isColumnsReversed(),
+                                                      select.getColumnsLimit()));
+            }
         }
 
         try
         {
-            rows = StorageProxy.read(commands, select.getConsistencyLevel());
+            return StorageProxy.read(commands, select.getConsistencyLevel());
         }
         catch (TimeoutException e)
         {
@@ -112,8 +119,6 @@ public class QueryProcessor
         {
             throw new RuntimeException(e);
         }
-
-        return rows;
     }
 
     private static List<ByteBuffer> getColumnNames(SelectStatement select, CFMetaData metadata) throws InvalidRequestException
@@ -261,29 +266,14 @@ public class QueryProcessor
 
         for (UpdateStatement update : updateStatements)
         {
-            CFMetaData metadata = validateColumnFamily(keyspace, update.getColumnFamily(), false);
             // Avoid unnecessary authorizations.
             if (!(cfamsSeen.contains(update.getColumnFamily())))
             {
                 clientState.hasColumnFamilyAccess(update.getColumnFamily(), Permission.WRITE);
                 cfamsSeen.add(update.getColumnFamily());
             }
-            
-            ByteBuffer key = update.getKey().getByteBuffer(update.getKeyType(keyspace));
-            validateKey(key);
-            AbstractType<?> comparator = update.getComparator(keyspace);
-            
-            RowMutation rm = new RowMutation(keyspace, key);
-            for (Map.Entry<Term, Term> column : update.getColumns().entrySet())
-            {
-                ByteBuffer colName = column.getKey().getByteBuffer(comparator);
-                ByteBuffer colValue = column.getValue().getByteBuffer(update.getValueValidator(keyspace, colName));
-                
-                validateColumn(metadata, colName, colValue);
-                rm.add(new QueryPath(update.getColumnFamily(), null, colName), colValue, System.currentTimeMillis());
-            }
-            
-            rowMutations.add(rm);
+
+            rowMutations.addAll(update.prepareRowMutations(keyspace, clientState));
         }
         
         try
@@ -340,10 +330,6 @@ public class QueryProcessor
         if (select.isKeyRange() && (select.getKeyFinish() != null) && (select.getColumnRelations().size() > 0))
             throw new InvalidRequestException("You cannot combine key range and by-column clauses in a SELECT");
         
-        // Multiget scenario (KEY = foo AND KEY = bar ...)
-        if (select.getKeys().size() > 1)
-            throw new InvalidRequestException("SELECTs can contain only by by-key clause");
-        
         AbstractType<?> comparator = select.getComparator(keyspace);
         
         if (select.getColumnRelations().size() > 0)
@@ -396,7 +382,7 @@ public class QueryProcessor
         }
     }
     
-    private static void validateKey(ByteBuffer key) throws InvalidRequestException
+    public static void validateKey(ByteBuffer key) throws InvalidRequestException
     {
         if (key == null || key.remaining() == 0)
         {
@@ -425,13 +411,13 @@ public class QueryProcessor
         }
     }
 
-    private static void validateColumnName(ByteBuffer column)
+    public static void validateColumnName(ByteBuffer column)
     throws InvalidRequestException
     {
         validateColumnNames(Arrays.asList(column));
     }
     
-    private static void validateColumn(CFMetaData metadata, ByteBuffer name, ByteBuffer value)
+    public static void validateColumn(CFMetaData metadata, ByteBuffer name, ByteBuffer value)
     throws InvalidRequestException
     {
         validateColumnName(name);
@@ -508,13 +494,13 @@ public class QueryProcessor
                 metadata = validateColumnFamily(keyspace, select.getColumnFamily(), false);
                 validateSelect(keyspace, select);
                 
-                List<org.apache.cassandra.db.Row> rows = null;
+                List<org.apache.cassandra.db.Row> rows;
 
                 // By-key
                 if (!select.isKeyRange() && (select.getKeys().size() > 0))
                 {
                     rows = getSlice(keyspace, select);
-                    
+
                     // Only return the column count, (of the at-most 1 row).
                     if (select.isCountOperation())
                     {
@@ -570,15 +556,36 @@ public class QueryProcessor
                 result.type = CqlResultType.VOID;
                 return result;
                 
-            case BATCH_UPDATE:
-                BatchUpdateStatement batch = (BatchUpdateStatement)statement.statement;
-                
-                for (UpdateStatement up : batch.getUpdates())
+            case BATCH:
+                BatchStatement batch = (BatchStatement) statement.statement;
+
+                if (batch.getTimeToLive() != 0)
+                    throw new InvalidRequestException("Global TTL on the BATCH statement is not supported.");
+
+                for (AbstractModification up : batch.getStatements())
+                {
                     if (up.isSetConsistencyLevel())
                         throw new InvalidRequestException(
-                                "Consistency level must be set on the BATCH, not individual UPDATE statements");
-                
-                batchUpdate(clientState, batch.getUpdates(), batch.getConsistencyLevel());
+                                "Consistency level must be set on the BATCH, not individual statements");
+
+                    if (batch.isSetTimestamp() && up.isSetTimestamp())
+                        throw new InvalidRequestException(
+                                "Timestamp must be set either on BATCH or individual statements");
+                }
+
+                try
+                {
+                    StorageProxy.mutate(batch.getMutations(keyspace, clientState), batch.getConsistencyLevel());
+                }
+                catch (org.apache.cassandra.thrift.UnavailableException e)
+                {
+                    throw new UnavailableException();
+                }
+                catch (TimeoutException e)
+                {
+                    throw new TimedOutException();
+                }
+
                 result.type = CqlResultType.VOID;
                 return result;
                 
@@ -611,34 +618,9 @@ public class QueryProcessor
             
             case DELETE:
                 DeleteStatement delete = (DeleteStatement)statement.statement;
-                clientState.hasColumnFamilyAccess(delete.getColumnFamily(), Permission.WRITE);
-                metadata = validateColumnFamily(keyspace, delete.getColumnFamily(), false);
-                AbstractType comparator = metadata.getComparatorFor(null);
-                AbstractType<?> keyType = DatabaseDescriptor.getCFMetaData(keyspace,
-                                                                           delete.getColumnFamily()).getKeyValidator();
-                
-                List<RowMutation> rowMutations = new ArrayList<RowMutation>();
-                for (Term key : delete.getKeys())
-                {
-                    RowMutation rm = new RowMutation(keyspace, key.getByteBuffer(keyType));
-                    if (delete.getColumns().size() < 1)     // No columns, delete the row
-                        rm.delete(new QueryPath(delete.getColumnFamily()), System.currentTimeMillis());
-                    else    // Delete specific columns
-                    {
-                        for (Term column : delete.getColumns())
-                        {
-                            ByteBuffer columnName = column.getByteBuffer(comparator);
-                            validateColumnName(columnName);
-                            rm.delete(new QueryPath(delete.getColumnFamily(), null, columnName),
-                                      System.currentTimeMillis());
-                        }
-                    }
-                    rowMutations.add(rm);
-                }
-                
                 try
                 {
-                    StorageProxy.mutate(rowMutations, delete.getConsistencyLevel());
+                    StorageProxy.mutate(delete.prepareRowMutations(keyspace, clientState), delete.getConsistencyLevel());
                 }
                 catch (TimeoutException e)
                 {

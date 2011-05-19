@@ -54,7 +54,7 @@ public class SchemaLoader
         }
     }
 
-    public static Collection<KSMetaData> schemaDefinition()
+    public static Collection<KSMetaData> schemaDefinition() throws ConfigurationException
     {
         List<KSMetaData> schema = new ArrayList<KSMetaData>();
 
@@ -78,6 +78,12 @@ public class SchemaLoader
         ColumnFamilyType st = ColumnFamilyType.Standard;
         ColumnFamilyType su = ColumnFamilyType.Super;
         AbstractType bytes = BytesType.instance;
+
+        AbstractType composite = CompositeType.getInstance(Arrays.asList(new AbstractType[]{BytesType.instance, TimeUUIDType.instance, IntegerType.instance}));
+        Map<Byte, AbstractType> aliases = new HashMap<Byte, AbstractType>();
+        aliases.put((byte)'b', BytesType.instance);
+        aliases.put((byte)'t', TimeUUIDType.instance);
+        AbstractType dynamicComposite = DynamicCompositeType.getInstance(aliases);
       
         // these column definitions will will be applied to the jdbc utf and integer column familes respectively.
         Map<ByteBuffer, ColumnDefinition> integerColumn = new HashMap<ByteBuffer, ColumnDefinition>();
@@ -134,7 +140,17 @@ public class SchemaLoader
                                   jdbcCFMD(ks1, "JdbcUtf8", UTF8Type.instance).columnMetadata(utf8Column),
                                   jdbcCFMD(ks1, "JdbcLong", LongType.instance),
                                   jdbcCFMD(ks1, "JdbcBytes", bytes),
-                                  jdbcCFMD(ks1, "JdbcAscii", AsciiType.instance)));
+                                  jdbcCFMD(ks1, "JdbcAscii", AsciiType.instance),
+                                  new CFMetaData(ks1,
+                                                 "StandardComposite",
+                                                 st,
+                                                 composite,
+                                                 null),
+                                  new CFMetaData(ks1,
+                                                 "StandardDynamicComposite",
+                                                 st,
+                                                 dynamicComposite,
+                                                 null)));
 
         // Keyspace 2
         schema.add(new KSMetaData(ks2,

@@ -323,17 +323,17 @@ public final class CFMetaData
         cf.keyspace = new Utf8(ksName);
         cf.name = new Utf8(cfName);
         cf.column_type = new Utf8(cfType.name());
-        cf.comparator_type = new Utf8(comparator.getClass().getName());
+        cf.comparator_type = new Utf8(comparator.toString());
         if (subcolumnComparator != null)
-            cf.subcomparator_type = new Utf8(subcolumnComparator.getClass().getName());
+            cf.subcomparator_type = new Utf8(subcolumnComparator.toString());
         cf.comment = new Utf8(comment);
         cf.row_cache_size = rowCacheSize;
         cf.key_cache_size = keyCacheSize;
         cf.read_repair_chance = readRepairChance;
         cf.replicate_on_write = replicateOnWrite;
         cf.gc_grace_seconds = gcGraceSeconds;
-        cf.default_validation_class = new Utf8(defaultValidator.getClass().getName());
-        cf.key_validation_class = new Utf8(keyValidator.getClass().getName());
+        cf.default_validation_class = new Utf8(defaultValidator.toString());
+        cf.key_validation_class = new Utf8(keyValidator.toString());
         cf.min_compaction_threshold = minCompactionThreshold;
         cf.max_compaction_threshold = maxCompactionThreshold;
         cf.row_cache_save_period_in_seconds = rowCacheSavePeriodInSeconds;
@@ -763,10 +763,10 @@ public final class CFMetaData
         org.apache.cassandra.thrift.CfDef def = new org.apache.cassandra.thrift.CfDef(cfm.ksName, cfm.cfName);
         def.setId(cfm.cfId);
         def.setColumn_type(cfm.cfType.name());
-        def.setComparator_type(cfm.comparator.getClass().getName());
+        def.setComparator_type(cfm.comparator.toString());
         if (cfm.subcolumnComparator != null)
         {
-            def.setSubcomparator_type(cfm.subcolumnComparator.getClass().getName());
+            def.setSubcomparator_type(cfm.subcolumnComparator.toString());
             def.setColumn_type("Super");
         }
         def.setComment(enforceCommentNotNull(cfm.comment));
@@ -775,8 +775,8 @@ public final class CFMetaData
         def.setRead_repair_chance(cfm.readRepairChance);
         def.setReplicate_on_write(cfm.replicateOnWrite);
         def.setGc_grace_seconds(cfm.gcGraceSeconds);
-        def.setDefault_validation_class(cfm.defaultValidator.getClass().getName());
-        def.setKey_validation_class(cfm.keyValidator.getClass().getName());
+        def.setDefault_validation_class(cfm.defaultValidator.toString());
+        def.setKey_validation_class(cfm.keyValidator.toString());
         def.setMin_compaction_threshold(cfm.minCompactionThreshold);
         def.setMax_compaction_threshold(cfm.maxCompactionThreshold);
         def.setRow_cache_save_period_in_seconds(cfm.rowCacheSavePeriodInSeconds);
@@ -793,7 +793,7 @@ public final class CFMetaData
             tcd.setIndex_name(cd.getIndexName());
             tcd.setIndex_type(cd.getIndexType());
             tcd.setName(cd.name);
-            tcd.setValidation_class(cd.getValidator().getClass().getName());
+            tcd.setValidation_class(cd.getValidator().toString());
             column_meta.add(tcd);
         }
         def.setColumn_metadata(column_meta);
@@ -808,10 +808,10 @@ public final class CFMetaData
         def.keyspace = cfm.ksName;
         def.id = cfm.cfId;
         def.column_type = cfm.cfType.name();
-        def.comparator_type = cfm.comparator.getClass().getName();
+        def.comparator_type = cfm.comparator.toString();
         if (cfm.subcolumnComparator != null)
         {
-            def.subcomparator_type = cfm.subcolumnComparator.getClass().getName();
+            def.subcomparator_type = cfm.subcolumnComparator.toString();
             def.column_type = "Super";
         }
         def.comment = enforceCommentNotNull(cfm.comment);
@@ -820,7 +820,7 @@ public final class CFMetaData
         def.read_repair_chance = cfm.readRepairChance;
         def.replicate_on_write = cfm.replicateOnWrite;
         def.gc_grace_seconds = cfm.gcGraceSeconds;
-        def.default_validation_class = cfm.defaultValidator == null ? null : cfm.defaultValidator.getClass().getName();
+        def.default_validation_class = cfm.defaultValidator == null ? null : cfm.defaultValidator.toString();
         def.min_compaction_threshold = cfm.minCompactionThreshold;
         def.max_compaction_threshold = cfm.maxCompactionThreshold;
         def.row_cache_save_period_in_seconds = cfm.rowCacheSavePeriodInSeconds;
@@ -838,7 +838,7 @@ public final class CFMetaData
             tcd.index_name = cd.getIndexName();
             tcd.index_type = cd.getIndexType() == null ? null : org.apache.cassandra.db.migration.avro.IndexType.valueOf(cd.getIndexType().name());
             tcd.name = ByteBufferUtil.clone(cd.name);
-            tcd.validation_class = cd.getValidator().getClass().getName();
+            tcd.validation_class = cd.getValidator().toString();
             column_meta.add(tcd);
         }
         def.column_metadata = column_meta; 

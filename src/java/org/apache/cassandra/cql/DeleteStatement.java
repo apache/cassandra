@@ -20,26 +20,37 @@
  */
 package org.apache.cassandra.cql;
 
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.cassandra.auth.Permission;
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.RowMutation;
+import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.thrift.ConsistencyLevel;
+import org.apache.cassandra.thrift.InvalidRequestException;
+
+import static org.apache.cassandra.thrift.ThriftValidation.validateColumnFamily;
+import static org.apache.cassandra.cql.QueryProcessor.validateColumnName;
 
 /**
  * A <code>DELETE</code> parsed from a CQL query statement.
  *
  */
-public class DeleteStatement
+public class DeleteStatement extends AbstractModification
 {
     private List<Term> columns;
-    private String columnFamily;
-    private ConsistencyLevel cLevel;
     private List<Term> keys;
     
     public DeleteStatement(List<Term> columns, String columnFamily, ConsistencyLevel cLevel, List<Term> keys)
     {
+        super(columnFamily, cLevel, null, 0);
+
         this.columns = columns;
-        this.columnFamily = columnFamily;
-        this.cLevel = cLevel;
         this.keys = keys;
     }
 
@@ -48,21 +59,63 @@ public class DeleteStatement
         return columns;
     }
 
-    public String getColumnFamily()
-    {
-        return columnFamily;
-    }
-
-    public ConsistencyLevel getConsistencyLevel()
-    {
-        return cLevel;
-    }
-
+    /** {@inheritDoc} */
     public List<Term> getKeys()
     {
         return keys;
     }
-    
+
+    /** {@inheritDoc} */
+    public List<RowMutation> prepareRowMutations(String keyspace, ClientState clientState) throws InvalidRequestException
+    {
+        return prepareRowMutations(keyspace, clientState, null);
+    }
+
+    /** {@inheritDoc} */
+    public List<RowMutation> prepareRowMutations(String keyspace, ClientState clientState, Long timestamp) throws InvalidRequestException
+    {
+        clientState.hasColumnFamilyAccess(columnFamily, Permission.WRITE);
+        AbstractType<?> keyType = DatabaseDescriptor.getCFMetaData(keyspace, columnFamily).getKeyValidator();
+
+        List<RowMutation> rowMutations = new ArrayList<RowMutation>();
+
+        for (Term key : keys)
+        {
+            rowMutations.add(mutationForKey(key.getByteBuffer(keyType), keyspace, timestamp));
+        }
+
+        return rowMutations;
+    }
+
+    /** {@inheritDoc} */
+    public RowMutation mutationForKey(ByteBuffer key, String keyspace, Long timestamp) throws InvalidRequestException
+    {
+        RowMutation rm = new RowMutation(keyspace, key);
+
+        mutationForKey(rm, keyspace, timestamp);
+
+        return rm;
+    }
+
+    /** {@inheritDoc} */
+    public void mutationForKey(RowMutation mutation, String keyspace, Long timestamp) throws InvalidRequestException
+    {
+        CFMetaData metadata = validateColumnFamily(keyspace, columnFamily, false);
+        AbstractType comparator = metadata.getComparatorFor(null);
+
+        if (columns.size() < 1) // No columns, delete the row
+            mutation.delete(new QueryPath(columnFamily), System.currentTimeMillis());
+        else    // Delete specific columns
+        {
+            for (Term column : columns)
+            {
+                ByteBuffer columnName = column.getByteBuffer(comparator);
+                validateColumnName(columnName);
+                mutation.delete(new QueryPath(columnFamily, null, columnName), (timestamp == null) ? getTimestamp() : timestamp);
+            }
+        }
+    }
+
     public String toString()
     {
         return String.format("DeleteStatement(columns=%s, columnFamily=%s, consistency=%s keys=%s)",

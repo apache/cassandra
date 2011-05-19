@@ -282,13 +282,6 @@ class TestCql(ThriftTester):
         assert r[0] == "user3"
         assert r[1] == None
 
-    def test_error_on_multiple_key_by(self):
-        "ensure multiple key-bys in where clause excepts"
-        cursor = init()
-        assert_raises(cql.ProgrammingError, cursor.execute, """
-            SELECT 'col' FROM StandardString1 WHERE KEY = 'ka' AND KEY = 'kb';
-        """)
-
     def test_index_scan_equality(self):
         "indexed scan where column equals value"
         cursor = init()
@@ -753,3 +746,263 @@ class TestCql(ThriftTester):
         assert ['some_name'] == colnames, colnames
         row = cursor.fetchone()
         assert ['some_value'] == row, row
+
+    def test_batch_with_mixed_statements(self):
+        "handle BATCH with INSERT/UPDATE/DELETE statements mixed in it"
+        cursor = init()
+        cursor.compression = 'NONE'
+        cursor.execute("""
+          BEGIN BATCH USING CONSISTENCY ONE
+            UPDATE StandardString1 SET :name = :val WHERE KEY = :key1
+            INSERT INTO StandardString1 (KEY, :col1) VALUES (:key2, :val)
+            INSERT INTO StandardString1 (KEY, :col2) VALUES (:key3, :val)
+            DELETE :col2 FROM StandardString1 WHERE key = :key3
+          APPLY BATCH
+        """,
+        dict(key1="bKey1", key2="bKey2", key3="bKey3", name="bName", col1="bCol1", col2="bCol2", val="bVal"))
+
+        cursor.execute("SELECT :name FROM StandardString1 WHERE KEY = :key",
+                       dict(name="bName", key="bKey1"))
+
+        assert cursor.rowcount == 1, "expected 1 result, got %d" % cursor.rowcount
+        colnames = [col_d[0] for col_d in cursor.description]
+        assert ['bName'] == colnames, colnames
+        r = cursor.fetchone()
+        assert ['bVal'] == r, r
+
+        cursor.execute("SELECT :name FROM StandardString1 WHERE KEY = :key",
+                       dict(name="bCol2", key="bKey3"))
+
+        assert cursor.rowcount == 1, "expected 1 result, got %d" % cursor.rowcount
+        colnames = [col_d[0] for col_d in cursor.description]
+        assert ['bCol2'] == colnames, colnames
+        # was deleted by DELETE statement
+        r = cursor.fetchone()
+        assert [None] == r, r
+
+        cursor.execute("SELECT :name FROM StandardString1 WHERE KEY = :key",
+                       dict(name="bCol1", key="bKey2"))
+
+        assert cursor.rowcount == 1, "expected 1 result, got %d" % cursor.rowcount
+        colnames = [col_d[0] for col_d in cursor.description]
+        assert ['bCol1'] == colnames, colnames
+        r = cursor.fetchone()
+        assert ['bVal'] == r, r
+
+        # using all 3 types of statements allowed in batch to test timestamp
+        cursor.execute("""
+          BEGIN BATCH USING CONSISTENCY ONE AND TIMESTAMP 1303743619771318
+            INSERT INTO StandardString1 (KEY, name) VALUES ('TimestampedUser4', 'sname')
+            UPDATE StandardString1 SET name = 'name here' WHERE KEY = 'TimestampedUser4'
+            DELETE name FROM StandardString1 WHERE KEY = 'TimestampedUser4'
+          APPLY BATCH
+        """)
+
+        # BATCH should not allow setting individual timestamp when global timestamp is set
+        assert_raises(cql.ProgrammingError,
+                      cursor.execute,
+                      """
+                        BEGIN BATCH USING TIMESTAMP 1303743619771456
+                          UPDATE USING TIMESTAMP 1303743619771318 StandardString1 SET name = 'name here' WHERE KEY = 'TimestampedUser4'
+                        APPLY BATCH
+                      """)
+
+        # BATCH should not allow setting global TTL
+        assert_raises(cql.ProgrammingError,
+                      cursor.execute,
+                      """
+                        BEGIN BATCH USING TTL 130374
+                          UPDATE StandardString1 SET name = 'name here' WHERE KEY = 'TimestampedUser4'
+                        APPLY BATCH
+                      """)
+
+        assert_raises(cql.ProgrammingError,
+                      cursor.execute,
+                      """
+                      BEGIN BATCH USING CONSISTENCY ONE
+                          UPDATE USING CONSISTENCY QUORUM StandardString1 SET 'name' = 'value' WHERE KEY = 'bKey4'
+                          DELETE 'name' FROM StandardString1 WHERE KEY = 'bKey4'
+                      APPLY BATCH
+                      """)
+
+    def test_multiple_keys_on_select_and_update(self):
+        "select/update statements should support multiple keys by KEY IN construction"
+        cursor = init()
+        cursor.compression = 'NONE'
+
+        # inserting the same data to the multiple keys
+        cursor.execute("""
+          UPDATE StandardString1 USING CONSISTENCY ONE SET password = 'p4ssw0rd', login = 'same' WHERE KEY IN ('mUser1', 'mUser2')
+        """)
+
+        cursor.execute("SELECT * FROM StandardString1 WHERE KEY IN ('mUser1', 'mUser2')")
+        assert cursor.rowcount == 2, "expected 2 results, got %d" % cursor.rowcount
+        colnames = [col_d[0] for col_d in cursor.description]
+
+        assert colnames[1] == "login", \
+               "unrecognized name '%s'" % colnames[1]
+        assert colnames[2] == "password", \
+               "unrecognized name '%s'" % colnames[2]
+
+        for i in range(2):
+            r = cursor.fetchone()
+            assert r[1] == "same", \
+                   "unrecognized value '%s'" % r[1]
+            assert r[2] == "p4ssw0rd", \
+                   "unrecognized value '%s'" % r[1]
+
+    def test_insert_with_timestamp_and_ttl(self):
+        "insert statement should support setting timestamp"
+        cursor = init()
+        cursor.compression = 'NONE'
+
+        # insert to the StandardString1
+        cursor.execute("INSERT INTO StandardString1 (KEY, name) VALUES ('TimestampedUser', 'name here') USING TIMESTAMP 1303743619771318")
+
+        # try to read it
+        cursor.execute("SELECT * FROM StandardString1 WHERE KEY = 'TimestampedUser'")
+        assert cursor.rowcount == 1, "expected 1 results, got %d" % cursor.rowcount
+        colnames = [col_d[0] for col_d in cursor.description]
+
+        assert colnames[1] == "name", \
+               "unrecognized name '%s'" % colnames[1]
+
+        r = cursor.fetchone()
+        assert r[1] == "name here", \
+               "unrecognized value '%s'" % r[1]
+
+        # and INSERT with CONSISTENCY and TIMESTAMP together
+        cursor.execute("INSERT INTO StandardString1 (KEY, name) VALUES ('TimestampedUser1', 'name here') USING TIMESTAMP 1303743619771318 AND CONSISTENCY ONE")
+
+        # try to read it
+        cursor.execute("SELECT * FROM StandardString1 WHERE KEY = 'TimestampedUser1'")
+        assert cursor.rowcount == 1, "expected 1 results, got %d" % cursor.rowcount
+        colnames = [col_d[0] for col_d in cursor.description]
+
+        assert colnames[1] == "name", \
+               "unrecognized name '%s'" % colnames[1]
+
+        r = cursor.fetchone()
+        assert r[1] == "name here", \
+               "unrecognized value '%s'" % r[1]
+
+        # and INSERT with TTL
+        cursor.execute("INSERT INTO StandardString1 (KEY, name) VALUES ('TimestampedUser2', 'name here') USING TTL 5678")
+
+        # try to read it
+        cursor.execute("SELECT * FROM StandardString1 WHERE KEY = 'TimestampedUser2'")
+        assert cursor.rowcount == 1, "expected 1 results, got %d" % cursor.rowcount
+        colnames = [col_d[0] for col_d in cursor.description]
+
+        assert colnames[1] == "name", \
+               "unrecognized name '%s'" % colnames[1]
+
+        r = cursor.fetchone()
+        assert r[1] == "name here", \
+               "unrecognized value '%s'" % r[1]
+
+        # and INSERT with CONSISTENCY, TIMESTAMP and TTL together
+        cursor.execute("INSERT INTO StandardString1 (KEY, name) VALUES ('TimestampedUser3', 'name here') USING TTL 4587 AND TIMESTAMP 1303743619771318 AND CONSISTENCY ONE")
+
+        # try to read it
+        cursor.execute("SELECT * FROM StandardString1 WHERE KEY = 'TimestampedUser3'")
+        assert cursor.rowcount == 1, "expected 1 results, got %d" % cursor.rowcount
+        colnames = [col_d[0] for col_d in cursor.description]
+
+        assert colnames[1] == "name", \
+               "unrecognized name '%s'" % colnames[1]
+
+        r = cursor.fetchone()
+        assert r[1] == "name here", \
+               "unrecognized value '%s'" % r[1]
+
+        # and INSERT with TTL
+        cursor.execute("INSERT INTO StandardString1 (KEY, name) VALUES ('TimestampedUser14', 'name here') USING TTL 1 AND CONSISTENCY ONE")
+
+        # wait for column to expire
+        time.sleep(5)
+
+        # try to read it
+        cursor.execute("SELECT * FROM StandardString1 WHERE KEY = 'TimestampedUser14'")
+        assert cursor.rowcount == 1, "expected 1 results, got %d" % cursor.rowcount
+
+        r = cursor.fetchone()
+        assert len(r) == 1, "expected 0 results, got %d" % len(r)
+
+    def test_update_with_timestamp_and_ttl(self):
+        "update statement should support setting timestamp"
+        cursor = init()
+        cursor.compression = 'NONE'
+
+        # insert to the StandardString1
+        cursor.execute("UPDATE StandardString1 USING TIMESTAMP 1303743619771318 SET name = 'name here' WHERE KEY = 'TimestampedUser2'")
+
+        # try to read it
+        cursor.execute("SELECT * FROM StandardString1 WHERE KEY = 'TimestampedUser2'")
+        assert cursor.rowcount == 1, "expected 1 results, got %d" % cursor.rowcount
+        colnames = [col_d[0] for col_d in cursor.description]
+
+        assert colnames[1] == "name", \
+               "unrecognized name '%s'" % colnames[1]
+
+        r = cursor.fetchone()
+        assert r[1] == "name here", \
+               "unrecognized value '%s'" % r[1]
+
+        # and UPDATE with CONSISTENCY and TIMESTAMP together
+        cursor.execute("UPDATE StandardString1 USING CONSISTENCY ONE AND TIMESTAMP 1303743619771318 SET name = 'name here' WHERE KEY = 'TimestampedUser3'")
+
+        # try to read it
+        cursor.execute("SELECT * FROM StandardString1 WHERE KEY = 'TimestampedUser3'")
+        assert cursor.rowcount == 1, "expected 1 results, got %d" % cursor.rowcount
+        colnames = [col_d[0] for col_d in cursor.description]
+
+        assert colnames[1] == "name", \
+               "unrecognized name '%s'" % colnames[1]
+
+        r = cursor.fetchone()
+        assert r[1] == "name here", \
+               "unrecognized value '%s'" % r[1]
+
+        # UPDATE with TTL
+        cursor.execute("UPDATE StandardString1 USING TTL 13030 SET name = 'name here' WHERE KEY = 'TimestampedUser4'")
+
+        # try to read it
+        cursor.execute("SELECT * FROM StandardString1 WHERE KEY = 'TimestampedUser4'")
+        assert cursor.rowcount == 1, "expected 1 results, got %d" % cursor.rowcount
+        colnames = [col_d[0] for col_d in cursor.description]
+
+        assert colnames[1] == "name", \
+               "unrecognized name '%s'" % colnames[1]
+
+        r = cursor.fetchone()
+        assert r[1] == "name here", \
+               "unrecognized value '%s'" % r[1]
+
+        # UPDATE with CONSISTENCY, TIMESTAMP and TTL together
+        cursor.execute("UPDATE StandardString1 USING CONSISTENCY ONE AND TIMESTAMP 1303743619771318 AND TTL 13037 SET name = 'name here' WHERE KEY = 'TimestampedUser5'")
+
+        # try to read it
+        cursor.execute("SELECT * FROM StandardString1 WHERE KEY = 'TimestampedUser5'")
+        assert cursor.rowcount == 1, "expected 1 results, got %d" % cursor.rowcount
+        colnames = [col_d[0] for col_d in cursor.description]
+
+        assert colnames[1] == "name", \
+               "unrecognized name '%s'" % colnames[1]
+
+        r = cursor.fetchone()
+        assert r[1] == "name here", \
+               "unrecognized value '%s'" % r[1]
+
+        # UPDATE with TTL
+        cursor.execute("UPDATE StandardString1 USING CONSISTENCY ONE TTL 1 SET name = 'name here' WHERE KEY = 'TimestampedUser6'")
+
+        # wait for column to expire
+        time.sleep(5)
+
+        # try to read it
+        cursor.execute("SELECT * FROM StandardString1 WHERE KEY = 'TimestampedUser6'")
+        assert cursor.rowcount == 1, "expected 1 results, got %d" % cursor.rowcount
+
+        r = cursor.fetchone()
+        assert len(r) == 1, "expected 0 results, got %d" % len(r)
