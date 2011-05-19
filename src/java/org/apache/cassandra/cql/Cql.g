@@ -362,7 +362,7 @@ termPair[Map<Term, Term> columns]
 // Note: ranges are inclusive so >= and >, and < and <= all have the same semantics.  
 relation returns [Relation rel]
     : { Term entity = new Term("KEY", STRING_LITERAL); }
-      (K_KEY | name=term { entity = $name.item; } ) type=('=' | '<' | '<=' | '>=' | '>') t=term
+      (name=term { entity = $name.item; } ) type=('=' | '<' | '<=' | '>=' | '>') t=term
       { return new Relation(entity, $type.text, $t.item); }
     ;
 
