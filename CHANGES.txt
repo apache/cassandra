@@ -1,6 +1,7 @@
 0.8.0-final
  * fix grammar warning and cqlsh regression from CASSANDRA-2622
  * add ant generate-cql-html target (CASSANDRA-2526)
+ * update CQL consistency levels (CASSANDRA-2566)
 
 
 0.8.0-rc1
