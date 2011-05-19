@@ -3,6 +3,7 @@
    (CASSANDRA-2652)
  * mark BRAF buffer invalid post-flush so we don't re-flush partial
    buffers again, especially on CL writes (CASSANDRA-2660)
+ * don't perform HH to client-mode [storageproxy] nodes (CASSANDRA-2668)
 
 
 0.7.6
