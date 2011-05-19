@@ -1,3 +1,15 @@
+0.7.6-2
+=======
+
+Upgrading
+---------
+    - 0.7.6 shipped with a regression in the debian packaging which provide
+      the debian package to be set up correctly. This release fixes this
+      issue. There is thus no reason to upgrade if you have already upgraded
+      to 0.7.6 by another mean than debian package (or if you have fixed the
+      problem manually). Otherwise, please refer to 0.7.6 for any upgrade
+      instruction.
+
 0.7.6
 =====
 

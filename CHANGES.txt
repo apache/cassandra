@@ -1,3 +1,6 @@
+0.7.6-2
+ * fix regression in debian packaging (CASSANDRA-2481)
+
 0.7.6
  * force GC to reclaim disk space on flush, if necessary (CASSANDRA-2404)
  * move gossip heartbeat back to its own thread (CASSANDRA-2554)
