@@ -306,7 +306,7 @@ public class CliClient extends CliUserHelp
         sessionState.out.println(String.format("%s removed.", (columnSpecCnt == 0) ? "row" : "column"));
     }
 
-    private void doSlice(String keyspace, ByteBuffer key, String columnFamily, byte[] superColumnName)
+    private void doSlice(String keyspace, ByteBuffer key, String columnFamily, byte[] superColumnName, int limit)
             throws InvalidRequestException, UnavailableException, TimedOutException, TException, IllegalAccessException, NotFoundException, InstantiationException, NoSuchFieldException
     {
         
@@ -314,7 +314,7 @@ public class CliClient extends CliUserHelp
         if(superColumnName != null)
             parent.setSuper_column(superColumnName);
 
-        SliceRange range = new SliceRange(ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 1000000);
+        SliceRange range = new SliceRange(ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, limit);
         List<ColumnOrSuperColumn> columns = thriftClient.get_slice(key, parent, new SlicePredicate().setColumn_names(null).setSlice_range(range), consistencyLevel);
 
         AbstractType validator;
@@ -401,10 +401,39 @@ public class CliClient extends CliUserHelp
         byte[] superColumnName = null;
         ByteBuffer columnName;
 
+        Tree typeTree = null;
+        Tree limitTree = null;
+
+        int limit = 1000000;
+
+        if (statement.getChildCount() >= 2)
+        {
+            if (statement.getChild(1).getType() == CliParser.CONVERT_TO_TYPE)
+            {
+                typeTree = statement.getChild(1).getChild(0);
+                if (statement.getChildCount() == 3)
+                    limitTree = statement.getChild(2).getChild(0);
+            }
+            else
+            {
+                limitTree = statement.getChild(1).getChild(0);
+            }
+        }
+
+        if (limitTree != null)
+        {
+            limit = Integer.parseInt(limitTree.getText());
+
+            if (limit == 0)
+            {
+                throw new IllegalArgumentException("LIMIT should be greater than zero.");
+            }
+        }
+
         // table.cf['key'] -- row slice
         if (columnSpecCnt == 0)
         {
-            doSlice(keySpace, key, columnFamily, superColumnName);
+            doSlice(keySpace, key, columnFamily, superColumnName, limit);
             return;
         }
         // table.cf['key']['column'] -- slice of a super, or get of a standard
@@ -415,7 +444,7 @@ public class CliClient extends CliUserHelp
             if (isSuper)
             {
                 superColumnName = columnName.array();
-                doSlice(keySpace, key, columnFamily, superColumnName);
+                doSlice(keySpace, key, columnFamily, superColumnName, limit);
                 return;
             }
         }
@@ -433,7 +462,7 @@ public class CliClient extends CliUserHelp
         }
 
         AbstractType validator = getValidatorForValue(cfDef, TBaseHelper.byteBufferToByteArray(columnName));
-        
+
         // Perform a get()
         ColumnPath path = new ColumnPath(columnFamily);
         if(superColumnName != null) path.setSuper_column(superColumnName);
@@ -451,14 +480,12 @@ public class CliClient extends CliUserHelp
 
         byte[] columnValue = column.getValue();       
         String valueAsString;
-        
+
         // we have ^(CONVERT_TO_TYPE <type>) inside of GET statement
         // which means that we should try to represent byte[] value according
         // to specified type
-        if (statement.getChildCount() == 2)
+        if (typeTree != null)
         {
-            // getting ^(CONVERT_TO_TYPE <type>) tree 
-            Tree typeTree = statement.getChild(1).getChild(0);
             // .getText() will give us <type>
             String typeName = CliUtils.unescapeSQLString(typeTree.getText());
             // building AbstractType from <type>

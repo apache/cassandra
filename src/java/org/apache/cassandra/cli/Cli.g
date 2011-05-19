@@ -228,10 +228,10 @@ exitStatement
     ;
 
 getStatement
-    : GET columnFamilyExpr ('AS' typeIdentifier)?
-        -> ^(NODE_THRIFT_GET columnFamilyExpr ( ^(CONVERT_TO_TYPE typeIdentifier) )? )
-    | GET columnFamily 'WHERE' getCondition ('AND' getCondition)* ('LIMIT' limit=IntegerLiteral)*
-        -> ^(NODE_THRIFT_GET_WITH_CONDITIONS columnFamily ^(CONDITIONS getCondition+) ^(NODE_LIMIT $limit)*) 
+    : GET columnFamilyExpr ('AS' typeIdentifier)? ('LIMIT' limit=IntegerLiteral)?
+        -> ^(NODE_THRIFT_GET columnFamilyExpr ( ^(CONVERT_TO_TYPE typeIdentifier) )? ^(NODE_LIMIT $limit)?)
+    | GET columnFamily 'WHERE' getCondition ('AND' getCondition)* ('LIMIT' limit=IntegerLiteral)?
+        -> ^(NODE_THRIFT_GET_WITH_CONDITIONS columnFamily ^(CONDITIONS getCondition+) ^(NODE_LIMIT $limit)?) 
     ;
 
 getCondition
