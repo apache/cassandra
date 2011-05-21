@@ -33,6 +33,7 @@ import org.apache.cassandra.auth.SimpleAuthenticator;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.FBUtilities;
@@ -198,8 +199,8 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
                 int idx = cfnames.indexOf(cfName);
                 CfDef cf_def = ks_def.cf_defs.get(idx);
 
-                comparator = FBUtilities.getComparator(cf_def.comparator_type);
-                subComparator = cf_def.subcomparator_type == null ? null : FBUtilities.getComparator(cf_def.subcomparator_type);
+                comparator = TypeParser.parse(cf_def.comparator_type);
+                subComparator = cf_def.subcomparator_type == null ? null : TypeParser.parse(cf_def.subcomparator_type);
             }
             catch (ConfigurationException e)
             {
