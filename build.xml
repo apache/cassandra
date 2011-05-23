@@ -301,7 +301,7 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
         <attribute name="classifier" default=""/>
         <attribute name="packaging" default="jar"/>
         <sequential>
-          <artifact:mvn mavenVersion="${maven.version}" fork="true">
+          <artifact:mvn mavenVersion="${maven.version}" fork="true" failonerror="true">
             <arg value="org.apache.maven.plugins:maven-install-plugin:2.3.1:install-file" />
             <arg value="-DpomFile=@{pomFile}" />
             <arg value="-Dfile=@{file}" />
@@ -317,7 +317,7 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
         <attribute name="classifier" default=""/>
         <attribute name="packaging" default="jar"/>
         <sequential>
-          <artifact:mvn mavenVersion="${maven.version}" fork="true">
+          <artifact:mvn mavenVersion="${maven.version}" fork="true" failonerror="true">
             <jvmarg value="-Xmx512m"/>
             <arg value="org.apache.maven.plugins:maven-gpg-plugin:1.2:sign-and-deploy-file" />
             <arg value="-Durl=${maven-repository-url}" />
