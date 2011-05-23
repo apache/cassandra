@@ -90,13 +90,21 @@ public abstract class AbstractBounds implements Serializable
 
     /**
      * @return A copy of the given list of non-intersecting bounds with all bounds unwrapped, sorted by bound.left.
+     * This method does not allow overlapping ranges as input.
      */
     public static List<AbstractBounds> normalize(Collection<? extends AbstractBounds> bounds)
     {
         // unwrap all
         List<AbstractBounds> output = new ArrayList<AbstractBounds>();
+        AbstractBounds previous = null;
         for (AbstractBounds bound : bounds)
-            output.addAll(bound.unwrap());
+        {
+            List<AbstractBounds> unwrapped = bound.unwrap();
+            assert previous == null || previous.right.compareTo(unwrapped.get(0).left) <= 0 :
+                "Overlapping ranges passed to normalize: see CASSANDRA-2461: " + previous + " and " + unwrapped;
+            output.addAll(unwrapped);
+            previous = unwrapped.get(unwrapped.size() - 1);
+        }
 
         // sort by left
         Collections.sort(output, new Comparator<AbstractBounds>()

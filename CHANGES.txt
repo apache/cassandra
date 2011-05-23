@@ -15,6 +15,7 @@
  * add DROP INDEX support to CLI (CASSANDRA-2616)
  * don't perform HH to client-mode [storageproxy] nodes (CASSANDRA-2668)
  * Improve forceDeserialize/getCompactedRow encapsulation (CASSANDRA-2659)
+ * Assert ranges are not overlapping in AB.normalize (CASSANDRA-2641)
 
 
 0.8.0-final
