@@ -18,6 +18,8 @@
  * Assert ranges are not overlapping in AB.normalize (CASSANDRA-2641)
  * Don't write CounterUpdateColumn to disk in tests (CASSANDRA-2650)
  * Add sstable bulk loading utility (CASSANDRA-1278)
+ * avoid replaying hints to dropped columnfamilies (CASSANDRA-2685)
+ * add placeholders for missing rows in range query pseudo-RR (CASSANDRA-2680)
 
 
 0.8.0-final
