@@ -6,6 +6,7 @@
  * don't perform HH to client-mode [storageproxy] nodes (CASSANDRA-2668)
  * fix IntegerType.getString with direct buffers (CASSANDRA-2684)
  * avoid replaying hints to dropped columnfamilies (CASSANDRA-2685)
+ * add placeholders for missing rows in range query pseudo-RR (CASSANDRA-2680)
 
 
 0.7.6

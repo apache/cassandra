@@ -24,8 +24,6 @@ import java.util.*;
 import java.util.concurrent.LinkedBlockingQueue;
 
 import com.google.common.collect.AbstractIterator;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Iterators;
 import org.apache.commons.collections.iterators.CollatingIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -104,7 +102,21 @@ public class RangeSliceResponseResolver implements IResponseResolver<Iterable<Ro
 
             protected Row getReduced()
             {
-                ColumnFamily resolved = RowRepairResolver.resolveSuperset(versions);
+                ColumnFamily resolved = versions.size() > 1
+                                      ? RowRepairResolver.resolveSuperset(versions)
+                                      : versions.get(0);
+                if (versions.size() < sources.size())
+                {
+                    // add placeholder rows for sources that didn't have any data, so maybeScheduleRepairs sees them
+                    for (InetAddress source : sources)
+                    {
+                        if (!versionSources.contains(source))
+                        {
+                            versions.add(null);
+                            versionSources.add(source);
+                        }
+                    }
+                }
                 RowRepairResolver.maybeScheduleRepairs(resolved, table, key, versions, versionSources);
                 versions.clear();
                 versionSources.clear();
