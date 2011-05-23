@@ -19,6 +19,7 @@
 # OPTIONS:
 #   -f: start in foreground
 #   -p <filename>: log the pid to a file (useful to kill it later)
+#   -v: print version string and exit
 
 # CONTROLLING STARTUP:
 # 
@@ -129,7 +130,7 @@ launch_service()
 }
 
 # Parse any command line options.
-args=`getopt fhp:bD: "$@"`
+args=`getopt vfhp:bD: "$@"`
 eval set -- "$args"
 
 classname="org.apache.cassandra.thrift.CassandraDaemon"
@@ -146,6 +147,10 @@ while true; do
         ;;
         -h)
             echo "Usage: $0 [-f] [-h] [-p pidfile]"
+            exit 0
+        ;;
+        -v)
+            $JAVA -cp $CLASSPATH org.apache.cassandra.tools.GetVersion
             exit 0
         ;;
         -D)
