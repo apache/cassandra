@@ -20,6 +20,7 @@
  * Add sstable bulk loading utility (CASSANDRA-1278)
  * avoid replaying hints to dropped columnfamilies (CASSANDRA-2685)
  * add placeholders for missing rows in range query pseudo-RR (CASSANDRA-2680)
+ * remove no-op HHOM.renameHints (CASSANDRA-2693)
 
 
 0.8.0-final
