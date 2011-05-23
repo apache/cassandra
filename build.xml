@@ -592,24 +592,14 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
       <taskdef name="avro-protocol" classname="org.apache.avro.specific.ProtocolTask">
         <classpath refid="cassandra.classpath" />
       </taskdef>
-      <uptodate property="avroInterfaceUpToDate"
-                srcfile="${build.src.java}/org/apache/cassandra/hadoop/hadoop.genavro"
-                targetfile="${build.src.gen-java}/org/apache/cassandra/hadoop/hadoop.avpr" />
       <uptodate property="avroINProtoUpToDate" srcfile="${avro.src}/internode.genavro"
                 targetfile="${build.dir}/internode.avpr" />
     </target>
 
     <target name="avro-generate"
-            depends="avro-interface-generate-hadoop,avro-interface-generate-internode"
+            depends="avro-interface-generate-internode"
             description="Generates Java Avro classes for client and internal use." />
-
-    <target name="avro-interface-generate-hadoop" unless="avroInterfaceUpToDate"
-            depends="init,check-avro-generate,maven-ant-tasks-retrieve-build">
-      <avromacro protocolname="hadoop"
-                 inputfile="${build.src.java}/org/apache/cassandra/hadoop/hadoop.genavro"
-                 jsondir="${build.src.gen-java}/org/apache/cassandra/hadoop"
-                 outputdir="${build.src}" />
-    </target>
+    
     <target name="avro-interface-generate-internode" unless="avroINProtoUpToDate"
             depends="init,check-avro-generate,maven-ant-tasks-retrieve-build">
       <avromacro protocolname="internode" inputfile="${avro.src}/internode.genavro"
