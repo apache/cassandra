@@ -30,6 +30,7 @@ import java.util.concurrent.TimeoutException;
 
 import static com.google.common.base.Charsets.UTF_8;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.commons.lang.ArrayUtils;
 import org.slf4j.Logger;
@@ -128,8 +129,12 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
             return false;
         }
 
+        if (CFMetaData.getId(tableName, cfName) == null)
+        {
+            logger_.debug("Discarding hints for dropped keyspace or columnfamily {}/{}", tableName, cfName);
+            return true;
+        }
         Table table = Table.open(tableName);
-        DecoratedKey dkey = StorageService.getPartitioner().decorateKey(key);
         ColumnFamilyStore cfs = table.getColumnFamilyStore(cfName);
 
         int pageSize = PAGE_SIZE;
@@ -142,6 +147,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
             logger_.debug("average hinted-row column size is {}; using pageSize of {}", averageColumnSize, pageSize);
         }
 
+        DecoratedKey dkey = StorageService.getPartitioner().decorateKey(key);
         ByteBuffer startColumn = ByteBufferUtil.EMPTY_BYTE_BUFFER;
         while (true)
         {

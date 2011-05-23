@@ -207,6 +207,7 @@ public class Table
     {
         name = table;
         KSMetaData ksm = DatabaseDescriptor.getKSMetaData(table);
+        assert ksm != null : "Unknown keyspace " + table;
         try
         {
             createReplicationStrategy(ksm);
