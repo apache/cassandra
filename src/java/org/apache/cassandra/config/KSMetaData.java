@@ -51,17 +51,16 @@ public final class KSMetaData
 
     public static Map<String, String> forwardsCompatibleOptions(KsDef ks_def)
     {
-        Map<String, String> options;
-        if (ks_def.isSetReplication_factor())
-        {
-            options = new HashMap<String, String>(ks_def.strategy_options == null ? Collections.<String, String>emptyMap() : ks_def.strategy_options);
-            options.put("replication_factor", String.valueOf(ks_def.replication_factor));
-        }
-        else
-        {
-            options = ks_def.strategy_options;
-        }
+        Map<String, String> options = new HashMap<String, String>(ks_def.strategy_options);
+        maybeAddReplicationFactor(options, ks_def.strategy_class, ks_def.isSetReplication_factor() ? ks_def.replication_factor : null);
         return options;
+    }
+
+    // TODO remove this for 1.0
+    private static void maybeAddReplicationFactor(Map<String, String> options, String cls, Integer rf)
+    {
+        if (rf != null && (cls.endsWith("SimpleStrategy") || cls.endsWith("OldNetworkTopologyStrategy")))
+            options.put("replication_factor", rf.toString());
     }
 
     public int hashCode()
@@ -139,8 +138,7 @@ public final class KSMetaData
                 strategyOptions.put(e.getKey().toString(), e.getValue().toString());
             }
         }
-        if (ks.replication_factor != null)
-            strategyOptions.put("replication_factor", ks.replication_factor.toString());
+        maybeAddReplicationFactor(strategyOptions, ks.strategy_class.toString(), ks.replication_factor);
 
         int cfsz = ks.cf_defs.size();
         CFMetaData[] cfMetaData = new CFMetaData[cfsz];
