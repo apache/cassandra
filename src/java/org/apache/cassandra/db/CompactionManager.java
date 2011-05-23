@@ -18,13 +18,11 @@
 
 package org.apache.cassandra.db;
 
-import java.io.DataOutput;
 import java.io.File;
 import java.io.IOError;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.nio.ByteBuffer;
-import java.security.MessageDigest;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.*;
@@ -128,7 +126,7 @@ public class CompactionManager implements CompactionManagerMBean
                     logger.debug("Checking to see if compaction of " + cfs.columnFamily + " would be useful");
                     Set<List<SSTableReader>> buckets = getBuckets(convertSSTablesToPairs(cfs.getSSTables()), 50L * 1024L * 1024L);
                     updateEstimateFor(cfs, buckets);
-                    int gcBefore = cfs.isIndex() ? Integer.MAX_VALUE : getDefaultGcBefore(cfs);
+                    int gcBefore = getDefaultGcBefore(cfs);
                     
                     for (List<SSTableReader> sstables : buckets)
                     {
@@ -529,11 +527,15 @@ public class CompactionManager implements CompactionManagerMBean
         for (SSTableReader sstable : sstables)
             assert sstable.descriptor.cfname.equals(cfs.columnFamily);
 
+        // compaction won't normally compact a single sstable, so if that's what we're doing
+        // it must have been requested manually by the user, which probably means he wants to force
+        // tombstone purge, which won't happen unless we force deserializing the rows.
+        boolean forceDeserialize = sstables.size() == 1;
+        CompactionController controller = new CompactionController(cfs, sstables, gcBefore, forceDeserialize);
         // new sstables from flush can be added during a compaction, but only the compaction can remove them,
         // so in our single-threaded compaction world this is a valid way of determining if we're compacting
         // all the sstables (that existed when we started)
-        boolean major = cfs.isCompleteSSTables(sstables);
-        CompactionType type = major
+        CompactionType type = controller.isMajor()
                             ? CompactionType.MAJOR
                             : CompactionType.MINOR;
         logger.info("Compacting {}: {}", type, sstables);
@@ -547,7 +549,6 @@ public class CompactionManager implements CompactionManagerMBean
           logger.debug("Expected bloom filter size : " + expectedBloomFilterSize);
 
         SSTableWriter writer;
-        CompactionController controller = new CompactionController(cfs, sstables, major, gcBefore, false);
         CompactionIterator ci = new CompactionIterator(type, sstables, controller); // retain a handle so we can call close()
         Iterator<AbstractCompactedRow> nni = new FilterIterator(ci, PredicateUtils.notNullPredicate());
         Map<DecoratedKey, Long> cachedKeys = new HashMap<DecoratedKey, Long>();
@@ -630,6 +631,7 @@ public class CompactionManager implements CompactionManagerMBean
         for (final SSTableReader sstable : sstables)
         {
             logger.info("Scrubbing " + sstable);
+            CompactionController controller = new CompactionController(cfs, Collections.singletonList(sstable), getDefaultGcBefore(cfs), true);
 
             // Calculate the expected compacted filesize
             String compactionFileLocation = cfs.table.getDataFileLocation(sstable.length());
@@ -708,7 +710,7 @@ public class CompactionManager implements CompactionManagerMBean
                     if (dataSize > dataFile.length())
                         throw new IOError(new IOException("Impossible row size " + dataSize));
                     SSTableIdentityIterator row = new SSTableIdentityIterator(sstable, dataFile, key, dataStart, dataSize, true);
-                    AbstractCompactedRow compactedRow = getCompactedRow(row, sstable.descriptor, true);
+                    AbstractCompactedRow compactedRow = controller.getCompactedRow(row);
                     if (compactedRow.isEmpty())
                     {
                         emptyRows++;
@@ -736,7 +738,7 @@ public class CompactionManager implements CompactionManagerMBean
                         try
                         {
                             SSTableIdentityIterator row = new SSTableIdentityIterator(sstable, dataFile, key, dataStartFromIndex, dataSizeFromIndex, true);
-                            AbstractCompactedRow compactedRow = getCompactedRow(row, sstable.descriptor, true);
+                            AbstractCompactedRow compactedRow = controller.getCompactedRow(row);
                             if (compactedRow.isEmpty())
                             {
                                 emptyRows++;
@@ -811,7 +813,9 @@ public class CompactionManager implements CompactionManagerMBean
 
         for (SSTableReader sstable : sstables)
         {
+            CompactionController controller = new CompactionController(cfs, Collections.singletonList(sstable), getDefaultGcBefore(cfs), false);
             long startTime = System.currentTimeMillis();
+
             long totalkeysWritten = 0;
 
             int expectedBloomFilterSize = Math.max(DatabaseDescriptor.getIndexInterval(),
@@ -841,7 +845,7 @@ public class CompactionManager implements CompactionManagerMBean
                         if (Range.isTokenInRanges(row.getKey().token, ranges))
                         {
                             writer = maybeCreateWriter(cfs, compactionFileLocation, expectedBloomFilterSize, writer, Collections.singletonList(sstable));
-                            writer.append(getCompactedRow(row, sstable.descriptor, false));
+                            writer.append(controller.getCompactedRow(row));
                             totalkeysWritten++;
                         }
                         else
@@ -904,21 +908,6 @@ public class CompactionManager implements CompactionManagerMBean
             }
             cfs.replaceCompactedSSTables(Arrays.asList(sstable), results);
         }
-    }
-
-    /**
-     * @return an AbstractCompactedRow implementation to write the row in question.
-     * If the data is from a current-version sstable, write it unchanged.  Otherwise,
-     * re-serialize it in the latest version. The returned AbstractCompactedRow will not purge data.
-     */
-    private AbstractCompactedRow getCompactedRow(SSTableIdentityIterator row, Descriptor descriptor, boolean forceDeserialize)
-    {
-        if (descriptor.isLatestVersion && !forceDeserialize)
-            return new EchoedRow(row);
-
-        return row.dataSize > DatabaseDescriptor.getInMemoryCompactionLimit()
-               ? new LazilyCompactedRow(CompactionController.getBasicController(forceDeserialize), Arrays.asList(row))
-               : new PrecompactedRow(CompactionController.getBasicController(forceDeserialize), Arrays.asList(row));
     }
 
     private SSTableWriter maybeCreateWriter(ColumnFamilyStore cfs, String compactionFileLocation, int expectedBloomFilterSize, SSTableWriter writer, Collection<SSTableReader> sstables)
@@ -1146,7 +1135,9 @@ public class CompactionManager implements CompactionManagerMBean
 
     private static int getDefaultGcBefore(ColumnFamilyStore cfs)
     {
-        return (int) (System.currentTimeMillis() / 1000) - cfs.metadata.getGcGraceSeconds();
+        return cfs.isIndex()
+               ? Integer.MAX_VALUE
+               : (int) (System.currentTimeMillis() / 1000) - cfs.metadata.getGcGraceSeconds();
     }
 
     private static class ValidationCompactionIterator extends CompactionIterator
@@ -1155,7 +1146,7 @@ public class CompactionManager implements CompactionManagerMBean
         {
             super(CompactionType.VALIDATION,
                   getCollatingIterator(cfs.getSSTables(), range),
-                  new CompactionController(cfs, cfs.getSSTables(), true, getDefaultGcBefore(cfs), false));
+                  new CompactionController(cfs, cfs.getSSTables(), getDefaultGcBefore(cfs), true));
         }
 
         protected static CollatingIterator getCollatingIterator(Iterable<SSTableReader> sstables, Range range) throws IOException
@@ -1274,40 +1265,6 @@ public class CompactionManager implements CompactionManagerMBean
         public Object get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException
         {
             throw new IllegalStateException("May not call SimpleFuture.get(long, TimeUnit)");
-        }
-    }
-
-    private static class EchoedRow extends AbstractCompactedRow
-    {
-        private final SSTableIdentityIterator row;
-
-        public EchoedRow(SSTableIdentityIterator row)
-        {
-            super(row.getKey());
-            this.row = row;
-        }
-
-        public void write(DataOutput out) throws IOException
-        {
-            assert row.dataSize > 0;
-            out.writeLong(row.dataSize);
-            row.echoData(out);
-        }
-
-        public void update(MessageDigest digest)
-        {
-            // EchoedRow is not used in anti-entropy validation
-            throw new UnsupportedOperationException();
-        }
-
-        public boolean isEmpty()
-        {
-            return !row.hasNext();
-        }
-
-        public int columnCount()
-        {
-            return row.columnCount;
         }
     }
 

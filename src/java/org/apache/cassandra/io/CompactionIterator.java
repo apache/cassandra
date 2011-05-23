@@ -38,7 +38,6 @@ import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.sstable.SSTableScanner;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.ReducingIterator;
 
@@ -122,7 +121,7 @@ implements Closeable, CompactionInfo.Holder
 
         try
         {
-            AbstractCompactedRow compactedRow = getCompactedRow();
+            AbstractCompactedRow compactedRow = controller.getCompactedRow(rows);
             if (compactedRow.isEmpty())
             {
                 controller.invalidateCachedRow(compactedRow.key);
@@ -149,23 +148,6 @@ implements Closeable, CompactionInfo.Holder
                 throttle();
             }
         }
-    }
-
-    protected AbstractCompactedRow getCompactedRow()
-    {
-        long rowSize = 0;
-        for (SSTableIdentityIterator row : rows)
-        {
-            rowSize += row.dataSize;
-        }
-
-        if (rowSize > DatabaseDescriptor.getInMemoryCompactionLimit())
-        {
-            logger.info(String.format("Compacting large row %s (%d bytes) incrementally",
-                                      ByteBufferUtil.bytesToHex(rows.get(0).getKey().key), rowSize));
-            return new LazilyCompactedRow(controller, rows);
-        }
-        return new PrecompactedRow(controller, rows);
     }
 
     private void throttle()

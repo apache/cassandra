@@ -19,21 +19,28 @@
  */
 package org.apache.cassandra.io;
 
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.EchoedRow;
+import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
 import org.apache.cassandra.io.sstable.SSTableReader;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
  * Manage compaction options.
  */
 public class CompactionController
 {
+    private static Logger logger = LoggerFactory.getLogger(CompactionController.class);
+
     private final ColumnFamilyStore cfs;
     private final Set<SSTableReader> sstables;
     private final boolean forceDeserialize;
@@ -41,41 +48,31 @@ public class CompactionController
     public final boolean isMajor;
     public final int gcBefore;
 
-    private static final CompactionController basicController = new CompactionController(null, Collections.<SSTableReader>emptySet(), false, Integer.MAX_VALUE, false);
-    private static final CompactionController basicDeserializingController = new CompactionController(null, Collections.<SSTableReader>emptySet(), false, Integer.MAX_VALUE, true);
-
-    public CompactionController(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, boolean isMajor, int gcBefore, boolean forceDeserialize)
+    public CompactionController(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, int gcBefore, boolean forceDeserialize)
     {
+        assert cfs != null;
         this.cfs = cfs;
-        this.isMajor = isMajor;
         this.sstables = new HashSet<SSTableReader>(sstables);
         this.gcBefore = gcBefore;
         this.forceDeserialize = forceDeserialize;
+        isMajor = cfs.isCompleteSSTables(this.sstables);
     }
 
-    /**
-     * Returns a controller that never purge
-     */
-    public static CompactionController getBasicController(boolean forceDeserialize)
-    {
-        return forceDeserialize ? basicDeserializingController : basicController;
-    }
-
-    /** @return The keyspace name: only valid if created with a non-null CFS. */
+    /** @return the keyspace name */
     public String getKeyspace()
     {
-        return cfs != null ? cfs.table.name : "n/a";
+        return cfs.table.name;
     }
 
-    /** @return The column family name: only valid if created with a non-null CFS. */
+    /** @return the column family name */
     public String getColumnFamily()
     {
-        return cfs != null ? cfs.columnFamily : "n/a";
+        return cfs.columnFamily;
     }
 
     public boolean shouldPurge(DecoratedKey key)
     {
-        return isMajor || (cfs != null && !cfs.isKeyInRemainingSSTables(key, sstables));
+        return isMajor || !cfs.isKeyInRemainingSSTables(key, sstables);
     }
 
     public boolean needDeserialize()
@@ -92,18 +89,50 @@ public class CompactionController
 
     public void invalidateCachedRow(DecoratedKey key)
     {
-        if (cfs != null)
-            cfs.invalidateCachedRow(key);
+        cfs.invalidateCachedRow(key);
     }
 
     public void removeDeletedInCache(DecoratedKey key)
     {
-        if (cfs != null)
-        {
-            ColumnFamily cachedRow = cfs.getRawCachedRow(key);
-            if (cachedRow != null)
-                ColumnFamilyStore.removeDeleted(cachedRow, gcBefore);
-        }
+        ColumnFamily cachedRow = cfs.getRawCachedRow(key);
+        if (cachedRow != null)
+            ColumnFamilyStore.removeDeleted(cachedRow, gcBefore);
     }
 
+    public boolean isMajor()
+    {
+        return isMajor;
+    }
+
+    /**
+     * @return an AbstractCompactedRow implementation to write the merged rows in question.
+     *
+     * If there is a single source row, the data is from a current-version sstable,
+     * and we aren't forcing deserialization for scrub,
+     * write it unchanged.  Otherwise, we deserialize, purge tombstones, and
+     * reserialize in the latest version.
+     */
+    public AbstractCompactedRow getCompactedRow(List<SSTableIdentityIterator> rows)
+    {
+        if (rows.size() == 1 && !needDeserialize())
+            return new EchoedRow(rows.get(0));
+
+        long rowSize = 0;
+        for (SSTableIdentityIterator row : rows)
+            rowSize += row.dataSize;
+
+        if (rowSize > DatabaseDescriptor.getInMemoryCompactionLimit())
+        {
+            logger.info(String.format("Compacting large row %s (%d bytes) incrementally",
+                                      ByteBufferUtil.bytesToHex(rows.get(0).getKey().key), rowSize));
+            return new LazilyCompactedRow(this, rows);
+        }
+        return new PrecompactedRow(this, rows);
+    }
+
+    /** convenience method for single-sstable compactions */
+    public AbstractCompactedRow getCompactedRow(SSTableIdentityIterator row)
+    {
+        return getCompactedRow(Collections.singletonList(row));
+    }
 }
