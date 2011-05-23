@@ -18,6 +18,8 @@
  * Assert ranges are not overlapping in AB.normalize (CASSANDRA-2641)
  * Don't write CounterUpdateColumn to disk in tests (CASSANDRA-2650)
  * Add sstable bulk loading utility (CASSANDRA-1278)
+ * avoid replaying hints to dropped columnfamilies (CASSANDRA-2685)
+ * add placeholders for missing rows in range query pseudo-RR (CASSANDRA-2680)
 
 
 0.8.0-final
@@ -26,7 +28,8 @@
  * update CQL consistency levels (CASSANDRA-2566)
  * debian packaging fixes (CASSANDRA-2481, 2647)
  * fix UUIDType, IntegerType for direct buffers (CASSANDRA-2682, 2684)
-
+ * switch to native Thrift for Hadoop map/reduce (CASSANDRA-2667)
+ * fix StackOverflowError when building from eclipse (CASSANDRA-2687)
 
 0.8.0-rc1 
  * faster flushes and compaction from fixing excessively pessimistic 
