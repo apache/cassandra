@@ -21,6 +21,7 @@
  * add ant generate-cql-html target (CASSANDRA-2526)
  * update CQL consistency levels (CASSANDRA-2566)
  * debian packaging fixes (CASSANDRA-2481, 2647)
+ * fix UUIDType, IntegerType for direct buffers (CASSANDRA-2682, 2684)
 
 
 0.8.0-rc1 
@@ -111,6 +112,7 @@
  * cli no longer divides read_repair_chance by 100 (CASSANDRA-2458)
  * made CompactionInfo.getTaskType return an enum (CASSANDRA-2482)
  * add a server-wide cap on measured memtable memory usage (CASSANDRA-2006)
+ * add unified UUIDType (CASSANDRA-2233)
 
 
 0.7.5
