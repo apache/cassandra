@@ -4,6 +4,7 @@
  * mark BRAF buffer invalid post-flush so we don't re-flush partial
    buffers again, especially on CL writes (CASSANDRA-2660)
  * don't perform HH to client-mode [storageproxy] nodes (CASSANDRA-2668)
+ * fix IntegerType.getString with direct buffers (CASSANDRA-2684)
 
 
 0.7.6
