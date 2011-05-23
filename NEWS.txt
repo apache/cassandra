@@ -58,6 +58,9 @@ Other
       to compact that anyway (which will free up space if there are
       a lot of expired tombstones), use the new forceUserDefinedCompaction
       JMX method on CompactionManager.
+    - most of contrib/ (which was not part of the binary releases)
+      has been moved either to examples/ or tools/. We plan to move the
+      rest for 0.8.1.
 
 JMX
 ---
