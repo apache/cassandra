@@ -26,6 +26,7 @@ import java.util.LinkedList;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.thrift.ConsistencyLevel;
 
 public class AntiEntropyServiceCounterTest extends AntiEntropyServiceTestAbstract
 {
@@ -35,13 +36,12 @@ public class AntiEntropyServiceCounterTest extends AntiEntropyServiceTestAbstrac
         cfname    = "Counter1";
     }
 
-    public List<RowMutation> getWriteData()
+    public List<IMutation> getWriteData()
     {
-        List<RowMutation> rms = new LinkedList<RowMutation>();
-        RowMutation rm;
-        rm = new RowMutation(tablename, ByteBufferUtil.bytes("key1"));
+        List<IMutation> rms = new LinkedList<IMutation>();
+        RowMutation rm = new RowMutation(tablename, ByteBufferUtil.bytes("key1"));
         rm.addCounter(new QueryPath(cfname, null, ByteBufferUtil.bytes("Column1")), 42);
-        rms.add(rm);
+        rms.add(new CounterMutation(rm, ConsistencyLevel.ONE));
         return rms;
     }
 }

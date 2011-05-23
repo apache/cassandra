@@ -70,7 +70,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
     @Test
     public void testGetColumnWithWrongBF() throws IOException, ExecutionException, InterruptedException
     {
-        List<RowMutation> rms = new LinkedList<RowMutation>();
+        List<IMutation> rms = new LinkedList<IMutation>();
         RowMutation rm;
         rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes("key1"));
         rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes("Column1")), ByteBufferUtil.bytes("asdf"), 0);
@@ -606,7 +606,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
 
     private ColumnFamilyStore insertKey1Key2() throws IOException, ExecutionException, InterruptedException
     {
-        List<RowMutation> rms = new LinkedList<RowMutation>();
+        List<IMutation> rms = new LinkedList<IMutation>();
         RowMutation rm;
         rm = new RowMutation("Keyspace2", ByteBufferUtil.bytes("key1"));
         rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes("Column1")), ByteBufferUtil.bytes("asdf"), 0);
