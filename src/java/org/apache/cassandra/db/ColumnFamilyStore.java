@@ -968,9 +968,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         data.markCompacted(sstables);
     }
 
-    boolean isCompleteSSTables(Collection<SSTableReader> sstables)
+    public boolean isCompleteSSTables(Set<SSTableReader> sstables)
     {
-        return data.getSSTables().equals(new HashSet<SSTableReader>(sstables));
+        return data.getSSTables().equals(sstables);
     }
 
     void replaceCompactedSSTables(Collection<SSTableReader> sstables, Iterable<SSTableReader> replacements)

@@ -93,15 +93,6 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements IIterabl
 
     public void write(DataOutput out) throws IOException
     {
-        if (rows.size() == 1 && !shouldPurge && !controller.needDeserialize())
-        {
-            SSTableIdentityIterator row = rows.get(0);
-            assert row.dataSize > 0;
-            out.writeLong(row.dataSize);
-            row.echoData(out);
-            return;
-        }
-
         DataOutputBuffer clockOut = new DataOutputBuffer();
         ColumnFamily.serializer().serializeCFInfo(emptyColumnFamily, clockOut);
 

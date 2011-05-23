@@ -14,6 +14,7 @@
    buffers again, especially on CL writes (CASSANDRA-2660)
  * add DROP INDEX support to CLI (CASSANDRA-2616)
  * don't perform HH to client-mode [storageproxy] nodes (CASSANDRA-2668)
+ * Improve forceDeserialize/getCompactedRow encapsulation (CASSANDRA-2659)
 
 
 0.8.0-final
