@@ -41,6 +41,11 @@ public class BloomFilter extends Filter
         bitset = bs;
     }
 
+    public static BloomFilter emptyFilter()
+    {
+        return new BloomFilter(0, bucketsFor(0, 0));
+    }
+
     public static ICompactSerializer2<BloomFilter> serializer()
     {
         return serializer_;

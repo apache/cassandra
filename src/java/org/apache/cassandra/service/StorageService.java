@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.service;
 
+import java.io.File;
 import java.io.IOError;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
@@ -50,6 +51,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.*;
 import org.apache.cassandra.io.DeletionService;
+import org.apache.cassandra.io.sstable.SSTableLoader;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.DynamicEndpointSnitch;
@@ -327,6 +329,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         Gossiper.instance.unregister(this);
         Gossiper.instance.stop();
         MessagingService.instance().shutdown();
+        // give it a second so that task accepted before the MessagingService shutdown gets submitted to the stage (to avoid RejectedExecutionException)
+        try { Thread.sleep(1000L); } catch (InterruptedException e) {}
         StageManager.shutdownNow();
     }
     
@@ -354,7 +358,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         // sleep a while to allow gossip to warm up (the other nodes need to know about this one before they can reply).
         try
         {
-            Thread.sleep(5000L);
+            Thread.sleep(RING_DELAY);
         }
         catch (Exception ex)
         {
@@ -2428,4 +2432,37 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         return new Pair<Set<Range>, Set<Range>>(toStream, toFetch);
     }
 
+    public void bulkLoad(String directory)
+    {
+        File dir = new File(directory);
+
+        if (!dir.exists() || !dir.isDirectory())
+            throw new IllegalArgumentException("Invalid directory " + directory);
+
+        SSTableLoader.Client client = new SSTableLoader.Client()
+        {
+            public void init() {}
+
+            public boolean validateColumnFamily(String keyspace, String cfName)
+            {
+                return DatabaseDescriptor.getCFMetaData(keyspace, cfName) != null;
+            }
+        };
+
+        SSTableLoader.OutputHandler oh = new SSTableLoader.OutputHandler()
+        {
+            public void output(String msg) { logger_.info(msg); }
+            public void debug(String msg) { logger_.debug(msg); }
+        };
+
+        SSTableLoader loader = new SSTableLoader(dir, client, oh);
+        try
+        {
+            loader.stream().get();
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
 }

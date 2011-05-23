@@ -17,6 +17,7 @@
  * Improve forceDeserialize/getCompactedRow encapsulation (CASSANDRA-2659)
  * Assert ranges are not overlapping in AB.normalize (CASSANDRA-2641)
  * Don't write CounterUpdateColumn to disk in tests (CASSANDRA-2650)
+ * Add sstable bulk loading utility (CASSANDRA-1278)
 
 
 0.8.0-final

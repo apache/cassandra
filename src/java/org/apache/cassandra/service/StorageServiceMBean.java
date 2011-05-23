@@ -290,4 +290,6 @@ public interface StorageServiceMBean
     public boolean isJoined();
 
     public void setCompactionThroughputMbPerSec(int value);
+
+    public void bulkLoad(String directory);
 }
