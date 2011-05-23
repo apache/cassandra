@@ -109,7 +109,6 @@ public class RenameKeyspace extends Migration
         {
             Table.clear(oldKsm.name);
             Table.open(newName);
-            HintedHandOffManager.renameHints(oldName, newName);
         }
     }
     

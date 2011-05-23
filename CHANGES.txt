@@ -20,6 +20,7 @@
  * Add sstable bulk loading utility (CASSANDRA-1278)
  * avoid replaying hints to dropped columnfamilies (CASSANDRA-2685)
  * add placeholders for missing rows in range query pseudo-RR (CASSANDRA-2680)
+ * remove no-op HHOM.renameHints (CASSANDRA-2693)
 
 
 0.8.0-final
@@ -30,8 +31,11 @@
  * fix UUIDType, IntegerType for direct buffers (CASSANDRA-2682, 2684)
  * switch to native Thrift for Hadoop map/reduce (CASSANDRA-2667)
  * fix StackOverflowError when building from eclipse (CASSANDRA-2687)
+ * only provide replication_factor to strategy_options "help" for
+   SimpleStrategy, OldNetworkTopologyStrategy (CASSANDRA-2678)
 
-0.8.0-rc1 
+
+0.8.0-rc1
  * faster flushes and compaction from fixing excessively pessimistic 
    rebuffering in BRAF (CASSANDRA-2581)
  * fix returning null column values in the python cql driver (CASSANDRA-2593)
