@@ -69,7 +69,7 @@ public abstract class AntiEntropyServiceTestAbstract extends CleanupHelper
 
     public abstract void init();
 
-    public abstract List<RowMutation> getWriteData();
+    public abstract List<IMutation> getWriteData();
 
     @Before
     public void prepare() throws Exception

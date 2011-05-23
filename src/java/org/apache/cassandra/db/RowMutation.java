@@ -82,6 +82,11 @@ public class RowMutation implements IMutation, MessageProducer
         return table_;
     }
 
+    public Collection<Integer> getColumnFamilyIds()
+    {
+        return modifications_.keySet();
+    }
+
     public ByteBuffer key()
     {
         return key_;

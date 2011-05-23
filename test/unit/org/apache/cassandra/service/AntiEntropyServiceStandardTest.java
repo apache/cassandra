@@ -35,9 +35,9 @@ public class AntiEntropyServiceStandardTest extends AntiEntropyServiceTestAbstra
         cfname    = "Standard1";
     }
 
-    public List<RowMutation> getWriteData()
+    public List<IMutation> getWriteData()
     {
-        List<RowMutation> rms = new LinkedList<RowMutation>();
+        List<IMutation> rms = new LinkedList<IMutation>();
         RowMutation rm;
         rm = new RowMutation(tablename, ByteBufferUtil.bytes("key1"));
         rm.add(new QueryPath(cfname, null, ByteBufferUtil.bytes("Column1")), ByteBufferUtil.bytes("asdfasdf"), 0);
