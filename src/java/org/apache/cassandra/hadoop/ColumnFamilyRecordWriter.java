@@ -59,8 +59,8 @@ import org.apache.cassandra.utils.ByteBufferUtil;
  * @see OutputFormat
  * 
  */
-final class ColumnFamilyRecordWriter extends RecordWriter<ByteBuffer,List<org.apache.cassandra.hadoop.avro.Mutation>>
-implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<org.apache.cassandra.hadoop.avro.Mutation>>
+final class ColumnFamilyRecordWriter extends RecordWriter<ByteBuffer,List<Mutation>>
+implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<Mutation>>
 {
     // The configuration this writer is associated with.
     private final Configuration conf;
@@ -122,7 +122,7 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<org.apache.cass
      * @throws IOException
      */
     @Override
-    public void write(ByteBuffer keybuff, List<org.apache.cassandra.hadoop.avro.Mutation> value) throws IOException
+    public void write(ByteBuffer keybuff, List<Mutation> value) throws IOException
     {
         Range range = ringCache.getRange(keybuff);
 
@@ -136,77 +136,8 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<org.apache.cass
             clients.put(range, client);
         }
 
-        for (org.apache.cassandra.hadoop.avro.Mutation amut : value)
-            client.put(new Pair<ByteBuffer,Mutation>(keybuff, avroToThrift(amut)));
-    }
-
-    /**
-     * Deep copies the given Avro mutation into a new Thrift mutation.
-     */
-    private Mutation avroToThrift(org.apache.cassandra.hadoop.avro.Mutation amut)
-    {
-        Mutation mutation = new Mutation();
-        org.apache.cassandra.hadoop.avro.ColumnOrSuperColumn acosc = amut.column_or_supercolumn;
-        if (acosc == null)
-        {
-            // deletion
-            assert amut.deletion != null;
-            Deletion deletion = new Deletion().setTimestamp(amut.deletion.timestamp);
-            mutation.setDeletion(deletion);
-
-            org.apache.cassandra.hadoop.avro.SlicePredicate apred = amut.deletion.predicate;
-            if (apred == null && amut.deletion.super_column == null)
-            {
-                // leave Deletion alone to delete entire row
-            }
-            else if (amut.deletion.super_column != null)
-            {
-                // super column
-                deletion.setSuper_column(ByteBufferUtil.getArray(amut.deletion.super_column));
-            }
-            else if (apred.column_names != null)
-            {
-                // column names
-                List<ByteBuffer> names = new ArrayList<ByteBuffer>(apred.column_names.size());
-                for (ByteBuffer name : apred.column_names)
-                    names.add(name);
-                deletion.setPredicate(new SlicePredicate().setColumn_names(names));
-            }
-            else
-            {
-                // range
-                deletion.setPredicate(new SlicePredicate().setSlice_range(avroToThrift(apred.slice_range)));
-            }
-        }
-        else
-        {
-            // creation
-            ColumnOrSuperColumn cosc = new ColumnOrSuperColumn();
-            mutation.setColumn_or_supercolumn(cosc);
-            if (acosc.column != null)
-                // standard column
-                cosc.setColumn(avroToThrift(acosc.column));
-            else
-            {
-                // super column
-                ByteBuffer scolname = acosc.super_column.name;
-                List<Column> scolcols = new ArrayList<Column>(acosc.super_column.columns.size());
-                for (org.apache.cassandra.hadoop.avro.Column acol : acosc.super_column.columns)
-                    scolcols.add(avroToThrift(acol));
-                cosc.setSuper_column(new SuperColumn(scolname, scolcols));
-            }
-        }
-        return mutation;
-    }
-
-    private SliceRange avroToThrift(org.apache.cassandra.hadoop.avro.SliceRange asr)
-    {
-        return new SliceRange(asr.start, asr.finish, asr.reversed, asr.count);
-    }
-
-    private Column avroToThrift(org.apache.cassandra.hadoop.avro.Column acol)
-    {
-        return new Column(acol.name).setValue(acol.value).setTimestamp(acol.timestamp);
+        for (Mutation amut : value)
+            client.put(new Pair<ByteBuffer,Mutation>(keybuff, amut));
     }
 
     /**

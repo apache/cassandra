@@ -22,6 +22,7 @@ import java.util.*;
 
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.commons.logging.Log;
@@ -32,9 +33,9 @@ import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.SuperColumn;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.hadoop.*;
-import org.apache.cassandra.hadoop.avro.Mutation;
-import org.apache.cassandra.hadoop.avro.Deletion;
-import org.apache.cassandra.hadoop.avro.ColumnOrSuperColumn;
+import org.apache.cassandra.thrift.Mutation;
+import org.apache.cassandra.thrift.Deletion;
+import org.apache.cassandra.thrift.ColumnOrSuperColumn;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import org.apache.hadoop.conf.Configuration;
@@ -158,7 +159,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface
 
         // super
         ArrayList<Tuple> subcols = new ArrayList<Tuple>();
-        for (IColumn subcol : ((SuperColumn)col).getSubColumns())
+        for (IColumn subcol : col.getSubColumns())
             subcols.add(columnToTuple(subcol.name(), subcol, cfDef));
         
         pair.set(1, new DefaultDataBag(subcols));
@@ -179,8 +180,8 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface
         AbstractType default_validator = null;
         try
         {
-            comparator = FBUtilities.getComparator(cfDef.comparator_type);
-            default_validator = FBUtilities.getComparator(cfDef.default_validation_class);
+            comparator = TypeParser.parse(cfDef.comparator_type);
+            default_validator = TypeParser.parse(cfDef.default_validation_class);
         }
         catch (ConfigurationException e)
         {
@@ -202,7 +203,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface
                 AbstractType validator = null;
                 try
                 {
-                    validator = FBUtilities.getComparator(cd.getValidation_class());
+                    validator = TypeParser.parse(cd.getValidation_class());
                     validators.put(cd.name, validator);
                 }
                 catch (ConfigurationException e)
@@ -385,13 +386,13 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface
                    if (pair.get(1) == null)
                    {
                        mutation.deletion = new Deletion();
-                       mutation.deletion.predicate = new org.apache.cassandra.hadoop.avro.SlicePredicate();
+                       mutation.deletion.predicate = new org.apache.cassandra.thrift.SlicePredicate();
                        mutation.deletion.predicate.column_names = Arrays.asList(objToBB(pair.get(0)));
                        mutation.deletion.timestamp = System.currentTimeMillis() * 1000;
                    }
                    else
                    {
-                       org.apache.cassandra.hadoop.avro.Column column = new org.apache.cassandra.hadoop.avro.Column();
+                       org.apache.cassandra.thrift.Column column = new org.apache.cassandra.thrift.Column();
                        column.name = marshallers.get(0).decompose((pair.get(0)));
                        if (validators.get(column.name) == null)
                            // Have to special case BytesType to convert DataByteArray into ByteBuffer
