@@ -29,7 +29,7 @@
  * debian packaging fixes (CASSANDRA-2481, 2647)
  * fix UUIDType, IntegerType for direct buffers (CASSANDRA-2682, 2684)
  * switch to native Thrift for Hadoop map/reduce (CASSANDRA-2667)
-
+ * fix StackOverflowError when building from eclipse (CASSANDRA-2687)
 
 0.8.0-rc1 
  * faster flushes and compaction from fixing excessively pessimistic 
