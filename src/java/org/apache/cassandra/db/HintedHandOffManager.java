@@ -378,37 +378,6 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                                    rowsReplayed, endpoint));
     }
 
-    /** called when a keyspace is dropped or rename. newTable==null in the case of a drop. */
-    public static void renameHints(String oldTable, String newTable) throws IOException
-    {
-        DecoratedKey oldTableKey = StorageService.getPartitioner().decorateKey(ByteBufferUtil.bytes(oldTable));
-        // we're basically going to fetch, drop and add the scf for the old and new table. we need to do it piecemeal 
-        // though since there could be GB of data.
-        ColumnFamilyStore hintStore = Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(HINTS_CF);
-        ByteBuffer startCol = ByteBufferUtil.EMPTY_BYTE_BUFFER;
-        long now = System.currentTimeMillis();
-        while (true)
-        {
-            QueryFilter filter = QueryFilter.getSliceFilter(oldTableKey, new QueryPath(HINTS_CF), startCol, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, PAGE_SIZE);
-            ColumnFamily cf = ColumnFamilyStore.removeDeleted(hintStore.getColumnFamily(filter), Integer.MAX_VALUE);
-            if (pagingFinished(cf, startCol))
-                break;
-            if (newTable != null)
-            {
-                RowMutation insert = new RowMutation(Table.SYSTEM_TABLE, ByteBufferUtil.bytes(newTable));
-                insert.add(cf);
-                insert.apply();
-            }
-            RowMutation drop = new RowMutation(Table.SYSTEM_TABLE, oldTableKey.key);
-            for (ByteBuffer key : cf.getColumnNames())
-            {
-                drop.delete(new QueryPath(HINTS_CF, key), now);
-                startCol = key;
-            }
-            drop.apply();
-        }
-    }
-
     /*
      * This method is used to deliver hints to a particular endpoint.
      * When we learn that some endpoint is back up we deliver the data

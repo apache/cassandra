@@ -81,12 +81,6 @@ public class DropKeyspace extends Migration
             assert table != null;
             // reset defs.
             DatabaseDescriptor.clearTableDefinition(ksm, newVersion);
-            
-            if (!clientMode)
-            {
-                // clear up any local hinted data for this keyspace.
-                HintedHandOffManager.renameHints(name, null);
-            }
         }
         finally
         {

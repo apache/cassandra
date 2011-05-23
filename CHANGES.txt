@@ -7,6 +7,7 @@
  * fix IntegerType.getString with direct buffers (CASSANDRA-2684)
  * avoid replaying hints to dropped columnfamilies (CASSANDRA-2685)
  * add placeholders for missing rows in range query pseudo-RR (CASSANDRA-2680)
+ * remove no-op HHOM.renameHints (CASSANDRA-2693)
 
 
 0.7.6
