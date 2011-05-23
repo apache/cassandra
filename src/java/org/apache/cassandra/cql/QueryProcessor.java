@@ -194,14 +194,14 @@ public class QueryProcessor
         }
 
         // if start key was set and relation was "greater than"
-        if (select.getKeyStart() != null && !select.includeStartKey())
+        if (select.getKeyStart() != null && !select.includeStartKey() && !rows.isEmpty())
         {
             if (rows.get(0).key.key.equals(startKey))
                 rows.remove(0);
         }
 
         // if finish key was set and relation was "less than"
-        if (select.getKeyFinish() != null && !select.includeFinishKey())
+        if (select.getKeyFinish() != null && !select.includeFinishKey() && !rows.isEmpty())
         {
             int lastIndex = rows.size() - 1;
             if (rows.get(lastIndex).key.key.equals(finishKey))

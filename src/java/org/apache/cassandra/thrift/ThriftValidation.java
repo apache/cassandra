@@ -28,6 +28,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.MarshalException;
+import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Token;
@@ -536,9 +537,9 @@ public class ThriftValidation
             if (cfType == null)
                 throw new InvalidRequestException("invalid column type " + cf_def.column_type);
 
-            DatabaseDescriptor.getComparator(cf_def.comparator_type);
-            DatabaseDescriptor.getComparator(cf_def.subcomparator_type);
-            DatabaseDescriptor.getComparator(cf_def.default_validation_class);
+            TypeParser.parse(cf_def.comparator_type);
+            TypeParser.parse(cf_def.subcomparator_type);
+            TypeParser.parse(cf_def.default_validation_class);
             if (cfType != ColumnFamilyType.Super && cf_def.subcomparator_type != null)
                 throw new InvalidRequestException("subcomparator_type is invalid for standard columns");
 
@@ -546,8 +547,8 @@ public class ThriftValidation
                 return;
 
             AbstractType comparator = cfType == ColumnFamilyType.Standard
-                                    ? DatabaseDescriptor.getComparator(cf_def.comparator_type)
-                                    : DatabaseDescriptor.getComparator(cf_def.subcomparator_type);
+                                    ? TypeParser.parse(cf_def.comparator_type)
+                                    : TypeParser.parse(cf_def.subcomparator_type);
 
             Set<String> indexNames = new HashSet<String>();
             for (ColumnDef c : cf_def.column_metadata)
@@ -558,7 +559,7 @@ public class ThriftValidation
                     throw new InvalidRequestException("Duplicate index names " + idxName);
                 indexNames.add(idxName);
 
-                DatabaseDescriptor.getComparator(c.validation_class);
+                TypeParser.parse(c.validation_class);
 
                 try
                 {

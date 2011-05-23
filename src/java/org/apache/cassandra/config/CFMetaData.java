@@ -29,18 +29,13 @@ import org.apache.commons.lang.builder.HashCodeBuilder;
 import org.apache.commons.lang.builder.ToStringBuilder;
 
 import org.apache.avro.util.Utf8;
-import org.apache.cassandra.cache.ConcurrentLinkedHashCache;
-import org.apache.cassandra.cache.ConcurrentLinkedHashCacheProvider;
 import org.apache.cassandra.cache.IRowCacheProvider;
+import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.migration.avro.ColumnDef;
 import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.db.HintedHandOffManager;
 import org.apache.cassandra.db.SystemTable;
 import org.apache.cassandra.db.Table;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.BytesType;
-import org.apache.cassandra.db.marshal.TimeUUIDType;
-import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.io.SerDeUtils;
 import org.apache.cassandra.thrift.InvalidRequestException;
@@ -360,11 +355,11 @@ public final class CFMetaData
 
         try
         {
-            comparator = DatabaseDescriptor.getComparator(cf.comparator_type.toString());
+            comparator = TypeParser.parse(cf.comparator_type.toString());
             if (cf.subcomparator_type != null)
-                subcolumnComparator = DatabaseDescriptor.getComparator(cf.subcomparator_type);
-            validator = DatabaseDescriptor.getComparator(cf.default_validation_class);
-            keyValidator = DatabaseDescriptor.getComparator(cf.key_validation_class);
+                subcolumnComparator = TypeParser.parse(cf.subcomparator_type);
+            validator = TypeParser.parse(cf.default_validation_class);
+            keyValidator = TypeParser.parse(cf.key_validation_class);
         }
         catch (Exception ex)
         {
@@ -645,8 +640,8 @@ public final class CFMetaData
         CFMetaData newCFMD = new CFMetaData(cf_def.keyspace,
                                             cf_def.name,
                                             cfType,
-                                            DatabaseDescriptor.getComparator(cf_def.comparator_type),
-                                            cf_def.subcomparator_type == null ? null : DatabaseDescriptor.getComparator(cf_def.subcomparator_type));
+                                            TypeParser.parse(cf_def.comparator_type),
+                                            cf_def.subcomparator_type == null ? null : TypeParser.parse(cf_def.subcomparator_type));
 
         if (cf_def.isSetGc_grace_seconds()) { newCFMD.gcGraceSeconds(cf_def.gc_grace_seconds); }
         if (cf_def.isSetMin_compaction_threshold()) { newCFMD.minCompactionThreshold(cf_def.min_compaction_threshold); }
@@ -659,15 +654,15 @@ public final class CFMetaData
         if (cf_def.isSetMerge_shards_chance()) { newCFMD.mergeShardsChance(cf_def.merge_shards_chance); }
         if (cf_def.isSetRow_cache_provider()) { newCFMD.rowCacheProvider(FBUtilities.newCacheProvider(cf_def.row_cache_provider)); }
         if (cf_def.isSetKey_alias()) { newCFMD.keyAlias(cf_def.key_alias); }
-        if (cf_def.isSetKey_validation_class()) { newCFMD.keyValidator(DatabaseDescriptor.getComparator(cf_def.key_validation_class)); }
+        if (cf_def.isSetKey_validation_class()) { newCFMD.keyValidator(TypeParser.parse(cf_def.key_validation_class)); }
 
         return newCFMD.comment(cf_def.comment)
                       .rowCacheSize(cf_def.row_cache_size)
                       .keyCacheSize(cf_def.key_cache_size)
                       .readRepairChance(cf_def.read_repair_chance)
                       .replicateOnWrite(cf_def.replicate_on_write)
-                      .defaultValidator(DatabaseDescriptor.getComparator(cf_def.default_validation_class))
-                      .keyValidator(DatabaseDescriptor.getComparator(cf_def.key_validation_class))
+                      .defaultValidator(TypeParser.parse(cf_def.default_validation_class))
+                      .keyValidator(TypeParser.parse(cf_def.key_validation_class))
                       .columnMetadata(ColumnDefinition.fromColumnDef(cf_def.column_metadata));
     }
 
@@ -683,7 +678,7 @@ public final class CFMetaData
             throw new ConfigurationException("names do not match.");
         if (!cf_def.column_type.toString().equals(cfType.name()))
             throw new ConfigurationException("types do not match.");
-        if (comparator != DatabaseDescriptor.getComparator(cf_def.comparator_type))
+        if (comparator != TypeParser.parse(cf_def.comparator_type))
             throw new ConfigurationException("comparators do not match.");
         if (cf_def.subcomparator_type == null || cf_def.subcomparator_type.equals(""))
         {
@@ -691,7 +686,7 @@ public final class CFMetaData
                 throw new ConfigurationException("subcolumncomparators do not match.");
             // else, it's null and we're good.
         }
-        else if (subcolumnComparator != DatabaseDescriptor.getComparator(cf_def.subcomparator_type))
+        else if (subcolumnComparator != TypeParser.parse(cf_def.subcomparator_type))
             throw new ConfigurationException("subcolumncomparators do not match.");
 
         validateMinMaxCompactionThresholds(cf_def);
@@ -704,8 +699,8 @@ public final class CFMetaData
         readRepairChance = cf_def.read_repair_chance;
         replicateOnWrite = cf_def.replicate_on_write;
         gcGraceSeconds = cf_def.gc_grace_seconds;
-        defaultValidator = DatabaseDescriptor.getComparator(cf_def.default_validation_class);
-        keyValidator = DatabaseDescriptor.getComparator(cf_def.key_validation_class);
+        defaultValidator = TypeParser.parse(cf_def.default_validation_class);
+        keyValidator = TypeParser.parse(cf_def.key_validation_class);
         minCompactionThreshold = cf_def.min_compaction_threshold;
         maxCompactionThreshold = cf_def.max_compaction_threshold;
         rowCacheSavePeriodInSeconds = cf_def.row_cache_save_period_in_seconds;
@@ -741,14 +736,14 @@ public final class CFMetaData
             ColumnDefinition oldDef = column_metadata.get(def.name);
             if (oldDef == null)
                 continue;
-            oldDef.setValidator(DatabaseDescriptor.getComparator(def.validation_class));
+            oldDef.setValidator(TypeParser.parse(def.validation_class));
             oldDef.setIndexType(def.index_type == null ? null : org.apache.cassandra.thrift.IndexType.valueOf(def.index_type.name()));
             oldDef.setIndexName(def.index_name == null ? null : def.index_name.toString());
         }
         // add the new ones coming in.
         for (org.apache.cassandra.db.migration.avro.ColumnDef def : toAdd)
         {
-            AbstractType dValidClass = DatabaseDescriptor.getComparator(def.validation_class);
+            AbstractType dValidClass = TypeParser.parse(def.validation_class);
             ColumnDefinition cd = new ColumnDefinition(def.name, 
                                                        dValidClass,
                                                        def.index_type == null ? null : org.apache.cassandra.thrift.IndexType.valueOf(def.index_type.toString()), 
@@ -972,7 +967,7 @@ public final class CFMetaData
 
     public static void validateAliasCompares(org.apache.cassandra.db.migration.avro.CfDef cf_def) throws ConfigurationException
     {
-        AbstractType comparator = DatabaseDescriptor.getComparator(cf_def.comparator_type);
+        AbstractType comparator = TypeParser.parse(cf_def.comparator_type);
         if (cf_def.key_alias != null)
             comparator.validate(cf_def.key_alias);
     }

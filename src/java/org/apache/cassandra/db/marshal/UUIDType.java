@@ -25,11 +25,10 @@ import java.nio.ByteBuffer;
 import java.text.ParseException;
 import java.util.UUID;
 
-import org.apache.commons.lang.time.DateUtils;
-
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
+import org.apache.commons.lang.time.DateUtils;
 
 /**
  * Compares UUIDs using the following criteria:<br>
@@ -39,9 +38,7 @@ import org.apache.cassandra.utils.UUIDGen;
  * - compare timestamps if both are time-based<br>
  * - compare lexically, unsigned msb-to-lsb comparison<br>
  * 
- * @author edanuff
  * @see "com.fasterxml.uuid.UUIDComparator"
- * 
  */
 public class UUIDType extends AbstractUUIDType
 {
@@ -65,25 +62,13 @@ public class UUIDType extends AbstractUUIDType
             return 1;
         }
 
-        int s1 = b1.arrayOffset() + b1.position();
-        byte[] o1 = b1.array();
-
-        int s2 = b2.arrayOffset() + b2.position();
-        byte[] o2 = b2.array();
-
-        if (o1.length == s1)
-        {
-            return o2.length == s2 ? 0 : -1;
-        }
-        if (o2.length == s2)
-        {
-            return 1;
-        }
+        int s1 = b1.position();
+        int s2 = b2.position();
 
         // Compare versions
 
-        int v1 = (o1[s1 + 6] >> 4) & 0x0f;
-        int v2 = (o2[s2 + 6] >> 4) & 0x0f;
+        int v1 = (b1.get(s1 + 6) >> 4) & 0x0f;
+        int v2 = (b2.get(s2 + 6) >> 4) & 0x0f;
 
         if (v1 != v2)
         {
@@ -95,7 +80,7 @@ public class UUIDType extends AbstractUUIDType
         if (v1 == 1)
         {
             // if both time-based, compare as timestamps
-            int c = compareTimestampBytes(s1, o1, s2, o2);
+            int c = compareTimestampBytes(b1, b2);
             if (c != 0)
             {
                 return c;
@@ -109,10 +94,9 @@ public class UUIDType extends AbstractUUIDType
         // Appendix A - Sample Implementation.
         // Note: java.util.UUID.compareTo is not a lexical
         // comparison
-
         for (int i = 0; i < 16; i++)
         {
-            int c = ((o1[s1 + i]) & 0xFF) - ((o2[s2 + i]) & 0xFF);
+            int c = ((b1.get(s1 + i)) & 0xFF) - ((b2.get(s2 + i)) & 0xFF);
             if (c != 0)
             {
                 return c;
@@ -122,45 +106,54 @@ public class UUIDType extends AbstractUUIDType
         return 0;
     }
 
-    private static int compareTimestampBytes(int s1, byte[] o1, int s2,
-            byte[] o2)
+    private static int compareTimestampBytes(ByteBuffer o1, ByteBuffer o2)
     {
-        int d = (o1[s1 + 6] & 0xF) - (o2[s2 + 6] & 0xF);
+        int o1Pos = o1.position();
+        int o2Pos = o2.position();
+
+        int d = (o1.get(o1Pos + 6) & 0xF) - (o2.get(o2Pos + 6) & 0xF);
         if (d != 0)
         {
             return d;
         }
-        d = (o1[s1 + 7] & 0xFF) - (o2[s2 + 7] & 0xFF);
+
+        d = (o1.get(o1Pos + 7) & 0xFF) - (o2.get(o2Pos + 7) & 0xFF);
         if (d != 0)
         {
             return d;
         }
-        d = (o1[s1 + 4] & 0xFF) - (o2[s2 + 4] & 0xFF);
+
+        d = (o1.get(o1Pos + 4) & 0xFF) - (o2.get(o2Pos + 4) & 0xFF);
         if (d != 0)
         {
             return d;
         }
-        d = (o1[s1 + 5] & 0xFF) - (o2[s2 + 5] & 0xFF);
+
+        d = (o1.get(o1Pos + 5) & 0xFF) - (o2.get(o2Pos + 5) & 0xFF);
         if (d != 0)
         {
             return d;
         }
-        d = (o1[s1 + 0] & 0xFF) - (o2[s2 + 0] & 0xFF);
+
+        d = (o1.get(o1Pos) & 0xFF) - (o2.get(o2Pos) & 0xFF);
         if (d != 0)
         {
             return d;
         }
-        d = (o1[s1 + 1] & 0xFF) - (o2[s2 + 1] & 0xFF);
+
+        d = (o1.get(o1Pos + 1) & 0xFF) - (o2.get(o2Pos + 1) & 0xFF);
         if (d != 0)
         {
             return d;
         }
-        d = (o1[s1 + 2] & 0xFF) - (o2[s2 + 2] & 0xFF);
+
+        d = (o1.get(o1Pos + 2) & 0xFF) - (o2.get(o2Pos + 2) & 0xFF);
         if (d != 0)
         {
             return d;
         }
-        return (o1[s1 + 3] & 0xFF) - (o2[s2 + 3] & 0xFF);
+
+        return (o1.get(o1Pos + 3) & 0xFF) - (o2.get(o2Pos + 3) & 0xFF);
     }
 
     public UUID compose(ByteBuffer bytes)

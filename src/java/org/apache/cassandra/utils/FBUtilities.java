@@ -522,11 +522,6 @@ public class FBUtilities
         return FBUtilities.construct(partitionerClassName, "partitioner");
     }
 
-    public static AbstractType getComparator(String compareWith) throws ConfigurationException
-    {
-        return TypeParser.parse(compareWith);
-    }
-
     /**
      * @return The Class for the given name.
      * @param classname Fully qualified classname.

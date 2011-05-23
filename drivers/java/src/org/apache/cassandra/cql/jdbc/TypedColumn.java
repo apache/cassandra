@@ -26,7 +26,7 @@ import org.apache.cassandra.thrift.Column;
 
 import java.nio.ByteBuffer;
 
-class TypedColumn
+public class TypedColumn
 {
     private final Column rawColumn;
 

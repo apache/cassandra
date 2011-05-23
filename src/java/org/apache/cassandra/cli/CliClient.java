@@ -504,7 +504,7 @@ public class CliClient
         {
             try
             {
-                return FBUtilities.getComparator(compareWith);
+                return TypeParser.parse(compareWith);
             }
             catch (ConfigurationException ce)
             {
