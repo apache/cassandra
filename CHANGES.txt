@@ -3,7 +3,7 @@
  * add ant generate-cql-html target (CASSANDRA-2526)
  * update CQL consistency levels (CASSANDRA-2566)
  * debian packaging fixes (CASSANDRA-2481, 2647)
- * fix UUIDType for direct buffers (CASSANDRA-2682)
+ * fix UUIDType, IntegerType for direct buffers (CASSANDRA-2682, 2684)
 
 
 0.8.0-rc1
