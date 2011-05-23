@@ -62,7 +62,7 @@ public class RangeSliceResponseResolver implements IResponseResolver<Iterable<Ro
         return reply.rows;
     }
 
-    // Note: this deserializes the response a 2nd time if getData was called first
+    // Note: this would deserialize the response a 2nd time if getData was called first.
     // (this is not currently an issue since we don't do read repair for range queries.)
     public Iterable<Row> resolve() throws IOException
     {
@@ -73,7 +73,7 @@ public class RangeSliceResponseResolver implements IResponseResolver<Iterable<Ro
                 return o1.left.key.compareTo(o2.left.key);
             }
         });
-        
+
         int n = 0;
         for (Message response : responses)
         {
@@ -83,7 +83,6 @@ public class RangeSliceResponseResolver implements IResponseResolver<Iterable<Ro
         }
 
         // for each row, compute the combination of all different versions seen, and repair incomplete versions
-
         return new ReducingIterator<Pair<Row,InetAddress>, Row>(collator)
         {
             List<ColumnFamily> versions = new ArrayList<ColumnFamily>(sources.size());
