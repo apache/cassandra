@@ -577,6 +577,8 @@ public class ThriftValidation
                 if (cfType == ColumnFamilyType.Super && c.index_type != null)
                     throw new InvalidRequestException("Secondary indexes are not supported on supercolumns");
             }
+            validateMinMaxCompactionThresholds(cf_def);
+            validateMemtableSettings(cf_def);
         }
         catch (ConfigurationException e)
         {
@@ -601,5 +603,46 @@ public class ThriftValidation
         IEndpointSnitch eps = DatabaseDescriptor.getEndpointSnitch();
         Class<? extends AbstractReplicationStrategy> cls = AbstractReplicationStrategy.getClass(ks_def.strategy_class);
         AbstractReplicationStrategy.createReplicationStrategy(ks_def.name, cls, tmd, eps, options);
+    }
+
+    public static void validateMinMaxCompactionThresholds(org.apache.cassandra.thrift.CfDef cf_def) throws ConfigurationException
+    {
+        if (cf_def.isSetMin_compaction_threshold() && cf_def.isSetMax_compaction_threshold())
+        {
+            if ((cf_def.min_compaction_threshold > cf_def.max_compaction_threshold)
+                && cf_def.max_compaction_threshold != 0)
+            {
+                throw new ConfigurationException("min_compaction_threshold cannot be greater than max_compaction_threshold");
+            }
+        }
+        else if (cf_def.isSetMin_compaction_threshold())
+        {
+            if (cf_def.min_compaction_threshold > CFMetaData.DEFAULT_MAX_COMPACTION_THRESHOLD)
+            {
+                throw new ConfigurationException(String.format("min_compaction_threshold cannot be greather than max_compaction_threshold (default %d)",
+                                                               CFMetaData.DEFAULT_MAX_COMPACTION_THRESHOLD));
+            }
+        }
+        else if (cf_def.isSetMax_compaction_threshold())
+        {
+            if (cf_def.max_compaction_threshold < CFMetaData.DEFAULT_MIN_COMPACTION_THRESHOLD && cf_def.max_compaction_threshold != 0)
+            {
+                throw new ConfigurationException("max_compaction_threshold cannot be less than min_compaction_threshold");
+            }
+        }
+        else
+        {
+            //Defaults are valid.
+        }
+    }
+
+    public static void validateMemtableSettings(org.apache.cassandra.thrift.CfDef cf_def) throws ConfigurationException
+    {
+        if (cf_def.isSetMemtable_flush_after_mins())
+            DatabaseDescriptor.validateMemtableFlushPeriod(cf_def.memtable_flush_after_mins);
+        if (cf_def.isSetMemtable_throughput_in_mb())
+            DatabaseDescriptor.validateMemtableThroughput(cf_def.memtable_throughput_in_mb);
+        if (cf_def.isSetMemtable_operations_in_millions())
+            DatabaseDescriptor.validateMemtableOperations(cf_def.memtable_operations_in_millions);
     }
 }
