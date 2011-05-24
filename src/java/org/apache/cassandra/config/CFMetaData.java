@@ -628,12 +628,16 @@ public final class CFMetaData
     public void apply(org.apache.cassandra.avro.CfDef cf_def) throws ConfigurationException
     {
         // validate
-        if (!cf_def.id.equals(cfId))
-            throw new ConfigurationException("ids do not match.");
         if (!cf_def.keyspace.toString().equals(tableName))
-            throw new ConfigurationException("keyspaces do not match.");
+            throw new ConfigurationException(String.format("Keyspace mismatch (found %s; expected %s)",
+                                                           cf_def.keyspace, tableName));
         if (!cf_def.name.toString().equals(cfName))
-            throw new ConfigurationException("names do not match.");
+            throw new ConfigurationException(String.format("Column family mismatch (found %s; expected %s)",
+                                                           cf_def.name, cfName));
+        if (!cf_def.id.equals(cfId))
+            throw new ConfigurationException(String.format("Column family ID mismatch (found %s; expected %s)",
+                                                           cf_def.id, cfId));
+
         if (!cf_def.column_type.toString().equals(cfType.name()))
             throw new ConfigurationException("types do not match.");
         if (comparator != DatabaseDescriptor.getComparator(cf_def.comparator_type))
