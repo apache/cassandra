@@ -490,6 +490,12 @@ public class CompactionManager implements CompactionManagerMBean
 
     int doCompaction(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, int gcBefore) throws IOException
     {
+        if (sstables.size() < 2)
+        {
+            logger.info("Nothing to compact in " + cfs.getColumnFamilyName() + "; use forceUserDefinedCompaction if you wish to force compaction of single sstables (e.g. for tombstone collection)");
+            return 0;
+        }
+
         Table table = cfs.table;
 
         // If the compaction file path is null that means we have no space left for this compaction.
