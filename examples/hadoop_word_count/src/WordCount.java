@@ -20,9 +20,9 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import org.apache.cassandra.hadoop.avro.Column;
-import org.apache.cassandra.hadoop.avro.ColumnOrSuperColumn;
-import org.apache.cassandra.hadoop.avro.Mutation;
+import org.apache.cassandra.thrift.Column;
+import org.apache.cassandra.thrift.ColumnOrSuperColumn;
+import org.apache.cassandra.thrift.Mutation;
 import org.apache.cassandra.hadoop.ColumnFamilyOutputFormat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
