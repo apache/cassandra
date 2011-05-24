@@ -21,6 +21,7 @@
  * avoid replaying hints to dropped columnfamilies (CASSANDRA-2685)
  * add placeholders for missing rows in range query pseudo-RR (CASSANDRA-2680)
  * remove no-op HHOM.renameHints (CASSANDRA-2693)
+ * clone super columns to avoid modifying them during flush (CASSANDRA-2675)
 
 
 0.8.0-final
@@ -33,6 +34,8 @@
  * fix StackOverflowError when building from eclipse (CASSANDRA-2687)
  * only provide replication_factor to strategy_options "help" for
    SimpleStrategy, OldNetworkTopologyStrategy (CASSANDRA-2678)
+ * fix exception adding validators to non-string columns (CASSANDRA-2696)
+ * avoid instantiating DatabaseDescriptor in JDBC (CASSANDRA-2694)
 
 
 0.8.0-rc1

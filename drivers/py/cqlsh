@@ -24,6 +24,7 @@ import sys
 import readline
 import os
 import re
+import time
 
 try:
     import cql
@@ -129,7 +130,13 @@ class Shell(cmd.Cmd):
         statement = self.get_statement(input)
         if not statement: return
 
-        self.cursor.execute(statement)
+        for i in range(1,4):
+            try:
+                self.cursor.execute(statement)
+                break
+            except cql.IntegrityError, err:
+                self.printerr("Attempt #%d: %s" % (i, str(err)), color=RED)
+                time.sleep(1*i)
 
         if self.cursor.description is _COUNT_DESCRIPTION:
             if self.cursor.result: print self.cursor.result[0]
