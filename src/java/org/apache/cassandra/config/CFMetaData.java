@@ -691,7 +691,6 @@ public final class CFMetaData
 
         validateMinMaxCompactionThresholds(cf_def);
         validateMemtableSettings(cf_def);
-        validateAliasCompares(cf_def);
 
         comment = enforceCommentNotNull(cf_def.comment);
         rowCacheSize = cf_def.row_cache_size;
@@ -963,13 +962,6 @@ public final class CFMetaData
             DatabaseDescriptor.validateMemtableThroughput(cf_def.memtable_throughput_in_mb);
         if (cf_def.memtable_operations_in_millions != null)
             DatabaseDescriptor.validateMemtableOperations(cf_def.memtable_operations_in_millions);
-    }
-
-    public static void validateAliasCompares(org.apache.cassandra.db.migration.avro.CfDef cf_def) throws ConfigurationException
-    {
-        AbstractType comparator = TypeParser.parse(cf_def.comparator_type);
-        if (cf_def.key_alias != null)
-            comparator.validate(cf_def.key_alias);
     }
 
     public ColumnDefinition getColumnDefinition(ByteBuffer name)
