@@ -639,9 +639,6 @@ public final class CFMetaData
 
         applyImplicitDefaults(cf_def);
 
-        validateMinMaxCompactionThresholds(cf_def);
-        validateMemtableSettings(cf_def);
-
         CFMetaData newCFMD = new CFMetaData(cf_def.keyspace,
                                             cf_def.name,
                                             cfType,
@@ -889,36 +886,6 @@ public final class CFMetaData
         return newDef;
     }
 
-    public static void validateMinMaxCompactionThresholds(org.apache.cassandra.thrift.CfDef cf_def) throws ConfigurationException
-    {
-        if (cf_def.isSetMin_compaction_threshold() && cf_def.isSetMax_compaction_threshold())
-        {
-            if ((cf_def.min_compaction_threshold > cf_def.max_compaction_threshold) &&
-                    cf_def.max_compaction_threshold != 0)
-            {
-                throw new ConfigurationException("min_compaction_threshold cannot be greater than max_compaction_threshold");
-            }
-        }
-        else if (cf_def.isSetMin_compaction_threshold())
-        {
-            if (cf_def.min_compaction_threshold > DEFAULT_MAX_COMPACTION_THRESHOLD)
-            {
-                throw new ConfigurationException("min_compaction_threshold cannot be greather than max_compaction_threshold (default " +
-                                                  DEFAULT_MAX_COMPACTION_THRESHOLD + ")");
-            }
-        }
-        else if (cf_def.isSetMax_compaction_threshold())
-        {
-            if (cf_def.max_compaction_threshold < DEFAULT_MIN_COMPACTION_THRESHOLD && cf_def.max_compaction_threshold != 0) {
-                throw new ConfigurationException("max_compaction_threshold cannot be less than min_compaction_threshold");
-            }
-        }
-        else
-        {
-            //Defaults are valid.
-        }
-    }
-
     public static void validateMinMaxCompactionThresholds(org.apache.cassandra.db.migration.avro.CfDef cf_def) throws ConfigurationException
     {
         if (cf_def.min_compaction_threshold != null && cf_def.max_compaction_threshold != null)
@@ -947,16 +914,6 @@ public final class CFMetaData
         {
             //Defaults are valid.
         }
-    }
-
-    public static void validateMemtableSettings(org.apache.cassandra.thrift.CfDef cf_def) throws ConfigurationException
-    {
-        if (cf_def.isSetMemtable_flush_after_mins())
-            DatabaseDescriptor.validateMemtableFlushPeriod(cf_def.memtable_flush_after_mins);
-        if (cf_def.isSetMemtable_throughput_in_mb())
-            DatabaseDescriptor.validateMemtableThroughput(cf_def.memtable_throughput_in_mb);
-        if (cf_def.isSetMemtable_operations_in_millions())
-            DatabaseDescriptor.validateMemtableOperations(cf_def.memtable_operations_in_millions);
     }
 
     public static void validateMemtableSettings(org.apache.cassandra.db.migration.avro.CfDef cf_def) throws ConfigurationException
