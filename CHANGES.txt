@@ -8,6 +8,7 @@
  * fix StackOverflowError when building from eclipse (CASSANDRA-2687)
  * only provide replication_factor to strategy_options "help" for
    SimpleStrategy, OldNetworkTopologyStrategy (CASSANDRA-2678)
+ * fix exception adding validators to non-string columns (CASSANDRA-2696)
 
 
 0.8.0-rc1

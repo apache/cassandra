@@ -1393,6 +1393,21 @@ class TestMutations(ThriftTester):
         assert 'NewColumnFamily' not in [x.name for x in ks1.cf_defs]
         assert 'Standard1' in [x.name for x in ks1.cf_defs]
 
+        # Make a LongType CF and add a validator
+        newcf = CfDef('Keyspace1', 'NewLongColumnFamily', comparator_type='LongType')
+        client.system_add_column_family(newcf)
+
+        three = _i64(3)
+        cd = ColumnDef(three, 'LongType', None, None)
+        ks1 = client.describe_keyspace('Keyspace1')
+        modified_cf = [x for x in ks1.cf_defs if x.name=='NewLongColumnFamily'][0]
+        modified_cf.column_metadata = [cd]
+        client.system_update_column_family(modified_cf)
+
+        ks1 = client.describe_keyspace('Keyspace1')
+        server_cf = [x for x in ks1.cf_defs if x.name=='NewLongColumnFamily'][0]
+        assert server_cf.column_metadata[0].name == _i64(3), server_cf.column_metadata
+
     def test_dynamic_indexes_creation_deletion(self):
         _set_keyspace('Keyspace1')
         cfdef = CfDef('Keyspace1', 'BlankCF')
