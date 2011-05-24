@@ -669,7 +669,7 @@ public final class CFMetaData
         // validate
         if (!cf_def.keyspace.toString().equals(ksName))
             throw new ConfigurationException(String.format("Keyspace mismatch (found %s; expected %s)",
-                                                           cf_def.keyspace, tableName));
+                                                           cf_def.keyspace, ksName));
         if (!cf_def.name.toString().equals(cfName))
             throw new ConfigurationException(String.format("Column family mismatch (found %s; expected %s)",
                                                            cf_def.name, cfName));
