@@ -142,11 +142,6 @@ public class ColumnFamily implements IColumnContainer, IIterableColumns
         return columns.size();
     }
 
-    public boolean isEmpty()
-    {
-        return columns.isEmpty();
-    }
-
     public boolean isSuper()
     {
         return getType() == ColumnFamilyType.Super;

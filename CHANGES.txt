@@ -10,7 +10,6 @@
    SimpleStrategy, OldNetworkTopologyStrategy (CASSANDRA-2678)
  * fix exception adding validators to non-string columns (CASSANDRA-2696)
  * avoid instantiating DatabaseDescriptor in JDBC (CASSANDRA-2694)
- * clone super columns to avoid modifying them during flush (CASSANDRA-2675)
 
 
 0.8.0-rc1
