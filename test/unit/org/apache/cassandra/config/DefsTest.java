@@ -436,15 +436,15 @@ public class DefsTest extends CleanupHelper
         assert !success : "This mutation should have failed since the CF no longer exists.";
 
         // reads should fail too.
+        boolean opened = false;
         try
         {
             Table.open(ks.name);
+            opened = true;
         }
-        catch (Throwable th)
-        {
-            // this is what has historically happened when you try to open a table that doesn't exist.
-            assert th instanceof NullPointerException;
-        }
+        catch (Throwable th) {}
+        if (opened)
+            throw new AssertionError("Opened dropped keyspace");
     }
 
     @Test
@@ -500,14 +500,15 @@ public class DefsTest extends CleanupHelper
         assert DefsTable.getFiles(newKs.name, cfName).size() > 0;
         
         // read on old should fail.
+        boolean opened = false;
         try
         {
             Table.open(oldKs.name);
+            opened = true;
         }
-        catch (Throwable th)
-        {
-            assert th instanceof NullPointerException;
-        }
+        catch (Throwable th) {}
+        if (opened)
+            throw new AssertionError("Opened dropped keyspace");
         
         // write on old should fail.
         rm = new RowMutation(oldKs.name, ByteBufferUtil.bytes("any key will do"));
