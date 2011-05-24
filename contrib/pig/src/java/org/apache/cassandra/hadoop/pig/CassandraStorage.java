@@ -22,7 +22,6 @@ import java.util.*;
 
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.marshal.BytesType;
-import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.commons.logging.Log;
@@ -33,9 +32,6 @@ import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.SuperColumn;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.hadoop.*;
-import org.apache.cassandra.thrift.Mutation;
-import org.apache.cassandra.thrift.Deletion;
-import org.apache.cassandra.thrift.ColumnOrSuperColumn;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import org.apache.hadoop.conf.Configuration;
@@ -180,8 +176,8 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface
         AbstractType default_validator = null;
         try
         {
-            comparator = TypeParser.parse(cfDef.comparator_type);
-            default_validator = TypeParser.parse(cfDef.default_validation_class);
+            comparator = FBUtilities.getComparator(cfDef.comparator_type);
+            default_validator = FBUtilities.getComparator(cfDef.default_validation_class);
         }
         catch (ConfigurationException e)
         {
@@ -203,7 +199,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface
                 AbstractType validator = null;
                 try
                 {
-                    validator = TypeParser.parse(cd.getValidation_class());
+                    validator = FBUtilities.getComparator(cd.getValidation_class());
                     validators.put(cd.name, validator);
                 }
                 catch (ConfigurationException e)
@@ -357,12 +353,12 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface
                Mutation mutation = new Mutation();
                if (DataType.findType(pair.get(1)) == DataType.BAG) // supercolumn
                {
-                   org.apache.cassandra.hadoop.avro.SuperColumn sc = new org.apache.cassandra.hadoop.avro.SuperColumn();
+                   org.apache.cassandra.thrift.SuperColumn sc = new org.apache.cassandra.thrift.SuperColumn();
                    sc.name = objToBB(pair.get(0));
-                   ArrayList<org.apache.cassandra.hadoop.avro.Column> columns = new ArrayList<org.apache.cassandra.hadoop.avro.Column>();
+                   ArrayList<org.apache.cassandra.thrift.Column> columns = new ArrayList<org.apache.cassandra.thrift.Column>();
                    for (Tuple subcol : (DefaultDataBag) pair.get(1))
                    {
-                       org.apache.cassandra.hadoop.avro.Column column = new org.apache.cassandra.hadoop.avro.Column();
+                       org.apache.cassandra.thrift.Column column = new org.apache.cassandra.thrift.Column();
                        column.name = objToBB(subcol.get(0));
                        column.value = objToBB(subcol.get(1));
                        column.timestamp = System.currentTimeMillis() * 1000;
@@ -370,7 +366,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface
                    }
                    if (columns.isEmpty()) // a deletion
                    {
-                       mutation.deletion = new Deletion();
+                       mutation.deletion = new org.apache.cassandra.thrift.Deletion();
                        mutation.deletion.super_column = objToBB(pair.get(0));
                        mutation.deletion.timestamp = System.currentTimeMillis() * 1000;
                    }
@@ -385,7 +381,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface
                {
                    if (pair.get(1) == null)
                    {
-                       mutation.deletion = new Deletion();
+                       mutation.deletion = new org.apache.cassandra.thrift.Deletion();
                        mutation.deletion.predicate = new org.apache.cassandra.thrift.SlicePredicate();
                        mutation.deletion.predicate.column_names = Arrays.asList(objToBB(pair.get(0)));
                        mutation.deletion.timestamp = System.currentTimeMillis() * 1000;
