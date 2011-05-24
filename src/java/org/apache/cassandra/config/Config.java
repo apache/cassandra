@@ -77,6 +77,8 @@ public class Config
     public Boolean snapshot_before_compaction = false;
     public Integer compaction_thread_priority = Thread.MIN_PRIORITY;
     
+    public Integer binary_memtable_throughput_in_mb = 256;
+    
     /* if the size of columns or super-columns are more than this, indexing will kick in */
     public Integer column_index_size_in_kb = 64;
     public Integer in_memory_compaction_limit_in_mb = 256;
