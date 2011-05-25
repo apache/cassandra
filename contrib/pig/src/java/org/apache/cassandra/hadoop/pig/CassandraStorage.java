@@ -361,14 +361,14 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface
                        org.apache.cassandra.thrift.Column column = new org.apache.cassandra.thrift.Column();
                        column.name = objToBB(subcol.get(0));
                        column.value = objToBB(subcol.get(1));
-                       column.timestamp = System.currentTimeMillis() * 1000;
+                       column.setTimestamp(System.currentTimeMillis() * 1000);
                        columns.add(column);
                    }
                    if (columns.isEmpty()) // a deletion
                    {
                        mutation.deletion = new org.apache.cassandra.thrift.Deletion();
                        mutation.deletion.super_column = objToBB(pair.get(0));
-                       mutation.deletion.timestamp = System.currentTimeMillis() * 1000;
+                       mutation.deletion.setTimestamp(System.currentTimeMillis() * 1000);
                    }
                    else
                    {
@@ -384,7 +384,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface
                        mutation.deletion = new org.apache.cassandra.thrift.Deletion();
                        mutation.deletion.predicate = new org.apache.cassandra.thrift.SlicePredicate();
                        mutation.deletion.predicate.column_names = Arrays.asList(objToBB(pair.get(0)));
-                       mutation.deletion.timestamp = System.currentTimeMillis() * 1000;
+                       mutation.deletion.setTimestamp(System.currentTimeMillis() * 1000);
                    }
                    else
                    {
@@ -398,10 +398,9 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface
                                column.value = marshallers.get(1).decompose(pair.get(1));
                        else
                            column.value = validators.get(column.name).decompose(pair.get(1));
-                       column.timestamp = System.currentTimeMillis() * 1000;
+                       column.setTimestamp(System.currentTimeMillis() * 1000);
                        mutation.column_or_supercolumn = new ColumnOrSuperColumn();
                        mutation.column_or_supercolumn.column = column;
-                       mutationList.add(mutation);
                    }
                }
                mutationList.add(mutation);
