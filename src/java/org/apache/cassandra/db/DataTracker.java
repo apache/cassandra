@@ -29,6 +29,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import com.google.common.collect.Iterables;
+import org.apache.commons.collections.set.UnmodifiableSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -453,9 +454,9 @@ public class DataTracker
         public View(Memtable memtable, Set<Memtable> pendingFlush, Set<SSTableReader> sstables, Set<SSTableReader> compacting)
         {
             this.memtable = memtable;
-            this.memtablesPendingFlush = Collections.unmodifiableSet(pendingFlush);
-            this.sstables = Collections.unmodifiableSet(sstables);
-            this.compacting = Collections.unmodifiableSet(compacting);
+            this.memtablesPendingFlush = pendingFlush instanceof UnmodifiableSet ? pendingFlush : Collections.unmodifiableSet(pendingFlush);
+            this.sstables = sstables instanceof UnmodifiableSet ? sstables : Collections.unmodifiableSet(sstables);
+            this.compacting = compacting instanceof UnmodifiableSet ? compacting : Collections.unmodifiableSet(compacting);
         }
 
         public View switchMemtable(Memtable newMemtable)
