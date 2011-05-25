@@ -101,7 +101,7 @@ public abstract class AbstractBounds implements Serializable
         {
             List<AbstractBounds> unwrapped = bound.unwrap();
             assert previous == null || previous.right.compareTo(unwrapped.get(0).left) <= 0 :
-                "Overlapping ranges passed to normalize: see CASSANDRA-2461: " + previous + " and " + unwrapped;
+                "Overlapping ranges passed to normalize: see CASSANDRA-2641: " + previous + " and " + unwrapped;
             output.addAll(unwrapped);
             previous = unwrapped.get(unwrapped.size() - 1);
         }
