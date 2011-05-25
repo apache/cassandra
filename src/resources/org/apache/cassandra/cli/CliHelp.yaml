@@ -231,6 +231,9 @@ commands:
           Options have the form [{key:value}], see the information on each
           strategy and the examples.
 
+        - durable_writes: When set to false all RowMutations on keyspace will by-pass CommitLog.
+          Set to true by default.
+
         Examples:
         create keyspace Keyspace2
             with placement_strategy = 'org.apache.cassandra.locator.SimpleStrategy'
@@ -295,6 +298,9 @@ commands:
         - strategy_options: Optional additional options for placement_strategy.
           Options have the form [{key:value}], see the information on each
           strategy and the examples.
+
+        - durable_writes: When set to false all RowMutations on keyspace will by-pass CommitLog.
+          Set to true by default.
 
         Examples:
         update keyspace Keyspace2
