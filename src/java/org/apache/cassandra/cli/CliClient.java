@@ -103,7 +103,8 @@ public class CliClient
      */
     private enum AddKeyspaceArgument {
         PLACEMENT_STRATEGY,
-        STRATEGY_OPTIONS
+        STRATEGY_OPTIONS,
+        DURABLE_WRITES
     }
 
     /*
@@ -1088,6 +1089,9 @@ public class CliClient
             case STRATEGY_OPTIONS:
                 ksDef.setStrategy_options(getStrategyOptionsFromTree(statement.getChild(i + 1)));
                 break;
+            case DURABLE_WRITES:
+                ksDef.setDurable_writes(Boolean.parseBoolean(mValue));
+                break;
             default:
                 //must match one of the above or we'd throw an exception at the valueOf statement above.
                 assert(false);
@@ -1638,6 +1642,8 @@ public class CliClient
             KsDef ks_def;
             ks_def = metadata == null ? thriftClient.describe_keyspace(keySpaceName) : metadata;
             sessionState.out.println("  Replication Strategy: " + ks_def.strategy_class);
+
+            sessionState.out.println("  Durable Writes: " + ks_def.durable_writes);
 
             Map<String, String> options = ks_def.strategy_options;
             sessionState.out.println("    Options: [" + ((options == null) ? "" : FBUtilities.toString(options)) + "]");
