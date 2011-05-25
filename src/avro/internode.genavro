@@ -75,6 +75,7 @@ protocol InterNode {
         union{ map<string>, null } strategy_options;
         union{ int, null } replication_factor;
         array<CfDef> cf_defs;
+        boolean durable_writes = true;
     }
     
     @namespace("org.apache.cassandra.utils.avro")

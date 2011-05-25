@@ -67,7 +67,8 @@ public class SchemaLoader
         String ks6 = "Keyspace6";
         String ks_kcs = "KeyCacheSpace";
         String ks_rcs = "RowCacheSpace";
-
+        String ks_nocommit = "NoCommitlogSpace";
+        
         Class<? extends AbstractReplicationStrategy> simple = SimpleStrategy.class;
 
         Map<String, String> opts_rf1 = KSMetaData.optsWithRF(1);
@@ -223,6 +224,13 @@ public class SchemaLoader
                                   standardCFMD(ks_rcs, "CachedCF")
                                               .rowCacheSize(100)));
 
+        schema.add(new KSMetaData(ks_nocommit,
+                simple,
+                opts_rf1,
+                false,
+                standardCFMD(ks_nocommit, "Standard1")));
+
+        
         return schema;
     }
 

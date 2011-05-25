@@ -25,6 +25,7 @@ import java.lang.management.MemoryMXBean;
 import java.lang.management.MemoryUsage;
 import java.lang.management.RuntimeMXBean;
 import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.Map.Entry;
@@ -47,6 +48,7 @@ import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.db.CompactionManager;
 import org.apache.cassandra.db.CompactionManagerMBean;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
 import org.apache.cassandra.net.MessagingServiceMBean;
 import org.apache.cassandra.service.StorageServiceMBean;
 import org.apache.cassandra.streaming.StreamingService;
@@ -485,6 +487,18 @@ public class NodeProbe
             throw new RuntimeException("Error while executing truncate", e);
         }
     }
+
+    public EndpointSnitchInfoMBean getEndpointSnitchInfoProxy()
+    {
+        try
+        {
+            return JMX.newMBeanProxy(mbeanServerConn, new ObjectName("org.apache.cassandra.db:type=EndpointSnitchInfo"), EndpointSnitchInfoMBean.class);
+        }
+        catch (MalformedObjectNameException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
     
     public MessagingServiceMBean getMsProxy()
     {
@@ -514,6 +528,30 @@ public class NodeProbe
         }
 
         return cfsProxy;
+    }
+
+    public String getDataCenter()
+    {
+        try
+        {
+            return getEndpointSnitchInfoProxy().getDatacenter(host);
+        }
+        catch (UnknownHostException e)
+        {
+            return "Unknown";
+        }
+    }
+
+    public String getRack()
+    {
+        try
+        {
+            return getEndpointSnitchInfoProxy().getRack(host);
+        }
+        catch (UnknownHostException e)
+        {
+            return "Unknown";
+        }
     }
 
     public List<String> getKeyspaces()

@@ -18,22 +18,21 @@
 */
 package org.apache.cassandra.db;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.*;
 
-import java.io.ByteArrayInputStream;
-import java.io.DataInputStream;
-import java.io.IOException;
+import java.io.*;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 
+import org.junit.Test;
+
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-
 import org.apache.cassandra.net.MessagingService;
-import org.junit.Test;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 
@@ -98,4 +97,43 @@ public class ReadMessageTest extends SchemaLoader
         IColumn col = row.cf.getColumn(ByteBufferUtil.bytes("Column1"));
         assert Arrays.equals(col.value().array(), "abcd".getBytes());  
     }
+    
+    @Test 
+    public void testNoCommitLog() throws Exception
+    {
+                   
+        RowMutation rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes("row"));
+        rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes("commit1")), ByteBufferUtil.bytes("abcd"), 0);
+        rm.apply();
+          
+        rm = new RowMutation("NoCommitlogSpace", ByteBufferUtil.bytes("row"));
+        rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes("commit2")), ByteBufferUtil.bytes("abcd"), 0);
+        rm.apply();
+        
+        boolean commitLogMessageFound = false;
+        boolean noCommitLogMessageFound = false;
+            
+        File commitLogDir = new File(DatabaseDescriptor.getCommitLogLocation());
+            
+        for(String filename : commitLogDir.list())
+        {
+            BufferedReader f = new BufferedReader(new FileReader(commitLogDir.getAbsolutePath()+File.separator+filename));
+                
+            String line = null;
+            while( (line = f.readLine()) != null)
+            {
+                if(line.contains("commit1"))
+                    commitLogMessageFound = true;
+                    
+                if(line.contains("commit2"))
+                    noCommitLogMessageFound = true;
+            }
+                
+            f.close();
+        }
+            
+        assertTrue(commitLogMessageFound);
+        assertFalse(noCommitLogMessageFound);         
+    }
+    
 }
