@@ -407,6 +407,7 @@ struct KsDef {
     4: optional i32 replication_factor, 
 
     5: required list<CfDef> cf_defs,
+    6: optional bool durable_writes=1,
 }
 
 /** CQL query compression */
