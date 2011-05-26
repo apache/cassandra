@@ -51,7 +51,10 @@ public final class KSMetaData
 
     public static Map<String, String> forwardsCompatibleOptions(KsDef ks_def)
     {
-        Map<String, String> options = new HashMap<String, String>(ks_def.strategy_options);
+        Map<String, String> options;
+        options = ks_def.strategy_options == null
+                ? new HashMap<String, String>()
+                : new HashMap<String, String>(ks_def.strategy_options);
         maybeAddReplicationFactor(options, ks_def.strategy_class, ks_def.isSetReplication_factor() ? ks_def.replication_factor : null);
         return options;
     }
