@@ -298,7 +298,12 @@ public abstract class Migration
         DecoratedKey dkey = StorageService.getPartitioner().decorateKey(MIGRATIONS_KEY);
         Table defs = Table.open(Table.SYSTEM_TABLE);
         ColumnFamilyStore cfStore = defs.getColumnFamilyStore(Migration.MIGRATIONS_CF);
-        QueryFilter filter = QueryFilter.getSliceFilter(dkey, new QueryPath(MIGRATIONS_CF), ByteBuffer.wrap(UUIDGen.decompose(start)), ByteBuffer.wrap(UUIDGen.decompose(end)), false, 1000);   
+        QueryFilter filter = QueryFilter.getSliceFilter(dkey,
+                                                        new QueryPath(MIGRATIONS_CF),
+                                                        ByteBuffer.wrap(UUIDGen.decompose(start)),
+                                                        ByteBuffer.wrap(UUIDGen.decompose(end)),
+                                                        false,
+                                                        100);
         ColumnFamily cf = cfStore.getColumnFamily(filter);
         return cf.getSortedColumns();
     }

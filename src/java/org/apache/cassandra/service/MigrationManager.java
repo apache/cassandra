@@ -24,8 +24,10 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
-import org.apache.cassandra.utils.ByteBufferUtil;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.MapMaker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -35,16 +37,21 @@ import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.IColumn;
+import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.gms.*;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
 public class MigrationManager implements IEndpointStateChangeSubscriber
 {
     private static final Logger logger = LoggerFactory.getLogger(MigrationManager.class);
-    
+
+    // avoids re-pushing migrations that we're waiting on target to apply already
+    private static Map<InetAddress,UUID> lastPushed = new MapMaker().expiration(1, TimeUnit.MINUTES).makeMap();
+
     /** I'm not going to act here. */
     public void onJoin(InetAddress endpoint, EndpointState epState) { }
 
@@ -87,8 +94,16 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
         }
         else if (!StorageService.instance.isClientMode())
         {
-            logger.debug("Their data definitions are old. Sending updates since {}", theirVersion.toString());
-            pushMigrations(theirVersion, myVersion, endpoint);
+            if (lastPushed.get(endpoint) == null || theirVersion.timestamp() >= lastPushed.get(endpoint).timestamp())
+            {
+                logger.debug("Schema on {} is old. Sending updates since {}", endpoint, theirVersion);
+                pushMigrations(theirVersion, myVersion, endpoint);
+            }
+            else
+            {
+                logger.debug("Waiting for {} to process migrations up to {} before sending more",
+                             endpoint, lastPushed.get(endpoint));
+            }
         }
     }
 
@@ -172,6 +187,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
         {
             Message msg = makeMigrationMessage(migrations);
             MessagingService.instance().sendOneWay(msg, host);
+            lastPushed.put(host, TimeUUIDType.instance.compose(Iterables.getLast(migrations).name()));
         }
         catch (IOException ex)
         {

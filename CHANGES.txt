@@ -10,6 +10,7 @@
  * remove no-op HHOM.renameHints (CASSANDRA-2693)
  * clone super columns to avoid modifying them during flush (CASSANDRA-2675)
  * close scrub file handles (CASSANDRA-2669)
+ * throttle migration replay (CASSANDRA-2714)
 
 
 0.7.6
