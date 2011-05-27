@@ -646,7 +646,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
             assert getMemtableThreadSafe() == oldMemtable;
             oldMemtable.freeze();
-            final ReplayPosition ctx = writeCommitLog ? CommitLog.instance.getContext() : null;
+            final ReplayPosition ctx = writeCommitLog ? CommitLog.instance.getContext() : ReplayPosition.NONE;
 
             // submit the memtable for any indexed sub-cfses, and our own.
             List<ColumnFamilyStore> icc = new ArrayList<ColumnFamilyStore>(indexedColumns.size());
