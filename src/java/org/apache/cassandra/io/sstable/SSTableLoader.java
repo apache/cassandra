@@ -51,7 +51,7 @@ public class SSTableLoader
         this.outputHandler = outputHandler;
     }
 
-    private Collection<SSTableReader> openSSTables()
+    protected Collection<SSTableReader> openSSTables()
     {
         final List<SSTableReader> sstables = new LinkedList<SSTableReader>();
 
