@@ -42,10 +42,11 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 public class Column implements IColumn
 {
     private static Logger logger = LoggerFactory.getLogger(Column.class);
+    private static ColumnSerializer serializer = new ColumnSerializer();
 
     public static ColumnSerializer serializer()
     {
-        return new ColumnSerializer();
+        return serializer;
     }
 
     protected final ByteBuffer name;
