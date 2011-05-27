@@ -96,15 +96,8 @@ public abstract class AbstractBounds implements Serializable
     {
         // unwrap all
         List<AbstractBounds> output = new ArrayList<AbstractBounds>();
-        AbstractBounds previous = null;
         for (AbstractBounds bound : bounds)
-        {
-            List<AbstractBounds> unwrapped = bound.unwrap();
-            assert previous == null || previous.right.compareTo(unwrapped.get(0).left) <= 0 :
-                "Overlapping ranges passed to normalize: see CASSANDRA-2641: " + previous + " and " + unwrapped;
-            output.addAll(unwrapped);
-            previous = unwrapped.get(unwrapped.size() - 1);
-        }
+            output.addAll(bound.unwrap());
 
         // sort by left
         Collections.sort(output, new Comparator<AbstractBounds>()
