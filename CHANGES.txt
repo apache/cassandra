@@ -11,6 +11,7 @@
  * fix exception adding validators to non-string columns (CASSANDRA-2696)
  * avoid instantiating DatabaseDescriptor in JDBC (CASSANDRA-2694)
  * fix potential stack overflow during compaction (CASSANDRA-2626)
+ * clone super columns to avoid modifying them during flush (CASSANDRA-2675)
 
 
 0.8.0-rc1
