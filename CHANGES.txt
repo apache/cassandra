@@ -23,6 +23,7 @@
  * remove no-op HHOM.renameHints (CASSANDRA-2693)
  * clone super columns to avoid modifying them during flush (CASSANDRA-2675)
  * allow writes to bypass the commitlog for certain keyspaces (CASSANDRA-2683)
+ * avoid NPE when bypassing commitlog during memtable flush (CASSANDRA-2781)
 
 
 0.8.0-final
