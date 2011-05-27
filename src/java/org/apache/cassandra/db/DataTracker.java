@@ -458,7 +458,7 @@ public class DataTracker
 
         public View switchMemtable(Memtable newMemtable)
         {
-            Set<Memtable> newPending = ImmutableSet.<Memtable>builder().addAll(memtablesPendingFlush).add(newMemtable).build();
+            Set<Memtable> newPending = ImmutableSet.<Memtable>builder().addAll(memtablesPendingFlush).add(memtable).build();
             return new View(newMemtable, newPending, sstables, compacting);
         }
 
