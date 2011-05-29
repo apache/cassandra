@@ -24,6 +24,8 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.util.Collection;
+import java.util.Comparator;
+import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -37,13 +39,21 @@ import org.apache.cassandra.io.util.ColumnSortedMap;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 
 public class SuperColumn implements IColumn, IColumnContainer
 {
+    private static NonBlockingHashMap<Comparator, SuperColumnSerializer> serializers = new NonBlockingHashMap<Comparator, SuperColumnSerializer>();
     public static SuperColumnSerializer serializer(AbstractType comparator)
     {
-        return new SuperColumnSerializer(comparator);
+        SuperColumnSerializer serializer = serializers.get(comparator);
+        if (serializer == null)
+        {
+            serializer = new SuperColumnSerializer(comparator);
+            serializers.put(comparator, serializer);
+        }
+        return serializer;
     }
 
     private ByteBuffer name_;

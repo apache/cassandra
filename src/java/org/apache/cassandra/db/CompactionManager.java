@@ -633,26 +633,31 @@ public class CompactionManager implements CompactionManagerMBean
     private void doScrub(ColumnFamilyStore cfs, Collection<SSTableReader> sstables) throws IOException
     {
         assert !cfs.isIndex();
-
         for (final SSTableReader sstable : sstables)
+            scrubOne(cfs, sstable);
+    }
+
+    private void scrubOne(ColumnFamilyStore cfs, SSTableReader sstable) throws IOException
+    {
+        logger.info("Scrubbing " + sstable);
+        CompactionController controller = new CompactionController(cfs, Collections.singletonList(sstable), getDefaultGcBefore(cfs), true);
+
+        // Calculate the expected compacted filesize
+        String compactionFileLocation = cfs.table.getDataFileLocation(sstable.length());
+        if (compactionFileLocation == null)
+            throw new IOException("disk full");
+        int expectedBloomFilterSize = Math.max(DatabaseDescriptor.getIndexInterval(),
+                                               (int)(SSTableReader.getApproximateKeyCount(Arrays.asList(sstable))));
+
+        // loop through each row, deserializing to check for damage.
+        // we'll also loop through the index at the same time, using the position from the index to recover if the
+        // row header (key or data size) is corrupt. (This means our position in the index file will be one row
+        // "ahead" of the data file.)
+        final BufferedRandomAccessFile dataFile = BufferedRandomAccessFile.getUncachingReader(sstable.getFilename());
+        String indexFilename = sstable.descriptor.filenameFor(Component.PRIMARY_INDEX);
+        BufferedRandomAccessFile indexFile = BufferedRandomAccessFile.getUncachingReader(indexFilename);
+        try
         {
-            logger.info("Scrubbing " + sstable);
-            CompactionController controller = new CompactionController(cfs, Collections.singletonList(sstable), getDefaultGcBefore(cfs), true);
-
-            // Calculate the expected compacted filesize
-            String compactionFileLocation = cfs.table.getDataFileLocation(sstable.length());
-            if (compactionFileLocation == null)
-                throw new IOException("disk full");
-            int expectedBloomFilterSize = Math.max(DatabaseDescriptor.getIndexInterval(),
-                                                   (int)(SSTableReader.getApproximateKeyCount(Arrays.asList(sstable))));
-
-            // loop through each row, deserializing to check for damage.
-            // we'll also loop through the index at the same time, using the position from the index to recover if the
-            // row header (key or data size) is corrupt. (This means our position in the index file will be one row
-            // "ahead" of the data file.)
-            final BufferedRandomAccessFile dataFile = BufferedRandomAccessFile.getUncachingReader(sstable.getFilename());
-            String indexFilename = sstable.descriptor.filenameFor(Component.PRIMARY_INDEX);
-            BufferedRandomAccessFile indexFile = BufferedRandomAccessFile.getUncachingReader(indexFilename);
             ByteBuffer nextIndexKey = ByteBufferUtil.readWithShortLength(indexFile);
             {
                 // throw away variable so we don't have a side effect in the assert
@@ -790,6 +795,11 @@ public class CompactionManager implements CompactionManagerMBean
                 else
                     logger.info("Scrub of " + sstable + " complete; looks like all " + emptyRows + " rows were tombstoned");
             }
+        }
+        finally
+        {
+            FileUtils.closeQuietly(dataFile);
+            FileUtils.closeQuietly(indexFile);
         }
     }
 
