@@ -25,6 +25,7 @@
  * allow writes to bypass the commitlog for certain keyspaces (CASSANDRA-2683)
  * avoid NPE when bypassing commitlog during memtable flush (CASSANDRA-2781)
  * Added support for making bootstrap retry if nodes flap (CASSANDRA-2644)
+ * Added statusthrift to nodetool to report if thrift server is running (CASSANDRA-2722)
 
 0.8.0-final
  * fix CQL grammar warning and cqlsh regression from CASSANDRA-2622
