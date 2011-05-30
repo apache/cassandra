@@ -137,4 +137,34 @@ public class CompactionsTest extends CleanupHelper
         assertEquals(1, buckets.size());
     }
 
+    @Test
+    public void testEchoedRow() throws IOException, ExecutionException, InterruptedException
+    {
+        // This test check that EchoedRow doesn't skipp rows: see CASSANDRA-2653
+
+        Table table = Table.open(TABLE1);
+        ColumnFamilyStore store = table.getColumnFamilyStore("Standard2");
+
+        // disable compaction while flushing
+        store.disableAutoCompaction();
+
+        // Insert 4 keys in two sstables. We need the sstables to have 2 rows
+        // at least to trigger what was causing CASSANDRA-2653
+        for (int i=1; i < 5; i++)
+        {
+            DecoratedKey key = Util.dk(String.valueOf(i));
+            RowMutation rm = new RowMutation(TABLE1, key.key);
+            rm.add(new QueryPath("Standard2", null, ByteBufferUtil.bytes(String.valueOf(i))), ByteBufferUtil.EMPTY_BYTE_BUFFER, i);
+            rm.apply();
+
+            if (i % 2 == 0)
+                store.forceBlockingFlush();
+        }
+
+        // Force compaction. Since each row is in only one sstable, we will be using EchoedRow.
+        CompactionManager.instance.performMajor(store);
+
+        // Now assert we do have the two keys
+        assertEquals(4, Util.getRangeSlice(store).size());
+    }
 }
