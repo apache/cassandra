@@ -80,7 +80,7 @@ public class NodeCmd
         DECOMMISSION, MOVE, REMOVETOKEN, REPAIR, CLEANUP, COMPACT, SCRUB,
         SETCACHECAPACITY, GETCOMPACTIONTHRESHOLD, SETCOMPACTIONTHRESHOLD, NETSTATS, CFHISTOGRAMS,
         COMPACTIONSTATS, DISABLEGOSSIP, ENABLEGOSSIP, INVALIDATEKEYCACHE, INVALIDATEROWCACHE,
-        DISABLETHRIFT, ENABLETHRIFT, JOIN, SETCOMPACTIONTHROUGHPUT
+        DISABLETHRIFT, ENABLETHRIFT, STATUSTHRIFT, JOIN, SETCOMPACTIONTHROUGHPUT
     }
 
     
@@ -106,6 +106,7 @@ public class NodeCmd
         addCmdHelp(header, "enablegossip", "Reenable gossip");
         addCmdHelp(header, "disablethrift", "Disable thrift server");
         addCmdHelp(header, "enablethrift", "Reenable thrift server");
+        addCmdHelp(header, "statusthrift", "Status of thrift server");
 
         // One arg
         addCmdHelp(header, "netstats [host]", "Print network information on provided host (connecting node by default)");
@@ -514,6 +515,11 @@ public class NodeCmd
         }
     }
 
+    private void printIsThriftServerRunning(PrintStream outs)
+    {
+        outs.println(probe.isThriftServerRunning() ? "running" : "not running");
+    }
+
     public static void main(String[] args) throws IOException, InterruptedException, ConfigurationException, ParseException
     {
         CommandLineParser parser = new PosixParser();
@@ -587,6 +593,7 @@ public class NodeCmd
             case ENABLEGOSSIP    : probe.startGossiping(); break;
             case DISABLETHRIFT   : probe.stopThriftServer(); break;
             case ENABLETHRIFT    : probe.startThriftServer(); break;
+            case STATUSTHRIFT    : nodeCmd.printIsThriftServerRunning(System.out); break;
 
             case DRAIN :
                 try { probe.drain(); }

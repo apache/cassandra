@@ -579,6 +579,11 @@ public class NodeProbe
         ssProxy.startRPCServer();
     }
 
+    public boolean isThriftServerRunning()
+    {
+        return ssProxy.isRPCServerRunning();
+    }
+
     public boolean isInitialized()
     {
         return ssProxy.isInitialized();
