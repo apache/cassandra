@@ -693,7 +693,6 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
                destdir="${build.classes.main}" includeantruntime="false">
             <src path="${build.src.java}"/>
             <src path="${build.src.gen-java}"/>
-            <src path="${build.src.driver}" />
             <classpath refid="cassandra.classpath"/>
         </javac>
         <javac debug="true" debuglevel="${debuglevel}"
