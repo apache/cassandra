@@ -318,7 +318,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     {
         if (daemon == null)
         {
-            throw new IllegalStateException("No configured RPC daemon");
+            return false;
         }
         return daemon.isRPCServerRunning();
     }
