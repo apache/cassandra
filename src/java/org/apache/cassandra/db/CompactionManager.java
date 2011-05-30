@@ -1310,6 +1310,8 @@ public class CompactionManager implements CompactionManagerMBean
         {
             super(row.getKey());
             this.row = row;
+            // Reset SSTableIdentityIterator because we have not guarantee the filePointer hasn't moved since the Iterator was built
+            row.reset();
         }
 
         public void write(DataOutput out) throws IOException
