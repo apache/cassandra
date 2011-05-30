@@ -24,7 +24,7 @@
  * clone super columns to avoid modifying them during flush (CASSANDRA-2675)
  * allow writes to bypass the commitlog for certain keyspaces (CASSANDRA-2683)
  * avoid NPE when bypassing commitlog during memtable flush (CASSANDRA-2781)
-
+ * Added support for making bootstrap retry if nodes flap (CASSANDRA-2644)
 
 0.8.0-final
  * fix CQL grammar warning and cqlsh regression from CASSANDRA-2622
