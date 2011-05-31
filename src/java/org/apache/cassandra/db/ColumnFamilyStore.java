@@ -1186,7 +1186,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             if (rowCache.getCapacity() == 0)
             {
                 ColumnFamily cf = getTopLevelColumns(filter, gcBefore);
-                         
+
+                if (cf == null)
+                    return null;
+
                 // TODO this is necessary because when we collate supercolumns together, we don't check
                 // their subcolumns for relevance, so we need to do a second prune post facto here.
                 return cf.isSuper() ? removeDeleted(cf, gcBefore) : removeDeletedCF(cf, gcBefore);
@@ -1297,14 +1300,17 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             recentSSTablesPerRead.add(sstablesToIterate);
             sstablesPerRead.add(sstablesToIterate);
 
+            // we need to distinguish between "there is no data at all for this row" (BF will let us rebuild that efficiently)
+            // and "there used to be data, but it's gone now" (we should cache the empty CF so we don't need to rebuild that slower)
+            if (iterators.size() == 0)
+                return null;
+
             Comparator<IColumn> comparator = filter.filter.getColumnComparator(getComparator());
             Iterator collated = IteratorUtils.collatedIterator(comparator, iterators);
 
             filter.collectCollatedColumns(returnCF, collated, gcBefore);
 
             // Caller is responsible for final removeDeletedCF.  This is important for cacheRow to work correctly:
-            // we need to distinguish between "there is no data at all for this row" (BF will let us rebuild that efficiently)
-            // and "there used to be data, but it's gone now" (we should cache the empty CF so we don't need to rebuild that slower)
             return returnCF;
         }
         finally
