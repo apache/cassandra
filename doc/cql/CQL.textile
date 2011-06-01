@@ -69,21 +69,6 @@ SELECT ... WHERE <CLAUSE> [LIMIT N] ...
 
 Limiting the number of rows returned can be achieved by adding the @LIMIT@ option to a @SELECT@ expression. @LIMIT@ defaults to 10,000 when left unset.
 
-h2. ALTER TABLE
-
-_Synopsis:_
-
-bc.
-ALTER TABLE <columnFamily> ADD <column> <validator>;
-ALTER TABLE <columnFamily> ALTER <column> TYPE <validator>;
-ALTER TABLE <columnFamily> DROP <column>;
-
-An @ALTER@ is used to manipulate with ColumnFamily columns. It allows you to add new column definitions and drop existing ones. No results are returned.
-
-Remember that in Cassandra the column definition is always optional; the definition is only used for validation (and index creation). Columns that have not yet been defined can still be inserted, but Cassandra won't know how to validate them or provide type information to clients.
-
-Similarly, DROP only removes the definition, it does not actually destroy data.
-
 h2. INSERT
 
 _Synopsis:_

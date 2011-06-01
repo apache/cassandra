@@ -25,7 +25,7 @@ import java.util.EnumSet;
 public enum StatementType
 {
     SELECT, INSERT, UPDATE, BATCH, USE, TRUNCATE, DELETE, CREATE_KEYSPACE, CREATE_COLUMNFAMILY, CREATE_INDEX,
-        DROP_KEYSPACE, DROP_COLUMNFAMILY, ALTER_TABLE;
+        DROP_KEYSPACE, DROP_COLUMNFAMILY;
     
     // Statement types that don't require a keyspace to be set.
     private static final EnumSet<StatementType> topLevel = EnumSet.of(USE, CREATE_KEYSPACE, DROP_KEYSPACE);
