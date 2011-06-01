@@ -511,7 +511,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         if (cfm != null) // secondary indexes aren't stored in DD.
         {
             for (ColumnDefinition def : cfm.getColumn_metadata().values())
-                scrubDataDirectories(table, cfm.indexName(def));
+                scrubDataDirectories(table, cfm.indexColumnFamilyName(def));
         }
     }
 

@@ -555,7 +555,7 @@ public class ThriftValidation
             {
                 // Ensure that given idx_names and auto_generated idx_names cannot collide
                 CFMetaData cfm = CFMetaData.fromThrift(cf_def);
-                String idxName = cfm.indexName(ColumnDefinition.fromColumnDef(c));
+                String idxName = cfm.indexColumnFamilyName(ColumnDefinition.fromColumnDef(c));
                 if (indexNames.contains(idxName))
                     throw new InvalidRequestException("Duplicate index names " + idxName);
                 indexNames.add(idxName);

@@ -257,7 +257,7 @@ public final class CFMetaData
 
     public static CFMetaData newIndexMetadata(CFMetaData parent, ColumnDefinition info, AbstractType columnComparator)
     {
-        return new CFMetaData(parent.ksName, parent.indexName(info), ColumnFamilyType.Standard, columnComparator, null)
+        return new CFMetaData(parent.ksName, parent.indexColumnFamilyName(info), ColumnFamilyType.Standard, columnComparator, null)
                              .keyCacheSize(0.0)
                              .readRepairChance(0.0)
                              .gcGraceSeconds(parent.gcGraceSeconds)
@@ -305,11 +305,13 @@ public final class CFMetaData
         cfIdMap.remove(new Pair<String, String>(cfm.ksName, cfm.cfName));
     }
     
-    /** convention for nameing secondary indexes. */
-    public String indexName(ColumnDefinition info)
+    /**
+     * generate a column family name for an index corresponding to the given column.
+     * This is NOT the same as the index's name! This is only used in sstable filenames and is not exposed to users.
+     */
+    public String indexColumnFamilyName(ColumnDefinition info)
     {
-        // what we should have done:
-        // return cfName + "." + (info.getIndexName() == null ? comparator.getString(info.name) + "_idx" : info.getIndexName());
+        // TODO simplify this when info.index_name is guaranteed to be set
         return cfName + "." + (info.getIndexName() == null ? ByteBufferUtil.bytesToHex(info.name) : info.getIndexName());
     }
 
