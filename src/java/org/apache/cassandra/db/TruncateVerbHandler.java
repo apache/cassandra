@@ -52,7 +52,8 @@ public class TruncateVerbHandler implements IVerbHandler
 
             try
             {
-                Table.open(t.keyspace).truncate(t.columnFamily);
+                ColumnFamilyStore cfs = Table.open(t.keyspace).getColumnFamilyStore(t.columnFamily);
+                cfs.truncate().get();
             }
             catch (IOException e)
             {
