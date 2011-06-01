@@ -30,6 +30,7 @@ public interface CassandraResultSet extends ResultSet
      * @return the current row key
      */
     public byte[] getKey();
+    public TypedColumn getTypedKey();
 
     /** @return a BigInteger value for the given column offset*/
     public BigInteger getBigInteger(int i);

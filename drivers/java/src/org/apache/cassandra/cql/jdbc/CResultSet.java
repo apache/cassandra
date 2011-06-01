@@ -48,6 +48,7 @@ public class CResultSet extends AbstractResultSet implements CassandraResultSet
     
     // the current row key when iterating through results.
     private byte[] curRowKey = null;
+    private TypedColumn typedCurRowKey = null;
     
     /** The values. */
     private List<TypedColumn> values = new ArrayList<TypedColumn>();
@@ -76,6 +77,11 @@ public class CResultSet extends AbstractResultSet implements CassandraResultSet
     public byte[] getKey()
     {
         return curRowKey;
+    }
+
+    public TypedColumn getTypedKey()
+    {
+        return typedCurRowKey;
     }
 
     public TypedColumn getColumn(int i)
@@ -379,6 +385,8 @@ public class CResultSet extends AbstractResultSet implements CassandraResultSet
             CqlRow row = rSetIter.next();
             rowNumber++;
             curRowKey = row.getKey();
+            typedCurRowKey = decoder.makeKeyColumn(keyspace, columnFamily, curRowKey);
+
             List<Column> cols = row.getColumns();
             for (Column col : cols)
             {
