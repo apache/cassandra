@@ -69,6 +69,17 @@ SELECT ... WHERE <CLAUSE> [LIMIT N] ...
 
 Limiting the number of rows returned can be achieved by adding the @LIMIT@ option to a @SELECT@ expression. @LIMIT@ defaults to 10,000 when left unset.
 
+h2. ALTER TABLE
+
+_Synopsis:_
+
+bc.
+ALTER TABLE <columnFamily> ADD <column> <validator>;
+ALTER TABLE <columnFamily> ALTER <column> TYPE <validator>;
+ALTER TABLE <columnFamily> DROP <column>;
+
+An @ALTER@ is used to manipulate with ColumnFamily columns. It allows you to add new columns, alter and drop existing columns. No results are returned.
+
 h2. INSERT
 
 _Synopsis:_

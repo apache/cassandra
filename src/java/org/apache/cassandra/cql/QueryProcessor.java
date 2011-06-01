@@ -48,7 +48,6 @@ import org.apache.cassandra.db.migration.*;
 import org.apache.cassandra.db.migration.avro.CfDef;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
@@ -791,7 +790,35 @@ public class QueryProcessor
                 
                 result.type = CqlResultType.VOID;
                 return result;
-                
+
+            case ALTER_TABLE:
+                AlterTableStatement alterTable = (AlterTableStatement) statement.statement;
+
+                System.out.println(alterTable);
+
+                validateColumnFamily(keyspace, alterTable.columnFamily);
+                clientState.hasColumnFamilyAccess(alterTable.columnFamily, Permission.WRITE);
+                validateSchemaAgreement();
+
+                try
+                {
+                    applyMigrationOnStage(new UpdateColumnFamily(alterTable.getCfDef(keyspace)));
+                }
+                catch (ConfigurationException e)
+                {
+                    InvalidRequestException ex = new InvalidRequestException(e.getMessage());
+                    ex.initCause(e);
+                    throw ex;
+                }
+                catch (IOException e)
+                {
+                    InvalidRequestException ex = new InvalidRequestException(e.getMessage());
+                    ex.initCause(e);
+                    throw ex;
+                }
+
+                result.type = CqlResultType.VOID;
+                return result;
         }
         
         return null;    // We should never get here.

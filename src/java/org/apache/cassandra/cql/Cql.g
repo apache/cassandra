@@ -35,6 +35,8 @@ options {
     import java.util.ArrayList;
     import org.apache.cassandra.thrift.ConsistencyLevel;
     import org.apache.cassandra.thrift.InvalidRequestException;
+
+    import static org.apache.cassandra.cql.AlterTableStatement.OperationType;
 }
 
 @members {
@@ -113,6 +115,7 @@ query returns [CQLStatement stmnt]
     | createIndexStatement { $stmnt = new CQLStatement(StatementType.CREATE_INDEX, $createIndexStatement.expr); }
     | dropKeyspaceStatement { $stmnt = new CQLStatement(StatementType.DROP_KEYSPACE, $dropKeyspaceStatement.ksp); }
     | dropColumnFamilyStatement { $stmnt = new CQLStatement(StatementType.DROP_COLUMNFAMILY, $dropColumnFamilyStatement.cfam); }
+    | alterTableStatement { $stmnt = new CQLStatement(StatementType.ALTER_TABLE, $alterTableStatement.expr); }
     ;
 
 // USE <KEYSPACE>;
@@ -386,6 +389,27 @@ dropKeyspaceStatement returns [String ksp]
     : K_DROP K_KEYSPACE name=( IDENT | STRING_LITERAL | INTEGER ) endStmnt { $ksp = $name.text; }
     ;
 
+
+alterTableStatement returns [AlterTableStatement expr]
+    :
+    {
+        OperationType type = null;
+        String columnFamily = null, columnName = null, validator = null;
+    }
+    K_ALTER K_TABLE name=( IDENT | STRING_LITERAL | INTEGER ) { columnFamily = $name.text; }
+          ( K_ALTER { type = OperationType.ALTER; }
+               (col=( IDENT | STRING_LITERAL | INTEGER ) { columnName = $col.text; })
+               K_TYPE alterValidator=comparatorType { validator = $alterValidator.text; }
+          | K_ADD { type = OperationType.ADD; }
+               (col=( IDENT | STRING_LITERAL | INTEGER ) { columnName = $col.text; })
+               addValidator=comparatorType { validator = $addValidator.text; }
+          | K_DROP { type = OperationType.DROP; }
+               (col=( IDENT | STRING_LITERAL | INTEGER ) { columnName = $col.text; }))
+    endStmnt
+      {
+          $expr = new AlterTableStatement(columnFamily, type, columnName, validator);
+      }
+    ;
 /** DROP COLUMNFAMILY <CF>; */
 dropColumnFamilyStatement returns [String cfam]
     : K_DROP K_COLUMNFAMILY name=( IDENT | STRING_LITERAL | INTEGER ) endStmnt { $cfam = $name.text; }
@@ -468,6 +492,10 @@ K_INTO:        I N T O;
 K_VALUES:      V A L U E S;
 K_TIMESTAMP:   T I M E S T A M P;
 K_TTL:         T T L;
+K_ALTER:       A L T E R;
+K_TABLE:       T A B L E;
+K_ADD:         A D D;
+K_TYPE:        T Y P E;
 
 // Case-insensitive alpha characters
 fragment A: ('a'|'A');
