@@ -308,7 +308,9 @@ public final class CFMetaData
     /** convention for nameing secondary indexes. */
     public String indexName(ColumnDefinition info)
     {
-        return cfName + "." + (info.getIndexName() == null ? comparator.getString(info.name) + "_idx" : info.getIndexName());
+        // what we should have done:
+        // return cfName + "." + (info.getIndexName() == null ? comparator.getString(info.name) + "_idx" : info.getIndexName());
+        return cfName + "." + (info.getIndexName() == null ? ByteBufferUtil.bytesToHex(info.name) : info.getIndexName());
     }
 
     public org.apache.cassandra.db.migration.avro.CfDef deflate()
