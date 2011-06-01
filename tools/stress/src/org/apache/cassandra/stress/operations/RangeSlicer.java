@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.stress.operations;
 
+import org.apache.cassandra.stress.Session;
 import org.apache.cassandra.stress.util.Operation;
 import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.thrift.*;
@@ -30,9 +31,9 @@ import java.util.List;
 public class RangeSlicer extends Operation
 {
 
-    public RangeSlicer(int index)
+    public RangeSlicer(Session client, int index)
     {
-        super(index);
+        super(client, index);
     }
 
     public void run(Cassandra.Client client) throws IOException

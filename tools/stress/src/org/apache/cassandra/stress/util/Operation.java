@@ -46,6 +46,12 @@ public abstract class Operation
         session = Stress.session;
     }
 
+    public Operation(Session client, int idx)
+    {
+        index = idx;
+        session = client;
+    }
+
     /**
      * Run operation
      * @param client Cassandra Thrift client connection
@@ -101,18 +107,18 @@ public abstract class Operation
      * key generator using Gauss or Random algorithm
      * @return byte[] representation of the key string
      */
-    protected static byte[] generateKey()
+    protected byte[] generateKey()
     {
-        return (Stress.session.useRandomGenerator()) ? generateRandomKey() : generateGaussKey();
+        return (session.useRandomGenerator()) ? generateRandomKey() : generateGaussKey();
     }
 
     /**
      * Random key generator
      * @return byte[] representation of the key string
      */
-    private static byte[] generateRandomKey()
+    private byte[] generateRandomKey()
     {
-        String format = "%0" + Stress.session.getTotalKeysLength() + "d";
+        String format = "%0" + session.getTotalKeysLength() + "d";
         return String.format(format, Stress.randomizer.nextInt(Stress.session.getNumDifferentKeys() - 1)).getBytes(UTF_8);
     }
 
@@ -120,9 +126,8 @@ public abstract class Operation
      * Gauss key generator
      * @return byte[] representation of the key string
      */
-    private static byte[] generateGaussKey()
+    private byte[] generateGaussKey()
     {
-        Session session = Stress.session;
         String format = "%0" + session.getTotalKeysLength() + "d";
 
         for (;;)

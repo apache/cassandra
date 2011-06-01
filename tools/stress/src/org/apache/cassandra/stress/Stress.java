@@ -17,15 +17,12 @@
  */
 package org.apache.cassandra.stress;
 
-import org.apache.cassandra.stress.operations.*;
-import org.apache.cassandra.stress.util.Operation;
-import org.apache.cassandra.thrift.Cassandra;
 import org.apache.commons.cli.Option;
 
-import java.io.PrintStream;
+import java.io.*;
+import java.net.Socket;
+import java.net.SocketException;
 import java.util.Random;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.SynchronousQueue;
 
 public final class Stress
 {
@@ -36,17 +33,10 @@ public final class Stress
 
     public static Session session;
     public static Random randomizer = new Random();
-
-    /**
-     * Producer-Consumer model: 1 producer, N consumers
-     */
-    private static final BlockingQueue<Operation> operations = new SynchronousQueue<Operation>(true);
+    private static volatile boolean stopped = false;
 
     public static void main(String[] arguments) throws Exception
     {
-        long latency, oldLatency;
-        int epoch, total, oldTotal, keyCount, oldKeyCount;
-
         try
         {
             session = new Session(arguments);
@@ -57,111 +47,49 @@ public final class Stress
             return;
         }
 
-        // creating keyspace and column families
-        if (session.getOperation() == Operations.INSERT || session.getOperation() == Operations.COUNTER_ADD)
+        PrintStream outStream = session.getOutputStream();
+
+        if (session.sendToDaemon != null)
         {
-            session.createKeySpaces();
-        }
+            Socket socket = new Socket(session.sendToDaemon, 2159);
 
-        int threadCount  = session.getThreads();
-        Thread[] consumers = new Thread[threadCount];
-        PrintStream out = session.getOutputStream();
+            ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
+            BufferedReader inp = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 
-        out.println("total,interval_op_rate,interval_key_rate,avg_latency,elapsed_time");
+            Runtime.getRuntime().addShutdownHook(new ShutDown(socket, out));
 
-        int itemsPerThread = session.getKeysPerThread();
-        int modulo = session.getNumKeys() % threadCount;
+            out.writeObject(session);
 
-        // creating required type of the threads for the test
-        for (int i = 0; i < threadCount; i++)
-        {
-            if (i == threadCount - 1)
-                itemsPerThread += modulo; // last one is going to handle N + modulo items
+            String line;
 
-            consumers[i] = new Consumer(itemsPerThread);
-        }
-
-        new Producer().start();
-
-        // starting worker threads
-        for (int i = 0; i < threadCount; i++)
-        {
-            consumers[i].start();
-        }
-
-        // initialization of the values
-        boolean terminate = false;
-        latency = 0;
-        epoch = total = keyCount = 0;
-
-        int interval = session.getProgressInterval();
-        int epochIntervals = session.getProgressInterval() * 10;
-        long testStartTime = System.currentTimeMillis();
-
-        while (!terminate)
-        {
-            Thread.sleep(100);
-
-            int alive = 0;
-            for (Thread thread : consumers)
-                if (thread.isAlive()) alive++;
-
-            if (alive == 0)
-                terminate = true;
-
-            epoch++;
-
-            if (terminate || epoch > epochIntervals)
+            try
             {
-                epoch = 0;
+                while (!socket.isClosed() && (line = inp.readLine()) != null)
+                {
+                    if (line.equals("END"))
+                    {
+                        out.writeInt(1);
+                        break;
+                    }
 
-                oldTotal    = total;
-                oldLatency  = latency;
-                oldKeyCount = keyCount;
-
-                total    = session.operations.get();
-                keyCount = session.keys.get();
-                latency  = session.latency.get();
-
-                int opDelta  = total - oldTotal;
-                int keyDelta = keyCount - oldKeyCount;
-                double latencyDelta = latency - oldLatency;
-
-                long currentTimeInSeconds = (System.currentTimeMillis() - testStartTime) / 1000;
-                String formattedDelta = (opDelta > 0) ? Double.toString(latencyDelta / (opDelta * 1000)) : "NaN";
-
-                out.println(String.format("%d,%d,%d,%s,%d", total, opDelta / interval, keyDelta / interval, formattedDelta, currentTimeInSeconds));
+                    outStream.println(line);
+                }
             }
-        }
-    }
+            catch (SocketException e)
+            {
+                if (!stopped)
+                    e.printStackTrace();
+            }
 
-    private static Operation createOperation(int index)
-    {
-        switch (session.getOperation())
+            out.close();
+            inp.close();
+
+            socket.close();
+        }
+        else
         {
-            case READ:
-                return new Reader(index);
-
-            case COUNTER_GET:
-                return new CounterGetter(index);
-
-            case INSERT:
-                return new Inserter(index);
-
-            case COUNTER_ADD:
-                return new CounterAdder(index);
-
-            case RANGE_SLICE:
-                return new RangeSlicer(index);
-
-            case INDEXED_RANGE_SLICE:
-                return new IndexedRangeSlicer(index);
-
-            case MULTI_GET:
-                return new MultiGetter(index);
+            new StressAction(session, outStream).run();
         }
-
-        throw new UnsupportedOperationException();
     }
 
     /**
@@ -180,55 +108,34 @@ public final class Stress
         }
     }
 
-    /**
-     * Produces exactly N items (awaits each to be consumed)
-     */
-    private static class Producer extends Thread
+    private static class ShutDown extends Thread
     {
+        private final Socket socket;
+        private final ObjectOutputStream out;
+
+        public ShutDown(Socket socket, ObjectOutputStream out)
+        {
+            this.out = out;
+            this.socket = socket;
+        }
+
         public void run()
         {
-            for (int i = 0; i < session.getNumKeys(); i++)
+            try
             {
-                try
+                if (!socket.isClosed())
                 {
-                    operations.put(createOperation(i % session.getNumDifferentKeys()));
-                }
-                catch (InterruptedException e)
-                {
-                    System.err.println("Producer error - " + e.getMessage());
-                    return;
+                    System.out.println("Control-C caught. Canceling running action and shutting down...");
+
+                    out.writeInt(1);
+                    out.close();
+
+                    stopped = true;
                 }
             }
-        }
-    }
-
-    /**
-     * Each consumes exactly N items from queue
-     */
-    private static class Consumer extends Thread
-    {
-        private final int items;
-
-        public Consumer(int toConsume)
-        {
-            items = toConsume;
-        }
-
-        public void run()
-        {
-            Cassandra.Client client = session.getClient();
-
-            for (int i = 0; i < items; i++)
+            catch (IOException e)
             {
-                try
-                {
-                    operations.take().run(client); // running job
-                }
-                catch (Exception e)
-                {
-                    System.err.println(e.getMessage());
-                    System.exit(-1);
-                }
+                e.printStackTrace();
             }
         }
     }

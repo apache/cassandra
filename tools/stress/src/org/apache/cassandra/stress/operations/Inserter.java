@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.stress.operations;
 
+import org.apache.cassandra.stress.Session;
 import org.apache.cassandra.stress.util.Operation;
 import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.thrift.*;
@@ -33,9 +34,9 @@ public class Inserter extends Operation
 {
     private static List<ByteBuffer> values;
 
-    public Inserter(int index)
+    public Inserter(Session client, int index)
     {
-        super(index);
+        super(client, index);
     }
 
     public void run(Cassandra.Client client) throws IOException
