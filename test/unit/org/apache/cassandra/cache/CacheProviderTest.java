@@ -42,6 +42,8 @@ public class CacheProviderTest extends SchemaLoader
     String key4 = "key4";
     String key5 = "key5";
     private static final int CAPACITY = 4;
+    private String tableName = "Keyspace1";
+    private String cfName = "Standard1";
 
     private void simpleCase(ColumnFamily cf, ICache<String, ColumnFamily> cache)
     {
@@ -92,7 +94,7 @@ public class CacheProviderTest extends SchemaLoader
 
     private ColumnFamily createCF()
     {
-        ColumnFamily cf = ColumnFamily.create("Keyspace1", "Standard1");
+        ColumnFamily cf = ColumnFamily.create(tableName, cfName);
         cf.addColumn(column("vijay", "great", 1));
         cf.addColumn(column("awesome", "vijay", 1));
         return cf;
@@ -101,7 +103,7 @@ public class CacheProviderTest extends SchemaLoader
     @Test
     public void testHeapCache() throws InterruptedException
     {
-        ICache<String, ColumnFamily> cache = ConcurrentLinkedHashCache.create(CAPACITY);
+        ICache<String, ColumnFamily> cache = ConcurrentLinkedHashCache.create(CAPACITY, tableName, cfName);
         ColumnFamily cf = createCF();
         simpleCase(cf, cache);
         concurrentCase(cf, cache);
@@ -110,7 +112,7 @@ public class CacheProviderTest extends SchemaLoader
     @Test
     public void testSerializingCache() throws InterruptedException
     {
-        ICache<String, ColumnFamily> cache = new SerializingCache<String, ColumnFamily>(CAPACITY, ColumnFamily.serializer());
+        ICache<String, ColumnFamily> cache = new SerializingCache<String, ColumnFamily>(CAPACITY, ColumnFamily.serializer(), tableName, cfName);
         ColumnFamily cf = createCF();
         simpleCase(cf, cache);
         // concurrentCase(cf, cache);

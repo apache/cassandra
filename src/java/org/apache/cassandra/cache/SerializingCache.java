@@ -47,7 +47,7 @@ public class SerializingCache<K, V> implements ICache<K, V>
     private final ConcurrentLinkedHashMap<K, FreeableMemory> map;
     private final ICompactSerializer3<V> serializer;
 
-    public SerializingCache(int capacity, ICompactSerializer3<V> serializer)
+    public SerializingCache(int capacity, ICompactSerializer3<V> serializer, String tableName, String cfName)
     {
         this.serializer = serializer;
 
