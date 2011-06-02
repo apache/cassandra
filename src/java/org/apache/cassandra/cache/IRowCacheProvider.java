@@ -29,5 +29,5 @@ import org.apache.cassandra.db.DecoratedKey;
  */
 public interface IRowCacheProvider
 {
-    public ICache<DecoratedKey, ColumnFamily> create(int capacity);
+    public ICache<DecoratedKey, ColumnFamily> create(int capacity, String tableName, String cfName);
 }

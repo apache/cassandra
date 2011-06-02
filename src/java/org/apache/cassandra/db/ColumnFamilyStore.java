@@ -262,9 +262,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         if (logger.isDebugEnabled())
             logger.debug("Starting CFS {}", columnFamily);
 
-        ICache<Pair<Descriptor, DecoratedKey>, Long> kc = ConcurrentLinkedHashCache.create(0);
+        ICache<Pair<Descriptor, DecoratedKey>, Long> kc = ConcurrentLinkedHashCache.create(0, table.name, columnFamilyName);
         keyCache = new AutoSavingKeyCache<Pair<Descriptor, DecoratedKey>, Long>(kc, table.name, columnFamilyName);
-        ICache<DecoratedKey, ColumnFamily> rc = metadata.getRowCacheProvider().create(0);        
+        ICache<DecoratedKey, ColumnFamily> rc = metadata.getRowCacheProvider().create(0, table.name, columnFamilyName);
         rowCache = new AutoSavingRowCache<DecoratedKey, ColumnFamily>(rc, table.name, columnFamilyName);
 
         // scan for sstables corresponding to this cf and load them
