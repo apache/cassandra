@@ -44,10 +44,11 @@
  * switch to native Thrift for Hadoop map/reduce (CASSANDRA-2667)
  * fix StackOverflowError when building from eclipse (CASSANDRA-2687)
  * only provide replication_factor to strategy_options "help" for
-   SimpleStrategy, OldNetworkTopologyStrategy (CASSANDRA-2678)
+   SimpleStrategy, OldNetworkTopologyStrategy (CASSANDRA-2678, 2713)
  * fix exception adding validators to non-string columns (CASSANDRA-2696)
  * avoid instantiating DatabaseDescriptor in JDBC (CASSANDRA-2694)
  * fix potential stack overflow during compaction (CASSANDRA-2626)
+ * clone super columns to avoid modifying them during flush (CASSANDRA-2675)
  * reset underlying iterator in EchoedRow constructor (CASSANDRA-2653)
 
 
