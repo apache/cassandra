@@ -33,7 +33,7 @@
  * fix truncate/compaction race (CASSANDRA-2673)
  * improve CQL JDBC spec compliance (CASSANDRA-2720)
  * add CQL ALTER TABLE (CASSANDRA-1709)
-
+ * Support passing tableName and cfName to RowCacheProviders (CASSANDRA-2702)
 
 0.8.0-final
  * fix CQL grammar warning and cqlsh regression from CASSANDRA-2622
