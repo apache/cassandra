@@ -34,6 +34,9 @@
  * improve CQL JDBC spec compliance (CASSANDRA-2720)
  * add CQL ALTER TABLE (CASSANDRA-1709)
  * Support passing tableName and cfName to RowCacheProviders (CASSANDRA-2702)
+ * workaround large resultsets causing large allocation retention
+   by nio sockets (CASSANDRA-2654)
+
 
 0.8.0-final
  * fix CQL grammar warning and cqlsh regression from CASSANDRA-2622
@@ -150,6 +153,9 @@
  * reduce contention on Table.flusherLock (CASSANDRA-1954)
  * try harder to detect failures during streaming, cleaning up temporary
    files more reliably (CASSANDRA-2088)
+
+
+0.6.13
  * shut down server for OOM on a Thrift thread (CASSANDRA-2269)
  * fix tombstone handling in repair and sstable2json (CASSANDRA-2279)
  * preserve version when streaming data from old sstables (CASSANDRA-2283)
