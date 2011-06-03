@@ -13,6 +13,8 @@
  * throttle migration replay (CASSANDRA-2714)
  * optimize column serializer creation (CASSANDRA-2716)
  * fix truncate/compaction race (CASSANDRA-2673)
+ * workaround large resultsets causing large allocation retention
+   by nio sockets (CASSANDRA-2654)
 
 
 0.7.6
@@ -54,6 +56,9 @@
  * reduce contention on Table.flusherLock (CASSANDRA-1954)
  * try harder to detect failures during streaming, cleaning up temporary
    files more reliably (CASSANDRA-2088)
+
+
+0.6.13
  * shut down server for OOM on a Thrift thread (CASSANDRA-2269)
  * fix tombstone handling in repair and sstable2json (CASSANDRA-2279)
  * preserve version when streaming data from old sstables (CASSANDRA-2283)
