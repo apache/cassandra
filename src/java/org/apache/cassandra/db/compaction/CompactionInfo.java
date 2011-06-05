@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.cassandra.io;
+package org.apache.cassandra.db.compaction;
 
 import java.io.Serializable;
 

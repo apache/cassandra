@@ -29,7 +29,7 @@ import java.util.Set;
 import com.google.common.collect.Sets;
 
 import org.apache.cassandra.db.commitlog.ReplayPosition;
-import org.apache.cassandra.io.*;
+import org.apache.cassandra.db.compaction.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

@@ -31,6 +31,7 @@ import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.ExecutionException;
 
+import org.apache.cassandra.db.compaction.CompactionInfo;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.config.ConfigurationException;
 
@@ -41,7 +42,6 @@ import org.apache.cassandra.concurrent.IExecutorMBean;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.db.compaction.CompactionManagerMBean;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.io.CompactionInfo;
 import org.apache.cassandra.net.MessagingServiceMBean;
 import org.apache.cassandra.utils.EstimatedHistogram;
 

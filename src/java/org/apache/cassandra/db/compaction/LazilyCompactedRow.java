@@ -1,4 +1,4 @@
-package org.apache.cassandra.io;
+package org.apache.cassandra.db.compaction;
 /*
  * 
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -37,7 +37,6 @@ import org.apache.cassandra.db.ColumnIndexer;
 import org.apache.cassandra.db.CounterColumn;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.IIterableColumns;

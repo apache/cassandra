@@ -20,8 +20,6 @@ package org.apache.cassandra.db.compaction;
 
 import java.util.List;
 
-import org.apache.cassandra.io.CompactionInfo;
-
 public interface CompactionManagerMBean
 {
     /** List of running compaction objects. */

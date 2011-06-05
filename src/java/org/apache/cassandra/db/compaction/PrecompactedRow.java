@@ -1,4 +1,4 @@
-package org.apache.cassandra.io;
+package org.apache.cassandra.db.compaction;
 /*
  * 
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -22,12 +22,9 @@ package org.apache.cassandra.io;
 
 
 import java.io.DataOutput;
-import java.io.IOError;
 import java.io.IOException;
 import java.security.MessageDigest;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,7 +34,6 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ColumnIndexer;
 import org.apache.cassandra.db.CounterColumn;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 
