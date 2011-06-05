@@ -21,6 +21,7 @@ package org.apache.cassandra;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.commons.lang.NotImplementedException;
 
 import com.google.common.base.Charsets;
@@ -249,7 +250,7 @@ public class SchemaLoader
                     {{
                         ByteBuffer cName = ByteBuffer.wrap("birthdate".getBytes(Charsets.UTF_8));
                         IndexType keys = withIdxType ? IndexType.KEYS : null;
-                        put(cName, new ColumnDefinition(cName, LongType.instance, keys, null));
+                        put(cName, new ColumnDefinition(cName, LongType.instance, keys, ByteBufferUtil.bytesToHex(cName)));
                     }});
     }
     private static CFMetaData jdbcCFMD(String ksName, String cfName, AbstractType comp)

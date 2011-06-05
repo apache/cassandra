@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.stress.operations;
 
+import org.apache.cassandra.stress.Session;
 import org.apache.cassandra.stress.util.Operation;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -30,9 +31,9 @@ public class IndexedRangeSlicer extends Operation
 {
     private static List<ByteBuffer> values = null;
 
-    public IndexedRangeSlicer(int index)
+    public IndexedRangeSlicer(Session client, int index)
     {
-        super(index);
+        super(client, index);
     }
 
     public void run(Cassandra.Client client) throws IOException

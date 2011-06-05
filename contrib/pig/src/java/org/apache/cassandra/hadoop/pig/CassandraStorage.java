@@ -357,12 +357,12 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface
                Mutation mutation = new Mutation();
                if (DataType.findType(pair.get(1)) == DataType.BAG) // supercolumn
                {
-                   org.apache.cassandra.hadoop.avro.SuperColumn sc = new org.apache.cassandra.hadoop.avro.SuperColumn();
+                   org.apache.cassandra.thrift.SuperColumn sc = new org.apache.cassandra.thrift.SuperColumn();
                    sc.name = objToBB(pair.get(0));
-                   ArrayList<org.apache.cassandra.hadoop.avro.Column> columns = new ArrayList<org.apache.cassandra.hadoop.avro.Column>();
+                   ArrayList<org.apache.cassandra.thrift.Column> columns = new ArrayList<org.apache.cassandra.thrift.Column>();
                    for (Tuple subcol : (DefaultDataBag) pair.get(1))
                    {
-                       org.apache.cassandra.hadoop.avro.Column column = new org.apache.cassandra.hadoop.avro.Column();
+                       org.apache.cassandra.thrift.Column column = new org.apache.cassandra.thrift.Column();
                        column.name = objToBB(subcol.get(0));
                        column.value = objToBB(subcol.get(1));
                        column.setTimestamp(System.currentTimeMillis() * 1000);

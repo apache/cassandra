@@ -1,11 +1,16 @@
 0.8.1
- * add support for insert, delete in cql BATCH (CASSANDRA-2537)
- * add support for IN to cql SELECT, UPDATE (CASSANDRA-2553)
- * add timestamp support to cql INSERT, UPDATE, and BATCH (CASSANDRA-2555)
+ * CQL:
+   - support for insert, delete in BATCH (CASSANDRA-2537)
+   - support for IN to SELECT, UPDATE (CASSANDRA-2553)
+   - timestamp support for INSERT, UPDATE, and BATCH (CASSANDRA-2555)
+   - TTL support (CASSANDRA-2476)
+   - counter support (CASSANDRA-2473)
+   - improve JDBC spec compliance (CASSANDRA-2720)
+   - ALTER TABLE (CASSANDRA-1709)
+   - DROP INDEX (CASSANDRA-2617)
  * add support for comparator parameters and a generic ReverseType
    (CASSANDRA-2355)
  * add CompositeType and DynamicCompositeType (CASSANDRA-2231)
- * add CQL TTL support (CASSANDRA-2476)
  * optimize batches containing multiple updates to the same row
    (CASSANDRA-2583)
  * adjust hinted handoff page size to avoid OOM with large columns 
@@ -31,6 +36,9 @@
  * close scrub file handles (CASSANDRA-2669)
  * throttle migration replay (CASSANDRA-2714)
  * optimize column serializer creation (CASSANDRA-2716)
+ * fix truncate/compaction race (CASSANDRA-2673)
+ * workaround large resultsets causing large allocation retention
+   by nio sockets (CASSANDRA-2654)
 
 
 0.8.0-final
@@ -42,10 +50,11 @@
  * switch to native Thrift for Hadoop map/reduce (CASSANDRA-2667)
  * fix StackOverflowError when building from eclipse (CASSANDRA-2687)
  * only provide replication_factor to strategy_options "help" for
-   SimpleStrategy, OldNetworkTopologyStrategy (CASSANDRA-2678)
+   SimpleStrategy, OldNetworkTopologyStrategy (CASSANDRA-2678, 2713)
  * fix exception adding validators to non-string columns (CASSANDRA-2696)
  * avoid instantiating DatabaseDescriptor in JDBC (CASSANDRA-2694)
  * fix potential stack overflow during compaction (CASSANDRA-2626)
+ * clone super columns to avoid modifying them during flush (CASSANDRA-2675)
  * reset underlying iterator in EchoedRow constructor (CASSANDRA-2653)
 
 
@@ -147,6 +156,9 @@
  * reduce contention on Table.flusherLock (CASSANDRA-1954)
  * try harder to detect failures during streaming, cleaning up temporary
    files more reliably (CASSANDRA-2088)
+
+
+0.6.13
  * shut down server for OOM on a Thrift thread (CASSANDRA-2269)
  * fix tombstone handling in repair and sstable2json (CASSANDRA-2279)
  * preserve version when streaming data from old sstables (CASSANDRA-2283)

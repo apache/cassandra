@@ -511,7 +511,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         if (cfm != null) // secondary indexes aren't stored in DD.
         {
             for (ColumnDefinition def : cfm.getColumn_metadata().values())
-                scrubDataDirectories(table, cfm.indexName(def));
+                scrubDataDirectories(table, cfm.indexColumnFamilyName(def));
         }
     }
 
@@ -1802,8 +1802,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public Future<?> truncate() throws IOException
     {
-        // snapshot will also flush, but we want to truncate the most possible, and anything in a flush written
-        // after truncateAt won't be truncated.
+        // We have two goals here:
+        // - truncate should delete everything written before truncate was invoked
+        // - but not delete anything that isn't part of the snapshot we create.
+        // We accomplish this by first flushing manually, then snapshotting, and
+        // recording the timestamp IN BETWEEN those actions. Any sstables created
+        // with this timestamp or greater time, will not be marked for delete.
         try
         {
             forceBlockingFlush();
@@ -1812,33 +1816,20 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             throw new RuntimeException(e);
         }
-
-        final long truncatedAt = System.currentTimeMillis();
+        // sleep a little to make sure that our truncatedAt comes after any sstable
+        // that was part of the flushed we forced; otherwise on a tie, it won't get deleted.
+        try
+        {
+            Thread.sleep(100);
+        }
+        catch (InterruptedException e)
+        {
+            throw new AssertionError(e);
+        }
+        long truncatedAt = System.currentTimeMillis();
         snapshot(Table.getTimestampedSnapshotName("before-truncate"));
 
-        Runnable runnable = new WrappedRunnable()
-        {
-            public void runMayThrow() throws InterruptedException, IOException
-            {
-                // putting markCompacted on the commitlogUpdater thread ensures it will run
-                // after any compactions that were in progress when truncate was called, are finished
-                for (ColumnFamilyStore cfs : concatWithIndexes())
-                {
-                    List<SSTableReader> truncatedSSTables = new ArrayList<SSTableReader>();
-                    for (SSTableReader sstable : cfs.getSSTables())
-                    {
-                        if (!sstable.newSince(truncatedAt))
-                            truncatedSSTables.add(sstable);
-                    }
-                    cfs.data.markCompacted(truncatedSSTables);
-                }
-
-                // Invalidate row cache
-                invalidateRowCache();
-            }
-        };
-
-        return postFlushExecutor.submit(runnable);
+        return CompactionManager.instance.submitTruncate(this, truncatedAt);
     }
 
     // if this errors out, we are in a world of hurt.

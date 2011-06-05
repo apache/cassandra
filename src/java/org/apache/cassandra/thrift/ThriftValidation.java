@@ -29,6 +29,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.db.marshal.TypeParser;
+import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Token;
@@ -513,10 +514,26 @@ public class ThriftValidation
             throw new InvalidRequestException("No indexed columns present in index clause with operator EQ");
     }
 
-    public static void validateCfDef(CfDef cf_def) throws InvalidRequestException
+    public static void validateCfDef(CfDef cf_def, CFMetaData old) throws InvalidRequestException
     {
         try
         {
+            if (cf_def.key_alias != null)
+            {
+                if (!cf_def.key_alias.hasRemaining())
+                    throw new InvalidRequestException("key_alias may not be empty");
+                try
+                {
+                    // it's hard to use a key in a select statement if we can't type it.
+                    // for now let's keep it simple and require ascii.
+                    AsciiType.instance.validate(cf_def.key_alias);
+                }
+                catch (MarshalException e)
+                {
+                    throw new InvalidRequestException("Key aliases must be ascii");
+                }
+            }
+
             if (cf_def.key_alias != null)
             {
                 if (!cf_def.key_alias.hasRemaining())
@@ -550,16 +567,17 @@ public class ThriftValidation
                                     ? TypeParser.parse(cf_def.comparator_type)
                                     : TypeParser.parse(cf_def.subcomparator_type);
 
+            // initialize a set of names NOT in the CF under consideration
             Set<String> indexNames = new HashSet<String>();
+            for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
+            {
+                if (!cfs.getColumnFamilyName().equals(cf_def.name))
+                    for (ColumnDefinition cd : cfs.metadata.getColumn_metadata().values())
+                        indexNames.add(cd.getIndexName());
+            }
+
             for (ColumnDef c : cf_def.column_metadata)
             {
-                // Ensure that given idx_names and auto_generated idx_names cannot collide
-                CFMetaData cfm = CFMetaData.fromThrift(cf_def);
-                String idxName = cfm.indexName(ColumnDefinition.fromColumnDef(c));
-                if (indexNames.contains(idxName))
-                    throw new InvalidRequestException("Duplicate index names " + idxName);
-                indexNames.add(idxName);
-
                 TypeParser.parse(c.validation_class);
 
                 try
@@ -572,11 +590,31 @@ public class ThriftValidation
                                                                     ByteBufferUtil.bytesToHex(c.name), cf_def.comparator_type));
                 }
 
-                if ((c.index_name != null) && (c.index_type == null))
-                    throw new ConfigurationException("index_name cannot be set without index_type");
+                if (c.index_type == null)
+                {
+                    if (c.index_name != null)
+                        throw new ConfigurationException("index_name cannot be set without index_type");
+                }
+                else
+                {
+                    if (cfType == ColumnFamilyType.Super)
+                        throw new InvalidRequestException("Secondary indexes are not supported on supercolumns");
+                    assert c.index_name != null; // should have a default set by now if none was provided
+                    if (!Migration.isLegalName(c.index_name))
+                        throw new InvalidRequestException("Illegal index name " + c.index_name);
+                    // check index names against this CF _and_ globally
+                    if (indexNames.contains(c.index_name))
+                        throw new InvalidRequestException("Duplicate index name " + c.index_name);
+                    indexNames.add(c.index_name);
 
-                if (cfType == ColumnFamilyType.Super && c.index_type != null)
-                    throw new InvalidRequestException("Secondary indexes are not supported on supercolumns");
+                    ColumnDefinition oldCd = old == null ? null : old.getColumnDefinition(c.name);
+                    if (oldCd != null && oldCd.getIndexType() != null)
+                    {
+                        assert oldCd.getIndexName() != null;
+                        if (!oldCd.getIndexName().equals(c.index_name))
+                            throw new InvalidRequestException("Cannot modify index name");
+                    }
+                }
             }
             validateMinMaxCompactionThresholds(cf_def);
             validateMemtableSettings(cf_def);

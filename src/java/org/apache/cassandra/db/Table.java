@@ -731,23 +731,6 @@ public class Table
         return Iterables.transform(DatabaseDescriptor.getTables(), transformer);
     }
 
-    /**
-     * Performs a synchronous truncate operation, effectively deleting all data
-     * from the column family cfname
-     * @param cfname
-     * @throws IOException
-     * @throws ExecutionException
-     * @throws InterruptedException
-     */
-    public void truncate(String cfname) throws InterruptedException, ExecutionException, IOException
-    {
-        logger.debug("Truncating...");
-        ColumnFamilyStore cfs = getColumnFamilyStore(cfname);
-        // truncate, blocking
-        cfs.truncate().get();
-        logger.debug("Truncation done.");
-    }
-
     @Override
     public String toString()
     {

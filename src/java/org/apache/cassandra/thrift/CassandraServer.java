@@ -799,7 +799,8 @@ public class CassandraServer implements Cassandra.Iface
     {
         logger.debug("add_column_family");
         state().hasColumnFamilyListAccess(Permission.WRITE);
-        ThriftValidation.validateCfDef(cf_def);
+        CFMetaData.addDefaultIndexNames(cf_def);
+        ThriftValidation.validateCfDef(cf_def, null);
         validateSchemaAgreement();
 
         try
@@ -866,10 +867,11 @@ public class CassandraServer implements Cassandra.Iface
         try
         {
             Collection<CFMetaData> cfDefs = new ArrayList<CFMetaData>(ks_def.cf_defs.size());
-            for (CfDef cfDef : ks_def.cf_defs)
+            for (CfDef cf_def : ks_def.cf_defs)
             {
-                ThriftValidation.validateCfDef(cfDef);
-                cfDefs.add(CFMetaData.fromThrift(cfDef));
+                CFMetaData.addDefaultIndexNames(cf_def);
+                ThriftValidation.validateCfDef(cf_def, null);
+                cfDefs.add(CFMetaData.fromThrift(cf_def));
             }
 
             ThriftValidation.validateKsDef(ks_def);
@@ -953,11 +955,10 @@ public class CassandraServer implements Cassandra.Iface
     {
         logger.debug("update_column_family");
         state().hasColumnFamilyListAccess(Permission.WRITE);
-        ThriftValidation.validateCfDef(cf_def);
         if (cf_def.keyspace == null || cf_def.name == null)
             throw new InvalidRequestException("Keyspace and CF name must be set.");
         CFMetaData oldCfm = DatabaseDescriptor.getCFMetaData(CFMetaData.getId(cf_def.keyspace, cf_def.name));
-        if (oldCfm == null) 
+        if (oldCfm == null)
             throw new InvalidRequestException("Could not find column family definition to modify.");
         validateSchemaAgreement();
 

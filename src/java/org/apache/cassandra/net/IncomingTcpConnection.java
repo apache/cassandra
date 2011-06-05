@@ -38,6 +38,8 @@ public class IncomingTcpConnection extends Thread
 {
     private static Logger logger = LoggerFactory.getLogger(IncomingTcpConnection.class);
 
+    private static final int CHUNK_SIZE = 1024 * 1024;
+    
     private Socket socket;
 
     public IncomingTcpConnection(Socket socket)
@@ -97,8 +99,13 @@ public class IncomingTcpConnection extends Thread
                 {
                     int size = input.readInt();
                     byte[] contentBytes = new byte[size];
-                    input.readFully(contentBytes);
-                    
+                    // readFully allocates a direct buffer the size of the chunk it is asked to read,
+                    // so we cap that at CHUNK_SIZE.  See https://issues.apache.org/jira/browse/CASSANDRA-2654
+                    int remainder = size % CHUNK_SIZE;
+                    for (int offset = 0; offset < size - remainder; offset += CHUNK_SIZE)
+                        input.readFully(contentBytes, offset, CHUNK_SIZE);
+                    input.readFully(contentBytes, size - remainder, remainder);
+
                     if (version > MessagingService.version_)
                         logger.info("Received connection from newer protocol version. Ignorning message.");
                     else

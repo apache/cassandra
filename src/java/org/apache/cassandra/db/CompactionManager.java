@@ -47,6 +47,7 @@ import org.apache.cassandra.io.*;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.io.util.MemoryInputStream;
 import org.apache.cassandra.service.AntiEntropyService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.OperationType;
@@ -1146,6 +1147,30 @@ public class CompactionManager implements CompactionManagerMBean
                 }
             }
         };
+        return executor.submit(runnable);
+    }
+
+    public Future<?> submitTruncate(final ColumnFamilyStore main, final long truncatedAt)
+    {
+        Runnable runnable = new WrappedRunnable()
+        {
+            public void runMayThrow() throws InterruptedException, IOException
+            {
+                for (ColumnFamilyStore cfs : main.concatWithIndexes())
+                {
+                    List<SSTableReader> truncatedSSTables = new ArrayList<SSTableReader>();
+                    for (SSTableReader sstable : cfs.getSSTables())
+                    {
+                        if (!sstable.newSince(truncatedAt))
+                            truncatedSSTables.add(sstable);
+                    }
+                    cfs.markCompacted(truncatedSSTables);
+                }
+
+                main.invalidateRowCache();
+            }
+        };
+
         return executor.submit(runnable);
     }
 

@@ -27,7 +27,10 @@ import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.sql.*;
 import java.util.Arrays;
+import java.util.Iterator;
+import java.util.List;
 
+import org.apache.cassandra.cql.jdbc.CassandraResultSet;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -256,27 +259,31 @@ public class JdbcDriverTest extends EmbeddedServiceBase
     public void testWithStatement() throws SQLException
     {
         Statement stmt = con.createStatement();
-        
+        List<String> keys = Arrays.asList(jsmith);
         String selectQ = "SELECT 1, 2 FROM JdbcInteger WHERE KEY='" + jsmith + "'";
-        checkResultSet(stmt.executeQuery(selectQ), "Int", 1, "1", "2");
+        checkResultSet(stmt.executeQuery(selectQ), "Int", 1, keys, "1", "2");
         
         selectQ = "SELECT 3, 4 FROM JdbcInteger WHERE KEY='" + jsmith + "'";
-        checkResultSet(stmt.executeQuery(selectQ), "Int", 1, "3", "4");
+        checkResultSet(stmt.executeQuery(selectQ), "Int", 1, keys, "3", "4");
         
         selectQ = "SELECT 1, 2, 3, 4 FROM JdbcInteger WHERE KEY='" + jsmith + "'";
-        checkResultSet(stmt.executeQuery(selectQ), "Int", 1, "1", "2", "3", "4");
+        checkResultSet(stmt.executeQuery(selectQ), "Int", 1, keys, "1", "2", "3", "4");
         
         selectQ = "SELECT 1, 2 FROM JdbcLong WHERE KEY='" + jsmith + "'";
-        checkResultSet(stmt.executeQuery(selectQ), "Long", 1, "1", "2");
+        checkResultSet(stmt.executeQuery(selectQ), "Long", 1, keys, "1", "2");
         
         selectQ = "SELECT 'first', last FROM JdbcAscii WHERE KEY='" + jsmith + "'";
-        checkResultSet(stmt.executeQuery(selectQ), "String", 1, "first", "last");
+        checkResultSet(stmt.executeQuery(selectQ), "String", 1, keys, "first", "last");
         
         selectQ = String.format("SELECT '%s', '%s' FROM JdbcBytes WHERE KEY='%s'", first, last, jsmith);
-        checkResultSet(stmt.executeQuery(selectQ), "Bytes", 1, first, last);
+        checkResultSet(stmt.executeQuery(selectQ), "Bytes", 1, keys, first, last);
         
         selectQ = "SELECT 'first', last FROM JdbcUtf8 WHERE KEY='" + jsmith + "'";
-        checkResultSet(stmt.executeQuery(selectQ), "String", 1, "first", "last");
+        checkResultSet(stmt.executeQuery(selectQ), "String", 1, keys, "first", "last");
+
+        String badKey = FBUtilities.bytesToHex(String.format("jsmith-%s", System.currentTimeMillis()).getBytes());
+        selectQ = "SELECT 1, 2 FROM JdbcInteger WHERE KEY IN ('" + badKey + "', '" + jsmith + "')";
+        checkResultSet(stmt.executeQuery(selectQ), "Int", 1, keys, "1", "2");
     }
     
     @Test
@@ -293,29 +300,35 @@ public class JdbcDriverTest extends EmbeddedServiceBase
    @Test
     public void testWithPreparedStatement() throws SQLException
     {
+        List<String> keys = Arrays.asList(jsmith);
+
         String selectQ = String.format("SELECT '%s', '%s' FROM Standard1 WHERE KEY='%s'", first, last, jsmith);
-        checkResultSet(executePreparedStatementWithResults(con, selectQ), "Bytes", 1, first, last);
+        checkResultSet(executePreparedStatementWithResults(con, selectQ), "Bytes", 1, keys, first, last);
         
         selectQ = "SELECT 1, 2 FROM JdbcInteger WHERE KEY='" + jsmith + "'";
-        checkResultSet(executePreparedStatementWithResults(con, selectQ), "Int", 1, "1", "2");
+        checkResultSet(executePreparedStatementWithResults(con, selectQ), "Int", 1, keys, "1", "2");
         
         selectQ = "SELECT 3, 4 FROM JdbcInteger WHERE KEY='" + jsmith + "'";
-        checkResultSet(executePreparedStatementWithResults(con, selectQ), "Int", 1, "3", "4");
+        checkResultSet(executePreparedStatementWithResults(con, selectQ), "Int", 1, keys, "3", "4");
         
         selectQ = "SELECT 1, 2, 3, 4 FROM JdbcInteger WHERE KEY='" + jsmith + "'";
-        checkResultSet(executePreparedStatementWithResults(con, selectQ), "Int", 1, "1", "2", "3", "4");
+        checkResultSet(executePreparedStatementWithResults(con, selectQ), "Int", 1, keys, "1", "2", "3", "4");
         
         selectQ = "SELECT 1, 2 FROM JdbcLong WHERE KEY='" + jsmith + "'";
-        checkResultSet(executePreparedStatementWithResults(con, selectQ), "Long", 1, "1", "2");
+        checkResultSet(executePreparedStatementWithResults(con, selectQ), "Long", 1, keys, "1", "2");
         
         selectQ = "SELECT 'first', last FROM JdbcAscii WHERE KEY='" + jsmith + "'";
-        checkResultSet(executePreparedStatementWithResults(con, selectQ), "String", 1, "first", "last");
+        checkResultSet(executePreparedStatementWithResults(con, selectQ), "String", 1, keys, "first", "last");
         
         selectQ = String.format("SELECT '%s', '%s' FROM JdbcBytes WHERE KEY='%s'", first, last, jsmith);
-        checkResultSet(executePreparedStatementWithResults(con, selectQ), "Bytes", 1, first, last);
+        checkResultSet(executePreparedStatementWithResults(con, selectQ), "Bytes", 1, keys, first, last);
         
         selectQ = "SELECT 'first', last FROM JdbcUtf8 WHERE KEY='" + jsmith + "'";
-        checkResultSet(executePreparedStatementWithResults(con, selectQ), "String", 1, "first", "last");
+        checkResultSet(executePreparedStatementWithResults(con, selectQ), "String", 1, keys, "first", "last");
+
+        String badKey = FBUtilities.bytesToHex(String.format("jsmith-%s", System.currentTimeMillis()).getBytes());
+        selectQ = "SELECT 1, 2 FROM JdbcInteger WHERE KEY IN ('" + badKey + "', '" + jsmith + "')";
+        checkResultSet(executePreparedStatementWithResults(con, selectQ), "Int", 1, keys, "1", "2");
     }
 
     /* Method to test with Delete statement. */
@@ -412,11 +425,23 @@ public class JdbcDriverTest extends EmbeddedServiceBase
     /** iterates over a result set checking columns */
     private static void checkResultSet(ResultSet rs, String accessor, int expectedRows, String... cols) throws SQLException
     {
+        checkResultSet(rs, accessor, expectedRows, null, cols);
+    }
+
+    private static void checkResultSet(ResultSet rs, String accessor, int expectedRows, List<String> keys,  String... cols) throws SQLException
+    {
         int actualRows = 0;
         assert rs != null;
+        Iterator<String> keyIter = (keys == null) ? null : keys.iterator();
+        CassandraResultSet cassandraRs = (CassandraResultSet)rs;
         while (rs.next())
         {
             actualRows++;
+            if (keyIter != null)
+            {
+                assert cassandraRs.getTypedKey().getValueString().equals(keyIter.next());
+            }
+
             for (int c = 0; c < cols.length; c++)
             {
                 // getObject should always work.

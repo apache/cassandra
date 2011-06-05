@@ -128,4 +128,14 @@ class ColumnDecoder
                                getNameType(keyspace, columnFamily, column.name),
                                getValueType(keyspace, columnFamily, column.name));
     }
+
+    /** constructs a typed column to hold the key */
+    public TypedColumn makeKeyColumn(String keyspace, String columnFamily, byte[] key)
+    {
+        CFMetaData md = metadata.get(String.format("%s.%s", keyspace, columnFamily));
+        Column column = new Column(md.getKeyName()).setValue(key).setTimestamp(-1);
+        return new TypedColumn(column,
+                               getNameType(keyspace, columnFamily, md.getKeyName()),
+                               getValueType(keyspace, columnFamily, md.getKeyName()));
+    }
 }

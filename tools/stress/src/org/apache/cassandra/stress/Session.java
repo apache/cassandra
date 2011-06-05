@@ -18,6 +18,8 @@
 package org.apache.cassandra.stress;
 
 import java.io.*;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -34,7 +36,7 @@ import org.apache.thrift.transport.TFramedTransport;
 import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransport;
 
-public class Session
+public class Session implements Serializable
 {
     // command line options
     public static final Options availableOptions = new Options();
@@ -74,6 +76,7 @@ public class Session
         availableOptions.addOption("O",  "strategy-properties",  true,   "Replication strategy properties in the following format <dc_name>:<num>,<dc_name>:<num>,...");
         availableOptions.addOption("W",  "no-replicate-on-write",false,  "Set replicate_on_write to false for counters. Only counter add with CL=ONE will work");
         availableOptions.addOption("V",  "average-size-values",  false,  "Generate column values of average rather than specific size");
+        availableOptions.addOption("T",  "send-to",              true,   "Send this as a request to the stress daemon at specified address.");
     }
 
     private int numKeys          = 1000 * 1000;
@@ -95,7 +98,7 @@ public class Session
     private boolean replicateOnWrite = true;
     private boolean ignoreErrors  = false;
 
-    private PrintStream out = System.out;
+    private final String outFileName;
 
     private IndexType indexType = null;
     private Stress.Operations operation = Stress.Operations.INSERT;
@@ -109,6 +112,8 @@ public class Session
     // required by Gaussian distribution.
     protected int   mean;
     protected float sigma;
+
+    public final InetAddress sendToDaemon;
 
     public Session(String[] arguments) throws IllegalArgumentException
     {
@@ -181,17 +186,7 @@ public class Session
             if (cmd.hasOption("r"))
                 random = true;
 
-            if (cmd.hasOption("f"))
-            {
-                try
-                {
-                    out = new PrintStream(new FileOutputStream(cmd.getOptionValue("f")));
-                }
-                catch (FileNotFoundException e)
-                {
-                    System.out.println(e.getMessage());
-                }
-            }
+            outFileName = (cmd.hasOption("f")) ? cmd.getOptionValue("f") : null;
 
             if (cmd.hasOption("p"))
                 port = Integer.parseInt(cmd.getOptionValue("p"));
@@ -264,6 +259,17 @@ public class Session
                 replicateOnWrite = false;
 
             averageSizeValues = cmd.hasOption("V");
+
+            try
+            {
+                sendToDaemon = cmd.hasOption("send-to")
+                                ? InetAddress.getByName(cmd.getOptionValue("send-to"))
+                                : null;
+            }
+            catch (UnknownHostException e)
+            {
+                throw new RuntimeException(e);
+            }
         }
         catch (ParseException e)
         {
@@ -360,7 +366,14 @@ public class Session
 
     public PrintStream getOutputStream()
     {
-        return out;
+        try
+        {
+            return (outFileName == null) ? System.out : new PrintStream(new FileOutputStream(outFileName));
+        }
+        catch (FileNotFoundException e)
+        {
+            throw new RuntimeException(e.getMessage(), e);
+        }
     }
 
     public int getProgressInterval()
@@ -432,16 +445,16 @@ public class Session
         try
         {
             client.system_add_keyspace(keyspace);
-            out.println(String.format("Created keyspaces. Sleeping %ss for propagation.", nodes.length));
+            System.out.println(String.format("Created keyspaces. Sleeping %ss for propagation.", nodes.length));
             Thread.sleep(nodes.length * 1000); // seconds
         }
         catch (InvalidRequestException e)
         {
-            out.println("Unable to create stress keyspace: " + e.getWhy());
+            System.err.println("Unable to create stress keyspace: " + e.getWhy());
         }
         catch (Exception e)
         {
-            out.println(e.getMessage());
+            System.err.println(e.getMessage());
         }
     }
 

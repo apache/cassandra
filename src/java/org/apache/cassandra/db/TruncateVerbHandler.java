@@ -22,7 +22,6 @@ import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.IOError;
 import java.io.IOException;
-import java.util.concurrent.ExecutionException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -47,7 +46,8 @@ public class TruncateVerbHandler implements IVerbHandler
 
             try
             {
-                Table.open(t.keyspace).truncate(t.columnFamily);
+                ColumnFamilyStore cfs = Table.open(t.keyspace).getColumnFamilyStore(t.columnFamily);
+                cfs.truncate().get();
             }
             catch (Exception e)
             {

@@ -28,8 +28,10 @@ import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.NClob;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLClientInfoException;
 import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
 import java.sql.SQLWarning;
 import java.sql.SQLXML;
 import java.sql.Savepoint;
@@ -52,10 +54,13 @@ import org.apache.thrift.transport.TTransportException;
  */
 class CassandraConnection implements Connection
 {
-    
-    /** The cassandra con. */
+    private Properties clientInfo = new Properties();
+
+    /**
+     * The cassandra con.
+     */
     private org.apache.cassandra.cql.jdbc.Connection cassandraCon;
-    
+
     /**
      * Instantiates a new cassandra connection.
      *
@@ -77,8 +82,7 @@ class CassandraConnection implements Connection
             final int host_backwardIdx = host_port.indexOf('/');
             final String port = host_port.substring(host_colonIdx + 1, host_backwardIdx);
             final String keyspace = host_port.substring(host_backwardIdx + 1);
-            cassandraCon = new org.apache.cassandra.cql.jdbc.Connection(hostName, Integer.valueOf(port), userName,
-                                                                                                                             password);
+            cassandraCon = new org.apache.cassandra.cql.jdbc.Connection(hostName, Integer.valueOf(port), userName, password);
             final String useQ = "USE " + keyspace;
             cassandraCon.execute(useQ);
         }
@@ -120,7 +124,7 @@ class CassandraConnection implements Connection
         }
 
     }
-    
+
     /**
      * @param arg0
      * @return
@@ -128,10 +132,10 @@ class CassandraConnection implements Connection
      */
     public boolean isWrapperFor(Class<?> arg0) throws SQLException
     {
-        throw new UnsupportedOperationException("method not supported");
+        throw new SQLException("no object is found that implements this interface");
     }
 
-    
+
     /**
      * @param <T>
      * @param arg0
@@ -140,9 +144,8 @@ class CassandraConnection implements Connection
      */
     public <T> T unwrap(Class<T> arg0) throws SQLException
     {
-        throw new UnsupportedOperationException("method not supported");
+        throw new SQLException("no object is found that implements this interface");
     }
-
 
 
     /**
@@ -150,7 +153,10 @@ class CassandraConnection implements Connection
      */
     public void clearWarnings() throws SQLException
     {
-        throw new UnsupportedOperationException("method not supported");
+        // This implementation does not support the collection of warnings so clearing is a no-op
+        // but it is still an exception to call this on a closed connection.
+        if (isClosed())
+            throw new SQLException("this method was called on a closed Connection");
     }
 
     /**
@@ -172,7 +178,7 @@ class CassandraConnection implements Connection
      */
     public void commit() throws SQLException
     {
-        throw new UnsupportedOperationException("method not supported");
+        throw new SQLException("The Cassandra Implementation is always in auto-commit mode.");
     }
 
 
@@ -184,7 +190,7 @@ class CassandraConnection implements Connection
      */
     public Array createArrayOf(String arg0, Object[] arg1) throws SQLException
     {
-        throw new UnsupportedOperationException("method not supported");
+        throw new SQLFeatureNotSupportedException("the Cassandra Implementation does not support this method");
     }
 
 
@@ -194,7 +200,7 @@ class CassandraConnection implements Connection
      */
     public Blob createBlob() throws SQLException
     {
-        throw new UnsupportedOperationException("method not supported");
+        throw new SQLFeatureNotSupportedException("the Cassandra Implementation does not support this method");
     }
 
 
@@ -204,7 +210,7 @@ class CassandraConnection implements Connection
      */
     public Clob createClob() throws SQLException
     {
-        throw new UnsupportedOperationException("method not supported");
+        throw new SQLFeatureNotSupportedException("the Cassandra Implementation does not support this method");
     }
 
 
@@ -214,7 +220,7 @@ class CassandraConnection implements Connection
      */
     public NClob createNClob() throws SQLException
     {
-        throw new UnsupportedOperationException("method not supported");
+        throw new SQLFeatureNotSupportedException("the Cassandra Implementation does not support this method");
     }
 
 
@@ -224,10 +230,10 @@ class CassandraConnection implements Connection
      */
     public SQLXML createSQLXML() throws SQLException
     {
-        throw new UnsupportedOperationException("method not supported");
+        throw new SQLFeatureNotSupportedException("the Cassandra Implementation does not support this method");
     }
 
-    
+
     /**
      * @return
      * @throws SQLException
@@ -246,7 +252,7 @@ class CassandraConnection implements Connection
      */
     public Statement createStatement(int arg0, int arg1) throws SQLException
     {
-        throw new UnsupportedOperationException("method not supported");
+        throw new SQLFeatureNotSupportedException("the Cassandra Implementation does not support this method");
     }
 
 
@@ -259,7 +265,7 @@ class CassandraConnection implements Connection
      */
     public Statement createStatement(int arg0, int arg1, int arg2) throws SQLException
     {
-        throw new UnsupportedOperationException("method not supported");
+        throw new SQLFeatureNotSupportedException("the Cassandra Implementation does not support this method");
     }
 
 
@@ -271,7 +277,7 @@ class CassandraConnection implements Connection
      */
     public Struct createStruct(String arg0, Object[] arg1) throws SQLException
     {
-        throw new UnsupportedOperationException("method not supported");
+        throw new SQLFeatureNotSupportedException("the Cassandra Implementation does not support this method");
     }
 
 
@@ -281,7 +287,7 @@ class CassandraConnection implements Connection
      */
     public boolean getAutoCommit() throws SQLException
     {
-        throw new UnsupportedOperationException("method not supported");
+        return true;
     }
 
 
@@ -291,7 +297,12 @@ class CassandraConnection implements Connection
      */
     public String getCatalog() throws SQLException
     {
-        throw new UnsupportedOperationException("method not supported");
+        // This implementation does not support the catalog names so null is always returned if the connection is open.
+        // but it is still an exception to call this on a closed connection.
+        if (isClosed())
+            throw new SQLException("this method was called on a closed Connection");
+
+        return null;
     }
 
 
@@ -301,18 +312,24 @@ class CassandraConnection implements Connection
      */
     public Properties getClientInfo() throws SQLException
     {
-        throw new UnsupportedOperationException("method not supported");
+        if (isClosed())
+            throw new SQLException("this method was called on a closed Connection");
+
+        return clientInfo;
     }
 
 
     /**
-     * @param arg0
+     * @param label
      * @return
      * @throws SQLException
      */
-    public String getClientInfo(String arg0) throws SQLException
+    public String getClientInfo(String label) throws SQLException
     {
-        throw new UnsupportedOperationException("method not supported");
+        if (isClosed())
+            throw new SQLException("this method was called on a closed Connection");
+
+        return clientInfo.getProperty(label);
     }
 
 
@@ -322,7 +339,11 @@ class CassandraConnection implements Connection
      */
     public int getHoldability() throws SQLException
     {
-        throw new UnsupportedOperationException("method not supported");
+        if (isClosed())
+            throw new SQLException("this method was called on a closed Connection");
+
+        // the rationale is there are really no commits in Cassandra so no boundary...
+        return ResultSet.HOLD_CURSORS_OVER_COMMIT;
     }
 
 
@@ -332,7 +353,11 @@ class CassandraConnection implements Connection
      */
     public DatabaseMetaData getMetaData() throws SQLException
     {
-        throw new UnsupportedOperationException("method not supported");
+        if (isClosed())
+            throw new SQLException("this method was called on a closed Connection");
+
+        // the rationale is there is no DatabaseMetaData to return but if there was we would return it...
+        return null;
     }
 
 
@@ -342,7 +367,10 @@ class CassandraConnection implements Connection
      */
     public int getTransactionIsolation() throws SQLException
     {
-        throw new UnsupportedOperationException("method not supported");
+        if (isClosed())
+            throw new SQLException("this method was called on a closed Connection");
+
+        return Connection.TRANSACTION_NONE;
     }
 
 
@@ -352,7 +380,7 @@ class CassandraConnection implements Connection
      */
     public Map<String, Class<?>> getTypeMap() throws SQLException
     {
-        throw new UnsupportedOperationException("method not supported");
+        throw new SQLFeatureNotSupportedException("the Cassandra Implementation does not support this method");
     }
 
 
@@ -362,7 +390,11 @@ class CassandraConnection implements Connection
      */
     public SQLWarning getWarnings() throws SQLException
     {
-        throw new UnsupportedOperationException("method not supported");
+        if (isClosed())
+            throw new SQLException("this method was called on a closed Connection");
+
+        // the rationale is there are no warnings to return in this implementation...
+        return null;
     }
 
 
@@ -372,7 +404,10 @@ class CassandraConnection implements Connection
      */
     public boolean isClosed() throws SQLException
     {
-        return false;
+        if (cassandraCon == null)
+            return true;
+
+        return !cassandraCon.isOpen();
     }
 
 
@@ -387,24 +422,34 @@ class CassandraConnection implements Connection
 
 
     /**
-     * @param arg0
+     * @param timeout
      * @return
      * @throws SQLException
      */
-    public boolean isValid(int arg0) throws SQLException
+    public boolean isValid(int timeout) throws SQLException
     {
-        throw new UnsupportedOperationException("method not supported");
+
+        if (timeout < 0)
+            throw new SQLException("the timeout value was less than zero");
+
+        // this needs to be more robust. Some query needs to be made to verify connection is really up.
+        return !isClosed();
     }
 
 
     /**
-     * @param arg0
+     * @param sql
      * @return
      * @throws SQLException
      */
-    public String nativeSQL(String arg0) throws SQLException
+    public String nativeSQL(String sql) throws SQLException
     {
-        throw new UnsupportedOperationException("method not supported");
+        if (isClosed())
+            throw new SQLException("this method was called on a closed Connection");
+
+        // the rationale is there are no distinction between grammars in this implementation...
+        // so we are just return the input argument
+        return sql;
     }
 
 
@@ -415,7 +460,7 @@ class CassandraConnection implements Connection
      */
     public CallableStatement prepareCall(String arg0) throws SQLException
     {
-        throw new UnsupportedOperationException("method not supported");
+        throw new SQLFeatureNotSupportedException("the Cassandra Implementation does not support this method");
     }
 
 
@@ -428,7 +473,7 @@ class CassandraConnection implements Connection
      */
     public CallableStatement prepareCall(String arg0, int arg1, int arg2) throws SQLException
     {
-        throw new UnsupportedOperationException("method not supported");
+        throw new SQLFeatureNotSupportedException("the Cassandra Implementation does not support this method");
     }
 
 
@@ -442,7 +487,7 @@ class CassandraConnection implements Connection
      */
     public CallableStatement prepareCall(String arg0, int arg1, int arg2, int arg3) throws SQLException
     {
-        throw new UnsupportedOperationException("method not supported");
+        throw new SQLFeatureNotSupportedException("the Cassandra Implementation does not support this method");
     }
 
 
@@ -465,7 +510,7 @@ class CassandraConnection implements Connection
      */
     public PreparedStatement prepareStatement(String arg0, int arg1) throws SQLException
     {
-        return null;
+        throw new SQLFeatureNotSupportedException("the Cassandra Implementation does not support this method");
     }
 
 
@@ -477,7 +522,7 @@ class CassandraConnection implements Connection
      */
     public PreparedStatement prepareStatement(String arg0, int[] arg1) throws SQLException
     {
-        throw new UnsupportedOperationException("method not supported");
+        throw new SQLFeatureNotSupportedException("the Cassandra Implementation does not support this method");
     }
 
 
@@ -489,7 +534,7 @@ class CassandraConnection implements Connection
      */
     public PreparedStatement prepareStatement(String arg0, String[] arg1) throws SQLException
     {
-        throw new UnsupportedOperationException("method not supported");
+        throw new SQLFeatureNotSupportedException("the Cassandra Implementation does not support this method");
     }
 
 
@@ -502,7 +547,7 @@ class CassandraConnection implements Connection
      */
     public PreparedStatement prepareStatement(String arg0, int arg1, int arg2) throws SQLException
     {
-        throw new UnsupportedOperationException("method not supported");
+        throw new SQLFeatureNotSupportedException("the Cassandra Implementation does not support this method");
     }
 
 
@@ -516,7 +561,7 @@ class CassandraConnection implements Connection
      */
     public PreparedStatement prepareStatement(String arg0, int arg1, int arg2, int arg3) throws SQLException
     {
-        throw new UnsupportedOperationException("method not supported");
+        throw new SQLFeatureNotSupportedException("the Cassandra Implementation does not support this method");
     }
 
 
@@ -526,18 +571,16 @@ class CassandraConnection implements Connection
      */
     public void releaseSavepoint(Savepoint arg0) throws SQLException
     {
-        throw new UnsupportedOperationException("method not supported");
-
+        throw new SQLFeatureNotSupportedException("the Cassandra Implementation does not support this method");
     }
 
 
     /**
      * @throws SQLException
-     */ 
+     */
     public void rollback() throws SQLException
     {
-        throw new UnsupportedOperationException("method not supported");
-
+        throw new SQLException("the Cassandra Implementation is always in auto-commit mode");
     }
 
 
@@ -547,19 +590,18 @@ class CassandraConnection implements Connection
      */
     public void rollback(Savepoint arg0) throws SQLException
     {
-        throw new UnsupportedOperationException("method not supported");
-
+        throw new SQLFeatureNotSupportedException("the Cassandra Implementation does not support this method");
     }
 
 
     /**
-     * @param arg0
+     * @param autoCommit
      * @throws SQLException
      */
-    public void setAutoCommit(boolean arg0) throws SQLException
+    public void setAutoCommit(boolean autoCommit) throws SQLException
     {
-        throw new UnsupportedOperationException("method not supported");
-
+        if (!autoCommit)
+            throw new SQLException("the Cassandra Implementation is always in auto-commit mode");
     }
 
 
@@ -569,29 +611,35 @@ class CassandraConnection implements Connection
      */
     public void setCatalog(String arg0) throws SQLException
     {
-        throw new UnsupportedOperationException("method not supported");
+        if (isClosed())
+            throw new SQLException("this method was called on a closed Connection");
+
+        // the rationale is there are no catalog name to set in this implementation...
+        // so we are "silently ignoring" the request
     }
 
 
     /**
-     * @param arg0
+     * @param props
      * @throws SQLClientInfoException
      */
-    public void setClientInfo(Properties arg0) throws SQLClientInfoException
+    public void setClientInfo(Properties props) throws SQLClientInfoException
     {
-        throw new UnsupportedOperationException("method not supported");
+        // this needs to be revisited when and if we actually start to use the clientInfo properties
+        if (props != null)
+            clientInfo = props;
     }
 
 
     /**
-     * @param arg0
-     * @param arg1
+     * @param key
+     * @param value
      * @throws SQLClientInfoException
      */
-    public void setClientInfo(String arg0, String arg1) throws SQLClientInfoException
+    public void setClientInfo(String key, String value) throws SQLClientInfoException
     {
-        throw new UnsupportedOperationException("method not supported");
-
+        // this needs to be revisited when and if we actually start to use the clientInfo properties
+        clientInfo.setProperty(key, value);
     }
 
 
@@ -601,9 +649,13 @@ class CassandraConnection implements Connection
      */
     public void setHoldability(int arg0) throws SQLException
     {
-        throw new UnsupportedOperationException("method not supported");
+        if (isClosed())
+            throw new SQLException("this method was called on a closed Connection");
+
+        // the rationale is there are no holdability to set in this implementation...
+        // so we are "silently ignoring" the request
     }
-    
+
 
     /**
      * @param arg0
@@ -611,9 +663,13 @@ class CassandraConnection implements Connection
      */
     public void setReadOnly(boolean arg0) throws SQLException
     {
-        throw new UnsupportedOperationException("method not supported");
+        if (isClosed())
+            throw new SQLException("this method was called on a closed Connection");
+
+        // the rationale is all connections are read/write in the Cassandra implementation...
+        // so we are "silently ignoring" the request
     }
-    
+
 
     /**
      * @return
@@ -623,7 +679,7 @@ class CassandraConnection implements Connection
     {
         throw new UnsupportedOperationException("method not supported");
     }
-    
+
 
     /**
      * @param arg0
@@ -632,19 +688,23 @@ class CassandraConnection implements Connection
      */
     public Savepoint setSavepoint(String arg0) throws SQLException
     {
-        throw new UnsupportedOperationException("method not supported");
+        throw new SQLFeatureNotSupportedException("the Cassandra Implementation does not support this method");
     }
-    
+
 
     /**
-     * @param arg0
+     * @param level
      * @throws SQLException
      */
-    public void setTransactionIsolation(int arg0) throws SQLException
+    public void setTransactionIsolation(int level) throws SQLException
     {
-        throw new UnsupportedOperationException("method not supported");
+        if (isClosed())
+            throw new SQLException("this method was called on a closed Connection");
+
+        if (level != Connection.TRANSACTION_NONE)
+            throw new SQLException("the Cassandra Inplementation does not support transactions");
     }
-    
+
 
     /**
      * @param arg0
@@ -652,7 +712,7 @@ class CassandraConnection implements Connection
      */
     public void setTypeMap(Map<String, Class<?>> arg0) throws SQLException
     {
-        throw new UnsupportedOperationException("method not supported");
+        throw new SQLFeatureNotSupportedException("the Cassandra Implementation does not support this method");
     }
 
 }

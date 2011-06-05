@@ -27,6 +27,7 @@ import java.util.List;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.IMutation;
 import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -66,18 +67,18 @@ public class DeleteStatement extends AbstractModification
     }
 
     /** {@inheritDoc} */
-    public List<RowMutation> prepareRowMutations(String keyspace, ClientState clientState) throws InvalidRequestException
+    public List<IMutation> prepareRowMutations(String keyspace, ClientState clientState) throws InvalidRequestException
     {
         return prepareRowMutations(keyspace, clientState, null);
     }
 
     /** {@inheritDoc} */
-    public List<RowMutation> prepareRowMutations(String keyspace, ClientState clientState, Long timestamp) throws InvalidRequestException
+    public List<IMutation> prepareRowMutations(String keyspace, ClientState clientState, Long timestamp) throws InvalidRequestException
     {
         clientState.hasColumnFamilyAccess(columnFamily, Permission.WRITE);
         AbstractType<?> keyType = DatabaseDescriptor.getCFMetaData(keyspace, columnFamily).getKeyValidator();
 
-        List<RowMutation> rowMutations = new ArrayList<RowMutation>();
+        List<IMutation> rowMutations = new ArrayList<IMutation>();
 
         for (Term key : keys)
         {
@@ -100,7 +101,8 @@ public class DeleteStatement extends AbstractModification
     /** {@inheritDoc} */
     public void mutationForKey(RowMutation mutation, String keyspace, Long timestamp) throws InvalidRequestException
     {
-        CFMetaData metadata = validateColumnFamily(keyspace, columnFamily, false);
+        CFMetaData metadata = validateColumnFamily(keyspace, columnFamily);
+
         AbstractType comparator = metadata.getComparatorFor(null);
 
         if (columns.size() < 1) // No columns, delete the row

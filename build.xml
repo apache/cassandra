@@ -64,7 +64,7 @@
     <property name="test.long.src" value="${test.dir}/long"/>
     <property name="test.distributed.src" value="${test.dir}/distributed"/>
     <property name="dist.dir" value="${build.dir}/dist"/>
-    <property name="cql.driver.version" value="1.0.2" />
+    <property name="cql.driver.version" value="1.0.3" />
     <condition property="version" value="${base.version}">
       <isset property="release"/>
     </condition>
@@ -693,7 +693,6 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
                destdir="${build.classes.main}" includeantruntime="false">
             <src path="${build.src.java}"/>
             <src path="${build.src.gen-java}"/>
-            <src path="${build.src.driver}" />
             <classpath refid="cassandra.classpath"/>
         </javac>
         <javac debug="true" debuglevel="${debuglevel}"
@@ -972,7 +971,10 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
      debug="true"
      debuglevel="${debuglevel}"
      destdir="${test.classes}">
-      <classpath refid="cassandra.classpath"/>
+      <classpath>
+        <path refid="cassandra.classpath"/>
+        <pathelement location="${build.classes.cql}"/>
+      </classpath>
       <src path="${test.unit.src}"/>
       <src path="${test.long.src}"/>
       <src path="${test.src.driver}"/>
@@ -1024,6 +1026,7 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
         <classpath>
           <path refid="cassandra.classpath" />
           <pathelement location="${test.classes}"/>
+          <pathelement location="${build.classes.cql}"/>
           <path refid="cobertura.classpath"/>
           <pathelement location="${test.conf}"/>
           <fileset dir="${test.lib}">

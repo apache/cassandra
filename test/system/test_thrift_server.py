@@ -1421,7 +1421,7 @@ class TestMutations(ThriftTester):
         client.system_update_column_family(modified_cf)
 
         # Add a second indexed CF ...
-        birthdate_coldef = ColumnDef('birthdate', 'BytesType', IndexType.KEYS, 'birthdate_index')
+        birthdate_coldef = ColumnDef('birthdate', 'BytesType', IndexType.KEYS, 'birthdate2_index')
         age_coldef = ColumnDef('age', 'BytesType', IndexType.KEYS, 'age_index')
         cfdef = CfDef('Keyspace1', 'BlankCF2', column_metadata=[birthdate_coldef, age_coldef])
         client.system_add_column_family(cfdef)

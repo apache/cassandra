@@ -39,6 +39,7 @@ LONG_TYPE = "org.apache.cassandra.db.marshal.LongType"
 UUID_TYPE = "org.apache.cassandra.db.marshal.UUIDType"
 LEXICAL_UUID_TYPE = "org.apache.cassandra.db.marshal.LexicalType"
 TIME_UUID_TYPE = "org.apache.cassandra.db.marshal.TimeUUIDType"
+COUNTER_COLUMN_TYPE = "org.apache.cassandra.db.marshal.CounterColumnType"
 
 def prepare(query, params):
     # For every match of the form ":param_name", call marshal
@@ -76,14 +77,15 @@ else:
 def unmarshal_uuid(bytestr):
     return UUID(bytes=bytestr)
 
-unmarshallers = {BYTES_TYPE:        unmarshal_noop,
-                 ASCII_TYPE:        unmarshal_noop,
-                 UTF8_TYPE:         unmarshal_utf8,
-                 INTEGER_TYPE:      unmarshal_int,
-                 LONG_TYPE:         unmarshal_long,
-                 UUID_TYPE:         unmarshal_uuid,
-                 LEXICAL_UUID_TYPE: unmarshal_uuid,
-                 TIME_UUID_TYPE:    unmarshal_uuid}
+unmarshallers = {BYTES_TYPE:          unmarshal_noop,
+                 ASCII_TYPE:          unmarshal_noop,
+                 UTF8_TYPE:           unmarshal_utf8,
+                 INTEGER_TYPE:        unmarshal_int,
+                 LONG_TYPE:           unmarshal_long,
+                 UUID_TYPE:           unmarshal_uuid,
+                 LEXICAL_UUID_TYPE:   unmarshal_uuid,
+                 TIME_UUID_TYPE:      unmarshal_uuid,
+                 COUNTER_COLUMN_TYPE: unmarshal_long}
 
 def decode_bigint(term):
     val = int(term.encode('hex'), 16)

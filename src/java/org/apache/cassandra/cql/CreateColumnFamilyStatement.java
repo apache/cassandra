@@ -58,7 +58,7 @@ public class CreateColumnFamilyStatement
     private static final String KW_ROW_CACHE_PROVIDER = "row_cache_provider";
     
     // Maps CQL short names to the respective Cassandra comparator/validator class names
-    private static final Map<String, String> comparators = new HashMap<String, String>();
+    public  static final Map<String, String> comparators = new HashMap<String, String>();
     private static final Set<String> keywords = new HashSet<String>();
     
     static
@@ -71,6 +71,7 @@ public class CreateColumnFamilyStatement
         comparators.put("int", "LongType");
         comparators.put("bigint", "LongType");
         comparators.put("uuid", "UUIDType");
+        comparators.put("counter", "CounterColumnType");
 
         keywords.add(KW_COMPARATOR);
         keywords.add(KW_COMMENT);

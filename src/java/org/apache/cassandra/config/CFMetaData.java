@@ -257,7 +257,7 @@ public final class CFMetaData
 
     public static CFMetaData newIndexMetadata(CFMetaData parent, ColumnDefinition info, AbstractType columnComparator)
     {
-        return new CFMetaData(parent.ksName, parent.indexName(info), ColumnFamilyType.Standard, columnComparator, null)
+        return new CFMetaData(parent.ksName, parent.indexColumnFamilyName(info), ColumnFamilyType.Standard, columnComparator, null)
                              .keyCacheSize(0.0)
                              .readRepairChance(0.0)
                              .gcGraceSeconds(parent.gcGraceSeconds)
@@ -305,10 +305,18 @@ public final class CFMetaData
         cfIdMap.remove(new Pair<String, String>(cfm.ksName, cfm.cfName));
     }
     
-    /** convention for nameing secondary indexes. */
-    public String indexName(ColumnDefinition info)
+    /**
+     * generate a column family name for an index corresponding to the given column.
+     * This is NOT the same as the index's name! This is only used in sstable filenames and is not exposed to users.
+     *
+     * @param info A definition of the column with index
+     *
+     * @return name of the index ColumnFamily
+     */
+    public String indexColumnFamilyName(ColumnDefinition info)
     {
-        return cfName + "." + (info.getIndexName() == null ? comparator.getString(info.name) + "_idx" : info.getIndexName());
+        // TODO simplify this when info.index_name is guaranteed to be set
+        return cfName + "." + (info.getIndexName() == null ? ByteBufferUtil.bytesToHex(info.name) : info.getIndexName());
     }
 
     public org.apache.cassandra.db.migration.avro.CfDef deflate()
@@ -369,6 +377,8 @@ public final class CFMetaData
         for (ColumnDef aColumn_metadata : cf.column_metadata)
         {
             ColumnDefinition cd = ColumnDefinition.inflate(aColumn_metadata);
+            if (cd.getIndexName() == null)
+                cd.setIndexName(getDefaultIndexName(comparator, cd.name));
             column_metadata.put(cd.name, cd);
         }
 
@@ -928,6 +938,37 @@ public final class CFMetaData
     public ColumnDefinition getColumnDefinition(ByteBuffer name)
     {
         return column_metadata.get(name);
+    }
+
+    /**
+     * Convert a null index_name to appropriate default name according to column status
+     * @param cf_def Thrift ColumnFamily Definition
+     */
+    public static void addDefaultIndexNames(org.apache.cassandra.thrift.CfDef cf_def) throws InvalidRequestException
+    {
+        if (cf_def.column_metadata == null)
+            return;
+
+        AbstractType comparator;
+        try
+        {
+            comparator = TypeParser.parse(cf_def.comparator_type);
+        }
+        catch (ConfigurationException e)
+        {
+            throw new InvalidRequestException(e.getMessage());
+        }
+
+        for (org.apache.cassandra.thrift.ColumnDef column : cf_def.column_metadata)
+        {
+            if (column.index_type != null && column.index_name == null)
+                column.index_name = getDefaultIndexName(comparator, column.name);
+        }
+    }
+
+    public static String getDefaultIndexName(AbstractType comparator, ByteBuffer columnName)
+    {
+        return comparator.getString(columnName).replaceAll("\\W", "") + "_idx";
     }
 
     @Override
