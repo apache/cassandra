@@ -1,4 +1,4 @@
-package org.apache.cassandra.io;
+package org.apache.cassandra.db.compaction;
 /*
  * 
  * Licensed to the Apache Software Foundation (ASF) under one

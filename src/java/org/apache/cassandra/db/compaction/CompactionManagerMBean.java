@@ -16,11 +16,9 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.db;
+package org.apache.cassandra.db.compaction;
 
 import java.util.List;
-
-import org.apache.cassandra.io.CompactionInfo;
 
 public interface CompactionManagerMBean
 {
