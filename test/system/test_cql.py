@@ -75,6 +75,10 @@ def load_sample(dbconn):
         CREATE COLUMNFAMILY IndexedA (KEY text PRIMARY KEY, birthdate int)
             WITH comparator = ascii AND default_validation = ascii;
     """)
+    dbconn.execute("""
+        CREATE COLUMNFAMILY CounterCF (KEY text PRIMARY KEY, count_me counter)
+            WITH comparator = ascii AND default_validation = counter;
+    """)
     dbconn.execute("CREATE INDEX ON IndexedA (birthdate)")
 
     query = "UPDATE StandardString1 SET :c1 = :v1, :c2 = :v2 WHERE KEY = :key"
@@ -1081,3 +1085,76 @@ class TestCql(ThriftTester):
         assert_raises(cql.ProgrammingError,
                       cursor.execute,
                       "ALTER TABLE NewCf1 DROP name")
+    
+    def test_counter_column_support(self):
+        "update statement should be able to work with counter columns"
+        cursor = init()
+
+        # increment counter
+        cursor.execute("UPDATE CounterCF SET count_me = count_me + 2 WHERE key = 'counter1'")
+        cursor.execute("SELECT * FROM CounterCF WHERE KEY = 'counter1'")
+        assert cursor.rowcount == 1, "expected 1 results, got %d" % cursor.rowcount
+        colnames = [col_d[0] for col_d in cursor.description]
+
+        assert colnames[1] == "count_me", \
+               "unrecognized name '%s'" % colnames[1]
+
+        r = cursor.fetchone()
+        assert r[1] == 2, \
+               "unrecognized value '%s'" % r[1]
+
+        cursor.execute("UPDATE CounterCF SET count_me = count_me + 2 WHERE key = 'counter1'")
+        cursor.execute("SELECT * FROM CounterCF WHERE KEY = 'counter1'")
+        assert cursor.rowcount == 1, "expected 1 results, got %d" % cursor.rowcount
+        colnames = [col_d[0] for col_d in cursor.description]
+
+        assert colnames[1] == "count_me", \
+               "unrecognized name '%s'" % colnames[1]
+
+        r = cursor.fetchone()
+        assert r[1] == 4, \
+               "unrecognized value '%s'" % r[1]
+
+        # decrement counter
+        cursor.execute("UPDATE CounterCF SET count_me = count_me - 4 WHERE key = 'counter1'")
+        cursor.execute("SELECT * FROM CounterCF WHERE KEY = 'counter1'")
+        assert cursor.rowcount == 1, "expected 1 results, got %d" % cursor.rowcount
+        colnames = [col_d[0] for col_d in cursor.description]
+
+        assert colnames[1] == "count_me", \
+               "unrecognized name '%s'" % colnames[1]
+
+        r = cursor.fetchone()
+        assert r[1] == 0, \
+               "unrecognized value '%s'" % r[1]
+
+        cursor.execute("SELECT * FROM CounterCF")
+        assert cursor.rowcount == 1, "expected 1 results, got %d" % cursor.rowcount
+        colnames = [col_d[0] for col_d in cursor.description]
+
+        assert colnames[1] == "count_me", \
+               "unrecognized name '%s'" % colnames[1]
+
+        r = cursor.fetchone()
+        assert r[1] == 0, \
+               "unrecognized value '%s'" % r[1]
+
+        # deleting a counter column
+        cursor.execute("DELETE count_me FROM CounterCF WHERE KEY = 'counter1'")
+        cursor.execute("SELECT * FROM CounterCF")
+        assert cursor.rowcount == 1, "expected 1 results, got %d" % cursor.rowcount
+        colnames = [col_d[0] for col_d in cursor.description]
+        assert len(colnames) == 1
+
+        r = cursor.fetchone()
+        assert len(r) == 1
+
+        # can't mix counter and normal statements
+        assert_raises(cql.ProgrammingError,
+                      cursor.execute,
+                      "UPDATE CounterCF SET count_me = count_me + 2, x = 'a' WHERE key = 'counter1'")
+
+        # column names must match
+        assert_raises(cql.ProgrammingError,
+                      cursor.execute,
+                      "UPDATE CounterCF SET count_me = count_not_me + 2 WHERE key = 'counter1'")

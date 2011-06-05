@@ -71,6 +71,7 @@ public class CreateColumnFamilyStatement
         comparators.put("int", "LongType");
         comparators.put("bigint", "LongType");
         comparators.put("uuid", "UUIDType");
+        comparators.put("counter", "CounterColumnType");
 
         keywords.add(KW_COMPARATOR);
         keywords.add(KW_COMMENT);

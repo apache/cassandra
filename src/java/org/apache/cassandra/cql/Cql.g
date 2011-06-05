@@ -291,12 +291,12 @@ batchStatementObjective returns [AbstractModification statement]
 updateStatement returns [UpdateStatement expr]
     : {
           Attributes attrs = new Attributes();
-          Map<Term, Term> columns = new HashMap<Term, Term>();
+          Map<Term, Operation> columns = new HashMap<Term, Operation>();
           List<Term> keyList = null;
       }
       K_UPDATE columnFamily=( IDENT | STRING_LITERAL | INTEGER )
           ( usingClause[attrs] )?
-          K_SET termPair[columns] (',' termPair[columns])*
+          K_SET termPairWithOperation[columns] (',' termPairWithOperation[columns])*
           K_WHERE ( K_KEY '=' key=term { keyList = Collections.singletonList(key); }
                     |
                     K_KEY K_IN '(' keys=termList { keyList = $keys.items; } ')' )
@@ -416,7 +416,7 @@ dropColumnFamilyStatement returns [String cfam]
     ;
 
 comparatorType
-    : 'bytea' | 'ascii' | 'text' | 'varchar' | 'int' | 'varint' | 'bigint' | 'uuid'
+    : 'bytea' | 'ascii' | 'text' | 'varchar' | 'int' | 'varint' | 'bigint' | 'uuid' | 'counter'
     ;
 
 term returns [Term item]
@@ -431,6 +431,12 @@ termList returns [List<Term> items]
 // term = term
 termPair[Map<Term, Term> columns]
     :   key=term '=' value=term { columns.put(key, value); }
+    ;
+
+termPairWithOperation[Map<Term, Operation> columns]
+    : key=term '=' (value=term { columns.put(key, new Operation(value)); }
+		    | c=term ( '+' v=term { columns.put(key, new Operation(c, org.apache.cassandra.cql.Operation.OperationType.PLUS, v)); }
+                            | '-' v=term { columns.put(key, new Operation(c, org.apache.cassandra.cql.Operation.OperationType.MINUS, v)); } ))
     ;
 
 // Note: ranges are inclusive so >= and >, and < and <= all have the same semantics.  

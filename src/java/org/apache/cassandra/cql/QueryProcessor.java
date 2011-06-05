@@ -32,6 +32,8 @@ import java.util.concurrent.TimeoutException;
 
 import com.google.common.base.Predicates;
 import com.google.common.collect.Maps;
+import org.apache.cassandra.db.CounterColumn;
+import org.apache.cassandra.db.context.CounterContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -66,7 +68,7 @@ public class QueryProcessor
     throws InvalidRequestException, TimedOutException, UnavailableException
     {
         QueryPath queryPath = new QueryPath(select.getColumnFamily());
-        CFMetaData metadata = validateColumnFamily(keyspace, select.getColumnFamily(), false);
+        CFMetaData metadata = validateColumnFamily(keyspace, select.getColumnFamily());
         List<ReadCommand> commands = new ArrayList<ReadCommand>();
 
         // ...of a list of column names
@@ -160,7 +162,7 @@ public class QueryProcessor
         }
         AbstractBounds bounds = new Bounds(startToken, finishToken);
         
-        CFMetaData metadata = validateColumnFamily(keyspace, select.getColumnFamily(), false);
+        CFMetaData metadata = validateColumnFamily(keyspace, select.getColumnFamily());
         // XXX: Our use of Thrift structs internally makes me Sad. :(
         SlicePredicate thriftSlicePredicate = slicePredicateFromSelect(select, metadata);
         validateSlicePredicate(metadata, thriftSlicePredicate);
@@ -213,7 +215,7 @@ public class QueryProcessor
     private static List<org.apache.cassandra.db.Row> getIndexedSlices(String keyspace, SelectStatement select)
     throws TimedOutException, UnavailableException, InvalidRequestException
     {
-        CFMetaData metadata = validateColumnFamily(keyspace, select.getColumnFamily(), false);
+        CFMetaData metadata = validateColumnFamily(keyspace, select.getColumnFamily());
         // XXX: Our use of Thrift structs internally (still) makes me Sad. :~(
         SlicePredicate thriftSlicePredicate = slicePredicateFromSelect(select, metadata);
         validateSlicePredicate(metadata, thriftSlicePredicate);
@@ -260,7 +262,7 @@ public class QueryProcessor
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
         String keyspace = clientState.getKeyspace();
-        List<RowMutation> rowMutations = new ArrayList<RowMutation>();
+        List<IMutation> rowMutations = new ArrayList<IMutation>();
         List<String> cfamsSeen = new ArrayList<String>();
 
         for (UpdateStatement update : updateStatements)
@@ -490,7 +492,7 @@ public class QueryProcessor
             case SELECT:
                 SelectStatement select = (SelectStatement)statement.statement;
                 clientState.hasColumnFamilyAccess(select.getColumnFamily(), Permission.READ);
-                metadata = validateColumnFamily(keyspace, select.getColumnFamily(), false);
+                metadata = validateColumnFamily(keyspace, select.getColumnFamily());
                 validateSelect(keyspace, select);
                 
                 List<org.apache.cassandra.db.Row> rows;
@@ -840,7 +842,7 @@ public class QueryProcessor
             {
                 if (c.isMarkedForDelete())
                     continue;
-                thriftColumns.add(new Column(c.name()).setValue(c.value()).setTimestamp(c.timestamp()));
+                thriftColumns.add(thriftify(c));
             }
         }
         else
@@ -867,14 +869,23 @@ public class QueryProcessor
                 {
                     throw new AssertionError(e);
                 }
+
                 IColumn c = row.cf.getColumn(name);
                 if (c == null || c.isMarkedForDelete())
                     thriftColumns.add(new Column().setName(name));
                 else
-                    thriftColumns.add(new Column(c.name()).setValue(c.value()).setTimestamp(c.timestamp()));
+                    thriftColumns.add(thriftify(c));
             }
         }
         return thriftColumns;
+    }
+
+    private static Column thriftify(IColumn c)
+    {
+        ByteBuffer value = (c instanceof CounterColumn)
+                           ? ByteBufferUtil.bytes(CounterContext.instance().total(c.value()))
+                           : c.value();
+        return new Column(c.name()).setValue(value).setTimestamp(c.timestamp());
     }
 
     private static String getKeyString(CFMetaData metadata)
