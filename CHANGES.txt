@@ -28,6 +28,10 @@
  * Added statusthrift to nodetool to report if thrift server is running (CASSANDRA-2722)
  * Fixed rows being cached if they do not exist (CASSANDRA-2723)
  * Support passing tableName and cfName to RowCacheProviders (CASSANDRA-2702)
+ * close scrub file handles (CASSANDRA-2669)
+ * throttle migration replay (CASSANDRA-2714)
+ * optimize column serializer creation (CASSANDRA-2716)
+
 
 0.8.0-final
  * fix CQL grammar warning and cqlsh regression from CASSANDRA-2622
