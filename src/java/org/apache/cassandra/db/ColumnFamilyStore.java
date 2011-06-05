@@ -53,6 +53,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.columniterator.IColumnIterator;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
+import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
@@ -923,7 +924,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * Add up all the files sizes this is the worst case file
      * size for compaction of all the list of files given.
      */
-    long getExpectedCompactedFileSize(Iterable<SSTableReader> sstables)
+    public long getExpectedCompactedFileSize(Iterable<SSTableReader> sstables)
     {
         long expectedFileSize = 0;
         for (SSTableReader sstable : sstables)
@@ -937,7 +938,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     /*
      *  Find the maximum size file in the list .
      */
-    SSTableReader getMaxSizeFile(Iterable<SSTableReader> sstables)
+    public SSTableReader getMaxSizeFile(Iterable<SSTableReader> sstables)
     {
         long maxSize = 0L;
         SSTableReader maxFile = null;
@@ -963,7 +964,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         CompactionManager.instance.performScrub(ColumnFamilyStore.this);
     }
 
-    void markCompacted(Collection<SSTableReader> sstables)
+    public void markCompacted(Collection<SSTableReader> sstables)
     {
         data.markCompacted(sstables);
     }
@@ -973,7 +974,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return data.getSSTables().equals(sstables);
     }
 
-    void replaceCompactedSSTables(Collection<SSTableReader> sstables, Iterable<SSTableReader> replacements)
+    public void replaceCompactedSSTables(Collection<SSTableReader> sstables, Iterable<SSTableReader> replacements)
     {
         data.replaceCompactedSSTables(sstables, replacements);
     }
@@ -1054,7 +1055,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     /**
      * Package protected for access from the CompactionManager.
      */
-    DataTracker getDataTracker()
+    public DataTracker getDataTracker()
     {
         return data;
     }

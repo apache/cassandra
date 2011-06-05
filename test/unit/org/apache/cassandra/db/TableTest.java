@@ -33,6 +33,7 @@ import org.junit.Test;
 
 import static junit.framework.Assert.*;
 import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.utils.WrappedRunnable;
 import static org.apache.cassandra.Util.column;

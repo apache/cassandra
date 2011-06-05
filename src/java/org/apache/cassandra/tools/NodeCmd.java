@@ -39,7 +39,7 @@ import org.apache.commons.cli.*;
 import org.apache.cassandra.cache.InstrumentingCacheMBean;
 import org.apache.cassandra.concurrent.IExecutorMBean;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
-import org.apache.cassandra.db.CompactionManagerMBean;
+import org.apache.cassandra.db.compaction.CompactionManagerMBean;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.CompactionInfo;
 import org.apache.cassandra.net.MessagingServiceMBean;

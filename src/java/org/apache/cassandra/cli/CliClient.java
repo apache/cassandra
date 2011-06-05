@@ -33,7 +33,7 @@ import org.antlr.runtime.tree.Tree;
 import org.apache.cassandra.auth.SimpleAuthenticator;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
-import org.apache.cassandra.db.CompactionManagerMBean;
+import org.apache.cassandra.db.compaction.CompactionManagerMBean;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.io.CompactionInfo;
 import org.apache.cassandra.io.CompactionType;
