@@ -113,6 +113,7 @@ query returns [CQLStatement stmnt]
     | createKeyspaceStatement { $stmnt = new CQLStatement(StatementType.CREATE_KEYSPACE, $createKeyspaceStatement.expr); }
     | createColumnFamilyStatement { $stmnt = new CQLStatement(StatementType.CREATE_COLUMNFAMILY, $createColumnFamilyStatement.expr); }
     | createIndexStatement { $stmnt = new CQLStatement(StatementType.CREATE_INDEX, $createIndexStatement.expr); }
+    | dropIndexStatement   { $stmnt = new CQLStatement(StatementType.DROP_INDEX, $dropIndexStatement.expr); }
     | dropKeyspaceStatement { $stmnt = new CQLStatement(StatementType.DROP_KEYSPACE, $dropKeyspaceStatement.ksp); }
     | dropColumnFamilyStatement { $stmnt = new CQLStatement(StatementType.DROP_COLUMNFAMILY, $dropColumnFamilyStatement.cfam); }
     | alterTableStatement { $stmnt = new CQLStatement(StatementType.ALTER_TABLE, $alterTableStatement.expr); }
@@ -382,6 +383,15 @@ createCfamKeywordArgument returns [String arg]
 createIndexStatement returns [CreateIndexStatement expr]
     : K_CREATE K_INDEX (idxName=IDENT)? K_ON cf=( IDENT | STRING_LITERAL | INTEGER ) '(' columnName=term ')' endStmnt
       { $expr = new CreateIndexStatement($idxName.text, $cf.text, columnName); }
+    ;
+/**
+ * DROP INDEX ON <CF>.<COLUMN_OR_INDEX_NAME>
+ * DROP INDEX <INDEX_NAME>
+ */
+dropIndexStatement returns [DropIndexStatement expr]
+    :
+      K_DROP K_INDEX index=( IDENT | STRING_LITERAL | INTEGER ) endStmnt
+      { $expr = new DropIndexStatement($index.text); }
     ;
 
 /** DROP KEYSPACE <KSP>; */

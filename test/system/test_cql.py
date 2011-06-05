@@ -530,7 +530,7 @@ class TestCql(ThriftTester):
         "creating column indexes"
         cursor = init()
         cursor.execute("USE Keyspace1")
-        cursor.execute("CREATE COLUMNFAMILY CreateIndex1 (KEY text PRIMARY KEY)")
+        cursor.execute("CREATE COLUMNFAMILY CreateIndex1 (KEY text PRIMARY KEY, items text, stuff int)")
         cursor.execute("CREATE INDEX namedIndex ON CreateIndex1 (items)")
         cursor.execute("CREATE INDEX ON CreateIndex1 (stuff)")
 
@@ -539,16 +539,43 @@ class TestCql(ThriftTester):
         cfam = [i for i in ksdef.cf_defs if i.name == "CreateIndex1"][0]
         items = [i for i in cfam.column_metadata if i.name == "items"][0]
         stuff = [i for i in cfam.column_metadata if i.name == "stuff"][0]
-        assert items.index_name == "namedIndex", "missing index (or name)"
+        assert items.index_name == "namedIndex", items.index_name
         assert items.index_type == 0, "missing index"
-        assert not stuff.index_name, \
-            "index_name should be unset, not %s" % stuff.index_name
+        assert stuff.index_name != None, "index_name should be set"
         assert stuff.index_type == 0, "missing index"
 
         # already indexed
         assert_raises(cql.ProgrammingError,
                       cursor.execute,
                       "CREATE INDEX ON CreateIndex1 (stuff)")
+
+    def test_drop_indexes(self):
+        "droping indexes on columns"
+        cursor = init()
+        cursor.execute("""CREATE KEYSPACE DropIndexTests WITH strategy_options:replication_factor = '1'
+                                                            AND strategy_class = 'SimpleStrategy';""")
+        cursor.execute("USE DropIndexTests")
+        cursor.execute("CREATE COLUMNFAMILY IndexedCF (KEY text PRIMARY KEY, n text)")
+        cursor.execute("CREATE INDEX namedIndex ON IndexedCF (n)")
+
+        ksdef = thrift_client.describe_keyspace("DropIndexTests")
+        columns = ksdef.cf_defs[0].column_metadata
+
+        assert columns[0].index_name == "namedIndex"
+        assert columns[0].index_type == 0
+
+        # testing "DROP INDEX <INDEX_NAME>"
+        cursor.execute("DROP INDEX namedIndex")
+
+        ksdef = thrift_client.describe_keyspace("DropIndexTests")
+        columns = ksdef.cf_defs[0].column_metadata
+
+        assert columns[0].index_type == None
+        assert columns[0].index_name == None
+
+        assert_raises(cql.ProgrammingError,
+                      cursor.execute,
+                      "DROP INDEX undefIndex")
 
     def test_time_uuid(self):
         "store and retrieve time-based (type 1) uuids"

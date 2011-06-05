@@ -293,6 +293,15 @@ bc. CREATE INDEX [index_name] ON <column_family> (column_name);
 
 A @CREATE INDEX@ statement is used to create a new, automatic secondary index for the named column.
 
+h2. DROP INDEX
+
+_Synopsis:_
+
+bc. DROP INDEX <INDEX_NAME>
+
+A @DROP INDEX@ statement is used to drop an existing secondary index.
+DROP INDEX <INDEX_NAME> statement will search all ColumnFamilies in the current Keyspace for specified index and delete it if found.
+
 h2. DROP
 
 _Synopsis:_
