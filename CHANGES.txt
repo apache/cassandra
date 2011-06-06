@@ -6,7 +6,7 @@
    - TTL support (CASSANDRA-2476)
    - counter support (CASSANDRA-2473)
    - improve JDBC spec compliance (CASSANDRA-2720)
-   - ALTER TABLE (CASSANDRA-1709)
+   - ALTER COLUMNFAMILY (CASSANDRA-1709)
    - DROP INDEX (CASSANDRA-2617)
  * add support for comparator parameters and a generic ReverseType
    (CASSANDRA-2355)
