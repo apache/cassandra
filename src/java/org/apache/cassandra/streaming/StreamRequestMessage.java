@@ -23,10 +23,13 @@ package org.apache.cassandra.streaming;
 
 import java.io.*;
 import java.net.InetAddress;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
+import java.util.*;
 
+import com.google.common.collect.Iterables;
+
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Table;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.io.ICompactSerializer;
@@ -66,13 +69,15 @@ class StreamRequestMessage implements MessageProducer
     // if these are specified, file shoud not be.
     protected final Collection<Range> ranges;
     protected final String table;
+    protected final Iterable<ColumnFamilyStore> columnFamilies;
     protected final OperationType type;
 
-    StreamRequestMessage(InetAddress target, Collection<Range> ranges, String table, long sessionId, OperationType type)
+    StreamRequestMessage(InetAddress target, Collection<Range> ranges, String table, Iterable<ColumnFamilyStore> columnFamilies, long sessionId, OperationType type)
     {
         this.target = target;
         this.ranges = ranges;
         this.table = table;
+        this.columnFamilies = columnFamilies;
         this.sessionId = sessionId;
         this.type = type;
         file = null;
@@ -86,6 +91,7 @@ class StreamRequestMessage implements MessageProducer
         this.type = file.type;
         ranges = null;
         table = null;
+        columnFamilies = null;
     }
     
     public Message getMessage(Integer version)
@@ -109,6 +115,8 @@ class StreamRequestMessage implements MessageProducer
         if (file == null)
         {
             sb.append(table);
+            sb.append("@");
+            sb.append(columnFamilies.toString());
             sb.append("@");
             sb.append(target);
             sb.append("------->");
@@ -146,8 +154,16 @@ class StreamRequestMessage implements MessageProducer
                 {
                     AbstractBounds.serializer().serialize(range, dos);
                 }
+
                 if (version > MessagingService.VERSION_07)
                     dos.writeUTF(srm.type.name());
+
+                if (version > MessagingService.VERSION_080)
+                {
+                    dos.writeInt(Iterables.size(srm.columnFamilies));
+                    for (ColumnFamilyStore cfs : srm.columnFamilies)
+                        dos.writeInt(cfs.metadata.cfId);
+                }
             }
         }
 
@@ -173,7 +189,16 @@ class StreamRequestMessage implements MessageProducer
                 OperationType type = OperationType.RESTORE_REPLICA_COUNT;
                 if (version > MessagingService.VERSION_07)
                     type = OperationType.valueOf(dis.readUTF());
-                return new StreamRequestMessage(target, ranges, table, sessionId, type);
+
+                List<ColumnFamilyStore> stores = new ArrayList<ColumnFamilyStore>();
+                if (version > MessagingService.VERSION_080)
+                {
+                    int cfsSize = dis.readInt();
+                    for (int i = 0; i < cfsSize; ++i)
+                        stores.add(Table.open(table).getColumnFamilyStore(dis.readInt()));
+                }
+
+                return new StreamRequestMessage(target, ranges, table, stores, sessionId, type);
             }
         }
     }

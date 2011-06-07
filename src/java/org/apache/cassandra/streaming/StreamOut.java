@@ -22,21 +22,21 @@ package org.apache.cassandra.streaming;
 import java.io.IOError;
 import java.io.IOException;
 import java.net.InetAddress;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.concurrent.ExecutionException;
+import java.util.*;
 import java.util.concurrent.Future;
 
+import com.google.common.collect.Iterables;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableReader;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
 /**
@@ -65,74 +65,48 @@ public class StreamOut
     private static Logger logger = LoggerFactory.getLogger(StreamOut.class);
 
     /**
-     * Split out files for all tables on disk locally for each range and then stream them to the target endpoint.
+     * Stream the given ranges to the target endpoint from each CF in the given keyspace.
     */
-    public static void transferRanges(InetAddress target, String tableName, Collection<Range> ranges, Runnable callback, OperationType type)
+    public static void transferRanges(InetAddress target, Table table, Collection<Range> ranges, Runnable callback, OperationType type)
     {
-        assert ranges.size() > 0;
-        
-        // this is so that this target shows up as a destination while anticompaction is happening.
-        StreamOutSession session = StreamOutSession.create(tableName, target, callback);
-
-        logger.info("Beginning transfer to {}", target);
-        logger.debug("Ranges are {}", StringUtils.join(ranges, ","));
-
-        try
-        {
-            Table table = flushSSTable(tableName);
-            // send the matching portion of every sstable in the keyspace
-            transferSSTables(session, table.getAllSSTables(), ranges, type);
-        }
-        catch (IOException e)
-        {
-            throw new IOError(e);
-        }
+        StreamOutSession session = StreamOutSession.create(table.name, target, callback);
+        transferRanges(session, table.getColumnFamilyStores(), ranges, type);
     }
 
     /**
-     * (1) dump all the memtables to disk.
-     * (2) determine the minimal file sections we need to send for the given ranges
-     * (3) transfer the data.
+     * Flushes matching column families from the given keyspace, or all columnFamilies
+     * if the cf list is empty.
      */
-    private static Table flushSSTable(String tableName) throws IOException
+    private static void flushSSTables(Iterable<ColumnFamilyStore> stores) throws IOException
     {
-        Table table = Table.open(tableName);
-        logger.info("Flushing memtables for {}...", tableName);
-        for (Future<?> f : table.flush())
+        logger.info("Flushing memtables for {}...", stores);
+        List<Future<?>> flushes;
+        flushes = new ArrayList<Future<?>>();
+        for (ColumnFamilyStore cfstore : stores)
         {
-            try
-            {
-                f.get();
-            }
-            catch (InterruptedException e)
-            {
-                throw new RuntimeException(e);
-            }
-            catch (ExecutionException e)
-            {
-                throw new RuntimeException(e);
-            }
+            Future<?> flush = cfstore.forceFlush();
+            if (flush != null)
+                flushes.add(flush);
         }
-        return table;
+        FBUtilities.waitOnFutures(flushes);
     }
 
     /**
-     * Split out files for all tables on disk locally for each range and then stream them to the target endpoint.
+     * Stream the given ranges to the target endpoint from each of the given CFs.
     */
-    public static void transferRangesForRequest(StreamOutSession session, Collection<Range> ranges, OperationType type)
+    public static void transferRanges(StreamOutSession session, Iterable<ColumnFamilyStore> cfses, Collection<Range> ranges, OperationType type)
     {
         assert ranges.size() > 0;
 
         logger.info("Beginning transfer to {}", session.getHost());
         logger.debug("Ranges are {}", StringUtils.join(ranges, ","));
-
         try
         {
-            Table table = flushSSTable(session.table);
-            // send the matching portion of every sstable in the keyspace
-            List<PendingFile> pending = createPendingFiles(table.getAllSSTables(), ranges, type);
-            session.addFilesToStream(pending);
-            session.begin();
+            flushSSTables(cfses);
+            Iterable<SSTableReader> sstables = Collections.emptyList();
+            for (ColumnFamilyStore cfStore : cfses)
+                sstables = Iterables.concat(sstables, cfStore.getSSTables());
+            transferSSTables(session, sstables, ranges, type);
         }
         catch (IOException e)
         {
@@ -141,9 +115,10 @@ public class StreamOut
     }
 
     /**
-     * Transfers matching portions of a group of sstables from a single table to the target endpoint.
+     * Low-level transfer of matching portions of a group of sstables from a single table to the target endpoint.
+     * You should probably call transferRanges instead.
      */
-    public static void transferSSTables(StreamOutSession session, Collection<SSTableReader> sstables, Collection<Range> ranges, OperationType type) throws IOException
+    public static void transferSSTables(StreamOutSession session, Iterable<SSTableReader> sstables, Collection<Range> ranges, OperationType type) throws IOException
     {
         List<PendingFile> pending = createPendingFiles(sstables, ranges, type);
 
@@ -159,7 +134,7 @@ public class StreamOut
     }
 
     // called prior to sending anything.
-    private static List<PendingFile> createPendingFiles(Collection<SSTableReader> sstables, Collection<Range> ranges, OperationType type)
+    private static List<PendingFile> createPendingFiles(Iterable<SSTableReader> sstables, Collection<Range> ranges, OperationType type)
     {
         List<PendingFile> pending = new ArrayList<PendingFile>();
         for (SSTableReader sstable : sstables)
@@ -170,7 +145,7 @@ public class StreamOut
                 continue;
             pending.add(new PendingFile(sstable, desc, SSTable.COMPONENT_DATA, sections, type));
         }
-        logger.info("Stream context metadata {}, {} sstables.", pending, sstables.size());
+        logger.info("Stream context metadata {}, {} sstables.", pending, Iterables.size(sstables));
         return pending;
     }
 }
