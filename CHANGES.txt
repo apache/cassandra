@@ -15,6 +15,7 @@
  * fix truncate/compaction race (CASSANDRA-2673)
  * workaround large resultsets causing large allocation retention
    by nio sockets (CASSANDRA-2654)
+ * fix nodetool ring use with Ec2Snitch (CASSANDRA-2733)
 
 
 0.7.6
