@@ -41,6 +41,7 @@
  * workaround large resultsets causing large allocation retention
    by nio sockets (CASSANDRA-2654)
  * restrict repair streaming to specific columnfamilies (CASSANDRA-2280)
+ * fix nodetool ring use with Ec2Snitch (CASSANDRA-2733)
 
 
 0.8.0-final
