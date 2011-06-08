@@ -146,7 +146,7 @@ public class SimpleStrategyTest extends CleanupHelper
 
             for (int i = 0; i < keyTokens.length; i++)
             {
-                Collection<InetAddress> endpoints = tmd.getWriteEndpoints(keyTokens[i], table, strategy.getNaturalEndpoints(keyTokens[i]));
+                Collection<InetAddress> endpoints = tmd.getWriteEndpoints(keyTokens[i], table, strategy.getNaturalEndpoints(keyTokens[i])).left;
                 assertTrue(endpoints.size() >= replicationFactor);
 
                 for (int j = 0; j < replicationFactor; j++)

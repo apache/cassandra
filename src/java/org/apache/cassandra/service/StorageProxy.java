@@ -199,10 +199,12 @@ public class StorageProxy implements StorageProxyMBean
         String table = mutation.getTable();
         AbstractReplicationStrategy rs = Table.open(table).getReplicationStrategy();
 
-        Collection<InetAddress> writeEndpoints = getWriteEndpoints(table, mutation.key());
+        Pair<? extends Iterable<InetAddress>, ? extends Iterable<InetAddress>> p = getWriteEndpoints(table, mutation.key());
+        Iterable<InetAddress> writeEndpoints = p.left;
+        Iterable<InetAddress> pendingEndpoints = p.right;
         Multimap<InetAddress, InetAddress> hintedEndpoints = rs.getHintedEndpoints(writeEndpoints);
 
-        IWriteResponseHandler responseHandler = rs.getWriteResponseHandler(writeEndpoints, hintedEndpoints, consistency_level);
+        IWriteResponseHandler responseHandler = rs.getWriteResponseHandler(writeEndpoints, hintedEndpoints, pendingEndpoints, consistency_level);
 
         // exit early if we can't fulfill the CL at this time
         responseHandler.assureSufficientLiveNodes();
@@ -211,7 +213,7 @@ public class StorageProxy implements StorageProxyMBean
         return responseHandler;
     }
 
-    private static Collection<InetAddress> getWriteEndpoints(String table, ByteBuffer key)
+    private static Pair<? extends Iterable<InetAddress>, ? extends Iterable<InetAddress>> getWriteEndpoints(String table, ByteBuffer key)
     {
         StorageService ss = StorageService.instance;
         List<InetAddress> naturalEndpoints = ss.getNaturalEndpoints(table, key);
@@ -387,9 +389,11 @@ public class StorageProxy implements StorageProxyMBean
             // Exit now if we can't fulfill the CL here instead of forwarding to the leader replica
             String table = cm.getTable();
             AbstractReplicationStrategy rs = Table.open(table).getReplicationStrategy();
-            Collection<InetAddress> writeEndpoints = getWriteEndpoints(table, cm.key());
+            Pair<? extends Iterable<InetAddress>, ? extends Iterable<InetAddress>> p = getWriteEndpoints(table, cm.key());
+            Iterable<InetAddress> writeEndpoints = p.left;
+            Iterable<InetAddress> pendingEndpoints = p.right;
             Multimap<InetAddress, InetAddress> hintedEndpoints = rs.getHintedEndpoints(writeEndpoints);
-            rs.getWriteResponseHandler(writeEndpoints, hintedEndpoints, cm.consistency()).assureSufficientLiveNodes();
+            rs.getWriteResponseHandler(writeEndpoints, hintedEndpoints, pendingEndpoints, cm.consistency()).assureSufficientLiveNodes();
 
             // Forward the actual update to the chosen leader replica
             IWriteResponseHandler responseHandler = WriteResponseHandler.create(endpoint);

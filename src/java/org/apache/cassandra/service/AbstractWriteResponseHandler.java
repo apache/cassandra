@@ -41,14 +41,16 @@ public abstract class AbstractWriteResponseHandler implements IWriteResponseHand
     protected final long startTime;
     protected final Collection<InetAddress> writeEndpoints;
     protected final Multimap<InetAddress, InetAddress> hintedEndpoints;
+    protected final Collection<InetAddress> pendingEndpoints;
     protected final ConsistencyLevel consistencyLevel;
 
-    protected AbstractWriteResponseHandler(Collection<InetAddress> writeEndpoints, Multimap<InetAddress, InetAddress> hintedEndpoints, ConsistencyLevel consistencyLevel)
+    protected AbstractWriteResponseHandler(Iterable<InetAddress> writeEndpoints, Multimap<InetAddress, InetAddress> hintedEndpoints, Iterable<InetAddress> pendingEndpoints, ConsistencyLevel consistencyLevel)
     {
         startTime = System.currentTimeMillis();
         this.consistencyLevel = consistencyLevel;
         this.hintedEndpoints = hintedEndpoints;
         this.writeEndpoints = writeEndpoints;
+        this.pendingEndpoints = pendingEndpoints;
     }
 
     public void get() throws TimeoutException

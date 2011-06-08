@@ -57,10 +57,10 @@ public class DatacenterSyncWriteResponseHandler extends AbstractWriteResponseHan
 	private final NetworkTopologyStrategy strategy;
     private HashMap<String, AtomicInteger> responses = new HashMap<String, AtomicInteger>();
 
-    protected DatacenterSyncWriteResponseHandler(Collection<InetAddress> writeEndpoints, Multimap<InetAddress, InetAddress> hintedEndpoints, ConsistencyLevel consistencyLevel, String table)
+    protected DatacenterSyncWriteResponseHandler(Iterable<InetAddress> writeEndpoints, Multimap<InetAddress, InetAddress> hintedEndpoints, Iterable<InetAddress> pendingEndpoints, ConsistencyLevel consistencyLevel, String table)
     {
         // Response is been managed by the map so make it 1 for the superclass.
-        super(writeEndpoints, hintedEndpoints, consistencyLevel);
+        super(writeEndpoints, hintedEndpoints, pendingEndpoints, consistencyLevel);
         assert consistencyLevel == ConsistencyLevel.EACH_QUORUM;
 
         strategy = (NetworkTopologyStrategy) Table.open(table).getReplicationStrategy();
@@ -70,11 +70,16 @@ public class DatacenterSyncWriteResponseHandler extends AbstractWriteResponseHan
             int rf = strategy.getReplicationFactor(dc);
             responses.put(dc, new AtomicInteger((rf / 2) + 1));
         }
+        // see comment in DatacenterWriteResponseHandler.determineBlockFor()
+        for (InetAddress pending : pendingEndpoints)
+        {
+            responses.get(snitch.getDatacenter(pending)).incrementAndGet();
+        }
     }
 
-    public static IWriteResponseHandler create(Collection<InetAddress> writeEndpoints, Multimap<InetAddress, InetAddress> hintedEndpoints, ConsistencyLevel consistencyLevel, String table)
+    public static IWriteResponseHandler create(Iterable<InetAddress> writeEndpoints, Multimap<InetAddress, InetAddress> hintedEndpoints, Iterable<InetAddress> pendingEndpoints, ConsistencyLevel consistencyLevel, String table)
     {
-        return new DatacenterSyncWriteResponseHandler(writeEndpoints, hintedEndpoints, consistencyLevel, table);
+        return new DatacenterSyncWriteResponseHandler(writeEndpoints, hintedEndpoints, pendingEndpoints, consistencyLevel, table);
     }
 
     public void response(Message message)

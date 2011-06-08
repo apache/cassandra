@@ -674,24 +674,25 @@ public class TokenMetadata
      * If possible, will return the same collection it was passed, for efficiency.
      *
      * Only ReplicationStrategy should care about this method (higher level users should only ask for Hinted).
+     * 
+     * @return a pair with the collection of write endpoints as well as the collection of pending endpoints (a subset
+     * of the write endpoints). The later is needed to correctly compute the number of endpoint to block for in face of
+     * bootstrap/leaving node
      */
-    public Collection<InetAddress> getWriteEndpoints(Token token, String table, Collection<InetAddress> naturalEndpoints)
+    public Pair<? extends Iterable<InetAddress>, ? extends Iterable<InetAddress>> getWriteEndpoints(Token token, String table, Collection<InetAddress> naturalEndpoints)
     {
         Map<Range, Collection<InetAddress>> ranges = getPendingRanges(table);
         if (ranges.isEmpty())
-            return naturalEndpoints;
+            return Pair.create(naturalEndpoints, Collections.<InetAddress>emptyList());
 
-        Set<InetAddress> endpoints = new HashSet<InetAddress>(naturalEndpoints);
-
+        Set<InetAddress> pendings = new HashSet<InetAddress>();
         for (Map.Entry<Range, Collection<InetAddress>> entry : ranges.entrySet())
         {
             if (entry.getKey().contains(token))
-            {
-                endpoints.addAll(entry.getValue());
-            }
+                pendings.addAll(entry.getValue());
         }
 
-        return endpoints;
+        return Pair.create(Iterables.concat(naturalEndpoints, pendings), pendings);
     }
 
     /**

@@ -23,6 +23,7 @@ package org.apache.cassandra.service;
 
 import java.net.InetAddress;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import com.google.common.collect.HashMultimap;
@@ -95,7 +96,7 @@ public class ConsistencyLevelTest extends CleanupHelper
                         hintedNodes.put(hosts.get(j), hosts.get(j));
                     }
 
-                    IWriteResponseHandler writeHandler = strategy.getWriteResponseHandler(hosts, hintedNodes, c);
+                    IWriteResponseHandler writeHandler = strategy.getWriteResponseHandler(hosts, hintedNodes, Collections.<InetAddress>emptyList(), c);
 
                     IReadCommand command = new IReadCommand()
                     {
