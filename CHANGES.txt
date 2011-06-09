@@ -8,6 +8,7 @@
    - improve JDBC spec compliance (CASSANDRA-2720)
    - ALTER COLUMNFAMILY (CASSANDRA-1709)
    - DROP INDEX (CASSANDRA-2617)
+   - add SCHEMA/TABLE as aliases for KS/CF (CASSANDRA-2743)
  * add support for comparator parameters and a generic ReverseType
    (CASSANDRA-2355)
  * add CompositeType and DynamicCompositeType (CASSANDRA-2231)
