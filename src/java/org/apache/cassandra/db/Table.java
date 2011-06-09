@@ -252,7 +252,7 @@ public class Table
     }
     
     /**
-     * @return A list of open SSTableReaders (TODO: ensure that the caller doesn't modify these).
+     * @return A list of open SSTableReaders
      */
     public List<SSTableReader> getAllSSTables()
     {

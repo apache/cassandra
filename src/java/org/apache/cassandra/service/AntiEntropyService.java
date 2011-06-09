@@ -492,7 +492,7 @@ public class AntiEntropyService
                 StreamOutSession outsession = StreamOutSession.create(request.cf.left, request.endpoint, callback);
                 StreamOut.transferSSTables(outsession, sstables, differences, OperationType.AES);
                 // request ranges from the remote node
-                StreamIn.requestRanges(request.endpoint, request.cf.left, differences, callback, OperationType.AES);
+                StreamIn.requestRanges(request.endpoint, request.cf.left, Collections.singletonList(cfstore), differences, callback, OperationType.AES);
             }
             catch(Exception e)
             {

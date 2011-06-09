@@ -406,7 +406,7 @@ alterTableStatement returns [AlterTableStatement expr]
         OperationType type = null;
         String columnFamily = null, columnName = null, validator = null;
     }
-    K_ALTER K_TABLE name=( IDENT | STRING_LITERAL | INTEGER ) { columnFamily = $name.text; }
+    K_ALTER K_COLUMNFAMILY name=( IDENT | STRING_LITERAL | INTEGER ) { columnFamily = $name.text; }
           ( K_ALTER { type = OperationType.ALTER; }
                (col=( IDENT | STRING_LITERAL | INTEGER ) { columnName = $col.text; })
                K_TYPE alterValidator=comparatorType { validator = $alterValidator.text; }
@@ -509,7 +509,6 @@ K_VALUES:      V A L U E S;
 K_TIMESTAMP:   T I M E S T A M P;
 K_TTL:         T T L;
 K_ALTER:       A L T E R;
-K_TABLE:       T A B L E;
 K_ADD:         A D D;
 K_TYPE:        T Y P E;
 

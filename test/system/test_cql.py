@@ -1039,7 +1039,7 @@ class TestCql(ThriftTester):
         assert len(r) == 1, "expected 0 results, got %d" % len(r)
 
     def test_alter_table_statement(self):
-        "test ALTER TABLE statement"
+        "test ALTER statement"
         cursor = init()
         cursor.execute("""
                CREATE KEYSPACE AlterTableKS WITH strategy_options:replication_factor = '1'
@@ -1060,7 +1060,7 @@ class TestCql(ThriftTester):
         assert len(cfam.column_metadata) == 0
 
         # testing "add a new column"
-        cursor.execute("ALTER TABLE NewCf1 ADD name varchar")
+        cursor.execute("ALTER COLUMNFAMILY NewCf1 ADD name varchar")
 
         ksdef = thrift_client.describe_keyspace("AlterTableKS")
         assert len(ksdef.cf_defs) == 1, \
@@ -1072,7 +1072,7 @@ class TestCql(ThriftTester):
         assert columns[0].validation_class == 'org.apache.cassandra.db.marshal.UTF8Type'
 
         # testing "alter a column type"
-        cursor.execute("ALTER TABLE NewCf1 ALTER name TYPE ascii")
+        cursor.execute("ALTER COLUMNFAMILY NewCf1 ALTER name TYPE ascii")
 
         ksdef = thrift_client.describe_keyspace("AlterTableKS")
         assert len(ksdef.cf_defs) == 1, \
@@ -1086,10 +1086,10 @@ class TestCql(ThriftTester):
         # alter column with unknown validator
         assert_raises(cql.ProgrammingError,
                       cursor.execute,
-                      "ALTER TABLE NewCf1 ADD name utf8")
+                      "ALTER COLUMNFAMILY NewCf1 ADD name utf8")
 
         # testing 'drop an existing column'
-        cursor.execute("ALTER TABLE NewCf1 DROP name")
+        cursor.execute("ALTER COLUMNFAMILY NewCf1 DROP name")
 
         ksdef = thrift_client.describe_keyspace("AlterTableKS")
         assert len(ksdef.cf_defs) == 1, \
@@ -1101,17 +1101,17 @@ class TestCql(ThriftTester):
         # add column with unknown validator
         assert_raises(cql.ProgrammingError,
                       cursor.execute,
-                      "ALTER TABLE NewCf1 ADD name utf8")
+                      "ALTER COLUMNFAMILY NewCf1 ADD name utf8")
 
         # alter not existing column
         assert_raises(cql.ProgrammingError,
                       cursor.execute,
-                      "ALTER TABLE NewCf1 ALTER name TYPE uuid")
+                      "ALTER COLUMNFAMILY NewCf1 ALTER name TYPE uuid")
 
         # drop not existing column
         assert_raises(cql.ProgrammingError,
                       cursor.execute,
-                      "ALTER TABLE NewCf1 DROP name")
+                      "ALTER COLUMNFAMILY NewCf1 DROP name")
     
     def test_counter_column_support(self):
         "update statement should be able to work with counter columns"

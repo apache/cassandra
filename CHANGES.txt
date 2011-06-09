@@ -6,7 +6,7 @@
    - TTL support (CASSANDRA-2476)
    - counter support (CASSANDRA-2473)
    - improve JDBC spec compliance (CASSANDRA-2720)
-   - ALTER TABLE (CASSANDRA-1709)
+   - ALTER COLUMNFAMILY (CASSANDRA-1709)
    - DROP INDEX (CASSANDRA-2617)
  * add support for comparator parameters and a generic ReverseType
    (CASSANDRA-2355)
@@ -36,9 +36,15 @@
  * close scrub file handles (CASSANDRA-2669)
  * throttle migration replay (CASSANDRA-2714)
  * optimize column serializer creation (CASSANDRA-2716)
+ * Added support for making bootstrap retry if nodes flap (CASSANDRA-2644)
+ * Added statusthrift to nodetool to report if thrift server is running
+   (CASSANDRA-2722)
+ * Fixed rows being cached if they do not exist (CASSANDRA-2723)
  * fix truncate/compaction race (CASSANDRA-2673)
  * workaround large resultsets causing large allocation retention
    by nio sockets (CASSANDRA-2654)
+ * restrict repair streaming to specific columnfamilies (CASSANDRA-2280)
+ * fix nodetool ring use with Ec2Snitch (CASSANDRA-2733)
 
 
 0.8.0-final
