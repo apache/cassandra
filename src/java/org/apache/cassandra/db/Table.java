@@ -55,8 +55,9 @@ public class Table
 {
     public static final String SYSTEM_TABLE = "system";
 
+    public static final String SNAPSHOT_SUBDIR_NAME = "snapshots";
+
     private static final Logger logger = LoggerFactory.getLogger(Table.class);
-    private static final String SNAPSHOT_SUBDIR_NAME = "snapshots";
 
     /**
      * accesses to CFS.memtable should acquire this for thread safety.

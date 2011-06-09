@@ -45,6 +45,7 @@
  * fix nodetool ring use with Ec2Snitch (CASSANDRA-2733)
  * fix removing columns and subcolumns that are supressed by a row or
    supercolumn tombstone during replica resolution (CASSANDRA-2590)
+ * support sstable2json against snapshot sstables (CASSANDRA-2386)
 
 
 0.8.0-final
