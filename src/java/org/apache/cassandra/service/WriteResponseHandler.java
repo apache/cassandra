@@ -21,7 +21,6 @@ package org.apache.cassandra.service;
 import java.net.InetAddress;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.collect.ImmutableMultimap;
@@ -43,9 +42,9 @@ public class WriteResponseHandler extends AbstractWriteResponseHandler
 
     protected final AtomicInteger responses;
 
-    protected WriteResponseHandler(Iterable<InetAddress> writeEndpoints, Multimap<InetAddress, InetAddress> hintedEndpoints, Iterable<InetAddress> pendingEndpoints, ConsistencyLevel consistencyLevel, String table)
+    protected WriteResponseHandler(Collection<InetAddress> writeEndpoints, Multimap<InetAddress, InetAddress> hintedEndpoints, ConsistencyLevel consistencyLevel, String table)
     {
-        super(writeEndpoints, hintedEndpoints, pendingEndpoints, consistencyLevel);
+        super(writeEndpoints, hintedEndpoints, consistencyLevel);
         responses = new AtomicInteger(determineBlockFor(table));
     }
 
@@ -53,14 +52,13 @@ public class WriteResponseHandler extends AbstractWriteResponseHandler
     {
         super(Arrays.asList(endpoint),
               ImmutableMultimap.<InetAddress, InetAddress>builder().put(endpoint, endpoint).build(),
-              Collections.<InetAddress>emptyList(),
               ConsistencyLevel.ALL);
         responses = new AtomicInteger(1);
     }
 
-    public static IWriteResponseHandler create(Iterable<InetAddress> writeEndpoints, Multimap<InetAddress, InetAddress> hintedEndpoints, Iterable<InetAddress> pendingEndpoints, ConsistencyLevel consistencyLevel, String table)
+    public static IWriteResponseHandler create(Collection<InetAddress> writeEndpoints, Multimap<InetAddress, InetAddress> hintedEndpoints, ConsistencyLevel consistencyLevel, String table)
     {
-        return new WriteResponseHandler(writeEndpoints, hintedEndpoints, pendingEndpoints, consistencyLevel, table);
+        return new WriteResponseHandler(writeEndpoints, hintedEndpoints, consistencyLevel, table);
     }
 
     public static IWriteResponseHandler create(InetAddress endpoint)
@@ -75,11 +73,6 @@ public class WriteResponseHandler extends AbstractWriteResponseHandler
     }
 
     protected int determineBlockFor(String table)
-    {
-        return blockForCL() + pendingEndpoints.size();
-    }
-
-    private int blockForCL()
     {
         switch (consistencyLevel)
         {

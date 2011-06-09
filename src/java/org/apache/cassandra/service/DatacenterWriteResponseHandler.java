@@ -51,31 +51,22 @@ public class DatacenterWriteResponseHandler extends WriteResponseHandler
         localdc = snitch.getDatacenter(FBUtilities.getLocalAddress());
     }
 
-    protected DatacenterWriteResponseHandler(Iterable<InetAddress> writeEndpoints, Multimap<InetAddress, InetAddress> hintedEndpoints, Iterable<InetAddress> pendingEndpoints, ConsistencyLevel consistencyLevel, String table)
+    protected DatacenterWriteResponseHandler(Collection<InetAddress> writeEndpoints, Multimap<InetAddress, InetAddress> hintedEndpoints, ConsistencyLevel consistencyLevel, String table)
     {
-        super(writeEndpoints, hintedEndpoints, pendingEndpoints, consistencyLevel, table);
+        super(writeEndpoints, hintedEndpoints, consistencyLevel, table);
         assert consistencyLevel == ConsistencyLevel.LOCAL_QUORUM;
     }
 
-    public static IWriteResponseHandler create(Iterable<InetAddress> writeEndpoints, Multimap<InetAddress, InetAddress> hintedEndpoints, Iterable<InetAddress> pendingEndpoints, ConsistencyLevel consistencyLevel, String table)
+    public static IWriteResponseHandler create(Collection<InetAddress> writeEndpoints, Multimap<InetAddress, InetAddress> hintedEndpoints, ConsistencyLevel consistencyLevel, String table)
     {
-        return new DatacenterWriteResponseHandler(writeEndpoints, hintedEndpoints, pendingEndpoints, consistencyLevel, table);
+        return new DatacenterWriteResponseHandler(writeEndpoints, hintedEndpoints, consistencyLevel, table);
     }
 
     @Override
     protected int determineBlockFor(String table)
     {
         NetworkTopologyStrategy strategy = (NetworkTopologyStrategy) Table.open(table).getReplicationStrategy();
-        int blockFor = (strategy.getReplicationFactor(localdc) / 2) + 1;
-        // If there is any pending endpoints we went to increase blockFor to make sure we guarantee CL (see CASSANDRA-833). However, we're only
-        // intersted in endpoint in the local DC. Note that we use the fact that when a node boostrap (or leave), both the source and
-        // destination of a pending range will be in the same DC (this is true because strategy == NTS)
-        for (InetAddress pending : pendingEndpoints)
-        {
-            if (localdc.equals(snitch.getDatacenter(pending)))
-                blockFor++;
-        }
-        return blockFor;
+        return (strategy.getReplicationFactor(localdc) / 2) + 1;
     }
 
 

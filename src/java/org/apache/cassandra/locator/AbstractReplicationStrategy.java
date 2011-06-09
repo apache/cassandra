@@ -24,7 +24,6 @@ import java.net.InetAddress;
 import java.util.*;
 
 import com.google.common.collect.HashMultimap;
-import com.google.common.collect.Iterables;
 import com.google.common.collect.Multimap;
 import org.apache.cassandra.gms.Gossiper;
 import org.slf4j.Logger;
@@ -120,21 +119,20 @@ public abstract class AbstractReplicationStrategy
      */
     public abstract List<InetAddress> calculateNaturalEndpoints(Token searchToken, TokenMetadata tokenMetadata) throws IllegalStateException;
 
-    public IWriteResponseHandler getWriteResponseHandler(Iterable<InetAddress> writeEndpoints,
+    public IWriteResponseHandler getWriteResponseHandler(Collection<InetAddress> writeEndpoints,
                                                          Multimap<InetAddress, InetAddress> hintedEndpoints,
-                                                         Iterable<InetAddress> pendingEndpoints,
                                                          ConsistencyLevel consistency_level)
     {
         if (consistency_level == ConsistencyLevel.LOCAL_QUORUM)
         {
             // block for in this context will be localnodes block.
-            return DatacenterWriteResponseHandler.create(writeEndpoints, hintedEndpoints, pendingEndpoints, consistency_level, table);
+            return DatacenterWriteResponseHandler.create(writeEndpoints, hintedEndpoints, consistency_level, table);
         }
         else if (consistency_level == ConsistencyLevel.EACH_QUORUM)
         {
-            return DatacenterSyncWriteResponseHandler.create(writeEndpoints, hintedEndpoints, pendingEndpoints, consistency_level, table);
+            return DatacenterSyncWriteResponseHandler.create(writeEndpoints, hintedEndpoints, consistency_level, table);
         }
-        return WriteResponseHandler.create(writeEndpoints, hintedEndpoints, pendingEndpoints, consistency_level, table);
+        return WriteResponseHandler.create(writeEndpoints, hintedEndpoints, consistency_level, table);
     }
 
     /**
@@ -150,10 +148,9 @@ public abstract class AbstractReplicationStrategy
      * as the destination, it is a "hinted" write, and will need to be sent to
      * the ultimate target when it becomes alive again.
      */
-    public Multimap<InetAddress, InetAddress> getHintedEndpoints(Iterable<InetAddress> targets)
+    public Multimap<InetAddress, InetAddress> getHintedEndpoints(Collection<InetAddress> targets)
     {
-        int targetSize = Iterables.size(targets);
-        Multimap<InetAddress, InetAddress> map = HashMultimap.create(targetSize, 1);
+        Multimap<InetAddress, InetAddress> map = HashMultimap.create(targets.size(), 1);
 
         // first, add the live endpoints
         for (InetAddress ep : targets)
@@ -163,7 +160,7 @@ public abstract class AbstractReplicationStrategy
         }
 
         // if everything was alive or we're not doing HH on this keyspace, stop with just the live nodes
-        if (map.size() == targetSize || !StorageProxy.isHintedHandoffEnabled())
+        if (map.size() == targets.size() || !StorageProxy.isHintedHandoffEnabled())
             return map;
 
         // assign dead endpoints to be hinted to the closest live one, or to the local node
