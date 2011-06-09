@@ -17,7 +17,7 @@
  ~ specific language governing permissions and limitations
  ~ under the License.
  -->
-<project basedir="." default="build" name="stress">
+<project basedir="." default="jar" name="stress">
     <property name="cassandra.dir" value="../.." />
     <property name="cassandra.lib" value="${cassandra.dir}/lib" />
     <property name="build.src" value="${basedir}/src" />
@@ -49,9 +49,19 @@
     </target>
 
     <target name="jar" depends="build">
+        <manifest file="MANIFEST.MF">
+            <attribute name="Built-By" value="Pavel Yaskevich"/>
+            <attribute name="Main-Class" value="org.apache.cassandra.stress.Stress"/>
+        </manifest>
+
         <mkdir dir="${build.classes}/META-INF" />
-        <jar jarfile="${build.out}/${final.name}.jar"
-                basedir="${build.classes}" />
+
+        <jar destfile="${build.out}/${final.name}.jar" manifest="MANIFEST.MF">
+            <fileset dir="${build.classes}"/>
+            <fileset dir="${cassandra.dir}/build/classes/main" />
+            <fileset dir="${cassandra.dir}/build/classes/thrift" />
+            <zipgroupfileset dir="${cassandra.lib}" includes="*.jar" />
+        </jar>
     </target>
 
     <target name="clean">
