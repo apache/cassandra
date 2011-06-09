@@ -36,7 +36,6 @@
     <property name="build.src" value="${basedir}/src"/>
     <property name="build.src.java" value="${basedir}/src/java"/>
     <property name="build.src.resources" value="${basedir}/src/resources"/>
-    <property name="build.src.driver" value="${basedir}/drivers/java/src" />
     <property name="avro.src" value="${basedir}/src/avro"/>
     <property name="build.src.gen-java" value="${basedir}/src/gen-java"/>
     <property name="build.lib" value="${basedir}/lib"/>
@@ -46,7 +45,6 @@
     <property name="build.classes" value="${build.dir}/classes"/>
     <property name="build.classes.main" value="${build.classes}/main" />
     <property name="build.classes.thrift" value="${build.classes}/thrift" />
-    <property name="build.classes.cql" value="${build.classes}/cql" />
     <property name="javadoc.dir" value="${build.dir}/javadoc"/>
     <property name="javadoc.jars.dir" value="${build.dir}/javadocs"/>
     <property name="interface.dir" value="${basedir}/interface"/>
@@ -64,7 +62,6 @@
     <property name="test.long.src" value="${test.dir}/long"/>
     <property name="test.distributed.src" value="${test.dir}/distributed"/>
     <property name="dist.dir" value="${build.dir}/dist"/>
-    <property name="cql.driver.version" value="1.0.3" />
     <condition property="version" value="${base.version}">
       <isset property="release"/>
     </condition>
@@ -161,7 +158,6 @@
             message="Not a source artifact, stopping here." />
         <mkdir dir="${build.classes.main}"/>
         <mkdir dir="${build.classes.thrift}"/>
-        <mkdir dir="${build.classes.cql}"/>
         <mkdir dir="${test.lib}"/>
         <mkdir dir="${test.classes}"/>
         <mkdir dir="${build.src.gen-java}"/>
@@ -399,7 +395,6 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
           <dependency groupId="log4j" artifactId="log4j" version="1.2.16" />
           <dependency groupId="org.apache.cassandra" artifactId="cassandra-all" version="${version}" />
           <dependency groupId="org.apache.cassandra" artifactId="cassandra-thrift" version="${version}" />
-          <dependency groupId="org.apache.cassandra" artifactId="cassandra-cql" version="${version}" />
         </dependencyManagement>
         <developer id="alakshman" name="Avinash Lakshman"/>
         <developer id="antelder" name="Anthony Elder"/>
@@ -508,22 +503,6 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
         <dependency groupId="commons-lang" artifactId="commons-lang"/>
         <dependency groupId="org.slf4j" artifactId="slf4j-api"/>
         <dependency groupId="org.apache.thrift" artifactId="libthrift"/>
-      </artifact:pom>
-      <artifact:pom id="cql-pom"
-                    artifactId="cassandra-cql"
-                    url="http://cassandra.apache.org"
-                    name="Apache Cassandra">
-        <parent groupId="org.apache.cassandra"
-                artifactId="cassandra-parent"
-                version="${version}"/>
-        <scm connection="${scm.connection}" developerConnection="${scm.developerConnection}" url="${scm.url}"/>
-        <dependency groupId="com.google.guava" artifactId="guava"/>
-        <dependency groupId="org.slf4j" artifactId="slf4j-api"/>
-        <dependency groupId="org.apache.thrift" artifactId="libthrift"/>
-        <dependency groupId="org.apache.cassandra" artifactId="cassandra-thrift"/>
-        <dependency groupId="org.apache.cassandra" artifactId="cassandra-all"/>
-        <!-- because cassandra-all uses log4j, and we need cassandra-all, consumers must use log4j, so force log4j version of slf4j -->
-        <dependency groupId="org.slf4j" artifactId="slf4j-log4j12" scope="runtime"/>
       </artifact:pom>
 
       <artifact:pom id="dist-pom"
@@ -695,11 +674,6 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
             <src path="${build.src.gen-java}"/>
             <classpath refid="cassandra.classpath"/>
         </javac>
-        <javac debug="true" debuglevel="${debuglevel}"
-               destdir="${build.classes.cql}" includeantruntime="false">
-            <src path="${build.src.driver}" />
-            <classpath refid="cassandra.classpath"/>
-        </javac>
         <copy todir="${build.classes.main}">
             <fileset dir="${build.src.resources}" />
         </copy>
@@ -757,20 +731,6 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
         <!-- </section> -->
         </manifest>
       </jar>
-
-      <!-- CQL driver Jar -->
-      <artifact:writepom pomRefId="cql-pom" 
-              file="${build.dir}/${ant.project.name}-cql-${cql.driver.version}.pom"/>
-      <jar jarfile="${build.dir}/${ant.project.name}-cql-${cql.driver.version}.jar"
-           basedir="${build.classes.cql}">
-        <manifest>
-          <attribute name="Implementation-Title" value="Cassandra"/>
-          <attribute name="Implementation-Version" value="${version}"/>
-          <attribute name="Implementation-Vendor" value="Apache"/>
-          <attribute name="Class-Path"
-                     value="${ant.project.name}-thrift-${version}.jar" />
-        </manifest>
-      </jar>
     </target>
 
     <!--
@@ -796,23 +756,11 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
         <fileset dir="${build.src.gen-java}" defaultexcludes="yes">
           <include name="org/apache/**/*.java"/>
         </fileset>
-        <fileset dir="${build.src.driver}" defaultexcludes="yes">
-          <include name="org/apache/**/*.java"/>
-        </fileset>
         </filesets>
       </create-javadoc>
       <jar jarfile="${build.dir}/${final.name}-javadoc.jar"
            basedir="${javadoc.jars.dir}/main"/>
 
-      <create-javadoc destdir="${javadoc.jars.dir}/cql">
-        <filesets>
-        <fileset dir="${build.src.driver}" defaultexcludes="yes">
-          <include name="org/apache/**/*.java"/>
-        </fileset>
-        </filesets>
-      </create-javadoc>
-      <jar jarfile="${build.dir}/${ant.project.name}-cql-${cql.driver.version}-javadoc.jar"
-           basedir="${javadoc.jars.dir}/cql"/>
       <!-- javadoc task always rebuilds so might as well remove the generated docs to prevent 
            being pulled into the distribution by accident -->
       <delete quiet="true" dir="${javadoc.jars.dir}"/>
@@ -832,14 +780,6 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
           <include name="org/apache/**/*.java"/>
         </fileset>
         <fileset dir="${build.src.gen-java}" defaultexcludes="yes">
-          <include name="org/apache/**/*.java"/>
-        </fileset>
-        <fileset dir="${build.src.driver}" defaultexcludes="yes">
-          <include name="org/apache/**/*.java"/>
-        </fileset>
-      </jar>
-      <jar jarfile="${build.dir}/${ant.project.name}-cql-${cql.driver.version}-sources.jar">
-        <fileset dir="${build.src.driver}" defaultexcludes="yes">
           <include name="org/apache/**/*.java"/>
         </fileset>
       </jar>
@@ -936,14 +876,12 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
                 algorithm="MD5">
         <fileset dir="${build.dir}">
           <include name="*.tar.gz" />
-          <include name="${ant.project.name}-cql-${cql.driver.version}.jar" />
         </fileset>
       </checksum>
       <checksum forceOverwrite="yes" todir="${build.dir}" fileext=".sha"
                 algorithm="SHA">
         <fileset dir="${build.dir}">
           <include name="*.tar.gz" />
-          <include name="${ant.project.name}-cql-${cql.driver.version}.jar" />
         </fileset>
       </checksum>
 
@@ -973,7 +911,6 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
      destdir="${test.classes}">
       <classpath>
         <path refid="cassandra.classpath"/>
-        <pathelement location="${build.classes.cql}"/>
       </classpath>
       <src path="${test.unit.src}"/>
       <src path="${test.long.src}"/>
@@ -1026,7 +963,6 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
         <classpath>
           <path refid="cassandra.classpath" />
           <pathelement location="${test.classes}"/>
-          <pathelement location="${build.classes.cql}"/>
           <path refid="cobertura.classpath"/>
           <pathelement location="${test.conf}"/>
           <fileset dir="${test.lib}">
@@ -1347,16 +1283,6 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
     <install pomFile="${build.dir}/${final.name}.pom"
              file="${build.dir}/${final.name}-javadoc.jar"
              classifier="javadoc"/>
-
-    <!-- the cassandra-cql jar -->
-    <install pomFile="${build.dir}/${ant.project.name}-cql-${cql.driver.version}.pom"
-             file="${build.dir}/${ant.project.name}-cql-${cql.driver.version}.jar"/>
-    <install pomFile="${build.dir}/${ant.project.name}-cql-${cql.driver.version}.pom"
-             file="${build.dir}/${ant.project.name}-cql-${cql.driver.version}-sources.jar"
-             classifier="sources"/>
-    <install pomFile="${build.dir}/${ant.project.name}-cql-${cql.driver.version}.pom"
-             file="${build.dir}/${ant.project.name}-cql-${cql.driver.version}-javadoc.jar"
-             classifier="javadoc"/>
   </target>
 
   <target name="publish"
@@ -1400,16 +1326,6 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
             classifier="sources"/>
     <deploy pomFile="${build.dir}/${final.name}.pom"
             file="${build.dir}/${final.name}-javadoc.jar"
-            classifier="javadoc"/>
-
-    <!-- the cassandra-cql jar -->
-    <deploy pomFile="${build.dir}/${ant.project.name}-cql-${cql.driver.version}.pom"
-            file="${build.dir}/${ant.project.name}-cql-${cql.driver.version}.jar"/>
-    <deploy pomFile="${build.dir}/${ant.project.name}-cql-${cql.driver.version}.pom"
-            file="${build.dir}/${ant.project.name}-cql-${cql.driver.version}-sources.jar"
-            classifier="sources"/>
-    <deploy pomFile="${build.dir}/${ant.project.name}-cql-${cql.driver.version}.pom"
-            file="${build.dir}/${ant.project.name}-cql-${cql.driver.version}-javadoc.jar"
             classifier="javadoc"/>
   </target>
 
