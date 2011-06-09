@@ -51,6 +51,14 @@ public class Util
         return new Column(ByteBufferUtil.bytes(name), ByteBufferUtil.bytes(value), timestamp);
     }
 
+    public static SuperColumn superColumn(ColumnFamily cf, String name, Column... columns)
+    {
+        SuperColumn sc = new SuperColumn(ByteBufferUtil.bytes(name), cf.metadata().comparator);
+        for (Column c : columns)
+            sc.addColumn(c);
+        return sc;
+    }
+
     public static Token token(String key)
     {
         return StorageService.getPartitioner().getToken(ByteBufferUtil.bytes(key));

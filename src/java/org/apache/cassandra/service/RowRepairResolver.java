@@ -22,13 +22,17 @@ import java.io.IOError;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+
+import org.apache.commons.collections.iterators.CollatingIterator;
 
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
+import org.apache.cassandra.db.filter.QueryFilter;
+import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class RowRepairResolver extends AbstractRowResolver
 {
@@ -121,19 +125,30 @@ public class RowRepairResolver extends AbstractRowResolver
         ColumnFamily resolved = null;
         for (ColumnFamily cf : versions)
         {
-            if (cf != null)
-            {
-                resolved = cf.cloneMe();
-                break;
-            }
+            if (cf == null)
+                continue;
+
+            if (resolved == null)
+                resolved = cf.cloneMeShallow();
+            else
+                resolved.delete(cf);
         }
         if (resolved == null)
             return null;
 
-        for (ColumnFamily cf : versions)
-            resolved.resolve(cf);
-
-        return resolved;
+        // mimic the collectCollatedColumn + removeDeleted path that getColumnFamily takes.
+        // this will handle removing columns and subcolumns that are supressed by a row or
+        // supercolumn tombstone.
+        QueryFilter filter = new QueryFilter(null, new QueryPath(resolved.metadata().cfName), new IdentityQueryFilter());
+        CollatingIterator iter = new CollatingIterator(resolved.metadata().comparator.columnComparator);
+        for (ColumnFamily version : versions)
+        {
+            if (version == null)
+                continue;
+            iter.addIterator(version.getColumnsMap().values().iterator());
+        }
+        filter.collectCollatedColumns(resolved, iter, Integer.MIN_VALUE);
+        return ColumnFamilyStore.removeDeleted(resolved, Integer.MIN_VALUE);
     }
 
     public Row getData() throws IOException
