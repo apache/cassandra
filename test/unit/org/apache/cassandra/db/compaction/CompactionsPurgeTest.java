@@ -19,9 +19,7 @@
 package org.apache.cassandra.db.compaction;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.concurrent.ExecutionException;
 
 import org.junit.Test;
@@ -35,7 +33,6 @@ import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
-import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.Util;
 
@@ -86,7 +83,7 @@ public class CompactionsPurgeTest extends CleanupHelper
         cfs.forceBlockingFlush();
 
         // major compact and test that all columns but the resurrected one is completely gone
-        CompactionManager.instance.submitMajor(cfs, 0, Integer.MAX_VALUE).get();
+        CompactionManager.instance.submitMajor(cfs, Integer.MAX_VALUE).get();
         cfs.invalidateCachedRow(key);
         ColumnFamily cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(key, new QueryPath(cfName)));
         assertColumns(cf, "5");
@@ -136,7 +133,7 @@ public class CompactionsPurgeTest extends CleanupHelper
         rm.add(new QueryPath(cfName, null, ByteBufferUtil.bytes(String.valueOf(5))), ByteBufferUtil.EMPTY_BYTE_BUFFER, 2);
         rm.apply();
         cfs.forceBlockingFlush();
-        CompactionManager.instance.doCompaction(cfs, sstablesIncomplete, Integer.MAX_VALUE);
+        new CompactionTask(cfs, sstablesIncomplete, Integer.MAX_VALUE).execute(null);
 
         // verify that minor compaction does not GC when key is present
         // in a non-compacted sstable

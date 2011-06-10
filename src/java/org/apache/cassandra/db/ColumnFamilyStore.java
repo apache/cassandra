@@ -53,6 +53,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.columniterator.IColumnIterator;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
+import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -151,6 +152,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     /* These are locally held copies to be changed from the config during runtime */
     private volatile DefaultInteger minCompactionThreshold;
     private volatile DefaultInteger maxCompactionThreshold;
+    private volatile AbstractCompactionStrategy compactionStrategy;
     private volatile DefaultInteger memtime;
     private volatile DefaultInteger memsize;
     private volatile DefaultDouble memops;
@@ -251,6 +253,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         this.metadata = metadata;
         this.minCompactionThreshold = new DefaultInteger(metadata.getMinCompactionThreshold());
         this.maxCompactionThreshold = new DefaultInteger(metadata.getMaxCompactionThreshold());
+        this.compactionStrategy = metadata.createCompactionStrategyInstance(this);
         this.memtime = new DefaultInteger(metadata.getMemtableFlushAfterMins());
         this.memsize = new DefaultInteger(metadata.getMemtableThroughputInMb());
         this.memops = new DefaultDouble(metadata.getMemtableOperationsInMillions());
@@ -1925,6 +1928,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
        - get/set rowCacheSavePeriodInSeconds
        - get/set keyCacheSavePeriodInSeconds
      */
+
+    public AbstractCompactionStrategy getCompactionStrategy()
+    {
+        return compactionStrategy;
+    }
+
     public int getMinimumCompactionThreshold()
     {
         return minCompactionThreshold.value();
@@ -1951,6 +1960,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             throw new RuntimeException("The max_compaction_threshold cannot be smaller than the min.");
         }
         this.maxCompactionThreshold.set(maxCompactionThreshold);
+    }
+
+    public boolean isCompactionDisabled()
+    {
+        return getMinimumCompactionThreshold() <= 0 || getMaximumCompactionThreshold() <= 0;
     }
 
     public int getMemtableFlushAfterMins()

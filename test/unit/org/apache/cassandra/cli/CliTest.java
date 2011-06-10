@@ -144,6 +144,8 @@ public class CliTest extends CleanupHelper
         "create column family Countries with comparator=UTF8Type and column_metadata=[ {column_name: name, validation_class: UTF8Type} ];",
         "set Countries[1][name] = USA;",
         "get Countries[1][name];",
+        "update column family Countries with compaction_strategy = 'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy';",
+        "create column family Cities with compaction_strategy = 'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy' and compaction_strategy_options = [{min_sstable_size:1024}];",
         "set myCF['key']['scName']['firstname'] = 'John';",
         "get myCF['key']['scName']",
         "assume CF3 keys as utf8;",

@@ -395,14 +395,14 @@ public class CqlRow implements org.apache.thrift.TBase<CqlRow, CqlRow._Fields>, 
         case 2: // COLUMNS
           if (field.type == org.apache.thrift.protocol.TType.LIST) {
             {
-              org.apache.thrift.protocol.TList _list42 = iprot.readListBegin();
-              this.columns = new ArrayList<Column>(_list42.size);
-              for (int _i43 = 0; _i43 < _list42.size; ++_i43)
+              org.apache.thrift.protocol.TList _list47 = iprot.readListBegin();
+              this.columns = new ArrayList<Column>(_list47.size);
+              for (int _i48 = 0; _i48 < _list47.size; ++_i48)
               {
-                Column _elem44;
-                _elem44 = new Column();
-                _elem44.read(iprot);
-                this.columns.add(_elem44);
+                Column _elem49;
+                _elem49 = new Column();
+                _elem49.read(iprot);
+                this.columns.add(_elem49);
               }
               iprot.readListEnd();
             }
@@ -434,9 +434,9 @@ public class CqlRow implements org.apache.thrift.TBase<CqlRow, CqlRow._Fields>, 
       oprot.writeFieldBegin(COLUMNS_FIELD_DESC);
       {
         oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, this.columns.size()));
-        for (Column _iter45 : this.columns)
+        for (Column _iter50 : this.columns)
         {
-          _iter45.write(oprot);
+          _iter50.write(oprot);
         }
         oprot.writeListEnd();
       }

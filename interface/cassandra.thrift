@@ -395,6 +395,8 @@ struct CfDef {
     26: optional string key_validation_class,
     27: optional string row_cache_provider="org.apache.cassandra.cache.ConcurrentLinkedHashCacheProvider",
     28: optional binary key_alias,
+    29: optional string compaction_strategy,
+    30: optional map<string,string> compaction_strategy_options,
 }
 
 /* describes a keyspace. */

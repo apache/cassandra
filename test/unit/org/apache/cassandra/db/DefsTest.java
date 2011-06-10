@@ -77,7 +77,7 @@ public class DefsTest extends CleanupHelper
         assert cd2.min_compaction_threshold == null;
         assert cd.row_cache_save_period_in_seconds == null;
         assert cd2.row_cache_save_period_in_seconds == null;
-        
+        assert cd.compaction_strategy == null;
     }
     
     @Test

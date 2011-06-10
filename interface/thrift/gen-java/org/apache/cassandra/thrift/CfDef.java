@@ -70,6 +70,8 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
   private static final org.apache.thrift.protocol.TField KEY_VALIDATION_CLASS_FIELD_DESC = new org.apache.thrift.protocol.TField("key_validation_class", org.apache.thrift.protocol.TType.STRING, (short)26);
   private static final org.apache.thrift.protocol.TField ROW_CACHE_PROVIDER_FIELD_DESC = new org.apache.thrift.protocol.TField("row_cache_provider", org.apache.thrift.protocol.TType.STRING, (short)27);
   private static final org.apache.thrift.protocol.TField KEY_ALIAS_FIELD_DESC = new org.apache.thrift.protocol.TField("key_alias", org.apache.thrift.protocol.TType.STRING, (short)28);
+  private static final org.apache.thrift.protocol.TField COMPACTION_STRATEGY_FIELD_DESC = new org.apache.thrift.protocol.TField("compaction_strategy", org.apache.thrift.protocol.TType.STRING, (short)29);
+  private static final org.apache.thrift.protocol.TField COMPACTION_STRATEGY_OPTIONS_FIELD_DESC = new org.apache.thrift.protocol.TField("compaction_strategy_options", org.apache.thrift.protocol.TType.MAP, (short)30);
 
   public String keyspace;
   public String name;
@@ -96,6 +98,8 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
   public String key_validation_class;
   public String row_cache_provider;
   public ByteBuffer key_alias;
+  public String compaction_strategy;
+  public Map<String,String> compaction_strategy_options;
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
   public enum _Fields implements org.apache.thrift.TFieldIdEnum {
@@ -123,7 +127,9 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     MERGE_SHARDS_CHANCE((short)25, "merge_shards_chance"),
     KEY_VALIDATION_CLASS((short)26, "key_validation_class"),
     ROW_CACHE_PROVIDER((short)27, "row_cache_provider"),
-    KEY_ALIAS((short)28, "key_alias");
+    KEY_ALIAS((short)28, "key_alias"),
+    COMPACTION_STRATEGY((short)29, "compaction_strategy"),
+    COMPACTION_STRATEGY_OPTIONS((short)30, "compaction_strategy_options");
 
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -188,6 +194,10 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
           return ROW_CACHE_PROVIDER;
         case 28: // KEY_ALIAS
           return KEY_ALIAS;
+        case 29: // COMPACTION_STRATEGY
+          return COMPACTION_STRATEGY;
+        case 30: // COMPACTION_STRATEGY_OPTIONS
+          return COMPACTION_STRATEGY_OPTIONS;
         default:
           return null;
       }
@@ -298,6 +308,12 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
         new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
     tmpMap.put(_Fields.KEY_ALIAS, new org.apache.thrift.meta_data.FieldMetaData("key_alias", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
         new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING        , true)));
+    tmpMap.put(_Fields.COMPACTION_STRATEGY, new org.apache.thrift.meta_data.FieldMetaData("compaction_strategy", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
+    tmpMap.put(_Fields.COMPACTION_STRATEGY_OPTIONS, new org.apache.thrift.meta_data.FieldMetaData("compaction_strategy_options", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.MapMetaData(org.apache.thrift.protocol.TType.MAP, 
+            new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING), 
+            new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING))));
     metaDataMap = Collections.unmodifiableMap(tmpMap);
     org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(CfDef.class, metaDataMap);
   }
@@ -384,6 +400,24 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       this.key_alias = org.apache.thrift.TBaseHelper.copyBinary(other.key_alias);
 ;
     }
+    if (other.isSetCompaction_strategy()) {
+      this.compaction_strategy = other.compaction_strategy;
+    }
+    if (other.isSetCompaction_strategy_options()) {
+      Map<String,String> __this__compaction_strategy_options = new HashMap<String,String>();
+      for (Map.Entry<String, String> other_element : other.compaction_strategy_options.entrySet()) {
+
+        String other_element_key = other_element.getKey();
+        String other_element_value = other_element.getValue();
+
+        String __this__compaction_strategy_options_copy_key = other_element_key;
+
+        String __this__compaction_strategy_options_copy_value = other_element_value;
+
+        __this__compaction_strategy_options.put(__this__compaction_strategy_options_copy_key, __this__compaction_strategy_options_copy_value);
+      }
+      this.compaction_strategy_options = __this__compaction_strategy_options;
+    }
   }
 
   public CfDef deepCopy() {
@@ -434,6 +468,8 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     this.row_cache_provider = "org.apache.cassandra.cache.ConcurrentLinkedHashCacheProvider";
 
     this.key_alias = null;
+    this.compaction_strategy = null;
+    this.compaction_strategy_options = null;
   }
 
   public String getKeyspace() {
@@ -1047,6 +1083,65 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     }
   }
 
+  public String getCompaction_strategy() {
+    return this.compaction_strategy;
+  }
+
+  public CfDef setCompaction_strategy(String compaction_strategy) {
+    this.compaction_strategy = compaction_strategy;
+    return this;
+  }
+
+  public void unsetCompaction_strategy() {
+    this.compaction_strategy = null;
+  }
+
+  /** Returns true if field compaction_strategy is set (has been assigned a value) and false otherwise */
+  public boolean isSetCompaction_strategy() {
+    return this.compaction_strategy != null;
+  }
+
+  public void setCompaction_strategyIsSet(boolean value) {
+    if (!value) {
+      this.compaction_strategy = null;
+    }
+  }
+
+  public int getCompaction_strategy_optionsSize() {
+    return (this.compaction_strategy_options == null) ? 0 : this.compaction_strategy_options.size();
+  }
+
+  public void putToCompaction_strategy_options(String key, String val) {
+    if (this.compaction_strategy_options == null) {
+      this.compaction_strategy_options = new HashMap<String,String>();
+    }
+    this.compaction_strategy_options.put(key, val);
+  }
+
+  public Map<String,String> getCompaction_strategy_options() {
+    return this.compaction_strategy_options;
+  }
+
+  public CfDef setCompaction_strategy_options(Map<String,String> compaction_strategy_options) {
+    this.compaction_strategy_options = compaction_strategy_options;
+    return this;
+  }
+
+  public void unsetCompaction_strategy_options() {
+    this.compaction_strategy_options = null;
+  }
+
+  /** Returns true if field compaction_strategy_options is set (has been assigned a value) and false otherwise */
+  public boolean isSetCompaction_strategy_options() {
+    return this.compaction_strategy_options != null;
+  }
+
+  public void setCompaction_strategy_optionsIsSet(boolean value) {
+    if (!value) {
+      this.compaction_strategy_options = null;
+    }
+  }
+
   public void setFieldValue(_Fields field, Object value) {
     switch (field) {
     case KEYSPACE:
@@ -1249,6 +1344,22 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       }
       break;
 
+    case COMPACTION_STRATEGY:
+      if (value == null) {
+        unsetCompaction_strategy();
+      } else {
+        setCompaction_strategy((String)value);
+      }
+      break;
+
+    case COMPACTION_STRATEGY_OPTIONS:
+      if (value == null) {
+        unsetCompaction_strategy_options();
+      } else {
+        setCompaction_strategy_options((Map<String,String>)value);
+      }
+      break;
+
     }
   }
 
@@ -1329,6 +1440,12 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     case KEY_ALIAS:
       return getKey_alias();
 
+    case COMPACTION_STRATEGY:
+      return getCompaction_strategy();
+
+    case COMPACTION_STRATEGY_OPTIONS:
+      return getCompaction_strategy_options();
+
     }
     throw new IllegalStateException();
   }
@@ -1390,6 +1507,10 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       return isSetRow_cache_provider();
     case KEY_ALIAS:
       return isSetKey_alias();
+    case COMPACTION_STRATEGY:
+      return isSetCompaction_strategy();
+    case COMPACTION_STRATEGY_OPTIONS:
+      return isSetCompaction_strategy_options();
     }
     throw new IllegalStateException();
   }
@@ -1632,6 +1753,24 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
         return false;
     }
 
+    boolean this_present_compaction_strategy = true && this.isSetCompaction_strategy();
+    boolean that_present_compaction_strategy = true && that.isSetCompaction_strategy();
+    if (this_present_compaction_strategy || that_present_compaction_strategy) {
+      if (!(this_present_compaction_strategy && that_present_compaction_strategy))
+        return false;
+      if (!this.compaction_strategy.equals(that.compaction_strategy))
+        return false;
+    }
+
+    boolean this_present_compaction_strategy_options = true && this.isSetCompaction_strategy_options();
+    boolean that_present_compaction_strategy_options = true && that.isSetCompaction_strategy_options();
+    if (this_present_compaction_strategy_options || that_present_compaction_strategy_options) {
+      if (!(this_present_compaction_strategy_options && that_present_compaction_strategy_options))
+        return false;
+      if (!this.compaction_strategy_options.equals(that.compaction_strategy_options))
+        return false;
+    }
+
     return true;
   }
 
@@ -1763,6 +1902,16 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     builder.append(present_key_alias);
     if (present_key_alias)
       builder.append(key_alias);
+
+    boolean present_compaction_strategy = true && (isSetCompaction_strategy());
+    builder.append(present_compaction_strategy);
+    if (present_compaction_strategy)
+      builder.append(compaction_strategy);
+
+    boolean present_compaction_strategy_options = true && (isSetCompaction_strategy_options());
+    builder.append(present_compaction_strategy_options);
+    if (present_compaction_strategy_options)
+      builder.append(compaction_strategy_options);
 
     return builder.toHashCode();
   }
@@ -2025,6 +2174,26 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
         return lastComparison;
       }
     }
+    lastComparison = Boolean.valueOf(isSetCompaction_strategy()).compareTo(typedOther.isSetCompaction_strategy());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    if (isSetCompaction_strategy()) {
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.compaction_strategy, typedOther.compaction_strategy);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
+    lastComparison = Boolean.valueOf(isSetCompaction_strategy_options()).compareTo(typedOther.isSetCompaction_strategy_options());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    if (isSetCompaction_strategy_options()) {
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.compaction_strategy_options, typedOther.compaction_strategy_options);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
     return 0;
   }
 
@@ -2242,6 +2411,32 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
             org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
+        case 29: // COMPACTION_STRATEGY
+          if (field.type == org.apache.thrift.protocol.TType.STRING) {
+            this.compaction_strategy = iprot.readString();
+          } else { 
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
+        case 30: // COMPACTION_STRATEGY_OPTIONS
+          if (field.type == org.apache.thrift.protocol.TType.MAP) {
+            {
+              org.apache.thrift.protocol.TMap _map32 = iprot.readMapBegin();
+              this.compaction_strategy_options = new HashMap<String,String>(2*_map32.size);
+              for (int _i33 = 0; _i33 < _map32.size; ++_i33)
+              {
+                String _key34;
+                String _val35;
+                _key34 = iprot.readString();
+                _val35 = iprot.readString();
+                this.compaction_strategy_options.put(_key34, _val35);
+              }
+              iprot.readMapEnd();
+            }
+          } else { 
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
         default:
           org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
       }
@@ -2315,9 +2510,9 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
         oprot.writeFieldBegin(COLUMN_METADATA_FIELD_DESC);
         {
           oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, this.column_metadata.size()));
-          for (ColumnDef _iter32 : this.column_metadata)
+          for (ColumnDef _iter36 : this.column_metadata)
           {
-            _iter32.write(oprot);
+            _iter36.write(oprot);
           }
           oprot.writeListEnd();
         }
@@ -2404,6 +2599,28 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       if (isSetKey_alias()) {
         oprot.writeFieldBegin(KEY_ALIAS_FIELD_DESC);
         oprot.writeBinary(this.key_alias);
+        oprot.writeFieldEnd();
+      }
+    }
+    if (this.compaction_strategy != null) {
+      if (isSetCompaction_strategy()) {
+        oprot.writeFieldBegin(COMPACTION_STRATEGY_FIELD_DESC);
+        oprot.writeString(this.compaction_strategy);
+        oprot.writeFieldEnd();
+      }
+    }
+    if (this.compaction_strategy_options != null) {
+      if (isSetCompaction_strategy_options()) {
+        oprot.writeFieldBegin(COMPACTION_STRATEGY_OPTIONS_FIELD_DESC);
+        {
+          oprot.writeMapBegin(new org.apache.thrift.protocol.TMap(org.apache.thrift.protocol.TType.STRING, org.apache.thrift.protocol.TType.STRING, this.compaction_strategy_options.size()));
+          for (Map.Entry<String, String> _iter37 : this.compaction_strategy_options.entrySet())
+          {
+            oprot.writeString(_iter37.getKey());
+            oprot.writeString(_iter37.getValue());
+          }
+          oprot.writeMapEnd();
+        }
         oprot.writeFieldEnd();
       }
     }
@@ -2602,6 +2819,26 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
         sb.append("null");
       } else {
         org.apache.thrift.TBaseHelper.toString(this.key_alias, sb);
+      }
+      first = false;
+    }
+    if (isSetCompaction_strategy()) {
+      if (!first) sb.append(", ");
+      sb.append("compaction_strategy:");
+      if (this.compaction_strategy == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.compaction_strategy);
+      }
+      first = false;
+    }
+    if (isSetCompaction_strategy_options()) {
+      if (!first) sb.append(", ");
+      sb.append("compaction_strategy_options:");
+      if (this.compaction_strategy_options == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.compaction_strategy_options);
       }
       first = false;
     }

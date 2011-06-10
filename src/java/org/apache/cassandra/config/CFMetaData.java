@@ -36,16 +36,30 @@ import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.db.HintedHandOffManager;
 import org.apache.cassandra.db.SystemTable;
 import org.apache.cassandra.db.Table;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.db.marshal.TimeUUIDType;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.migration.Migration;
+import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.io.SerDeUtils;
 import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
 
 public final class CFMetaData
 {
+    //
+    // !! Important !!
+    // This class can be tricky to modify.  Please read http://wiki.apache.org/cassandra/ConfigurationNotes
+    // for how to do so safely.
+    //
+
     public final static double DEFAULT_ROW_CACHE_SIZE = 0.0;
     public final static double DEFAULT_KEY_CACHE_SIZE = 200000;
     public final static double DEFAULT_READ_REPAIR_CHANCE = 1.0;
@@ -61,7 +75,8 @@ public final class CFMetaData
     public final static double DEFAULT_MEMTABLE_OPERATIONS_IN_MILLIONS = sizeMemtableOperations(DEFAULT_MEMTABLE_THROUGHPUT_IN_MB);
     public final static double DEFAULT_MERGE_SHARDS_CHANCE = 0.1;
     public final static String DEFAULT_ROW_CACHE_PROVIDER = "org.apache.cassandra.cache.ConcurrentLinkedHashCacheProvider";
-    
+    public static final String DEFAULT_COMPACTION_STRATEGY_CLASS = "org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy";
+
     private static final int MIN_CF_ID = 1000;
     private static final AtomicInteger idGen = new AtomicInteger(MIN_CF_ID);
     
@@ -153,9 +168,10 @@ public final class CFMetaData
     private double mergeShardsChance;                 // default 0.1, chance [0.0, 1.0] of merging old shards during replication
     private IRowCacheProvider rowCacheProvider;
     private ByteBuffer keyAlias;                      // default NULL
-    // NOTE: if you find yourself adding members to this class, make sure you keep the convert methods in lockstep.
 
     private Map<ByteBuffer, ColumnDefinition> column_metadata;
+    public Class<? extends AbstractCompactionStrategy> compactionStrategyClass;
+    public Map<String, String> compactionStrategyOptions;
 
     public CFMetaData comment(String prop) { comment = enforceCommentNotNull(prop); return this;}
     public CFMetaData rowCacheSize(double prop) {rowCacheSize = prop; return this;}
@@ -176,6 +192,8 @@ public final class CFMetaData
     public CFMetaData keyAlias(ByteBuffer prop) {keyAlias = prop; return this;}
     public CFMetaData columnMetadata(Map<ByteBuffer,ColumnDefinition> prop) {column_metadata = prop; return this;}
     public CFMetaData rowCacheProvider(IRowCacheProvider prop) { rowCacheProvider = prop; return this;}
+    public CFMetaData compactionStrategyClass(Class<? extends AbstractCompactionStrategy> prop) {compactionStrategyClass = prop; return this;}
+    public CFMetaData compactionStrategyOptions(Map<String, String> prop) {compactionStrategyOptions = prop; return this;}
 
     public CFMetaData(String keyspace, String name, ColumnFamilyType type, AbstractType comp, AbstractType subcc)
     {
@@ -237,6 +255,16 @@ public final class CFMetaData
         comment = "";
         keyAlias = null; // This qualifies as a 'strange default'.
         column_metadata = new HashMap<ByteBuffer,ColumnDefinition>();
+
+        try
+        {
+            compactionStrategyClass = (Class<? extends AbstractCompactionStrategy>)Class.forName(DEFAULT_COMPACTION_STRATEGY_CLASS);
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException("Could not create Compaction Strategy of type " + DEFAULT_COMPACTION_STRATEGY_CLASS, e);
+        }
+        compactionStrategyOptions = new HashMap<String, String>();
     }
 
     private static CFMetaData newSystemMetadata(String cfName, int cfId, String comment, AbstractType comparator, AbstractType subcc, int memtableThroughPutInMB)
@@ -296,7 +324,9 @@ public final class CFMetaData
                       .memTime(oldCFMD.memtableFlushAfterMins)
                       .memSize(oldCFMD.memtableThroughputInMb)
                       .memOps(oldCFMD.memtableOperationsInMillions)
-                      .columnMetadata(oldCFMD.column_metadata);
+                      .columnMetadata(oldCFMD.column_metadata)
+                      .compactionStrategyClass(oldCFMD.compactionStrategyClass)
+                      .compactionStrategyOptions(oldCFMD.compactionStrategyOptions);
     }
 
     /** used for evicting cf data out of static tracking collections. */
@@ -351,6 +381,13 @@ public final class CFMetaData
         for (ColumnDefinition cd : column_metadata.values())
             cf.column_metadata.add(cd.deflate());
         cf.row_cache_provider = new Utf8(rowCacheProvider.getClass().getName());
+        cf.compaction_strategy = new Utf8(compactionStrategyClass.getName());
+        if (compactionStrategyOptions != null)
+        {
+            cf.compaction_strategy_options = new HashMap<CharSequence, CharSequence>();
+            for (Map.Entry<String, String> e : compactionStrategyOptions.entrySet())
+                cf.compaction_strategy_options.put(new Utf8(e.getKey()), new Utf8(e.getValue()));
+        }
         return cf;
     }
 
@@ -413,6 +450,22 @@ public final class CFMetaData
             }
         }
         if (cf.key_alias != null) { newCFMD.keyAlias(cf.key_alias); }
+        if (cf.compaction_strategy != null)
+        {
+            try
+            {
+                newCFMD.compactionStrategyClass((Class<? extends AbstractCompactionStrategy>)Class.forName(cf.compaction_strategy.toString()));
+            }
+            catch (Exception e)
+            {
+                throw new RuntimeException("Could not create Compaction Strategy of type " + cf.compaction_strategy.toString(), e);
+            }
+        }
+        if (cf.compaction_strategy_options != null)
+        {
+            for (Map.Entry<CharSequence, CharSequence> e : cf.compaction_strategy_options.entrySet())
+                newCFMD.compactionStrategyOptions.put(e.getKey().toString(), e.getValue().toString());
+        }
 
         return newCFMD.comment(cf.comment.toString())
                       .rowCacheSize(cf.row_cache_size)
@@ -562,6 +615,8 @@ public final class CFMetaData
             .append(memtableOperationsInMillions, rhs.memtableOperationsInMillions)
             .append(mergeShardsChance, rhs.mergeShardsChance)
             .append(keyAlias, rhs.keyAlias)
+            .append(compactionStrategyClass, rhs.compactionStrategyClass)
+            .append(compactionStrategyOptions, rhs.compactionStrategyOptions)
             .isEquals();
     }
 
@@ -592,6 +647,8 @@ public final class CFMetaData
             .append(memtableOperationsInMillions)
             .append(mergeShardsChance)
             .append(keyAlias)
+            .append(compactionStrategyClass)
+            .append(compactionStrategyOptions)
             .toHashCode();
     }
 
@@ -632,6 +689,10 @@ public final class CFMetaData
             cf_def.setMerge_shards_chance(CFMetaData.DEFAULT_MERGE_SHARDS_CHANCE);
         if (!cf_def.isSetRow_cache_provider())
             cf_def.setRow_cache_provider(CFMetaData.DEFAULT_ROW_CACHE_PROVIDER);
+        if (null == cf_def.compaction_strategy)
+            cf_def.compaction_strategy = DEFAULT_COMPACTION_STRATEGY_CLASS;
+        if (null == cf_def.compaction_strategy_options)
+            cf_def.compaction_strategy_options = Collections.<String, String>emptyMap();
     }
 
     public static CFMetaData fromThrift(org.apache.cassandra.thrift.CfDef cf_def) throws InvalidRequestException, ConfigurationException
@@ -760,8 +821,56 @@ public final class CFMetaData
                                                        def.index_name == null ? null : def.index_name.toString());
             column_metadata.put(cd.name, cd);
         }
+
+        if (cf_def.compaction_strategy != null)
+        {
+            try
+            {
+                compactionStrategyClass = (Class<? extends AbstractCompactionStrategy>)Class.forName(cf_def.compaction_strategy.toString());
+            }
+            catch (Exception e)
+            {
+                throw new RuntimeException("Could not create Compaction Strategy of type " + cf_def.compaction_strategy.toString(), e);
+            }
+        }
+
+        if (null != cf_def.compaction_strategy_options)
+        {
+            for (Map.Entry<CharSequence, CharSequence> e : cf_def.compaction_strategy_options.entrySet())
+                compactionStrategyOptions.put(e.getKey().toString(), e.getValue().toString());
+        }
     }
     
+    public AbstractCompactionStrategy createCompactionStrategyInstance(ColumnFamilyStore cfs)
+    {
+        try
+        {
+            Constructor constructor = compactionStrategyClass.getConstructor(new Class[] {
+                ColumnFamilyStore.class,
+                Map.class // options
+            });
+            return (AbstractCompactionStrategy)constructor.newInstance(new Object[] {
+                cfs,
+                compactionStrategyOptions});
+        }
+        catch (NoSuchMethodException e)
+        {
+            throw new RuntimeException(e);
+        }
+        catch (InstantiationException e)
+        {
+            throw new RuntimeException(e);
+        }
+        catch (IllegalAccessException e)
+        {
+            throw new RuntimeException(e);
+        }
+        catch (InvocationTargetException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
     // converts CFM to thrift CfDef
     public static org.apache.cassandra.thrift.CfDef convertToThrift(CFMetaData cfm)
     {
@@ -802,6 +911,9 @@ public final class CFMetaData
             column_meta.add(tcd);
         }
         def.setColumn_metadata(column_meta);
+        def.setCompaction_strategy(cfm.compactionStrategyClass.getName());
+        Map<String, String> compactionOptions = new HashMap<String, String>();
+        def.setCompaction_strategy_options(cfm.compactionStrategyOptions);
         return def;
     }
     
@@ -848,6 +960,10 @@ public final class CFMetaData
         }
         def.column_metadata = column_meta; 
         def.row_cache_provider = new Utf8(cfm.rowCacheProvider.getClass().getName());
+        def.compaction_strategy = new Utf8(cfm.compactionStrategyClass.getName());
+        def.compaction_strategy_options = new HashMap<CharSequence, CharSequence>();
+        for (Map.Entry<String, String> e : cfm.compactionStrategyOptions.entrySet())
+            def.compaction_strategy_options.put(new Utf8(e.getKey()), new Utf8(e.getValue()));
         return def;
     }
     
@@ -892,6 +1008,15 @@ public final class CFMetaData
             }
         }
         newDef.column_metadata = columnMeta;
+        if (def.isSetCompaction_strategy())
+            newDef.compaction_strategy = new Utf8(def.getCompaction_strategy());
+
+        if (def.isSetCompaction_strategy_options() && null != def.getCompaction_strategy_options())
+        {
+            newDef.compaction_strategy_options = new HashMap<CharSequence, CharSequence>();
+            for (Map.Entry<String, String> e : def.getCompaction_strategy_options().entrySet())
+                newDef.compaction_strategy_options.put(new Utf8(e.getKey()), new Utf8(e.getValue()));
+        }
         return newDef;
     }
 
@@ -999,6 +1124,8 @@ public final class CFMetaData
             .append("mergeShardsChance", mergeShardsChance)
             .append("keyAlias", keyAlias)
             .append("column_metadata", column_metadata)
+            .append("compactionStrategyClass", compactionStrategyClass)
+            .append("compactionStrategyOptions", compactionStrategyOptions)
             .toString();
     }
 }

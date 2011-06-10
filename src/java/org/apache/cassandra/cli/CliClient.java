@@ -132,7 +132,9 @@ public class CliClient
         MAX_COMPACTION_THRESHOLD,
         REPLICATE_ON_WRITE,
         ROW_CACHE_PROVIDER,
-        KEY_VALIDATION_CLASS
+        KEY_VALIDATION_CLASS,
+        COMPACTION_STRATEGY,
+        COMPACTION_STRATEGY_OPTIONS
     }
 
     private static final String DEFAULT_PLACEMENT_STRATEGY = "org.apache.cassandra.locator.NetworkTopologyStrategy";
@@ -1210,6 +1212,11 @@ public class CliClient
                 break;
             case KEY_VALIDATION_CLASS:
                 cfDef.setKey_validation_class(CliUtils.unescapeSQLString(mValue));
+            case COMPACTION_STRATEGY:
+                cfDef.setCompaction_strategy(CliUtils.unescapeSQLString(mValue));
+                break;
+            case COMPACTION_STRATEGY_OPTIONS:
+                cfDef.setCompaction_strategy_options(getStrategyOptionsFromTree(statement.getChild(i+1)));
                 break;
             default:
                 //must match one of the above or we'd throw an exception at the valueOf statement above.
@@ -1724,6 +1731,13 @@ public class CliClient
                             sessionState.out.println(columnLeftSpace + "Index Type: " + columnDef.getIndex_type().name());
                         }
                     }
+                }
+                sessionState.out.printf("      Compaction Strategy: %s%n", cf_def.compaction_strategy);
+                if (!cf_def.compaction_strategy_options.isEmpty())
+                {
+                    sessionState.out.printf("      Compaction Strategy Options: %s%n", cf_def.compaction_strategy);
+                    for (Map.Entry<String, String> e : cf_def.compaction_strategy_options.entrySet())
+                        sessionState.out.printf("        %s: %s%n", e.getKey(), e.getValue());
                 }
             }
 
