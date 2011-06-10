@@ -99,7 +99,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
     /*
      * Group files of similar size into buckets.
      */
-    <T> List<List<T>> getBuckets(Collection<Pair<T, Long>> files, long minSSTableSize)
+    static <T> List<List<T>> getBuckets(Collection<Pair<T, Long>> files, long minSSTableSize)
     {
         // Sort the list in order to get deterministic results during the grouping below
         List<Pair<T, Long>> sortedFiles = new ArrayList<Pair<T, Long>>(files);

@@ -17,19 +17,15 @@
  */
 package org.apache.cassandra.db.compaction;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.HashMap;
+import java.util.*;
 
 import org.junit.Test;
 import static org.junit.Assert.*;
-import static org.mockito.Mockito.mock;
 
-import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.utils.Pair;
 
-public class SizeTieredCompactionStrategyTest {
+public class SizeTieredCompactionStrategyTest
+{
     @Test
     public void testGetBuckets()
     {
@@ -41,9 +37,7 @@ public class SizeTieredCompactionStrategyTest {
             pairs.add(pair);
         }
 
-        Map<String, String> emptyOptions = new HashMap<String, String>();
-        SizeTieredCompactionStrategy strategy = new SizeTieredCompactionStrategy(mock(ColumnFamilyStore.class), emptyOptions);
-        List<List<String>> buckets = strategy.getBuckets(pairs, 2);
+        List<List<String>> buckets = SizeTieredCompactionStrategy.getBuckets(pairs, 2);
         assertEquals(3, buckets.size());
 
         for (List<String> bucket : buckets)
@@ -63,7 +57,7 @@ public class SizeTieredCompactionStrategyTest {
             pairs.add(pair);
         }
 
-        buckets = strategy.getBuckets(pairs, 2);
+        buckets = SizeTieredCompactionStrategy.getBuckets(pairs, 2);
         assertEquals(2, buckets.size());
 
         for (List<String> bucket : buckets)
@@ -84,7 +78,7 @@ public class SizeTieredCompactionStrategyTest {
             pairs.add(pair);
         }
 
-        buckets = strategy.getBuckets(pairs, 10); // notice the min is 10
+        buckets = SizeTieredCompactionStrategy.getBuckets(pairs, 10); // notice the min is 10
         assertEquals(1, buckets.size());
     }
 }

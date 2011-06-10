@@ -378,8 +378,6 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
 
           <dependency groupId="com.thoughtworks.paranamer" artifactId="paranamer-ant" version="2.1"/>
           <dependency groupId="junit" artifactId="junit" version="4.6" />
-          <dependency groupId="org.mockito" artifactId="mockito-core" version="1.8.1"/>
-          <dependency groupId="org.mockito" artifactId="mockito-all" version="1.8.1"/>
           <dependency groupId="commons-logging" artifactId="commons-logging" version="1.1.1"/>
           <dependency groupId="org.apache.rat" artifactId="apache-rat" version="0.6" />
           <dependency groupId="com.cloudera.hadoop" artifactId="hadoop-core" version="0.20.2-320"/>
@@ -423,8 +421,6 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
         (since it depends on them). -->
         <dependency groupId="com.thoughtworks.paranamer" artifactId="paranamer-ant"/>
         <dependency groupId="junit" artifactId="junit"/>
-        <dependency groupId="org.mockito" artifactId="mockito-core"/>
-        <dependency groupId="org.mockito" artifactId="mockito-all"/>
         <dependency groupId="commons-logging" artifactId="commons-logging"/>
         <dependency groupId="org.apache.rat" artifactId="apache-rat"/>
         <dependency groupId="com.cloudera.hadoop" artifactId="hadoop-core"/>
