@@ -63,6 +63,8 @@ public class QueryProcessor
 {
     private static final Logger logger = LoggerFactory.getLogger(QueryProcessor.class);
 
+    private static final long timeLimitForSchemaAgreement = 10 * 1000;
+
     private static List<org.apache.cassandra.db.Row> getSlice(String keyspace, SelectStatement select)
     throws InvalidRequestException, TimedOutException, UnavailableException
     {
@@ -343,9 +345,9 @@ public class QueryProcessor
             throw new InvalidRequestException("No indexed columns present in by-columns clause with \"equals\" operator");
         }
     }
-    
+
     // Copypasta from o.a.c.thrift.CassandraDaemon
-    private static void applyMigrationOnStage(final Migration m) throws InvalidRequestException
+    private static void applyMigrationOnStage(final Migration m) throws SchemaDisagreementException, InvalidRequestException
     {
         Future<?> f = StageManager.getStage(Stage.MIGRATION).submit(new Callable<Object>()
         {
@@ -380,6 +382,8 @@ public class QueryProcessor
                 throw ex;
             }
         }
+
+        validateSchemaIsSettled();
     }
     
     public static void validateKey(ByteBuffer key) throws InvalidRequestException
@@ -463,11 +467,15 @@ public class QueryProcessor
     // Copypasta from CassandraServer (where it is private).
     private static void validateSchemaAgreement() throws SchemaDisagreementException
     {
-        // unreachable hosts don't count towards disagreement
-        Map<String, List<String>> versions = Maps.filterKeys(StorageProxy.describeSchemaVersions(),
-                                                             Predicates.not(Predicates.equalTo(StorageProxy.UNREACHABLE)));
-        if (versions.size() > 1)
+       if (describeSchemaVersions().size() > 1)
             throw new SchemaDisagreementException();
+    }
+
+    private static Map<String, List<String>> describeSchemaVersions()
+    {
+        // unreachable hosts don't count towards disagreement
+        return Maps.filterKeys(StorageProxy.describeSchemaVersions(),
+                               Predicates.not(Predicates.equalTo(StorageProxy.UNREACHABLE)));
     }
 
     public static CqlResult process(String queryString, ClientState clientState)
@@ -939,5 +947,26 @@ public class QueryProcessor
         parser.throwLastRecognitionError();
         
         return statement;
+    }
+
+    private static void validateSchemaIsSettled() throws SchemaDisagreementException
+    {
+        long limit = System.currentTimeMillis() + timeLimitForSchemaAgreement;
+
+        outer:
+        while (limit - System.currentTimeMillis() >= 0)
+        {
+            String currentVersionId = DatabaseDescriptor.getDefsVersion().toString();
+            for (String version : describeSchemaVersions().keySet())
+            {
+                if (!version.equals(currentVersionId))
+                    continue outer;
+            }
+
+            // schemas agree
+            return;
+        }
+
+        throw new SchemaDisagreementException();
     }
 }
