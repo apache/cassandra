@@ -498,8 +498,10 @@ K_TRUNCATE:    T R U N C A T E;
 K_DELETE:      D E L E T E;
 K_IN:          I N;
 K_CREATE:      C R E A T E;
-K_KEYSPACE:    K E Y S P A C E;
-K_COLUMNFAMILY: C O L U M N F A M I L Y;
+K_KEYSPACE:    ( K E Y S P A C E
+                 | S C H E M A );
+K_COLUMNFAMILY:( C O L U M N F A M I L Y
+                 | T A B L E );
 K_INDEX:       I N D E X;
 K_ON:          O N;
 K_DROP:        D R O P;

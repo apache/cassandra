@@ -511,7 +511,18 @@ public class TableTest extends CleanupHelper
 
     public static void assertColumns(ColumnFamily cf, String... columnNames)
     {
-        Collection<IColumn> columns = cf == null ? new TreeSet<IColumn>() : cf.getSortedColumns();
+        assertColumns((IColumnContainer)cf, columnNames);
+    }
+
+    public static void assertSubColumns(ColumnFamily cf, String scName, String... columnNames)
+    {
+        IColumnContainer sc = cf == null ? null : ((IColumnContainer)cf.getColumn(ByteBufferUtil.bytes(scName)));
+        assertColumns(sc, columnNames);
+    }
+
+    public static void assertColumns(IColumnContainer container, String... columnNames)
+    {
+        Collection<IColumn> columns = container == null ? new TreeSet<IColumn>() : container.getSortedColumns();
         List<String> L = new ArrayList<String>();
         for (IColumn column : columns)
         {
@@ -540,9 +551,28 @@ public class TableTest extends CleanupHelper
 
         assert Arrays.equals(la, columnNames1)
                 : String.format("Columns [%s(as string: %s)])] is not expected [%s]",
-                                ((cf == null) ? "" : cf.getComparator().getColumnsString(columns)),
+                                ((container == null) ? "" : container.getComparator().getColumnsString(columns)),
                                 lasb.toString(),
                                 StringUtils.join(columnNames1, ","));
     }
+
+    public static void assertColumn(ColumnFamily cf, String name, String value, long timestamp)
+    {
+        assertColumn(cf.getColumn(ByteBufferUtil.bytes(name)), value, timestamp);
+    }
+
+    public static void assertSubColumn(ColumnFamily cf, String scName, String name, String value, long timestamp)
+    {
+        SuperColumn sc = (SuperColumn)cf.getColumn(ByteBufferUtil.bytes(scName));
+        assertColumn(sc.getSubColumn(ByteBufferUtil.bytes(name)), value, timestamp);
+    }
+
+    public static void assertColumn(IColumn column, String value, long timestamp)
+    {
+        assertNotNull(column);
+        assertEquals(0, ByteBufferUtil.compareUnsigned(column.value(), ByteBufferUtil.bytes(value)));
+        assertEquals(timestamp, column.timestamp());
+    }
+
 
 }

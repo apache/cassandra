@@ -44,7 +44,7 @@ def load_sample(dbconn):
             WITH comparator = ascii AND default_validation = ascii;
     """)
     dbconn.execute("""
-        CREATE COLUMNFAMILY StandardString2 (KEY text PRIMARY KEY)
+        CREATE TABLE StandardString2 (KEY text PRIMARY KEY)
             WITH comparator = ascii AND default_validation = ascii;
     """)
     dbconn.execute("""
@@ -56,7 +56,7 @@ def load_sample(dbconn):
             WITH comparator = bigint AND default_validation = ascii;
     """)
     dbconn.execute("""
-        CREATE COLUMNFAMILY StandardIntegerA (KEY text PRIMARY KEY)
+        CREATE TABLE StandardIntegerA (KEY text PRIMARY KEY)
             WITH comparator = varint AND default_validation = ascii;
     """)
     dbconn.execute("""
@@ -76,7 +76,7 @@ def load_sample(dbconn):
             WITH comparator = ascii AND default_validation = ascii;
     """)
     dbconn.execute("""
-        CREATE COLUMNFAMILY CounterCF (KEY text PRIMARY KEY, count_me counter)
+        CREATE TABLE CounterCF (KEY text PRIMARY KEY, count_me counter)
             WITH comparator = ascii AND default_validation = counter;
     """)
     dbconn.execute("CREATE INDEX ON IndexedA (birthdate)")
@@ -414,7 +414,7 @@ class TestCql(ThriftTester):
         "create a new keyspace"
         cursor = init()
         cursor.execute("""
-        CREATE KEYSPACE TestKeyspace42 WITH strategy_options:DC1 = '1'
+        CREATE SCHEMA TestKeyspace42 WITH strategy_options:DC1 = '1'
             AND strategy_class = 'NetworkTopologyStrategy'
         """)
 
@@ -436,7 +436,7 @@ class TestCql(ThriftTester):
         # TODO: temporary (until this can be done with CQL).
         thrift_client.describe_keyspace("Keyspace4Drop")
 
-        cursor.execute('DROP KEYSPACE Keyspace4Drop;')
+        cursor.execute('DROP SCHEMA Keyspace4Drop;')
 
         # Technically this should throw a ttypes.NotFound(), but this is
         # temporary and so not worth requiring it on PYTHONPATH.
@@ -448,7 +448,7 @@ class TestCql(ThriftTester):
         "create a new column family"
         cursor = init()
         cursor.execute("""
-               CREATE KEYSPACE CreateCFKeyspace WITH strategy_options:replication_factor = '1'
+               CREATE SCHEMA CreateCFKeyspace WITH strategy_options:replication_factor = '1'
                    AND strategy_class = 'SimpleStrategy';
         """)
         cursor.execute("USE CreateCFKeyspace;")

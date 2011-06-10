@@ -26,6 +26,7 @@ import java.util.StringTokenizer;
 
 import com.google.common.base.Objects;
 
+import org.apache.cassandra.db.Table;
 import org.apache.cassandra.utils.Pair;
 
 /**
@@ -131,7 +132,7 @@ public class Descriptor
     public static Pair<Descriptor,String> fromFilename(File directory, String name)
     {
         // name of parent directory is keyspace name
-        String ksname = directory.getName();
+        String ksname = extractKeyspaceName(directory);
 
         // tokenize the filename
         StringTokenizer st = new StringTokenizer(name, "-");
@@ -162,6 +163,43 @@ public class Descriptor
         String component = st.nextToken();
 
         return new Pair<Descriptor,String>(new Descriptor(version, directory, ksname, cfname, generation, temporary), component);
+    }
+
+    /**
+     * Extracts the keyspace name out of the directory name. Snapshot directories have a slightly different
+     * path structure and need to be treated differently.
+     *
+     * Regular path:   "<ksname>/<cfname>-[tmp-][<version>-]<gen>-<component>"
+     * Snapshot path: "<ksname>/snapshots/<snapshot-name>/<cfname>-[tmp-][<version>-]<gen>-<component>"
+     *
+     * @param directory a directory containing SSTables
+     * @return the keyspace name
+     */
+    public static String extractKeyspaceName(File directory) {
+
+        if (isSnapshotInPath(directory))
+        {
+            // We need to move backwards. If this is a snapshot, first parent takes us to:
+            // <ksname>/snapshots/ and second call to parent takes us to <ksname>.
+            return directory.getParentFile().getParentFile().getName();
+        }
+        return directory.getName();
+    }
+
+    /**
+     * @return <code>TRUE</code> if this directory represents a snapshot directory. <code>FALSE</code> otherwise.
+     */
+    private static boolean isSnapshotInPath(File directory) {
+        File curDirectory = directory;
+        while (curDirectory != null)
+        {
+            if (curDirectory.getName().equals(Table.SNAPSHOT_SUBDIR_NAME))
+                return true;
+            curDirectory = curDirectory.getParentFile();
+        }
+
+        // The directory does not represent a snapshot directory.
+        return false;
     }
 
     /**
