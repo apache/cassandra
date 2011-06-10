@@ -64,7 +64,7 @@ public class RemoveSuperColumnTest extends CleanupHelper
         store.forceBlockingFlush();
         validateRemoveTwoSources(dk);
 
-        CompactionManager.instance.performMajor(store);
+        CompactionManager.instance.performMaximal(store);
         assertEquals(1, store.getSSTables().size());
         validateRemoveCompacted(dk);
     }
@@ -154,7 +154,7 @@ public class RemoveSuperColumnTest extends CleanupHelper
         store.forceBlockingFlush();
         validateRemoveWithNewData(dk);
 
-        CompactionManager.instance.performMajor(store);
+        CompactionManager.instance.performMaximal(store);
         assertEquals(1, store.getSSTables().size());
         validateRemoveWithNewData(dk);
     }

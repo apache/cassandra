@@ -83,7 +83,7 @@ public class CompactionsPurgeTest extends CleanupHelper
         cfs.forceBlockingFlush();
 
         // major compact and test that all columns but the resurrected one is completely gone
-        CompactionManager.instance.submitMajor(cfs, Integer.MAX_VALUE).get();
+        CompactionManager.instance.submitMaximal(cfs, Integer.MAX_VALUE).get();
         cfs.invalidateCachedRow(key);
         ColumnFamily cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(key, new QueryPath(cfName)));
         assertColumns(cf, "5");

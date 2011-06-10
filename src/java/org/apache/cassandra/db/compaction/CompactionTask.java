@@ -173,7 +173,7 @@ public class CompactionTask extends AbstractCompactionTask
         cfs.replaceCompactedSSTables(sstables, Arrays.asList(ssTable));
         for (Entry<DecoratedKey, Long> entry : cachedKeys.entrySet()) // empty if preheat is off
             ssTable.cacheKey(entry.getKey(), entry.getValue());
-        CompactionManager.instance.submitMinorIfNeeded(cfs);
+        CompactionManager.instance.submitBackground(cfs);
 
         long dTime = System.currentTimeMillis() - startTime;
         long startsize = SSTable.getTotalBytes(sstables);

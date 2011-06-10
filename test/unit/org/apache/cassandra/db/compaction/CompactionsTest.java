@@ -76,7 +76,7 @@ public class CompactionsTest extends CleanupHelper
         {
             ArrayList<Future<Integer>> compactions = new ArrayList<Future<Integer>>();
             for (int i = 0; i < 10; i++)
-                compactions.add(CompactionManager.instance.submitMinorIfNeeded(store));
+                compactions.add(CompactionManager.instance.submitBackground(store));
             // another compaction attempt will be launched in the background by
             // each completing compaction: not much we can do to control them here
             boolean progress = false;
@@ -88,7 +88,7 @@ public class CompactionsTest extends CleanupHelper
         }
         if (store.getSSTables().size() > 1)
         {
-            CompactionManager.instance.performMajor(store);
+            CompactionManager.instance.performMaximal(store);
         }
         assertEquals(inserted.size(), Util.getRangeSlice(store).size());
     }
@@ -118,7 +118,7 @@ public class CompactionsTest extends CleanupHelper
         }
 
         // Force compaction. Since each row is in only one sstable, we will be using EchoedRow.
-        CompactionManager.instance.performMajor(store);
+        CompactionManager.instance.performMaximal(store);
 
         // Now assert we do have the two keys
         assertEquals(4, Util.getRangeSlice(store).size());

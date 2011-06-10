@@ -226,7 +226,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                     logger_.info("Deleting any stored hints for " + ipaddr);
                     rm.apply();
                     hintStore.forceFlush();
-                    CompactionManager.instance.submitMajor(hintStore, Integer.MAX_VALUE);
+                    CompactionManager.instance.submitMaximal(hintStore, Integer.MAX_VALUE);
                 }
                 catch (Exception e)
                 {
@@ -365,7 +365,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
             hintStore.forceFlush();
             try
             {
-                CompactionManager.instance.submitMajor(hintStore, Integer.MAX_VALUE).get();
+                CompactionManager.instance.submitMaximal(hintStore, Integer.MAX_VALUE).get();
             }
             catch (Exception e)
             {

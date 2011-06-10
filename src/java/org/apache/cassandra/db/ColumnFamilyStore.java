@@ -920,7 +920,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         assert sstable.getColumnFamilyName().equals(columnFamily);
         data.addStreamedSSTable(sstable);
-        CompactionManager.instance.submitMinorIfNeeded(this);
+        CompactionManager.instance.submitBackground(this);
     }
 
     /*
@@ -985,7 +985,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     void replaceFlushed(Memtable memtable, SSTableReader sstable)
     {
         data.replaceFlushed(memtable, sstable);
-        CompactionManager.instance.submitMinorIfNeeded(this);
+        CompactionManager.instance.submitBackground(this);
     }
 
     public boolean isInvalid()
@@ -1722,7 +1722,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public void forceMajorCompaction() throws InterruptedException, ExecutionException
     {
-        CompactionManager.instance.performMajor(this);
+        CompactionManager.instance.performMaximal(this);
     }
 
     public void invalidateRowCache()

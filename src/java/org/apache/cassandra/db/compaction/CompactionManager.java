@@ -96,7 +96,7 @@ public class CompactionManager implements CompactionManagerMBean
      * It's okay to over-call (within reason) since the compactions are single-threaded,
      * and if a call is unnecessary, it will just be no-oped in the bucketing phase.
      */
-    public Future<Integer> submitMinorIfNeeded(final ColumnFamilyStore cfs)
+    public Future<Integer> submitBackground(final ColumnFamilyStore cfs)
     {
         Callable<Integer> callable = new Callable<Integer>()
         {
@@ -227,12 +227,12 @@ public class CompactionManager implements CompactionManagerMBean
         executor.submit(runnable).get();
     }
 
-    public void performMajor(final ColumnFamilyStore cfStore) throws InterruptedException, ExecutionException
+    public void performMaximal(final ColumnFamilyStore cfStore) throws InterruptedException, ExecutionException
     {
-        submitMajor(cfStore, getDefaultGcBefore(cfStore)).get();
+        submitMaximal(cfStore, getDefaultGcBefore(cfStore)).get();
     }
 
-    public Future<Object> submitMajor(final ColumnFamilyStore cfStore, final int gcBefore)
+    public Future<Object> submitMaximal(final ColumnFamilyStore cfStore, final int gcBefore)
     {
         Callable<Object> callable = new Callable<Object>()
         {
