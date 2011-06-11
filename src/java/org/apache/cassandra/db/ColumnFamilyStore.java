@@ -153,7 +153,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private volatile DefaultInteger minCompactionThreshold;
     private volatile DefaultInteger maxCompactionThreshold;
     private volatile AbstractCompactionStrategy compactionStrategy;
-    private volatile DefaultInteger memtime;
     private volatile DefaultInteger memsize;
     private volatile DefaultDouble memops;
     private volatile DefaultInteger rowCacheSaveInSeconds;
@@ -201,9 +200,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         if (!maxCompactionThreshold.isModified())
             for (ColumnFamilyStore cfs : concatWithIndexes())
                 cfs.maxCompactionThreshold = new DefaultInteger(metadata.getMaxCompactionThreshold());
-        if (!memtime.isModified())
-            for (ColumnFamilyStore cfs : concatWithIndexes())
-                cfs.memtime = new DefaultInteger(metadata.getMemtableFlushAfterMins());
         if (!memsize.isModified())
             for (ColumnFamilyStore cfs : concatWithIndexes())
                 cfs.memsize = new DefaultInteger(metadata.getMemtableThroughputInMb());
@@ -254,7 +250,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         this.minCompactionThreshold = new DefaultInteger(metadata.getMinCompactionThreshold());
         this.maxCompactionThreshold = new DefaultInteger(metadata.getMaxCompactionThreshold());
         this.compactionStrategy = metadata.createCompactionStrategyInstance(this);
-        this.memtime = new DefaultInteger(metadata.getMemtableFlushAfterMins());
         this.memsize = new DefaultInteger(metadata.getMemtableThroughputInMb());
         this.memops = new DefaultDouble(metadata.getMemtableOperationsInMillions());
         this.rowCacheSaveInSeconds = new DefaultInteger(metadata.getRowCacheSavePeriodInSeconds());
@@ -709,11 +704,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         binaryMemtable.get().put(key, buffer);
     }
 
-    public void forceFlushIfExpired()
-    {
-        if (getMemtableThreadSafe().isExpired())
-            forceFlush();
-    }
 
     public Future<?> forceFlush()
     {
@@ -1965,19 +1955,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public boolean isCompactionDisabled()
     {
         return getMinimumCompactionThreshold() <= 0 || getMaximumCompactionThreshold() <= 0;
-    }
-
-    public int getMemtableFlushAfterMins()
-    {
-        return memtime.value();
-    }
-    public void setMemtableFlushAfterMins(int time)
-    {
-        if (time <= 0)
-        {
-            throw new RuntimeException("MemtableFlushAfterMins must be greater than 0.");
-        }
-        this.memtime.set(time);
     }
 
     public int getMemtableThroughputInMB()

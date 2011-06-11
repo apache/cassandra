@@ -51,7 +51,6 @@ public class CreateColumnFamilyStatement
     private static final String KW_MAXCOMPACTIONTHRESHOLD = "max_compaction_threshold";
     private static final String KW_ROWCACHESAVEPERIODSECS = "row_cache_save_period_in_seconds";
     private static final String KW_KEYCACHESAVEPERIODSECS = "key_cache_save_period_in_seconds";
-    private static final String KW_MEMTABLEFLUSHINMINS = "memtable_flush_after_mins";
     private static final String KW_MEMTABLESIZEINMB = "memtable_throughput_in_mb";
     private static final String KW_MEMTABLEOPSINMILLIONS = "memtable_operations_in_millions";
     private static final String KW_REPLICATEONWRITE = "replicate_on_write";
@@ -84,7 +83,6 @@ public class CreateColumnFamilyStatement
         keywords.add(KW_MAXCOMPACTIONTHRESHOLD);
         keywords.add(KW_ROWCACHESAVEPERIODSECS);
         keywords.add(KW_KEYCACHESAVEPERIODSECS);
-        keywords.add(KW_MEMTABLEFLUSHINMINS);
         keywords.add(KW_MEMTABLESIZEINMB);
         keywords.add(KW_MEMTABLEOPSINMILLIONS);
         keywords.add(KW_REPLICATEONWRITE);
@@ -144,13 +142,9 @@ public class CreateColumnFamilyStatement
         }
         
         // Validate memtable settings
-        Integer memMins = getPropertyInt(KW_MEMTABLEFLUSHINMINS, null);
         Integer memMb = getPropertyInt(KW_MEMTABLESIZEINMB, null);
         Double memOps = getPropertyDouble(KW_MEMTABLEOPSINMILLIONS, null);
-        
-        if ((memMins != null) && (memMins <= 0))
-            throw new InvalidRequestException(String.format("%s must be non-negative and greater than zero",
-                                                            KW_MEMTABLEFLUSHINMINS));
+
         if ((memMb != null) && (memMb <= 0))
             throw new InvalidRequestException(String.format("%s must be non-negative and greater than zero",
                                                             KW_MEMTABLESIZEINMB));
@@ -262,7 +256,6 @@ public class CreateColumnFamilyStatement
                    .maxCompactionThreshold(getPropertyInt(KW_MAXCOMPACTIONTHRESHOLD, CFMetaData.DEFAULT_MAX_COMPACTION_THRESHOLD))
                    .rowCacheSavePeriod(getPropertyInt(KW_ROWCACHESAVEPERIODSECS, CFMetaData.DEFAULT_ROW_CACHE_SAVE_PERIOD_IN_SECONDS))
                    .keyCacheSavePeriod(getPropertyInt(KW_KEYCACHESAVEPERIODSECS, CFMetaData.DEFAULT_KEY_CACHE_SAVE_PERIOD_IN_SECONDS))
-                   .memTime(getPropertyInt(KW_MEMTABLEFLUSHINMINS, CFMetaData.DEFAULT_MEMTABLE_LIFETIME_IN_MINS))
                    .memSize(getPropertyInt(KW_MEMTABLESIZEINMB, CFMetaData.DEFAULT_MEMTABLE_THROUGHPUT_IN_MB))
                    .memOps(getPropertyDouble(KW_MEMTABLEOPSINMILLIONS, CFMetaData.DEFAULT_MEMTABLE_OPERATIONS_IN_MILLIONS))
                    .mergeShardsChance(0.0)

@@ -441,15 +441,6 @@ commands:
           terms of I/O for the key cache. Row cache saving is much more expensive and
           has limited use.
 
-        - memtable_flush_after: Maximum number of minutes to leave a dirty
-          memtable unflushed. This value needs to be large enough that it won't cause
-          a flush storm of all your memtables flushing at once because none have
-          hit the size or count thresholds yet. For production a larger value such
-          as 1440 is recommended. Default is 60.
-
-          NOTE: While any affected column families have unflushed data from a commit
-          log segment, that segment cannot be deleted.
-
         - memtable_operations: Number of operations in millions before the memtable
           is flushed. Default is memtable_throughput / 64 * 0.3
 
@@ -691,15 +682,6 @@ commands:
           terms of I/O for the key cache. Row cache saving is much more expensive and
           has limited use.
 
-        - memtable_flush_after: Maximum number of minutes to leave a dirty
-          memtable unflushed. This value needs to be large enough that it won't cause
-          a flush storm of all your memtables flushing at once because none have
-          hit the size or count thresholds yet. For production a larger value such
-          as 1440 is recommended. Default is 60.
-
-          NOTE: While any affected column families have unflushed data from a commit
-          log segment, that segment cannot be deleted.
-
         - memtable_operations: Number of operations in millions before the memtable
           is flushed. Default is memtable_throughput / 64 * 0.3
 
@@ -708,6 +690,10 @@ commands:
 
         - read_repair_chance: Probability (0.0-1.0) with which to perform read
           repairs for any read operation. Default is 1.0 to enable read repair.
+
+          Note that disabling read repair entirely means that the dynamic snitch
+          will not have any latency information from all the replicas to recognize
+          when one is performing worse than usual.
 
         - rows_cached: Maximum number of rows whose entire contents we
           cache in memory. Valid values are either a double between 0 and 1 (

@@ -209,9 +209,6 @@ public interface ColumnFamilyStoreMBean
      */
     public void disableAutoCompaction();
 
-    public int getMemtableFlushAfterMins();
-    public void setMemtableFlushAfterMins(int time);
-
     public int getMemtableThroughputInMB();
     public void setMemtableThroughputInMB(int size) throws ConfigurationException;
 

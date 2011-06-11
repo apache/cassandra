@@ -1059,12 +1059,6 @@ public class DatabaseDescriptor
             throw new ConfigurationException("memtable_operations_in_millions must be less than " + Long.MAX_VALUE / 1024 * 1024);
     }
 
-    public static void validateMemtableFlushPeriod(int minutes) throws ConfigurationException
-    {
-        if (minutes <= 0)
-            throw new ConfigurationException("memtable_flush_after_mins must be greater than 0.");
-    }
-
     public static boolean incrementalBackupsEnabled()
     {
         return conf.incremental_backups;

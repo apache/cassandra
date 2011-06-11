@@ -395,8 +395,4 @@ public class Memtable implements Comparable<Memtable>, IFlushable
         columnFamilies.clear();
     }
 
-    public boolean isExpired()
-    {
-        return System.currentTimeMillis() > creationTime + cfs.getMemtableFlushAfterMins() * 60 * 1000L;
-    }
 }

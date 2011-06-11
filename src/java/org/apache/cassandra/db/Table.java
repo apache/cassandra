@@ -51,6 +51,9 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.NodeId;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
+/**
+ * It represents a Keyspace.
+ */
 public class Table
 {
     public static final String SYSTEM_TABLE = "system";
@@ -92,7 +95,6 @@ public class Table
     /* ColumnFamilyStore per column family */
     private final Map<Integer, ColumnFamilyStore> columnFamilyStores = new ConcurrentHashMap<Integer, ColumnFamilyStore>();
     private final Object[] indexLocks;
-    private ScheduledFuture<?> flushTask;
     private volatile AbstractReplicationStrategy replicationStrategy;
 
     public static Table open(String table)
@@ -127,7 +129,6 @@ public class Table
             Table t = instances.remove(table);
             if (t != null)
             {
-                t.flushTask.cancel(false);
                 for (ColumnFamilyStore cfs : t.getColumnFamilyStores())
                     t.unloadCf(cfs);
             }
@@ -306,17 +307,6 @@ public class Table
             initCf(cfm.cfId, cfm.cfName);
         }
 
-        Runnable runnable = new Runnable()
-        {
-            public void run()
-            {
-                for (ColumnFamilyStore cfs : columnFamilyStores.values())
-                {
-                    cfs.forceFlushIfExpired();
-                }
-            }
-        };
-        flushTask = StorageService.tasks.scheduleWithFixedDelay(runnable, 10, 10, TimeUnit.SECONDS);
     }
 
     public void createReplicationStrategy(KSMetaData ksm) throws ConfigurationException

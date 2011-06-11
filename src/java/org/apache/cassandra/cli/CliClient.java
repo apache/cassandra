@@ -126,7 +126,6 @@ public class CliClient
         COLUMN_METADATA,
         MEMTABLE_OPERATIONS,
         MEMTABLE_THROUGHPUT,
-        MEMTABLE_FLUSH_AFTER,
         DEFAULT_VALIDATION_CLASS,
         MIN_COMPACTION_THRESHOLD,
         MAX_COMPACTION_THRESHOLD,
@@ -1183,9 +1182,6 @@ public class CliClient
             case MEMTABLE_OPERATIONS:
                 cfDef.setMemtable_operations_in_millions(Double.parseDouble(mValue));
                 break;
-            case MEMTABLE_FLUSH_AFTER:
-                cfDef.setMemtable_flush_after_mins(Integer.parseInt(mValue));
-                break;
             case MEMTABLE_THROUGHPUT:
                 cfDef.setMemtable_throughput_in_mb(Integer.parseInt(mValue));
                 break;
@@ -1679,8 +1675,8 @@ public class CliClient
                 sessionState.out.printf("      Columns sorted by: %s%s%n", cf_def.comparator_type, cf_def.column_type.equals("Super") ? "/" + cf_def.subcomparator_type : "");
                 sessionState.out.printf("      Row cache size / save period in seconds: %s/%s%n", cf_def.row_cache_size, cf_def.row_cache_save_period_in_seconds);
                 sessionState.out.printf("      Key cache size / save period in seconds: %s/%s%n", cf_def.key_cache_size, cf_def.key_cache_save_period_in_seconds);
-                sessionState.out.printf("      Memtable thresholds: %s/%s/%s (millions of ops/MB/minutes)%n",
-                                cf_def.memtable_operations_in_millions, cf_def.memtable_throughput_in_mb, cf_def.memtable_flush_after_mins);
+                sessionState.out.printf("      Memtable thresholds: %s/%s (millions of ops/MB)%n",
+                                cf_def.memtable_operations_in_millions, cf_def.memtable_throughput_in_mb);
                 sessionState.out.printf("      GC grace seconds: %s%n", cf_def.gc_grace_seconds);
                 sessionState.out.printf("      Compaction min/max thresholds: %s/%s%n", cf_def.min_compaction_threshold, cf_def.max_compaction_threshold);
                 sessionState.out.printf("      Read repair chance: %s%n", cf_def.read_repair_chance);

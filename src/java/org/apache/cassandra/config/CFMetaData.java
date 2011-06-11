@@ -70,7 +70,6 @@ public final class CFMetaData
     public final static int DEFAULT_GC_GRACE_SECONDS = 864000;
     public final static int DEFAULT_MIN_COMPACTION_THRESHOLD = 4;
     public final static int DEFAULT_MAX_COMPACTION_THRESHOLD = 32;
-    public final static int DEFAULT_MEMTABLE_LIFETIME_IN_MINS = 60 * 24;
     public final static int DEFAULT_MEMTABLE_THROUGHPUT_IN_MB = sizeMemtableThroughput();
     public final static double DEFAULT_MEMTABLE_OPERATIONS_IN_MILLIONS = sizeMemtableOperations(DEFAULT_MEMTABLE_THROUGHPUT_IN_MB);
     public final static double DEFAULT_MERGE_SHARDS_CHANCE = 0.1;
@@ -162,7 +161,6 @@ public final class CFMetaData
     private int maxCompactionThreshold;               // default 32
     private int rowCacheSavePeriodInSeconds;          // default 0 (off)
     private int keyCacheSavePeriodInSeconds;          // default 3600 (1 hour)
-    private int memtableFlushAfterMins;               // default 60 
     private int memtableThroughputInMb;               // default based on heap size
     private double memtableOperationsInMillions;      // default based on throughput
     private double mergeShardsChance;                 // default 0.1, chance [0.0, 1.0] of merging old shards during replication
@@ -185,7 +183,6 @@ public final class CFMetaData
     public CFMetaData maxCompactionThreshold(int prop) {maxCompactionThreshold = prop; return this;}
     public CFMetaData rowCacheSavePeriod(int prop) {rowCacheSavePeriodInSeconds = prop; return this;}
     public CFMetaData keyCacheSavePeriod(int prop) {keyCacheSavePeriodInSeconds = prop; return this;}
-    public CFMetaData memTime(int prop) {memtableFlushAfterMins = prop; return this;}
     public CFMetaData memSize(int prop) {memtableThroughputInMb = prop; return this;}
     public CFMetaData memOps(double prop) {memtableOperationsInMillions = prop; return this;}
     public CFMetaData mergeShardsChance(double prop) {mergeShardsChance = prop; return this;}
@@ -236,7 +233,6 @@ public final class CFMetaData
         gcGraceSeconds               = DEFAULT_GC_GRACE_SECONDS;
         minCompactionThreshold       = DEFAULT_MIN_COMPACTION_THRESHOLD;
         maxCompactionThreshold       = DEFAULT_MAX_COMPACTION_THRESHOLD;
-        memtableFlushAfterMins       = DEFAULT_MEMTABLE_LIFETIME_IN_MINS;
         memtableThroughputInMb       = DEFAULT_MEMTABLE_THROUGHPUT_IN_MB;
         memtableOperationsInMillions = DEFAULT_MEMTABLE_OPERATIONS_IN_MILLIONS;
         mergeShardsChance            = DEFAULT_MERGE_SHARDS_CHANCE;
@@ -291,7 +287,6 @@ public final class CFMetaData
                              .gcGraceSeconds(parent.gcGraceSeconds)
                              .minCompactionThreshold(parent.minCompactionThreshold)
                              .maxCompactionThreshold(parent.maxCompactionThreshold)
-                             .memTime(parent.memtableFlushAfterMins)
                              .memSize(parent.memtableThroughputInMb)
                              .memOps(parent.memtableOperationsInMillions);
     }
@@ -321,7 +316,6 @@ public final class CFMetaData
                       .maxCompactionThreshold(oldCFMD.maxCompactionThreshold)
                       .rowCacheSavePeriod(oldCFMD.rowCacheSavePeriodInSeconds)
                       .keyCacheSavePeriod(oldCFMD.keyCacheSavePeriodInSeconds)
-                      .memTime(oldCFMD.memtableFlushAfterMins)
                       .memSize(oldCFMD.memtableThroughputInMb)
                       .memOps(oldCFMD.memtableOperationsInMillions)
                       .columnMetadata(oldCFMD.column_metadata)
@@ -371,7 +365,6 @@ public final class CFMetaData
         cf.max_compaction_threshold = maxCompactionThreshold;
         cf.row_cache_save_period_in_seconds = rowCacheSavePeriodInSeconds;
         cf.key_cache_save_period_in_seconds = keyCacheSavePeriodInSeconds;
-        cf.memtable_flush_after_mins = memtableFlushAfterMins;
         cf.memtable_throughput_in_mb = memtableThroughputInMb;
         cf.memtable_operations_in_millions = memtableOperationsInMillions;
         cf.merge_shards_chance = mergeShardsChance;
@@ -434,7 +427,6 @@ public final class CFMetaData
         if (cf.max_compaction_threshold != null) { newCFMD.maxCompactionThreshold(cf.max_compaction_threshold); }
         if (cf.row_cache_save_period_in_seconds != null) { newCFMD.rowCacheSavePeriod(cf.row_cache_save_period_in_seconds); }
         if (cf.key_cache_save_period_in_seconds != null) { newCFMD.keyCacheSavePeriod(cf.key_cache_save_period_in_seconds); }
-        if (cf.memtable_flush_after_mins != null) { newCFMD.memTime(cf.memtable_flush_after_mins); }
         if (cf.memtable_throughput_in_mb != null) { newCFMD.memSize(cf.memtable_throughput_in_mb); }
         if (cf.memtable_operations_in_millions != null) { newCFMD.memOps(cf.memtable_operations_in_millions); }
         if (cf.merge_shards_chance != null) { newCFMD.mergeShardsChance(cf.merge_shards_chance); }
@@ -543,11 +535,6 @@ public final class CFMetaData
         return keyCacheSavePeriodInSeconds;
     }
 
-    public int getMemtableFlushAfterMins()
-    {
-        return memtableFlushAfterMins;
-    }
-
     public int getMemtableThroughputInMb()
     {
         return memtableThroughputInMb;
@@ -610,7 +597,6 @@ public final class CFMetaData
             .append(column_metadata, rhs.column_metadata)
             .append(rowCacheSavePeriodInSeconds, rhs.rowCacheSavePeriodInSeconds)
             .append(keyCacheSavePeriodInSeconds, rhs.keyCacheSavePeriodInSeconds)
-            .append(memtableFlushAfterMins, rhs.memtableFlushAfterMins)
             .append(memtableThroughputInMb, rhs.memtableThroughputInMb)
             .append(memtableOperationsInMillions, rhs.memtableOperationsInMillions)
             .append(mergeShardsChance, rhs.mergeShardsChance)
@@ -642,7 +628,6 @@ public final class CFMetaData
             .append(column_metadata)
             .append(rowCacheSavePeriodInSeconds)
             .append(keyCacheSavePeriodInSeconds)
-            .append(memtableFlushAfterMins)
             .append(memtableThroughputInMb)
             .append(memtableOperationsInMillions)
             .append(mergeShardsChance)
@@ -679,8 +664,6 @@ public final class CFMetaData
             cf_def.setRow_cache_save_period_in_seconds(CFMetaData.DEFAULT_ROW_CACHE_SAVE_PERIOD_IN_SECONDS);
         if (!cf_def.isSetKey_cache_save_period_in_seconds())
             cf_def.setKey_cache_save_period_in_seconds(CFMetaData.DEFAULT_KEY_CACHE_SAVE_PERIOD_IN_SECONDS);
-        if (!cf_def.isSetMemtable_flush_after_mins())
-            cf_def.setMemtable_flush_after_mins(CFMetaData.DEFAULT_MEMTABLE_LIFETIME_IN_MINS);
         if (!cf_def.isSetMemtable_throughput_in_mb())
             cf_def.setMemtable_throughput_in_mb(CFMetaData.DEFAULT_MEMTABLE_THROUGHPUT_IN_MB);
         if (!cf_def.isSetMemtable_operations_in_millions())
@@ -716,7 +699,6 @@ public final class CFMetaData
         if (cf_def.isSetMax_compaction_threshold()) { newCFMD.maxCompactionThreshold(cf_def.max_compaction_threshold); }
         if (cf_def.isSetRow_cache_save_period_in_seconds()) { newCFMD.rowCacheSavePeriod(cf_def.row_cache_save_period_in_seconds); }
         if (cf_def.isSetKey_cache_save_period_in_seconds()) { newCFMD.keyCacheSavePeriod(cf_def.key_cache_save_period_in_seconds); }
-        if (cf_def.isSetMemtable_flush_after_mins()) { newCFMD.memTime(cf_def.memtable_flush_after_mins); }
         if (cf_def.isSetMemtable_throughput_in_mb()) { newCFMD.memSize(cf_def.memtable_throughput_in_mb); }
         if (cf_def.isSetMemtable_operations_in_millions()) { newCFMD.memOps(cf_def.memtable_operations_in_millions); }
         if (cf_def.isSetMerge_shards_chance()) { newCFMD.mergeShardsChance(cf_def.merge_shards_chance); }
@@ -776,7 +758,6 @@ public final class CFMetaData
         maxCompactionThreshold = cf_def.max_compaction_threshold;
         rowCacheSavePeriodInSeconds = cf_def.row_cache_save_period_in_seconds;
         keyCacheSavePeriodInSeconds = cf_def.key_cache_save_period_in_seconds;
-        memtableFlushAfterMins = cf_def.memtable_flush_after_mins;
         memtableThroughputInMb = cf_def.memtable_throughput_in_mb;
         memtableOperationsInMillions = cf_def.memtable_operations_in_millions;
         mergeShardsChance = cf_def.merge_shards_chance;
@@ -895,7 +876,6 @@ public final class CFMetaData
         def.setMax_compaction_threshold(cfm.maxCompactionThreshold);
         def.setRow_cache_save_period_in_seconds(cfm.rowCacheSavePeriodInSeconds);
         def.setKey_cache_save_period_in_seconds(cfm.keyCacheSavePeriodInSeconds);
-        def.setMemtable_flush_after_mins(cfm.memtableFlushAfterMins);
         def.setMemtable_throughput_in_mb(cfm.memtableThroughputInMb);
         def.setMemtable_operations_in_millions(cfm.memtableOperationsInMillions);
         def.setMerge_shards_chance(cfm.mergeShardsChance);
@@ -942,7 +922,6 @@ public final class CFMetaData
         def.max_compaction_threshold = cfm.maxCompactionThreshold;
         def.row_cache_save_period_in_seconds = cfm.rowCacheSavePeriodInSeconds;
         def.key_cache_save_period_in_seconds = cfm.keyCacheSavePeriodInSeconds;
-        def.memtable_flush_after_mins = cfm.memtableFlushAfterMins;
         def.memtable_throughput_in_mb = cfm.memtableThroughputInMb;
         def.memtable_operations_in_millions = cfm.memtableOperationsInMillions;
         def.merge_shards_chance = cfm.mergeShardsChance;
@@ -982,7 +961,6 @@ public final class CFMetaData
         newDef.key_cache_save_period_in_seconds = def.getKey_cache_save_period_in_seconds();
         newDef.key_cache_size = def.getKey_cache_size();
         newDef.max_compaction_threshold = def.getMax_compaction_threshold();
-        newDef.memtable_flush_after_mins = def.getMemtable_flush_after_mins();
         newDef.memtable_operations_in_millions = def.getMemtable_operations_in_millions();
         newDef.memtable_throughput_in_mb = def.getMemtable_throughput_in_mb();
         newDef.min_compaction_threshold = def.getMin_compaction_threshold();
@@ -1052,8 +1030,6 @@ public final class CFMetaData
 
     public static void validateMemtableSettings(org.apache.cassandra.db.migration.avro.CfDef cf_def) throws ConfigurationException
     {
-        if (cf_def.memtable_flush_after_mins != null)
-            DatabaseDescriptor.validateMemtableFlushPeriod(cf_def.memtable_flush_after_mins);
         if (cf_def.memtable_throughput_in_mb != null)
             DatabaseDescriptor.validateMemtableThroughput(cf_def.memtable_throughput_in_mb);
         if (cf_def.memtable_operations_in_millions != null)
@@ -1118,7 +1094,6 @@ public final class CFMetaData
             .append("maxCompactionThreshold", maxCompactionThreshold)
             .append("rowCacheSavePeriodInSeconds", rowCacheSavePeriodInSeconds)
             .append("keyCacheSavePeriodInSeconds", keyCacheSavePeriodInSeconds)
-            .append("memtableFlushAfterMins", memtableFlushAfterMins)
             .append("memtableThroughputInMb", memtableThroughputInMb)
             .append("memtableOperationsInMillions", memtableOperationsInMillions)
             .append("mergeShardsChance", mergeShardsChance)
