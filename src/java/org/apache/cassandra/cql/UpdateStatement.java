@@ -49,22 +49,24 @@ public class UpdateStatement extends AbstractModification
     private Map<Term, Operation> columns;
     private List<Term> columnNames, columnValues;
     private List<Term> keys;
-    
+
     /**
      * Creates a new UpdateStatement from a column family name, columns map, consistency
      * level, and key term.
      * 
      * @param columnFamily column family name
+     * @param keyName alias key name
      * @param columns a map of column name/values pairs
      * @param keys the keys to update
      * @param attrs additional attributes for statement (CL, timestamp, timeToLive)
      */
     public UpdateStatement(String columnFamily,
+                           String keyName,
                            Map<Term, Operation> columns,
                            List<Term> keys,
                            Attributes attrs)
     {
-        super(columnFamily, attrs);
+        super(columnFamily, keyName, attrs);
 
         this.columns = columns;
         this.keys = keys;
@@ -76,18 +78,20 @@ public class UpdateStatement extends AbstractModification
      * alternate update format, <code>INSERT</code>.
      * 
      * @param columnFamily column family name
+     * @param keyName alias key name
      * @param columnNames list of column names
      * @param columnValues list of column values (corresponds to names)
      * @param keys the keys to update
      * @param attrs additional attributes for statement (CL, timestamp, timeToLive)
      */
     public UpdateStatement(String columnFamily,
+                           String keyName,
                            List<Term> columnNames,
                            List<Term> columnValues,
                            List<Term> keys,
                            Attributes attrs)
     {
-        super(columnFamily, attrs);
+        super(columnFamily, keyName, attrs);
 
         this.columnNames = columnNames;
         this.columnValues = columnValues;
@@ -138,6 +142,8 @@ public class UpdateStatement extends AbstractModification
         }
 
         CFMetaData metadata = validateColumnFamily(keyspace, columnFamily, hasCommutativeOperation);
+
+        QueryProcessor.validateKeyAlias(metadata, keyName);
 
         // Avoid unnecessary authorizations.
         if (!(cfamsSeen.contains(columnFamily)))

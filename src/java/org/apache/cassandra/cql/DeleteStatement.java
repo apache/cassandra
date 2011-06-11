@@ -47,9 +47,9 @@ public class DeleteStatement extends AbstractModification
     private List<Term> columns;
     private List<Term> keys;
     
-    public DeleteStatement(List<Term> columns, String columnFamily, ConsistencyLevel cLevel, List<Term> keys)
+    public DeleteStatement(List<Term> columns, String columnFamily, String keyName, ConsistencyLevel cLevel, List<Term> keys)
     {
-        super(columnFamily, cLevel, null, 0);
+        super(columnFamily, keyName, cLevel, null, 0);
 
         this.columns = columns;
         this.keys = keys;
@@ -102,6 +102,7 @@ public class DeleteStatement extends AbstractModification
     public void mutationForKey(RowMutation mutation, String keyspace, Long timestamp) throws InvalidRequestException
     {
         CFMetaData metadata = validateColumnFamily(keyspace, columnFamily);
+        QueryProcessor.validateKeyAlias(metadata, keyName);
 
         AbstractType comparator = metadata.getComparatorFor(null);
 

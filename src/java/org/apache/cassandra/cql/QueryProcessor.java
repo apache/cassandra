@@ -65,6 +65,8 @@ public class QueryProcessor
 
     private static final long timeLimitForSchemaAgreement = 10 * 1000;
 
+    public static final String DEFAULT_KEY_NAME = bufferToString(CFMetaData.DEFAULT_KEY_NAME);
+
     private static List<org.apache.cassandra.db.Row> getSlice(String keyspace, SelectStatement select)
     throws InvalidRequestException, TimedOutException, UnavailableException
     {
@@ -401,6 +403,14 @@ public class QueryProcessor
         }
     }
 
+    public static void validateKeyAlias(CFMetaData cfm, String key) throws InvalidRequestException
+    {
+        assert key.toUpperCase().equals(key); // should always be uppercased by caller
+        String realKeyAlias = bufferToString(cfm.getKeyName()).toUpperCase();
+        if (!realKeyAlias.equals(key))
+            throw new InvalidRequestException(String.format("Expected key '%s' to be present in WHERE clause for '%s'", key, cfm.cfName));
+    }
+
     private static void validateColumnNames(Iterable<ByteBuffer> columns)
     throws InvalidRequestException
     {
@@ -500,8 +510,15 @@ public class QueryProcessor
                 SelectStatement select = (SelectStatement)statement.statement;
                 clientState.hasColumnFamilyAccess(select.getColumnFamily(), Permission.READ);
                 metadata = validateColumnFamily(keyspace, select.getColumnFamily());
+
+                // need to do this in here because we need a CFMD.getKeyName()
+                select.extractKeyAliasFromColumns(metadata);
+
+                if (select.getKeys().size() > 0)
+                    validateKeyAlias(metadata, select.getKeyAlias());
+
                 validateSelect(keyspace, select);
-                
+
                 List<org.apache.cassandra.db.Row> rows;
 
                 // By-key
@@ -968,5 +985,17 @@ public class QueryProcessor
         }
 
         throw new SchemaDisagreementException();
+    }
+
+    private static String bufferToString(ByteBuffer string)
+    {
+        try
+        {
+            return ByteBufferUtil.string(string);
+        }
+        catch (CharacterCodingException e)
+        {
+            throw new RuntimeException(e.getMessage(), e);
+        }
     }
 }
