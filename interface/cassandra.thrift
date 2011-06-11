@@ -387,7 +387,6 @@ struct CfDef {
     18: optional i32 max_compaction_threshold,
     19: optional i32 row_cache_save_period_in_seconds,
     20: optional i32 key_cache_save_period_in_seconds,
-    21: optional i32 memtable_flush_after_mins,
     22: optional i32 memtable_throughput_in_mb,
     23: optional double memtable_operations_in_millions,
     24: optional bool replicate_on_write,

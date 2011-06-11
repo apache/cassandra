@@ -62,7 +62,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
   private static final org.apache.thrift.protocol.TField MAX_COMPACTION_THRESHOLD_FIELD_DESC = new org.apache.thrift.protocol.TField("max_compaction_threshold", org.apache.thrift.protocol.TType.I32, (short)18);
   private static final org.apache.thrift.protocol.TField ROW_CACHE_SAVE_PERIOD_IN_SECONDS_FIELD_DESC = new org.apache.thrift.protocol.TField("row_cache_save_period_in_seconds", org.apache.thrift.protocol.TType.I32, (short)19);
   private static final org.apache.thrift.protocol.TField KEY_CACHE_SAVE_PERIOD_IN_SECONDS_FIELD_DESC = new org.apache.thrift.protocol.TField("key_cache_save_period_in_seconds", org.apache.thrift.protocol.TType.I32, (short)20);
-  private static final org.apache.thrift.protocol.TField MEMTABLE_FLUSH_AFTER_MINS_FIELD_DESC = new org.apache.thrift.protocol.TField("memtable_flush_after_mins", org.apache.thrift.protocol.TType.I32, (short)21);
   private static final org.apache.thrift.protocol.TField MEMTABLE_THROUGHPUT_IN_MB_FIELD_DESC = new org.apache.thrift.protocol.TField("memtable_throughput_in_mb", org.apache.thrift.protocol.TType.I32, (short)22);
   private static final org.apache.thrift.protocol.TField MEMTABLE_OPERATIONS_IN_MILLIONS_FIELD_DESC = new org.apache.thrift.protocol.TField("memtable_operations_in_millions", org.apache.thrift.protocol.TType.DOUBLE, (short)23);
   private static final org.apache.thrift.protocol.TField REPLICATE_ON_WRITE_FIELD_DESC = new org.apache.thrift.protocol.TField("replicate_on_write", org.apache.thrift.protocol.TType.BOOL, (short)24);
@@ -90,7 +89,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
   public int max_compaction_threshold;
   public int row_cache_save_period_in_seconds;
   public int key_cache_save_period_in_seconds;
-  public int memtable_flush_after_mins;
   public int memtable_throughput_in_mb;
   public double memtable_operations_in_millions;
   public boolean replicate_on_write;
@@ -120,7 +118,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     MAX_COMPACTION_THRESHOLD((short)18, "max_compaction_threshold"),
     ROW_CACHE_SAVE_PERIOD_IN_SECONDS((short)19, "row_cache_save_period_in_seconds"),
     KEY_CACHE_SAVE_PERIOD_IN_SECONDS((short)20, "key_cache_save_period_in_seconds"),
-    MEMTABLE_FLUSH_AFTER_MINS((short)21, "memtable_flush_after_mins"),
     MEMTABLE_THROUGHPUT_IN_MB((short)22, "memtable_throughput_in_mb"),
     MEMTABLE_OPERATIONS_IN_MILLIONS((short)23, "memtable_operations_in_millions"),
     REPLICATE_ON_WRITE((short)24, "replicate_on_write"),
@@ -178,8 +175,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
           return ROW_CACHE_SAVE_PERIOD_IN_SECONDS;
         case 20: // KEY_CACHE_SAVE_PERIOD_IN_SECONDS
           return KEY_CACHE_SAVE_PERIOD_IN_SECONDS;
-        case 21: // MEMTABLE_FLUSH_AFTER_MINS
-          return MEMTABLE_FLUSH_AFTER_MINS;
         case 22: // MEMTABLE_THROUGHPUT_IN_MB
           return MEMTABLE_THROUGHPUT_IN_MB;
         case 23: // MEMTABLE_OPERATIONS_IN_MILLIONS
@@ -247,12 +242,11 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
   private static final int __MAX_COMPACTION_THRESHOLD_ISSET_ID = 6;
   private static final int __ROW_CACHE_SAVE_PERIOD_IN_SECONDS_ISSET_ID = 7;
   private static final int __KEY_CACHE_SAVE_PERIOD_IN_SECONDS_ISSET_ID = 8;
-  private static final int __MEMTABLE_FLUSH_AFTER_MINS_ISSET_ID = 9;
-  private static final int __MEMTABLE_THROUGHPUT_IN_MB_ISSET_ID = 10;
-  private static final int __MEMTABLE_OPERATIONS_IN_MILLIONS_ISSET_ID = 11;
-  private static final int __REPLICATE_ON_WRITE_ISSET_ID = 12;
-  private static final int __MERGE_SHARDS_CHANCE_ISSET_ID = 13;
-  private BitSet __isset_bit_vector = new BitSet(14);
+  private static final int __MEMTABLE_THROUGHPUT_IN_MB_ISSET_ID = 9;
+  private static final int __MEMTABLE_OPERATIONS_IN_MILLIONS_ISSET_ID = 10;
+  private static final int __REPLICATE_ON_WRITE_ISSET_ID = 11;
+  private static final int __MERGE_SHARDS_CHANCE_ISSET_ID = 12;
+  private BitSet __isset_bit_vector = new BitSet(13);
 
   public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
   static {
@@ -291,8 +285,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     tmpMap.put(_Fields.ROW_CACHE_SAVE_PERIOD_IN_SECONDS, new org.apache.thrift.meta_data.FieldMetaData("row_cache_save_period_in_seconds", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
         new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32)));
     tmpMap.put(_Fields.KEY_CACHE_SAVE_PERIOD_IN_SECONDS, new org.apache.thrift.meta_data.FieldMetaData("key_cache_save_period_in_seconds", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
-        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32)));
-    tmpMap.put(_Fields.MEMTABLE_FLUSH_AFTER_MINS, new org.apache.thrift.meta_data.FieldMetaData("memtable_flush_after_mins", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
         new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32)));
     tmpMap.put(_Fields.MEMTABLE_THROUGHPUT_IN_MB, new org.apache.thrift.meta_data.FieldMetaData("memtable_throughput_in_mb", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
         new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32)));
@@ -385,7 +377,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     this.max_compaction_threshold = other.max_compaction_threshold;
     this.row_cache_save_period_in_seconds = other.row_cache_save_period_in_seconds;
     this.key_cache_save_period_in_seconds = other.key_cache_save_period_in_seconds;
-    this.memtable_flush_after_mins = other.memtable_flush_after_mins;
     this.memtable_throughput_in_mb = other.memtable_throughput_in_mb;
     this.memtable_operations_in_millions = other.memtable_operations_in_millions;
     this.replicate_on_write = other.replicate_on_write;
@@ -454,8 +445,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     this.row_cache_save_period_in_seconds = 0;
     setKey_cache_save_period_in_secondsIsSet(false);
     this.key_cache_save_period_in_seconds = 0;
-    setMemtable_flush_after_minsIsSet(false);
-    this.memtable_flush_after_mins = 0;
     setMemtable_throughput_in_mbIsSet(false);
     this.memtable_throughput_in_mb = 0;
     setMemtable_operations_in_millionsIsSet(false);
@@ -886,29 +875,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     __isset_bit_vector.set(__KEY_CACHE_SAVE_PERIOD_IN_SECONDS_ISSET_ID, value);
   }
 
-  public int getMemtable_flush_after_mins() {
-    return this.memtable_flush_after_mins;
-  }
-
-  public CfDef setMemtable_flush_after_mins(int memtable_flush_after_mins) {
-    this.memtable_flush_after_mins = memtable_flush_after_mins;
-    setMemtable_flush_after_minsIsSet(true);
-    return this;
-  }
-
-  public void unsetMemtable_flush_after_mins() {
-    __isset_bit_vector.clear(__MEMTABLE_FLUSH_AFTER_MINS_ISSET_ID);
-  }
-
-  /** Returns true if field memtable_flush_after_mins is set (has been assigned a value) and false otherwise */
-  public boolean isSetMemtable_flush_after_mins() {
-    return __isset_bit_vector.get(__MEMTABLE_FLUSH_AFTER_MINS_ISSET_ID);
-  }
-
-  public void setMemtable_flush_after_minsIsSet(boolean value) {
-    __isset_bit_vector.set(__MEMTABLE_FLUSH_AFTER_MINS_ISSET_ID, value);
-  }
-
   public int getMemtable_throughput_in_mb() {
     return this.memtable_throughput_in_mb;
   }
@@ -1280,14 +1246,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       }
       break;
 
-    case MEMTABLE_FLUSH_AFTER_MINS:
-      if (value == null) {
-        unsetMemtable_flush_after_mins();
-      } else {
-        setMemtable_flush_after_mins((Integer)value);
-      }
-      break;
-
     case MEMTABLE_THROUGHPUT_IN_MB:
       if (value == null) {
         unsetMemtable_throughput_in_mb();
@@ -1416,9 +1374,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     case KEY_CACHE_SAVE_PERIOD_IN_SECONDS:
       return new Integer(getKey_cache_save_period_in_seconds());
 
-    case MEMTABLE_FLUSH_AFTER_MINS:
-      return new Integer(getMemtable_flush_after_mins());
-
     case MEMTABLE_THROUGHPUT_IN_MB:
       return new Integer(getMemtable_throughput_in_mb());
 
@@ -1491,8 +1446,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       return isSetRow_cache_save_period_in_seconds();
     case KEY_CACHE_SAVE_PERIOD_IN_SECONDS:
       return isSetKey_cache_save_period_in_seconds();
-    case MEMTABLE_FLUSH_AFTER_MINS:
-      return isSetMemtable_flush_after_mins();
     case MEMTABLE_THROUGHPUT_IN_MB:
       return isSetMemtable_throughput_in_mb();
     case MEMTABLE_OPERATIONS_IN_MILLIONS:
@@ -1681,15 +1634,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
         return false;
     }
 
-    boolean this_present_memtable_flush_after_mins = true && this.isSetMemtable_flush_after_mins();
-    boolean that_present_memtable_flush_after_mins = true && that.isSetMemtable_flush_after_mins();
-    if (this_present_memtable_flush_after_mins || that_present_memtable_flush_after_mins) {
-      if (!(this_present_memtable_flush_after_mins && that_present_memtable_flush_after_mins))
-        return false;
-      if (this.memtable_flush_after_mins != that.memtable_flush_after_mins)
-        return false;
-    }
-
     boolean this_present_memtable_throughput_in_mb = true && this.isSetMemtable_throughput_in_mb();
     boolean that_present_memtable_throughput_in_mb = true && that.isSetMemtable_throughput_in_mb();
     if (this_present_memtable_throughput_in_mb || that_present_memtable_throughput_in_mb) {
@@ -1862,11 +1806,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     builder.append(present_key_cache_save_period_in_seconds);
     if (present_key_cache_save_period_in_seconds)
       builder.append(key_cache_save_period_in_seconds);
-
-    boolean present_memtable_flush_after_mins = true && (isSetMemtable_flush_after_mins());
-    builder.append(present_memtable_flush_after_mins);
-    if (present_memtable_flush_after_mins)
-      builder.append(memtable_flush_after_mins);
 
     boolean present_memtable_throughput_in_mb = true && (isSetMemtable_throughput_in_mb());
     builder.append(present_memtable_throughput_in_mb);
@@ -2090,16 +2029,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     }
     if (isSetKey_cache_save_period_in_seconds()) {
       lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.key_cache_save_period_in_seconds, typedOther.key_cache_save_period_in_seconds);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-    }
-    lastComparison = Boolean.valueOf(isSetMemtable_flush_after_mins()).compareTo(typedOther.isSetMemtable_flush_after_mins());
-    if (lastComparison != 0) {
-      return lastComparison;
-    }
-    if (isSetMemtable_flush_after_mins()) {
-      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.memtable_flush_after_mins, typedOther.memtable_flush_after_mins);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -2350,14 +2279,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
             org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
-        case 21: // MEMTABLE_FLUSH_AFTER_MINS
-          if (field.type == org.apache.thrift.protocol.TType.I32) {
-            this.memtable_flush_after_mins = iprot.readI32();
-            setMemtable_flush_after_minsIsSet(true);
-          } else { 
-            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
-          }
-          break;
         case 22: // MEMTABLE_THROUGHPUT_IN_MB
           if (field.type == org.apache.thrift.protocol.TType.I32) {
             this.memtable_throughput_in_mb = iprot.readI32();
@@ -2554,11 +2475,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     if (isSetKey_cache_save_period_in_seconds()) {
       oprot.writeFieldBegin(KEY_CACHE_SAVE_PERIOD_IN_SECONDS_FIELD_DESC);
       oprot.writeI32(this.key_cache_save_period_in_seconds);
-      oprot.writeFieldEnd();
-    }
-    if (isSetMemtable_flush_after_mins()) {
-      oprot.writeFieldBegin(MEMTABLE_FLUSH_AFTER_MINS_FIELD_DESC);
-      oprot.writeI32(this.memtable_flush_after_mins);
       oprot.writeFieldEnd();
     }
     if (isSetMemtable_throughput_in_mb()) {
@@ -2760,12 +2676,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       if (!first) sb.append(", ");
       sb.append("key_cache_save_period_in_seconds:");
       sb.append(this.key_cache_save_period_in_seconds);
-      first = false;
-    }
-    if (isSetMemtable_flush_after_mins()) {
-      if (!first) sb.append(", ");
-      sb.append("memtable_flush_after_mins:");
-      sb.append(this.memtable_flush_after_mins);
       first = false;
     }
     if (isSetMemtable_throughput_in_mb()) {
