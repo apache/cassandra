@@ -1185,3 +1185,90 @@ class TestCql(ThriftTester):
         assert_raises(cql.ProgrammingError,
                       cursor.execute,
                       "UPDATE CounterCF SET count_me = count_not_me + 2 WHERE key = 'counter1'")
+
+    def test_key_alias_support(self):
+        "should be possible to use alias instead of KEY keyword"
+        cursor = init()
+
+        cursor.execute("""
+               CREATE SCHEMA KeyAliasKeyspace WITH strategy_options:replication_factor = '1'
+                   AND strategy_class = 'SimpleStrategy';
+        """)
+        cursor.execute("USE KeyAliasKeyspace;")
+
+        # create a Column Family with key alias
+        cursor.execute("""
+            CREATE COLUMNFAMILY KeyAliasCF (
+                'id' varint PRIMARY KEY,
+                'username' text
+            ) WITH comment = 'shiny, new, cf' AND default_validation = ascii;
+        """)
+
+        # TODO: temporary (until this can be done with CQL).
+        ksdef = thrift_client.describe_keyspace("KeyAliasKeyspace")
+        cfdef = ksdef.cf_defs[0]
+
+        assert len(ksdef.cf_defs) == 1, \
+            "expected 1 column family total, found %d" % len(ksdef.cf_defs)
+        assert cfdef.key_alias == 'id', "expected 'id' alias, got %s" % cfdef.key_alias
+
+        # try do insert/update
+        cursor.execute("INSERT INTO KeyAliasCF (id, username) VALUES (1, jbellis)")
+
+        # check if we actually stored anything
+        cursor.execute("SELECT * FROM KeyAliasCF WHERE id = 1")
+        assert cursor.rowcount == 1, "expected 1 results, got %d" % cursor.rowcount
+        colnames = [col_d[0] for col_d in cursor.description]
+        assert len(colnames) == 2
+
+        r = cursor.fetchone()
+        assert len(r) == 2, "expected 2, got %d" % len(r)
+        assert r[0] == 1
+        assert r[1] == 'jbellis'
+
+        cursor.execute("UPDATE KeyAliasCF SET username = 'xedin' WHERE id = 2")
+
+        # check if we actually stored anything
+        cursor.execute("SELECT * FROM KeyAliasCF WHERE id = 2")
+        assert cursor.rowcount == 1, "expected 1 results, got %d" % cursor.rowcount
+        colnames = [col_d[0] for col_d in cursor.description]
+        assert len(colnames) == 2
+
+        r = cursor.fetchone()
+        assert len(r) == 2, "expected 2, got %d" % len(r)
+        assert r[0] == 2
+        assert r[1] == 'xedin'
+
+        # delete with key alias
+        cursor.execute("DELETE FROM KeyAliasCF WHERE id = 2")
+        # check if we actually stored anything
+        cursor.execute("SELECT * FROM KeyAliasCF WHERE id = 2")
+        assert cursor.rowcount == 1, "expected 1 results, got %d" % cursor.rowcount
+
+        r = cursor.fetchone()
+        assert len(r) == 1, "expected 1, got %s" % r
+        assert r[0] == 2, "expected id = 2, got %d" % r[0]
+
+        # if alias was set you can't use KEY keyword anymore
+        assert_raises(cql.ProgrammingError,
+                      cursor.execute,
+                      "INSERT INTO KeyAliasCF (KEY, username) VALUES (6, jbellis)")
+
+        assert_raises(cql.ProgrammingError,
+                      cursor.execute,
+                      "UPDATE KeyAliasCF SET username = 'xedin' WHERE KEY = 7")
+
+        assert_raises(cql.ProgrammingError,
+                      cursor.execute,
+                      "DELETE FROM KeyAliasCF WHERE KEY = 2")
+
+        assert_raises(cql.ProgrammingError,
+                      cursor.execute,
+                      "SELECT * FROM KeyAliasCF WHERE KEY = 2")
+
+        assert_raises(cql.ProgrammingError,
+                      cursor.execute,
+                      "SELECT * FROM KeyAliasCF WHERE KEY IN (1, 2)")
+
+        cursor.execute("USE Keyspace1")
+        cursor.execute("DROP KEYSPACE KeyAliasKeyspace")

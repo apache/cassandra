@@ -23,6 +23,7 @@ package org.apache.cassandra.cql;
 import java.nio.ByteBuffer;
 import java.util.List;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.thrift.ConsistencyLevel;
@@ -140,6 +141,16 @@ public class SelectStatement
     public boolean includeFinishKey()
     {
         return clause.includeFinishKey();
+    }
+
+    public String getKeyAlias()
+    {
+        return clause.getKeyAlias();
+    }
+
+    public void extractKeyAliasFromColumns(CFMetaData cfm)
+    {
+        clause.extractKeysFromColumns(cfm);
     }
 
     public AbstractType getComparator(String keyspace)

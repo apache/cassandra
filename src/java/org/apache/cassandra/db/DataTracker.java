@@ -38,7 +38,7 @@ import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.utils.Pair;
 
-public class DataTracker
+public class    DataTracker
 {
     private static final Logger logger = LoggerFactory.getLogger(DataTracker.class);
 

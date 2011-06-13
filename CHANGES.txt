@@ -9,6 +9,8 @@
    - ALTER COLUMNFAMILY (CASSANDRA-1709)
    - DROP INDEX (CASSANDRA-2617)
    - add SCHEMA/TABLE as aliases for KS/CF (CASSANDRA-2743)
+   - server handles wait-for-schema-agreement (CASSANDRA-2756)
+   - key alias support (CASSANDRA-2480)
  * add support for comparator parameters and a generic ReverseType
    (CASSANDRA-2355)
  * add CompositeType and DynamicCompositeType (CASSANDRA-2231)
@@ -49,6 +51,7 @@
  * fix removing columns and subcolumns that are supressed by a row or
    supercolumn tombstone during replica resolution (CASSANDRA-2590)
  * support sstable2json against snapshot sstables (CASSANDRA-2386)
+ * remove active-pull schema requests (CASSANDRA-2715)
 
 
 0.8.0-final

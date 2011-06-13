@@ -63,6 +63,10 @@ public class QueryProcessor
 {
     private static final Logger logger = LoggerFactory.getLogger(QueryProcessor.class);
 
+    private static final long timeLimitForSchemaAgreement = 10 * 1000;
+
+    public static final String DEFAULT_KEY_NAME = bufferToString(CFMetaData.DEFAULT_KEY_NAME);
+
     private static List<org.apache.cassandra.db.Row> getSlice(String keyspace, SelectStatement select)
     throws InvalidRequestException, TimedOutException, UnavailableException
     {
@@ -343,9 +347,9 @@ public class QueryProcessor
             throw new InvalidRequestException("No indexed columns present in by-columns clause with \"equals\" operator");
         }
     }
-    
+
     // Copypasta from o.a.c.thrift.CassandraDaemon
-    private static void applyMigrationOnStage(final Migration m) throws InvalidRequestException
+    private static void applyMigrationOnStage(final Migration m) throws SchemaDisagreementException, InvalidRequestException
     {
         Future<?> f = StageManager.getStage(Stage.MIGRATION).submit(new Callable<Object>()
         {
@@ -380,6 +384,8 @@ public class QueryProcessor
                 throw ex;
             }
         }
+
+        validateSchemaIsSettled();
     }
     
     public static void validateKey(ByteBuffer key) throws InvalidRequestException
@@ -395,6 +401,14 @@ public class QueryProcessor
             throw new InvalidRequestException("Key length of " + key.remaining() +
                                               " is longer than maximum of " + FBUtilities.MAX_UNSIGNED_SHORT);
         }
+    }
+
+    public static void validateKeyAlias(CFMetaData cfm, String key) throws InvalidRequestException
+    {
+        assert key.toUpperCase().equals(key); // should always be uppercased by caller
+        String realKeyAlias = bufferToString(cfm.getKeyName()).toUpperCase();
+        if (!realKeyAlias.equals(key))
+            throw new InvalidRequestException(String.format("Expected key '%s' to be present in WHERE clause for '%s'", key, cfm.cfName));
     }
 
     private static void validateColumnNames(Iterable<ByteBuffer> columns)
@@ -463,11 +477,15 @@ public class QueryProcessor
     // Copypasta from CassandraServer (where it is private).
     private static void validateSchemaAgreement() throws SchemaDisagreementException
     {
-        // unreachable hosts don't count towards disagreement
-        Map<String, List<String>> versions = Maps.filterKeys(StorageProxy.describeSchemaVersions(),
-                                                             Predicates.not(Predicates.equalTo(StorageProxy.UNREACHABLE)));
-        if (versions.size() > 1)
+       if (describeSchemaVersions().size() > 1)
             throw new SchemaDisagreementException();
+    }
+
+    private static Map<String, List<String>> describeSchemaVersions()
+    {
+        // unreachable hosts don't count towards disagreement
+        return Maps.filterKeys(StorageProxy.describeSchemaVersions(),
+                               Predicates.not(Predicates.equalTo(StorageProxy.UNREACHABLE)));
     }
 
     public static CqlResult process(String queryString, ClientState clientState)
@@ -492,8 +510,15 @@ public class QueryProcessor
                 SelectStatement select = (SelectStatement)statement.statement;
                 clientState.hasColumnFamilyAccess(select.getColumnFamily(), Permission.READ);
                 metadata = validateColumnFamily(keyspace, select.getColumnFamily());
+
+                // need to do this in here because we need a CFMD.getKeyName()
+                select.extractKeyAliasFromColumns(metadata);
+
+                if (select.getKeys().size() > 0)
+                    validateKeyAlias(metadata, select.getKeyAlias());
+
                 validateSelect(keyspace, select);
-                
+
                 List<org.apache.cassandra.db.Row> rows;
 
                 // By-key
@@ -939,5 +964,38 @@ public class QueryProcessor
         parser.throwLastRecognitionError();
         
         return statement;
+    }
+
+    private static void validateSchemaIsSettled() throws SchemaDisagreementException
+    {
+        long limit = System.currentTimeMillis() + timeLimitForSchemaAgreement;
+
+        outer:
+        while (limit - System.currentTimeMillis() >= 0)
+        {
+            String currentVersionId = DatabaseDescriptor.getDefsVersion().toString();
+            for (String version : describeSchemaVersions().keySet())
+            {
+                if (!version.equals(currentVersionId))
+                    continue outer;
+            }
+
+            // schemas agree
+            return;
+        }
+
+        throw new SchemaDisagreementException();
+    }
+
+    private static String bufferToString(ByteBuffer string)
+    {
+        try
+        {
+            return ByteBufferUtil.string(string);
+        }
+        catch (CharacterCodingException e)
+        {
+            throw new RuntimeException(e.getMessage(), e);
+        }
     }
 }

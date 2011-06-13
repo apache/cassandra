@@ -6,6 +6,7 @@ import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.migration.avro.ColumnDef;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 
@@ -78,7 +79,7 @@ public class UpdateColumnFamily extends Migration
         }
         DatabaseDescriptor.setTableDefinition(null, newVersion);
 
-        if (!clientMode)
+        if (!StorageService.instance.isClientMode())
         {
             Table table = Table.open(metadata.ksName);
             ColumnFamilyStore oldCfs = table.getColumnFamilyStore(metadata.cfName);

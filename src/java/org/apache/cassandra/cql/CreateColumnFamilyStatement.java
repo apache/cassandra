@@ -35,6 +35,7 @@ import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.thrift.InvalidRequestException;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
 /** A <code>CREATE COLUMNFAMILY</code> parsed from a CQL query statement. */
@@ -93,7 +94,8 @@ public class CreateColumnFamilyStatement
     private final Map<Term, String> columns = new HashMap<Term, String>();
     private final Map<String, String> properties = new HashMap<String, String>();
     private List<String> keyValidator = new ArrayList<String>();
-    
+    private ByteBuffer keyAlias = null;
+
     public CreateColumnFamilyStatement(String name)
     {
         this.name = name;
@@ -174,7 +176,14 @@ public class CreateColumnFamilyStatement
     {
         return keyValidator.get(0);
     }
-    
+
+    public void setKeyAlias(String alias)
+    {
+        // if we got KEY in input we don't need to set an alias
+        if (!alias.toUpperCase().equals("KEY"))
+            keyAlias = ByteBufferUtil.bytes(alias);
+    }
+
     /** Map a keyword to the corresponding value */
     public void addProperty(String name, String value)
     {
@@ -261,7 +270,8 @@ public class CreateColumnFamilyStatement
                    .mergeShardsChance(0.0)
                    .columnMetadata(getColumns(comparator))
                    .keyValidator(TypeParser.parse(comparators.get(getKeyType())))
-                   .rowCacheProvider(FBUtilities.newCacheProvider(getPropertyString(KW_ROW_CACHE_PROVIDER, CFMetaData.DEFAULT_ROW_CACHE_PROVIDER)));
+                   .rowCacheProvider(FBUtilities.newCacheProvider(getPropertyString(KW_ROW_CACHE_PROVIDER, CFMetaData.DEFAULT_ROW_CACHE_PROVIDER)))
+                   .keyAlias(keyAlias);
         }
         catch (ConfigurationException e)
         {

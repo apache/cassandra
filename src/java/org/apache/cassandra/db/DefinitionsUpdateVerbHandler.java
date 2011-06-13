@@ -37,9 +37,9 @@ import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.utils.UUIDGen;
 import org.apache.cassandra.utils.WrappedRunnable;
 
-public class DefinitionsUpdateResponseVerbHandler implements IVerbHandler
+public class DefinitionsUpdateVerbHandler implements IVerbHandler
 {
-    private static final Logger logger = LoggerFactory.getLogger(DefinitionsUpdateResponseVerbHandler.class);
+    private static final Logger logger = LoggerFactory.getLogger(DefinitionsUpdateVerbHandler.class);
 
     /** someone sent me their data definitions */
     public void doVerb(final Message message, String id)

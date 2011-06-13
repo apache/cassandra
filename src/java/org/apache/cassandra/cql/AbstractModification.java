@@ -20,13 +20,12 @@
  */
 package org.apache.cassandra.cql;
 
+import java.util.List;
+
 import org.apache.cassandra.db.IMutation;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.thrift.InvalidRequestException;
-
-import java.nio.ByteBuffer;
-import java.util.List;
 
 public abstract class AbstractModification
 {
@@ -36,18 +35,20 @@ public abstract class AbstractModification
     protected final ConsistencyLevel cLevel;
     protected final Long timestamp;
     protected final int timeToLive;
+    protected final String keyName;
 
-    public AbstractModification(String columnFamily, Attributes attrs)
+    public AbstractModification(String columnFamily, String keyAlias, Attributes attrs)
     {
-        this(columnFamily, attrs.getConsistencyLevel(), attrs.getTimestamp(), attrs.getTimeToLive());
+        this(columnFamily, keyAlias, attrs.getConsistencyLevel(), attrs.getTimestamp(), attrs.getTimeToLive());
     }
 
-    public AbstractModification(String columnFamily, ConsistencyLevel cLevel, Long timestamp, int timeToLive)
+    public AbstractModification(String columnFamily, String keyAlias, ConsistencyLevel cLevel, Long timestamp, int timeToLive)
     {
         this.columnFamily = columnFamily;
         this.cLevel = cLevel;
         this.timestamp = timestamp;
         this.timeToLive = timeToLive;
+        this.keyName = keyAlias.toUpperCase();
     }
 
     public String getColumnFamily()

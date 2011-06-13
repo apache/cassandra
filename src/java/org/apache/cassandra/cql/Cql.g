@@ -185,8 +185,9 @@ whereClause returns [WhereClause clause]
     }
     : first=relation { $clause = new WhereClause(first); } 
           (K_AND next=relation { $clause.and(next); })*
-      | K_KEY K_IN '(' f1=term { inClause.andKeyEquals(f1); }
-                      (',' fN=term { inClause.andKeyEquals(fN); } )* ')'
+      | key_alias=term { inClause.setKeyAlias(key_alias.getText()); }
+           K_IN '(' f1=term { inClause.andKeyEquals(f1); }
+                  (',' fN=term { inClause.andKeyEquals(fN); } )* ')'
         { $clause = inClause; }
     ;
 
@@ -212,12 +213,12 @@ insertStatement returns [UpdateStatement expr]
           List<Term> columnValues = new ArrayList<Term>();
       }
       K_INSERT K_INTO columnFamily=( IDENT | STRING_LITERAL | INTEGER )
-          '(' K_KEY    ( ',' column_name=term  { columnNames.add($column_name.item); } )+ ')'
+          '(' key_alias=term ( ',' column_name=term  { columnNames.add($column_name.item); } )+ ')'
         K_VALUES
           '(' key=term ( ',' column_value=term { columnValues.add($column_value.item); })+ ')'
         ( usingClause[attrs] )?
       {
-          return new UpdateStatement($columnFamily.text, columnNames, columnValues, Collections.singletonList(key), attrs);
+          return new UpdateStatement($columnFamily.text, key_alias.getText(), columnNames, columnValues, Collections.singletonList(key), attrs);
       }
     ;
 
@@ -298,11 +299,11 @@ updateStatement returns [UpdateStatement expr]
       K_UPDATE columnFamily=( IDENT | STRING_LITERAL | INTEGER )
           ( usingClause[attrs] )?
           K_SET termPairWithOperation[columns] (',' termPairWithOperation[columns])*
-          K_WHERE ( K_KEY '=' key=term { keyList = Collections.singletonList(key); }
-                    |
-                    K_KEY K_IN '(' keys=termList { keyList = $keys.items; } ')' )
+          K_WHERE ( key_alias=term ('=' key=term { keyList = Collections.singletonList(key); }
+                                    |
+                                    K_IN '(' keys=termList { keyList = $keys.items; } ')' ))
       {
-          return new UpdateStatement($columnFamily.text, columns, keyList, attrs);
+          return new UpdateStatement($columnFamily.text, key_alias.getText(), columns, keyList, attrs);
       }
     ;
 
@@ -326,11 +327,11 @@ deleteStatement returns [DeleteStatement expr]
           ( cols=termList { columnsList = $cols.items; })?
           K_FROM columnFamily=( IDENT | STRING_LITERAL | INTEGER )
           ( K_USING K_CONSISTENCY K_LEVEL { cLevel = ConsistencyLevel.valueOf($K_LEVEL.text); } )?
-          K_WHERE ( K_KEY '=' key=term           { keyList = Collections.singletonList(key); }
-                  | K_KEY K_IN '(' keys=termList { keyList = $keys.items; } ')'
+          K_WHERE ( key_alias=term ('=' key=term           { keyList = Collections.singletonList(key); }
+                                   | K_IN '(' keys=termList { keyList = $keys.items; } ')')
                   )?
       {
-          return new DeleteStatement(columnsList, $columnFamily.text, cLevel, keyList);
+          return new DeleteStatement(columnsList, $columnFamily.text, key_alias.getText(), cLevel, keyList);
       }
     ;
 
@@ -366,7 +367,7 @@ createColumnFamilyStatement returns [CreateColumnFamilyStatement expr]
 
 createCfamColumns[CreateColumnFamilyStatement expr]
     : n=term v=createCfamColumnValidator { $expr.addColumn(n, $v.validator); }
-    | K_KEY v=createCfamColumnValidator K_PRIMARY K_KEY { $expr.setKeyType($v.validator); }
+    | k=term v=createCfamColumnValidator K_PRIMARY K_KEY { $expr.setKeyAlias(k.getText()); $expr.setKeyType($v.validator); }
     ;
 
 createCfamColumnValidator returns [String validator]
@@ -451,9 +452,8 @@ termPairWithOperation[Map<Term, Operation> columns]
 
 // Note: ranges are inclusive so >= and >, and < and <= all have the same semantics.  
 relation returns [Relation rel]
-    : { Term entity = new Term("KEY", STRING_LITERAL); }
-      (name=term { entity = $name.item; } ) type=('=' | '<' | '<=' | '>=' | '>') t=term
-      { return new Relation(entity, $type.text, $t.item); }
+    : name=term type=('=' | '<' | '<=' | '>=' | '>') t=term
+      { return new Relation($name.item, $type.text, $t.item); }
     ;
 
 // TRUNCATE <CF>;
