@@ -483,7 +483,7 @@ public class    DataTracker
 
         public View markCompacting(Collection<SSTableReader> tomark)
         {
-            Set<SSTableReader> compactingNew = ImmutableSet.<SSTableReader>builder().addAll(sstables).addAll(tomark).build();
+            Set<SSTableReader> compactingNew = ImmutableSet.<SSTableReader>builder().addAll(compacting).addAll(tomark).build();
             return new View(memtable, memtablesPendingFlush, sstables, compactingNew);
         }
 
