@@ -1135,8 +1135,6 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
   <classpathentry kind="src" path="src/java"/>
   <classpathentry kind="src" path="src/gen-java"/>
   <classpathentry kind="src" path="interface/thrift/gen-java"/>
-  <classpathentry kind="src" path="drivers/java/src"/>
-  <classpathentry kind="src" path="drivers/java/test"/>
   <classpathentry kind="src" path="test/unit"/>
   <classpathentry kind="src" path="test/long"/>
   <classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
