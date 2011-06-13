@@ -88,7 +88,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     public enum Verb
     {
         MUTATION,
-        BINARY,
+        BINARY, // Deprecated
         READ_REPAIR,
         READ,
         REQUEST_RESPONSE, // client-initiated reads and writes
@@ -235,7 +235,6 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         }
 
         /* register the verb handlers */
-        MessagingService.instance().registerVerbHandlers(Verb.BINARY, new BinaryVerbHandler());
         MessagingService.instance().registerVerbHandlers(Verb.MUTATION, new RowMutationVerbHandler());
         MessagingService.instance().registerVerbHandlers(Verb.READ_REPAIR, new ReadRepairVerbHandler());
         MessagingService.instance().registerVerbHandlers(Verb.READ, new ReadVerbHandler());
@@ -1460,8 +1459,6 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     {
         for (ColumnFamilyStore cfStore : getValidColumnFamilies(tableName, columnFamilies))
         {
-            logger_.debug("Forcing binary flush on keyspace " + tableName + ", CF " + cfStore.getColumnFamilyName());
-            cfStore.forceFlushBinary();
             logger_.debug("Forcing flush on keyspace " + tableName + ", CF " + cfStore.getColumnFamilyName());
             cfStore.forceBlockingFlush();
         }

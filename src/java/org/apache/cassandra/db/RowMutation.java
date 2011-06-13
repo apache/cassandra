@@ -215,15 +215,6 @@ public class RowMutation implements IMutation, MessageProducer
         Table.open(table_).apply(this, false);
     }
 
-    /*
-     * This is equivalent to calling commit. Applies the changes to
-     * to the table that is obtained by calling Table.open().
-     */
-    void applyBinary() throws IOException, ExecutionException, InterruptedException
-    {
-        Table.open(table_).load(this);
-    }
-
     public Message getMessage(Integer version) throws IOException
     {
         return makeRowMutationMessage(StorageService.Verb.MUTATION, version);

@@ -25,7 +25,6 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.regex.Pattern;
@@ -74,13 +73,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private static Logger logger = LoggerFactory.getLogger(ColumnFamilyStore.class);
 
     /*
-     * submitFlush first puts [Binary]Memtable.getSortedContents on the flushSorter executor,
-     * which then puts the sorted results on the writer executor.  This is because sorting is CPU-bound,
-     * and writing is disk-bound; we want to be able to do both at once.  When the write is complete,
+     * maybeSwitchMemtable puts Memtable.getSortedContents on the writer executor.  When the write is complete,
      * we turn the writer into an SSTableReader and add it to ssTables_ where it is available for reads.
      *
-     * For BinaryMemtable that's about all that happens.  For live Memtables there are two other things
-     * that switchMemtable does (which should be the only caller of submitFlush in this case).
+     * There are two other things that maybeSwitchMemtable does.
      * First, it puts the Memtable into memtablesPendingFlush, where it stays until the flush is complete
      * and it's been added as an SSTableReader to ssTables_.  Second, it adds an entry to commitLogUpdater
      * that waits for the flush to complete, then calls onMemtableFlush.  This allows multiple flushes
@@ -88,13 +84,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * which is necessary for replay in case of a restart since CommitLog assumes that when onMF is
      * called, all data up to the given context has been persisted to SSTables.
      */
-    private static final ExecutorService flushSorter
-            = new JMXEnabledThreadPoolExecutor(Runtime.getRuntime().availableProcessors(),
-                                               StageManager.KEEPALIVE,
-                                               TimeUnit.SECONDS,
-                                               new LinkedBlockingQueue<Runnable>(Runtime.getRuntime().availableProcessors()),
-                                               new NamedThreadFactory("FlushSorter"),
-                                               "internal");
     private static final ExecutorService flushWriter
             = new JMXEnabledThreadPoolExecutor(DatabaseDescriptor.getFlushWriters(),
                                                StageManager.KEEPALIVE,
@@ -135,9 +124,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private AtomicInteger fileIndexGenerator = new AtomicInteger(0);
 
     private final ConcurrentSkipListMap<ByteBuffer, ColumnFamilyStore> indexedColumns;
-
-    // TODO binarymemtable ops are not threadsafe (do they need to be?)
-    private AtomicReference<BinaryMemtable> binaryMemtable;
 
     private LatencyTracker readStats = new LatencyTracker();
     private LatencyTracker writeStats = new LatencyTracker();
@@ -256,7 +242,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         this.keyCacheSaveInSeconds = new DefaultInteger(metadata.getKeyCacheSavePeriodInSeconds());
         this.partitioner = partitioner;
         fileIndexGenerator.set(generation);
-        binaryMemtable = new AtomicReference<BinaryMemtable>(new BinaryMemtable(this));
 
         if (logger.isDebugEnabled())
             logger.debug("Starting CFS {}", columnFamily);
@@ -657,7 +642,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
             final CountDownLatch latch = new CountDownLatch(icc.size());
             for (ColumnFamilyStore cfs : icc)
-                submitFlush(cfs.data.switchMemtable(), latch, ctx);
+            {
+                Memtable memtable = cfs.data.switchMemtable();
+                logger.info("Enqueuing flush of {}", memtable);
+                memtable.flushAndSignal(latch, flushWriter, ctx);
+            }
 
             // we marked our memtable as frozen as part of the concurrency control,
             // so even if there was nothing to flush we need to switch it out
@@ -698,13 +687,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                : DatabaseDescriptor.getCFMetaData(metadata.cfId) == null;
     }
 
-    void switchBinaryMemtable(DecoratedKey key, ByteBuffer buffer)
-    {
-        binaryMemtable.set(new BinaryMemtable(this));
-        binaryMemtable.get().put(key, buffer);
-    }
-
-
     public Future<?> forceFlush()
     {
         // during index build, 2ary index memtables can be dirty even if parent is not.  if so,
@@ -727,14 +709,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         Future<?> future = forceFlush();
         if (future != null)
             future.get();
-    }
-
-    public void forceFlushBinary()
-    {
-        if (binaryMemtable.get().isClean())
-            return;
-
-        submitFlush(binaryMemtable.get(), new CountDownLatch(1), null);
     }
 
     public void updateRowCache(DecoratedKey key, ColumnFamily columnFamily)
@@ -785,20 +759,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
 
         return flushRequested ? mt : null;
-    }
-
-    /*
-     * Insert/Update the column family for this key. param @ lock - lock that
-     * Caller is responsible for acquiring Table.flusherLock!
-     * param @ lock - lock that needs to be used.
-     * needs to be used. param @ key - key for update/insert param @
-     * columnFamily - columnFamily changes
-     */
-    void applyBinary(DecoratedKey key, ByteBuffer buffer)
-    {
-        long start = System.nanoTime();
-        binaryMemtable.get().put(key, buffer);
-        writeStats.addNano(System.nanoTime() - start);
     }
 
     public static ColumnFamily removeDeletedCF(ColumnFamily cf, int gcBefore)
@@ -990,21 +950,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             indexedCfs.removeAllSSTables();
         }
-    }
-
-    /**
-     * submits flush sort on the flushSorter executor, which will in turn submit to flushWriter when sorted.
-     * TODO because our executors use CallerRunsPolicy, when flushSorter fills up, no writes will proceed
-     * because the next flush will start executing on the caller, mutation-stage thread that has the
-     * flush write lock held.  (writes aquire this as a read lock before proceeding.)
-     * This is good, because it backpressures flushes, but bad, because we can't write until that last
-     * flushing thread finishes sorting, which will almost always be longer than any of the flushSorter threads proper
-     * (since, by definition, it started last).
-     */
-    void submitFlush(IFlushable flushable, CountDownLatch latch, ReplayPosition context)
-    {
-        logger.info("Enqueuing flush of {}", flushable);
-        flushable.flushAndSignal(latch, flushSorter, flushWriter, context);
     }
 
     public long getMemtableColumnsCount()

@@ -669,21 +669,6 @@ public class Table
         return futures;
     }
 
-    // for binary load path.  skips commitlog.
-    void load(RowMutation rowMutation) throws IOException
-    {
-        DecoratedKey<?> key = StorageService.getPartitioner().decorateKey(rowMutation.key());
-        for (ColumnFamily columnFamily : rowMutation.getColumnFamilies())
-        {
-            Collection<IColumn> columns = columnFamily.getSortedColumns();
-            for (IColumn column : columns)
-            {
-                ColumnFamilyStore cfStore = columnFamilyStores.get(ByteBufferUtil.toInt(column.name()));
-                cfStore.applyBinary(key, column.value());
-            }
-        }
-    }
-
     public String getDataFileLocation(long expectedSize)
     {
         String path = DatabaseDescriptor.getDataFileLocationForTable(name, expectedSize);

@@ -1,3 +1,12 @@
+1.0
+===
+
+Upgrading
+---------
+    - the BinaryMemtable bulk-load interface has been removed. Use the
+      sstableloader tool instead.
+
+
 0.8
 ===
 

@@ -937,11 +937,6 @@ public class DatabaseDescriptor
         return conf.sliced_buffer_size_in_kb;
     }
 
-    public static int getBMTThreshold()
-    {
-        return conf.binary_memtable_throughput_in_mb;
-    }
-
     public static int getCompactionThreadPriority()
     {
         return conf.compaction_thread_priority;

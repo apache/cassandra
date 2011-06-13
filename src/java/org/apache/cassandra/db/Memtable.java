@@ -46,7 +46,7 @@ import org.apache.cassandra.io.sstable.SSTableWriter;
 import org.apache.cassandra.utils.WrappedRunnable;
 import org.github.jamm.MemoryMeter;
 
-public class Memtable implements Comparable<Memtable>, IFlushable
+public class Memtable implements Comparable<Memtable>
 {
     private static final Logger logger = LoggerFactory.getLogger(Memtable.class);
 
@@ -256,7 +256,7 @@ public class Memtable implements Comparable<Memtable>, IFlushable
         return ssTable;
     }
 
-    public void flushAndSignal(final CountDownLatch latch, ExecutorService sorter, final ExecutorService writer, final ReplayPosition context)
+    public void flushAndSignal(final CountDownLatch latch, ExecutorService writer, final ReplayPosition context)
     {
         writer.execute(new WrappedRunnable()
         {

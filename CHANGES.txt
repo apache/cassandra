@@ -1,3 +1,7 @@
+1.0-dev
+ * removed binarymemtable (CASSANDRA-2692)
+
+
 0.8.1
  * CQL:
    - support for insert, delete in BATCH (CASSANDRA-2537)
