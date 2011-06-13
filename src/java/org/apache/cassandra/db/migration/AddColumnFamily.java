@@ -8,6 +8,7 @@ import java.util.Map;
 
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.Table;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 
@@ -88,7 +89,7 @@ public class AddColumnFamily extends Migration
         DatabaseDescriptor.setTableDefinition(ksm, newVersion);
         // these definitions could have come from somewhere else.
         CFMetaData.fixMaxId();
-        if (!clientMode)
+        if (!StorageService.instance.isClientMode())
             Table.open(ksm.name).initCf(cfm.cfId, cfm.cfName);
     }
 

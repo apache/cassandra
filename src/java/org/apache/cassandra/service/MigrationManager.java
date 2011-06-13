@@ -87,19 +87,15 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
     public static void rectify(UUID theirVersion, InetAddress endpoint)
     {
         UUID myVersion = DatabaseDescriptor.getDefsVersion();
-        if (theirVersion.timestamp() == myVersion.timestamp())
-            return;
-        else if (theirVersion.timestamp() > myVersion.timestamp())
-        {
-            logger.debug("My data definitions are old. Asking for updates since {}", myVersion.toString());
-            announce(myVersion, Collections.singleton(endpoint));
-        }
-        else if (!StorageService.instance.isClientMode())
+        if (theirVersion.timestamp() < myVersion.timestamp()
+            && !StorageService.instance.isClientMode())
         {
             if (lastPushed.get(endpoint) == null || theirVersion.timestamp() >= lastPushed.get(endpoint).timestamp())
             {
                 logger.debug("Schema on {} is old. Sending updates since {}", endpoint, theirVersion);
-                pushMigrations(theirVersion, myVersion, endpoint);
+                Collection<IColumn> migrations = Migration.getLocalMigrations(theirVersion, myVersion);
+                pushMigrations(endpoint, migrations);
+                lastPushed.put(endpoint, TimeUUIDType.instance.compose(Iterables.getLast(migrations).name()));
             }
             else
             {
@@ -109,28 +105,26 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
         }
     }
 
-    /** actively announce my version to a set of hosts via rpc.  They may culminate with them sending me migrations. */
-    public static void announce(final UUID version, Set<InetAddress> hosts)
+    private static void pushMigrations(InetAddress endpoint, Collection<IColumn> migrations)
     {
-        MessageProducer prod = new CachingMessageProducer(new MessageProducer() {
-            public Message getMessage(Integer protocolVersion) throws IOException
-            {
-                return makeVersionMessage(version, protocolVersion);
-            }
-        });
-        for (InetAddress host : hosts)
+        try
         {
-            try 
-            {
-                MessagingService.instance().sendOneWay(prod.getMessage(Gossiper.instance.getVersion(host)), host);
-            }
-            catch (IOException ex)
-            {
-                // happened during message serialization.
-                throw new IOError(ex);
-            }
+            Message msg = makeMigrationMessage(migrations, Gossiper.instance.getVersion(endpoint));
+            MessagingService.instance().sendOneWay(msg, endpoint);
         }
-        passiveAnnounce(version);
+        catch (IOException ex)
+        {
+            throw new IOError(ex);
+        }
+    }
+
+    /** actively announce a new version to active hosts via rpc */
+    public static void announce(IColumn column)
+    {
+
+        Collection<IColumn> migrations = Collections.singleton(column);
+        for (InetAddress endpoint : Gossiper.instance.getLiveMembers())
+            pushMigrations(endpoint, migrations);
     }
 
     /** announce my version passively over gossip **/
@@ -138,7 +132,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
     {
         // this is for notifying nodes as they arrive in the cluster.
         Gossiper.instance.addLocalApplicationState(ApplicationState.SCHEMA, StorageService.instance.valueFactory.migration(version));
-        logger.debug("Announcing my schema is " + version);
+        logger.debug("Gossiping my schema version " + version);
     }
 
     /**
@@ -197,30 +191,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
         }
         passiveAnnounce(to); // we don't need to send rpcs, but we need to update gossip
     }
-    
-    /** pushes migrations from this host to another host */
-    public static void pushMigrations(UUID from, UUID to, InetAddress host)
-    {
-        // I want all the rows from theirVersion through myVersion.
-        Collection<IColumn> migrations = Migration.getLocalMigrations(from, to);
-        try
-        {
-            Message msg = makeMigrationMessage(migrations, Gossiper.instance.getVersion(host));
-            MessagingService.instance().sendOneWay(msg, host);
-            lastPushed.put(host, TimeUUIDType.instance.compose(Iterables.getLast(migrations).name()));
-        }
-        catch (IOException ex)
-        {
-            throw new IOError(ex);
-        }
-    }
-    
-    private static Message makeVersionMessage(UUID version, int protocolVersion)
-    {
-        byte[] body = version.toString().getBytes();
-        return new Message(FBUtilities.getLocalAddress(), StorageService.Verb.DEFINITIONS_ANNOUNCE, body, protocolVersion);
-    }
-    
+
     // other half of transformation is in DefinitionsUpdateResponseVerbHandler.
     private static Message makeMigrationMessage(Collection<IColumn> migrations, int version) throws IOException
     {
@@ -241,7 +212,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
         }
         dout.close();
         byte[] body = bout.toByteArray();
-        return new Message(FBUtilities.getLocalAddress(), StorageService.Verb.DEFINITIONS_UPDATE_RESPONSE, body, version);
+        return new Message(FBUtilities.getLocalAddress(), StorageService.Verb.DEFINITIONS_UPDATE, body, version);
     }
     
     // other half of this transformation is in MigrationManager.
