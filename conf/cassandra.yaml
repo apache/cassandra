@@ -150,8 +150,9 @@ concurrent_writes: 32
 # memtable_total_space_in_mb: 2048
 
 # Total space to use for commitlogs. 
-# if space gets above this value, Cassandra will flush every dirty CF 
-# in the oldest segment and remove it.
+# If space gets above this value (it will round up to the next nearest
+# segment multiple), Cassandra will flush every dirty CF in the oldest
+# segment and remove it.
 # commitlog_total_space_in_mb: 4096
 
 # This sets the amount of memtable flush writer threads.  These will
