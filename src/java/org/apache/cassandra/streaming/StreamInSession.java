@@ -24,6 +24,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.LinkedBlockingQueue;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,6 +36,7 @@ import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.Pair;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
+import org.cliffc.high_scale_lib.NonBlockingHashSet;
 
 /** each context gets its own StreamInSession. So there may be >1 Session per host */
 public class StreamInSession
@@ -43,11 +45,11 @@ public class StreamInSession
 
     private static ConcurrentMap<Pair<InetAddress, Long>, StreamInSession> sessions = new NonBlockingHashMap<Pair<InetAddress, Long>, StreamInSession>();
 
-    private final List<PendingFile> files = new ArrayList<PendingFile>();
+    private final Set<PendingFile> files = new NonBlockingHashSet<PendingFile>();
     private final Pair<InetAddress, Long> context;
     private final Runnable callback;
     private String table;
-    private final List<Future<SSTableReader>> buildFutures = new ArrayList<Future<SSTableReader>>();
+    private final Collection<Future<SSTableReader>> buildFutures = new LinkedBlockingQueue<Future<SSTableReader>>();
     private PendingFile current;
 
     private StreamInSession(Pair<InetAddress, Long> context, Runnable callback)
