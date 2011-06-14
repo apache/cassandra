@@ -56,6 +56,7 @@
    supercolumn tombstone during replica resolution (CASSANDRA-2590)
  * support sstable2json against snapshot sstables (CASSANDRA-2386)
  * remove active-pull schema requests (CASSANDRA-2715)
+ * seek back after deserializing a row to update cache with (CASSANDRA-2752)
 
 
 0.8.0-final
