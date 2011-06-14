@@ -410,8 +410,10 @@ public class SSTableWriter extends SSTable
                             if (row == null)
                             {
                                 // If not provided, read from disk.
+                                long position = dfile.getFilePointer();
                                 cf = ColumnFamily.create(cfs.metadata);
                                 ColumnFamily.serializer().deserializeColumns(dfile, cf, true, true);
+                                dfile.seek(position);
                             }
                             else
                             {

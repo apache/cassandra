@@ -51,6 +51,7 @@
  * remove active-pull schema requests (CASSANDRA-2715)
  * avoid marking entire list of sstables as actively being compacted
    in multithreaded compaction (CASSANDRA-2765)
+ * seek back after deserializing a row to update cache with (CASSANDRA-2752)
 
 
 0.8.0-final
