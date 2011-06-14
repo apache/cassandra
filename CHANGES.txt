@@ -53,6 +53,8 @@
    in multithreaded compaction (CASSANDRA-2765)
  * seek back after deserializing a row to update cache with (CASSANDRA-2752)
  * avoid skipping rows in scrub for counter column family (CASSANDRA-2759)
+ * fix ConcurrentModificationException in repair when dealing with 0.7 node
+   (CASSANDRA-2767)
 
 
 0.8.0-final
