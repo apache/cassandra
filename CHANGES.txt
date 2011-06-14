@@ -162,7 +162,8 @@
  * add key type information and alias (CASSANDRA-2311, 2396)
  * cli no longer divides read_repair_chance by 100 (CASSANDRA-2458)
  * made CompactionInfo.getTaskType return an enum (CASSANDRA-2482)
- * add a server-wide cap on measured memtable memory usage (CASSANDRA-2006)
+ * add a server-wide cap on measured memtable memory usage and aggressively
+   flush to keep under that threshold (CASSANDRA-2006)
  * add unified UUIDType (CASSANDRA-2233)
 
 
