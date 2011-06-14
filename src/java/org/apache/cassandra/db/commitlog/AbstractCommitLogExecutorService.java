@@ -32,27 +32,6 @@ public abstract class AbstractCommitLogExecutorService extends AbstractExecutorS
 {
     protected volatile long completedTaskCount = 0;
 
-    protected static void registerMBean(Object o)
-    {
-        MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
-        try
-        {
-            mbs.registerMBean(o, new ObjectName("org.apache.cassandra.db:type=Commitlog"));
-        }
-        catch (Exception e)
-        {
-            throw new RuntimeException(e);
-        }
-    }
-
-    /**
-     * Get the current number of running tasks
-     */
-    public int getActiveCount()
-    {
-        return 1;
-    }
-
     /**
      * Get the number of completed tasks
      */

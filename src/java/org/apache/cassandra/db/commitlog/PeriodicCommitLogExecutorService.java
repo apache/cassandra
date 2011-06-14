@@ -27,7 +27,7 @@ import java.util.concurrent.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.WrappedRunnable;
 
-class PeriodicCommitLogExecutorService implements ICommitLogExecutorService, PeriodicCommitLogExecutorServiceMBean
+class PeriodicCommitLogExecutorService implements ICommitLogExecutorService
 {
     private final BlockingQueue<Runnable> queue;
     protected volatile long completedTaskCount = 0;
@@ -87,7 +87,6 @@ class PeriodicCommitLogExecutorService implements ICommitLogExecutorService, Per
             }
         }, "PERIODIC-COMMIT-LOG-SYNCER").start();
 
-        AbstractCommitLogExecutorService.registerMBean(this);
     }
 
     public void add(CommitLog.LogRecordAdder adder)
@@ -140,13 +139,9 @@ class PeriodicCommitLogExecutorService implements ICommitLogExecutorService, Per
         return queue.size();
     }
 
-    public int getActiveCount()
-    {
-        return 1;
-    }
-
     public long getCompletedTasks()
     {
         return completedTaskCount;
     }
+
 }

@@ -47,7 +47,7 @@ public class CommitLogSegment
     private final BufferedRandomAccessFile logWriter;
 
     // cache which cf is dirty in this segment to avoid having to lookup all ReplayPositions to decide if we could delete this segment
-    private Set<Integer> cfDirty = new HashSet<Integer>();
+    public final Set<Integer> cfDirty = new HashSet<Integer>();
 
     public CommitLogSegment()
     {
@@ -196,5 +196,4 @@ public class CommitLogSegment
     {
         return "CommitLogSegment(" + logWriter.getPath() + ')';
     }
-
 }

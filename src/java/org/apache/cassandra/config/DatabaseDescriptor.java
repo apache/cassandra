@@ -1075,4 +1075,9 @@ public class DatabaseDescriptor
     {
         return conf.memtable_total_space_in_mb > 0;
     }
+
+    public static long getTotalCommitlogSpaceInMB()
+    {
+        return conf.commitlog_total_space_in_mb;
+    }
 }

@@ -29,8 +29,19 @@ import org.apache.cassandra.concurrent.IExecutorMBean;
 /**
  * Like ExecutorService, but customized for batch and periodic commitlog execution.
  */
-public interface ICommitLogExecutorService extends IExecutorMBean
+public interface ICommitLogExecutorService
 {
+    /**
+     * Get the number of completed tasks
+     */
+    public long getCompletedTasks();
+
+    /**
+     * Get the number of tasks waiting to be executed
+     */
+    public long getPendingTasks();
+
+
     public <T> Future<T> submit(Callable<T> task);
 
     /**

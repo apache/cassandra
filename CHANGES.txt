@@ -1,5 +1,6 @@
 1.0-dev
  * removed binarymemtable (CASSANDRA-2692)
+ * add commitlog_total_space_in_mb to prevent fragmented logs (CASSANDRA-2427)
 
 
 0.8.1

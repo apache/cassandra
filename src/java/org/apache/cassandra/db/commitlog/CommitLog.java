@@ -19,6 +19,7 @@
 package org.apache.cassandra.db.commitlog;
 
 import java.io.*;
+import java.lang.management.ManagementFactory;
 import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
@@ -27,11 +28,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
-import com.google.common.collect.Iterables;
 import com.google.common.collect.Ordering;
 
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
@@ -48,6 +47,9 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.WrappedRunnable;
+
+import javax.management.MBeanServer;
+import javax.management.ObjectName;
 
 /*
  * Commit Log tracks every write operation into the system. The aim
@@ -77,7 +79,7 @@ import org.apache.cassandra.utils.WrappedRunnable;
  * means that either the CF was clean in the old CL or it has been flushed since the
  * switch in the new.)
  */
-public class CommitLog
+public class CommitLog implements CommitLogMBean
 {
     private static final int MAX_OUTSTANDING_REPLAY_COUNT = 1024;
     
@@ -116,6 +118,16 @@ public class CommitLog
         executor = DatabaseDescriptor.getCommitLogSync() == Config.CommitLogSync.batch
                  ? new BatchCommitLogExecutorService()
                  : new PeriodicCommitLogExecutorService(this);
+
+        MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
+        try
+        {
+            mbs.registerMBean(this, new ObjectName("org.apache.cassandra.db:type=Commitlog"));
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
     public void resetUnsafe()
@@ -480,6 +492,36 @@ public class CommitLog
         currentSegment().sync();
     }
 
+    /**
+     * @return the total size occupied by the commitlog segments expressed in bytes.
+     */
+    public long getSize()
+    {
+        long commitlogTotalSize = 0;
+
+        for (CommitLogSegment segment : segments)
+        {
+            commitlogTotalSize += segment.length();
+        }
+
+        return commitlogTotalSize;
+    }
+
+    public long getCompletedTasks()
+    {
+        return executor.getCompletedTasks();
+    }
+
+    public long getPendingTasks()
+    {
+        return executor.getPendingTasks();
+    }
+
+    public long getTotalCommitlogSize()
+    {
+        return getSize();
+    }
+
     // TODO this should be a Runnable since it doesn't actually return anything, but it's difficult to do that
     // without breaking the fragile CheaterFutureTask in BatchCLES.
     class LogRecordAdder implements Callable, Runnable
@@ -501,6 +543,19 @@ public class CommitLog
                 {
                     sync();
                     segments.add(new CommitLogSegment());
+
+                    // Maintain desired CL size cap
+                    if (getSize() >= DatabaseDescriptor.getTotalCommitlogSpaceInMB() * 1024 * 1024)
+                    {
+                        // Force a flush on all CFs keeping the oldest segment from being removed
+                        CommitLogSegment oldestSegment = segments.peek();
+                        assert oldestSegment != null; // has to be at least the one we just added
+                        for (Integer dirtyCFId : oldestSegment.cfDirty)
+                        {
+                            String keypace = CFMetaData.getCF(dirtyCFId).left;
+                            Table.open(keypace).getColumnFamilyStore(dirtyCFId).forceFlush();
+                        }
+                    }
                 }
             }
             catch (IOException e)

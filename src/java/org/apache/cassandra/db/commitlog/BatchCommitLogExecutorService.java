@@ -28,7 +28,7 @@ import java.util.concurrent.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.WrappedRunnable;
 
-class BatchCommitLogExecutorService extends AbstractCommitLogExecutorService implements ICommitLogExecutorService, BatchCommitLogExecutorServiceMBean
+class BatchCommitLogExecutorService extends AbstractCommitLogExecutorService
 {
     private final BlockingQueue<CheaterFutureTask> queue;
     private final Thread appendingThread;
@@ -56,7 +56,6 @@ class BatchCommitLogExecutorService extends AbstractCommitLogExecutorService imp
         appendingThread = new Thread(runnable, "COMMIT-LOG-WRITER");
         appendingThread.start();
 
-        registerMBean(this);
     }
 
     public long getPendingTasks()
@@ -194,4 +193,5 @@ class BatchCommitLogExecutorService extends AbstractCommitLogExecutorService imp
             super.set(v);
         }
     }
+
 }
