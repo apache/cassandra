@@ -445,6 +445,7 @@ public class CompactionManager implements CompactionManagerMBean
     {
         logger.info("Scrubbing " + sstable);
         CompactionController controller = new CompactionController(cfs, Collections.singletonList(sstable), getDefaultGcBefore(cfs), true);
+        boolean isCommutative = cfs.metadata.getDefaultValidator().isCommutative();
 
         // Calculate the expected compacted filesize
         String compactionFileLocation = cfs.table.getDataFileLocation(sstable.length());
@@ -567,6 +568,10 @@ public class CompactionManager implements CompactionManagerMBean
                         catch (Throwable th2)
                         {
                             throwIfFatal(th2);
+                            // Skipping rows is dangerous for counters (see CASSANDRA-2759)
+                            if (isCommutative)
+                                throw new IOError(th2);
+
                             logger.warn("Retry failed too.  Skipping to next row (retry's stacktrace follows)", th2);
                             writer.reset();
                             dataFile.seek(nextRowPositionFromIndex);
@@ -575,6 +580,10 @@ public class CompactionManager implements CompactionManagerMBean
                     }
                     else
                     {
+                        // Skipping rows is dangerous for counters (see CASSANDRA-2759)
+                        if (isCommutative)
+                            throw new IOError(th);
+
                         logger.warn("Row at " + dataStart + " is unreadable; skipping to next");
                         if (currentIndexKey != null)
                             dataFile.seek(nextRowPositionFromIndex);
