@@ -58,7 +58,6 @@ public class Config
     
     public Integer memtable_flush_writers = null; // will get set to the length of data dirs in DatabaseDescriptor
     public Integer memtable_total_space_in_mb;
-    public Integer commitlog_total_space_in_mb = 4096;
 
     public Integer sliced_buffer_size_in_kb = 64;
     
@@ -90,7 +89,7 @@ public class Config
 
     // Commit Log
     public String commitlog_directory;
-    public Integer commitlog_rotation_threshold_in_mb;
+    public Integer commitlog_total_space_in_mb = 4096;
     public CommitLogSync commitlog_sync;
     public Double commitlog_sync_batch_window_in_ms;
     public Integer commitlog_sync_period_in_ms;

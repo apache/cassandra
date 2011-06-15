@@ -90,8 +90,8 @@ public class CommitLog implements CommitLogMBean
     private final Deque<CommitLogSegment> segments = new ArrayDeque<CommitLogSegment>();
 
     private final ICommitLogExecutorService executor;
-    
-    private volatile int segmentSize = 128*1024*1024; // roll after log gets this big
+
+    private static final int SEGMENT_SIZE = 128*1024*1024; // roll after log gets this big
 
     /**
      * param @ table - name of table for which we are maintaining
@@ -104,7 +104,6 @@ public class CommitLog implements CommitLogMBean
         try
         {
             DatabaseDescriptor.createAllDirectories();
-            segmentSize = DatabaseDescriptor.getCommitLogSegmentSize();
         }
         catch (IOException e)
         {
@@ -539,7 +538,7 @@ public class CommitLog implements CommitLogMBean
             {
                 currentSegment().write(rowMutation);
                 // roll log if necessary
-                if (currentSegment().length() >= segmentSize)
+                if (currentSegment().length() >= SEGMENT_SIZE)
                 {
                     sync();
                     segments.add(new CommitLogSegment());
