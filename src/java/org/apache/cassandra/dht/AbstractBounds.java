@@ -89,8 +89,8 @@ public abstract class AbstractBounds implements Serializable
     public abstract List<AbstractBounds> unwrap();
 
     /**
-     * @return A copy of the given list of non-intersecting bounds with all bounds unwrapped, sorted by bound.left.
-     * This method does not allow overlapping ranges as input.
+     * @return A copy of the given list of with all bounds unwrapped, sorted by bound.left and with overlapping bounds merged.
+     * This method does not allow allow to mix Range and Bound in the input list.
      */
     public static List<AbstractBounds> normalize(Collection<? extends AbstractBounds> bounds)
     {
@@ -107,6 +107,61 @@ public abstract class AbstractBounds implements Serializable
                 return b1.left.compareTo(b2.left);
             }
         });
+
+        // deoverlap
+        return deoverlap(output);
+    }
+
+    /**
+     * Given a list of unwrapped bounds sorted by left token, return a list a equivalent
+     * list of bounds but with no overlapping bounds.
+     */
+    private static List<AbstractBounds> deoverlap(List<AbstractBounds> bounds)
+    {
+        if (bounds.isEmpty())
+            return bounds;
+
+        List<AbstractBounds> output = new ArrayList<AbstractBounds>();
+
+        Iterator<AbstractBounds> iter = bounds.iterator();
+        AbstractBounds current = iter.next();
+        boolean isRange = current instanceof Range;
+
+        Token min = current.partitioner.getMinimumToken();
+        while (iter.hasNext())
+        {
+            if (current.right.equals(min))
+            {
+                // If one of the bound is the full range, we return only that
+                if (current.left.equals(min))
+                    return Collections.<AbstractBounds>singletonList(current);
+
+                output.add(current.createFrom(min));
+                return output;
+            }
+
+            AbstractBounds next = iter.next();
+            assert isRange ? next instanceof Range : next instanceof Bounds;
+
+            // For Ranges, if next left is equal to current right, we do not intersect per se, but replacing (A, B] and (B, C] by (A, C] is
+            // legit, and since this actually avoid special casing and will result in more "optimal" ranges, we do this transformation
+            if (next.left.compareTo(current.right) <= 0)
+            {
+                // We do overlap
+                // (we've handler current.right.equals(min) already)
+                Token newRight = next.right.equals(min) || current.right.compareTo(next.right) < 0 ? next.right : current.right;
+                current = current.createFrom(newRight);
+                if (current == null)
+                    // current is the full ring, can only happen for Range
+                    return Collections.<AbstractBounds>singletonList(new Range(min, min));
+            }
+            else
+            {
+                output.add(current);
+                current = next;
+            }
+        }
+        output.add(current);
         return output;
     }
 
