@@ -56,6 +56,7 @@
  * fix ConcurrentModificationException in repair when dealing with 0.7 node
    (CASSANDRA-2767)
  * use threadsafe collections for StreamInSession (CASSANDRA-2766)
+ * avoid infinite loop when creating merkle tree (CASSANDRA-2758)
 
 
 0.8.0-final
