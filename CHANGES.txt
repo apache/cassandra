@@ -58,6 +58,8 @@
    supercolumn tombstone during replica resolution (CASSANDRA-2590)
  * support sstable2json against snapshot sstables (CASSANDRA-2386)
  * remove active-pull schema requests (CASSANDRA-2715)
+ * avoid marking entire list of sstables as actively being compacted
+   in multithreaded compaction (CASSANDRA-2765)
  * seek back after deserializing a row to update cache with (CASSANDRA-2752)
  * avoid skipping rows in scrub for counter column family (CASSANDRA-2759)
  * fix ConcurrentModificationException in repair when dealing with 0.7 node
