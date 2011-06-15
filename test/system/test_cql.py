@@ -24,7 +24,6 @@ import sys, uuid, time
 sys.path.append(join(abspath(dirname(__file__)), '../../drivers/py'))
 
 import cql
-from cql.connection import Connection
 from __init__ import ThriftTester
 from __init__ import thrift_client     # TODO: temporary
 
