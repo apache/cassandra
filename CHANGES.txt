@@ -64,6 +64,7 @@
  * avoid skipping rows in scrub for counter column family (CASSANDRA-2759)
  * fix ConcurrentModificationException in repair when dealing with 0.7 node
    (CASSANDRA-2767)
+ * avoid infinite loop when creating merkle tree (CASSANDRA-2758)
 
 
 0.8.0-final
