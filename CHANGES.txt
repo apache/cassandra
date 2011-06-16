@@ -5,7 +5,7 @@
  * make AbstractBounds.normalize de-overlapp overlapping ranges (CASSANDRA-2641)
  * replace CollatingIterator, ReducingIterator with MergeIterator 
    (CASSANDRA-2062)
-
+ * Fixed the ability to set compaction strategy in cli using create column family command (CASSANDRA-2778)
 
 0.8.1
  * CQL:
