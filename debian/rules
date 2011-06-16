@@ -40,8 +40,6 @@ install: build
 		usr/share/cassandra
 	dh_install build/apache-cassandra-thrift-$(VERSION).jar \
 		usr/share/cassandra
-	dh_install build/apache-cassandra-cql-*.jar \
-		usr/share/cassandra
 
 	dh_link usr/share/cassandra/apache-cassandra-$(VERSION).jar \
 		usr/share/cassandra/apache-cassandra.jar
