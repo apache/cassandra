@@ -108,6 +108,11 @@ public class InstrumentingCache<K, V> implements InstrumentingCacheMBean
         return map.size();
     }
 
+    public int getSize()
+    {
+        return size();
+    }
+
     public long getHits()
     {
         return hits.get();

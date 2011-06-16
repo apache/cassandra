@@ -1,3 +1,7 @@
+0.8.2
+ * fix cache mbean getSize (CASSANDRA-2781)
+
+
 0.8.1
  * CQL:
    - support for insert, delete in BATCH (CASSANDRA-2537)

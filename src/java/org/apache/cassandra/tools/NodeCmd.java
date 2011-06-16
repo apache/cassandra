@@ -450,7 +450,7 @@ public class NodeCmd
                 if (keyCacheMBean.getCapacity() > 0)
                 {
                     outs.println("\t\tKey cache capacity: " + keyCacheMBean.getCapacity());
-                    outs.println("\t\tKey cache size: " + keyCacheMBean.size());
+                    outs.println("\t\tKey cache size: " + keyCacheMBean.getSize());
                     outs.println("\t\tKey cache hit rate: " + keyCacheMBean.getRecentHitRate());
                 }
                 else
@@ -462,7 +462,7 @@ public class NodeCmd
                 if (rowCacheMBean.getCapacity() > 0)
                 {
                     outs.println("\t\tRow cache capacity: " + rowCacheMBean.getCapacity());
-                    outs.println("\t\tRow cache size: " + rowCacheMBean.size());
+                    outs.println("\t\tRow cache size: " + rowCacheMBean.getSize());
                     outs.println("\t\tRow cache hit rate: " + rowCacheMBean.getRecentHitRate());
                 }
                 else
