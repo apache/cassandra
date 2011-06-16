@@ -5,7 +5,6 @@
    - timestamp support for INSERT, UPDATE, and BATCH (CASSANDRA-2555)
    - TTL support (CASSANDRA-2476)
    - counter support (CASSANDRA-2473)
-   - improve JDBC spec compliance (CASSANDRA-2720)
    - ALTER COLUMNFAMILY (CASSANDRA-1709)
    - DROP INDEX (CASSANDRA-2617)
    - add SCHEMA/TABLE as aliases for KS/CF (CASSANDRA-2743)
@@ -45,6 +44,7 @@
    by nio sockets (CASSANDRA-2654)
  * restrict repair streaming to specific columnfamilies (CASSANDRA-2280)
  * fix nodetool ring use with Ec2Snitch (CASSANDRA-2733)
+ * fix inconsistency window during bootstrap (CASSANDRA-833)
  * fix removing columns and subcolumns that are supressed by a row or
    supercolumn tombstone during replica resolution (CASSANDRA-2590)
  * support sstable2json against snapshot sstables (CASSANDRA-2386)
@@ -58,6 +58,11 @@
  * use threadsafe collections for StreamInSession (CASSANDRA-2766)
  * avoid infinite loop when creating merkle tree (CASSANDRA-2758)
  * avoids unmarking compacting sstable prematurely in cleanup (CASSANDRA-2769)
+ * fix NPE when the commit log is bypassed (CASSANDRA-2718)
+ * don't throw an exception in SS.isRPCServerRunning (CASSANDRA-2721)
+ * make stress.jar executable (CASSANDRA-2744)
+ * add daemon mode to java stress (CASSANDRA-2267)
+ * expose the DC and rack of a node through JMX and nodetool ring (CASSANDRA-2531)
 
 
 0.8.0-final
