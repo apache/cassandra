@@ -30,8 +30,8 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
-import org.apache.commons.collections.PredicateUtils;
-import org.apache.commons.collections.iterators.FilterIterator;
+import com.google.common.base.Predicates;
+import com.google.common.collect.Iterators;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -773,7 +773,7 @@ public class CompactionManager implements CompactionManagerMBean
         executor.beginCompaction(ci);
         try
         {
-            Iterator<AbstractCompactedRow> nni = new FilterIterator(ci, PredicateUtils.notNullPredicate());
+            Iterator<AbstractCompactedRow> nni = Iterators.filter(ci, Predicates.notNull());
 
             // validate the CF as we iterate over it
             validator.prepare(cfs);

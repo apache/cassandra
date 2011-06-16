@@ -28,10 +28,10 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 
+import com.google.common.base.Predicates;
+import com.google.common.collect.Iterators;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.apache.commons.collections.PredicateUtils;
-import org.apache.commons.collections.iterators.FilterIterator;
 import org.apache.commons.lang.StringUtils;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -126,7 +126,7 @@ public class CompactionTask extends AbstractCompactionTask
 
         SSTableWriter writer;
         CompactionIterator ci = new CompactionIterator(type, sstables, controller); // retain a handle so we can call close()
-        Iterator<AbstractCompactedRow> nni = new FilterIterator(ci, PredicateUtils.notNullPredicate());
+        Iterator<AbstractCompactedRow> nni = Iterators.filter(ci, Predicates.notNull());
         Map<DecoratedKey, Long> cachedKeys = new HashMap<DecoratedKey, Long>();
 
         if (collector != null)

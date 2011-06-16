@@ -27,8 +27,8 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 
-import org.apache.commons.collections.IteratorUtils;
-import org.apache.commons.collections.iterators.ReverseListIterator;
+import com.google.common.collect.Iterators;
+import com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -80,7 +80,7 @@ public class SliceQueryFilter implements IFilter
         if (reversed)
         {
             List<IColumn> columnsAsList = new ArrayList<IColumn>(superColumn.getSubColumns());
-            subcolumns = new ReverseListIterator(columnsAsList);
+            subcolumns = Lists.reverse(columnsAsList).iterator();
         }
         else
         {
@@ -94,7 +94,7 @@ public class SliceQueryFilter implements IFilter
             IColumn column = subcolumns.next();
             if (comparator.compare(column.name(), start) >= 0)
             {
-                subcolumns = IteratorUtils.chainedIterator(IteratorUtils.singletonIterator(column), subcolumns);
+                subcolumns = Iterators.concat(Iterators.singletonIterator(column), subcolumns);
                 break;
             }
         }

@@ -350,7 +350,6 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
           <dependency groupId="com.google.guava" artifactId="guava" version="r08"/>
           <dependency groupId="commons-cli" artifactId="commons-cli" version="1.1"/>
           <dependency groupId="commons-codec" artifactId="commons-codec" version="1.2"/>
-          <dependency groupId="commons-collections" artifactId="commons-collections" version="3.2.1"/>
           <dependency groupId="commons-lang" artifactId="commons-lang" version="2.4"/>
           <dependency groupId="com.googlecode.concurrentlinkedhashmap" artifactId="concurrentlinkedhashmap-lru" version="1.2"/>
           <dependency groupId="org.antlr" artifactId="antlr" version="3.2"/>
@@ -461,7 +460,6 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
         <dependency groupId="com.google.guava" artifactId="guava"/>
         <dependency groupId="commons-cli" artifactId="commons-cli"/>
         <dependency groupId="commons-codec" artifactId="commons-codec"/>
-        <dependency groupId="commons-collections" artifactId="commons-collections"/>
         <dependency groupId="commons-lang" artifactId="commons-lang"/>
         <dependency groupId="com.googlecode.concurrentlinkedhashmap" artifactId="concurrentlinkedhashmap-lru"/>
         <dependency groupId="org.antlr" artifactId="antlr"/>
