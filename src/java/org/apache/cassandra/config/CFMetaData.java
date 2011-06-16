@@ -705,6 +705,19 @@ public final class CFMetaData
         if (cf_def.isSetRow_cache_provider()) { newCFMD.rowCacheProvider(FBUtilities.newCacheProvider(cf_def.row_cache_provider)); }
         if (cf_def.isSetKey_alias()) { newCFMD.keyAlias(cf_def.key_alias); }
         if (cf_def.isSetKey_validation_class()) { newCFMD.keyValidator(TypeParser.parse(cf_def.key_validation_class)); }
+        if (cf_def.isSetCompaction_strategy())
+        {
+            try
+            {
+               newCFMD.compactionStrategyClass((Class<? extends AbstractCompactionStrategy>)Class.forName(cf_def.compaction_strategy));
+            }
+            catch (Exception e)
+            {
+                throw new ConfigurationException("Unable to set Compaction Strategy Class of " + cf_def.compaction_strategy, e);
+            }
+        }
+        if (cf_def.isSetCompaction_strategy_options())
+            newCFMD.compactionStrategyOptions(new HashMap<String, String>(cf_def.compaction_strategy_options));
 
         return newCFMD.comment(cf_def.comment)
                       .rowCacheSize(cf_def.row_cache_size)
@@ -817,6 +830,7 @@ public final class CFMetaData
 
         if (null != cf_def.compaction_strategy_options)
         {
+            compactionStrategyOptions = new HashMap<String, String>();
             for (Map.Entry<CharSequence, CharSequence> e : cf_def.compaction_strategy_options.entrySet())
                 compactionStrategyOptions.put(e.getKey().toString(), e.getValue().toString());
         }

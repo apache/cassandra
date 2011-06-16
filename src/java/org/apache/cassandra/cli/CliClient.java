@@ -1731,7 +1731,7 @@ public class CliClient
                 sessionState.out.printf("      Compaction Strategy: %s%n", cf_def.compaction_strategy);
                 if (!cf_def.compaction_strategy_options.isEmpty())
                 {
-                    sessionState.out.printf("      Compaction Strategy Options: %s%n", cf_def.compaction_strategy);
+                    sessionState.out.println("      Compaction Strategy Options:");
                     for (Map.Entry<String, String> e : cf_def.compaction_strategy_options.entrySet())
                         sessionState.out.printf("        %s: %s%n", e.getKey(), e.getValue());
                 }

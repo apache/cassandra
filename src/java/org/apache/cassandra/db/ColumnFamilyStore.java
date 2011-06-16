@@ -195,7 +195,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             rowCacheSaveInSeconds = new DefaultInteger(metadata.getRowCacheSavePeriodInSeconds());
         if (!keyCacheSaveInSeconds.isModified())
             keyCacheSaveInSeconds = new DefaultInteger(metadata.getKeyCacheSavePeriodInSeconds());
-        
+
+        compactionStrategy = metadata.createCompactionStrategyInstance(this);
+
         updateCacheSizes();
         scheduleCacheSaving(rowCacheSaveInSeconds.value(), keyCacheSaveInSeconds.value());
         
