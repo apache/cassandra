@@ -3,6 +3,8 @@
  * add commitlog_total_space_in_mb to prevent fragmented logs (CASSANDRA-2427)
  * removed commitlog_rotation_threshold_in_mb configuration (CASSANDRA-2771)
  * make AbstractBounds.normalize de-overlapp overlapping ranges (CASSANDRA-2641)
+ * replace CollatingIterator, ReducingIterator with MergeIterator 
+   (CASSANDRA-2062)
 
 
 0.8.1

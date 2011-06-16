@@ -19,7 +19,6 @@
 
 package org.apache.cassandra.io.sstable;
 
-import java.io.Closeable;
 import java.io.File;
 import java.io.IOError;
 import java.io.IOException;
@@ -34,9 +33,9 @@ import org.apache.cassandra.db.columniterator.IColumnIterator;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.CloseableIterator;
 
-
-public class SSTableScanner implements Iterator<IColumnIterator>, Closeable
+public class SSTableScanner implements CloseableIterator<IColumnIterator>
 {
     private static Logger logger = LoggerFactory.getLogger(SSTableScanner.class);
 

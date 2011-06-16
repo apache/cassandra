@@ -25,15 +25,16 @@ import java.util.Map.Entry;
 
 import com.google.common.base.Function;
 import com.google.common.base.Predicate;
+import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.Iterators;
-import org.apache.commons.collections.IteratorUtils;
 
 import org.apache.cassandra.db.columniterator.IColumnIterator;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.sstable.SSTableScanner;
-import org.apache.cassandra.utils.ReducingIterator;
+import org.apache.cassandra.utils.CloseableIterator;
+import org.apache.cassandra.utils.MergeIterator;
 
 public class RowIteratorFactory
 {
@@ -60,7 +61,7 @@ public class RowIteratorFactory
      * @param comparator
      * @return A row iterator following all the given restrictions
      */
-    public static RowIterator getIterator(final Collection<Memtable> memtables,
+    public static CloseableIterator<Row> getIterator(final Collection<Memtable> memtables,
                                           final Collection<SSTableReader> sstables,
                                           final DecoratedKey startWith,
                                           final DecoratedKey stopAt,
@@ -70,7 +71,7 @@ public class RowIteratorFactory
     )
     {
         // fetch data from current memtable, historical memtables, and SSTables in the correct order.
-        final List<Iterator<IColumnIterator>> iterators = new ArrayList<Iterator<IColumnIterator>>();
+        final List<CloseableIterator<IColumnIterator>> iterators = new ArrayList<CloseableIterator<IColumnIterator>>();
         // we iterate through memtables with a priority queue to avoid more sorting than necessary.
         // this predicate throws out the rows before the start of our range.
         Predicate<IColumnIterator> p = new Predicate<IColumnIterator>()
@@ -85,8 +86,7 @@ public class RowIteratorFactory
         // memtables
         for (Memtable memtable : memtables)
         {
-            iterators.add(Iterators.filter(Iterators.transform(memtable.getEntryIterator(startWith),
-                                                               new ConvertToColumnIterator(filter, comparator)), p));
+            iterators.add(new ConvertToColumnIterator(filter, comparator, p, memtable.getEntryIterator(startWith)));
         }
 
         // sstables
@@ -98,10 +98,9 @@ public class RowIteratorFactory
             iterators.add(scanner);
         }
 
-        Iterator<IColumnIterator> collated = IteratorUtils.collatedIterator(COMPARE_BY_KEY, iterators);
-
+        final Memtable firstMemtable = memtables.iterator().next();
         // reduce rows from all sources into a single row
-        ReducingIterator<IColumnIterator, Row> reduced = new ReducingIterator<IColumnIterator, Row>(collated)
+        return MergeIterator.get(iterators, COMPARE_BY_KEY, new MergeIterator.Reducer<IColumnIterator, Row>()
         {
             private final int gcBefore = (int) (System.currentTimeMillis() / 1000) - cfs.metadata.getGcGraceSeconds();
             private final List<IColumnIterator> colIters = new ArrayList<IColumnIterator>();
@@ -121,27 +120,18 @@ public class RowIteratorFactory
                 this.returnCF.delete(current.getColumnFamily());
             }
 
-            @Override
-            protected boolean isEqual(IColumnIterator o1, IColumnIterator o2)
-            {
-                return COMPARE_BY_KEY.compare(o1, o2) == 0;
-            }
-
             protected Row getReduced()
             {
-                Comparator<IColumn> colComparator = filter.filter.getColumnComparator(comparator);
-                Iterator<IColumn> colCollated = IteratorUtils.collatedIterator(colComparator, colIters);
 
                 // First check if this row is in the rowCache. If it is we can skip the rest
                 ColumnFamily cached = cfs.getRawCachedRow(key);
-                if (cached != null)
+                if (cached == null)
+                    // not cached: collate
+                    filter.collateColumns(returnCF, colIters, comparator, gcBefore);
+                else
                 {
                     QueryFilter keyFilter = new QueryFilter(key, filter.path, filter.filter);
                     returnCF = cfs.filterColumnFamily(cached, keyFilter, gcBefore);
-                }
-                else if (colCollated.hasNext())
-                {
-                    filter.collectCollatedColumns(returnCF, colCollated, gcBefore);
                 }
 
                 Row rv = new Row(key, returnCF);
@@ -149,29 +139,42 @@ public class RowIteratorFactory
                 key = null;
                 return rv;
             }
-        };
-
-        return new RowIterator(reduced, iterators);
+        });
     }
 
     /**
      * Get a ColumnIterator for a specific key in the memtable.
      */
-    private static class ConvertToColumnIterator implements Function<Map.Entry<DecoratedKey, ColumnFamily>, IColumnIterator>
+    private static class ConvertToColumnIterator extends AbstractIterator<IColumnIterator> implements CloseableIterator<IColumnIterator>
     {
-        private QueryFilter filter;
-        private AbstractType comparator;
+        private final QueryFilter filter;
+        private final AbstractType comparator;
+        private final Predicate<IColumnIterator> pred;
+        private final Iterator<Map.Entry<DecoratedKey, ColumnFamily>> iter;
 
-        public ConvertToColumnIterator(QueryFilter filter, AbstractType comparator)
+        public ConvertToColumnIterator(QueryFilter filter, AbstractType comparator, Predicate<IColumnIterator> pred, Iterator<Map.Entry<DecoratedKey, ColumnFamily>> iter)
         {
             this.filter = filter;
             this.comparator = comparator;
+            this.pred = pred;
+            this.iter = iter;
         }
 
-        public IColumnIterator apply(final Entry<DecoratedKey, ColumnFamily> entry)
+        public IColumnIterator computeNext()
         {
-            return filter.getMemtableColumnIterator(entry.getValue(), entry.getKey(), comparator);
+            while (iter.hasNext())
+            {
+                Map.Entry<DecoratedKey, ColumnFamily> entry = iter.next();
+                IColumnIterator ici = filter.getMemtableColumnIterator(entry.getValue(), entry.getKey(), comparator);
+                if (pred.apply(ici))
+                    return ici;
+            }
+            return endOfData();
+        }
+
+        public void close()
+        {
+            // pass
         }
     }
-
 }

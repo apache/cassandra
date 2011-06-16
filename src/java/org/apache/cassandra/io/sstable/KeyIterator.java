@@ -21,7 +21,6 @@ package org.apache.cassandra.io.sstable;
  */
 
 
-import java.io.Closeable;
 import java.io.File;
 import java.io.IOError;
 import java.io.IOException;
@@ -33,8 +32,9 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.CloseableIterator;
 
-public class KeyIterator extends AbstractIterator<DecoratedKey> implements Iterator<DecoratedKey>, Closeable
+public class KeyIterator extends AbstractIterator<DecoratedKey> implements CloseableIterator<DecoratedKey>
 {
     private final BufferedRandomAccessFile in;
     private final Descriptor desc;

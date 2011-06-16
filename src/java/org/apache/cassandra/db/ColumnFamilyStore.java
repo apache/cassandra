@@ -32,7 +32,6 @@ import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
 import com.google.common.collect.Iterables;
-import org.apache.commons.collections.IteratorUtils;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -1188,7 +1187,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         IColumnIterator ci = filter.getMemtableColumnIterator(cached, null, getComparator());
         ColumnFamily cf = ci.getColumnFamily().cloneMeShallow();
-        filter.collectCollatedColumns(cf, ci, gcBefore);
+        filter.collateColumns(cf, Collections.singletonList(ci), getComparator(), gcBefore);
         // TODO this is necessary because when we collate supercolumns together, we don't check
         // their subcolumns for relevance, so we need to do a second prune post facto here.
         return cf.isSuper() ? removeDeleted(cf, gcBefore) : removeDeletedCF(cf, gcBefore);
@@ -1244,10 +1243,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             if (iterators.size() == 0)
                 return null;
 
-            Comparator<IColumn> comparator = filter.filter.getColumnComparator(getComparator());
-            Iterator collated = IteratorUtils.collatedIterator(comparator, iterators);
-
-            filter.collectCollatedColumns(returnCF, collated, gcBefore);
+            filter.collateColumns(returnCF, iterators, getComparator(), gcBefore);
 
             // Caller is responsible for final removeDeletedCF.  This is important for cacheRow to work correctly:
             return returnCF;
@@ -1298,7 +1294,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         // It is fine to aliases the View.sstables since it's an unmodifiable collection
         Collection<SSTableReader> sstables = currentView.sstables;
 
-        RowIterator iterator = RowIteratorFactory.getIterator(memtables, sstables, startWith, stopAt, filter, getComparator(), this);
+        CloseableIterator<Row> iterator = RowIteratorFactory.getIterator(memtables, sstables, startWith, stopAt, filter, getComparator(), this);
         List<Row> rows = new ArrayList<Row>();
 
         try
@@ -1486,7 +1482,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                         ColumnFamily expandedData = data;
                         data = expandedData.cloneMeShallow();
                         IColumnIterator iter = dataFilter.getMemtableColumnIterator(expandedData, dk, getComparator());
-                        new QueryFilter(dk, path, dataFilter).collectCollatedColumns(data, iter, gcBefore());
+                        new QueryFilter(dk, path, dataFilter).collateColumns(data, Collections.singletonList(iter), getComparator(), gcBefore());
                     }
 
                     rows.add(new Row(dk, data));

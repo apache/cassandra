@@ -22,10 +22,7 @@ package org.apache.cassandra.db.filter;
 
 
 import java.nio.ByteBuffer;
-import java.util.Comparator;
-import java.util.Iterator;
-import java.util.SortedSet;
-import java.util.TreeSet;
+import java.util.*;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,7 +35,8 @@ import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.thrift.SlicePredicate;
 import org.apache.cassandra.thrift.SliceRange;
-import org.apache.cassandra.utils.ReducingIterator;
+import org.apache.cassandra.utils.CloseableIterator;
+import org.apache.cassandra.utils.MergeIterator;
 
 public class QueryFilter
 {
@@ -88,11 +86,14 @@ public class QueryFilter
         return superFilter.getSSTableColumnIterator(sstable, file, key);
     }
 
-    public void collectCollatedColumns(final ColumnFamily returnCF, Iterator<IColumn> collatedColumns, final int gcBefore)
+    // TODO move gcBefore into a field
+    public void collateColumns(final ColumnFamily returnCF, List<? extends CloseableIterator<IColumn>> toCollate, AbstractType comparator, final int gcBefore)
     {
+        IFilter topLevelFilter = (superFilter == null ? filter : superFilter);
+        Comparator<IColumn> fcomp = topLevelFilter.getColumnComparator(comparator);
         // define a 'reduced' iterator that merges columns w/ the same name, which
         // greatly simplifies computing liveColumns in the presence of tombstones.
-        ReducingIterator<IColumn, IColumn> reduced = new ReducingIterator<IColumn, IColumn>(collatedColumns)
+        Iterator<IColumn> reduced = MergeIterator.get(toCollate, fcomp, new MergeIterator.Reducer<IColumn, IColumn>()
         {
             ColumnFamily curCF = returnCF.cloneMeShallow();
 
@@ -137,9 +138,9 @@ public class QueryFilter
 
                 return c;
             }
-        };
+        });
 
-        (superFilter == null ? filter : superFilter).collectReducedColumns(returnCF, reduced, gcBefore);
+        topLevelFilter.collectReducedColumns(returnCF, reduced, gcBefore);
     }
 
     public String getColumnFamilyName()

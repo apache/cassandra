@@ -24,7 +24,6 @@ import java.util.*;
 import java.util.concurrent.LinkedBlockingQueue;
 
 import com.google.common.collect.AbstractIterator;
-import org.apache.commons.collections.iterators.CollatingIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,7 +33,8 @@ import org.apache.cassandra.db.RangeSliceReply;
 import org.apache.cassandra.db.Row;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.utils.Pair;
-import org.apache.cassandra.utils.ReducingIterator;
+import org.apache.cassandra.utils.CloseableIterator;
+import org.apache.cassandra.utils.MergeIterator;
 
 /**
  * Turns RangeSliceReply objects into row (string -> CF) maps, resolving
@@ -64,34 +64,26 @@ public class RangeSliceResponseResolver implements IResponseResolver<Iterable<Ro
     // (this is not currently an issue since we don't do read repair for range queries.)
     public Iterable<Row> resolve() throws IOException
     {
-        CollatingIterator collator = new CollatingIterator(new Comparator<Pair<Row,InetAddress>>()
-        {
-            public int compare(Pair<Row,InetAddress> o1, Pair<Row,InetAddress> o2)
-            {
-                return o1.left.key.compareTo(o2.left.key);
-            }
-        });
-
+        ArrayList<RowIterator> iters = new ArrayList<RowIterator>(responses.size());
         int n = 0;
         for (Message response : responses)
         {
             RangeSliceReply reply = RangeSliceReply.read(response.getMessageBody(), response.getVersion());
             n = Math.max(n, reply.rows.size());
-            collator.addIterator(new RowIterator(reply.rows.iterator(), response.getFrom()));
+            iters.add(new RowIterator(reply.rows.iterator(), response.getFrom()));
         }
-
         // for each row, compute the combination of all different versions seen, and repair incomplete versions
-        return new ReducingIterator<Pair<Row,InetAddress>, Row>(collator)
+        MergeIterator<Pair<Row,InetAddress>, Row> iter = MergeIterator.get(iters, new Comparator<Pair<Row,InetAddress>>()
+        {
+            public int compare(Pair<Row,InetAddress> o1, Pair<Row,InetAddress> o2)
+            {
+                return o1.left.key.compareTo(o2.left.key);
+            }
+        }, new MergeIterator.Reducer<Pair<Row,InetAddress>, Row>()
         {
             List<ColumnFamily> versions = new ArrayList<ColumnFamily>(sources.size());
             List<InetAddress> versionSources = new ArrayList<InetAddress>(sources.size());
             DecoratedKey key;
-
-            @Override
-            protected boolean isEqual(Pair<Row, InetAddress> o1, Pair<Row, InetAddress> o2)
-            {
-                return o1.left.key.equals(o2.left.key);
-            }
 
             public void reduce(Pair<Row,InetAddress> current)
             {
@@ -122,7 +114,13 @@ public class RangeSliceResponseResolver implements IResponseResolver<Iterable<Ro
                 versionSources.clear();
                 return new Row(key, resolved);
             }
-        };
+        });
+
+        List<Row> resolvedRows = new ArrayList<Row>(n);
+        while (iter.hasNext())
+            resolvedRows.add(iter.next());
+
+        return resolvedRows;
     }
 
     public void preprocess(Message message)
@@ -135,7 +133,7 @@ public class RangeSliceResponseResolver implements IResponseResolver<Iterable<Ro
         return !responses.isEmpty();
     }
 
-    private static class RowIterator extends AbstractIterator<Pair<Row,InetAddress>>
+    private static class RowIterator extends AbstractIterator<Pair<Row,InetAddress>> implements CloseableIterator<Pair<Row,InetAddress>>
     {
         private final Iterator<Row> iter;
         private final InetAddress source;
@@ -150,6 +148,8 @@ public class RangeSliceResponseResolver implements IResponseResolver<Iterable<Ro
         {
             return iter.hasNext() ? new Pair<Row, InetAddress>(iter.next(), source) : endOfData();
         }
+
+        public void close() {}
     }
 
     public Iterable<Message> getMessages()

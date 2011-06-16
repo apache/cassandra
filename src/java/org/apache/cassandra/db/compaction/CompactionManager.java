@@ -31,7 +31,6 @@ import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
 import org.apache.commons.collections.PredicateUtils;
-import org.apache.commons.collections.iterators.CollatingIterator;
 import org.apache.commons.collections.iterators.FilterIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -934,18 +933,16 @@ public class CompactionManager implements CompactionManagerMBean
         public ValidationCompactionIterator(ColumnFamilyStore cfs, Range range) throws IOException
         {
             super(CompactionType.VALIDATION,
-                  getCollatingIterator(cfs.getSSTables(), range),
+                  getScanners(cfs.getSSTables(), range),
                   new CompactionController(cfs, cfs.getSSTables(), getDefaultGcBefore(cfs), true));
         }
 
-        protected static CollatingIterator getCollatingIterator(Iterable<SSTableReader> sstables, Range range) throws IOException
+        protected static List<SSTableScanner> getScanners(Iterable<SSTableReader> sstables, Range range) throws IOException
         {
-            CollatingIterator iter = FBUtilities.getCollatingIterator();
+            ArrayList<SSTableScanner> scanners = new ArrayList<SSTableScanner>();
             for (SSTableReader sstable : sstables)
-            {
-                iter.addIterator(sstable.getDirectScanner(FILE_BUFFER_SIZE, range));
-            }
-            return iter;
+                scanners.add(sstable.getDirectScanner(FILE_BUFFER_SIZE, range));
+            return scanners;
         }
     }
 

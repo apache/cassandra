@@ -29,7 +29,6 @@ import java.util.*;
 
 import com.google.common.base.Predicates;
 import com.google.common.collect.Iterators;
-import org.apache.commons.collections.iterators.CollatingIterator;
 
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -40,7 +39,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.IIterableColumns;
-import org.apache.cassandra.utils.ReducingIterator;
+import org.apache.cassandra.utils.MergeIterator;
 
 /**
  * LazilyCompactedRow only computes the row bloom filter and column index in memory
@@ -60,7 +59,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements IIterabl
     private final boolean shouldPurge;
     private final DataOutputBuffer headerBuffer;
     private ColumnFamily emptyColumnFamily;
-    private LazyColumnIterator iter;
+    private Reducer reducer;
     private int columnCount;
     private long columnSerializedSize;
 
@@ -84,10 +83,10 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements IIterabl
         // initialize row header so isEmpty can be called
         headerBuffer = new DataOutputBuffer();
         ColumnIndexer.serialize(this, headerBuffer);
-        // reach into iterator used by ColumnIndexer to get column count and size
-        columnCount = iter.size;
-        columnSerializedSize = iter.serializedSize;
-        iter = null;
+        // reach into the reducer used during iteration to get column count and size
+        columnCount = reducer.size;
+        columnSerializedSize = reducer.serializedSize;
+        reducer = null;
     }
 
     public void write(DataOutput out) throws IOException
@@ -156,10 +155,9 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements IIterabl
     public Iterator<IColumn> iterator()
     {
         for (SSTableIdentityIterator row : rows)
-        {
             row.reset();
-        }
-        iter = new LazyColumnIterator(new CollatingIterator(getComparator().columnComparator, rows));
+        reducer = new Reducer();
+        Iterator<IColumn> iter = MergeIterator.get(rows, getComparator().columnComparator, reducer);
         return Iterators.filter(iter, Predicates.notNull());
     }
 
@@ -168,22 +166,11 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements IIterabl
         return columnCount;
     }
 
-    private class LazyColumnIterator extends ReducingIterator<IColumn, IColumn>
+    private class Reducer extends MergeIterator.Reducer<IColumn, IColumn>
     {
         ColumnFamily container = emptyColumnFamily.cloneMeShallow();
         long serializedSize = 4; // int for column count
         int size = 0;
-
-        public LazyColumnIterator(Iterator<IColumn> source)
-        {
-            super(source);
-        }
-
-        @Override
-        protected boolean isEqual(IColumn o1, IColumn o2)
-        {
-            return o1.name().equals(o2.name());
-        }
 
         public void reduce(IColumn current)
         {

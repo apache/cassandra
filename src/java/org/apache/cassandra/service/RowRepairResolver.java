@@ -26,8 +26,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.commons.collections.iterators.CollatingIterator;
-
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.filter.QueryFilter;
@@ -35,6 +33,7 @@ import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.utils.*;
 
 public class RowRepairResolver extends AbstractRowResolver
 {
@@ -142,14 +141,14 @@ public class RowRepairResolver extends AbstractRowResolver
         // this will handle removing columns and subcolumns that are supressed by a row or
         // supercolumn tombstone.
         QueryFilter filter = new QueryFilter(null, new QueryPath(resolved.metadata().cfName), new IdentityQueryFilter());
-        CollatingIterator iter = new CollatingIterator(resolved.metadata().comparator.columnComparator);
+        List<CloseableIterator<IColumn>> iters = new ArrayList<CloseableIterator<IColumn>>();
         for (ColumnFamily version : versions)
         {
             if (version == null)
                 continue;
-            iter.addIterator(version.getColumnsMap().values().iterator());
+            iters.add(FBUtilities.closeableIterator(version.getColumnsMap().values().iterator()));
         }
-        filter.collectCollatedColumns(resolved, iter, Integer.MIN_VALUE);
+        filter.collateColumns(resolved, iters, resolved.metadata().comparator, Integer.MIN_VALUE);
         return ColumnFamilyStore.removeDeleted(resolved, Integer.MIN_VALUE);
     }
 

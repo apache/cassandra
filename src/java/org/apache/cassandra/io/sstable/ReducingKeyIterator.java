@@ -21,31 +21,26 @@ package org.apache.cassandra.io.sstable;
  */
 
 
-import java.io.Closeable;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
 
-import org.apache.commons.collections.iterators.CollatingIterator;
-
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.ReducingIterator;
+import org.apache.cassandra.utils.CloseableIterator;
+import org.apache.cassandra.utils.MergeIterator;
 
-public class ReducingKeyIterator implements Iterator<DecoratedKey>, Closeable
+public class ReducingKeyIterator implements CloseableIterator<DecoratedKey>
 {
-    private final CollatingIterator ci;
-    private final ReducingIterator<DecoratedKey, DecoratedKey> iter;
+    private final MergeIterator<DecoratedKey,DecoratedKey> mi;
 
     public ReducingKeyIterator(Collection<SSTableReader> sstables)
     {
-        ci = FBUtilities.getCollatingIterator();
+        ArrayList<KeyIterator> iters = new ArrayList<KeyIterator>();
         for (SSTableReader sstable : sstables)
-        {
-            ci.addIterator(new KeyIterator(sstable.descriptor));
-        }
-
-        iter = new ReducingIterator<DecoratedKey, DecoratedKey>(ci)
+            iters.add(new KeyIterator(sstable.descriptor));
+        mi = MergeIterator.get(iters, DecoratedKey.comparator, new MergeIterator.Reducer<DecoratedKey,DecoratedKey>()
         {
             DecoratedKey reduced = null;
 
@@ -58,21 +53,21 @@ public class ReducingKeyIterator implements Iterator<DecoratedKey>, Closeable
             {
                 return reduced;
             }
-        };
+        });
     }
 
     public void close() throws IOException
     {
-        for (Object o : ci.getIterators())
+        for (Object o : mi.iterators())
         {
-            ((KeyIterator) o).close();
+            ((CloseableIterator)o).close();
         }
     }
 
     public long getTotalBytes()
     {
         long m = 0;
-        for (Object o : ci.getIterators())
+        for (Object o : mi.iterators())
         {
             m += ((KeyIterator) o).getTotalBytes();
         }
@@ -82,7 +77,7 @@ public class ReducingKeyIterator implements Iterator<DecoratedKey>, Closeable
     public long getBytesRead()
     {
         long m = 0;
-        for (Object o : ci.getIterators())
+        for (Object o : mi.iterators())
         {
             m += ((KeyIterator) o).getBytesRead();
         }
@@ -96,12 +91,12 @@ public class ReducingKeyIterator implements Iterator<DecoratedKey>, Closeable
 
     public boolean hasNext()
     {
-        return iter.hasNext();
+        return mi.hasNext();
     }
 
     public DecoratedKey next()
     {
-        return iter.next();
+        return mi.next();
     }
 
     public void remove()

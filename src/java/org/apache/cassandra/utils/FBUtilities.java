@@ -35,7 +35,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.base.Joiner;
-import org.apache.commons.collections.iterators.CollatingIterator;
+import com.google.common.collect.AbstractIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -331,32 +331,6 @@ public class FBUtilities
         }
     }
 
-    /*
-    TODO how to make this work w/ ReducingKeyIterator?
-    public static <T extends Comparable<T>> CollatingIterator getCollatingIterator()
-    {
-        // CollatingIterator will happily NPE if you do not specify a comparator explicitly
-        return new CollatingIterator(new Comparator<T>()
-        {
-            public int compare(T o1, T o2)
-            {
-                return o1.compareTo(o2);
-            }
-        });
-    }
-     */
-    public static CollatingIterator getCollatingIterator()
-    {
-        // CollatingIterator will happily NPE if you do not specify a comparator explicitly
-        return new CollatingIterator(new Comparator()
-        {
-            public int compare(Object o1, Object o2)
-            {
-                return ((Comparable) o1).compareTo(o2);
-            }
-        });
-    }
-
     public static void atomicSetMax(AtomicInteger atomic, int i)
     {
         while (true)
@@ -614,4 +588,27 @@ public class FBUtilities
         return FBUtilities.construct(cache_provider, "row cache provider");
     }
 
+    public static <T> CloseableIterator<T> closeableIterator(Iterator<T> iterator)
+    {
+        return new WrappedCloseableIterator<T>(iterator);
+    }
+
+    private static final class WrappedCloseableIterator<T>
+        extends AbstractIterator<T> implements CloseableIterator<T>
+    {
+        private final Iterator<T> source;
+        public WrappedCloseableIterator(Iterator<T> source)
+        {
+            this.source = source;
+        }
+
+        protected T computeNext()
+        {
+            if (!source.hasNext())
+                return endOfData();
+            return source.next();
+        }
+
+        public void close() {}
+    }
 }
