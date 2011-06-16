@@ -113,6 +113,12 @@ public class SchemaLoader
                                   standardCFMD(ks1, "Standard4"),
                                   standardCFMD(ks1, "StandardLong1"),
                                   standardCFMD(ks1, "StandardLong2"),
+                                  new CFMetaData(ks1,
+                                                 "ValuesWithQuotes",
+                                                 st,
+                                                 BytesType.instance,
+                                                 null)
+                                                 .defaultValidator(UTF8Type.instance),
                                   superCFMD(ks1, "Super1", LongType.instance),
                                   superCFMD(ks1, "Super2", LongType.instance),
                                   superCFMD(ks1, "Super3", LongType.instance),

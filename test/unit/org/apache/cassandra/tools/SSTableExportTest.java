@@ -22,17 +22,15 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.PrintStream;
-import java.nio.ByteBuffer;
-import java.util.Arrays;
 
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.CounterColumn;
 import org.apache.cassandra.db.ExpiringColumn;
+import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
-import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.sstable.SSTableWriter;
@@ -242,5 +240,31 @@ public class SSTableExportTest extends SchemaLoader
         assert hexToBytes((String)colA.get(0)).equals(ByteBufferUtil.bytes("colA"));
         assert ((String) colA.get(3)).equals("c");
         assert (Long) colA.get(4) == Long.MIN_VALUE;
+    }
+
+    @Test
+    public void testEscapingDoubleQuotes() throws IOException
+    {
+        File tempSS = tempSSTableFile("Keyspace1", "ValuesWithQuotes");
+        ColumnFamily cfamily = ColumnFamily.create("Keyspace1", "ValuesWithQuotes");
+        SSTableWriter writer = new SSTableWriter(tempSS.getPath(), 2);
+
+        // Add rowA
+        cfamily.addColumn(null, new Column(ByteBufferUtil.bytes("data"), UTF8Type.instance.fromString("{\"foo\":\"bar\"}")));
+        writer.append(Util.dk("rowA"), cfamily);
+        cfamily.clear();
+
+        SSTableReader reader = writer.closeAndOpenReader();
+
+        // Export to JSON and verify
+        File tempJson = File.createTempFile("ValuesWithQuotes", ".json");
+        SSTableExport.export(reader, new PrintStream(tempJson.getPath()), new String[0]);
+
+        JSONObject json = (JSONObject) JSONValue.parse(new FileReader(tempJson));
+
+        JSONArray rowA = (JSONArray)json.get(asHex("rowA"));
+        JSONArray data = (JSONArray)rowA.get(0);
+        assert hexToBytes((String)data.get(0)).equals(ByteBufferUtil.bytes("data"));
+        assert data.get(1).equals("{\"foo\":\"bar\"}");
     }
 }

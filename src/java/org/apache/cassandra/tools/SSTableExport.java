@@ -81,7 +81,12 @@ public class SSTableExport
      */
     private static String quote(String val)
     {
-        return String.format("\"%s\"", val);
+        return String.format("\"%s\"", escapeQuotes(val));
+    }
+
+    private static String escapeQuotes(String val)
+    {
+        return val.replace("\"", "\\\"");
     }
 
     /**
