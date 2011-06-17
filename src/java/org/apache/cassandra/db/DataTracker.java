@@ -33,7 +33,6 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cache.AutoSavingCache;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.compaction.AbstractCompactionTask;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.utils.Pair;
@@ -163,6 +162,9 @@ public class    DataTracker
     {
         if (max < min || max < 1)
             return null;
+        if (tomark == null || tomark.isEmpty())
+            return null;
+
         View currentView, newView;
         Set<SSTableReader> subset = null;
         // order preserving set copy of the input
@@ -190,41 +192,6 @@ public class    DataTracker
         return subset;
     }
 
-    public boolean markCompacting(AbstractCompactionTask task)
-    {
-        ColumnFamilyStore cfs = task.getColumnFamilyStore();
-        return markCompacting(task, cfs.getMinimumCompactionThreshold(), cfs.getMaximumCompactionThreshold());
-    }
-
-    public boolean markCompacting(AbstractCompactionTask task, int min, int max)
-    {
-        Collection<SSTableReader> sstablesToMark = task.getSSTables();
-        if (sstablesToMark == null || sstablesToMark.isEmpty())
-            return false;
-
-        if (max < min || max < 1)
-            return false;
-
-        View currentView, newView;
-        // order preserving set copy of the input
-        Set<SSTableReader> remaining = new LinkedHashSet<SSTableReader>(sstablesToMark);
-        do
-        {
-            currentView = view.get();
-
-            // find the subset that is active and not already compacting
-            remaining.removeAll(currentView.compacting);
-            remaining.retainAll(currentView.sstables);
-            if (remaining.size() < min || remaining.size() > max)
-                // cannot meet the min and max threshold
-                return false;
-
-            newView = currentView.markCompacting(sstablesToMark);
-        }
-        while (!view.compareAndSet(currentView, newView));
-        return true;
-    }
-
     /**
      * Removes files from compacting status: this is different from 'markCompacted'
      * because it should be run regardless of whether a compaction succeeded.
@@ -238,11 +205,6 @@ public class    DataTracker
             newView = currentView.unmarkCompacting(unmark);
         }
         while (!view.compareAndSet(currentView, newView));
-    }
-
-    public void unmarkCompacting(AbstractCompactionTask task)
-    {
-        unmarkCompacting(task.getSSTables());
     }
 
     public void markCompacted(Collection<SSTableReader> sstables)

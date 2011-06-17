@@ -19,6 +19,7 @@
 package org.apache.cassandra.db.compaction;
 
 import java.util.Collection;
+import java.util.Set;
 import java.io.IOException;
 
 import org.apache.cassandra.io.sstable.SSTableReader;
@@ -46,5 +47,34 @@ public abstract class AbstractCompactionTask
     public Collection<SSTableReader> getSSTables()
     {
         return sstables;
+    }
+
+    /**
+     * Try to mark the sstable to compact as compacting.
+     * It returns true if some sstables have been marked for compaction, false
+     * otherwise.
+     * This *must* be called before calling execute(). Moreover,
+     * unmarkSSTables *must* always be called after execute() if this
+     * method returns true.
+     */
+    public boolean markSSTablesForCompaction()
+    {
+        return markSSTablesForCompaction(cfs.getMinimumCompactionThreshold(), cfs.getMaximumCompactionThreshold());
+    }
+
+    public boolean markSSTablesForCompaction(int min, int max)
+    {
+        Set<SSTableReader> marked = cfs.getDataTracker().markCompacting(sstables, min, max);
+
+        if (marked == null || marked.isEmpty())
+            return false;
+
+        this.sstables = marked;
+        return true;
+    }
+
+    public void unmarkSSTables()
+    {
+        cfs.getDataTracker().unmarkCompacting(sstables);
     }
 }

@@ -110,7 +110,7 @@ public class CompactionManager implements CompactionManagerMBean
                     AbstractCompactionStrategy strategy = cfs.getCompactionStrategy();
                     for (AbstractCompactionTask task : strategy.getBackgroundTasks(getDefaultGcBefore(cfs)))
                     {
-                        if (!cfs.getDataTracker().markCompacting(task))
+                        if (!task.markSSTablesForCompaction())
                             continue;
 
                         try
@@ -119,7 +119,7 @@ public class CompactionManager implements CompactionManagerMBean
                         }
                         finally
                         {
-                            cfs.getDataTracker().unmarkCompacting(task);
+                            task.unmarkSSTables();
                         }
                     }
                 }
@@ -246,7 +246,7 @@ public class CompactionManager implements CompactionManagerMBean
                     AbstractCompactionStrategy strategy = cfStore.getCompactionStrategy();
                     for (AbstractCompactionTask task : strategy.getMaximalTasks(gcBefore))
                     {
-                        if (!cfStore.getDataTracker().markCompacting(task, 0, Integer.MAX_VALUE))
+                        if (!task.markSSTablesForCompaction(0, Integer.MAX_VALUE))
                             return this;
                         try
                         {
@@ -264,7 +264,7 @@ public class CompactionManager implements CompactionManagerMBean
                         }
                         finally
                         {
-                            cfStore.getDataTracker().unmarkCompacting(task);
+                            task.unmarkSSTables();
                         }
                     }
                 }

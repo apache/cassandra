@@ -60,12 +60,18 @@ public class CompactionTask extends AbstractCompactionTask
     /**
      * For internal use and testing only.  The rest of the system should go through the submit* methods,
      * which are properly serialized.
+     * Caller is in charge of marking/unmarking the sstables as compacting.
      */
     public int execute(CompactionExecutorStatsCollector collector) throws IOException
     {
+        // The collection of sstables passed may be empty (but not null); even if
+        // it is not empty, it may compact down to nothing if all rows are deleted.
+        assert sstables != null;
+
+        Set<SSTableReader> toCompact = new HashSet<SSTableReader>(sstables);
         if (!isUserDefined)
         {
-            if (sstables.size() < 2)
+            if (toCompact.size() < 2)
             {
                 logger.info("Nothing to compact in " + cfs.getColumnFamilyName() + "." +
                             "Use forceUserDefinedCompaction if you wish to force compaction of single sstables " +
@@ -74,18 +80,19 @@ public class CompactionTask extends AbstractCompactionTask
             }
 
             if (compactionFileLocation == null)
-                compactionFileLocation = cfs.table.getDataFileLocation(cfs.getExpectedCompactedFileSize(sstables));
+                compactionFileLocation = cfs.table.getDataFileLocation(cfs.getExpectedCompactedFileSize(toCompact));
 
             // If the compaction file path is null that means we have no space left for this compaction.
             // Try again w/o the largest one.
             if (compactionFileLocation == null)
             {
-                Set<SSTableReader> smallerSSTables = new HashSet<SSTableReader>(sstables);
-                while (compactionFileLocation == null && smallerSSTables.size() > 1)
+                while (compactionFileLocation == null && toCompact.size() > 1)
                 {
-                    logger.warn("insufficient space to compact all requested files " + StringUtils.join(smallerSSTables, ", "));
-                    smallerSSTables.remove(cfs.getMaxSizeFile(smallerSSTables));
-                    compactionFileLocation = cfs.table.getDataFileLocation(cfs.getExpectedCompactedFileSize(smallerSSTables));
+                    logger.warn("insufficient space to compact all requested files " + StringUtils.join(toCompact, ", "));
+                    // Note that we have removed files that are still marked as compacting. This suboptimal but ok since the caller will unmark all
+                    // the sstables at the end.
+                    toCompact.remove(cfs.getMaxSizeFile(toCompact));
+                    compactionFileLocation = cfs.table.getDataFileLocation(cfs.getExpectedCompactedFileSize(toCompact));
                 }
             }
 
@@ -96,36 +103,32 @@ public class CompactionTask extends AbstractCompactionTask
             }
         }
 
-        // The collection of sstables passed may be empty (but not null); even if
-        // it is not empty, it may compact down to nothing if all rows are deleted.
-        assert sstables != null;
-
         if (DatabaseDescriptor.isSnapshotBeforeCompaction())
             cfs.table.snapshot(System.currentTimeMillis() + "-" + "compact-" + cfs.columnFamily);
 
         // sanity check: all sstables must belong to the same cfs
-        for (SSTableReader sstable : sstables)
+        for (SSTableReader sstable : toCompact)
             assert sstable.descriptor.cfname.equals(cfs.columnFamily);
 
-        CompactionController controller = new CompactionController(cfs, sstables, gcBefore, isUserDefined);
+        CompactionController controller = new CompactionController(cfs, toCompact, gcBefore, isUserDefined);
         // new sstables from flush can be added during a compaction, but only the compaction can remove them,
         // so in our single-threaded compaction world this is a valid way of determining if we're compacting
         // all the sstables (that existed when we started)
         CompactionType type = controller.isMajor()
                             ? CompactionType.MAJOR
                             : CompactionType.MINOR;
-        logger.info("Compacting {}: {}", type, sstables);
+        logger.info("Compacting {}: {}", type, toCompact);
 
         long startTime = System.currentTimeMillis();
         long totalkeysWritten = 0;
 
         // TODO the int cast here is potentially buggy
-        int expectedBloomFilterSize = Math.max(DatabaseDescriptor.getIndexInterval(), (int)SSTableReader.getApproximateKeyCount(sstables));
+        int expectedBloomFilterSize = Math.max(DatabaseDescriptor.getIndexInterval(), (int)SSTableReader.getApproximateKeyCount(toCompact));
         if (logger.isDebugEnabled())
             logger.debug("Expected bloom filter size : " + expectedBloomFilterSize);
 
         SSTableWriter writer;
-        CompactionIterator ci = new CompactionIterator(type, sstables, controller); // retain a handle so we can call close()
+        CompactionIterator ci = new CompactionIterator(type, toCompact, controller); // retain a handle so we can call close()
         Iterator<AbstractCompactedRow> nni = Iterators.filter(ci, Predicates.notNull());
         Map<DecoratedKey, Long> cachedKeys = new HashMap<DecoratedKey, Long>();
 
@@ -138,11 +141,11 @@ public class CompactionTask extends AbstractCompactionTask
                 // don't mark compacted in the finally block, since if there _is_ nondeleted data,
                 // we need to sync it (via closeAndOpen) first, so there is no period during which
                 // a crash could cause data loss.
-                cfs.markCompacted(sstables);
+                cfs.markCompacted(toCompact);
                 return 0;
             }
 
-            writer = cfs.createCompactionWriter(expectedBloomFilterSize, compactionFileLocation, sstables);
+            writer = cfs.createCompactionWriter(expectedBloomFilterSize, compactionFileLocation, toCompact);
             while (nni.hasNext())
             {
                 AbstractCompactedRow row = nni.next();
@@ -151,7 +154,7 @@ public class CompactionTask extends AbstractCompactionTask
 
                 if (DatabaseDescriptor.getPreheatKeyCache())
                 {
-                    for (SSTableReader sstable : sstables)
+                    for (SSTableReader sstable : toCompact)
                     {
                         if (sstable.getCachedPosition(row.key) != null)
                         {
@@ -169,19 +172,19 @@ public class CompactionTask extends AbstractCompactionTask
                 collector.finishCompaction(ci);
         }
 
-        SSTableReader ssTable = writer.closeAndOpenReader(getMaxDataAge(sstables));
-        cfs.replaceCompactedSSTables(sstables, Arrays.asList(ssTable));
+        SSTableReader ssTable = writer.closeAndOpenReader(getMaxDataAge(toCompact));
+        cfs.replaceCompactedSSTables(toCompact, Arrays.asList(ssTable));
         for (Entry<DecoratedKey, Long> entry : cachedKeys.entrySet()) // empty if preheat is off
             ssTable.cacheKey(entry.getKey(), entry.getValue());
         CompactionManager.instance.submitBackground(cfs);
 
         long dTime = System.currentTimeMillis() - startTime;
-        long startsize = SSTable.getTotalBytes(sstables);
+        long startsize = SSTable.getTotalBytes(toCompact);
         long endsize = ssTable.length();
         double ratio = (double)endsize / (double)startsize;
         logger.info(String.format("Compacted to %s.  %,d to %,d (~%d%% of original) bytes for %,d keys.  Time: %,dms.",
-                writer.getFilename(), startsize, endsize, (int) (ratio * 100), totalkeysWritten, dTime));
-        return sstables.size();
+                ssTable.getFilename(), startsize, endsize, (int) (ratio * 100), totalkeysWritten, dTime));
+        return toCompact.size();
     }
 
     public static long getMaxDataAge(Collection<SSTableReader> sstables)
