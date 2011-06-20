@@ -69,6 +69,13 @@ public class CounterColumn extends Column
         this.timestampOfLastDelete = timestampOfLastDelete;
     }
 
+    public static CounterColumn create(ByteBuffer name, ByteBuffer value, long timestamp, long timestampOfLastDelete, boolean fromRemote)
+    {
+        if (fromRemote)
+            value = CounterContext.instance().clearAllDelta(value);
+        return new CounterColumn(name, value, timestamp, timestampOfLastDelete);
+    }
+
     public long timestampOfLastDelete()
     {
         return timestampOfLastDelete;

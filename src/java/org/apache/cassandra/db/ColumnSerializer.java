@@ -96,9 +96,7 @@ public class ColumnSerializer implements IColumnSerializer
             long timestampOfLastDelete = dis.readLong();
             long ts = dis.readLong();
             ByteBuffer value = ByteBufferUtil.readWithLength(dis);
-            if (fromRemote)
-                value = CounterContext.instance().clearAllDelta(value);
-            return new CounterColumn(name, value, ts, timestampOfLastDelete);
+            return CounterColumn.create(name, value, ts, timestampOfLastDelete, fromRemote);
         }
         else if ((b & EXPIRATION_MASK) != 0)
         {
@@ -106,19 +104,7 @@ public class ColumnSerializer implements IColumnSerializer
             int expiration = dis.readInt();
             long ts = dis.readLong();
             ByteBuffer value = ByteBufferUtil.readWithLength(dis);
-            if (expiration < expireBefore)
-            {
-                // the column is now expired, we can safely return a simple
-                // tombstone
-                ByteBuffer bytes = ByteBuffer.allocate(4);
-                bytes.putInt(expiration);
-                bytes.rewind();
-                return new DeletedColumn(name, bytes, ts);
-            }
-            else
-            {
-                return new ExpiringColumn(name, value, ts, ttl, expiration);
-            }
+            return ExpiringColumn.create(name, value, ts, ttl, expiration, expireBefore);
         }
         else
         {

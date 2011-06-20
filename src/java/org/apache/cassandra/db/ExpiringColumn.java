@@ -57,6 +57,15 @@ public class ExpiringColumn extends Column
         this.localExpirationTime = localExpirationTime;
     }
 
+    /** @return Either a DeletedColumn, or an ExpiringColumn. */
+    public static Column create(ByteBuffer name, ByteBuffer value, long timestamp, int timeToLive, int localExpirationTime, int expireBefore)
+    {
+        if (localExpirationTime >= expireBefore)
+            return new ExpiringColumn(name, value, timestamp, timeToLive, localExpirationTime);
+        // the column is now expired, we can safely return a simple tombstone
+        return new DeletedColumn(name, localExpirationTime, timestamp);
+    }
+
     public int getTimeToLive()
     {
         return timeToLive;
