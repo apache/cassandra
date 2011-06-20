@@ -46,7 +46,7 @@ import org.apache.cassandra.io.sstable.SSTableWriter;
 import org.apache.cassandra.utils.WrappedRunnable;
 import org.github.jamm.MemoryMeter;
 
-public class Memtable implements Comparable<Memtable>
+public class Memtable
 {
     private static final Logger logger = LoggerFactory.getLogger(Memtable.class);
 
@@ -73,7 +73,6 @@ public class Memtable implements Comparable<Memtable>
     private final AtomicLong currentThroughput = new AtomicLong(0);
     private final AtomicLong currentOperations = new AtomicLong(0);
 
-    private final long creationTime;
     private final ConcurrentNavigableMap<DecoratedKey, ColumnFamily> columnFamilies = new ConcurrentSkipListMap<DecoratedKey, ColumnFamily>();
     public final ColumnFamilyStore cfs;
 
@@ -84,26 +83,8 @@ public class Memtable implements Comparable<Memtable>
     public Memtable(ColumnFamilyStore cfs)
     {
         this.cfs = cfs;
-        creationTime = System.currentTimeMillis();
         THRESHOLD = cfs.getMemtableThroughputInMB() * 1024L * 1024L;
         THRESHOLD_COUNT = (long) (cfs.getMemtableOperationsInMillions() * 1024 * 1024);
-    }
-
-    /**
-     * Compares two Memtable based on creation time.
-     * @param rhs Memtable to compare to.
-     * @return a negative integer, zero, or a positive integer as this object
-     * is less than, equal to, or greater than the specified object.
-     */
-    public int compareTo(Memtable rhs)
-    {
-    	long diff = creationTime - rhs.creationTime;
-    	if ( diff > 0 )
-    		return 1;
-    	else if ( diff < 0 )
-    		return -1;
-    	else
-    		return 0;
     }
 
     public long getLiveSize()
@@ -300,11 +281,6 @@ public class Memtable implements Comparable<Memtable>
         return columnFamilies.isEmpty();
     }
 
-    public String getTableName()
-    {
-        return cfs.table.name;
-    }
-
     /**
      * obtain an iterator of columns in this memtable in the specified order starting from a given column.
      */
@@ -394,5 +370,4 @@ public class Memtable implements Comparable<Memtable>
     {
         columnFamilies.clear();
     }
-
 }

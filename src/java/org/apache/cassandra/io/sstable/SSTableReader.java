@@ -52,7 +52,7 @@ import org.apache.cassandra.utils.*;
  * SSTableReaders are open()ed by Table.onStart; after that they are created by SSTableWriter.renameAndOpen.
  * Do not re-call open() on existing SSTable files; use the references kept by ColumnFamilyStore post-start instead.
  */
-public class SSTableReader extends SSTable implements Comparable<SSTableReader>
+public class SSTableReader extends SSTable
 {
     private static final Logger logger = LoggerFactory.getLogger(SSTableReader.class);
 
@@ -678,29 +678,6 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
             return null;
 
         return dfile.getSegment(position, bufferSize);
-    }
-
-
-    public int compareTo(SSTableReader o)
-    {
-        return descriptor.generation - o.descriptor.generation;
-    }
-
-    public AbstractType getColumnComparator()
-    {
-        return metadata.comparator;
-    }
-
-    public ColumnFamily createColumnFamily()
-    {
-        return ColumnFamily.create(metadata);
-    }
-
-    public IColumnSerializer getColumnSerializer()
-    {
-        return metadata.cfType == ColumnFamilyType.Standard
-               ? Column.serializer()
-               : SuperColumn.serializer(metadata.subcolumnComparator);
     }
 
     /**

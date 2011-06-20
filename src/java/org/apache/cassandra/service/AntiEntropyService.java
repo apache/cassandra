@@ -282,8 +282,6 @@ public class AntiEntropyService
         public final TreeRequest request;
         public final MerkleTree tree;
 
-        // the minimum token sorts first, but falls into the last range
-        private transient List<MerkleTree.RowHash> minrows;
         // null when all rows with the min token have been consumed
         private transient long validated;
         private transient MerkleTree.TreeRange range;
@@ -307,7 +305,6 @@ public class AntiEntropyService
             // Reestablishing the range because we don't serialize it (for bad
             // reason - see MerkleTree for details)
             this.tree.fullRange = this.request.range;
-            minrows = new ArrayList<MerkleTree.RowHash>();
             validated = 0;
             range = null;
             ranges = null;

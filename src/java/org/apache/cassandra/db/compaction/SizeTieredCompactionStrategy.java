@@ -60,7 +60,13 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
             if (bucket.size() < cfs.getMinimumCompactionThreshold())
                 continue;
 
-            Collections.sort(bucket);
+            Collections.sort(bucket, new Comparator<SSTableReader>()
+            {
+                public int compare(SSTableReader o1, SSTableReader o2)
+                {
+                    return o1.descriptor.generation - o2.descriptor.generation;
+                }
+            });
             tasks.add(new CompactionTask(cfs, bucket.subList(0, Math.min(bucket.size(), cfs.getMaximumCompactionThreshold())), gcBefore));
         }
 

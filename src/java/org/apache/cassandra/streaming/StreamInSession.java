@@ -137,8 +137,6 @@ public class StreamInSession
                 {
                     SSTableReader sstable = future.get();
                     assert sstable.getTableName().equals(table);
-                    if (sstable == null)
-                        continue;
                     ColumnFamilyStore cfs = Table.open(sstable.getTableName()).getColumnFamilyStore(sstable.getColumnFamilyName());
                     cfs.addSSTable(sstable);
                     if (!cfstores.containsKey(cfs))
