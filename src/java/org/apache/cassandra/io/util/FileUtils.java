@@ -136,26 +136,13 @@ public class FileUtils
         }
     }
 
-    public static void createFile(String directory) throws IOException
-    {
-        File file = new File(directory);
-        if ( !file.exists() )
-            file.createNewFile();
-    }
-
-    public static boolean isExists(String filename) throws IOException
-    {
-        File file = new File(filename);
-        return file.exists();
-    }
-
     public static boolean delete(String file)
     {
         File f = new File(file);
         return f.delete();
     }
 
-    public static boolean delete(List<String> files) throws IOException
+    public static boolean delete(List<String> files)
     {
         boolean bVal = true;
         for ( int i = 0; i < files.size(); ++i )
@@ -172,7 +159,7 @@ public class FileUtils
         return bVal;
     }
 
-    public static void delete(File[] files) throws IOException
+    public static void delete(File[] files)
     {
         for ( File file : files )
         {
