@@ -489,16 +489,7 @@ public class Table
             ByteBuffer name = iter.next();
             IColumn newColumn = cf.getColumn(name); // null == row delete or it wouldn't be marked Mutated
             if (newColumn != null && cf.isMarkedForDelete())
-            {
-                // row is marked for delete, but column was also updated.  if column is timestamped less than
-                // the row tombstone, treat it as if it didn't exist.  Otherwise we don't care about row
-                // tombstone for the purpose of the index update and we can proceed as usual.
-                if (newColumn.timestamp() <= cf.getMarkedForDeleteAt())
-                {
-                    // don't remove from the cf object; that can race w/ CommitLog write.  Leaving it is harmless.
-                    newColumn = null;
-                }
-            }
+                throw new UnsupportedOperationException("Index manager cannot support deleting and inserting into a row in the same mutation");
             IColumn oldColumn = oldIndexedColumns.getColumn(name);
 
             // deletions are irrelevant to the index unless we're changing state from live -> deleted, i.e.,
