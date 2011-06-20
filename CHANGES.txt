@@ -1,6 +1,7 @@
 0.8.2
  * fix cache mbean getSize (CASSANDRA-2781)
  * Add Date, Float, Double, and Boolean types
+ * Add startup flag to renew counter node id (CASSANDRA-2788)
 
 
 0.8.1
