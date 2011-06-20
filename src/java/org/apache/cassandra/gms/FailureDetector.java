@@ -257,7 +257,7 @@ class ArrivalWindow
     }
 
     // see CASSANDRA-2597 for an explanation of the math at work here.
-    double synchronized phi(long tnow)
+    synchronized double phi(long tnow)
     {
         int size = arrivalIntervals_.size();
         double t = tnow - tLast_;
