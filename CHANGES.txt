@@ -2,6 +2,7 @@
  * fix cache mbean getSize (CASSANDRA-2781)
  * Add Date, Float, Double, and Boolean types (CASSANDRA-2530)
  * Add startup flag to renew counter node id (CASSANDRA-2788)
+ * fix repair hanging if a neighbor has nothing to send (CASSANDRA-2797)
  * add jamm agent to cassandra.bat (CASSANDRA-2787)
 
 
