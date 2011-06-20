@@ -388,6 +388,12 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             }
         }
 
+        if (Boolean.parseBoolean(System.getProperty("cassandra.renew_counter_id", "false")))
+        {
+            logger_.info("Renewing local node id (as requested)");
+            NodeId.renewLocalId();
+        }
+
         // daemon threads, like our executors', continue to run while shutdown hooks are invoked
         Thread drainOnShutdown = new Thread(new WrappedRunnable()
         {

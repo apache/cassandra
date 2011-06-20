@@ -6,6 +6,7 @@
  * replace CollatingIterator, ReducingIterator with MergeIterator 
    (CASSANDRA-2062)
  * Fixed the ability to set compaction strategy in cli using create column family command (CASSANDRA-2778)
+ * Add startup flag to renew counter node id (CASSANDRA-2788)
 
 0.8.1
  * CQL:
