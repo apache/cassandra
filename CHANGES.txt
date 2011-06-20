@@ -1,7 +1,8 @@
 0.8.2
  * fix cache mbean getSize (CASSANDRA-2781)
- * Add Date, Float, Double, and Boolean types
+ * Add Date, Float, Double, and Boolean types (CASSANDRA-2530)
  * Add startup flag to renew counter node id (CASSANDRA-2788)
+ * add jamm agent to cassandra.bat (CASSANDRA-2787)
 
 
 0.8.1
