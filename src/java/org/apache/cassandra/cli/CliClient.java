@@ -264,6 +264,7 @@ public class CliClient
                     break;
                 case CliParser.NODE_CONSISTENCY_LEVEL:
                     executeConsistencyLevelStatement(tree);
+                    break;
                 case CliParser.NODE_THRIFT_INCR:
                     executeIncr(tree, 1L);
                     break;
@@ -2075,17 +2076,6 @@ public class CliClient
         }
 
         return getBytesAccordingToType(superColumn, getFormatType(comparatorClass));
-    }
-
-    /**
-     * Converts column name into byte[] according to comparator type
-     * @param superColumn - sub-column name from parser
-     * @param columnFamily - column family name from parser
-     * @return bytes[] - into which column name was converted according to comparator type
-     */
-    private byte[] subColumnNameAsByteArray(String superColumn, String columnFamily)
-    {
-        return TBaseHelper.byteBufferToByteArray(subColumnNameAsBytes(superColumn, columnFamily));
     }
 
     /**
