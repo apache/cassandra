@@ -73,6 +73,10 @@ public class CreateColumnFamilyStatement
         comparators.put("bigint", "LongType");
         comparators.put("uuid", "UUIDType");
         comparators.put("counter", "CounterColumnType");
+        comparators.put("boolean", "BooleanType");
+        comparators.put("date", "DateType");
+        comparators.put("float", "FloatType");
+        comparators.put("double", "DoubleType");
 
         keywords.add(KW_COMPARATOR);
         keywords.add(KW_COMMENT);
