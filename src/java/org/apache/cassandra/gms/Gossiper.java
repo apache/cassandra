@@ -190,7 +190,7 @@ public class Gossiper implements IFailureDetectionEventListener
     
     public void setVersion(InetAddress address, int version)
     {
-        Integer old = versions.put(address, version);
+        versions.put(address, version);
     }
     
     public Integer getVersion(InetAddress address)
@@ -717,7 +717,6 @@ public class Gossiper implements IFailureDetectionEventListener
     {
         // don't assert here, since if the node restarts the version will go back to zero
         int oldVersion = localState.getHeartBeatState().getHeartBeatVersion();
-        Map<ApplicationState, VersionedValue> localAppStateMap = localState.getApplicationStateMap();
 
         localState.setHeartBeatState(remoteState.getHeartBeatState());
         if (logger.isTraceEnabled())

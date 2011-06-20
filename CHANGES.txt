@@ -8,6 +8,14 @@
  * Fixed the ability to set compaction strategy in cli using create column family command (CASSANDRA-2778)
  * Add startup flag to renew counter node id (CASSANDRA-2788)
 
+
+0.8.2
+ * fix cache mbean getSize (CASSANDRA-2781)
+ * Add Date, Float, Double, and Boolean types (CASSANDRA-2530)
+ * fix repair hanging if a neighbor has nothing to send (CASSANDRA-2797)
+ * add jamm agent to cassandra.bat (CASSANDRA-2787)
+
+
 0.8.1
  * CQL:
    - support for insert, delete in BATCH (CASSANDRA-2537)
@@ -15,7 +23,6 @@
    - timestamp support for INSERT, UPDATE, and BATCH (CASSANDRA-2555)
    - TTL support (CASSANDRA-2476)
    - counter support (CASSANDRA-2473)
-   - improve JDBC spec compliance (CASSANDRA-2720)
    - ALTER COLUMNFAMILY (CASSANDRA-1709)
    - DROP INDEX (CASSANDRA-2617)
    - add SCHEMA/TABLE as aliases for KS/CF (CASSANDRA-2743)
@@ -58,6 +65,7 @@
    by nio sockets (CASSANDRA-2654)
  * restrict repair streaming to specific columnfamilies (CASSANDRA-2280)
  * fix nodetool ring use with Ec2Snitch (CASSANDRA-2733)
+ * fix inconsistency window during bootstrap (CASSANDRA-833)
  * fix removing columns and subcolumns that are supressed by a row or
    supercolumn tombstone during replica resolution (CASSANDRA-2590)
  * support sstable2json against snapshot sstables (CASSANDRA-2386)
@@ -68,7 +76,14 @@
  * avoid skipping rows in scrub for counter column family (CASSANDRA-2759)
  * fix ConcurrentModificationException in repair when dealing with 0.7 node
    (CASSANDRA-2767)
+ * use threadsafe collections for StreamInSession (CASSANDRA-2766)
  * avoid infinite loop when creating merkle tree (CASSANDRA-2758)
+ * avoids unmarking compacting sstable prematurely in cleanup (CASSANDRA-2769)
+ * fix NPE when the commit log is bypassed (CASSANDRA-2718)
+ * don't throw an exception in SS.isRPCServerRunning (CASSANDRA-2721)
+ * make stress.jar executable (CASSANDRA-2744)
+ * add daemon mode to java stress (CASSANDRA-2267)
+ * expose the DC and rack of a node through JMX and nodetool ring (CASSANDRA-2531)
 
 
 0.8.0-final
@@ -175,7 +190,8 @@
  * add key type information and alias (CASSANDRA-2311, 2396)
  * cli no longer divides read_repair_chance by 100 (CASSANDRA-2458)
  * made CompactionInfo.getTaskType return an enum (CASSANDRA-2482)
- * add a server-wide cap on measured memtable memory usage (CASSANDRA-2006)
+ * add a server-wide cap on measured memtable memory usage and aggressively
+   flush to keep under that threshold (CASSANDRA-2006)
  * add unified UUIDType (CASSANDRA-2233)
 
 

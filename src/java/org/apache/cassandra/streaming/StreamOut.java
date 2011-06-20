@@ -122,15 +122,10 @@ public class StreamOut
     {
         List<PendingFile> pending = createPendingFiles(sstables, ranges, type);
 
-        if (pending.size() > 0)
-        {
-            session.addFilesToStream(pending);
-            session.begin();
-        }
-        else
-        {
-            session.close();
-        }
+        // Even if the list of pending files is empty, we need to initiate the transfer otherwise
+        // the remote end will hang in cases where this was a requested transfer.
+        session.addFilesToStream(pending);
+        session.begin();
     }
 
     // called prior to sending anything.

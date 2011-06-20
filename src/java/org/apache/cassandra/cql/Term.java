@@ -24,6 +24,7 @@ import java.nio.ByteBuffer;
 
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.AsciiType;
+import org.apache.cassandra.db.marshal.FloatType;
 import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.db.marshal.LexicalUUIDType;
 import org.apache.cassandra.db.marshal.MarshalException;
@@ -107,6 +108,8 @@ public class Term
                 // we specifically want the Lexical class here, not "UUIDType," because we're supposed to have
                 // a uuid-shaped string here, and UUIDType also accepts integer or date strings (and turns them into version 1 uuids).
                 return LexicalUUIDType.instance.fromString(text);
+            case FLOAT: 
+              return FloatType.instance.fromString(text);
         }
         
         // FIXME: handle scenario that should never happen
@@ -132,7 +135,7 @@ public class Term
 
 enum TermType
 {
-    STRING, INTEGER, UUID;
+    STRING, INTEGER, UUID, FLOAT;
     
     static TermType forInt(int type)
     {
@@ -141,7 +144,9 @@ enum TermType
         else if (type == CqlParser.INTEGER)
             return INTEGER;
         else if (type == CqlParser.UUID)
-            return UUID;
+          return UUID;
+        else if (type == CqlParser.FLOAT)
+          return FLOAT;
         
         // FIXME: handled scenario that should never occur.
         return null;

@@ -652,56 +652,50 @@ public class CompactionManager implements CompactionManagerMBean
               logger.debug("Expected bloom filter size : " + expectedBloomFilterSize);
 
             SSTableWriter writer = null;
+
+            logger.info("Cleaning up " + sstable);
+            // Calculate the expected compacted filesize
+            long expectedRangeFileSize = cfs.getExpectedCompactedFileSize(Arrays.asList(sstable)) / 2;
+            String compactionFileLocation = table.getDataFileLocation(expectedRangeFileSize);
+            if (compactionFileLocation == null)
+                throw new IOException("disk full");
+
+            SSTableScanner scanner = sstable.getDirectScanner(CompactionIterator.FILE_BUFFER_SIZE);
+            SortedSet<ByteBuffer> indexedColumns = cfs.getIndexedColumns();
+            CleanupInfo ci = new CleanupInfo(sstable, scanner);
+            executor.beginCompaction(ci);
             try
             {
-                logger.info("Cleaning up " + sstable);
-                // Calculate the expected compacted filesize
-                long expectedRangeFileSize = cfs.getExpectedCompactedFileSize(Arrays.asList(sstable)) / 2;
-                String compactionFileLocation = table.getDataFileLocation(expectedRangeFileSize);
-                if (compactionFileLocation == null)
-                    throw new IOException("disk full");
-
-                SSTableScanner scanner = sstable.getDirectScanner(CompactionIterator.FILE_BUFFER_SIZE);
-                SortedSet<ByteBuffer> indexedColumns = cfs.getIndexedColumns();
-                CleanupInfo ci = new CleanupInfo(sstable, scanner);
-                executor.beginCompaction(ci);
-                try
+                while (scanner.hasNext())
                 {
-                    while (scanner.hasNext())
+                    SSTableIdentityIterator row = (SSTableIdentityIterator) scanner.next();
+                    if (Range.isTokenInRanges(row.getKey().token, ranges))
                     {
-                        SSTableIdentityIterator row = (SSTableIdentityIterator) scanner.next();
-                        if (Range.isTokenInRanges(row.getKey().token, ranges))
+                        writer = maybeCreateWriter(cfs, compactionFileLocation, expectedBloomFilterSize, writer, Collections.singletonList(sstable));
+                        writer.append(controller.getCompactedRow(row));
+                        totalkeysWritten++;
+                    }
+                    else
+                    {
+                        cfs.invalidateCachedRow(row.getKey());
+                        if (!indexedColumns.isEmpty() || isCommutative)
                         {
-                            writer = maybeCreateWriter(cfs, compactionFileLocation, expectedBloomFilterSize, writer, Collections.singletonList(sstable));
-                            writer.append(controller.getCompactedRow(row));
-                            totalkeysWritten++;
-                        }
-                        else
-                        {
-                            cfs.invalidateCachedRow(row.getKey());
-                            if (!indexedColumns.isEmpty() || isCommutative)
+                            while (row.hasNext())
                             {
-                                while (row.hasNext())
-                                {
-                                    IColumn column = row.next();
-                                    if (column instanceof CounterColumn)
-                                        renewer.maybeRenew((CounterColumn) column);
-                                    if (indexedColumns.contains(column.name()))
-                                        Table.cleanupIndexEntry(cfs, row.getKey().key, column);
-                                }
+                                IColumn column = row.next();
+                                if (column instanceof CounterColumn)
+                                    renewer.maybeRenew((CounterColumn) column);
+                                if (indexedColumns.contains(column.name()))
+                                    Table.cleanupIndexEntry(cfs, row.getKey().key, column);
                             }
                         }
                     }
                 }
-                finally
-                {
-                    scanner.close();
-                    executor.finishCompaction(ci);
-                }
             }
             finally
             {
-                cfs.getDataTracker().unmarkCompacting(Arrays.asList(sstable));
+                scanner.close();
+                executor.finishCompaction(ci);
             }
 
             List<SSTableReader> results = new ArrayList<SSTableReader>();

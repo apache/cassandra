@@ -25,6 +25,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
@@ -33,11 +34,11 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.commons.cli.*;
 
 import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.Pair;
+import org.codehaus.jackson.JsonGenerator;
+import org.codehaus.jackson.map.ObjectMapper;
 
 import static org.apache.cassandra.utils.ByteBufferUtil.bytesToHex;
 import static org.apache.cassandra.utils.ByteBufferUtil.hexToBytes;
@@ -47,12 +48,12 @@ import static org.apache.cassandra.utils.ByteBufferUtil.hexToBytes;
  */
 public class SSTableExport
 {
-    // size of the columns page
-    private static final int PAGE_SIZE = 1000;
+    private static ObjectMapper jsonMapper = new ObjectMapper();
 
     private static final String KEY_OPTION = "k";
     private static final String EXCLUDEKEY_OPTION = "x";
     private static final String ENUMERATEKEYS_OPTION = "e";
+
     private static Options options;
     private static CommandLine cmd;
     
@@ -72,42 +73,36 @@ public class SSTableExport
 
         Option optEnumerate = new Option(ENUMERATEKEYS_OPTION, false, "enumerate keys only");
         options.addOption(optEnumerate);
-    }
 
-    /**
-     * Wraps given string into quotes
-     * @param val string to quote
-     * @return quoted string
-     */
-    private static String quote(String val)
-    {
-        return String.format("\"%s\"", val);
+        // disabling auto close of the stream
+        jsonMapper.configure(JsonGenerator.Feature.AUTO_CLOSE_TARGET, false);
     }
 
     /**
      * JSON Hash Key serializer
-     * @param val value to set as a key
-     * @return JSON Hash key
+     *
+     * @param out The output steam to write data
+     * @param value value to set as a key
      */
-    private static String asKey(String val)
+    private static void writeKey(PrintStream out, String value)
     {
-        return String.format("%s: ", quote(val));
+        writeJSON(out, value);
+        out.print(": ");
     }
 
     /**
      * Serialize columns using given column iterator
+     *
      * @param columns column iterator
      * @param out output stream
      * @param comparator columns comparator
      * @param cfMetaData Column Family metadata (to get validator)
-     * @return pair of (number of columns serialized, last column serialized)
      */
     private static void serializeColumns(Iterator<IColumn> columns, PrintStream out, AbstractType comparator, CFMetaData cfMetaData)
     {
         while (columns.hasNext())
         {
-            IColumn column = columns.next();
-            serializeColumn(column, out, comparator, cfMetaData);
+            writeJSON(out, serializeColumn(columns.next(), comparator, cfMetaData));
 
             if (columns.hasNext())
                 out.print(", ");
@@ -116,47 +111,42 @@ public class SSTableExport
 
     /**
      * Serialize a given column to the JSON format
+     *
      * @param column column presentation
-     * @param out output stream
      * @param comparator columns comparator
      * @param cfMetaData Column Family metadata (to get validator)
+     *
+     * @return column as serialized list
      */
-    private static void serializeColumn(IColumn column, PrintStream out, AbstractType comparator, CFMetaData cfMetaData)
+    private static List<Object> serializeColumn(IColumn column, AbstractType comparator, CFMetaData cfMetaData)
     {
+        ArrayList<Object> serializedColumn = new ArrayList<Object>();
+
         ByteBuffer name = ByteBufferUtil.clone(column.name());
         ByteBuffer value = ByteBufferUtil.clone(column.value());
         AbstractType validator = cfMetaData.getValueValidator(name);
 
-        out.print("[");
-        out.print(quote(comparator.getString(name)));
-        out.print(", ");
-        out.print(quote(validator.getString(value)));
-        out.print(", ");
-        out.print(column.timestamp());
+        serializedColumn.add(comparator.getString(name));
+        serializedColumn.add(validator.getString(value));
+        serializedColumn.add(column.timestamp());
 
         if (column instanceof DeletedColumn)
         {
-            out.print(", ");
-            out.print("\"d\"");
+            serializedColumn.add("d");
         }
         else if (column instanceof ExpiringColumn)
         {
-            out.print(", ");
-            out.print("\"e\"");
-            out.print(", ");
-            out.print(((ExpiringColumn) column).getTimeToLive());
-            out.print(", ");
-            out.print(column.getLocalDeletionTime());
+            serializedColumn.add("e");
+            serializedColumn.add(((ExpiringColumn) column).getTimeToLive());
+            serializedColumn.add(column.getLocalDeletionTime());
         }
         else if (column instanceof CounterColumn)
         {
-            out.print(", ");
-            out.print("\"c\"");
-            out.print(", ");
-            out.print(((CounterColumn) column).timestampOfLastDelete());
+            serializedColumn.add("c");
+            serializedColumn.add(((CounterColumn) column).timestampOfLastDelete());
         }
 
-        out.print("]");
+        return serializedColumn;
     }
 
     /**
@@ -172,7 +162,7 @@ public class SSTableExport
         CFMetaData cfMetaData = columnFamily.metadata();
         AbstractType comparator = columnFamily.getComparator();
 
-        out.print(asKey(bytesToHex(key.key)));
+        writeKey(out, bytesToHex(key.key));
         out.print(isSuperCF ? "{" : "[");
 
         if (isSuperCF)
@@ -181,12 +171,12 @@ public class SSTableExport
             {
                 IColumn column = row.next();
 
-                out.print(asKey(comparator.getString(column.name())));
+                writeKey(out, comparator.getString(column.name()));
                 out.print("{");
-                out.print(asKey("deletedAt"));
+                writeKey(out, "deletedAt");
                 out.print(column.getMarkedForDeleteAt());
                 out.print(", ");
-                out.print(asKey("subColumns"));
+                writeKey(out, "subColumns");
                 out.print("[");
                 serializeColumns(column.getSubColumns().iterator(), out, columnFamily.getSubComparator(), cfMetaData);
                 out.print("]");
@@ -202,6 +192,7 @@ public class SSTableExport
         }
 
         out.print(isSuperCF ? "}" : "]");
+
     }
 
     /**
@@ -416,5 +407,17 @@ public class SSTableExport
         }
 
         System.exit(0);
+    }
+
+    private static void writeJSON(PrintStream out, Object value)
+    {
+        try
+        {
+            jsonMapper.writeValue(out, value);
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException(e.getMessage(), e);
+        }
     }
 }

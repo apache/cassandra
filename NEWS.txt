@@ -7,6 +7,31 @@ Upgrading
       sstableloader tool instead.
 
 
+0.8.1
+=====
+
+Upgrading
+---------
+    - 0.8.1 is backwards compatible with 0.8, upgrade can be achieved by a
+      simple rolling restart.
+    - If upgrading for earlier version (0.7), please refer to the 0.8 section
+      for instructions.
+
+Features
+--------
+    - Numerous additions/improvements to CQL (support for counters, TTL, batch
+      inserts/deletes, index dropping, ...).
+    - Add two new AbstractTypes (comparator) to support compound keys
+      (CompositeType and DynamicCompositeType), as well as a ReverseType to
+      reverse the order of any existing comparator.
+    - New option to bypass the commit log on some keyspaces (for advanced
+      users).
+
+Tools
+-----
+    - Add new data bulk loading utility (sstableloader).
+
+
 0.8
 ===
 

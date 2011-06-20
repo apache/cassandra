@@ -427,11 +427,11 @@ dropColumnFamilyStatement returns [String cfam]
     ;
 
 comparatorType
-    : 'bytea' | 'ascii' | 'text' | 'varchar' | 'int' | 'varint' | 'bigint' | 'uuid' | 'counter'
+    : 'bytea' | 'ascii' | 'text' | 'varchar' | 'int' | 'varint' | 'bigint' | 'uuid' | 'counter' | 'boolean' | 'date' | 'float' | 'double'
     ;
 
 term returns [Term item]
-    : ( t=K_KEY | t=STRING_LITERAL | t=INTEGER | t=UUID | t=IDENT ) { $item = new Term($t.text, $t.type); }
+    : ( t=K_KEY | t=STRING_LITERAL | t=INTEGER | t=UUID | t=IDENT | t=FLOAT) { $item = new Term($t.text, $t.type); }
     ;
 
 termList returns [List<Term> items]

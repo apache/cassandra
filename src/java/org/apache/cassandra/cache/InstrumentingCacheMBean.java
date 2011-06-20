@@ -25,7 +25,7 @@ public interface InstrumentingCacheMBean
 {
     public int getCapacity();
     public void setCapacity(int capacity);
-    public int size();
+    public int getSize();
 
     /** total request count since cache creation */
     public long getRequests();
