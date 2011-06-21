@@ -1,11 +1,3 @@
-0.8.2
- * fix cache mbean getSize (CASSANDRA-2781)
- * Add Date, Float, Double, and Boolean types (CASSANDRA-2530)
- * Add startup flag to renew counter node id (CASSANDRA-2788)
- * fix repair hanging if a neighbor has nothing to send (CASSANDRA-2797)
- * add jamm agent to cassandra.bat (CASSANDRA-2787)
-
-
 0.8.1
  * CQL:
    - support for insert, delete in BATCH (CASSANDRA-2537)
@@ -71,6 +63,11 @@
  * make stress.jar executable (CASSANDRA-2744)
  * add daemon mode to java stress (CASSANDRA-2267)
  * expose the DC and rack of a node through JMX and nodetool ring (CASSANDRA-2531)
+ * fix cache mbean getSize (CASSANDRA-2781)
+ * Add Date, Float, Double, and Boolean types (CASSANDRA-2530)
+ * Add startup flag to renew counter node id (CASSANDRA-2788)
+ * add jamm agent to cassandra.bat (CASSANDRA-2787)
+ * fix repair hanging if a neighbor has nothing to send (CASSANDRA-2797)
 
 
 0.8.0-final
