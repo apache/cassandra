@@ -18,7 +18,8 @@
  * fix nodetool ring use with Ec2Snitch (CASSANDRA-2733)
  * fix removing columns and subcolumns that are supressed by a row or
    supercolumn tombstone during replica resolution (CASSANDRA-2590)
- * use threadsafe collections for StreamInSession (CASSANDRA-2766)
+ * use threadsafe collections for StreamInSession and StreamOutSession
+   (CASSANDRA-2766, CASSANDRA-2792)
 
 
 0.7.6
