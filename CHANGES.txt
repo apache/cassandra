@@ -84,6 +84,7 @@
  * make stress.jar executable (CASSANDRA-2744)
  * add daemon mode to java stress (CASSANDRA-2267)
  * expose the DC and rack of a node through JMX and nodetool ring (CASSANDRA-2531)
+ * Fix wrong purge of deleted cf during compaction (CASSANDRA-2786)
 
 
 0.8.0-final
