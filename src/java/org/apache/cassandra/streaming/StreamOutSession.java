@@ -64,12 +64,12 @@ public class StreamOutSession
         return streams.get(new Pair<InetAddress, Long>(host, sessionId));
     }
 
-    private final Map<String, PendingFile> files = new LinkedHashMap<String, PendingFile>();
+    private final Map<String, PendingFile> files = new NonBlockingHashMap<String, PendingFile>();
 
     public final String table;
     private final Pair<InetAddress, Long> context;
     private final Runnable callback;
-    private String currentFile;
+    private volatile String currentFile;
 
     private StreamOutSession(String table, Pair<InetAddress, Long> context, Runnable callback)
     {

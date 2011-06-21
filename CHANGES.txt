@@ -10,10 +10,7 @@
 
 
 0.8.2
- * fix cache mbean getSize (CASSANDRA-2781)
- * Add Date, Float, Double, and Boolean types (CASSANDRA-2530)
- * fix repair hanging if a neighbor has nothing to send (CASSANDRA-2797)
- * add jamm agent to cassandra.bat (CASSANDRA-2787)
+ * improve thread-safety in StreamOutSession (CASSANDRA-2792)
 
 
 0.8.1
@@ -84,6 +81,10 @@
  * make stress.jar executable (CASSANDRA-2744)
  * add daemon mode to java stress (CASSANDRA-2267)
  * expose the DC and rack of a node through JMX and nodetool ring (CASSANDRA-2531)
+ * fix cache mbean getSize (CASSANDRA-2781)
+ * Add Date, Float, Double, and Boolean types (CASSANDRA-2530)
+ * fix repair hanging if a neighbor has nothing to send (CASSANDRA-2797)
+ * add jamm agent to cassandra.bat (CASSANDRA-2787)
  * Fix wrong purge of deleted cf during compaction (CASSANDRA-2786)
  * purge tombstone even if row is in only one sstable (CASSANDRA-2801)
 
