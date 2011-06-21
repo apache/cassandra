@@ -1,4 +1,4 @@
-0,8.2
+0.8.2
  * improve thread-safety in StreamOutSession (CASSANDRA-2792)
 
 0.8.1
