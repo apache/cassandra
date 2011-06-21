@@ -832,7 +832,7 @@ public class CompactionManager implements CompactionManagerMBean
     public Future<SSTableReader> submitSSTableBuild(final Descriptor desc, OperationType type)
     {
         // invalid descriptions due to missing or dropped CFS are handled by SSTW and StreamInSession.
-        final SSTableWriter.Builder builder = SSTableWriter.createBuilder(desc, type);
+        final Rebuilder builder = SSTableWriter.createBuilder(desc, type);
         Callable<SSTableReader> callable = new Callable<SSTableReader>()
         {
             public SSTableReader call() throws IOException
