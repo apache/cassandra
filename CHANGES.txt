@@ -69,6 +69,7 @@
  * add jamm agent to cassandra.bat (CASSANDRA-2787)
  * fix repair hanging if a neighbor has nothing to send (CASSANDRA-2797)
  * purge tombstone even if row is in only one sstable (CASSANDRA-2801)
+ * Fix wrong purge of deleted cf during compaction (CASSANDRA-2786)
 
 
 0.8.0-final
