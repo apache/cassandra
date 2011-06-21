@@ -106,14 +106,13 @@ public class CompactionController
     /**
      * @return an AbstractCompactedRow implementation to write the merged rows in question.
      *
-     * If there is a single source row, the data is from a current-version sstable,
-     * and we aren't forcing deserialization for scrub,
-     * write it unchanged.  Otherwise, we deserialize, purge tombstones, and
-     * reserialize in the latest version.
+     * If there is a single source row, the data is from a current-version sstable, we don't
+     * need to purge and we aren't forcing deserialization for scrub, write it unchanged.
+     * Otherwise, we deserialize, purge tombstones, and reserialize in the latest version.
      */
     public AbstractCompactedRow getCompactedRow(List<SSTableIdentityIterator> rows)
     {
-        if (rows.size() == 1 && !needDeserialize())
+        if (rows.size() == 1 && !needDeserialize() && !shouldPurge(rows.get(0).getKey()))
             return new EchoedRow(rows.get(0));
 
         long rowSize = 0;
