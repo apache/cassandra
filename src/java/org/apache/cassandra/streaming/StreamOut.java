@@ -42,18 +42,31 @@ import org.apache.cassandra.utils.Pair;
 /**
  * This class handles streaming data from one node to another.
  *
- * The source node is in charge of the streaming session.  It begins the stream by sending
+ * The source node [the Out side] is always in charge of the streaming session.  Streams may
+ * be initiated either directly by the source via the methods in this class,
+ * or on demand from the target (via StreamRequest).
+ *
+ * Files to stream are grouped into sessions, which can have callbacks associated
+ * with them so that (for instance) we can mark a new node a full member of the
+ * cluster after all the data it needs has been streamed.
+ *
+ * The source begins a session by sending
  * a Message with the stream bit flag in the Header turned on.  Part of that Message
  * will include a StreamHeader that includes the files that will be streamed as part
  * of that session, as well as the first file-to-be-streamed. (Combining session list
  * and first file like this is inconvenient, but not as inconvenient as the old
  * three-part send-file-list, wait-for-ack, start-first-file dance.)
  *
- * After each file, the target will send a StreamReply indicating success
+ * This is done over a separate TCP connection to avoid blocking ordinary intra-node
+ * traffic during the stream.  So there is no Handler for the main stream of data --
+ * when a connection sets the Stream bit, IncomingTcpConnection knows what to expect
+ * without any further Messages.
+ *
+ * After each file, the target node [the In side] will send a StreamReply indicating success
  * (FILE_FINISHED) or failure (FILE_RETRY).
  *
- * When all files have been successfully transferred and integrated the source will send
- * SESSION_FINISHED and the session is complete.
+ * When all files have been successfully transferred and integrated the target will
+ * send an additional SESSION_FINISHED reply and the session is complete.
  *
  * For Stream requests (for bootstrap), one subtlety is that we always have to
  * create at least one stream reply, even if the list of files is empty, otherwise the
