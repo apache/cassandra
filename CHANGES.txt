@@ -81,12 +81,20 @@
  * make stress.jar executable (CASSANDRA-2744)
  * add daemon mode to java stress (CASSANDRA-2267)
  * expose the DC and rack of a node through JMX and nodetool ring (CASSANDRA-2531)
+<<<<<<< .working
  * fix cache mbean getSize (CASSANDRA-2781)
  * Add Date, Float, Double, and Boolean types (CASSANDRA-2530)
  * fix repair hanging if a neighbor has nothing to send (CASSANDRA-2797)
  * add jamm agent to cassandra.bat (CASSANDRA-2787)
  * Fix wrong purge of deleted cf during compaction (CASSANDRA-2786)
  * purge tombstone even if row is in only one sstable (CASSANDRA-2801)
+=======
+ * fix cache mbean getSize (CASSANDRA-2781)
+ * Add Date, Float, Double, and Boolean types (CASSANDRA-2530)
+ * Add startup flag to renew counter node id (CASSANDRA-2788)
+ * add jamm agent to cassandra.bat (CASSANDRA-2787)
+ * fix repair hanging if a neighbor has nothing to send (CASSANDRA-2797)
+>>>>>>> .merge-right.r1137981
 
 
 0.8.0-final

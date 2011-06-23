@@ -2,7 +2,7 @@ cassandra (0.8.1) unstable; urgency=low
 
   * New release 
 
- -- Sylvain Lebresne <slebresne@apache.org>  Thu, 16 Jun 2011 09:37:27 +0200
+ -- Sylvain Lebresne <slebresne@apache.org>  Thu, 21 Jun 2011 09:37:27 +0200
 
 cassandra (0.8.0) unstable; urgency=low
 
