@@ -20,6 +20,8 @@
    supercolumn tombstone during replica resolution (CASSANDRA-2590)
  * use threadsafe collections for StreamInSession and StreamOutSession
    (CASSANDRA-2766, CASSANDRA-2792)
+ * Expose number of threads blocked on submitting memtable to flush
+   (CASSANDRA-2817)
 
 
 0.7.6

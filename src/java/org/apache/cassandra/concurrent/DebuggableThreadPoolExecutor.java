@@ -66,15 +66,22 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor
         {
             public void rejectedExecution(Runnable task, ThreadPoolExecutor executor)
             {
+                ((DebuggableThreadPoolExecutor)executor).onInitialRejection(task);
                 BlockingQueue<Runnable> queue = executor.getQueue();
                 while (true)
                 {
                     if (executor.isShutdown())
+                    {
+                        ((DebuggableThreadPoolExecutor)executor).onFinalRejection(task);
                         throw new RejectedExecutionException("ThreadPoolExecutor has shut down");
+                    }
                     try
                     {
                         if (queue.offer(task, 1000, TimeUnit.MILLISECONDS))
+                        {
+                            ((DebuggableThreadPoolExecutor)executor).onFinalAccept(task);
                             break;
+                        }
                     }
                     catch (InterruptedException e)
                     {
@@ -84,6 +91,10 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor
             }
         });
     }
+
+    protected void onInitialRejection(Runnable task) {}
+    protected void onFinalAccept(Runnable task) {}
+    protected void onFinalRejection(Runnable task) {}
 
     @Override
     public void afterExecute(Runnable r, Throwable t)
