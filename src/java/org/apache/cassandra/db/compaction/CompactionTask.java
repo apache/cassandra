@@ -127,7 +127,8 @@ public class CompactionTask extends AbstractCompactionTask
         if (logger.isDebugEnabled())
             logger.debug("Expected bloom filter size : " + expectedBloomFilterSize);
 
-        SSTableWriter writer;
+        SSTableWriter writer = null;
+        final SSTableReader ssTable;
         CompactionIterator ci = new CompactionIterator(type, toCompact, controller); // retain a handle so we can call close()
         Iterator<AbstractCompactedRow> nni = Iterators.filter(ci, Predicates.notNull());
         Map<DecoratedKey, Long> cachedKeys = new HashMap<DecoratedKey, Long>();
@@ -164,15 +165,17 @@ public class CompactionTask extends AbstractCompactionTask
                     }
                 }
             }
+            ssTable = writer.closeAndOpenReader(getMaxDataAge(toCompact));
         }
         finally
         {
             ci.close();
             if (collector != null)
                 collector.finishCompaction(ci);
+            if (writer != null)
+                writer.cleanupIfNecessary();
         }
 
-        SSTableReader ssTable = writer.closeAndOpenReader(getMaxDataAge(toCompact));
         cfs.replaceCompactedSSTables(toCompact, Arrays.asList(ssTable));
         for (Entry<DecoratedKey, Long> entry : cachedKeys.entrySet()) // empty if preheat is off
             ssTable.cacheKey(entry.getKey(), entry.getValue());

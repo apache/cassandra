@@ -20,6 +20,7 @@
 package org.apache.cassandra.io.sstable;
 
 import java.io.File;
+import java.io.IOError;
 import java.io.IOException;
 import java.lang.ref.PhantomReference;
 import java.lang.ref.ReferenceQueue;
@@ -94,7 +95,15 @@ public class SSTableDeletingReference extends PhantomReference<SSTableReader>
                 }
             }
             // let the remainder be cleaned up by delete
-            SSTable.delete(desc, Sets.difference(components, Collections.singleton(Component.DATA)));
+            try
+            {
+                SSTable.delete(desc, Sets.difference(components, Collections.singleton(Component.DATA)));
+            }
+            catch (IOException e)
+            {
+                throw new IOError(e);
+            }
+
             tracker.spaceReclaimed(size);
         }
     }

@@ -138,7 +138,7 @@ public class SSTableReader extends SSTable
 
     public static SSTableReader open(Descriptor desc) throws IOException
     {
-        Set<Component> components = componentsFor(desc, false);
+        Set<Component> components = componentsFor(desc, Descriptor.TempState.ANY);
         return open(desc, components, DatabaseDescriptor.getCFMetaData(desc.ksname, desc.cfname), StorageService.getPartitioner());
     }
 

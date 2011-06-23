@@ -168,6 +168,26 @@ public class SSTableWriter extends SSTable
         afterAppend(decoratedKey, currentPosition);
     }
 
+    /**
+     * Attempt to close the index writer and data file before deleting all temp components for the sstable
+     */
+    public void cleanupIfNecessary()
+    {
+        FileUtils.closeQuietly(iwriter);
+        FileUtils.closeQuietly(dataFile);
+
+        try
+        {
+            Set<Component> components = SSTable.componentsFor(descriptor, Descriptor.TempState.TEMP);
+            if (!components.isEmpty())
+                SSTable.delete(descriptor, components);
+        }
+        catch (Exception e)
+        {
+            logger.error(String.format("Failed deleting temp components for %s", descriptor), e);
+        }
+    }
+
     public SSTableReader closeAndOpenReader() throws IOException
     {
         return closeAndOpenReader(System.currentTimeMillis());
@@ -300,26 +320,53 @@ public class SSTableWriter extends SSTable
 
         public SSTableReader build() throws IOException
         {
-            if (cfs.isInvalid())
-                return null;
-            maybeOpenIndexer();
+            try
+            {
+                if (cfs.isInvalid())
+                    return null;
+                maybeOpenIndexer();
 
-            File ifile = new File(desc.filenameFor(SSTable.COMPONENT_INDEX));
-            File ffile = new File(desc.filenameFor(SSTable.COMPONENT_FILTER));
-            assert !ifile.exists();
-            assert !ffile.exists();
+                File ifile = new File(desc.filenameFor(SSTable.COMPONENT_INDEX));
+                File ffile = new File(desc.filenameFor(SSTable.COMPONENT_FILTER));
+                assert !ifile.exists();
+                assert !ffile.exists();
 
-            long estimatedRows = indexer.prepareIndexing();
+                long estimatedRows = indexer.prepareIndexing();
 
-            // build the index and filter
-            long rows = indexer.index();
+                // build the index and filter
+                long rows = indexer.index();
 
-            logger.debug("estimated row count was {} of real count", ((double)estimatedRows) / rows);
-            return SSTableReader.open(rename(desc, SSTable.componentsFor(desc, false)));
+                logger.debug("estimated row count was {} of real count", ((double)estimatedRows) / rows);
+                return SSTableReader.open(rename(desc, SSTable.componentsFor(desc, Descriptor.TempState.ANY)));
+            }
+            finally
+            {
+                cleanupIfNecessary();
+            }
         }
+
+        /**
+        * Attempt to close the index writer before deleting all temp components for the sstable
+        */
+        public void cleanupIfNecessary()
+        {
+            FileUtils.closeQuietly(indexer);
+
+            try
+            {
+                Set<Component> components = SSTable.componentsFor(desc, Descriptor.TempState.TEMP);
+                if (!components.isEmpty())
+                    SSTable.delete(desc, components);
+            }
+            catch (Exception e)
+            {
+                logger.error(String.format("Failed deleting temp components for %s", desc), e);
+            }
+        }
+
     }
 
-    static class RowIndexer
+    static class RowIndexer implements Closeable
     {
         protected final Descriptor desc;
         public final BufferedRandomAccessFile dfile;
@@ -376,7 +423,7 @@ public class SSTableWriter extends SSTable
             }
         }
 
-        void close() throws IOException
+        public void close() throws IOException
         {
             dfile.close();
             iwriter.close();
@@ -465,6 +512,11 @@ public class SSTableWriter extends SSTable
             writeMetadata(desc, rowSizes, columnCounts, ReplayPosition.NONE);
             return rows;
         }
+
+        public String toString()
+        {
+            return "RowIndexer(" + desc + ")";
+        }
     }
 
     /*
@@ -533,7 +585,7 @@ public class SSTableWriter extends SSTable
         }
 
         @Override
-        void close() throws IOException
+        public void close() throws IOException
         {
             super.close();
             writerDfile.close();
@@ -543,7 +595,7 @@ public class SSTableWriter extends SSTable
     /**
      * Encapsulates writing the index and filter for an SSTable. The state of this object is not valid until it has been closed.
      */
-    static class IndexWriter
+    static class IndexWriter implements Closeable
     {
         private final BufferedRandomAccessFile indexFile;
         public final Descriptor desc;
@@ -609,6 +661,11 @@ public class SSTableWriter extends SSTable
             // we can't reset dbuilder either, but that is the last thing called in afterappend so
             // we assume that if that worked then we won't be trying to reset.
             indexFile.reset(mark);
+        }
+
+        public String toString()
+        {
+            return "IndexWriter(" + desc + ")";
         }
     }
 }

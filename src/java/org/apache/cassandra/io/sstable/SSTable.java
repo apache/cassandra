@@ -21,7 +21,6 @@ package org.apache.cassandra.io.sstable;
 
 import java.io.File;
 import java.io.FilenameFilter;
-import java.io.IOError;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
@@ -137,26 +136,20 @@ public abstract class SSTable
      *
      * @return true if the file was deleted
      */
-    public static boolean delete(Descriptor desc, Set<Component> components)
+    public static boolean delete(Descriptor desc, Set<Component> components) throws IOException
     {
-        try
+        // remove the DATA component first if it exists
+        if (components.contains(Component.DATA))
+            FileUtils.deleteWithConfirm(desc.filenameFor(Component.DATA));
+        for (Component component : components)
         {
-            // remove the DATA component first if it exists
-            if (components.contains(Component.DATA))
-                FileUtils.deleteWithConfirm(desc.filenameFor(Component.DATA));
-            for (Component component : components)
-            {
-                if (component.equals(Component.DATA) || component.equals(Component.COMPACTED_MARKER))
-                    continue;
-                FileUtils.deleteWithConfirm(desc.filenameFor(component));
-            }
-            // remove the COMPACTED_MARKER component last if it exists
-            FileUtils.delete(desc.filenameFor(Component.COMPACTED_MARKER));
+            if (component.equals(Component.DATA) || component.equals(Component.COMPACTED_MARKER))
+                continue;
+            FileUtils.deleteWithConfirm(desc.filenameFor(component));
         }
-        catch (IOException e)
-        {
-            throw new IOError(e);
-        }
+        // remove the COMPACTED_MARKER component last if it exists
+        FileUtils.delete(desc.filenameFor(Component.COMPACTED_MARKER));
+
         logger.debug("Deleted {}", desc);
         return true;
     }
@@ -196,7 +189,7 @@ public abstract class SSTable
     /**
      * Discovers existing components for the descriptor. Slow: only intended for use outside the critical path.
      */
-    static Set<Component> componentsFor(final Descriptor desc, final boolean liveOnly)
+    static Set<Component> componentsFor(final Descriptor desc, final Descriptor.TempState matchState)
     {
         final Set<Component> components = new HashSet<Component>();
         desc.directory.list(new FilenameFilter()
@@ -204,7 +197,7 @@ public abstract class SSTable
             public boolean accept(File dir, String name)
             {
                 Pair<Descriptor,Component> component = tryComponentFromFilename(dir, name);
-                if (component != null && component.left.equals(desc) && (!liveOnly || !component.left.temporary))
+                if (component != null && component.left.equals(desc) && (matchState.isMatch(component.left)))
                     components.add(component.right);
                 return false;
             }

@@ -224,14 +224,22 @@ public class Memtable
                                       + keySize // keys in data file
                                       + currentThroughput.get()) // data
                                      * 1.2); // bloom filter and row index overhead
+        SSTableReader ssTable;
+        // errors when creating the writer that may leave empty temp files.
         SSTableWriter writer = cfs.createFlushWriter(columnFamilies.size(), estimatedSize, context);
+        try
+        {
+            // (we can't clear out the map as-we-go to free up memory,
+            //  since the memtable is being used for queries in the "pending flush" category)
+            for (Map.Entry<DecoratedKey, ColumnFamily> entry : columnFamilies.entrySet())
+                writer.append(entry.getKey(), entry.getValue());
 
-        // (we can't clear out the map as-we-go to free up memory,
-        //  since the memtable is being used for queries in the "pending flush" category)
-        for (Map.Entry<DecoratedKey, ColumnFamily> entry : columnFamilies.entrySet())
-            writer.append(entry.getKey(), entry.getValue());
-
-        SSTableReader ssTable = writer.closeAndOpenReader();
+            ssTable = writer.closeAndOpenReader();
+        }
+        finally
+        {
+            writer.cleanupIfNecessary();
+        }
         logger.info(String.format("Completed flushing %s (%d bytes)",
                                   ssTable.getFilename(), new File(ssTable.getFilename()).length()));
         return ssTable;

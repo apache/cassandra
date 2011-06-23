@@ -92,7 +92,7 @@ public class FileUtils
         }
         catch (Exception e)
         {
-            logger_.warn("Failed closing stream", e);
+            logger_.warn("Failed closing " + c, e);
         }
     }
 

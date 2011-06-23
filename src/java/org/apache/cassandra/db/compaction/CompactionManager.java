@@ -469,131 +469,142 @@ public class CompactionManager implements CompactionManagerMBean
                 assert firstRowPositionFromIndex == 0 : firstRowPositionFromIndex;
             }
 
+            // errors when creating the writer may leave empty temp files.
             SSTableWriter writer = maybeCreateWriter(cfs, compactionFileLocation, expectedBloomFilterSize, null, Collections.singletonList(sstable));
+            SSTableReader newSstable = null;
             executor.beginCompaction(new ScrubInfo(dataFile, sstable));
             int goodRows = 0, badRows = 0, emptyRows = 0;
 
-            while (!dataFile.isEOF())
+            try
             {
-                long rowStart = dataFile.getFilePointer();
-                if (logger.isDebugEnabled())
-                    logger.debug("Reading row at " + rowStart);
-
-                DecoratedKey key = null;
-                long dataSize = -1;
-                try
+                while (!dataFile.isEOF())
                 {
-                    key = SSTableReader.decodeKey(sstable.partitioner, sstable.descriptor, ByteBufferUtil.readWithShortLength(dataFile));
-                    dataSize = sstable.descriptor.hasIntRowSize ? dataFile.readInt() : dataFile.readLong();
+                    long rowStart = dataFile.getFilePointer();
                     if (logger.isDebugEnabled())
-                        logger.debug(String.format("row %s is %s bytes", ByteBufferUtil.bytesToHex(key.key), dataSize));
-                }
-                catch (Throwable th)
-                {
-                    throwIfFatal(th);
-                    // check for null key below
-                }
+                        logger.debug("Reading row at " + rowStart);
 
-                ByteBuffer currentIndexKey = nextIndexKey;
-                long nextRowPositionFromIndex;
-                try
-                {
-                    nextIndexKey = indexFile.isEOF() ? null : ByteBufferUtil.readWithShortLength(indexFile);
-                    nextRowPositionFromIndex = indexFile.isEOF() ? dataFile.length() : indexFile.readLong();
-                }
-                catch (Throwable th)
-                {
-                    logger.warn("Error reading index file", th);
-                    nextIndexKey = null;
-                    nextRowPositionFromIndex = dataFile.length();
-                }
-
-                long dataStart = dataFile.getFilePointer();
-                long dataStartFromIndex = currentIndexKey == null
-                                        ? -1
-                                        : rowStart + 2 + currentIndexKey.remaining() + (sstable.descriptor.hasIntRowSize ? 4 : 8);
-                long dataSizeFromIndex = nextRowPositionFromIndex - dataStartFromIndex;
-                assert currentIndexKey != null || indexFile.isEOF();
-                if (logger.isDebugEnabled() && currentIndexKey != null)
-                    logger.debug(String.format("Index doublecheck: row %s is %s bytes", ByteBufferUtil.bytesToHex(currentIndexKey),  dataSizeFromIndex));
-
-                writer.mark();
-                try
-                {
-                    if (key == null)
-                        throw new IOError(new IOException("Unable to read row key from data file"));
-                    if (dataSize > dataFile.length())
-                        throw new IOError(new IOException("Impossible row size " + dataSize));
-                    SSTableIdentityIterator row = new SSTableIdentityIterator(sstable, dataFile, key, dataStart, dataSize, true);
-                    AbstractCompactedRow compactedRow = controller.getCompactedRow(row);
-                    if (compactedRow.isEmpty())
+                    DecoratedKey key = null;
+                    long dataSize = -1;
+                    try
                     {
-                        emptyRows++;
+                        key = SSTableReader.decodeKey(sstable.partitioner, sstable.descriptor, ByteBufferUtil.readWithShortLength(dataFile));
+                        dataSize = sstable.descriptor.hasIntRowSize ? dataFile.readInt() : dataFile.readLong();
+                        if (logger.isDebugEnabled())
+                            logger.debug(String.format("row %s is %s bytes", ByteBufferUtil.bytesToHex(key.key), dataSize));
                     }
-                    else
+                    catch (Throwable th)
                     {
-                        writer.append(compactedRow);
-                        goodRows++;
+                        throwIfFatal(th);
+                        // check for null key below
                     }
-                    if (!key.key.equals(currentIndexKey) || dataStart != dataStartFromIndex)
-                        logger.warn("Row scrubbed successfully but index file contains a different key or row size; consider rebuilding the index as described in http://www.mail-archive.com/user@cassandra.apache.org/msg03325.html");
-                }
-                catch (Throwable th)
-                {
-                    throwIfFatal(th);
-                    logger.warn("Non-fatal error reading row (stacktrace follows)", th);
-                    writer.reset();
 
-                    if (currentIndexKey != null
-                        && (key == null || !key.key.equals(currentIndexKey) || dataStart != dataStartFromIndex || dataSize != dataSizeFromIndex))
+                    ByteBuffer currentIndexKey = nextIndexKey;
+                    long nextRowPositionFromIndex;
+                    try
                     {
-                        logger.info(String.format("Retrying from row index; data is %s bytes starting at %s",
-                                                  dataSizeFromIndex, dataStartFromIndex));
-                        key = SSTableReader.decodeKey(sstable.partitioner, sstable.descriptor, currentIndexKey);
-                        try
+                        nextIndexKey = indexFile.isEOF() ? null : ByteBufferUtil.readWithShortLength(indexFile);
+                        nextRowPositionFromIndex = indexFile.isEOF() ? dataFile.length() : indexFile.readLong();
+                    }
+                    catch (Throwable th)
+                    {
+                        logger.warn("Error reading index file", th);
+                        nextIndexKey = null;
+                        nextRowPositionFromIndex = dataFile.length();
+                    }
+
+                    long dataStart = dataFile.getFilePointer();
+                    long dataStartFromIndex = currentIndexKey == null
+                                            ? -1
+                                            : rowStart + 2 + currentIndexKey.remaining() + (sstable.descriptor.hasIntRowSize ? 4 : 8);
+                    long dataSizeFromIndex = nextRowPositionFromIndex - dataStartFromIndex;
+                    assert currentIndexKey != null || indexFile.isEOF();
+                    if (logger.isDebugEnabled() && currentIndexKey != null)
+                        logger.debug(String.format("Index doublecheck: row %s is %s bytes", ByteBufferUtil.bytesToHex(currentIndexKey),  dataSizeFromIndex));
+
+                    writer.mark();
+                    try
+                    {
+                        if (key == null)
+                            throw new IOError(new IOException("Unable to read row key from data file"));
+                        if (dataSize > dataFile.length())
+                            throw new IOError(new IOException("Impossible row size " + dataSize));
+                        SSTableIdentityIterator row = new SSTableIdentityIterator(sstable, dataFile, key, dataStart, dataSize, true);
+                        AbstractCompactedRow compactedRow = controller.getCompactedRow(row);
+                        if (compactedRow.isEmpty())
                         {
-                            SSTableIdentityIterator row = new SSTableIdentityIterator(sstable, dataFile, key, dataStartFromIndex, dataSizeFromIndex, true);
-                            AbstractCompactedRow compactedRow = controller.getCompactedRow(row);
-                            if (compactedRow.isEmpty())
+                            emptyRows++;
+                        }
+                        else
+                        {
+                            writer.append(compactedRow);
+                            goodRows++;
+                        }
+                        if (!key.key.equals(currentIndexKey) || dataStart != dataStartFromIndex)
+                            logger.warn("Row scrubbed successfully but index file contains a different key or row size; consider rebuilding the index as described in http://www.mail-archive.com/user@cassandra.apache.org/msg03325.html");
+                    }
+                    catch (Throwable th)
+                    {
+                        throwIfFatal(th);
+                        logger.warn("Non-fatal error reading row (stacktrace follows)", th);
+                        writer.reset();
+
+                        if (currentIndexKey != null
+                            && (key == null || !key.key.equals(currentIndexKey) || dataStart != dataStartFromIndex || dataSize != dataSizeFromIndex))
+                        {
+                            logger.info(String.format("Retrying from row index; data is %s bytes starting at %s",
+                                                      dataSizeFromIndex, dataStartFromIndex));
+                            key = SSTableReader.decodeKey(sstable.partitioner, sstable.descriptor, currentIndexKey);
+                            try
                             {
-                                emptyRows++;
+                                SSTableIdentityIterator row = new SSTableIdentityIterator(sstable, dataFile, key, dataStartFromIndex, dataSizeFromIndex, true);
+                                AbstractCompactedRow compactedRow = controller.getCompactedRow(row);
+                                if (compactedRow.isEmpty())
+                                {
+                                    emptyRows++;
+                                }
+                                else
+                                {
+                                    writer.append(compactedRow);
+                                    goodRows++;
+                                }
                             }
-                            else
+                            catch (Throwable th2)
                             {
-                                writer.append(compactedRow);
-                                goodRows++;
+                                throwIfFatal(th2);
+                                // Skipping rows is dangerous for counters (see CASSANDRA-2759)
+                                if (isCommutative)
+                                    throw new IOError(th2);
+
+                                logger.warn("Retry failed too.  Skipping to next row (retry's stacktrace follows)", th2);
+                                writer.reset();
+                                dataFile.seek(nextRowPositionFromIndex);
+                                badRows++;
                             }
                         }
-                        catch (Throwable th2)
+                        else
                         {
-                            throwIfFatal(th2);
                             // Skipping rows is dangerous for counters (see CASSANDRA-2759)
                             if (isCommutative)
-                                throw new IOError(th2);
+                                throw new IOError(th);
 
-                            logger.warn("Retry failed too.  Skipping to next row (retry's stacktrace follows)", th2);
-                            writer.reset();
-                            dataFile.seek(nextRowPositionFromIndex);
+                            logger.warn("Row at " + dataStart + " is unreadable; skipping to next");
+                            if (currentIndexKey != null)
+                                dataFile.seek(nextRowPositionFromIndex);
                             badRows++;
                         }
                     }
-                    else
-                    {
-                        // Skipping rows is dangerous for counters (see CASSANDRA-2759)
-                        if (isCommutative)
-                            throw new IOError(th);
-
-                        logger.warn("Row at " + dataStart + " is unreadable; skipping to next");
-                        if (currentIndexKey != null)
-                            dataFile.seek(nextRowPositionFromIndex);
-                        badRows++;
-                    }
                 }
+
+                if (writer.getFilePointer() > 0)
+                    newSstable = writer.closeAndOpenReader(sstable.maxDataAge);
+            }
+            finally
+            {
+                writer.cleanupIfNecessary();
             }
 
-            if (writer.getFilePointer() > 0)
+            if (newSstable != null)
             {
-                SSTableReader newSstable = writer.closeAndOpenReader(sstable.maxDataAge);
                 cfs.replaceCompactedSSTables(Arrays.asList(sstable), Arrays.asList(newSstable));
                 logger.info("Scrub of " + sstable + " complete: " + goodRows + " rows in new sstable and " + emptyRows + " empty (tombstoned) rows dropped");
                 if (badRows > 0)
@@ -652,6 +663,7 @@ public class CompactionManager implements CompactionManagerMBean
               logger.debug("Expected bloom filter size : " + expectedBloomFilterSize);
 
             SSTableWriter writer = null;
+            SSTableReader newSstable = null;
 
             logger.info("Cleaning up " + sstable);
             // Calculate the expected compacted filesize
@@ -691,17 +703,21 @@ public class CompactionManager implements CompactionManagerMBean
                         }
                     }
                 }
+                if (writer != null)
+                    newSstable = writer.closeAndOpenReader(sstable.maxDataAge);
             }
             finally
             {
                 scanner.close();
                 executor.finishCompaction(ci);
+                if (writer != null)
+                    writer.cleanupIfNecessary();
+                executor.finishCompaction(ci);
             }
 
             List<SSTableReader> results = new ArrayList<SSTableReader>();
-            if (writer != null)
+            if (newSstable != null)
             {
-                SSTableReader newSstable = writer.closeAndOpenReader(sstable.maxDataAge);
                 results.add(newSstable);
 
                 String format = "Cleaned up to %s.  %,d to %,d (~%d%% of original) bytes for %,d keys.  Time: %,dms.";

@@ -75,9 +75,9 @@ public class SSTableTest extends CleanupHelper
         ssTable = SSTableReader.open(ssTable.descriptor); // read the index from disk
         verifyMany(ssTable, map);
 
-        Set<Component> live = SSTable.componentsFor(ssTable.descriptor, true);
+        Set<Component> live = SSTable.componentsFor(ssTable.descriptor, Descriptor.TempState.LIVE);
         assert !live.isEmpty() : "SSTable has live components";
-        Set<Component> all = SSTable.componentsFor(ssTable.descriptor, false);
+        Set<Component> all = SSTable.componentsFor(ssTable.descriptor, Descriptor.TempState.ANY);
         assert live.equals(all) : "live components same as all components";
         all.removeAll(live);
         assert all.isEmpty() : "SSTable has no temp components";

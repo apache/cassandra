@@ -7,6 +7,7 @@
    (CASSANDRA-2062)
  * Fixed the ability to set compaction strategy in cli using create column family command (CASSANDRA-2778)
  * Add startup flag to renew counter node id (CASSANDRA-2788)
+ * clean up tmp files after failed compaction (CASSANDRA-2468)
 
 
 0.8.2

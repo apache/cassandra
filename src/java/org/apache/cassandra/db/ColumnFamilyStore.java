@@ -454,7 +454,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
             if (components.contains(Component.COMPACTED_MARKER) || desc.temporary)
             {
-                SSTable.delete(desc, components);
+                try
+                {
+                    SSTable.delete(desc, components);
+                }
+                catch (IOException e)
+                {
+                    throw new IOError(e);
+                }
                 continue;
             }
 

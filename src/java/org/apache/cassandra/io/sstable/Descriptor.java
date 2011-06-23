@@ -55,6 +55,21 @@ public class Descriptor
     public final boolean isLatestVersion;
     public final boolean usesOldBloomFilter;
 
+    public enum TempState
+    {
+        LIVE,
+        TEMP,
+        ANY;
+
+        boolean isMatch(Descriptor descriptor)
+        {
+            assert descriptor != null;
+            if (TempState.ANY == this)
+                return true;
+            return (TempState.TEMP == this) ? descriptor.temporary : !descriptor.temporary;
+        }
+    }
+
     /**
      * A descriptor that assumes CURRENT_VERSION.
      */
