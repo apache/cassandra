@@ -76,6 +76,8 @@
  * fix repair hanging if a neighbor has nothing to send (CASSANDRA-2797)
  * purge tombstone even if row is in only one sstable (CASSANDRA-2801)
  * Fix wrong purge of deleted cf during compaction (CASSANDRA-2786)
+ * Expose number of threads blocked on submitting memtable to flush
+   (CASSANDRA-2817)
 
 
 0.8.0-final

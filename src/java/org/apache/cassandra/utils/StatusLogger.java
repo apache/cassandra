@@ -33,7 +33,7 @@ import com.google.common.collect.Iterables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.concurrent.IExecutorMBean;
+import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutorMBean;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.net.MessagingService;
@@ -47,7 +47,7 @@ public class StatusLogger
         MBeanServer server = ManagementFactory.getPlatformMBeanServer();
         
         // everything from o.a.c.concurrent
-        logger.info(String.format("%-25s%10s%10s", "Pool Name", "Active", "Pending"));
+        logger.info(String.format("%-25s%10s%10s%10s", "Pool Name", "Active", "Pending", "Blocked"));
         Set<ObjectName> request, internal;
         try
         {
@@ -61,9 +61,9 @@ public class StatusLogger
         for (ObjectName objectName : Iterables.concat(request, internal))
         {
             String poolName = objectName.getKeyProperty("type");
-            IExecutorMBean threadPoolProxy = JMX.newMBeanProxy(server, objectName, IExecutorMBean.class);
-            logger.info(String.format("%-25s%10s%10s",
-                                      poolName, threadPoolProxy.getActiveCount(), threadPoolProxy.getPendingTasks()));
+            JMXEnabledThreadPoolExecutorMBean threadPoolProxy = JMX.newMBeanProxy(server, objectName, JMXEnabledThreadPoolExecutorMBean.class);
+            logger.info(String.format("%-25s%10s%10s%10s",
+                                      poolName, threadPoolProxy.getActiveCount(), threadPoolProxy.getPendingTasks(), threadPoolProxy.getCurrentlyBlockedTasks()));
         }
         // one offs
         logger.info(String.format("%-25s%10s%10s",

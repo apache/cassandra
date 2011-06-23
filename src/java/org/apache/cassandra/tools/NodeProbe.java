@@ -42,7 +42,7 @@ import javax.management.remote.JMXServiceURL;
 import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.cache.InstrumentingCacheMBean;
-import org.apache.cassandra.concurrent.IExecutorMBean;
+import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutorMBean;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.db.compaction.CompactionManager;
@@ -376,7 +376,7 @@ public class NodeProbe
         ssProxy.forceRemoveCompletion();
     }
   
-    public Iterator<Map.Entry<String, IExecutorMBean>> getThreadPoolMBeanProxies()
+    public Iterator<Map.Entry<String, JMXEnabledThreadPoolExecutorMBean>> getThreadPoolMBeanProxies()
     {
         try
         {
@@ -627,7 +627,7 @@ class ColumnFamilyStoreMBeanIterator implements Iterator<Map.Entry<String, Colum
     }
 }
 
-class ThreadPoolProxyMBeanIterator implements Iterator<Map.Entry<String, IExecutorMBean>>
+class ThreadPoolProxyMBeanIterator implements Iterator<Map.Entry<String, JMXEnabledThreadPoolExecutorMBean>>
 {
     private Iterator<ObjectName> resIter;
     private MBeanServerConnection mbeanServerConn;
@@ -646,12 +646,12 @@ class ThreadPoolProxyMBeanIterator implements Iterator<Map.Entry<String, IExecut
         return resIter.hasNext();
     }
 
-    public Map.Entry<String, IExecutorMBean> next()
+    public Map.Entry<String, JMXEnabledThreadPoolExecutorMBean> next()
     {
         ObjectName objectName = resIter.next();
         String poolName = objectName.getKeyProperty("type");
-        IExecutorMBean threadPoolProxy = JMX.newMBeanProxy(mbeanServerConn, objectName, IExecutorMBean.class);
-        return new AbstractMap.SimpleImmutableEntry<String, IExecutorMBean>(poolName, threadPoolProxy);
+        JMXEnabledThreadPoolExecutorMBean threadPoolProxy = JMX.newMBeanProxy(mbeanServerConn, objectName, JMXEnabledThreadPoolExecutorMBean.class);
+        return new AbstractMap.SimpleImmutableEntry<String, JMXEnabledThreadPoolExecutorMBean>(poolName, threadPoolProxy);
     }
 
     public void remove()

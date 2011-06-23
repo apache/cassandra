@@ -38,7 +38,7 @@ import org.apache.cassandra.config.ConfigurationException;
 import org.apache.commons.cli.*;
 
 import org.apache.cassandra.cache.InstrumentingCacheMBean;
-import org.apache.cassandra.concurrent.IExecutorMBean;
+import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutorMBean;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.db.compaction.CompactionManagerMBean;
 import org.apache.cassandra.dht.Token;
@@ -219,16 +219,21 @@ public class NodeCmd
 
     public void printThreadPoolStats(PrintStream outs)
     {
-        outs.printf("%-25s%10s%10s%15s%n", "Pool Name", "Active", "Pending", "Completed");
+        outs.printf("%-25s%10s%10s%15s%10s%18s%n", "Pool Name", "Active", "Pending", "Completed", "Blocked", "All time blocked");
 
-        Iterator<Map.Entry<String, IExecutorMBean>> threads = probe.getThreadPoolMBeanProxies();
+        Iterator<Map.Entry<String, JMXEnabledThreadPoolExecutorMBean>> threads = probe.getThreadPoolMBeanProxies();
         while (threads.hasNext())
         {
-            Entry<String, IExecutorMBean> thread = threads.next();
+            Entry<String, JMXEnabledThreadPoolExecutorMBean> thread = threads.next();
             String poolName = thread.getKey();
-            IExecutorMBean threadPoolProxy = thread.getValue();
-            outs.printf("%-25s%10s%10s%15s%n",
-                        poolName, threadPoolProxy.getActiveCount(), threadPoolProxy.getPendingTasks(), threadPoolProxy.getCompletedTasks());
+            JMXEnabledThreadPoolExecutorMBean threadPoolProxy = thread.getValue();
+            outs.printf("%-25s%10s%10s%15s%10s%18s%n",
+                        poolName,
+                        threadPoolProxy.getActiveCount(),
+                        threadPoolProxy.getPendingTasks(),
+                        threadPoolProxy.getCompletedTasks(),
+                        threadPoolProxy.getCurrentlyBlockedTasks(),
+                        threadPoolProxy.getTotalBlockedTasks());
         }
     }
 

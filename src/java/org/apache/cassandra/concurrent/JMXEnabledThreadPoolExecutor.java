@@ -20,6 +20,7 @@ package org.apache.cassandra.concurrent;
 
 import java.lang.management.ManagementFactory;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -35,6 +36,9 @@ import javax.management.ObjectName;
 public class JMXEnabledThreadPoolExecutor extends DebuggableThreadPoolExecutor implements JMXEnabledThreadPoolExecutorMBean
 {
     private final String mbeanName;
+
+    private final AtomicInteger totalBlocked = new AtomicInteger(0);
+    private final AtomicInteger currentBlocked = new AtomicInteger(0);
 
     public JMXEnabledThreadPoolExecutor(String threadPoolName)
     {
@@ -129,4 +133,34 @@ public class JMXEnabledThreadPoolExecutor extends DebuggableThreadPoolExecutor i
     {
         return getTaskCount() - getCompletedTaskCount();
     }
+
+    public int getTotalBlockedTasks()
+    {
+        return totalBlocked.get();
+    }
+
+    public int getCurrentlyBlockedTasks()
+    {
+        return currentBlocked.get();
+    }
+
+    @Override
+    protected void onInitialRejection(Runnable task)
+    {
+        totalBlocked.incrementAndGet();
+        currentBlocked.incrementAndGet();
+    }
+
+    @Override
+    protected void onFinalAccept(Runnable task)
+    {
+        currentBlocked.decrementAndGet();
+    }
+
+    @Override
+    protected void onFinalRejection(Runnable task)
+    {
+        currentBlocked.decrementAndGet();
+    }
+
 }
