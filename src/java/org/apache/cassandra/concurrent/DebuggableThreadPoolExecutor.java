@@ -57,9 +57,9 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor
         super(corePoolSize, corePoolSize, keepAliveTime, unit, workQueue, threadFactory);
         allowCoreThreadTimeOut(true);
 
-        // preserve task serialization.  this is more complicated than it needs to be,
-        // since TPE rejects if queue.offer reports a full queue.  we'll just
-        // override this with a handler that retries until it gets in.  ugly, but effective.
+        // block task submissions until queue has room.
+        // this is fighting TPE's design a bit because TPE rejects if queue.offer reports a full queue.
+        // we'll just override this with a handler that retries until it gets in.  ugly, but effective.
         // (there is an extensive analysis of the options here at
         //  http://today.java.net/pub/a/today/2008/10/23/creating-a-notifying-blocking-thread-pool-executor.html)
         this.setRejectedExecutionHandler(new RejectedExecutionHandler()
