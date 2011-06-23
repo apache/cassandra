@@ -2,7 +2,7 @@ Source: cassandra
 Section: misc
 Priority: extra
 Maintainer: Eric Evans <eevans@apache.org>
-Build-Depends: debhelper (>= 5), openjdk-6-jdk (>= 6b11) | java6-sdk, ant (>= 1.7)
+Build-Depends: debhelper (>= 5), openjdk-6-jdk (>= 6b11) | java6-sdk, ant (>= 1.7), ant-optional (>= 1.7)
 Homepage: http://cassandra.apache.org
 Vcs-Svn: https://svn.apache.org/repos/asf/cassandra/trunk
 Vcs-Browser: http://svn.apache.org/viewvc/cassandra/trunk
