@@ -245,7 +245,7 @@ public abstract class Migration
         {
             throw new RuntimeException(e);
         }
-        mi.row_mutation = ByteBuffer.wrap(dob.asByteArray());
+        mi.row_mutation = ByteBuffer.wrap(dob.getData(), 0, dob.getLength());
 
         // sub deflate
         this.subdeflate(mi);
