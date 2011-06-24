@@ -54,24 +54,24 @@ public class Row
                ", cf=" + cf +
                ')';
     }
-}
 
-class RowSerializer implements ICompactSerializer<Row>
-{
-    public void serialize(Row row, DataOutputStream dos, int version) throws IOException
+    public static class RowSerializer implements ICompactSerializer<Row>
     {
-        ByteBufferUtil.writeWithShortLength(row.key.key, dos);
-        ColumnFamily.serializer().serialize(row.cf, dos);
-    }
+        public void serialize(Row row, DataOutputStream dos, int version) throws IOException
+        {
+            ByteBufferUtil.writeWithShortLength(row.key.key, dos);
+            ColumnFamily.serializer().serialize(row.cf, dos);
+        }
 
-    public Row deserialize(DataInputStream dis, int version, boolean fromRemote) throws IOException
-    {
-        return new Row(StorageService.getPartitioner().decorateKey(ByteBufferUtil.readWithShortLength(dis)),
-                       ColumnFamily.serializer().deserialize(dis, false, fromRemote));
-    }
+        public Row deserialize(DataInputStream dis, int version, boolean fromRemote) throws IOException
+        {
+            return new Row(StorageService.getPartitioner().decorateKey(ByteBufferUtil.readWithShortLength(dis)),
+                           ColumnFamily.serializer().deserialize(dis, false, fromRemote));
+        }
 
-    public Row deserialize(DataInputStream dis, int version) throws IOException
-    {
-        return deserialize(dis, version, false);
+        public Row deserialize(DataInputStream dis, int version) throws IOException
+        {
+            return deserialize(dis, version, false);
+        }
     }
 }
