@@ -92,6 +92,7 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
      */
     protected void setup() throws IOException
     {
+    	logger.info("JVM vendor/version: {}/{}", System.getProperty("java.vm.name"), System.getProperty("java.version") );
         logger.info("Heap size: {}/{}", Runtime.getRuntime().totalMemory(), Runtime.getRuntime().maxMemory());
     	CLibrary.tryMlockall();
 

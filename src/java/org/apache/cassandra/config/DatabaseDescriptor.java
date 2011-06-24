@@ -63,8 +63,6 @@ public class DatabaseDescriptor
     private static SeedProvider seedProvider;
     /* Current index into the above list of directories */
     private static int currentIndex = 0;
-    private static int consistencyThreads = 4; // not configurable
-
 
     static Map<String, KSMetaData> tables = new HashMap<String, KSMetaData>();
 
@@ -689,11 +687,6 @@ public class DatabaseDescriptor
     public static int getPhiConvictThreshold()
     {
         return conf.phi_convict_threshold;
-    }
-
-    public static int getConsistencyThreads()
-    {
-        return consistencyThreads;
     }
 
     public static int getConcurrentReaders()
