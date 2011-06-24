@@ -623,6 +623,13 @@ service Cassandra {
                                4:required i32 keys_per_split)
     throws (1:InvalidRequestException ire),
 
+  /** experimental API for hadoop/parallel query support.
+      may change violently and without warning.
+
+      returns alive endpoints, sorted by proximity, that belong in the same datacenter as the given endpoint */
+  list<string> sort_endpoints_by_proximity(1: string endpoint, 2: required list<string> endpoints, 3: bool restrictToSameDC)
+    throws (1:InvalidRequestException ire),
+
   /** adds a column family. returns the new schema id. */
   string system_add_column_family(1:required CfDef cf_def)
     throws (1:InvalidRequestException ire, 2:SchemaDisagreementException sde),

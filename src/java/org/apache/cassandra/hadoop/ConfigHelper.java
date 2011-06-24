@@ -51,6 +51,7 @@ public class ConfigHelper
     private static final String INITIAL_THRIFT_ADDRESS = "cassandra.thrift.address";
     private static final String READ_CONSISTENCY_LEVEL = "cassandra.consistencylevel.read";
     private static final String WRITE_CONSISTENCY_LEVEL = "cassandra.consistencylevel.write";
+    private static final String INPUT_SPLIT_USE_ONLY_SAME_DC_REPLICA = "cassandra.input.split.useOnlySameDCReplica";
 
     /**
      * Set the keyspace and column family for the input of this job.
@@ -141,6 +142,24 @@ public class ConfigHelper
     public static int getInputSplitSize(Configuration conf)
     {
         return conf.getInt(INPUT_SPLIT_SIZE_CONFIG, DEFAULT_SPLIT_SIZE);
+    }
+
+    /**
+     * If true only endpoints for a split within the same datacenter
+     * can be used if the localhost endpoint fails.
+     * Set to false if any of the split's replicas can be used.
+     *
+     * @param conf      Job configuration you are about to run
+     * @param inDC
+     */
+    public static void setInputSplitUseOnlySameDCReplica(Configuration conf, boolean inDC)
+    {
+        conf.setBoolean(INPUT_SPLIT_USE_ONLY_SAME_DC_REPLICA, inDC);
+    }
+
+    public static boolean getInputSplitUseOnlySameDCReplica(Configuration conf)
+    {
+        return conf.getBoolean(INPUT_SPLIT_USE_ONLY_SAME_DC_REPLICA, true);
     }
 
     /**

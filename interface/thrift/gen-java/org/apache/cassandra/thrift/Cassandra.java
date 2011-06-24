@@ -256,6 +256,18 @@ public class Cassandra {
     public List<String> describe_splits(String cfName, String start_token, String end_token, int keys_per_split) throws InvalidRequestException, org.apache.thrift.TException;
 
     /**
+     * experimental API for hadoop/parallel query support.
+     * may change violently and without warning.
+     * 
+     * returns alive endpoints, sorted by proximity, that belong in the same datacenter as the given endpoint
+     * 
+     * @param endpoint
+     * @param endpoints
+     * @param restrictToSameDC
+     */
+    public List<String> sort_endpoints_by_proximity(String endpoint, List<String> endpoints, boolean restrictToSameDC) throws InvalidRequestException, org.apache.thrift.TException;
+
+    /**
      * adds a column family. returns the new schema id.
      * 
      * @param cf_def
@@ -357,6 +369,8 @@ public class Cassandra {
     public void describe_keyspace(String keyspace, org.apache.thrift.async.AsyncMethodCallback<AsyncClient.describe_keyspace_call> resultHandler) throws org.apache.thrift.TException;
 
     public void describe_splits(String cfName, String start_token, String end_token, int keys_per_split, org.apache.thrift.async.AsyncMethodCallback<AsyncClient.describe_splits_call> resultHandler) throws org.apache.thrift.TException;
+
+    public void sort_endpoints_by_proximity(String endpoint, List<String> endpoints, boolean restrictToSameDC, org.apache.thrift.async.AsyncMethodCallback<AsyncClient.sort_endpoints_by_proximity_call> resultHandler) throws org.apache.thrift.TException;
 
     public void system_add_column_family(CfDef cf_def, org.apache.thrift.async.AsyncMethodCallback<AsyncClient.system_add_column_family_call> resultHandler) throws org.apache.thrift.TException;
 
@@ -1422,6 +1436,47 @@ public class Cassandra {
         throw result.ire;
       }
       throw new org.apache.thrift.TApplicationException(org.apache.thrift.TApplicationException.MISSING_RESULT, "describe_splits failed: unknown result");
+    }
+
+    public List<String> sort_endpoints_by_proximity(String endpoint, List<String> endpoints, boolean restrictToSameDC) throws InvalidRequestException, org.apache.thrift.TException
+    {
+      send_sort_endpoints_by_proximity(endpoint, endpoints, restrictToSameDC);
+      return recv_sort_endpoints_by_proximity();
+    }
+
+    public void send_sort_endpoints_by_proximity(String endpoint, List<String> endpoints, boolean restrictToSameDC) throws org.apache.thrift.TException
+    {
+      oprot_.writeMessageBegin(new org.apache.thrift.protocol.TMessage("sort_endpoints_by_proximity", org.apache.thrift.protocol.TMessageType.CALL, ++seqid_));
+      sort_endpoints_by_proximity_args args = new sort_endpoints_by_proximity_args();
+      args.setEndpoint(endpoint);
+      args.setEndpoints(endpoints);
+      args.setRestrictToSameDC(restrictToSameDC);
+      args.write(oprot_);
+      oprot_.writeMessageEnd();
+      oprot_.getTransport().flush();
+    }
+
+    public List<String> recv_sort_endpoints_by_proximity() throws InvalidRequestException, org.apache.thrift.TException
+    {
+      org.apache.thrift.protocol.TMessage msg = iprot_.readMessageBegin();
+      if (msg.type == org.apache.thrift.protocol.TMessageType.EXCEPTION) {
+        org.apache.thrift.TApplicationException x = org.apache.thrift.TApplicationException.read(iprot_);
+        iprot_.readMessageEnd();
+        throw x;
+      }
+      if (msg.seqid != seqid_) {
+        throw new org.apache.thrift.TApplicationException(org.apache.thrift.TApplicationException.BAD_SEQUENCE_ID, "sort_endpoints_by_proximity failed: out of sequence response");
+      }
+      sort_endpoints_by_proximity_result result = new sort_endpoints_by_proximity_result();
+      result.read(iprot_);
+      iprot_.readMessageEnd();
+      if (result.isSetSuccess()) {
+        return result.success;
+      }
+      if (result.ire != null) {
+        throw result.ire;
+      }
+      throw new org.apache.thrift.TApplicationException(org.apache.thrift.TApplicationException.MISSING_RESULT, "sort_endpoints_by_proximity failed: unknown result");
     }
 
     public String system_add_column_family(CfDef cf_def) throws InvalidRequestException, SchemaDisagreementException, org.apache.thrift.TException
@@ -2598,6 +2653,44 @@ public class Cassandra {
       }
     }
 
+    public void sort_endpoints_by_proximity(String endpoint, List<String> endpoints, boolean restrictToSameDC, org.apache.thrift.async.AsyncMethodCallback<sort_endpoints_by_proximity_call> resultHandler) throws org.apache.thrift.TException {
+      checkReady();
+      sort_endpoints_by_proximity_call method_call = new sort_endpoints_by_proximity_call(endpoint, endpoints, restrictToSameDC, resultHandler, this, protocolFactory, transport);
+      this.currentMethod = method_call;
+      manager.call(method_call);
+    }
+
+    public static class sort_endpoints_by_proximity_call extends org.apache.thrift.async.TAsyncMethodCall {
+      private String endpoint;
+      private List<String> endpoints;
+      private boolean restrictToSameDC;
+      public sort_endpoints_by_proximity_call(String endpoint, List<String> endpoints, boolean restrictToSameDC, org.apache.thrift.async.AsyncMethodCallback<sort_endpoints_by_proximity_call> resultHandler, org.apache.thrift.async.TAsyncClient client, org.apache.thrift.protocol.TProtocolFactory protocolFactory, org.apache.thrift.transport.TNonblockingTransport transport) throws org.apache.thrift.TException {
+        super(client, protocolFactory, transport, resultHandler, false);
+        this.endpoint = endpoint;
+        this.endpoints = endpoints;
+        this.restrictToSameDC = restrictToSameDC;
+      }
+
+      public void write_args(org.apache.thrift.protocol.TProtocol prot) throws org.apache.thrift.TException {
+        prot.writeMessageBegin(new org.apache.thrift.protocol.TMessage("sort_endpoints_by_proximity", org.apache.thrift.protocol.TMessageType.CALL, 0));
+        sort_endpoints_by_proximity_args args = new sort_endpoints_by_proximity_args();
+        args.setEndpoint(endpoint);
+        args.setEndpoints(endpoints);
+        args.setRestrictToSameDC(restrictToSameDC);
+        args.write(prot);
+        prot.writeMessageEnd();
+      }
+
+      public List<String> getResult() throws InvalidRequestException, org.apache.thrift.TException {
+        if (getState() != org.apache.thrift.async.TAsyncMethodCall.State.RESPONSE_READ) {
+          throw new IllegalStateException("Method call not finished!");
+        }
+        org.apache.thrift.transport.TMemoryInputTransport memoryTransport = new org.apache.thrift.transport.TMemoryInputTransport(getFrameBuffer().array());
+        org.apache.thrift.protocol.TProtocol prot = client.getProtocolFactory().getProtocol(memoryTransport);
+        return (new Client(prot)).recv_sort_endpoints_by_proximity();
+      }
+    }
+
     public void system_add_column_family(CfDef cf_def, org.apache.thrift.async.AsyncMethodCallback<system_add_column_family_call> resultHandler) throws org.apache.thrift.TException {
       checkReady();
       system_add_column_family_call method_call = new system_add_column_family_call(cf_def, resultHandler, this, protocolFactory, transport);
@@ -2856,6 +2949,7 @@ public class Cassandra {
       processMap_.put("describe_snitch", new describe_snitch());
       processMap_.put("describe_keyspace", new describe_keyspace());
       processMap_.put("describe_splits", new describe_splits());
+      processMap_.put("sort_endpoints_by_proximity", new sort_endpoints_by_proximity());
       processMap_.put("system_add_column_family", new system_add_column_family());
       processMap_.put("system_drop_column_family", new system_drop_column_family());
       processMap_.put("system_add_keyspace", new system_add_keyspace());
@@ -3804,6 +3898,44 @@ public class Cassandra {
           return;
         }
         oprot.writeMessageBegin(new org.apache.thrift.protocol.TMessage("describe_splits", org.apache.thrift.protocol.TMessageType.REPLY, seqid));
+        result.write(oprot);
+        oprot.writeMessageEnd();
+        oprot.getTransport().flush();
+      }
+
+    }
+
+    private class sort_endpoints_by_proximity implements ProcessFunction {
+      public void process(int seqid, org.apache.thrift.protocol.TProtocol iprot, org.apache.thrift.protocol.TProtocol oprot) throws org.apache.thrift.TException
+      {
+        sort_endpoints_by_proximity_args args = new sort_endpoints_by_proximity_args();
+        try {
+          args.read(iprot);
+        } catch (org.apache.thrift.protocol.TProtocolException e) {
+          iprot.readMessageEnd();
+          org.apache.thrift.TApplicationException x = new org.apache.thrift.TApplicationException(org.apache.thrift.TApplicationException.PROTOCOL_ERROR, e.getMessage());
+          oprot.writeMessageBegin(new org.apache.thrift.protocol.TMessage("sort_endpoints_by_proximity", org.apache.thrift.protocol.TMessageType.EXCEPTION, seqid));
+          x.write(oprot);
+          oprot.writeMessageEnd();
+          oprot.getTransport().flush();
+          return;
+        }
+        iprot.readMessageEnd();
+        sort_endpoints_by_proximity_result result = new sort_endpoints_by_proximity_result();
+        try {
+          result.success = iface_.sort_endpoints_by_proximity(args.endpoint, args.endpoints, args.restrictToSameDC);
+        } catch (InvalidRequestException ire) {
+          result.ire = ire;
+        } catch (Throwable th) {
+          LOGGER.error("Internal error processing sort_endpoints_by_proximity", th);
+          org.apache.thrift.TApplicationException x = new org.apache.thrift.TApplicationException(org.apache.thrift.TApplicationException.INTERNAL_ERROR, "Internal error processing sort_endpoints_by_proximity");
+          oprot.writeMessageBegin(new org.apache.thrift.protocol.TMessage("sort_endpoints_by_proximity", org.apache.thrift.protocol.TMessageType.EXCEPTION, seqid));
+          x.write(oprot);
+          oprot.writeMessageEnd();
+          oprot.getTransport().flush();
+          return;
+        }
+        oprot.writeMessageBegin(new org.apache.thrift.protocol.TMessage("sort_endpoints_by_proximity", org.apache.thrift.protocol.TMessageType.REPLY, seqid));
         result.write(oprot);
         oprot.writeMessageEnd();
         oprot.getTransport().flush();
@@ -25397,6 +25529,938 @@ public class Cassandra {
     @Override
     public String toString() {
       StringBuilder sb = new StringBuilder("describe_splits_result(");
+      boolean first = true;
+
+      sb.append("success:");
+      if (this.success == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.success);
+      }
+      first = false;
+      if (!first) sb.append(", ");
+      sb.append("ire:");
+      if (this.ire == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.ire);
+      }
+      first = false;
+      sb.append(")");
+      return sb.toString();
+    }
+
+    public void validate() throws org.apache.thrift.TException {
+      // check for required fields
+    }
+
+  }
+
+  public static class sort_endpoints_by_proximity_args implements org.apache.thrift.TBase<sort_endpoints_by_proximity_args, sort_endpoints_by_proximity_args._Fields>, java.io.Serializable, Cloneable   {
+    private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct("sort_endpoints_by_proximity_args");
+
+    private static final org.apache.thrift.protocol.TField ENDPOINT_FIELD_DESC = new org.apache.thrift.protocol.TField("endpoint", org.apache.thrift.protocol.TType.STRING, (short)1);
+    private static final org.apache.thrift.protocol.TField ENDPOINTS_FIELD_DESC = new org.apache.thrift.protocol.TField("endpoints", org.apache.thrift.protocol.TType.LIST, (short)2);
+    private static final org.apache.thrift.protocol.TField RESTRICT_TO_SAME_DC_FIELD_DESC = new org.apache.thrift.protocol.TField("restrictToSameDC", org.apache.thrift.protocol.TType.BOOL, (short)3);
+
+    public String endpoint;
+    public List<String> endpoints;
+    public boolean restrictToSameDC;
+
+    /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
+    public enum _Fields implements org.apache.thrift.TFieldIdEnum {
+      ENDPOINT((short)1, "endpoint"),
+      ENDPOINTS((short)2, "endpoints"),
+      RESTRICT_TO_SAME_DC((short)3, "restrictToSameDC");
+
+      private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
+
+      static {
+        for (_Fields field : EnumSet.allOf(_Fields.class)) {
+          byName.put(field.getFieldName(), field);
+        }
+      }
+
+      /**
+       * Find the _Fields constant that matches fieldId, or null if its not found.
+       */
+      public static _Fields findByThriftId(int fieldId) {
+        switch(fieldId) {
+          case 1: // ENDPOINT
+            return ENDPOINT;
+          case 2: // ENDPOINTS
+            return ENDPOINTS;
+          case 3: // RESTRICT_TO_SAME_DC
+            return RESTRICT_TO_SAME_DC;
+          default:
+            return null;
+        }
+      }
+
+      /**
+       * Find the _Fields constant that matches fieldId, throwing an exception
+       * if it is not found.
+       */
+      public static _Fields findByThriftIdOrThrow(int fieldId) {
+        _Fields fields = findByThriftId(fieldId);
+        if (fields == null) throw new IllegalArgumentException("Field " + fieldId + " doesn't exist!");
+        return fields;
+      }
+
+      /**
+       * Find the _Fields constant that matches name, or null if its not found.
+       */
+      public static _Fields findByName(String name) {
+        return byName.get(name);
+      }
+
+      private final short _thriftId;
+      private final String _fieldName;
+
+      _Fields(short thriftId, String fieldName) {
+        _thriftId = thriftId;
+        _fieldName = fieldName;
+      }
+
+      public short getThriftFieldId() {
+        return _thriftId;
+      }
+
+      public String getFieldName() {
+        return _fieldName;
+      }
+    }
+
+    // isset id assignments
+    private static final int __RESTRICTTOSAMEDC_ISSET_ID = 0;
+    private BitSet __isset_bit_vector = new BitSet(1);
+
+    public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
+    static {
+      Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
+      tmpMap.put(_Fields.ENDPOINT, new org.apache.thrift.meta_data.FieldMetaData("endpoint", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+          new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
+      tmpMap.put(_Fields.ENDPOINTS, new org.apache.thrift.meta_data.FieldMetaData("endpoints", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+          new org.apache.thrift.meta_data.ListMetaData(org.apache.thrift.protocol.TType.LIST, 
+              new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING))));
+      tmpMap.put(_Fields.RESTRICT_TO_SAME_DC, new org.apache.thrift.meta_data.FieldMetaData("restrictToSameDC", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+          new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.BOOL)));
+      metaDataMap = Collections.unmodifiableMap(tmpMap);
+      org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(sort_endpoints_by_proximity_args.class, metaDataMap);
+    }
+
+    public sort_endpoints_by_proximity_args() {
+    }
+
+    public sort_endpoints_by_proximity_args(
+      String endpoint,
+      List<String> endpoints,
+      boolean restrictToSameDC)
+    {
+      this();
+      this.endpoint = endpoint;
+      this.endpoints = endpoints;
+      this.restrictToSameDC = restrictToSameDC;
+      setRestrictToSameDCIsSet(true);
+    }
+
+    /**
+     * Performs a deep copy on <i>other</i>.
+     */
+    public sort_endpoints_by_proximity_args(sort_endpoints_by_proximity_args other) {
+      __isset_bit_vector.clear();
+      __isset_bit_vector.or(other.__isset_bit_vector);
+      if (other.isSetEndpoint()) {
+        this.endpoint = other.endpoint;
+      }
+      if (other.isSetEndpoints()) {
+        List<String> __this__endpoints = new ArrayList<String>();
+        for (String other_element : other.endpoints) {
+          __this__endpoints.add(other_element);
+        }
+        this.endpoints = __this__endpoints;
+      }
+      this.restrictToSameDC = other.restrictToSameDC;
+    }
+
+    public sort_endpoints_by_proximity_args deepCopy() {
+      return new sort_endpoints_by_proximity_args(this);
+    }
+
+    @Override
+    public void clear() {
+      this.endpoint = null;
+      this.endpoints = null;
+      setRestrictToSameDCIsSet(false);
+      this.restrictToSameDC = false;
+    }
+
+    public String getEndpoint() {
+      return this.endpoint;
+    }
+
+    public sort_endpoints_by_proximity_args setEndpoint(String endpoint) {
+      this.endpoint = endpoint;
+      return this;
+    }
+
+    public void unsetEndpoint() {
+      this.endpoint = null;
+    }
+
+    /** Returns true if field endpoint is set (has been assigned a value) and false otherwise */
+    public boolean isSetEndpoint() {
+      return this.endpoint != null;
+    }
+
+    public void setEndpointIsSet(boolean value) {
+      if (!value) {
+        this.endpoint = null;
+      }
+    }
+
+    public int getEndpointsSize() {
+      return (this.endpoints == null) ? 0 : this.endpoints.size();
+    }
+
+    public java.util.Iterator<String> getEndpointsIterator() {
+      return (this.endpoints == null) ? null : this.endpoints.iterator();
+    }
+
+    public void addToEndpoints(String elem) {
+      if (this.endpoints == null) {
+        this.endpoints = new ArrayList<String>();
+      }
+      this.endpoints.add(elem);
+    }
+
+    public List<String> getEndpoints() {
+      return this.endpoints;
+    }
+
+    public sort_endpoints_by_proximity_args setEndpoints(List<String> endpoints) {
+      this.endpoints = endpoints;
+      return this;
+    }
+
+    public void unsetEndpoints() {
+      this.endpoints = null;
+    }
+
+    /** Returns true if field endpoints is set (has been assigned a value) and false otherwise */
+    public boolean isSetEndpoints() {
+      return this.endpoints != null;
+    }
+
+    public void setEndpointsIsSet(boolean value) {
+      if (!value) {
+        this.endpoints = null;
+      }
+    }
+
+    public boolean isRestrictToSameDC() {
+      return this.restrictToSameDC;
+    }
+
+    public sort_endpoints_by_proximity_args setRestrictToSameDC(boolean restrictToSameDC) {
+      this.restrictToSameDC = restrictToSameDC;
+      setRestrictToSameDCIsSet(true);
+      return this;
+    }
+
+    public void unsetRestrictToSameDC() {
+      __isset_bit_vector.clear(__RESTRICTTOSAMEDC_ISSET_ID);
+    }
+
+    /** Returns true if field restrictToSameDC is set (has been assigned a value) and false otherwise */
+    public boolean isSetRestrictToSameDC() {
+      return __isset_bit_vector.get(__RESTRICTTOSAMEDC_ISSET_ID);
+    }
+
+    public void setRestrictToSameDCIsSet(boolean value) {
+      __isset_bit_vector.set(__RESTRICTTOSAMEDC_ISSET_ID, value);
+    }
+
+    public void setFieldValue(_Fields field, Object value) {
+      switch (field) {
+      case ENDPOINT:
+        if (value == null) {
+          unsetEndpoint();
+        } else {
+          setEndpoint((String)value);
+        }
+        break;
+
+      case ENDPOINTS:
+        if (value == null) {
+          unsetEndpoints();
+        } else {
+          setEndpoints((List<String>)value);
+        }
+        break;
+
+      case RESTRICT_TO_SAME_DC:
+        if (value == null) {
+          unsetRestrictToSameDC();
+        } else {
+          setRestrictToSameDC((Boolean)value);
+        }
+        break;
+
+      }
+    }
+
+    public Object getFieldValue(_Fields field) {
+      switch (field) {
+      case ENDPOINT:
+        return getEndpoint();
+
+      case ENDPOINTS:
+        return getEndpoints();
+
+      case RESTRICT_TO_SAME_DC:
+        return new Boolean(isRestrictToSameDC());
+
+      }
+      throw new IllegalStateException();
+    }
+
+    /** Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise */
+    public boolean isSet(_Fields field) {
+      if (field == null) {
+        throw new IllegalArgumentException();
+      }
+
+      switch (field) {
+      case ENDPOINT:
+        return isSetEndpoint();
+      case ENDPOINTS:
+        return isSetEndpoints();
+      case RESTRICT_TO_SAME_DC:
+        return isSetRestrictToSameDC();
+      }
+      throw new IllegalStateException();
+    }
+
+    @Override
+    public boolean equals(Object that) {
+      if (that == null)
+        return false;
+      if (that instanceof sort_endpoints_by_proximity_args)
+        return this.equals((sort_endpoints_by_proximity_args)that);
+      return false;
+    }
+
+    public boolean equals(sort_endpoints_by_proximity_args that) {
+      if (that == null)
+        return false;
+
+      boolean this_present_endpoint = true && this.isSetEndpoint();
+      boolean that_present_endpoint = true && that.isSetEndpoint();
+      if (this_present_endpoint || that_present_endpoint) {
+        if (!(this_present_endpoint && that_present_endpoint))
+          return false;
+        if (!this.endpoint.equals(that.endpoint))
+          return false;
+      }
+
+      boolean this_present_endpoints = true && this.isSetEndpoints();
+      boolean that_present_endpoints = true && that.isSetEndpoints();
+      if (this_present_endpoints || that_present_endpoints) {
+        if (!(this_present_endpoints && that_present_endpoints))
+          return false;
+        if (!this.endpoints.equals(that.endpoints))
+          return false;
+      }
+
+      boolean this_present_restrictToSameDC = true;
+      boolean that_present_restrictToSameDC = true;
+      if (this_present_restrictToSameDC || that_present_restrictToSameDC) {
+        if (!(this_present_restrictToSameDC && that_present_restrictToSameDC))
+          return false;
+        if (this.restrictToSameDC != that.restrictToSameDC)
+          return false;
+      }
+
+      return true;
+    }
+
+    @Override
+    public int hashCode() {
+      HashCodeBuilder builder = new HashCodeBuilder();
+
+      boolean present_endpoint = true && (isSetEndpoint());
+      builder.append(present_endpoint);
+      if (present_endpoint)
+        builder.append(endpoint);
+
+      boolean present_endpoints = true && (isSetEndpoints());
+      builder.append(present_endpoints);
+      if (present_endpoints)
+        builder.append(endpoints);
+
+      boolean present_restrictToSameDC = true;
+      builder.append(present_restrictToSameDC);
+      if (present_restrictToSameDC)
+        builder.append(restrictToSameDC);
+
+      return builder.toHashCode();
+    }
+
+    public int compareTo(sort_endpoints_by_proximity_args other) {
+      if (!getClass().equals(other.getClass())) {
+        return getClass().getName().compareTo(other.getClass().getName());
+      }
+
+      int lastComparison = 0;
+      sort_endpoints_by_proximity_args typedOther = (sort_endpoints_by_proximity_args)other;
+
+      lastComparison = Boolean.valueOf(isSetEndpoint()).compareTo(typedOther.isSetEndpoint());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      if (isSetEndpoint()) {
+        lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.endpoint, typedOther.endpoint);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetEndpoints()).compareTo(typedOther.isSetEndpoints());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      if (isSetEndpoints()) {
+        lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.endpoints, typedOther.endpoints);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetRestrictToSameDC()).compareTo(typedOther.isSetRestrictToSameDC());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      if (isSetRestrictToSameDC()) {
+        lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.restrictToSameDC, typedOther.restrictToSameDC);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      return 0;
+    }
+
+    public _Fields fieldForId(int fieldId) {
+      return _Fields.findByThriftId(fieldId);
+    }
+
+    public void read(org.apache.thrift.protocol.TProtocol iprot) throws org.apache.thrift.TException {
+      org.apache.thrift.protocol.TField field;
+      iprot.readStructBegin();
+      while (true)
+      {
+        field = iprot.readFieldBegin();
+        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+          break;
+        }
+        switch (field.id) {
+          case 1: // ENDPOINT
+            if (field.type == org.apache.thrift.protocol.TType.STRING) {
+              this.endpoint = iprot.readString();
+            } else { 
+              org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 2: // ENDPOINTS
+            if (field.type == org.apache.thrift.protocol.TType.LIST) {
+              {
+                org.apache.thrift.protocol.TList _list119 = iprot.readListBegin();
+                this.endpoints = new ArrayList<String>(_list119.size);
+                for (int _i120 = 0; _i120 < _list119.size; ++_i120)
+                {
+                  String _elem121;
+                  _elem121 = iprot.readString();
+                  this.endpoints.add(_elem121);
+                }
+                iprot.readListEnd();
+              }
+            } else { 
+              org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 3: // RESTRICT_TO_SAME_DC
+            if (field.type == org.apache.thrift.protocol.TType.BOOL) {
+              this.restrictToSameDC = iprot.readBool();
+              setRestrictToSameDCIsSet(true);
+            } else { 
+              org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          default:
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
+        }
+        iprot.readFieldEnd();
+      }
+      iprot.readStructEnd();
+
+      // check for required fields of primitive type, which can't be checked in the validate method
+      validate();
+    }
+
+    public void write(org.apache.thrift.protocol.TProtocol oprot) throws org.apache.thrift.TException {
+      validate();
+
+      oprot.writeStructBegin(STRUCT_DESC);
+      if (this.endpoint != null) {
+        oprot.writeFieldBegin(ENDPOINT_FIELD_DESC);
+        oprot.writeString(this.endpoint);
+        oprot.writeFieldEnd();
+      }
+      if (this.endpoints != null) {
+        oprot.writeFieldBegin(ENDPOINTS_FIELD_DESC);
+        {
+          oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRING, this.endpoints.size()));
+          for (String _iter122 : this.endpoints)
+          {
+            oprot.writeString(_iter122);
+          }
+          oprot.writeListEnd();
+        }
+        oprot.writeFieldEnd();
+      }
+      oprot.writeFieldBegin(RESTRICT_TO_SAME_DC_FIELD_DESC);
+      oprot.writeBool(this.restrictToSameDC);
+      oprot.writeFieldEnd();
+      oprot.writeFieldStop();
+      oprot.writeStructEnd();
+    }
+
+    @Override
+    public String toString() {
+      StringBuilder sb = new StringBuilder("sort_endpoints_by_proximity_args(");
+      boolean first = true;
+
+      sb.append("endpoint:");
+      if (this.endpoint == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.endpoint);
+      }
+      first = false;
+      if (!first) sb.append(", ");
+      sb.append("endpoints:");
+      if (this.endpoints == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.endpoints);
+      }
+      first = false;
+      if (!first) sb.append(", ");
+      sb.append("restrictToSameDC:");
+      sb.append(this.restrictToSameDC);
+      first = false;
+      sb.append(")");
+      return sb.toString();
+    }
+
+    public void validate() throws org.apache.thrift.TException {
+      // check for required fields
+      if (endpoints == null) {
+        throw new org.apache.thrift.protocol.TProtocolException("Required field 'endpoints' was not present! Struct: " + toString());
+      }
+    }
+
+  }
+
+  public static class sort_endpoints_by_proximity_result implements org.apache.thrift.TBase<sort_endpoints_by_proximity_result, sort_endpoints_by_proximity_result._Fields>, java.io.Serializable, Cloneable   {
+    private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct("sort_endpoints_by_proximity_result");
+
+    private static final org.apache.thrift.protocol.TField SUCCESS_FIELD_DESC = new org.apache.thrift.protocol.TField("success", org.apache.thrift.protocol.TType.LIST, (short)0);
+    private static final org.apache.thrift.protocol.TField IRE_FIELD_DESC = new org.apache.thrift.protocol.TField("ire", org.apache.thrift.protocol.TType.STRUCT, (short)1);
+
+    public List<String> success;
+    public InvalidRequestException ire;
+
+    /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
+    public enum _Fields implements org.apache.thrift.TFieldIdEnum {
+      SUCCESS((short)0, "success"),
+      IRE((short)1, "ire");
+
+      private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
+
+      static {
+        for (_Fields field : EnumSet.allOf(_Fields.class)) {
+          byName.put(field.getFieldName(), field);
+        }
+      }
+
+      /**
+       * Find the _Fields constant that matches fieldId, or null if its not found.
+       */
+      public static _Fields findByThriftId(int fieldId) {
+        switch(fieldId) {
+          case 0: // SUCCESS
+            return SUCCESS;
+          case 1: // IRE
+            return IRE;
+          default:
+            return null;
+        }
+      }
+
+      /**
+       * Find the _Fields constant that matches fieldId, throwing an exception
+       * if it is not found.
+       */
+      public static _Fields findByThriftIdOrThrow(int fieldId) {
+        _Fields fields = findByThriftId(fieldId);
+        if (fields == null) throw new IllegalArgumentException("Field " + fieldId + " doesn't exist!");
+        return fields;
+      }
+
+      /**
+       * Find the _Fields constant that matches name, or null if its not found.
+       */
+      public static _Fields findByName(String name) {
+        return byName.get(name);
+      }
+
+      private final short _thriftId;
+      private final String _fieldName;
+
+      _Fields(short thriftId, String fieldName) {
+        _thriftId = thriftId;
+        _fieldName = fieldName;
+      }
+
+      public short getThriftFieldId() {
+        return _thriftId;
+      }
+
+      public String getFieldName() {
+        return _fieldName;
+      }
+    }
+
+    // isset id assignments
+
+    public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
+    static {
+      Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
+      tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+          new org.apache.thrift.meta_data.ListMetaData(org.apache.thrift.protocol.TType.LIST, 
+              new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING))));
+      tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+          new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
+      metaDataMap = Collections.unmodifiableMap(tmpMap);
+      org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(sort_endpoints_by_proximity_result.class, metaDataMap);
+    }
+
+    public sort_endpoints_by_proximity_result() {
+    }
+
+    public sort_endpoints_by_proximity_result(
+      List<String> success,
+      InvalidRequestException ire)
+    {
+      this();
+      this.success = success;
+      this.ire = ire;
+    }
+
+    /**
+     * Performs a deep copy on <i>other</i>.
+     */
+    public sort_endpoints_by_proximity_result(sort_endpoints_by_proximity_result other) {
+      if (other.isSetSuccess()) {
+        List<String> __this__success = new ArrayList<String>();
+        for (String other_element : other.success) {
+          __this__success.add(other_element);
+        }
+        this.success = __this__success;
+      }
+      if (other.isSetIre()) {
+        this.ire = new InvalidRequestException(other.ire);
+      }
+    }
+
+    public sort_endpoints_by_proximity_result deepCopy() {
+      return new sort_endpoints_by_proximity_result(this);
+    }
+
+    @Override
+    public void clear() {
+      this.success = null;
+      this.ire = null;
+    }
+
+    public int getSuccessSize() {
+      return (this.success == null) ? 0 : this.success.size();
+    }
+
+    public java.util.Iterator<String> getSuccessIterator() {
+      return (this.success == null) ? null : this.success.iterator();
+    }
+
+    public void addToSuccess(String elem) {
+      if (this.success == null) {
+        this.success = new ArrayList<String>();
+      }
+      this.success.add(elem);
+    }
+
+    public List<String> getSuccess() {
+      return this.success;
+    }
+
+    public sort_endpoints_by_proximity_result setSuccess(List<String> success) {
+      this.success = success;
+      return this;
+    }
+
+    public void unsetSuccess() {
+      this.success = null;
+    }
+
+    /** Returns true if field success is set (has been assigned a value) and false otherwise */
+    public boolean isSetSuccess() {
+      return this.success != null;
+    }
+
+    public void setSuccessIsSet(boolean value) {
+      if (!value) {
+        this.success = null;
+      }
+    }
+
+    public InvalidRequestException getIre() {
+      return this.ire;
+    }
+
+    public sort_endpoints_by_proximity_result setIre(InvalidRequestException ire) {
+      this.ire = ire;
+      return this;
+    }
+
+    public void unsetIre() {
+      this.ire = null;
+    }
+
+    /** Returns true if field ire is set (has been assigned a value) and false otherwise */
+    public boolean isSetIre() {
+      return this.ire != null;
+    }
+
+    public void setIreIsSet(boolean value) {
+      if (!value) {
+        this.ire = null;
+      }
+    }
+
+    public void setFieldValue(_Fields field, Object value) {
+      switch (field) {
+      case SUCCESS:
+        if (value == null) {
+          unsetSuccess();
+        } else {
+          setSuccess((List<String>)value);
+        }
+        break;
+
+      case IRE:
+        if (value == null) {
+          unsetIre();
+        } else {
+          setIre((InvalidRequestException)value);
+        }
+        break;
+
+      }
+    }
+
+    public Object getFieldValue(_Fields field) {
+      switch (field) {
+      case SUCCESS:
+        return getSuccess();
+
+      case IRE:
+        return getIre();
+
+      }
+      throw new IllegalStateException();
+    }
+
+    /** Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise */
+    public boolean isSet(_Fields field) {
+      if (field == null) {
+        throw new IllegalArgumentException();
+      }
+
+      switch (field) {
+      case SUCCESS:
+        return isSetSuccess();
+      case IRE:
+        return isSetIre();
+      }
+      throw new IllegalStateException();
+    }
+
+    @Override
+    public boolean equals(Object that) {
+      if (that == null)
+        return false;
+      if (that instanceof sort_endpoints_by_proximity_result)
+        return this.equals((sort_endpoints_by_proximity_result)that);
+      return false;
+    }
+
+    public boolean equals(sort_endpoints_by_proximity_result that) {
+      if (that == null)
+        return false;
+
+      boolean this_present_success = true && this.isSetSuccess();
+      boolean that_present_success = true && that.isSetSuccess();
+      if (this_present_success || that_present_success) {
+        if (!(this_present_success && that_present_success))
+          return false;
+        if (!this.success.equals(that.success))
+          return false;
+      }
+
+      boolean this_present_ire = true && this.isSetIre();
+      boolean that_present_ire = true && that.isSetIre();
+      if (this_present_ire || that_present_ire) {
+        if (!(this_present_ire && that_present_ire))
+          return false;
+        if (!this.ire.equals(that.ire))
+          return false;
+      }
+
+      return true;
+    }
+
+    @Override
+    public int hashCode() {
+      HashCodeBuilder builder = new HashCodeBuilder();
+
+      boolean present_success = true && (isSetSuccess());
+      builder.append(present_success);
+      if (present_success)
+        builder.append(success);
+
+      boolean present_ire = true && (isSetIre());
+      builder.append(present_ire);
+      if (present_ire)
+        builder.append(ire);
+
+      return builder.toHashCode();
+    }
+
+    public int compareTo(sort_endpoints_by_proximity_result other) {
+      if (!getClass().equals(other.getClass())) {
+        return getClass().getName().compareTo(other.getClass().getName());
+      }
+
+      int lastComparison = 0;
+      sort_endpoints_by_proximity_result typedOther = (sort_endpoints_by_proximity_result)other;
+
+      lastComparison = Boolean.valueOf(isSetSuccess()).compareTo(typedOther.isSetSuccess());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      if (isSetSuccess()) {
+        lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.success, typedOther.success);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetIre()).compareTo(typedOther.isSetIre());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      if (isSetIre()) {
+        lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.ire, typedOther.ire);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      return 0;
+    }
+
+    public _Fields fieldForId(int fieldId) {
+      return _Fields.findByThriftId(fieldId);
+    }
+
+    public void read(org.apache.thrift.protocol.TProtocol iprot) throws org.apache.thrift.TException {
+      org.apache.thrift.protocol.TField field;
+      iprot.readStructBegin();
+      while (true)
+      {
+        field = iprot.readFieldBegin();
+        if (field.type == org.apache.thrift.protocol.TType.STOP) { 
+          break;
+        }
+        switch (field.id) {
+          case 0: // SUCCESS
+            if (field.type == org.apache.thrift.protocol.TType.LIST) {
+              {
+                org.apache.thrift.protocol.TList _list123 = iprot.readListBegin();
+                this.success = new ArrayList<String>(_list123.size);
+                for (int _i124 = 0; _i124 < _list123.size; ++_i124)
+                {
+                  String _elem125;
+                  _elem125 = iprot.readString();
+                  this.success.add(_elem125);
+                }
+                iprot.readListEnd();
+              }
+            } else { 
+              org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 1: // IRE
+            if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
+              this.ire = new InvalidRequestException();
+              this.ire.read(iprot);
+            } else { 
+              org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          default:
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
+        }
+        iprot.readFieldEnd();
+      }
+      iprot.readStructEnd();
+
+      // check for required fields of primitive type, which can't be checked in the validate method
+      validate();
+    }
+
+    public void write(org.apache.thrift.protocol.TProtocol oprot) throws org.apache.thrift.TException {
+      oprot.writeStructBegin(STRUCT_DESC);
+
+      if (this.isSetSuccess()) {
+        oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
+        {
+          oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRING, this.success.size()));
+          for (String _iter126 : this.success)
+          {
+            oprot.writeString(_iter126);
+          }
+          oprot.writeListEnd();
+        }
+        oprot.writeFieldEnd();
+      } else if (this.isSetIre()) {
+        oprot.writeFieldBegin(IRE_FIELD_DESC);
+        this.ire.write(oprot);
+        oprot.writeFieldEnd();
+      }
+      oprot.writeFieldStop();
+      oprot.writeStructEnd();
+    }
+
+    @Override
+    public String toString() {
+      StringBuilder sb = new StringBuilder("sort_endpoints_by_proximity_result(");
       boolean first = true;
 
       sb.append("success:");
