@@ -2,6 +2,9 @@
  * improve thread-safety in StreamOutSession (CASSANDRA-2792)
  * allow deleting a row and updating indexed columns in it in the
    same mutation (CASSANDRA-2773)
+ * Expose number of threads blocked on submitting memtable to flush
+   (CASSANDRA-2817)
+ * add ability to return "endpoints" to nodetool (CASSANDRA-2776)
 
 
 0.8.1
@@ -76,9 +79,6 @@
  * fix repair hanging if a neighbor has nothing to send (CASSANDRA-2797)
  * purge tombstone even if row is in only one sstable (CASSANDRA-2801)
  * Fix wrong purge of deleted cf during compaction (CASSANDRA-2786)
- * Expose number of threads blocked on submitting memtable to flush
-   (CASSANDRA-2817)
- * add ability to return "endpoints" to nodetool (CASSANDRA-2776)
 
 
 0.8.0-final
