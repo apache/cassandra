@@ -78,6 +78,7 @@
  * Fix wrong purge of deleted cf during compaction (CASSANDRA-2786)
  * Expose number of threads blocked on submitting memtable to flush
    (CASSANDRA-2817)
+ * add ability to return "endpoints" to nodetool (CASSANDRA-2776)
 
 
 0.8.0-final
