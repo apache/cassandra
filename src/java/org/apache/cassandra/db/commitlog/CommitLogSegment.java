@@ -30,6 +30,7 @@ import java.util.regex.Pattern;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.net.MessagingService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -182,7 +183,10 @@ public class CommitLogSegment
     {
         StringBuilder sb = new StringBuilder();
         for (Integer cfId : cfDirty)
-            sb.append(DatabaseDescriptor.getCFMetaData(cfId).cfName).append(" (").append(cfId).append("), ");
+        {
+            CFMetaData m = DatabaseDescriptor.getCFMetaData(cfId);
+            sb.append(m == null ? m.cfName : "<deleted>").append(" (").append(cfId).append("), ");
+        }
         return sb.toString();
     }
 

@@ -80,7 +80,7 @@ public class NodeCmd
         DECOMMISSION, MOVE, REMOVETOKEN, REPAIR, CLEANUP, COMPACT, SCRUB,
         SETCACHECAPACITY, GETCOMPACTIONTHRESHOLD, SETCOMPACTIONTHRESHOLD, NETSTATS, CFHISTOGRAMS,
         COMPACTIONSTATS, DISABLEGOSSIP, ENABLEGOSSIP, INVALIDATEKEYCACHE, INVALIDATEROWCACHE,
-        DISABLETHRIFT, ENABLETHRIFT, STATUSTHRIFT, JOIN, SETCOMPACTIONTHROUGHPUT
+        DISABLETHRIFT, ENABLETHRIFT, STATUSTHRIFT, JOIN, SETCOMPACTIONTHROUGHPUT, GETENDPOINTS
     }
 
     
@@ -126,6 +126,9 @@ public class NodeCmd
         addCmdHelp(header, "invalidaterowcache [keyspace] [cfnames]", "Invalidate the key cache of one or more column family");
         addCmdHelp(header, "getcompactionthreshold <keyspace> <cfname>", "Print min and max compaction thresholds for a given column family");
         addCmdHelp(header, "cfhistograms <keyspace> <cfname>", "Print statistic histograms for a given column family");
+
+        // Three args
+        addCmdHelp(header, "getendpoints <keyspace> <cf> <key>", "Print the end points that owns the key");
 
         // Four args
         addCmdHelp(header, "setcachecapacity <keyspace> <cfname> <keycachecapacity> <rowcachecapacity>", "Set the key and row cache capacities of a given column family");
@@ -520,6 +523,16 @@ public class NodeCmd
         }
     }
 
+    private void printEndPoints(String keySpace, String cf, String key, PrintStream output)
+    {
+        List<InetAddress> endpoints = this.probe.getEndpoints(keySpace, cf, key);
+
+        for (InetAddress anEndpoint : endpoints)
+        {
+           output.println(anEndpoint.getHostAddress());
+        }
+    }
+
     private void printIsThriftServerRunning(PrintStream outs)
     {
         outs.println(probe.isThriftServerRunning() ? "running" : "not running");
@@ -676,6 +689,11 @@ public class NodeCmd
                 if (minthreshold > maxthreshold)              { badUse("Min threshold cannot be greater than max."); }
                 if (minthreshold < 2 && maxthreshold != 0)    { badUse("Min threshold must be at least 2"); }
                 probe.setCompactionThreshold(arguments[0], arguments[1], minthreshold, maxthreshold);
+                break;
+
+            case GETENDPOINTS :
+                if (arguments.length != 3) { badUse("getendpoints requires ks, cf and key args"); }
+                nodeCmd.printEndPoints(arguments[0], arguments[1], arguments[2], System.out);
                 break;
 
             default :

@@ -6,7 +6,6 @@
  * replace CollatingIterator, ReducingIterator with MergeIterator 
    (CASSANDRA-2062)
  * Fixed the ability to set compaction strategy in cli using create column family command (CASSANDRA-2778)
- * Add startup flag to renew counter node id (CASSANDRA-2788)
  * clean up tmp files after failed compaction (CASSANDRA-2468)
 
 
@@ -14,6 +13,9 @@
  * improve thread-safety in StreamOutSession (CASSANDRA-2792)
  * allow deleting a row and updating indexed columns in it in the
    same mutation (CASSANDRA-2773)
+ * Expose number of threads blocked on submitting memtable to flush
+   (CASSANDRA-2817)
+ * add ability to return "endpoints" to nodetool (CASSANDRA-2776)
 
 
 0.8.1
@@ -86,10 +88,11 @@
  * expose the DC and rack of a node through JMX and nodetool ring (CASSANDRA-2531)
  * fix cache mbean getSize (CASSANDRA-2781)
  * Add Date, Float, Double, and Boolean types (CASSANDRA-2530)
- * fix repair hanging if a neighbor has nothing to send (CASSANDRA-2797)
+ * Add startup flag to renew counter node id (CASSANDRA-2788)
  * add jamm agent to cassandra.bat (CASSANDRA-2787)
- * Fix wrong purge of deleted cf during compaction (CASSANDRA-2786)
+ * fix repair hanging if a neighbor has nothing to send (CASSANDRA-2797)
  * purge tombstone even if row is in only one sstable (CASSANDRA-2801)
+ * Fix wrong purge of deleted cf during compaction (CASSANDRA-2786)
 
 
 0.8.0-final

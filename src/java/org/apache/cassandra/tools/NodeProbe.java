@@ -43,7 +43,10 @@ import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.cache.InstrumentingCacheMBean;
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutorMBean;
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.CompactionManagerMBean;
@@ -437,10 +440,9 @@ public class NodeProbe
         }
     }
 
-    public List<InetAddress> getEndpoints(String keyspace, String key)
+    public List<InetAddress> getEndpoints(String keyspace, String cf, String key)
     {
-        // FIXME: string key
-        return ssProxy.getNaturalEndpoints(keyspace, key.getBytes(UTF_8));
+        return ssProxy.getNaturalEndpoints(keyspace, cf, key);
     }
 
     public Set<InetAddress> getStreamDestinations()
