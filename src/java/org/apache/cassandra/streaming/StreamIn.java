@@ -24,11 +24,7 @@ package org.apache.cassandra.streaming;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.ArrayList;
-import java.util.List;
 
-import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
@@ -51,29 +47,22 @@ public class StreamIn
 {
     private static Logger logger = LoggerFactory.getLogger(StreamIn.class);
 
-    /** Request ranges for all column families in the given keyspace. */
-    public static void requestRanges(InetAddress source, String tableName, Collection<Range> ranges, Runnable callback, OperationType type)
-    {
-        requestRanges(source, tableName, Table.open(tableName).getColumnFamilyStores(), ranges, callback, type);
-    }
-
     /**
-     * Request ranges to be transferred from specific CFs
+     * Request ranges to be transferred from source to local node
      */
-    public static void requestRanges(InetAddress source, String tableName, Collection<ColumnFamilyStore> columnFamilies, Collection<Range> ranges, Runnable callback, OperationType type)
+    public static void requestRanges(InetAddress source, String tableName, Collection<Range> ranges, Runnable callback, OperationType type)
     {
         assert ranges.size() > 0;
 
         if (logger.isDebugEnabled())
             logger.debug("Requesting from {} ranges {}", source, StringUtils.join(ranges, ", "));
         StreamInSession session = StreamInSession.create(source, callback);
-        StreamRequestMessage srm = new StreamRequestMessage(FBUtilities.getLocalAddress(),
-                                                            ranges,
-                                                            tableName,
-                                                            columnFamilies,
-                                                            session.getSessionId(),
-                                                            type);
-        Message message = srm.getMessage(Gossiper.instance.getVersion(source));
+        Message message = new StreamRequestMessage(FBUtilities.getLocalAddress(), 
+                                                   ranges, 
+                                                   tableName, 
+                                                   session.getSessionId(), 
+                                                   type)
+                .getMessage(Gossiper.instance.getVersion(source));
         MessagingService.instance().sendOneWay(message, source);
     }
 
@@ -89,5 +78,5 @@ public class StreamIn
         Descriptor localdesc = Descriptor.fromFilename(cfStore.getFlushPath(remote.size, remote.desc.version));
 
         return new PendingFile(localdesc, remote);
-    }
+     }
 }
