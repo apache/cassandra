@@ -40,7 +40,7 @@ public class ConcurrentLinkedHashCache<K, V> implements ICache<K, V>
         this.map = map;
     }
 
-    public static <K, V> ConcurrentLinkedHashCache<K, V> create(int capacity)
+    public static <K, V> ConcurrentLinkedHashCache<K, V> create(int capacity, String tableName, String cfname)
     {
         ConcurrentLinkedHashMap<K, V> map = new ConcurrentLinkedHashMap.Builder<K, V>()
                                             .weigher(Weighers.<V>singleton())

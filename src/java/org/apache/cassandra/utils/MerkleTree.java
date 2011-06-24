@@ -178,8 +178,11 @@ public class MerkleTree implements Serializable
             return new Leaf();
         Token midpoint = partitioner.midpoint(left, right);
 
-        Hashable lchild = midpoint.equals(left) ? new Leaf() : initHelper(left, midpoint, inc(depth), max);
-        Hashable rchild =  midpoint.equals(right) ? new Leaf() : initHelper(midpoint, right, inc(depth), max);
+        if (midpoint.equals(left) || midpoint.equals(right))
+            return new Leaf();
+
+        Hashable lchild =  initHelper(left, midpoint, inc(depth), max);
+        Hashable rchild =  initHelper(midpoint, right, inc(depth), max);
         return new Inner(midpoint, lchild, rchild);
     }
 

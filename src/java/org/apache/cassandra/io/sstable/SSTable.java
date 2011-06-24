@@ -85,9 +85,10 @@ public abstract class SSTable
 
     protected SSTable(Descriptor descriptor, Set<Component> components, CFMetaData metadata, ReplayPosition replayPosition, IPartitioner partitioner, EstimatedHistogram rowSizes, EstimatedHistogram columnCounts)
     {
+        // In almost all cases, metadata shouldn't be null, but allowing null allows to create a mostly functional SSTable without
+        // full schema definition. SSTableLoader use that ability
         assert descriptor != null;
         assert components != null;
-        assert metadata != null;
         assert replayPosition != null;
         assert partitioner != null;
         assert rowSizes != null;

@@ -29,8 +29,8 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
-import org.apache.cassandra.db.HintedHandOffManager;
 import org.apache.cassandra.db.Table;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 
@@ -80,7 +80,7 @@ public class RenameKeyspace extends Migration
 
     public void applyModels() throws IOException
     {
-        if (!clientMode)
+        if (!StorageService.instance.isClientMode())
             renameKsStorageFiles(oldName, newName);
         
         KSMetaData oldKsm = DatabaseDescriptor.getTableDefinition(oldName);
@@ -105,11 +105,10 @@ public class RenameKeyspace extends Migration
         DatabaseDescriptor.clearTableDefinition(oldKsm, newVersion);
         DatabaseDescriptor.setTableDefinition(newKsm, newVersion);
         
-        if (!clientMode)
+        if (!StorageService.instance.isClientMode())
         {
             Table.clear(oldKsm.name);
             Table.open(newName);
-            HintedHandOffManager.renameHints(oldName, newName);
         }
     }
     

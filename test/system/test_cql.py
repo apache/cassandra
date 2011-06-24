@@ -24,7 +24,6 @@ import sys, uuid, time
 sys.path.append(join(abspath(dirname(__file__)), '../../drivers/py'))
 
 import cql
-from cql.connection import Connection
 from __init__ import ThriftTester
 from __init__ import thrift_client     # TODO: temporary
 
@@ -44,7 +43,7 @@ def load_sample(dbconn):
             WITH comparator = ascii AND default_validation = ascii;
     """)
     dbconn.execute("""
-        CREATE COLUMNFAMILY StandardString2 (KEY text PRIMARY KEY)
+        CREATE TABLE StandardString2 (KEY text PRIMARY KEY)
             WITH comparator = ascii AND default_validation = ascii;
     """)
     dbconn.execute("""
@@ -56,7 +55,7 @@ def load_sample(dbconn):
             WITH comparator = bigint AND default_validation = ascii;
     """)
     dbconn.execute("""
-        CREATE COLUMNFAMILY StandardIntegerA (KEY text PRIMARY KEY)
+        CREATE TABLE StandardIntegerA (KEY text PRIMARY KEY)
             WITH comparator = varint AND default_validation = ascii;
     """)
     dbconn.execute("""
@@ -74,6 +73,10 @@ def load_sample(dbconn):
     dbconn.execute("""
         CREATE COLUMNFAMILY IndexedA (KEY text PRIMARY KEY, birthdate int)
             WITH comparator = ascii AND default_validation = ascii;
+    """)
+    dbconn.execute("""
+        CREATE TABLE CounterCF (KEY text PRIMARY KEY, count_me counter)
+            WITH comparator = ascii AND default_validation = counter;
     """)
     dbconn.execute("CREATE INDEX ON IndexedA (birthdate)")
 
@@ -410,7 +413,7 @@ class TestCql(ThriftTester):
         "create a new keyspace"
         cursor = init()
         cursor.execute("""
-        CREATE KEYSPACE TestKeyspace42 WITH strategy_options:DC1 = '1'
+        CREATE SCHEMA TestKeyspace42 WITH strategy_options:DC1 = '1'
             AND strategy_class = 'NetworkTopologyStrategy'
         """)
 
@@ -432,7 +435,7 @@ class TestCql(ThriftTester):
         # TODO: temporary (until this can be done with CQL).
         thrift_client.describe_keyspace("Keyspace4Drop")
 
-        cursor.execute('DROP KEYSPACE Keyspace4Drop;')
+        cursor.execute('DROP SCHEMA Keyspace4Drop;')
 
         # Technically this should throw a ttypes.NotFound(), but this is
         # temporary and so not worth requiring it on PYTHONPATH.
@@ -444,7 +447,7 @@ class TestCql(ThriftTester):
         "create a new column family"
         cursor = init()
         cursor.execute("""
-               CREATE KEYSPACE CreateCFKeyspace WITH strategy_options:replication_factor = '1'
+               CREATE SCHEMA CreateCFKeyspace WITH strategy_options:replication_factor = '1'
                    AND strategy_class = 'SimpleStrategy';
         """)
         cursor.execute("USE CreateCFKeyspace;")
@@ -526,7 +529,7 @@ class TestCql(ThriftTester):
         "creating column indexes"
         cursor = init()
         cursor.execute("USE Keyspace1")
-        cursor.execute("CREATE COLUMNFAMILY CreateIndex1 (KEY text PRIMARY KEY)")
+        cursor.execute("CREATE COLUMNFAMILY CreateIndex1 (KEY text PRIMARY KEY, items text, stuff int)")
         cursor.execute("CREATE INDEX namedIndex ON CreateIndex1 (items)")
         cursor.execute("CREATE INDEX ON CreateIndex1 (stuff)")
 
@@ -535,16 +538,43 @@ class TestCql(ThriftTester):
         cfam = [i for i in ksdef.cf_defs if i.name == "CreateIndex1"][0]
         items = [i for i in cfam.column_metadata if i.name == "items"][0]
         stuff = [i for i in cfam.column_metadata if i.name == "stuff"][0]
-        assert items.index_name == "namedIndex", "missing index (or name)"
+        assert items.index_name == "namedIndex", items.index_name
         assert items.index_type == 0, "missing index"
-        assert not stuff.index_name, \
-            "index_name should be unset, not %s" % stuff.index_name
+        assert stuff.index_name != None, "index_name should be set"
         assert stuff.index_type == 0, "missing index"
 
         # already indexed
         assert_raises(cql.ProgrammingError,
                       cursor.execute,
                       "CREATE INDEX ON CreateIndex1 (stuff)")
+
+    def test_drop_indexes(self):
+        "droping indexes on columns"
+        cursor = init()
+        cursor.execute("""CREATE KEYSPACE DropIndexTests WITH strategy_options:replication_factor = '1'
+                                                            AND strategy_class = 'SimpleStrategy';""")
+        cursor.execute("USE DropIndexTests")
+        cursor.execute("CREATE COLUMNFAMILY IndexedCF (KEY text PRIMARY KEY, n text)")
+        cursor.execute("CREATE INDEX namedIndex ON IndexedCF (n)")
+
+        ksdef = thrift_client.describe_keyspace("DropIndexTests")
+        columns = ksdef.cf_defs[0].column_metadata
+
+        assert columns[0].index_name == "namedIndex"
+        assert columns[0].index_type == 0
+
+        # testing "DROP INDEX <INDEX_NAME>"
+        cursor.execute("DROP INDEX namedIndex")
+
+        ksdef = thrift_client.describe_keyspace("DropIndexTests")
+        columns = ksdef.cf_defs[0].column_metadata
+
+        assert columns[0].index_type == None
+        assert columns[0].index_name == None
+
+        assert_raises(cql.ProgrammingError,
+                      cursor.execute,
+                      "DROP INDEX undefIndex")
 
     def test_time_uuid(self):
         "store and retrieve time-based (type 1) uuids"
@@ -1006,3 +1036,238 @@ class TestCql(ThriftTester):
 
         r = cursor.fetchone()
         assert len(r) == 1, "expected 0 results, got %d" % len(r)
+
+    def test_alter_table_statement(self):
+        "test ALTER statement"
+        cursor = init()
+        cursor.execute("""
+               CREATE KEYSPACE AlterTableKS WITH strategy_options:replication_factor = '1'
+                   AND strategy_class = 'SimpleStrategy';
+        """)
+        cursor.execute("USE AlterTableKS;")
+
+        cursor.execute("""
+            CREATE COLUMNFAMILY NewCf1 (KEY varint PRIMARY KEY) WITH default_validation = ascii;
+        """)
+
+        # TODO: temporary (until this can be done with CQL).
+        ksdef = thrift_client.describe_keyspace("AlterTableKS")
+        assert len(ksdef.cf_defs) == 1, \
+            "expected 1 column family total, found %d" % len(ksdef.cf_defs)
+        cfam = ksdef.cf_defs[0]
+
+        assert len(cfam.column_metadata) == 0
+
+        # testing "add a new column"
+        cursor.execute("ALTER COLUMNFAMILY NewCf1 ADD name varchar")
+
+        ksdef = thrift_client.describe_keyspace("AlterTableKS")
+        assert len(ksdef.cf_defs) == 1, \
+            "expected 1 column family total, found %d" % len(ksdef.cf_defs)
+        columns = ksdef.cf_defs[0].column_metadata
+
+        assert len(columns) == 1
+        assert columns[0].name == 'name'
+        assert columns[0].validation_class == 'org.apache.cassandra.db.marshal.UTF8Type'
+
+        # testing "alter a column type"
+        cursor.execute("ALTER COLUMNFAMILY NewCf1 ALTER name TYPE ascii")
+
+        ksdef = thrift_client.describe_keyspace("AlterTableKS")
+        assert len(ksdef.cf_defs) == 1, \
+            "expected 1 column family total, found %d" % len(ksdef.cf_defs)
+        columns = ksdef.cf_defs[0].column_metadata
+
+        assert len(columns) == 1
+        assert columns[0].name == 'name'
+        assert columns[0].validation_class == 'org.apache.cassandra.db.marshal.AsciiType'
+
+        # alter column with unknown validator
+        assert_raises(cql.ProgrammingError,
+                      cursor.execute,
+                      "ALTER COLUMNFAMILY NewCf1 ADD name utf8")
+
+        # testing 'drop an existing column'
+        cursor.execute("ALTER COLUMNFAMILY NewCf1 DROP name")
+
+        ksdef = thrift_client.describe_keyspace("AlterTableKS")
+        assert len(ksdef.cf_defs) == 1, \
+            "expected 1 column family total, found %d" % len(ksdef.cf_defs)
+        columns = ksdef.cf_defs[0].column_metadata
+
+        assert len(columns) == 0
+
+        # add column with unknown validator
+        assert_raises(cql.ProgrammingError,
+                      cursor.execute,
+                      "ALTER COLUMNFAMILY NewCf1 ADD name utf8")
+
+        # alter not existing column
+        assert_raises(cql.ProgrammingError,
+                      cursor.execute,
+                      "ALTER COLUMNFAMILY NewCf1 ALTER name TYPE uuid")
+
+        # drop not existing column
+        assert_raises(cql.ProgrammingError,
+                      cursor.execute,
+                      "ALTER COLUMNFAMILY NewCf1 DROP name")
+    
+    def test_counter_column_support(self):
+        "update statement should be able to work with counter columns"
+        cursor = init()
+
+        # increment counter
+        cursor.execute("UPDATE CounterCF SET count_me = count_me + 2 WHERE key = 'counter1'")
+        cursor.execute("SELECT * FROM CounterCF WHERE KEY = 'counter1'")
+        assert cursor.rowcount == 1, "expected 1 results, got %d" % cursor.rowcount
+        colnames = [col_d[0] for col_d in cursor.description]
+
+        assert colnames[1] == "count_me", \
+               "unrecognized name '%s'" % colnames[1]
+
+        r = cursor.fetchone()
+        assert r[1] == 2, \
+               "unrecognized value '%s'" % r[1]
+
+        cursor.execute("UPDATE CounterCF SET count_me = count_me + 2 WHERE key = 'counter1'")
+        cursor.execute("SELECT * FROM CounterCF WHERE KEY = 'counter1'")
+        assert cursor.rowcount == 1, "expected 1 results, got %d" % cursor.rowcount
+        colnames = [col_d[0] for col_d in cursor.description]
+
+        assert colnames[1] == "count_me", \
+               "unrecognized name '%s'" % colnames[1]
+
+        r = cursor.fetchone()
+        assert r[1] == 4, \
+               "unrecognized value '%s'" % r[1]
+
+        # decrement counter
+        cursor.execute("UPDATE CounterCF SET count_me = count_me - 4 WHERE key = 'counter1'")
+        cursor.execute("SELECT * FROM CounterCF WHERE KEY = 'counter1'")
+        assert cursor.rowcount == 1, "expected 1 results, got %d" % cursor.rowcount
+        colnames = [col_d[0] for col_d in cursor.description]
+
+        assert colnames[1] == "count_me", \
+               "unrecognized name '%s'" % colnames[1]
+
+        r = cursor.fetchone()
+        assert r[1] == 0, \
+               "unrecognized value '%s'" % r[1]
+
+        cursor.execute("SELECT * FROM CounterCF")
+        assert cursor.rowcount == 1, "expected 1 results, got %d" % cursor.rowcount
+        colnames = [col_d[0] for col_d in cursor.description]
+
+        assert colnames[1] == "count_me", \
+               "unrecognized name '%s'" % colnames[1]
+
+        r = cursor.fetchone()
+        assert r[1] == 0, \
+               "unrecognized value '%s'" % r[1]
+
+        # deleting a counter column
+        cursor.execute("DELETE count_me FROM CounterCF WHERE KEY = 'counter1'")
+        cursor.execute("SELECT * FROM CounterCF")
+        assert cursor.rowcount == 1, "expected 1 results, got %d" % cursor.rowcount
+        colnames = [col_d[0] for col_d in cursor.description]
+        assert len(colnames) == 1
+
+        r = cursor.fetchone()
+        assert len(r) == 1
+
+        # can't mix counter and normal statements
+        assert_raises(cql.ProgrammingError,
+                      cursor.execute,
+                      "UPDATE CounterCF SET count_me = count_me + 2, x = 'a' WHERE key = 'counter1'")
+
+        # column names must match
+        assert_raises(cql.ProgrammingError,
+                      cursor.execute,
+                      "UPDATE CounterCF SET count_me = count_not_me + 2 WHERE key = 'counter1'")
+
+    def test_key_alias_support(self):
+        "should be possible to use alias instead of KEY keyword"
+        cursor = init()
+
+        cursor.execute("""
+               CREATE SCHEMA KeyAliasKeyspace WITH strategy_options:replication_factor = '1'
+                   AND strategy_class = 'SimpleStrategy';
+        """)
+        cursor.execute("USE KeyAliasKeyspace;")
+
+        # create a Column Family with key alias
+        cursor.execute("""
+            CREATE COLUMNFAMILY KeyAliasCF (
+                'id' varint PRIMARY KEY,
+                'username' text
+            ) WITH comment = 'shiny, new, cf' AND default_validation = ascii;
+        """)
+
+        # TODO: temporary (until this can be done with CQL).
+        ksdef = thrift_client.describe_keyspace("KeyAliasKeyspace")
+        cfdef = ksdef.cf_defs[0]
+
+        assert len(ksdef.cf_defs) == 1, \
+            "expected 1 column family total, found %d" % len(ksdef.cf_defs)
+        assert cfdef.key_alias == 'id', "expected 'id' alias, got %s" % cfdef.key_alias
+
+        # try do insert/update
+        cursor.execute("INSERT INTO KeyAliasCF (id, username) VALUES (1, jbellis)")
+
+        # check if we actually stored anything
+        cursor.execute("SELECT * FROM KeyAliasCF WHERE id = 1")
+        assert cursor.rowcount == 1, "expected 1 results, got %d" % cursor.rowcount
+        colnames = [col_d[0] for col_d in cursor.description]
+        assert len(colnames) == 2
+
+        r = cursor.fetchone()
+        assert len(r) == 2, "expected 2, got %d" % len(r)
+        assert r[0] == 1
+        assert r[1] == 'jbellis'
+
+        cursor.execute("UPDATE KeyAliasCF SET username = 'xedin' WHERE id = 2")
+
+        # check if we actually stored anything
+        cursor.execute("SELECT * FROM KeyAliasCF WHERE id = 2")
+        assert cursor.rowcount == 1, "expected 1 results, got %d" % cursor.rowcount
+        colnames = [col_d[0] for col_d in cursor.description]
+        assert len(colnames) == 2
+
+        r = cursor.fetchone()
+        assert len(r) == 2, "expected 2, got %d" % len(r)
+        assert r[0] == 2
+        assert r[1] == 'xedin'
+
+        # delete with key alias
+        cursor.execute("DELETE FROM KeyAliasCF WHERE id = 2")
+        # check if we actually stored anything
+        cursor.execute("SELECT * FROM KeyAliasCF WHERE id = 2")
+        assert cursor.rowcount == 1, "expected 1 results, got %d" % cursor.rowcount
+
+        r = cursor.fetchone()
+        assert len(r) == 1, "expected 1, got %s" % r
+        assert r[0] == 2, "expected id = 2, got %d" % r[0]
+
+        # if alias was set you can't use KEY keyword anymore
+        assert_raises(cql.ProgrammingError,
+                      cursor.execute,
+                      "INSERT INTO KeyAliasCF (KEY, username) VALUES (6, jbellis)")
+
+        assert_raises(cql.ProgrammingError,
+                      cursor.execute,
+                      "UPDATE KeyAliasCF SET username = 'xedin' WHERE KEY = 7")
+
+        assert_raises(cql.ProgrammingError,
+                      cursor.execute,
+                      "DELETE FROM KeyAliasCF WHERE KEY = 2")
+
+        assert_raises(cql.ProgrammingError,
+                      cursor.execute,
+                      "SELECT * FROM KeyAliasCF WHERE KEY = 2")
+
+        assert_raises(cql.ProgrammingError,
+                      cursor.execute,
+                      "SELECT * FROM KeyAliasCF WHERE KEY IN (1, 2)")
+
+        cursor.execute("USE Keyspace1")
+        cursor.execute("DROP KEYSPACE KeyAliasKeyspace")

@@ -38,7 +38,6 @@ import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
-import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.SerDeUtils;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.service.MigrationManager;
@@ -76,15 +75,12 @@ public abstract class Migration
     protected RowMutation rm;
     protected UUID newVersion;
     protected UUID lastVersion;
-    
-    // this doesn't follow the serialized migration around.
-    protected transient boolean clientMode;
-    
+
+    // the migration in column form, used when announcing to others
+    private IColumn column;
+
     /** Subclasses must have a matching constructor */
-    protected Migration() 
-    {
-        clientMode = StorageService.instance.isClientMode();
-    }
+    protected Migration() { }
 
     Migration(UUID newVersion, UUID lastVersion)
     {
@@ -103,16 +99,17 @@ public abstract class Migration
             throw new ConfigurationException("New version timestamp is not newer than the current version timestamp.");
         // write to schema
         assert rm != null;
-        if (!clientMode)
+        if (!StorageService.instance.isClientMode())
+        {
             rm.apply();
 
-        // write migration.
-        if (!clientMode)
-        {
             long now = System.currentTimeMillis();
             ByteBuffer buf = serialize();
             RowMutation migration = new RowMutation(Table.SYSTEM_TABLE, MIGRATIONS_KEY);
-            migration.add(new QueryPath(MIGRATIONS_CF, null, ByteBuffer.wrap(UUIDGen.decompose(newVersion))), buf, now);
+            ColumnFamily cf = ColumnFamily.create(Table.SYSTEM_TABLE, MIGRATIONS_CF);
+            column = new Column(ByteBuffer.wrap(UUIDGen.decompose(newVersion)), buf, now);
+            cf.addColumn(column);
+            migration.add(cf);
             migration.apply();
             
             // note that we're storing this in the system table, which is not replicated
@@ -155,14 +152,13 @@ public abstract class Migration
         
         applyModels(); 
     }
-    
+
+    /** send this migration immediately to existing nodes in the cluster.  apply() must be called first. */
     public final void announce()
     {
-        if (StorageService.instance.isClientMode())
-            return;
-        
-        // immediate notification for existing nodes.
-        MigrationManager.announce(newVersion, Gossiper.instance.getLiveMembers());
+        assert !StorageService.instance.isClientMode();
+        assert column != null;
+        MigrationManager.announce(column);
     }
 
     public final void passiveAnnounce()
@@ -299,7 +295,12 @@ public abstract class Migration
         DecoratedKey dkey = StorageService.getPartitioner().decorateKey(MIGRATIONS_KEY);
         Table defs = Table.open(Table.SYSTEM_TABLE);
         ColumnFamilyStore cfStore = defs.getColumnFamilyStore(Migration.MIGRATIONS_CF);
-        QueryFilter filter = QueryFilter.getSliceFilter(dkey, new QueryPath(MIGRATIONS_CF), ByteBuffer.wrap(UUIDGen.decompose(start)), ByteBuffer.wrap(UUIDGen.decompose(end)), false, 1000);   
+        QueryFilter filter = QueryFilter.getSliceFilter(dkey,
+                                                        new QueryPath(MIGRATIONS_CF),
+                                                        ByteBuffer.wrap(UUIDGen.decompose(start)),
+                                                        ByteBuffer.wrap(UUIDGen.decompose(end)),
+                                                        false,
+                                                        100);
         ColumnFamily cf = cfStore.getColumnFamily(filter);
         return cf.getSortedColumns();
     }

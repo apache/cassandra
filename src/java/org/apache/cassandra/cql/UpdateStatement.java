@@ -26,6 +26,8 @@ import java.util.*;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.CounterMutation;
+import org.apache.cassandra.db.IMutation;
 import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -35,6 +37,7 @@ import org.apache.cassandra.thrift.InvalidRequestException;
 
 import static org.apache.cassandra.cql.QueryProcessor.validateColumn;
 
+import static org.apache.cassandra.cql.Operation.OperationType;
 import static org.apache.cassandra.thrift.ThriftValidation.validateColumnFamily;
 
 /**
@@ -43,25 +46,27 @@ import static org.apache.cassandra.thrift.ThriftValidation.validateColumnFamily;
  */
 public class UpdateStatement extends AbstractModification
 {
-    private Map<Term, Term> columns;
+    private Map<Term, Operation> columns;
     private List<Term> columnNames, columnValues;
     private List<Term> keys;
-    
+
     /**
      * Creates a new UpdateStatement from a column family name, columns map, consistency
      * level, and key term.
      * 
      * @param columnFamily column family name
+     * @param keyName alias key name
      * @param columns a map of column name/values pairs
      * @param keys the keys to update
      * @param attrs additional attributes for statement (CL, timestamp, timeToLive)
      */
     public UpdateStatement(String columnFamily,
-                           Map<Term, Term> columns,
+                           String keyName,
+                           Map<Term, Operation> columns,
                            List<Term> keys,
                            Attributes attrs)
     {
-        super(columnFamily, attrs);
+        super(columnFamily, keyName, attrs);
 
         this.columns = columns;
         this.keys = keys;
@@ -73,18 +78,20 @@ public class UpdateStatement extends AbstractModification
      * alternate update format, <code>INSERT</code>.
      * 
      * @param columnFamily column family name
+     * @param keyName alias key name
      * @param columnNames list of column names
      * @param columnValues list of column values (corresponds to names)
      * @param keys the keys to update
      * @param attrs additional attributes for statement (CL, timestamp, timeToLive)
      */
     public UpdateStatement(String columnFamily,
+                           String keyName,
                            List<Term> columnNames,
                            List<Term> columnValues,
                            List<Term> keys,
                            Attributes attrs)
     {
-        super(columnFamily, attrs);
+        super(columnFamily, keyName, attrs);
 
         this.columnNames = columnNames;
         this.columnValues = columnValues;
@@ -113,17 +120,30 @@ public class UpdateStatement extends AbstractModification
     }
 
     /** {@inheritDoc} */
-    public List<RowMutation> prepareRowMutations(String keyspace, ClientState clientState) throws InvalidRequestException
+    public List<IMutation> prepareRowMutations(String keyspace, ClientState clientState) throws InvalidRequestException
     {
         return prepareRowMutations(keyspace, clientState, null);
     }
 
     /** {@inheritDoc} */
-    public List<RowMutation> prepareRowMutations(String keyspace, ClientState clientState, Long timestamp) throws InvalidRequestException
+    public List<IMutation> prepareRowMutations(String keyspace, ClientState clientState, Long timestamp) throws InvalidRequestException
     {
         List<String> cfamsSeen = new ArrayList<String>();
 
-        CFMetaData metadata = validateColumnFamily(keyspace, columnFamily, false);
+        boolean hasCommutativeOperation = false;
+
+        for (Map.Entry<Term, Operation> column : getColumns().entrySet())
+        {
+            if (!column.getValue().isUnary())
+                hasCommutativeOperation = true;
+
+            if (hasCommutativeOperation && column.getValue().isUnary())
+                throw new InvalidRequestException("Mix of commutative and non-commutative operations is not allowed.");
+        }
+
+        CFMetaData metadata = validateColumnFamily(keyspace, columnFamily, hasCommutativeOperation);
+
+        QueryProcessor.validateKeyAlias(metadata, keyName);
 
         // Avoid unnecessary authorizations.
         if (!(cfamsSeen.contains(columnFamily)))
@@ -132,7 +152,7 @@ public class UpdateStatement extends AbstractModification
             cfamsSeen.add(columnFamily);
         }
 
-        List<RowMutation> rowMutations = new LinkedList<RowMutation>();
+        List<IMutation> rowMutations = new LinkedList<IMutation>();
 
         for (Term key: keys)
         {
@@ -154,43 +174,61 @@ public class UpdateStatement extends AbstractModification
      *
      * @throws InvalidRequestException on the wrong request
      */
-    private RowMutation mutationForKey(String keyspace, ByteBuffer key, CFMetaData metadata, Long timestamp) throws InvalidRequestException
-    {
-        RowMutation rm = new RowMutation(keyspace, key);
-
-        mutationForKey(rm, keyspace, metadata, timestamp);
-
-        return rm;
-    }
-
-    /** {@inheritDoc} */
-    public RowMutation mutationForKey(ByteBuffer key, String keyspace, Long timestamp) throws InvalidRequestException
-    {
-        return mutationForKey(keyspace, key, validateColumnFamily(keyspace, columnFamily, false), timestamp);
-    }
-
-    /** {@inheritDoc} */
-    public void mutationForKey(RowMutation mutation, String keyspace, Long timestamp) throws InvalidRequestException
-    {
-        mutationForKey(mutation, keyspace, validateColumnFamily(keyspace, columnFamily, false), timestamp);
-    }
-
-    private void mutationForKey(RowMutation mutation, String keyspace, CFMetaData metadata, Long timestamp) throws InvalidRequestException
+    private IMutation mutationForKey(String keyspace, ByteBuffer key, CFMetaData metadata, Long timestamp) throws InvalidRequestException
     {
         AbstractType<?> comparator = getComparator(keyspace);
 
-        for (Map.Entry<Term, Term> column : getColumns().entrySet())
+        // if true we need to wrap RowMutation into CounterMutation
+        boolean hasCounterColumn = false;
+        RowMutation rm = new RowMutation(keyspace, key);
+
+        for (Map.Entry<Term, Operation> column : getColumns().entrySet())
         {
             ByteBuffer colName = column.getKey().getByteBuffer(comparator);
-            ByteBuffer colValue = column.getValue().getByteBuffer(getValueValidator(keyspace, colName));
+            Operation op = column.getValue();
 
-            validateColumn(metadata, colName, colValue);
+            if (op.isUnary())
+            {
+                if (hasCounterColumn)
+                    throw new InvalidRequestException("Mix of commutative and non-commutative operations is not allowed.");
 
-            mutation.add(new QueryPath(columnFamily, null, colName),
-                         colValue,
-                         (timestamp == null) ? getTimestamp() : timestamp,
-                         getTimeToLive());
+                ByteBuffer colValue = op.a.getByteBuffer(getValueValidator(keyspace, colName));
+
+                validateColumn(metadata, colName, colValue);
+                rm.add(new QueryPath(columnFamily, null, colName),
+                       colValue,
+                       (timestamp == null) ? getTimestamp() : timestamp,
+                       getTimeToLive());
+            }
+            else
+            {
+                hasCounterColumn = true;
+
+                if (!column.getKey().getText().equals(op.a.getText()))
+                    throw new InvalidRequestException("Only expressions like X = X + <long> are supported.");
+
+                long value;
+
+                try
+                {
+                    value = Long.parseLong(op.b.getText());
+
+                    if (op.type == OperationType.MINUS)
+                    {
+                        value *= -1;
+                    }
+                }
+                catch (NumberFormatException e)
+                {
+                    throw new InvalidRequestException(String.format("'%s' is an invalid value, should be a long.",
+                                                      op.b.getText()));
+                }
+
+                rm.addCounter(new QueryPath(columnFamily, null, colName), value);
+            }
         }
+
+        return (hasCounterColumn) ? new CounterMutation(rm, getConsistencyLevel()) : rm;
     }
 
     public String getColumnFamily()
@@ -203,8 +241,8 @@ public class UpdateStatement extends AbstractModification
     {
         return keys;
     }
-
-    public Map<Term, Term> getColumns() throws InvalidRequestException
+    
+    public Map<Term, Operation> getColumns() throws InvalidRequestException
     {
         // Created from an UPDATE
         if (columns != null)
@@ -218,11 +256,11 @@ public class UpdateStatement extends AbstractModification
         if (columnNames.size() < 1)
             throw new InvalidRequestException("no columns specified for INSERT");
         
-        columns = new HashMap<Term, Term>();
+        columns = new HashMap<Term, Operation>();
         
         for (int i = 0; i < columnNames.size(); i++)
-            columns.put(columnNames.get(i), columnValues.get(i));
-        
+            columns.put(columnNames.get(i), new Operation(columnValues.get(i)));
+
         return columns;
     }
     

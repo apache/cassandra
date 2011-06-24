@@ -24,8 +24,6 @@ import java.util.*;
 import java.util.concurrent.LinkedBlockingQueue;
 
 import com.google.common.collect.AbstractIterator;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Iterators;
 import org.apache.commons.collections.iterators.CollatingIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -62,7 +60,7 @@ public class RangeSliceResponseResolver implements IResponseResolver<Iterable<Ro
         return reply.rows;
     }
 
-    // Note: this deserializes the response a 2nd time if getData was called first
+    // Note: this would deserialize the response a 2nd time if getData was called first.
     // (this is not currently an issue since we don't do read repair for range queries.)
     public Iterable<Row> resolve() throws IOException
     {
@@ -73,7 +71,7 @@ public class RangeSliceResponseResolver implements IResponseResolver<Iterable<Ro
                 return o1.left.key.compareTo(o2.left.key);
             }
         });
-        
+
         int n = 0;
         for (Message response : responses)
         {
@@ -83,7 +81,6 @@ public class RangeSliceResponseResolver implements IResponseResolver<Iterable<Ro
         }
 
         // for each row, compute the combination of all different versions seen, and repair incomplete versions
-
         return new ReducingIterator<Pair<Row,InetAddress>, Row>(collator)
         {
             List<ColumnFamily> versions = new ArrayList<ColumnFamily>(sources.size());
@@ -105,7 +102,21 @@ public class RangeSliceResponseResolver implements IResponseResolver<Iterable<Ro
 
             protected Row getReduced()
             {
-                ColumnFamily resolved = RowRepairResolver.resolveSuperset(versions);
+                ColumnFamily resolved = versions.size() > 1
+                                      ? RowRepairResolver.resolveSuperset(versions)
+                                      : versions.get(0);
+                if (versions.size() < sources.size())
+                {
+                    // add placeholder rows for sources that didn't have any data, so maybeScheduleRepairs sees them
+                    for (InetAddress source : sources)
+                    {
+                        if (!versionSources.contains(source))
+                        {
+                            versions.add(null);
+                            versionSources.add(source);
+                        }
+                    }
+                }
                 RowRepairResolver.maybeScheduleRepairs(resolved, table, key, versions, versionSources);
                 versions.clear();
                 versionSources.clear();

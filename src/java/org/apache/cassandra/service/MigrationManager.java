@@ -24,10 +24,10 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
-import org.apache.cassandra.net.CachingMessageProducer;
-import org.apache.cassandra.net.MessageProducer;
-import org.apache.cassandra.utils.ByteBufferUtil;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.MapMaker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -37,16 +37,23 @@ import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.IColumn;
+import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.gms.*;
+import org.apache.cassandra.net.CachingMessageProducer;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageProducer;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
 public class MigrationManager implements IEndpointStateChangeSubscriber
 {
     private static final Logger logger = LoggerFactory.getLogger(MigrationManager.class);
-    
+
+    // avoids re-pushing migrations that we're waiting on target to apply already
+    private static Map<InetAddress,UUID> lastPushed = new MapMaker().expiration(1, TimeUnit.MINUTES).makeMap();
+
     /** I'm not going to act here. */
     public void onJoin(InetAddress endpoint, EndpointState epState) { }
 
@@ -80,42 +87,44 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
     public static void rectify(UUID theirVersion, InetAddress endpoint)
     {
         UUID myVersion = DatabaseDescriptor.getDefsVersion();
-        if (theirVersion.timestamp() == myVersion.timestamp())
-            return;
-        else if (theirVersion.timestamp() > myVersion.timestamp())
+        if (theirVersion.timestamp() < myVersion.timestamp()
+            && !StorageService.instance.isClientMode())
         {
-            logger.debug("My data definitions are old. Asking for updates since {}", myVersion.toString());
-            announce(myVersion, Collections.singleton(endpoint));
-        }
-        else if (!StorageService.instance.isClientMode())
-        {
-            logger.debug("Their data definitions are old. Sending updates since {}", theirVersion.toString());
-            pushMigrations(theirVersion, myVersion, endpoint);
+            if (lastPushed.get(endpoint) == null || theirVersion.timestamp() >= lastPushed.get(endpoint).timestamp())
+            {
+                logger.debug("Schema on {} is old. Sending updates since {}", endpoint, theirVersion);
+                Collection<IColumn> migrations = Migration.getLocalMigrations(theirVersion, myVersion);
+                pushMigrations(endpoint, migrations);
+                lastPushed.put(endpoint, TimeUUIDType.instance.compose(Iterables.getLast(migrations).name()));
+            }
+            else
+            {
+                logger.debug("Waiting for {} to process migrations up to {} before sending more",
+                             endpoint, lastPushed.get(endpoint));
+            }
         }
     }
 
-    /** actively announce my version to a set of hosts via rpc.  They may culminate with them sending me migrations. */
-    public static void announce(final UUID version, Set<InetAddress> hosts)
+    private static void pushMigrations(InetAddress endpoint, Collection<IColumn> migrations)
     {
-        MessageProducer prod = new CachingMessageProducer(new MessageProducer() {
-            public Message getMessage(Integer protocolVersion) throws IOException
-            {
-                return makeVersionMessage(version, protocolVersion);
-            }
-        });
-        for (InetAddress host : hosts)
+        try
         {
-            try 
-            {
-                MessagingService.instance().sendOneWay(prod.getMessage(Gossiper.instance.getVersion(host)), host);
-            }
-            catch (IOException ex)
-            {
-                // happened during message serialization.
-                throw new IOError(ex);
-            }
+            Message msg = makeMigrationMessage(migrations, Gossiper.instance.getVersion(endpoint));
+            MessagingService.instance().sendOneWay(msg, endpoint);
         }
-        passiveAnnounce(version);
+        catch (IOException ex)
+        {
+            throw new IOError(ex);
+        }
+    }
+
+    /** actively announce a new version to active hosts via rpc */
+    public static void announce(IColumn column)
+    {
+
+        Collection<IColumn> migrations = Collections.singleton(column);
+        for (InetAddress endpoint : Gossiper.instance.getLiveMembers())
+            pushMigrations(endpoint, migrations);
     }
 
     /** announce my version passively over gossip **/
@@ -123,7 +132,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
     {
         // this is for notifying nodes as they arrive in the cluster.
         Gossiper.instance.addLocalApplicationState(ApplicationState.SCHEMA, StorageService.instance.valueFactory.migration(version));
-        logger.debug("Announcing my schema is " + version);
+        logger.debug("Gossiping my schema version " + version);
     }
 
     /**
@@ -182,29 +191,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
         }
         passiveAnnounce(to); // we don't need to send rpcs, but we need to update gossip
     }
-    
-    /** pushes migrations from this host to another host */
-    public static void pushMigrations(UUID from, UUID to, InetAddress host)
-    {
-        // I want all the rows from theirVersion through myVersion.
-        Collection<IColumn> migrations = Migration.getLocalMigrations(from, to);
-        try
-        {
-            Message msg = makeMigrationMessage(migrations, Gossiper.instance.getVersion(host));
-            MessagingService.instance().sendOneWay(msg, host);
-        }
-        catch (IOException ex)
-        {
-            throw new IOError(ex);
-        }
-    }
-    
-    private static Message makeVersionMessage(UUID version, int protocolVersion)
-    {
-        byte[] body = version.toString().getBytes();
-        return new Message(FBUtilities.getLocalAddress(), StorageService.Verb.DEFINITIONS_ANNOUNCE, body, protocolVersion);
-    }
-    
+
     // other half of transformation is in DefinitionsUpdateResponseVerbHandler.
     private static Message makeMigrationMessage(Collection<IColumn> migrations, int version) throws IOException
     {
@@ -225,7 +212,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
         }
         dout.close();
         byte[] body = bout.toByteArray();
-        return new Message(FBUtilities.getLocalAddress(), StorageService.Verb.DEFINITIONS_UPDATE_RESPONSE, body, version);
+        return new Message(FBUtilities.getLocalAddress(), StorageService.Verb.DEFINITIONS_UPDATE, body, version);
     }
     
     // other half of this transformation is in MigrationManager.

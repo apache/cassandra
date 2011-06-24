@@ -31,6 +31,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
@@ -55,6 +56,14 @@ public class Util
     public static Column column(String name, String value, long timestamp)
     {
         return new Column(ByteBufferUtil.bytes(name), ByteBufferUtil.bytes(value), timestamp);
+    }
+
+    public static SuperColumn superColumn(ColumnFamily cf, String name, Column... columns)
+    {
+        SuperColumn sc = new SuperColumn(ByteBufferUtil.bytes(name), cf.metadata().comparator);
+        for (Column c : columns)
+            sc.addColumn(c);
+        return sc;
     }
 
     public static Token token(String key)
@@ -106,18 +115,16 @@ public class Util
      * @param rows A group of RowMutations for the same table and column family.
      * @return The ColumnFamilyStore that was used.
      */
-    public static ColumnFamilyStore writeColumnFamily(List<RowMutation> rms) throws IOException, ExecutionException, InterruptedException
+    public static ColumnFamilyStore writeColumnFamily(List<IMutation> rms) throws IOException, ExecutionException, InterruptedException
     {
-        RowMutation first = rms.get(0);
+        IMutation first = rms.get(0);
         String tablename = first.getTable();
-        String cfname = first.getColumnFamilies().iterator().next().metadata().cfName;
+        Integer cfid = first.getColumnFamilyIds().iterator().next();
 
-        Table table = Table.open(tablename);
-        ColumnFamilyStore store = table.getColumnFamilyStore(cfname);
-
-        for (RowMutation rm : rms)
+        for (IMutation rm : rms)
             rm.apply();
 
+        ColumnFamilyStore store = Table.open(tablename).getColumnFamilyStore(cfid);
         store.forceBlockingFlush();
         return store;
     }

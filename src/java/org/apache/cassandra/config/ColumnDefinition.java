@@ -26,6 +26,7 @@ import java.util.*;
 
 import org.apache.avro.util.Utf8;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.thrift.ColumnDef;
 import org.apache.cassandra.thrift.IndexType;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -93,7 +94,7 @@ public class ColumnDefinition
         String index_name = cd.index_name == null ? null : cd.index_name.toString();
         try
         {
-            AbstractType validatorType = DatabaseDescriptor.getComparator(cd.validation_class);
+            AbstractType validatorType = TypeParser.parse(cd.validation_class);
             return new ColumnDefinition(cd.name, validatorType, index_type, index_name);
         }
         catch (ConfigurationException e)
@@ -104,14 +105,14 @@ public class ColumnDefinition
 
     public static ColumnDefinition fromColumnDef(ColumnDef thriftColumnDef) throws ConfigurationException
     {
-        AbstractType validatorType = DatabaseDescriptor.getComparator(thriftColumnDef.validation_class);
+        AbstractType validatorType = TypeParser.parse(thriftColumnDef.validation_class);
         return new ColumnDefinition(ByteBufferUtil.clone(thriftColumnDef.name), validatorType, thriftColumnDef.index_type, thriftColumnDef.index_name);
     }
     
     public static ColumnDefinition fromColumnDef(org.apache.cassandra.db.migration.avro.ColumnDef avroColumnDef) throws ConfigurationException
     {
         validateIndexType(avroColumnDef);
-        AbstractType validatorType = DatabaseDescriptor.getComparator(avroColumnDef.validation_class);
+        AbstractType validatorType = TypeParser.parse(avroColumnDef.validation_class);
         return new ColumnDefinition(avroColumnDef.name,
                 validatorType,
                 IndexType.valueOf(avroColumnDef.index_type == null ? D_COLDEF_INDEXTYPE : avroColumnDef.index_type.name()),

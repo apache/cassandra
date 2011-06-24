@@ -133,7 +133,7 @@ public final class IntegerType extends AbstractType<BigInteger>
         if (bytes.remaining() == 0)
             return "empty";
 
-        return new java.math.BigInteger(TBaseHelper.byteBufferToByteArray(bytes)).toString(10);
+        return new java.math.BigInteger(ByteBufferUtil.getArray(bytes)).toString(10);
     }
     
     public String toString(BigInteger bi)

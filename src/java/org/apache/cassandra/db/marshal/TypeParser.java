@@ -87,6 +87,11 @@ public class TypeParser
         return type;
     }
 
+    public static AbstractType parse(CharSequence compareWith) throws ConfigurationException
+    {
+        return parse(compareWith == null ? null : compareWith.toString());
+    }
+
     /**
      * Parse an AbstractType from current position of this parser.
      */

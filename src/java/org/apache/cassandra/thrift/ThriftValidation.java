@@ -28,6 +28,8 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.MarshalException;
+import org.apache.cassandra.db.marshal.TypeParser;
+import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Token;
@@ -512,10 +514,26 @@ public class ThriftValidation
             throw new InvalidRequestException("No indexed columns present in index clause with operator EQ");
     }
 
-    public static void validateCfDef(CfDef cf_def) throws InvalidRequestException
+    public static void validateCfDef(CfDef cf_def, CFMetaData old) throws InvalidRequestException
     {
         try
         {
+            if (cf_def.key_alias != null)
+            {
+                if (!cf_def.key_alias.hasRemaining())
+                    throw new InvalidRequestException("key_alias may not be empty");
+                try
+                {
+                    // it's hard to use a key in a select statement if we can't type it.
+                    // for now let's keep it simple and require ascii.
+                    AsciiType.instance.validate(cf_def.key_alias);
+                }
+                catch (MarshalException e)
+                {
+                    throw new InvalidRequestException("Key aliases must be ascii");
+                }
+            }
+
             if (cf_def.key_alias != null)
             {
                 if (!cf_def.key_alias.hasRemaining())
@@ -536,9 +554,9 @@ public class ThriftValidation
             if (cfType == null)
                 throw new InvalidRequestException("invalid column type " + cf_def.column_type);
 
-            DatabaseDescriptor.getComparator(cf_def.comparator_type);
-            DatabaseDescriptor.getComparator(cf_def.subcomparator_type);
-            DatabaseDescriptor.getComparator(cf_def.default_validation_class);
+            TypeParser.parse(cf_def.comparator_type);
+            TypeParser.parse(cf_def.subcomparator_type);
+            TypeParser.parse(cf_def.default_validation_class);
             if (cfType != ColumnFamilyType.Super && cf_def.subcomparator_type != null)
                 throw new InvalidRequestException("subcomparator_type is invalid for standard columns");
 
@@ -546,19 +564,21 @@ public class ThriftValidation
                 return;
 
             AbstractType comparator = cfType == ColumnFamilyType.Standard
-                                    ? DatabaseDescriptor.getComparator(cf_def.comparator_type)
-                                    : DatabaseDescriptor.getComparator(cf_def.subcomparator_type);
+                                    ? TypeParser.parse(cf_def.comparator_type)
+                                    : TypeParser.parse(cf_def.subcomparator_type);
 
+            // initialize a set of names NOT in the CF under consideration
             Set<String> indexNames = new HashSet<String>();
+            for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
+            {
+                if (!cfs.getColumnFamilyName().equals(cf_def.name))
+                    for (ColumnDefinition cd : cfs.metadata.getColumn_metadata().values())
+                        indexNames.add(cd.getIndexName());
+            }
+
             for (ColumnDef c : cf_def.column_metadata)
             {
-                // Ensure that given idx_names and auto_generated idx_names cannot collide
-                String idxName = CFMetaData.indexName(cf_def.name, ColumnDefinition.fromColumnDef(c));
-                if (indexNames.contains(idxName))
-                    throw new InvalidRequestException("Duplicate index names " + idxName);
-                indexNames.add(idxName);
-
-                DatabaseDescriptor.getComparator(c.validation_class);
+                TypeParser.parse(c.validation_class);
 
                 try
                 {
@@ -570,12 +590,34 @@ public class ThriftValidation
                                                                     ByteBufferUtil.bytesToHex(c.name), cf_def.comparator_type));
                 }
 
-                if ((c.index_name != null) && (c.index_type == null))
-                    throw new ConfigurationException("index_name cannot be set without index_type");
+                if (c.index_type == null)
+                {
+                    if (c.index_name != null)
+                        throw new ConfigurationException("index_name cannot be set without index_type");
+                }
+                else
+                {
+                    if (cfType == ColumnFamilyType.Super)
+                        throw new InvalidRequestException("Secondary indexes are not supported on supercolumns");
+                    assert c.index_name != null; // should have a default set by now if none was provided
+                    if (!Migration.isLegalName(c.index_name))
+                        throw new InvalidRequestException("Illegal index name " + c.index_name);
+                    // check index names against this CF _and_ globally
+                    if (indexNames.contains(c.index_name))
+                        throw new InvalidRequestException("Duplicate index name " + c.index_name);
+                    indexNames.add(c.index_name);
 
-                if (cfType == ColumnFamilyType.Super && c.index_type != null)
-                    throw new InvalidRequestException("Secondary indexes are not supported on supercolumns");
+                    ColumnDefinition oldCd = old == null ? null : old.getColumnDefinition(c.name);
+                    if (oldCd != null && oldCd.getIndexType() != null)
+                    {
+                        assert oldCd.getIndexName() != null;
+                        if (!oldCd.getIndexName().equals(c.index_name))
+                            throw new InvalidRequestException("Cannot modify index name");
+                    }
+                }
             }
+            validateMinMaxCompactionThresholds(cf_def);
+            validateMemtableSettings(cf_def);
         }
         catch (ConfigurationException e)
         {
@@ -600,5 +642,46 @@ public class ThriftValidation
         IEndpointSnitch eps = DatabaseDescriptor.getEndpointSnitch();
         Class<? extends AbstractReplicationStrategy> cls = AbstractReplicationStrategy.getClass(ks_def.strategy_class);
         AbstractReplicationStrategy.createReplicationStrategy(ks_def.name, cls, tmd, eps, options);
+    }
+
+    public static void validateMinMaxCompactionThresholds(org.apache.cassandra.thrift.CfDef cf_def) throws ConfigurationException
+    {
+        if (cf_def.isSetMin_compaction_threshold() && cf_def.isSetMax_compaction_threshold())
+        {
+            if ((cf_def.min_compaction_threshold > cf_def.max_compaction_threshold)
+                && cf_def.max_compaction_threshold != 0)
+            {
+                throw new ConfigurationException("min_compaction_threshold cannot be greater than max_compaction_threshold");
+            }
+        }
+        else if (cf_def.isSetMin_compaction_threshold())
+        {
+            if (cf_def.min_compaction_threshold > CFMetaData.DEFAULT_MAX_COMPACTION_THRESHOLD)
+            {
+                throw new ConfigurationException(String.format("min_compaction_threshold cannot be greather than max_compaction_threshold (default %d)",
+                                                               CFMetaData.DEFAULT_MAX_COMPACTION_THRESHOLD));
+            }
+        }
+        else if (cf_def.isSetMax_compaction_threshold())
+        {
+            if (cf_def.max_compaction_threshold < CFMetaData.DEFAULT_MIN_COMPACTION_THRESHOLD && cf_def.max_compaction_threshold != 0)
+            {
+                throw new ConfigurationException("max_compaction_threshold cannot be less than min_compaction_threshold");
+            }
+        }
+        else
+        {
+            //Defaults are valid.
+        }
+    }
+
+    public static void validateMemtableSettings(org.apache.cassandra.thrift.CfDef cf_def) throws ConfigurationException
+    {
+        if (cf_def.isSetMemtable_flush_after_mins())
+            DatabaseDescriptor.validateMemtableFlushPeriod(cf_def.memtable_flush_after_mins);
+        if (cf_def.isSetMemtable_throughput_in_mb())
+            DatabaseDescriptor.validateMemtableThroughput(cf_def.memtable_throughput_in_mb);
+        if (cf_def.isSetMemtable_operations_in_millions())
+            DatabaseDescriptor.validateMemtableOperations(cf_def.memtable_operations_in_millions);
     }
 }

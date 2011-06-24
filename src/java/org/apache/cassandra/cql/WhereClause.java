@@ -21,7 +21,15 @@ package org.apache.cassandra.cql;
  */
 
 
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.thrift.InvalidRequestException;
+import org.apache.cassandra.thrift.ThriftValidation;
+import org.apache.cassandra.utils.ByteBufferUtil;
+
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 
 /**
@@ -30,10 +38,13 @@ import java.util.List;
  */
 public class WhereClause
 {
+    // added to either by the parser, e.g. from an IN clause, or by extractKeysFromColumns
     private List<Term> keys = new ArrayList<Term>();
     private Term startKey, finishKey;
     private List<Relation> columns = new ArrayList<Relation>();
     private boolean includeStartKey = false, includeFinishKey = false;
+    // set by extractKeysFromColumns
+    private String keyAlias = null;
 
     /**
      * Create a new WhereClause with the first parsed relation.
@@ -96,11 +107,6 @@ public class WhereClause
         return startKey != null;
     }
     
-    public boolean isKeyList()
-    {
-        return !isKeyRange();
-    }
-    
     public Term getStartKey()
     {
         return startKey;
@@ -124,5 +130,48 @@ public class WhereClause
     public boolean includeFinishKey()
     {
         return includeFinishKey;
+    }
+
+    public void setKeyAlias(String alias)
+    {
+        keyAlias = alias.toUpperCase();
+    }
+
+    public String getKeyAlias()
+    {
+        // TODO fix special casing here, key alias should always be set post-extract
+        // key alias as not related to keys in here, it can be unset when we have a query like
+        // SELECT * FROM <CF> WHERE key = 1 and col > 2 and col < 3;
+        // it will be always set when statement looks like this
+        // SELECT * FROM <CF> WHERE <key> IN (.., .., ..);
+        // key is NULL when KEY keyword is used or when key alias given by user was not recognized
+        // validateKeyAlias will throw an exception for us in that case
+        return keyAlias == null ? QueryProcessor.DEFAULT_KEY_NAME : keyAlias;
+    }
+
+    public void extractKeysFromColumns(CFMetaData cfm)
+    {
+        ByteBuffer realKeyAlias = cfm.getKeyName();
+
+        if (!keys.isEmpty())
+            return; // we already have key(s) set
+
+        Iterator<Relation> iter = columns.iterator();
+
+        while (iter.hasNext())
+        {
+            Relation relation = iter.next();
+
+            ByteBuffer name = ByteBufferUtil.bytes(relation.getEntity().getText());
+
+            if (name.equals(realKeyAlias))
+            {
+                // setting found key as an alias
+                keyAlias = relation.getEntity().getText().toUpperCase();
+                keys.add(relation.getValue()); // add a key value to the keys list
+                iter.remove(); // removing it from the columns
+                break;
+            }
+        }
     }
 }

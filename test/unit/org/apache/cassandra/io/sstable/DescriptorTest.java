@@ -25,6 +25,8 @@ import java.io.File;
 
 import org.junit.Test;
 
+import org.apache.cassandra.db.Table;
+
 public class DescriptorTest
 {
     @Test
@@ -33,5 +35,29 @@ public class DescriptorTest
         Descriptor descriptor = Descriptor.fromFilename(new File("Keyspace1"), "userActionUtilsKey-9-Data.db").left;
         assert descriptor.version.equals(Descriptor.LEGACY_VERSION);
         assert descriptor.usesOldBloomFilter;
+    }
+
+    @Test
+    public void testExtractKeyspace()
+    {
+        // Test a path representing a SNAPSHOT directory
+        String dirPath = "Keyspace10" + File.separator + Table.SNAPSHOT_SUBDIR_NAME + File.separator + System.currentTimeMillis();
+        assertKeyspace("Keyspace10", dirPath);
+
+        // Test a path representing a regular SSTables directory
+        dirPath = "Keyspace11";
+        assertKeyspace("Keyspace11", dirPath);
+    }
+
+    private void assertKeyspace(String expectedKsName, String dirPath) {
+        File dir = new File(dirPath);
+        dir.deleteOnExit();
+
+        // Create and check.
+        if (!dir.mkdirs())
+            throw new RuntimeException("Unable to create directories:" + dirPath);
+
+        String currentKsName = Descriptor.extractKeyspaceName(dir);
+        assert expectedKsName.equals(currentKsName);
     }
 }

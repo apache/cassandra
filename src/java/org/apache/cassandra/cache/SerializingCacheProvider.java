@@ -41,8 +41,8 @@ public class SerializingCacheProvider implements IRowCacheProvider
         }
     }
 
-    public ICache<DecoratedKey, ColumnFamily> create(int capacity)
+    public ICache<DecoratedKey, ColumnFamily> create(int capacity, String tableName, String cfName)
     {
-        return new SerializingCache<DecoratedKey, ColumnFamily>(capacity, ColumnFamily.serializer());
+        return new SerializingCache<DecoratedKey, ColumnFamily>(capacity, ColumnFamily.serializer(), tableName, cfName);
     }
 }

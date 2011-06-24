@@ -1,4 +1,5 @@
 package org.apache.cassandra.db.marshal;
+
 /*
  * 
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -20,7 +21,6 @@ package org.apache.cassandra.db.marshal;
  * 
  */
 
-
 import static org.junit.Assert.assertEquals;
 
 import java.net.InetAddress;
@@ -30,6 +30,7 @@ import java.util.Arrays;
 import java.util.Random;
 import java.util.UUID;
 
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.UUIDGen;
 import org.apache.log4j.Logger;
 import org.junit.Test;
@@ -47,6 +48,9 @@ public class UUIDTypeTest
 
         UUID t1 = newTimeBasedUUID();
         UUID t2 = newTimeBasedUUID();
+
+        testCompare(null, t2, -1);
+        testCompare(t1, null, 1);
 
         testCompare(t1, t2, -1);
         testCompare(t1, t1, 0);
@@ -110,8 +114,8 @@ public class UUIDTypeTest
 
     public String describeCompare(UUID u1, UUID u2, int c)
     {
-        String tb1 = (u1.version() == 1) ? "time-based " : "random ";
-        String tb2 = (u2.version() == 1) ? "time-based " : "random ";
+        String tb1 = (u1 == null) ? "null" : (u1.version() == 1) ? "time-based " : "random ";
+        String tb2 = (u2 == null) ? "null" : (u2.version() == 1) ? "time-based " : "random ";
         String comp = (c < 0) ? " < " : ((c == 0) ? " = " : " > ");
         return tb1 + u1 + comp + tb2 + u2;
     }
@@ -131,6 +135,9 @@ public class UUIDTypeTest
 
     public static ByteBuffer bytebuffer(UUID uuid)
     {
+        if (uuid == null)
+            return ByteBufferUtil.EMPTY_BYTE_BUFFER;
+
         long msb = uuid.getMostSignificantBits();
         long lsb = uuid.getLeastSignificantBits();
         byte[] bytes = new byte[16];
@@ -149,29 +156,23 @@ public class UUIDTypeTest
 
     public void logJdkUUIDCompareToVariance(UUID u1, UUID u2, int expC)
     {
+        if ((u1 == null) || (u2 == null))
+            return;
         if (u1.version() != u2.version())
-        {
             return;
-        }
         if (u1.version() == 1)
-        {
             return;
-        }
         if (u1.compareTo(u2) != expC)
-        {
             logger.info("*** Note: java.util.UUID.compareTo() would have compared this differently");
-        }
-
     }
 
     public void testCompare(UUID u1, UUID u2, int expC)
     {
         int c = sign(uuidType.compare(bytebuffer(u1), bytebuffer(u2)));
         expC = sign(expC);
-        assertEquals("Expected " + describeCompare(u1, u2, expC) + ", got "
-                + describeCompare(u1, u2, c), expC, c);
+        assertEquals("Expected " + describeCompare(u1, u2, expC) + ", got " + describeCompare(u1, u2, c), expC, c);
 
-        if (u1.version() == 1 && u2.version() == 1)
+        if (((u1 != null) && (u1.version() == 1)) && ((u2 != null) && (u2.version() == 1)))
             assertEquals(c, sign(TimeUUIDType.instance.compare(bytebuffer(u1), bytebuffer(u2))));
 
         logJdkUUIDCompareToVariance(u1, u2, c);

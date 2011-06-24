@@ -50,6 +50,7 @@ public class KsDef implements org.apache.thrift.TBase<KsDef, KsDef._Fields>, jav
   private static final org.apache.thrift.protocol.TField STRATEGY_OPTIONS_FIELD_DESC = new org.apache.thrift.protocol.TField("strategy_options", org.apache.thrift.protocol.TType.MAP, (short)3);
   private static final org.apache.thrift.protocol.TField REPLICATION_FACTOR_FIELD_DESC = new org.apache.thrift.protocol.TField("replication_factor", org.apache.thrift.protocol.TType.I32, (short)4);
   private static final org.apache.thrift.protocol.TField CF_DEFS_FIELD_DESC = new org.apache.thrift.protocol.TField("cf_defs", org.apache.thrift.protocol.TType.LIST, (short)5);
+  private static final org.apache.thrift.protocol.TField DURABLE_WRITES_FIELD_DESC = new org.apache.thrift.protocol.TField("durable_writes", org.apache.thrift.protocol.TType.BOOL, (short)6);
 
   public String name;
   public String strategy_class;
@@ -59,6 +60,7 @@ public class KsDef implements org.apache.thrift.TBase<KsDef, KsDef._Fields>, jav
    */
   public int replication_factor;
   public List<CfDef> cf_defs;
+  public boolean durable_writes;
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
   public enum _Fields implements org.apache.thrift.TFieldIdEnum {
@@ -69,7 +71,8 @@ public class KsDef implements org.apache.thrift.TBase<KsDef, KsDef._Fields>, jav
      * @deprecated
      */
     REPLICATION_FACTOR((short)4, "replication_factor"),
-    CF_DEFS((short)5, "cf_defs");
+    CF_DEFS((short)5, "cf_defs"),
+    DURABLE_WRITES((short)6, "durable_writes");
 
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -94,6 +97,8 @@ public class KsDef implements org.apache.thrift.TBase<KsDef, KsDef._Fields>, jav
           return REPLICATION_FACTOR;
         case 5: // CF_DEFS
           return CF_DEFS;
+        case 6: // DURABLE_WRITES
+          return DURABLE_WRITES;
         default:
           return null;
       }
@@ -135,7 +140,8 @@ public class KsDef implements org.apache.thrift.TBase<KsDef, KsDef._Fields>, jav
 
   // isset id assignments
   private static final int __REPLICATION_FACTOR_ISSET_ID = 0;
-  private BitSet __isset_bit_vector = new BitSet(1);
+  private static final int __DURABLE_WRITES_ISSET_ID = 1;
+  private BitSet __isset_bit_vector = new BitSet(2);
 
   public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
   static {
@@ -153,11 +159,15 @@ public class KsDef implements org.apache.thrift.TBase<KsDef, KsDef._Fields>, jav
     tmpMap.put(_Fields.CF_DEFS, new org.apache.thrift.meta_data.FieldMetaData("cf_defs", org.apache.thrift.TFieldRequirementType.REQUIRED, 
         new org.apache.thrift.meta_data.ListMetaData(org.apache.thrift.protocol.TType.LIST, 
             new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, CfDef.class))));
+    tmpMap.put(_Fields.DURABLE_WRITES, new org.apache.thrift.meta_data.FieldMetaData("durable_writes", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.BOOL)));
     metaDataMap = Collections.unmodifiableMap(tmpMap);
     org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(KsDef.class, metaDataMap);
   }
 
   public KsDef() {
+    this.durable_writes = true;
+
   }
 
   public KsDef(
@@ -206,6 +216,7 @@ public class KsDef implements org.apache.thrift.TBase<KsDef, KsDef._Fields>, jav
       }
       this.cf_defs = __this__cf_defs;
     }
+    this.durable_writes = other.durable_writes;
   }
 
   public KsDef deepCopy() {
@@ -220,6 +231,8 @@ public class KsDef implements org.apache.thrift.TBase<KsDef, KsDef._Fields>, jav
     setReplication_factorIsSet(false);
     this.replication_factor = 0;
     this.cf_defs = null;
+    this.durable_writes = true;
+
   }
 
   public String getName() {
@@ -373,6 +386,29 @@ public class KsDef implements org.apache.thrift.TBase<KsDef, KsDef._Fields>, jav
     }
   }
 
+  public boolean isDurable_writes() {
+    return this.durable_writes;
+  }
+
+  public KsDef setDurable_writes(boolean durable_writes) {
+    this.durable_writes = durable_writes;
+    setDurable_writesIsSet(true);
+    return this;
+  }
+
+  public void unsetDurable_writes() {
+    __isset_bit_vector.clear(__DURABLE_WRITES_ISSET_ID);
+  }
+
+  /** Returns true if field durable_writes is set (has been assigned a value) and false otherwise */
+  public boolean isSetDurable_writes() {
+    return __isset_bit_vector.get(__DURABLE_WRITES_ISSET_ID);
+  }
+
+  public void setDurable_writesIsSet(boolean value) {
+    __isset_bit_vector.set(__DURABLE_WRITES_ISSET_ID, value);
+  }
+
   public void setFieldValue(_Fields field, Object value) {
     switch (field) {
     case NAME:
@@ -415,6 +451,14 @@ public class KsDef implements org.apache.thrift.TBase<KsDef, KsDef._Fields>, jav
       }
       break;
 
+    case DURABLE_WRITES:
+      if (value == null) {
+        unsetDurable_writes();
+      } else {
+        setDurable_writes((Boolean)value);
+      }
+      break;
+
     }
   }
 
@@ -434,6 +478,9 @@ public class KsDef implements org.apache.thrift.TBase<KsDef, KsDef._Fields>, jav
 
     case CF_DEFS:
       return getCf_defs();
+
+    case DURABLE_WRITES:
+      return new Boolean(isDurable_writes());
 
     }
     throw new IllegalStateException();
@@ -456,6 +503,8 @@ public class KsDef implements org.apache.thrift.TBase<KsDef, KsDef._Fields>, jav
       return isSetReplication_factor();
     case CF_DEFS:
       return isSetCf_defs();
+    case DURABLE_WRITES:
+      return isSetDurable_writes();
     }
     throw new IllegalStateException();
   }
@@ -518,6 +567,15 @@ public class KsDef implements org.apache.thrift.TBase<KsDef, KsDef._Fields>, jav
         return false;
     }
 
+    boolean this_present_durable_writes = true && this.isSetDurable_writes();
+    boolean that_present_durable_writes = true && that.isSetDurable_writes();
+    if (this_present_durable_writes || that_present_durable_writes) {
+      if (!(this_present_durable_writes && that_present_durable_writes))
+        return false;
+      if (this.durable_writes != that.durable_writes)
+        return false;
+    }
+
     return true;
   }
 
@@ -549,6 +607,11 @@ public class KsDef implements org.apache.thrift.TBase<KsDef, KsDef._Fields>, jav
     builder.append(present_cf_defs);
     if (present_cf_defs)
       builder.append(cf_defs);
+
+    boolean present_durable_writes = true && (isSetDurable_writes());
+    builder.append(present_durable_writes);
+    if (present_durable_writes)
+      builder.append(durable_writes);
 
     return builder.toHashCode();
   }
@@ -607,6 +670,16 @@ public class KsDef implements org.apache.thrift.TBase<KsDef, KsDef._Fields>, jav
     }
     if (isSetCf_defs()) {
       lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.cf_defs, typedOther.cf_defs);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
+    lastComparison = Boolean.valueOf(isSetDurable_writes()).compareTo(typedOther.isSetDurable_writes());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    if (isSetDurable_writes()) {
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.durable_writes, typedOther.durable_writes);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -687,6 +760,14 @@ public class KsDef implements org.apache.thrift.TBase<KsDef, KsDef._Fields>, jav
             org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
+        case 6: // DURABLE_WRITES
+          if (field.type == org.apache.thrift.protocol.TType.BOOL) {
+            this.durable_writes = iprot.readBool();
+            setDurable_writesIsSet(true);
+          } else { 
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
         default:
           org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
       }
@@ -744,6 +825,11 @@ public class KsDef implements org.apache.thrift.TBase<KsDef, KsDef._Fields>, jav
       }
       oprot.writeFieldEnd();
     }
+    if (isSetDurable_writes()) {
+      oprot.writeFieldBegin(DURABLE_WRITES_FIELD_DESC);
+      oprot.writeBool(this.durable_writes);
+      oprot.writeFieldEnd();
+    }
     oprot.writeFieldStop();
     oprot.writeStructEnd();
   }
@@ -792,6 +878,12 @@ public class KsDef implements org.apache.thrift.TBase<KsDef, KsDef._Fields>, jav
       sb.append(this.cf_defs);
     }
     first = false;
+    if (isSetDurable_writes()) {
+      if (!first) sb.append(", ");
+      sb.append("durable_writes:");
+      sb.append(this.durable_writes);
+      first = false;
+    }
     sb.append(")");
     return sb.toString();
   }
@@ -806,24 +898,6 @@ public class KsDef implements org.apache.thrift.TBase<KsDef, KsDef._Fields>, jav
     }
     if (cf_defs == null) {
       throw new org.apache.thrift.protocol.TProtocolException("Required field 'cf_defs' was not present! Struct: " + toString());
-    }
-  }
-
-  private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-    try {
-      write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-    } catch (org.apache.thrift.TException te) {
-      throw new java.io.IOException(te);
-    }
-  }
-
-  private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-    try {
-      // it doesn't seem like you should have to do this, but java serialization is wacky, and doesn't call the default constructor.
-      __isset_bit_vector = new BitSet(1);
-      read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-    } catch (org.apache.thrift.TException te) {
-      throw new java.io.IOException(te);
     }
   }
 

@@ -53,6 +53,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.columniterator.IColumnIterator;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
+import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
@@ -262,9 +263,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         if (logger.isDebugEnabled())
             logger.debug("Starting CFS {}", columnFamily);
 
-        ICache<Pair<Descriptor, DecoratedKey>, Long> kc = ConcurrentLinkedHashCache.create(0);
+        ICache<Pair<Descriptor, DecoratedKey>, Long> kc = ConcurrentLinkedHashCache.create(0, table.name, columnFamilyName);
         keyCache = new AutoSavingKeyCache<Pair<Descriptor, DecoratedKey>, Long>(kc, table.name, columnFamilyName);
-        ICache<DecoratedKey, ColumnFamily> rc = metadata.getRowCacheProvider().create(0);        
+        ICache<DecoratedKey, ColumnFamily> rc = metadata.getRowCacheProvider().create(0, table.name, columnFamilyName);
         rowCache = new AutoSavingRowCache<DecoratedKey, ColumnFamily>(rc, table.name, columnFamilyName);
 
         // scan for sstables corresponding to this cf and load them
@@ -511,7 +512,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         if (cfm != null) // secondary indexes aren't stored in DD.
         {
             for (ColumnDefinition def : cfm.getColumn_metadata().values())
-                scrubDataDirectories(table, CFMetaData.indexName(cfm.cfName, def));
+                scrubDataDirectories(table, cfm.indexColumnFamilyName(def));
         }
     }
 
@@ -646,7 +647,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
             assert getMemtableThreadSafe() == oldMemtable;
             oldMemtable.freeze();
-            final ReplayPosition ctx = writeCommitLog ? CommitLog.instance.getContext() : null;
+            final ReplayPosition ctx = writeCommitLog ? CommitLog.instance.getContext() : ReplayPosition.NONE;
 
             // submit the memtable for any indexed sub-cfses, and our own.
             List<ColumnFamilyStore> icc = new ArrayList<ColumnFamilyStore>(indexedColumns.size());
@@ -923,7 +924,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * Add up all the files sizes this is the worst case file
      * size for compaction of all the list of files given.
      */
-    long getExpectedCompactedFileSize(Iterable<SSTableReader> sstables)
+    public long getExpectedCompactedFileSize(Iterable<SSTableReader> sstables)
     {
         long expectedFileSize = 0;
         for (SSTableReader sstable : sstables)
@@ -937,7 +938,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     /*
      *  Find the maximum size file in the list .
      */
-    SSTableReader getMaxSizeFile(Iterable<SSTableReader> sstables)
+    public SSTableReader getMaxSizeFile(Iterable<SSTableReader> sstables)
     {
         long maxSize = 0L;
         SSTableReader maxFile = null;
@@ -963,17 +964,17 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         CompactionManager.instance.performScrub(ColumnFamilyStore.this);
     }
 
-    void markCompacted(Collection<SSTableReader> sstables)
+    public void markCompacted(Collection<SSTableReader> sstables)
     {
         data.markCompacted(sstables);
     }
 
-    boolean isCompleteSSTables(Collection<SSTableReader> sstables)
+    public boolean isCompleteSSTables(Set<SSTableReader> sstables)
     {
-        return data.getSSTables().equals(new HashSet<SSTableReader>(sstables));
+        return data.getSSTables().equals(sstables);
     }
 
-    void replaceCompactedSSTables(Collection<SSTableReader> sstables, Iterable<SSTableReader> replacements)
+    public void replaceCompactedSSTables(Collection<SSTableReader> sstables, Iterable<SSTableReader> replacements)
     {
         data.replaceCompactedSSTables(sstables, replacements);
     }
@@ -1054,7 +1055,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     /**
      * Package protected for access from the CompactionManager.
      */
-    DataTracker getDataTracker()
+    public DataTracker getDataTracker()
     {
         return data;
     }
@@ -1186,7 +1187,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             if (rowCache.getCapacity() == 0)
             {
                 ColumnFamily cf = getTopLevelColumns(filter, gcBefore);
-                         
+
+                if (cf == null)
+                    return null;
+
                 // TODO this is necessary because when we collate supercolumns together, we don't check
                 // their subcolumns for relevance, so we need to do a second prune post facto here.
                 return cf.isSuper() ? removeDeleted(cf, gcBefore) : removeDeletedCF(cf, gcBefore);
@@ -1297,14 +1301,17 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             recentSSTablesPerRead.add(sstablesToIterate);
             sstablesPerRead.add(sstablesToIterate);
 
+            // we need to distinguish between "there is no data at all for this row" (BF will let us rebuild that efficiently)
+            // and "there used to be data, but it's gone now" (we should cache the empty CF so we don't need to rebuild that slower)
+            if (iterators.size() == 0)
+                return null;
+
             Comparator<IColumn> comparator = filter.filter.getColumnComparator(getComparator());
             Iterator collated = IteratorUtils.collatedIterator(comparator, iterators);
 
             filter.collectCollatedColumns(returnCF, collated, gcBefore);
 
             // Caller is responsible for final removeDeletedCF.  This is important for cacheRow to work correctly:
-            // we need to distinguish between "there is no data at all for this row" (BF will let us rebuild that efficiently)
-            // and "there used to be data, but it's gone now" (we should cache the empty CF so we don't need to rebuild that slower)
             return returnCF;
         }
         finally
@@ -1796,8 +1803,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public Future<?> truncate() throws IOException
     {
-        // snapshot will also flush, but we want to truncate the most possible, and anything in a flush written
-        // after truncateAt won't be truncated.
+        // We have two goals here:
+        // - truncate should delete everything written before truncate was invoked
+        // - but not delete anything that isn't part of the snapshot we create.
+        // We accomplish this by first flushing manually, then snapshotting, and
+        // recording the timestamp IN BETWEEN those actions. Any sstables created
+        // with this timestamp or greater time, will not be marked for delete.
         try
         {
             forceBlockingFlush();
@@ -1806,33 +1817,20 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             throw new RuntimeException(e);
         }
-
-        final long truncatedAt = System.currentTimeMillis();
+        // sleep a little to make sure that our truncatedAt comes after any sstable
+        // that was part of the flushed we forced; otherwise on a tie, it won't get deleted.
+        try
+        {
+            Thread.sleep(100);
+        }
+        catch (InterruptedException e)
+        {
+            throw new AssertionError(e);
+        }
+        long truncatedAt = System.currentTimeMillis();
         snapshot(Table.getTimestampedSnapshotName("before-truncate"));
 
-        Runnable runnable = new WrappedRunnable()
-        {
-            public void runMayThrow() throws InterruptedException, IOException
-            {
-                // putting markCompacted on the commitlogUpdater thread ensures it will run
-                // after any compactions that were in progress when truncate was called, are finished
-                for (ColumnFamilyStore cfs : concatWithIndexes())
-                {
-                    List<SSTableReader> truncatedSSTables = new ArrayList<SSTableReader>();
-                    for (SSTableReader sstable : cfs.getSSTables())
-                    {
-                        if (!sstable.newSince(truncatedAt))
-                            truncatedSSTables.add(sstable);
-                    }
-                    cfs.data.markCompacted(truncatedSSTables);
-                }
-
-                // Invalidate row cache
-                invalidateRowCache();
-            }
-        };
-
-        return postFlushExecutor.submit(runnable);
+        return CompactionManager.instance.submitTruncate(this, truncatedAt);
     }
 
     // if this errors out, we are in a world of hurt.

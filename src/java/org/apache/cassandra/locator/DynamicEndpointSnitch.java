@@ -274,7 +274,6 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
 class AdaptiveLatencyTracker extends AbstractStatsDeque
 {
     private final LinkedBlockingDeque<Double> latencies;
-    private static final double SENTINEL_COMPARE = 0.0001; // arbitrary; as long as it is the same across hosts it doesn't matter
 
     AdaptiveLatencyTracker(int size)
     {
@@ -312,22 +311,9 @@ class AdaptiveLatencyTracker extends AbstractStatsDeque
         return latencies.size();
     }
 
-    double p(double t)
-    {
-        double mean = mean();
-        double exponent = (-1) * (t) / mean;
-        return 1 - Math.pow( Math.E, exponent);
-    }
-
     double score()
     {
-        double log = 0d;
-        if ( latencies.size() > 0 )
-        {
-            double probability = p(SENTINEL_COMPARE);
-            log = (-1) * Math.log10( probability );
-        }
-        return log;
+        return (size() > 0) ? mean() : 0.0;
     }
 
 }

@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.service;
 
+import java.io.File;
 import java.io.IOError;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
@@ -50,6 +51,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.*;
 import org.apache.cassandra.io.DeletionService;
+import org.apache.cassandra.io.sstable.SSTableLoader;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.DynamicEndpointSnitch;
@@ -102,8 +104,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         GOSSIP_DIGEST_SYN,
         GOSSIP_DIGEST_ACK,
         GOSSIP_DIGEST_ACK2,
-        DEFINITIONS_ANNOUNCE,
-        DEFINITIONS_UPDATE_RESPONSE,
+        DEFINITIONS_ANNOUNCE, // Deprecated
+        DEFINITIONS_UPDATE,
         TRUNCATE,
         SCHEMA_CHECK,
         INDEX_SCAN,
@@ -135,8 +137,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         put(Verb.GOSSIP_DIGEST_ACK, Stage.GOSSIP);
         put(Verb.GOSSIP_DIGEST_ACK2, Stage.GOSSIP);
         put(Verb.GOSSIP_DIGEST_SYN, Stage.GOSSIP);
-        put(Verb.DEFINITIONS_ANNOUNCE, Stage.READ);
-        put(Verb.DEFINITIONS_UPDATE_RESPONSE, Stage.READ);
+        put(Verb.DEFINITIONS_UPDATE, Stage.READ);
         put(Verb.TRUNCATE, Stage.MUTATION);
         put(Verb.SCHEMA_CHECK, Stage.MIGRATION);
         put(Verb.INDEX_SCAN, Stage.READ);
@@ -255,8 +256,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         MessagingService.instance().registerVerbHandlers(Verb.GOSSIP_DIGEST_ACK, new GossipDigestAckVerbHandler());
         MessagingService.instance().registerVerbHandlers(Verb.GOSSIP_DIGEST_ACK2, new GossipDigestAck2VerbHandler());
         
-        MessagingService.instance().registerVerbHandlers(Verb.DEFINITIONS_ANNOUNCE, new DefinitionsAnnounceVerbHandler());
-        MessagingService.instance().registerVerbHandlers(Verb.DEFINITIONS_UPDATE_RESPONSE, new DefinitionsUpdateResponseVerbHandler());
+        MessagingService.instance().registerVerbHandlers(Verb.DEFINITIONS_UPDATE, new DefinitionsUpdateVerbHandler());
         MessagingService.instance().registerVerbHandlers(Verb.TRUNCATE, new TruncateVerbHandler());
         MessagingService.instance().registerVerbHandlers(Verb.SCHEMA_CHECK, new SchemaCheckVerbHandler());
 
@@ -316,7 +316,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     {
         if (daemon == null)
         {
-            throw new IllegalStateException("No configured RPC daemon");
+            return false;
         }
         return daemon.isRPCServerRunning();
     }
@@ -327,6 +327,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         Gossiper.instance.unregister(this);
         Gossiper.instance.stop();
         MessagingService.instance().shutdown();
+        // give it a second so that task accepted before the MessagingService shutdown gets submitted to the stage (to avoid RejectedExecutionException)
+        try { Thread.sleep(1000L); } catch (InterruptedException e) {}
         StageManager.shutdownNow();
     }
     
@@ -354,13 +356,13 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         // sleep a while to allow gossip to warm up (the other nodes need to know about this one before they can reply).
         try
         {
-            Thread.sleep(5000L);
+            Thread.sleep(RING_DELAY);
         }
         catch (Exception ex)
         {
             throw new IOError(ex);
         }
-        MigrationManager.announce(DatabaseDescriptor.getDefsVersion(), DatabaseDescriptor.getSeeds());
+        MigrationManager.passiveAnnounce(DatabaseDescriptor.getDefsVersion());
     }
 
     public synchronized void initServer() throws IOException, org.apache.cassandra.config.ConfigurationException
@@ -385,6 +387,12 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                 tokenMetadata_.updateNormalToken(entry.getKey(), entry.getValue());
                 Gossiper.instance.addSavedEndpoint(entry.getValue());
             }
+        }
+
+        if (Boolean.parseBoolean(System.getProperty("cassandra.renew_counter_id", "false")))
+        {
+            logger_.info("Renewing local node id (as requested)");
+            NodeId.renewLocalId();
         }
 
         // daemon threads, like our executors', continue to run while shutdown hooks are invoked
@@ -427,7 +435,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
         MessagingService.instance().listen(FBUtilities.getLocalAddress());
         StorageLoadBalancer.instance.startBroadcasting();
-        MigrationManager.announce(DatabaseDescriptor.getDefsVersion(), DatabaseDescriptor.getSeeds());
+        MigrationManager.passiveAnnounce(DatabaseDescriptor.getDefsVersion());
         Gossiper.instance.addLocalApplicationState(ApplicationState.RELEASE_VERSION, valueFactory.releaseVersion());
 
         HintedHandOffManager.instance.registerMBean();
@@ -2318,7 +2326,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                     public void run()
                     {
                         // TODO each call to transferRanges re-flushes, this is potentially a lot of waste
-                        StreamOut.transferRanges(newEndpoint, table, Arrays.asList(range), callback, OperationType.UNBOOTSTRAP);
+                        StreamOut.transferRanges(newEndpoint, Table.open(table), Arrays.asList(range), callback, OperationType.UNBOOTSTRAP);
                     }
                 });
             }
@@ -2428,4 +2436,37 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         return new Pair<Set<Range>, Set<Range>>(toStream, toFetch);
     }
 
+    public void bulkLoad(String directory)
+    {
+        File dir = new File(directory);
+
+        if (!dir.exists() || !dir.isDirectory())
+            throw new IllegalArgumentException("Invalid directory " + directory);
+
+        SSTableLoader.Client client = new SSTableLoader.Client()
+        {
+            public void init() {}
+
+            public boolean validateColumnFamily(String keyspace, String cfName)
+            {
+                return DatabaseDescriptor.getCFMetaData(keyspace, cfName) != null;
+            }
+        };
+
+        SSTableLoader.OutputHandler oh = new SSTableLoader.OutputHandler()
+        {
+            public void output(String msg) { logger_.info(msg); }
+            public void debug(String msg) { logger_.debug(msg); }
+        };
+
+        SSTableLoader loader = new SSTableLoader(dir, client, oh);
+        try
+        {
+            loader.stream().get();
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
 }

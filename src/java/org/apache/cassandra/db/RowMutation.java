@@ -28,6 +28,7 @@ import org.apache.commons.lang.StringUtils;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.net.Message;
@@ -80,6 +81,11 @@ public class RowMutation implements IMutation, MessageProducer
     public String getTable()
     {
         return table_;
+    }
+
+    public Collection<Integer> getColumnFamilyIds()
+    {
+        return modifications_.keySet();
     }
 
     public ByteBuffer key()
@@ -199,7 +205,9 @@ public class RowMutation implements IMutation, MessageProducer
      */
     public void apply() throws IOException
     {
-        Table.open(table_).apply(this, true);
+        KSMetaData ksm = DatabaseDescriptor.getTableDefinition(getTable());
+        
+        Table.open(table_).apply(this, ksm.isDurableWrites());
     }
 
     public void applyUnsafe() throws IOException

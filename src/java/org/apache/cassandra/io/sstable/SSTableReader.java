@@ -150,6 +150,9 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
     public static SSTableReader open(Descriptor descriptor, Set<Component> components, Set<DecoratedKey> savedKeys, DataTracker tracker, CFMetaData metadata, IPartitioner partitioner) throws IOException
     {
         assert partitioner != null;
+        // Minimum components without which we can't do anything
+        assert components.contains(Component.DATA);
+        assert components.contains(Component.PRIMARY_INDEX);
 
         long start = System.currentTimeMillis();
         logger.info("Opening " + descriptor);
@@ -158,7 +161,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         EstimatedHistogram columnCounts;
         File statsFile = new File(descriptor.filenameFor(SSTable.COMPONENT_STATS));
         ReplayPosition rp = ReplayPosition.NONE;
-        if (statsFile.exists())
+        if (components.contains(Component.STATS) && statsFile.exists())
         {
             DataInputStream dis = null;
             try
@@ -249,6 +252,12 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
 
     void loadBloomFilter() throws IOException
     {
+        if (!components.contains(Component.FILTER))
+        {
+            bf = BloomFilter.emptyFilter();
+            return;
+        }
+
         DataInputStream stream = null;
         try
         {

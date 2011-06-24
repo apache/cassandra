@@ -29,7 +29,7 @@ import java.util.Set;
 import com.google.common.collect.Sets;
 
 import org.apache.cassandra.db.commitlog.ReplayPosition;
-import org.apache.cassandra.io.*;
+import org.apache.cassandra.db.compaction.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -410,8 +410,10 @@ public class SSTableWriter extends SSTable
                             if (row == null)
                             {
                                 // If not provided, read from disk.
+                                long position = dfile.getFilePointer();
                                 cf = ColumnFamily.create(cfs.metadata);
                                 ColumnFamily.serializer().deserializeColumns(dfile, cf, true, true);
+                                dfile.seek(position);
                             }
                             else
                             {
@@ -494,9 +496,7 @@ public class SSTableWriter extends SSTable
             long rows = 0L;
             DecoratedKey key;
 
-            CompactionController controller = CompactionController.getBasicController(true);
-
-            long dfileLength = dfile.length();
+            CompactionController controller = new CompactionController(cfs, Collections.<SSTableReader>emptyList(), Integer.MAX_VALUE, true);
             while (!dfile.isEOF())
             {
                 // read key
@@ -506,17 +506,7 @@ public class SSTableWriter extends SSTable
                 long dataSize = SSTableReader.readRowSize(dfile, desc);
                 SSTableIdentityIterator iter = new SSTableIdentityIterator(cfs.metadata, dfile, key, dfile.getFilePointer(), dataSize, true);
 
-                AbstractCompactedRow row;
-                if (dataSize > DatabaseDescriptor.getInMemoryCompactionLimit())
-                {
-                    logger.info(String.format("Rebuilding post-streaming large counter row %s (%d bytes) incrementally", ByteBufferUtil.bytesToHex(key.key), dataSize));
-                    row = new LazilyCompactedRow(controller, Collections.singletonList(iter));
-                }
-                else
-                {
-                    row = new PrecompactedRow(controller, Collections.singletonList(iter));
-                }
-
+                AbstractCompactedRow row = controller.getCompactedRow(iter);
                 updateCache(key, dataSize, row);
 
                 rowSizes.add(dataSize);

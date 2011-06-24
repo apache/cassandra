@@ -31,10 +31,11 @@ import java.util.Set;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.thrift.InvalidRequestException;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
 /** A <code>CREATE COLUMNFAMILY</code> parsed from a CQL query statement. */
@@ -58,7 +59,7 @@ public class CreateColumnFamilyStatement
     private static final String KW_ROW_CACHE_PROVIDER = "row_cache_provider";
     
     // Maps CQL short names to the respective Cassandra comparator/validator class names
-    private static final Map<String, String> comparators = new HashMap<String, String>();
+    public  static final Map<String, String> comparators = new HashMap<String, String>();
     private static final Set<String> keywords = new HashSet<String>();
     
     static
@@ -71,6 +72,11 @@ public class CreateColumnFamilyStatement
         comparators.put("int", "LongType");
         comparators.put("bigint", "LongType");
         comparators.put("uuid", "UUIDType");
+        comparators.put("counter", "CounterColumnType");
+        comparators.put("boolean", "BooleanType");
+        comparators.put("date", "DateType");
+        comparators.put("float", "FloatType");
+        comparators.put("double", "DoubleType");
 
         keywords.add(KW_COMPARATOR);
         keywords.add(KW_COMMENT);
@@ -94,7 +100,8 @@ public class CreateColumnFamilyStatement
     private final Map<Term, String> columns = new HashMap<Term, String>();
     private final Map<String, String> properties = new HashMap<String, String>();
     private List<String> keyValidator = new ArrayList<String>();
-    
+    private ByteBuffer keyAlias = null;
+
     public CreateColumnFamilyStatement(String name)
     {
         this.name = name;
@@ -179,7 +186,14 @@ public class CreateColumnFamilyStatement
     {
         return keyValidator.get(0);
     }
-    
+
+    public void setKeyAlias(String alias)
+    {
+        // if we got KEY in input we don't need to set an alias
+        if (!alias.toUpperCase().equals("KEY"))
+            keyAlias = ByteBufferUtil.bytes(alias);
+    }
+
     /** Map a keyword to the corresponding value */
     public void addProperty(String name, String value)
     {
@@ -203,7 +217,7 @@ public class CreateColumnFamilyStatement
             {
                 ByteBuffer columnName = col.getKey().getByteBuffer(comparator);
                 String validatorClassName = comparators.containsKey(col.getValue()) ? comparators.get(col.getValue()) : col.getValue();
-                AbstractType<?> validator = DatabaseDescriptor.getComparator(validatorClassName);
+                AbstractType<?> validator = TypeParser.parse(validatorClassName);
                 columnDefs.put(columnName, new ColumnDefinition(columnName, validator, null, null));
             }
             catch (ConfigurationException e)
@@ -242,7 +256,7 @@ public class CreateColumnFamilyStatement
             String validatorString = (comparators.get(getPropertyString(KW_DEFAULTVALIDATION, "text")) != null)
                                      ? comparators.get(getPropertyString(KW_DEFAULTVALIDATION, "text"))
                                      : getPropertyString(KW_DEFAULTVALIDATION, "text");
-            AbstractType<?> comparator = DatabaseDescriptor.getComparator(comparatorString);
+            AbstractType<?> comparator = TypeParser.parse(comparatorString);
 
             newCFMD = new CFMetaData(keyspace,
                                      name,
@@ -256,7 +270,7 @@ public class CreateColumnFamilyStatement
                    .readRepairChance(getPropertyDouble(KW_READREPAIRCHANCE, CFMetaData.DEFAULT_READ_REPAIR_CHANCE))
                    .replicateOnWrite(getPropertyBoolean(KW_REPLICATEONWRITE, CFMetaData.DEFAULT_REPLICATE_ON_WRITE))
                    .gcGraceSeconds(getPropertyInt(KW_GCGRACESECONDS, CFMetaData.DEFAULT_GC_GRACE_SECONDS))
-                   .defaultValidator(DatabaseDescriptor.getComparator(validatorString))
+                   .defaultValidator(TypeParser.parse(validatorString))
                    .minCompactionThreshold(getPropertyInt(KW_MINCOMPACTIONTHRESHOLD, CFMetaData.DEFAULT_MIN_COMPACTION_THRESHOLD))
                    .maxCompactionThreshold(getPropertyInt(KW_MAXCOMPACTIONTHRESHOLD, CFMetaData.DEFAULT_MAX_COMPACTION_THRESHOLD))
                    .rowCacheSavePeriod(getPropertyInt(KW_ROWCACHESAVEPERIODSECS, CFMetaData.DEFAULT_ROW_CACHE_SAVE_PERIOD_IN_SECONDS))
@@ -266,8 +280,9 @@ public class CreateColumnFamilyStatement
                    .memOps(getPropertyDouble(KW_MEMTABLEOPSINMILLIONS, CFMetaData.DEFAULT_MEMTABLE_OPERATIONS_IN_MILLIONS))
                    .mergeShardsChance(0.0)
                    .columnMetadata(getColumns(comparator))
-                   .keyValidator(DatabaseDescriptor.getComparator(comparators.get(getKeyType())))
-                   .rowCacheProvider(FBUtilities.newCacheProvider(getPropertyString(KW_ROW_CACHE_PROVIDER, CFMetaData.DEFAULT_ROW_CACHE_PROVIDER)));
+                   .keyValidator(TypeParser.parse(comparators.get(getKeyType())))
+                   .rowCacheProvider(FBUtilities.newCacheProvider(getPropertyString(KW_ROW_CACHE_PROVIDER, CFMetaData.DEFAULT_ROW_CACHE_PROVIDER)))
+                   .keyAlias(keyAlias);
         }
         catch (ConfigurationException e)
         {

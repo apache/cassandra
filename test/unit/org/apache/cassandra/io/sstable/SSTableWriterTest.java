@@ -33,6 +33,7 @@ import java.util.concurrent.ExecutionException;
 
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.filter.IFilter;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;

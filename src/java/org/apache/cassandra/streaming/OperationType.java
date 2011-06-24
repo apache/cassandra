@@ -26,6 +26,7 @@ public enum OperationType
     AES,
     BOOTSTRAP,
     UNBOOTSTRAP,
-    RESTORE_REPLICA_COUNT;
+    RESTORE_REPLICA_COUNT,
+    BULK_LOAD;
 }
 

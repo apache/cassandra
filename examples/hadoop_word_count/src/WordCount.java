@@ -20,9 +20,9 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import org.apache.cassandra.hadoop.avro.Column;
-import org.apache.cassandra.hadoop.avro.ColumnOrSuperColumn;
-import org.apache.cassandra.hadoop.avro.Mutation;
+import org.apache.cassandra.thrift.Column;
+import org.apache.cassandra.thrift.ColumnOrSuperColumn;
+import org.apache.cassandra.thrift.Mutation;
 import org.apache.cassandra.hadoop.ColumnFamilyOutputFormat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -136,13 +136,13 @@ public class WordCount extends Configured implements Tool
         private static Mutation getMutation(Text word, int sum)
         {
             Column c = new Column();
-            c.name = ByteBuffer.wrap(Arrays.copyOf(word.getBytes(), word.getLength()));
-            c.value = ByteBufferUtil.bytes(String.valueOf(sum));
-            c.timestamp = System.currentTimeMillis() * 1000;
+            c.setName(Arrays.copyOf(word.getBytes(), word.getLength()));
+            c.setValue(ByteBufferUtil.bytes(String.valueOf(sum)));
+            c.setTimestamp(System.currentTimeMillis());
 
             Mutation m = new Mutation();
-            m.column_or_supercolumn = new ColumnOrSuperColumn();
-            m.column_or_supercolumn.column = c;
+            m.setColumn_or_supercolumn(new ColumnOrSuperColumn());
+            m.column_or_supercolumn.setColumn(c);
             return m;
         }
     }

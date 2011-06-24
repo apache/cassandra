@@ -103,7 +103,19 @@ public class QueryFilter
 
             public void reduce(IColumn current)
             {
-                curCF.addColumn(current);
+                if (curCF.isSuper() && curCF.isEmpty())
+                {
+                    // If it is the first super column we add, we must clone it since other super column may modify
+                    // it otherwise and it could be aliased in a memtable somewhere. We'll also don't have to care about what
+                    // consumers make of the result (for instance CFS.getColumnFamily() call removeDeleted() on the
+                    // result which removes column; which shouldn't be done on the original super column).
+                    assert current instanceof SuperColumn;
+                    curCF.addColumn(((SuperColumn)current).cloneMe());
+                }
+                else
+                {
+                    curCF.addColumn(current);
+                }
             }
 
             protected IColumn getReduced()

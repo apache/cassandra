@@ -1,3 +1,28 @@
+0.8.1
+=====
+
+Upgrading
+---------
+    - 0.8.1 is backwards compatible with 0.8, upgrade can be achieved by a
+      simple rolling restart.
+    - If upgrading for earlier version (0.7), please refer to the 0.8 section
+      for instructions.
+
+Features
+--------
+    - Numerous additions/improvements to CQL (support for counters, TTL, batch
+      inserts/deletes, index dropping, ...).
+    - Add two new AbstractTypes (comparator) to support compound keys
+      (CompositeType and DynamicCompositeType), as well as a ReverseType to
+      reverse the order of any existing comparator.
+    - New option to bypass the commit log on some keyspaces (for advanced
+      users).
+
+Tools
+-----
+    - Add new data bulk loading utility (sstableloader).
+
+
 0.8
 ===
 
@@ -13,10 +38,13 @@ Upgrading
     - 0.8 is fully API-compatible with 0.7.  You can continue
       to use your 0.7 clients.
     - Avro record classes used in map/reduce and Hadoop streaming code have
-      moved from org.apache.cassandra.avro to org.apache.cassandra.hadoop.avro,
-      applications using these classes will need to be updated accordingly.
+      been removed. Map/reduce can be switched to Thrift by changing
+      org.apache.cassandra.avro in import statements to 
+      org.apache.cassandra.thrift (no class names change). Streaming support 
+      has been removed for the time being.
     - The loadbalance command has been removed from nodetool.  For similar
       behavior, decommission then rebootstrap with empty initial_token.
+    - Thrift unframed mode has been removed.
 
 Features
 --------
@@ -56,6 +84,9 @@ Other
       to compact that anyway (which will free up space if there are
       a lot of expired tombstones), use the new forceUserDefinedCompaction
       JMX method on CompactionManager.
+    - most of contrib/ (which was not part of the binary releases)
+      has been moved either to examples/ or tools/. We plan to move the
+      rest for 0.8.1.
 
 JMX
 ---

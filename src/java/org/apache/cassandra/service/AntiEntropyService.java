@@ -27,6 +27,8 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.base.Objects;
+
+import org.apache.cassandra.db.compaction.AbstractCompactedRow;
 import org.apache.cassandra.gms.Gossiper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,14 +37,12 @@ import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.CompactionManager;
+import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.FailureDetector;
-import org.apache.cassandra.io.AbstractCompactedRow;
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.net.CompactEndpointSerializationHelper;
@@ -170,12 +170,14 @@ public class AntiEntropyService
         neighbors.remove(FBUtilities.getLocalAddress());
         // Excluding all node with version <= 0.7 since they don't know how to
         // create a correct merkle tree (they build it over the full range)
-        for (InetAddress endpoint : neighbors)
+        Iterator<InetAddress> iter = neighbors.iterator();
+        while (iter.hasNext())
         {
+            InetAddress endpoint = iter.next();
             if (Gossiper.instance.getVersion(endpoint) <= MessagingService.VERSION_07)
             {
                 logger.info("Excluding " + endpoint + " from repair because it is on version 0.7 or sooner. You should consider updating this node before running repair again.");
-                neighbors.remove(endpoint);
+                iter.remove();
             }
         }
         return neighbors;
@@ -492,7 +494,7 @@ public class AntiEntropyService
                 StreamOutSession outsession = StreamOutSession.create(request.cf.left, request.endpoint, callback);
                 StreamOut.transferSSTables(outsession, sstables, differences, OperationType.AES);
                 // request ranges from the remote node
-                StreamIn.requestRanges(request.endpoint, request.cf.left, differences, callback, OperationType.AES);
+                StreamIn.requestRanges(request.endpoint, request.cf.left, Collections.singletonList(cfstore), differences, callback, OperationType.AES);
             }
             catch(Exception e)
             {

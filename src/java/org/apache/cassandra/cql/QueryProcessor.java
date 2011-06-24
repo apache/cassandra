@@ -32,6 +32,8 @@ import java.util.concurrent.TimeoutException;
 
 import com.google.common.base.Predicates;
 import com.google.common.collect.Maps;
+import org.apache.cassandra.db.CounterColumn;
+import org.apache.cassandra.db.context.CounterContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -45,10 +47,8 @@ import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.db.migration.*;
-import org.apache.cassandra.db.migration.avro.CfDef;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
@@ -63,11 +63,15 @@ public class QueryProcessor
 {
     private static final Logger logger = LoggerFactory.getLogger(QueryProcessor.class);
 
+    private static final long timeLimitForSchemaAgreement = 10 * 1000;
+
+    public static final String DEFAULT_KEY_NAME = bufferToString(CFMetaData.DEFAULT_KEY_NAME);
+
     private static List<org.apache.cassandra.db.Row> getSlice(String keyspace, SelectStatement select)
     throws InvalidRequestException, TimedOutException, UnavailableException
     {
         QueryPath queryPath = new QueryPath(select.getColumnFamily());
-        CFMetaData metadata = validateColumnFamily(keyspace, select.getColumnFamily(), false);
+        CFMetaData metadata = validateColumnFamily(keyspace, select.getColumnFamily());
         List<ReadCommand> commands = new ArrayList<ReadCommand>();
 
         // ...of a list of column names
@@ -161,7 +165,7 @@ public class QueryProcessor
         }
         AbstractBounds bounds = new Bounds(startToken, finishToken);
         
-        CFMetaData metadata = validateColumnFamily(keyspace, select.getColumnFamily(), false);
+        CFMetaData metadata = validateColumnFamily(keyspace, select.getColumnFamily());
         // XXX: Our use of Thrift structs internally makes me Sad. :(
         SlicePredicate thriftSlicePredicate = slicePredicateFromSelect(select, metadata);
         validateSlicePredicate(metadata, thriftSlicePredicate);
@@ -194,14 +198,14 @@ public class QueryProcessor
         }
 
         // if start key was set and relation was "greater than"
-        if (select.getKeyStart() != null && !select.includeStartKey())
+        if (select.getKeyStart() != null && !select.includeStartKey() && !rows.isEmpty())
         {
             if (rows.get(0).key.key.equals(startKey))
                 rows.remove(0);
         }
 
         // if finish key was set and relation was "less than"
-        if (select.getKeyFinish() != null && !select.includeFinishKey())
+        if (select.getKeyFinish() != null && !select.includeFinishKey() && !rows.isEmpty())
         {
             int lastIndex = rows.size() - 1;
             if (rows.get(lastIndex).key.key.equals(finishKey))
@@ -214,7 +218,7 @@ public class QueryProcessor
     private static List<org.apache.cassandra.db.Row> getIndexedSlices(String keyspace, SelectStatement select)
     throws TimedOutException, UnavailableException, InvalidRequestException
     {
-        CFMetaData metadata = validateColumnFamily(keyspace, select.getColumnFamily(), false);
+        CFMetaData metadata = validateColumnFamily(keyspace, select.getColumnFamily());
         // XXX: Our use of Thrift structs internally (still) makes me Sad. :~(
         SlicePredicate thriftSlicePredicate = slicePredicateFromSelect(select, metadata);
         validateSlicePredicate(metadata, thriftSlicePredicate);
@@ -261,7 +265,7 @@ public class QueryProcessor
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
         String keyspace = clientState.getKeyspace();
-        List<RowMutation> rowMutations = new ArrayList<RowMutation>();
+        List<IMutation> rowMutations = new ArrayList<IMutation>();
         List<String> cfamsSeen = new ArrayList<String>();
 
         for (UpdateStatement update : updateStatements)
@@ -343,9 +347,9 @@ public class QueryProcessor
             throw new InvalidRequestException("No indexed columns present in by-columns clause with \"equals\" operator");
         }
     }
-    
+
     // Copypasta from o.a.c.thrift.CassandraDaemon
-    private static void applyMigrationOnStage(final Migration m) throws InvalidRequestException
+    private static void applyMigrationOnStage(final Migration m) throws SchemaDisagreementException, InvalidRequestException
     {
         Future<?> f = StageManager.getStage(Stage.MIGRATION).submit(new Callable<Object>()
         {
@@ -380,6 +384,8 @@ public class QueryProcessor
                 throw ex;
             }
         }
+
+        validateSchemaIsSettled();
     }
     
     public static void validateKey(ByteBuffer key) throws InvalidRequestException
@@ -395,6 +401,14 @@ public class QueryProcessor
             throw new InvalidRequestException("Key length of " + key.remaining() +
                                               " is longer than maximum of " + FBUtilities.MAX_UNSIGNED_SHORT);
         }
+    }
+
+    public static void validateKeyAlias(CFMetaData cfm, String key) throws InvalidRequestException
+    {
+        assert key.toUpperCase().equals(key); // should always be uppercased by caller
+        String realKeyAlias = bufferToString(cfm.getKeyName()).toUpperCase();
+        if (!realKeyAlias.equals(key))
+            throw new InvalidRequestException(String.format("Expected key '%s' to be present in WHERE clause for '%s'", key, cfm.cfName));
     }
 
     private static void validateColumnNames(Iterable<ByteBuffer> columns)
@@ -463,11 +477,15 @@ public class QueryProcessor
     // Copypasta from CassandraServer (where it is private).
     private static void validateSchemaAgreement() throws SchemaDisagreementException
     {
-        // unreachable hosts don't count towards disagreement
-        Map<String, List<String>> versions = Maps.filterKeys(StorageProxy.describeSchemaVersions(),
-                                                             Predicates.not(Predicates.equalTo(StorageProxy.UNREACHABLE)));
-        if (versions.size() > 1)
+       if (describeSchemaVersions().size() > 1)
             throw new SchemaDisagreementException();
+    }
+
+    private static Map<String, List<String>> describeSchemaVersions()
+    {
+        // unreachable hosts don't count towards disagreement
+        return Maps.filterKeys(StorageProxy.describeSchemaVersions(),
+                               Predicates.not(Predicates.equalTo(StorageProxy.UNREACHABLE)));
     }
 
     public static CqlResult process(String queryString, ClientState clientState)
@@ -491,9 +509,16 @@ public class QueryProcessor
             case SELECT:
                 SelectStatement select = (SelectStatement)statement.statement;
                 clientState.hasColumnFamilyAccess(select.getColumnFamily(), Permission.READ);
-                metadata = validateColumnFamily(keyspace, select.getColumnFamily(), false);
+                metadata = validateColumnFamily(keyspace, select.getColumnFamily());
+
+                // need to do this in here because we need a CFMD.getKeyName()
+                select.extractKeyAliasFromColumns(metadata);
+
+                if (select.getKeys().size() > 0)
+                    validateKeyAlias(metadata, select.getKeyAlias());
+
                 validateSelect(keyspace, select);
-                
+
                 List<org.apache.cassandra.db.Row> rows;
 
                 // By-key
@@ -640,7 +665,7 @@ public class QueryProcessor
                 {
                     KsDef ksd = new KsDef(create.getName(),
                                           create.getStrategyClass(),
-                                          Collections.<org.apache.cassandra.thrift.CfDef>emptyList())
+                                          Collections.<CfDef>emptyList())
                                 .setStrategy_options(create.getStrategyOptions());
                     ThriftValidation.validateKsDef(ksd);
                     applyMigrationOnStage(new AddKeyspace(KSMetaData.fromThrift(ksd)));
@@ -694,37 +719,33 @@ public class QueryProcessor
                                                                                       createIdx.getColumnFamily()));
                 if (oldCfm == null)
                     throw new InvalidRequestException("No such column family: " + createIdx.getColumnFamily());
-                
+
+                boolean columnExists = false;
                 ByteBuffer columnName = createIdx.getColumnName().getByteBuffer();
-                ColumnDefinition columnDef = oldCfm.getColumn_metadata().get(columnName);
-                
-                // Meta-data for this column already exists
-                if (columnDef != null)
+                // mutating oldCfm directly would be bad, but mutating a Thrift copy is fine.  This also
+                // sets us up to use validateCfDef to check for index name collisions.
+                CfDef cf_def = CFMetaData.convertToThrift(oldCfm);
+                for (ColumnDef cd : cf_def.column_metadata)
                 {
-                    // This column is already indexed, stop, drop, and roll.
-                    if (columnDef.getIndexType() != null)
-                        throw new InvalidRequestException("Index exists");
-                    // Add index attrs to the existing definition
-                    columnDef.setIndexName(createIdx.getIndexName());
-                    columnDef.setIndexType(org.apache.cassandra.thrift.IndexType.KEYS);
+                    if (cd.name.equals(columnName))
+                    {
+                        if (cd.index_type != null)
+                            throw new InvalidRequestException("Index already exists");
+                        logger.debug("Updating column {} definition for index {}", oldCfm.comparator.getString(columnName), createIdx.getIndexName());
+                        cd.setIndex_type(IndexType.KEYS);
+                        cd.setIndex_name(createIdx.getIndexName());
+                        columnExists = true;
+                        break;
+                    }
                 }
-                // No meta-data, create a new column definition from scratch.
-                else
-                {
-                    columnDef = new ColumnDefinition(columnName,
-                                                     DatabaseDescriptor.getValueValidator(keyspace,
-                                                                                          createIdx.getColumnFamily(),
-                                                                                          columnName),
-                                                     org.apache.cassandra.thrift.IndexType.KEYS,
-                                                     createIdx.getIndexName());
-                }
-                
-                CfDef cfamilyDef = CFMetaData.convertToAvro(oldCfm);
-                cfamilyDef.column_metadata.add(columnDef.deflate());
-                
+                if (!columnExists)
+                    throw new InvalidRequestException("No column definition found for column " + oldCfm.comparator.getString(columnName));
+
+                CFMetaData.addDefaultIndexNames(cf_def);
+                ThriftValidation.validateCfDef(cf_def, oldCfm);
                 try
                 {
-                    applyMigrationOnStage(new UpdateColumnFamily(cfamilyDef));
+                    applyMigrationOnStage(new UpdateColumnFamily(CFMetaData.convertToAvro(cf_def)));
                 }
                 catch (ConfigurationException e)
                 {
@@ -741,7 +762,32 @@ public class QueryProcessor
                 
                 result.type = CqlResultType.VOID;
                 return result;
-                
+
+            case DROP_INDEX:
+                DropIndexStatement dropIdx = (DropIndexStatement)statement.statement;
+                clientState.hasColumnFamilyListAccess(Permission.WRITE);
+                validateSchemaAgreement();
+
+                try
+                {
+                    applyMigrationOnStage(dropIdx.generateMutation(clientState.getKeyspace()));
+                }
+                catch (ConfigurationException e)
+                {
+                    InvalidRequestException ex = new InvalidRequestException(e.toString());
+                    ex.initCause(e);
+                    throw ex;
+                }
+                catch (IOException e)
+                {
+                    InvalidRequestException ex = new InvalidRequestException(e.toString());
+                    ex.initCause(e);
+                    throw ex;
+                }
+
+                result.type = CqlResultType.VOID;
+                return result;
+
             case DROP_KEYSPACE:
                 String deleteKeyspace = (String)statement.statement;
                 clientState.hasKeyspaceListAccess(Permission.WRITE);
@@ -791,7 +837,35 @@ public class QueryProcessor
                 
                 result.type = CqlResultType.VOID;
                 return result;
-                
+
+            case ALTER_TABLE:
+                AlterTableStatement alterTable = (AlterTableStatement) statement.statement;
+
+                System.out.println(alterTable);
+
+                validateColumnFamily(keyspace, alterTable.columnFamily);
+                clientState.hasColumnFamilyAccess(alterTable.columnFamily, Permission.WRITE);
+                validateSchemaAgreement();
+
+                try
+                {
+                    applyMigrationOnStage(new UpdateColumnFamily(alterTable.getCfDef(keyspace)));
+                }
+                catch (ConfigurationException e)
+                {
+                    InvalidRequestException ex = new InvalidRequestException(e.getMessage());
+                    ex.initCause(e);
+                    throw ex;
+                }
+                catch (IOException e)
+                {
+                    InvalidRequestException ex = new InvalidRequestException(e.getMessage());
+                    ex.initCause(e);
+                    throw ex;
+                }
+
+                result.type = CqlResultType.VOID;
+                return result;
         }
         
         return null;    // We should never get here.
@@ -813,7 +887,7 @@ public class QueryProcessor
             {
                 if (c.isMarkedForDelete())
                     continue;
-                thriftColumns.add(new Column(c.name()).setValue(c.value()).setTimestamp(c.timestamp()));
+                thriftColumns.add(thriftify(c));
             }
         }
         else
@@ -840,14 +914,23 @@ public class QueryProcessor
                 {
                     throw new AssertionError(e);
                 }
+
                 IColumn c = row.cf.getColumn(name);
                 if (c == null || c.isMarkedForDelete())
                     thriftColumns.add(new Column().setName(name));
                 else
-                    thriftColumns.add(new Column(c.name()).setValue(c.value()).setTimestamp(c.timestamp()));
+                    thriftColumns.add(thriftify(c));
             }
         }
         return thriftColumns;
+    }
+
+    private static Column thriftify(IColumn c)
+    {
+        ByteBuffer value = (c instanceof CounterColumn)
+                           ? ByteBufferUtil.bytes(CounterContext.instance().total(c.value()))
+                           : c.value();
+        return new Column(c.name()).setValue(value).setTimestamp(c.timestamp());
     }
 
     private static String getKeyString(CFMetaData metadata)
@@ -881,5 +964,38 @@ public class QueryProcessor
         parser.throwLastRecognitionError();
         
         return statement;
+    }
+
+    private static void validateSchemaIsSettled() throws SchemaDisagreementException
+    {
+        long limit = System.currentTimeMillis() + timeLimitForSchemaAgreement;
+
+        outer:
+        while (limit - System.currentTimeMillis() >= 0)
+        {
+            String currentVersionId = DatabaseDescriptor.getDefsVersion().toString();
+            for (String version : describeSchemaVersions().keySet())
+            {
+                if (!version.equals(currentVersionId))
+                    continue outer;
+            }
+
+            // schemas agree
+            return;
+        }
+
+        throw new SchemaDisagreementException();
+    }
+
+    private static String bufferToString(ByteBuffer string)
+    {
+        try
+        {
+            return ByteBufferUtil.string(string);
+        }
+        catch (CharacterCodingException e)
+        {
+            throw new RuntimeException(e.getMessage(), e);
+        }
     }
 }

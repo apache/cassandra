@@ -25,7 +25,6 @@ import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import com.google.common.base.Charsets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -39,6 +38,7 @@ import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.db.DefsTable;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -46,7 +46,6 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.*;
 import org.apache.cassandra.scheduler.IRequestScheduler;
 import org.apache.cassandra.scheduler.NoScheduler;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.yaml.snakeyaml.Loader;
@@ -527,14 +526,6 @@ public class DatabaseDescriptor
     public static int getThriftFramedTransportSize() 
     {
         return conf.thrift_framed_transport_size_in_mb * 1024 * 1024;
-    }
-
-    public static AbstractType getComparator(CharSequence compareWith) throws ConfigurationException
-    {
-        if (compareWith == null)
-            compareWith = "BytesType";
-
-        return FBUtilities.getComparator(compareWith.toString());
     }
 
     /**

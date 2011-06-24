@@ -20,13 +20,12 @@
  */
 package org.apache.cassandra.cql;
 
-import org.apache.cassandra.db.RowMutation;
+import java.util.List;
+
+import org.apache.cassandra.db.IMutation;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.thrift.InvalidRequestException;
-
-import java.nio.ByteBuffer;
-import java.util.List;
 
 public abstract class AbstractModification
 {
@@ -36,18 +35,20 @@ public abstract class AbstractModification
     protected final ConsistencyLevel cLevel;
     protected final Long timestamp;
     protected final int timeToLive;
+    protected final String keyName;
 
-    public AbstractModification(String columnFamily, Attributes attrs)
+    public AbstractModification(String columnFamily, String keyAlias, Attributes attrs)
     {
-        this(columnFamily, attrs.getConsistencyLevel(), attrs.getTimestamp(), attrs.getTimeToLive());
+        this(columnFamily, keyAlias, attrs.getConsistencyLevel(), attrs.getTimestamp(), attrs.getTimeToLive());
     }
 
-    public AbstractModification(String columnFamily, ConsistencyLevel cLevel, Long timestamp, int timeToLive)
+    public AbstractModification(String columnFamily, String keyAlias, ConsistencyLevel cLevel, Long timestamp, int timeToLive)
     {
         this.columnFamily = columnFamily;
         this.cLevel = cLevel;
         this.timestamp = timestamp;
         this.timeToLive = timeToLive;
+        this.keyName = keyAlias.toUpperCase();
     }
 
     public String getColumnFamily()
@@ -95,8 +96,8 @@ public abstract class AbstractModification
      *
      * @throws InvalidRequestException on the wrong request
      */
-    public abstract List<RowMutation> prepareRowMutations(String keyspace, ClientState clientState)
-            throws InvalidRequestException;
+    public abstract List<IMutation> prepareRowMutations(String keyspace, ClientState clientState)
+            throws org.apache.cassandra.thrift.InvalidRequestException;
 
     /**
      * Convert statement into a list of mutations to apply on the server
@@ -109,37 +110,6 @@ public abstract class AbstractModification
      *
      * @throws InvalidRequestException on the wrong request
      */
-    public abstract List<RowMutation> prepareRowMutations(String keyspace, ClientState clientState, Long timestamp)
-            throws InvalidRequestException;
-
-    /**
-     * Compute a row mutation for a single key
-     *
-     * @param key The key for mutation
-     * @param keyspace The keyspace
-     * @param timestamp The global timestamp for mutation
-     *
-     * @return row mutation
-     *
-     * @throws InvalidRequestException on the wrong request
-     */
-    public abstract RowMutation mutationForKey(ByteBuffer key, String keyspace, Long timestamp)
-        throws InvalidRequestException;
-
-    /**
-     * Compute a row mutation for a single key and add it to the given RowMutation object
-     *
-     * @param mutation The row mutation to add computed mutation into
-     * @param keyspace The keyspace
-     * @param timestamp The global timestamp for mutation
-     *
-     * @throws InvalidRequestException on the wrong request
-     */
-    public abstract void mutationForKey(RowMutation mutation, String keyspace, Long timestamp)
-            throws InvalidRequestException;
-
-    /**
-     * @return a list of the keys associated with the statement
-     */
-    public abstract List<Term> getKeys();
+    public abstract List<IMutation> prepareRowMutations(String keyspace, ClientState clientState, Long timestamp)
+            throws org.apache.cassandra.thrift.InvalidRequestException;
 }

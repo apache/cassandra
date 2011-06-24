@@ -72,6 +72,11 @@ public class CounterMutation implements IMutation
         return rowMutation.getTable();
     }
 
+    public Collection<Integer> getColumnFamilyIds()
+    {
+        return rowMutation.getColumnFamilyIds();
+    }
+
     public ByteBuffer key()
     {
         return rowMutation.key();

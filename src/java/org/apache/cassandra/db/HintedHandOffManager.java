@@ -30,6 +30,7 @@ import java.util.concurrent.TimeoutException;
 
 import static com.google.common.base.Charsets.UTF_8;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.commons.lang.ArrayUtils;
 import org.slf4j.Logger;
@@ -39,6 +40,7 @@ import javax.management.MBeanServer;
 import javax.management.ObjectName;
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.dht.IPartitioner;
@@ -127,8 +129,12 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
             return false;
         }
 
+        if (CFMetaData.getId(tableName, cfName) == null)
+        {
+            logger_.debug("Discarding hints for dropped keyspace or columnfamily {}/{}", tableName, cfName);
+            return true;
+        }
         Table table = Table.open(tableName);
-        DecoratedKey<?> dkey = StorageService.getPartitioner().decorateKey(key);
         ColumnFamilyStore cfs = table.getColumnFamilyStore(cfName);
 
         int pageSize = PAGE_SIZE;
@@ -141,6 +147,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
             logger_.debug("average hinted-row column size is {}; using pageSize of {}", averageColumnSize, pageSize);
         }
 
+        DecoratedKey<?> dkey = StorageService.getPartitioner().decorateKey(key);
         ByteBuffer startColumn = ByteBufferUtil.EMPTY_BYTE_BUFFER;
         while (true)
         {
@@ -368,37 +375,6 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
 
         logger_.info(String.format("Finished hinted handoff of %s rows to endpoint %s",
                                    rowsReplayed, endpoint));
-    }
-
-    /** called when a keyspace is dropped or rename. newTable==null in the case of a drop. */
-    public static void renameHints(String oldTable, String newTable) throws IOException
-    {
-        DecoratedKey<?> oldTableKey = StorageService.getPartitioner().decorateKey(ByteBufferUtil.bytes(oldTable));
-        // we're basically going to fetch, drop and add the scf for the old and new table. we need to do it piecemeal 
-        // though since there could be GB of data.
-        ColumnFamilyStore hintStore = Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(HINTS_CF);
-        ByteBuffer startCol = ByteBufferUtil.EMPTY_BYTE_BUFFER;
-        long now = System.currentTimeMillis();
-        while (true)
-        {
-            QueryFilter filter = QueryFilter.getSliceFilter(oldTableKey, new QueryPath(HINTS_CF), startCol, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, PAGE_SIZE);
-            ColumnFamily cf = ColumnFamilyStore.removeDeleted(hintStore.getColumnFamily(filter), Integer.MAX_VALUE);
-            if (pagingFinished(cf, startCol))
-                break;
-            if (newTable != null)
-            {
-                RowMutation insert = new RowMutation(Table.SYSTEM_TABLE, ByteBufferUtil.bytes(newTable));
-                insert.add(cf);
-                insert.apply();
-            }
-            RowMutation drop = new RowMutation(Table.SYSTEM_TABLE, oldTableKey.key);
-            for (ByteBuffer key : cf.getColumnNames())
-            {
-                drop.delete(new QueryPath(HINTS_CF, key), now);
-                startCol = key;
-            }
-            drop.apply();
-        }
     }
 
     /*

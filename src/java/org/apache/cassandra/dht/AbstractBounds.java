@@ -90,6 +90,7 @@ public abstract class AbstractBounds implements Serializable
 
     /**
      * @return A copy of the given list of non-intersecting bounds with all bounds unwrapped, sorted by bound.left.
+     * This method does not allow overlapping ranges as input.
      */
     public static List<AbstractBounds> normalize(Collection<? extends AbstractBounds> bounds)
     {

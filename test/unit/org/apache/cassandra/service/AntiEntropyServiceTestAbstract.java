@@ -26,21 +26,17 @@ import java.util.concurrent.ThreadPoolExecutor;
 
 import org.junit.After;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.db.compaction.PrecompactedRow;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.io.PrecompactedRow;
-import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.TokenMetadata;
@@ -69,7 +65,7 @@ public abstract class AntiEntropyServiceTestAbstract extends CleanupHelper
 
     public abstract void init();
 
-    public abstract List<RowMutation> getWriteData();
+    public abstract List<IMutation> getWriteData();
 
     @Before
     public void prepare() throws Exception

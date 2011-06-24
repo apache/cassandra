@@ -63,8 +63,14 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
         Map<String, Integer> newDatacenters = new HashMap<String, Integer>();
         if (configOptions != null)
         {
-            for (Entry entry : configOptions.entrySet())
-                newDatacenters.put((String) entry.getKey(), Integer.valueOf((String) entry.getValue()));
+            for (Entry<String, String> entry : configOptions.entrySet())
+            {
+                String dc = entry.getKey();
+                if (dc.equalsIgnoreCase("replication_factor"))
+                    continue; // TODO remove this for 1.0
+                Integer replicas = Integer.valueOf(entry.getValue());
+                newDatacenters.put(dc, replicas);
+            }
         }
 
         datacenters = Collections.unmodifiableMap(newDatacenters);

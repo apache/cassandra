@@ -25,6 +25,7 @@ import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.Table;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 
@@ -69,7 +70,7 @@ public class AddKeyspace extends Migration
         DatabaseDescriptor.setTableDefinition(ksm, newVersion);
         // these definitions could have come from somewhere else.
         CFMetaData.fixMaxId();
-        if (!clientMode)
+        if (!StorageService.instance.isClientMode())
         {
             Table.open(ksm.name);
         }

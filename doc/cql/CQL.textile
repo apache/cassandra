@@ -54,11 +54,11 @@ Following the column family clause is an optional "consistency level specificati
 h3. Filtering rows
 
 bc. 
-SELECT ... WHERE KEY = keyname AND name1 = value1
-SELECT ... WHERE KEY >= startkey and KEY =< endkey AND name1 = value1
-SELECT ... WHERE KEY IN ('<key>', '<key>', '<key>', ...)
+SELECT ... WHERE <KEY> = keyname AND name1 = value1
+SELECT ... WHERE <KEY> >= startkey and <KEY> =< endkey AND name1 = value1
+SELECT ... WHERE <KEY> IN ('<key>', '<key>', '<key>', ...)
 
-The WHERE clause provides for filtering the rows that appear in results.  The clause can filter on a key name, or range of keys, and in the case of indexed columns, on column values.  Key filters are specified using the @KEY@ keyword, a relational operator, (one of @=@, @>@, @>=@, @<@, and @<=@), and a term value.  When terms appear on both sides of a relational operator it is assumed the filter applies to an indexed column. With column index filters, the term on the left of the operator is the name, the term on the right is the value to filter __on__.
+The WHERE clause provides for filtering the rows that appear in results.  The clause can filter on a key name, or range of keys, and in the case of indexed columns, on column values.  Key filters are specified using the @KEY@ keyword or key alias name, a relational operator, (one of @=@, @>@, @>=@, @<@, and @<=@), and a term value.  When terms appear on both sides of a relational operator it is assumed the filter applies to an indexed column. With column index filters, the term on the left of the operator is the name, the term on the right is the value to filter __on__.
 
 __Note: The greater-than and less-than operators (@>@ and @<@) result in key ranges that are inclusive of the terms. There is no supported notion of "strictly" greater-than or less-than; these operators are merely supported as aliases to @>=@ and @<=@.__  
 
@@ -69,12 +69,23 @@ SELECT ... WHERE <CLAUSE> [LIMIT N] ...
 
 Limiting the number of rows returned can be achieved by adding the @LIMIT@ option to a @SELECT@ expression. @LIMIT@ defaults to 10,000 when left unset.
 
+h2. ALTER TABLE
+
+_Synopsis:_
+
+bc.
+ALTER TABLE <columnFamily> ADD <column> <validator>;
+ALTER TABLE <columnFamily> ALTER <column> TYPE <validator>;
+ALTER TABLE <columnFamily> DROP <column>;
+
+An @ALTER@ is used to manipulate with ColumnFamily columns. It allows you to add new columns, alter and drop existing columns. No results are returned.
+
 h2. INSERT
 
 _Synopsis:_
 
 bc.
-INSERT INTO <COLUMN FAMILY> (KEY, <col>, <col>, ...) VALUES (<key>, <val>, <val>, ...) [USING CONSISTENCY <LEVEL> [AND TIMESTAMP <timestamp>] [AND TTL <timeToLive>]];
+INSERT INTO <COLUMN FAMILY> (<KEY>, <col>, <col>, ...) VALUES (<key>, <val>, <val>, ...) [USING CONSISTENCY <LEVEL> [AND TIMESTAMP <timestamp>] [AND TTL <timeToLive>]];
 
 An @INSERT@ is used to write one or more columns to a record in a Cassandra column family. No results are returned. 
 
@@ -86,9 +97,9 @@ _Synopsis:_
 
 bc. 
 UPDATE <COLUMN FAMILY> [USING <CONSISTENCY> [AND TIMESTAMP <timestamp>] [AND TTL <timeToLive>]]
-        SET name1 = value1, name2 = value2 WHERE KEY = keyname;
+        SET name1 = value1, name2 = value2 WHERE <KEY> = keyname;
         
-An @UPDATE@ is used to write one or more columns to a record in a Cassandra column family. No results are returned.
+An @UPDATE@ is used to write one or more columns to a record in a Cassandra column family. No results are returned. Key can be given using @KEY@ keyword or by alias set per ColumnFamily.
 
 h3. Column Family
 
@@ -121,20 +132,20 @@ UPDATE ... [USING TTL <timeToLive>] ...
 h3. Specifying Columns and Row
 
 bc. 
-UPDATE ... SET name1 = value1, name2 = value2 WHERE KEY = keyname;
-UPDATE ... SET name1 = value1, name2 = value2 WHERE KEY IN ('<key>', '<key>', ...)
+UPDATE ... SET name1 = value1, name2 = value2 WHERE <KEY> = keyname;
+UPDATE ... SET name1 = value1, name2 = value2 WHERE <KEY> IN ('<key>', '<key>', ...)
 
-Rows are created or updated by supplying column names and values in term assignment format. Multiple columns can be set by separating the name/value pairs using commas.  Each update statement requires exactly one key to be specified using a WHERE clause and the @KEY@ keyword.
+Rows are created or updated by supplying column names and values in term assignment format. Multiple columns can be set by separating the name/value pairs using commas.  Each update statement requires exactly one key to be specified using a WHERE clause and the @KEY@ keyword or key alias.
 
 h2. DELETE
 
 _Synopsis:_
 
 bc. 
-DELETE [COLUMNS] FROM <COLUMN FAMILY> [USING <CONSISTENCY>] WHERE KEY = keyname1
-DELETE [COLUMNS] FROM <COLUMN FAMILY> [USING <CONSISTENCY>] WHERE KEY IN (keyname1, keyname2);
+DELETE [COLUMNS] FROM <COLUMN FAMILY> [USING <CONSISTENCY>] WHERE <KEY> = keyname1
+DELETE [COLUMNS] FROM <COLUMN FAMILY> [USING <CONSISTENCY>] WHERE <KEY> IN (keyname1, keyname2);
 
-A @DELETE@ is used to perform the removal of one or more columns from one or more rows.
+A @DELETE@ is used to perform the removal of one or more columns from one or more rows. Key can be given using @KEY@ keyword or by alias set per ColumnFamily.
 
 h3. Specifying Columns
 
@@ -160,10 +171,10 @@ Following the column family identifier is an optional "consistency level specifi
 h3(#deleterows). Specifying Rows
 
 bc. 
-DELETE ... WHERE KEY = keyname1
-DELETE ... WHERE KEY IN (keyname1, keyname2)
+DELETE ... WHERE <KEY> = keyname1
+DELETE ... WHERE <KEY> IN (keyname1, keyname2)
 
-The @WHERE@ clause is used to determine which row(s) a @DELETE@ applies to.  The first form allows the specification of a single keyname using the @KEY@ keyword and the @=@ operator.  The second form allows a list of keyname terms to be specified using the @IN@ notation and a parenthesized list of comma-delimited keyname terms.
+The @WHERE@ clause is used to determine which row(s) a @DELETE@ applies to. The first form allows the specification of a single keyname using the @KEY@ keyword (or by key alias) and the @=@ operator.  The second form allows a list of keyname terms to be specified using the @IN@ notation and a parenthesized list of comma-delimited keyname terms.
 
 h2. BATCH
 
@@ -218,8 +229,8 @@ h2. CREATE COLUMNFAMILY
 _Synopsis:_
 
 bc. 
-CREATE COLUMNFAMILY <COLUMN FAMILY> (KEY <type> PRIMARY KEY [, name1 type, name2 type, ...]);
-CREATE COLUMNFAMILY <COLUMN FAMILY> (KEY <type> PRIMARY KEY [, name1 type, name2 type, ...])
+CREATE COLUMNFAMILY <COLUMN FAMILY> (<KEY> <type> PRIMARY KEY [, name1 type, name2 type, ...]);
+CREATE COLUMNFAMILY <COLUMN FAMILY> (<KEY> <type> PRIMARY KEY [, name1 type, name2 type, ...])
     [WITH keyword1 = arg1 [AND keyword2 = arg2 [AND ...]]];
 
 @CREATE COLUMNFAMILY@ statements create new column family namespaces under the current keyspace. Valid column family names are strings of alphanumeric characters and underscores, which begin with a letter.
@@ -227,14 +238,14 @@ CREATE COLUMNFAMILY <COLUMN FAMILY> (KEY <type> PRIMARY KEY [, name1 type, name2
 h3(#keytypes). Specifying Key Type
 
 bc. 
-CREATE ... (KEY <type> PRIMARY KEY) ...
+CREATE ... (<KEY> <type> PRIMARY KEY) ...
 
-When creating a new column family, you must specify key type.  The list of possible key types is identical to column comparators/validators, (see "Specifying Column Type":columntypes).  It's important to note that the key type must be compatible with the partitioner in use, for example @OrderPreservingPartitioner@ and @CollatingOrderPreservingPartitioner@ both require UTF-8 keys.
+When creating a new column family, you must specify key type.  The list of possible key types is identical to column comparators/validators, (see "Specifying Column Type":columntypes).  It's important to note that the key type must be compatible with the partitioner in use, for example @OrderPreservingPartitioner@ and @CollatingOrderPreservingPartitioner@ both require UTF-8 keys. If you use name instead of @KEY@ keyword, name alias will be set automatically.
 
 h3(#columntypes). Specifying Column Type (optional)
 
 bc. 
-CREATE ... (KEY <type> PRIMARY KEY, name1 type, name2 type) ...
+CREATE ... (<KEY> <type> PRIMARY KEY, name1 type, name2 type) ...
 
 It is possible to assign columns a type during column family creation.  Columns configured with a type are validated accordingly when a write occurs. Column types are specified as a parenthesized, comma-separated list of column term and type pairs.  The list of recognized types are:
 
@@ -281,6 +292,15 @@ _Synopsis:_
 bc. CREATE INDEX [index_name] ON <column_family> (column_name);
 
 A @CREATE INDEX@ statement is used to create a new, automatic secondary index for the named column.
+
+h2. DROP INDEX
+
+_Synopsis:_
+
+bc. DROP INDEX <INDEX_NAME>
+
+A @DROP INDEX@ statement is used to drop an existing secondary index.
+DROP INDEX <INDEX_NAME> statement will search all ColumnFamilies in the current Keyspace for specified index and delete it if found.
 
 h2. DROP
 

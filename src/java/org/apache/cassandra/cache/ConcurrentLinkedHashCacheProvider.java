@@ -27,8 +27,8 @@ import org.apache.cassandra.db.DecoratedKey;
 
 public class ConcurrentLinkedHashCacheProvider implements IRowCacheProvider
 {
-    public ICache<DecoratedKey, ColumnFamily> create(int capacity)
+    public ICache<DecoratedKey, ColumnFamily> create(int capacity, String tableName, String cfName)
     {
-        return ConcurrentLinkedHashCache.create(capacity);
+        return ConcurrentLinkedHashCache.create(capacity, tableName, cfName);
     }
 }

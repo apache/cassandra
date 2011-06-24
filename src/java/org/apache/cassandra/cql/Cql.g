@@ -35,6 +35,8 @@ options {
     import java.util.ArrayList;
     import org.apache.cassandra.thrift.ConsistencyLevel;
     import org.apache.cassandra.thrift.InvalidRequestException;
+
+    import static org.apache.cassandra.cql.AlterTableStatement.OperationType;
 }
 
 @members {
@@ -111,8 +113,10 @@ query returns [CQLStatement stmnt]
     | createKeyspaceStatement { $stmnt = new CQLStatement(StatementType.CREATE_KEYSPACE, $createKeyspaceStatement.expr); }
     | createColumnFamilyStatement { $stmnt = new CQLStatement(StatementType.CREATE_COLUMNFAMILY, $createColumnFamilyStatement.expr); }
     | createIndexStatement { $stmnt = new CQLStatement(StatementType.CREATE_INDEX, $createIndexStatement.expr); }
+    | dropIndexStatement   { $stmnt = new CQLStatement(StatementType.DROP_INDEX, $dropIndexStatement.expr); }
     | dropKeyspaceStatement { $stmnt = new CQLStatement(StatementType.DROP_KEYSPACE, $dropKeyspaceStatement.ksp); }
     | dropColumnFamilyStatement { $stmnt = new CQLStatement(StatementType.DROP_COLUMNFAMILY, $dropColumnFamilyStatement.cfam); }
+    | alterTableStatement { $stmnt = new CQLStatement(StatementType.ALTER_TABLE, $alterTableStatement.expr); }
     ;
 
 // USE <KEYSPACE>;
@@ -181,8 +185,9 @@ whereClause returns [WhereClause clause]
     }
     : first=relation { $clause = new WhereClause(first); } 
           (K_AND next=relation { $clause.and(next); })*
-      | K_KEY K_IN '(' f1=term { inClause.andKeyEquals(f1); }
-                      (',' fN=term { inClause.andKeyEquals(fN); } )* ')'
+      | key_alias=term { inClause.setKeyAlias(key_alias.getText()); }
+           K_IN '(' f1=term { inClause.andKeyEquals(f1); }
+                  (',' fN=term { inClause.andKeyEquals(fN); } )* ')'
         { $clause = inClause; }
     ;
 
@@ -208,12 +213,12 @@ insertStatement returns [UpdateStatement expr]
           List<Term> columnValues = new ArrayList<Term>();
       }
       K_INSERT K_INTO columnFamily=( IDENT | STRING_LITERAL | INTEGER )
-          '(' K_KEY    ( ',' column_name=term  { columnNames.add($column_name.item); } )+ ')'
+          '(' key_alias=term ( ',' column_name=term  { columnNames.add($column_name.item); } )+ ')'
         K_VALUES
           '(' key=term ( ',' column_value=term { columnValues.add($column_value.item); })+ ')'
         ( usingClause[attrs] )?
       {
-          return new UpdateStatement($columnFamily.text, columnNames, columnValues, Collections.singletonList(key), attrs);
+          return new UpdateStatement($columnFamily.text, key_alias.getText(), columnNames, columnValues, Collections.singletonList(key), attrs);
       }
     ;
 
@@ -288,17 +293,17 @@ batchStatementObjective returns [AbstractModification statement]
 updateStatement returns [UpdateStatement expr]
     : {
           Attributes attrs = new Attributes();
-          Map<Term, Term> columns = new HashMap<Term, Term>();
+          Map<Term, Operation> columns = new HashMap<Term, Operation>();
           List<Term> keyList = null;
       }
       K_UPDATE columnFamily=( IDENT | STRING_LITERAL | INTEGER )
           ( usingClause[attrs] )?
-          K_SET termPair[columns] (',' termPair[columns])*
-          K_WHERE ( K_KEY '=' key=term { keyList = Collections.singletonList(key); }
-                    |
-                    K_KEY K_IN '(' keys=termList { keyList = $keys.items; } ')' )
+          K_SET termPairWithOperation[columns] (',' termPairWithOperation[columns])*
+          K_WHERE ( key_alias=term ('=' key=term { keyList = Collections.singletonList(key); }
+                                    |
+                                    K_IN '(' keys=termList { keyList = $keys.items; } ')' ))
       {
-          return new UpdateStatement($columnFamily.text, columns, keyList, attrs);
+          return new UpdateStatement($columnFamily.text, key_alias.getText(), columns, keyList, attrs);
       }
     ;
 
@@ -322,11 +327,11 @@ deleteStatement returns [DeleteStatement expr]
           ( cols=termList { columnsList = $cols.items; })?
           K_FROM columnFamily=( IDENT | STRING_LITERAL | INTEGER )
           ( K_USING K_CONSISTENCY K_LEVEL { cLevel = ConsistencyLevel.valueOf($K_LEVEL.text); } )?
-          K_WHERE ( K_KEY '=' key=term           { keyList = Collections.singletonList(key); }
-                  | K_KEY K_IN '(' keys=termList { keyList = $keys.items; } ')'
+          K_WHERE ( key_alias=term ('=' key=term           { keyList = Collections.singletonList(key); }
+                                   | K_IN '(' keys=termList { keyList = $keys.items; } ')')
                   )?
       {
-          return new DeleteStatement(columnsList, $columnFamily.text, cLevel, keyList);
+          return new DeleteStatement(columnsList, $columnFamily.text, key_alias.getText(), cLevel, keyList);
       }
     ;
 
@@ -362,7 +367,7 @@ createColumnFamilyStatement returns [CreateColumnFamilyStatement expr]
 
 createCfamColumns[CreateColumnFamilyStatement expr]
     : n=term v=createCfamColumnValidator { $expr.addColumn(n, $v.validator); }
-    | K_KEY v=createCfamColumnValidator K_PRIMARY K_KEY { $expr.setKeyType($v.validator); }
+    | k=term v=createCfamColumnValidator K_PRIMARY K_KEY { $expr.setKeyAlias(k.getText()); $expr.setKeyType($v.validator); }
     ;
 
 createCfamColumnValidator returns [String validator]
@@ -380,23 +385,53 @@ createIndexStatement returns [CreateIndexStatement expr]
     : K_CREATE K_INDEX (idxName=IDENT)? K_ON cf=( IDENT | STRING_LITERAL | INTEGER ) '(' columnName=term ')' endStmnt
       { $expr = new CreateIndexStatement($idxName.text, $cf.text, columnName); }
     ;
+/**
+ * DROP INDEX ON <CF>.<COLUMN_OR_INDEX_NAME>
+ * DROP INDEX <INDEX_NAME>
+ */
+dropIndexStatement returns [DropIndexStatement expr]
+    :
+      K_DROP K_INDEX index=( IDENT | STRING_LITERAL | INTEGER ) endStmnt
+      { $expr = new DropIndexStatement($index.text); }
+    ;
 
 /** DROP KEYSPACE <KSP>; */
 dropKeyspaceStatement returns [String ksp]
     : K_DROP K_KEYSPACE name=( IDENT | STRING_LITERAL | INTEGER ) endStmnt { $ksp = $name.text; }
     ;
 
+
+alterTableStatement returns [AlterTableStatement expr]
+    :
+    {
+        OperationType type = null;
+        String columnFamily = null, columnName = null, validator = null;
+    }
+    K_ALTER K_COLUMNFAMILY name=( IDENT | STRING_LITERAL | INTEGER ) { columnFamily = $name.text; }
+          ( K_ALTER { type = OperationType.ALTER; }
+               (col=( IDENT | STRING_LITERAL | INTEGER ) { columnName = $col.text; })
+               K_TYPE alterValidator=comparatorType { validator = $alterValidator.text; }
+          | K_ADD { type = OperationType.ADD; }
+               (col=( IDENT | STRING_LITERAL | INTEGER ) { columnName = $col.text; })
+               addValidator=comparatorType { validator = $addValidator.text; }
+          | K_DROP { type = OperationType.DROP; }
+               (col=( IDENT | STRING_LITERAL | INTEGER ) { columnName = $col.text; }))
+    endStmnt
+      {
+          $expr = new AlterTableStatement(columnFamily, type, columnName, validator);
+      }
+    ;
 /** DROP COLUMNFAMILY <CF>; */
 dropColumnFamilyStatement returns [String cfam]
     : K_DROP K_COLUMNFAMILY name=( IDENT | STRING_LITERAL | INTEGER ) endStmnt { $cfam = $name.text; }
     ;
 
 comparatorType
-    : 'bytea' | 'ascii' | 'text' | 'varchar' | 'int' | 'varint' | 'bigint' | 'uuid'
+    : 'bytea' | 'ascii' | 'text' | 'varchar' | 'int' | 'varint' | 'bigint' | 'uuid' | 'counter' | 'boolean' | 'date' | 'float' | 'double'
     ;
 
 term returns [Term item]
-    : ( t=K_KEY | t=STRING_LITERAL | t=INTEGER | t=UUID | t=IDENT ) { $item = new Term($t.text, $t.type); }
+    : ( t=K_KEY | t=STRING_LITERAL | t=INTEGER | t=UUID | t=IDENT | t=FLOAT) { $item = new Term($t.text, $t.type); }
     ;
 
 termList returns [List<Term> items]
@@ -409,11 +444,16 @@ termPair[Map<Term, Term> columns]
     :   key=term '=' value=term { columns.put(key, value); }
     ;
 
+termPairWithOperation[Map<Term, Operation> columns]
+    : key=term '=' (value=term { columns.put(key, new Operation(value)); }
+		    | c=term ( '+' v=term { columns.put(key, new Operation(c, org.apache.cassandra.cql.Operation.OperationType.PLUS, v)); }
+                            | '-' v=term { columns.put(key, new Operation(c, org.apache.cassandra.cql.Operation.OperationType.MINUS, v)); } ))
+    ;
+
 // Note: ranges are inclusive so >= and >, and < and <= all have the same semantics.  
 relation returns [Relation rel]
-    : { Term entity = new Term("KEY", STRING_LITERAL); }
-      (name=term { entity = $name.item; } ) type=('=' | '<' | '<=' | '>=' | '>') t=term
-      { return new Relation(entity, $type.text, $t.item); }
+    : name=term type=('=' | '<' | '<=' | '>=' | '>') t=term
+      { return new Relation($name.item, $type.text, $t.item); }
     ;
 
 // TRUNCATE <CF>;
@@ -458,8 +498,10 @@ K_TRUNCATE:    T R U N C A T E;
 K_DELETE:      D E L E T E;
 K_IN:          I N;
 K_CREATE:      C R E A T E;
-K_KEYSPACE:    K E Y S P A C E;
-K_COLUMNFAMILY: C O L U M N F A M I L Y;
+K_KEYSPACE:    ( K E Y S P A C E
+                 | S C H E M A );
+K_COLUMNFAMILY:( C O L U M N F A M I L Y
+                 | T A B L E );
 K_INDEX:       I N D E X;
 K_ON:          O N;
 K_DROP:        D R O P;
@@ -468,6 +510,9 @@ K_INTO:        I N T O;
 K_VALUES:      V A L U E S;
 K_TIMESTAMP:   T I M E S T A M P;
 K_TTL:         T T L;
+K_ALTER:       A L T E R;
+K_ADD:         A D D;
+K_TYPE:        T Y P E;
 
 // Case-insensitive alpha characters
 fragment A: ('a'|'A');

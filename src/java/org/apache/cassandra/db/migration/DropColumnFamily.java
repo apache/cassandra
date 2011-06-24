@@ -9,8 +9,9 @@ import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.CompactionManager;
+import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.Table;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 
@@ -78,7 +79,7 @@ public class DropColumnFamily extends Migration
         CFMetaData.purge(cfm);
         DatabaseDescriptor.setTableDefinition(ksm, newVersion);
 
-        if (!clientMode)
+        if (!StorageService.instance.isClientMode())
         {
             cfs.snapshot(Table.getTimestampedSnapshotName(null));
 

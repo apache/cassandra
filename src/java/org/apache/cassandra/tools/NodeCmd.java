@@ -25,11 +25,13 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.lang.management.MemoryUsage;
 import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.text.DecimalFormat;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.ExecutionException;
 
+import org.apache.cassandra.db.compaction.CompactionInfo;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.config.ConfigurationException;
 
@@ -38,9 +40,8 @@ import org.apache.commons.cli.*;
 import org.apache.cassandra.cache.InstrumentingCacheMBean;
 import org.apache.cassandra.concurrent.IExecutorMBean;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
-import org.apache.cassandra.db.CompactionManagerMBean;
+import org.apache.cassandra.db.compaction.CompactionManagerMBean;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.io.CompactionInfo;
 import org.apache.cassandra.net.MessagingServiceMBean;
 import org.apache.cassandra.utils.EstimatedHistogram;
 
@@ -79,7 +80,7 @@ public class NodeCmd
         DECOMMISSION, MOVE, REMOVETOKEN, REPAIR, CLEANUP, COMPACT, SCRUB,
         SETCACHECAPACITY, GETCOMPACTIONTHRESHOLD, SETCOMPACTIONTHRESHOLD, NETSTATS, CFHISTOGRAMS,
         COMPACTIONSTATS, DISABLEGOSSIP, ENABLEGOSSIP, INVALIDATEKEYCACHE, INVALIDATEROWCACHE,
-        DISABLETHRIFT, ENABLETHRIFT, JOIN, SETCOMPACTIONTHROUGHPUT
+        DISABLETHRIFT, ENABLETHRIFT, STATUSTHRIFT, JOIN, SETCOMPACTIONTHROUGHPUT
     }
 
     
@@ -105,6 +106,7 @@ public class NodeCmd
         addCmdHelp(header, "enablegossip", "Reenable gossip");
         addCmdHelp(header, "disablethrift", "Disable thrift server");
         addCmdHelp(header, "enablethrift", "Reenable thrift server");
+        addCmdHelp(header, "statusthrift", "Status of thrift server");
 
         // One arg
         addCmdHelp(header, "netstats [host]", "Print network information on provided host (connecting node by default)");
@@ -161,11 +163,12 @@ public class NodeCmd
         Collection<String> movingNodes = probe.getMovingNodes();
         Map<String, String> loadMap = probe.getLoadMap();
 
-        outs.printf("%-16s%-7s%-8s%-16s%-8s%-44s%n", "Address", "Status", "State", "Load", "Owns", "Token");
+        String format = "%-16s%-12s%-12s%-7s%-8s%-16s%-8s%-44s%n";
+        outs.printf(format, "Address", "DC", "Rack", "Status", "State", "Load", "Owns", "Token");
         // show pre-wrap token twice so you can always read a node's range as
         // (previous line token, current line token]
         if (sortedTokens.size() > 1)
-            outs.printf("%-16s%-7s%-8s%-16s%-8s%-44s%n", "", "", "", "", "", sortedTokens.get(sortedTokens.size() - 1));
+            outs.printf(format, "", "", "", "", "", "", "", sortedTokens.get(sortedTokens.size() - 1));
 
         // Calculate per-token ownership of the ring
         Map<Token, Float> ownerships = probe.getOwnership();
@@ -173,6 +176,24 @@ public class NodeCmd
         for (Token token : sortedTokens)
         {
             String primaryEndpoint = tokenToEndpoint.get(token);
+            String dataCenter;
+            try
+            {
+                dataCenter = probe.getEndpointSnitchInfoProxy().getDatacenter(primaryEndpoint);
+            }
+            catch (UnknownHostException e)
+            {
+                dataCenter = "Unknown";
+            }
+            String rack;
+            try
+            {
+                rack = probe.getEndpointSnitchInfoProxy().getRack(primaryEndpoint);
+            }
+            catch (UnknownHostException e)
+            {
+                rack = "Unknown";
+            }
             String status = liveNodes.contains(primaryEndpoint)
                             ? "Up"
                             : deadNodes.contains(primaryEndpoint)
@@ -192,7 +213,7 @@ public class NodeCmd
                           ? loadMap.get(primaryEndpoint)
                           : "?";
             String owns = new DecimalFormat("##0.00%").format(ownerships.get(token));
-            outs.printf("%-16s%-7s%-8s%-16s%-8s%-44s%n", primaryEndpoint, status, state, load, owns, token);
+            outs.printf(format, primaryEndpoint, dataCenter, rack, status, state, load, owns, token);
         }
     }
 
@@ -236,6 +257,10 @@ public class NodeCmd
         double memUsed = (double)heapUsage.getUsed() / (1024 * 1024);
         double memMax = (double)heapUsage.getMax() / (1024 * 1024);
         outs.printf("%-17s: %.2f / %.2f%n", "Heap Memory (MB)", memUsed, memMax);
+
+        // Data Center/Rack
+        outs.printf("%-17s: %s%n", "Data Center", probe.getDataCenter());
+        outs.printf("%-17s: %s%n", "Rack", probe.getRack());
     }
 
     public void printReleaseVersion(PrintStream outs)
@@ -425,7 +450,7 @@ public class NodeCmd
                 if (keyCacheMBean.getCapacity() > 0)
                 {
                     outs.println("\t\tKey cache capacity: " + keyCacheMBean.getCapacity());
-                    outs.println("\t\tKey cache size: " + keyCacheMBean.size());
+                    outs.println("\t\tKey cache size: " + keyCacheMBean.getSize());
                     outs.println("\t\tKey cache hit rate: " + keyCacheMBean.getRecentHitRate());
                 }
                 else
@@ -437,7 +462,7 @@ public class NodeCmd
                 if (rowCacheMBean.getCapacity() > 0)
                 {
                     outs.println("\t\tRow cache capacity: " + rowCacheMBean.getCapacity());
-                    outs.println("\t\tRow cache size: " + rowCacheMBean.size());
+                    outs.println("\t\tRow cache size: " + rowCacheMBean.getSize());
                     outs.println("\t\tRow cache hit rate: " + rowCacheMBean.getRecentHitRate());
                 }
                 else
@@ -488,6 +513,11 @@ public class NodeCmd
                                          (i < ersh.length ? ersh[i] : ""),
                                          (i < ecch.length ? ecch[i] : "")));
         }
+    }
+
+    private void printIsThriftServerRunning(PrintStream outs)
+    {
+        outs.println(probe.isThriftServerRunning() ? "running" : "not running");
     }
 
     public static void main(String[] args) throws IOException, InterruptedException, ConfigurationException, ParseException
@@ -563,6 +593,7 @@ public class NodeCmd
             case ENABLEGOSSIP    : probe.startGossiping(); break;
             case DISABLETHRIFT   : probe.stopThriftServer(); break;
             case ENABLETHRIFT    : probe.startThriftServer(); break;
+            case STATUSTHRIFT    : nodeCmd.printIsThriftServerRunning(System.out); break;
 
             case DRAIN :
                 try { probe.drain(); }

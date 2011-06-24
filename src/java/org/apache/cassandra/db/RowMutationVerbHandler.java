@@ -69,7 +69,7 @@ public class RowMutationVerbHandler implements IVerbHandler
             if (forwardBytes != null)
                 forwardToLocalNodes(message, forwardBytes);
 
-            Table.open(rm.getTable()).apply(rm, true);
+            rm.apply();
 
             WriteResponse response = new WriteResponse(rm.getTable(), rm.key(), true);
             Message responseMessage = WriteResponse.makeWriteResponseMessage(message, response);

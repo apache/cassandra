@@ -22,24 +22,22 @@ package org.apache.cassandra.db;
 import java.io.File;
 import java.io.IOError;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.*;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
-import com.google.common.collect.Iterables;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cache.AutoSavingCache;
 import org.apache.cassandra.config.DatabaseDescriptor;
-
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.utils.Pair;
 
-public class DataTracker
+public class    DataTracker
 {
     private static final Logger logger = LoggerFactory.getLogger(DataTracker.class);
 
@@ -450,18 +448,17 @@ public class DataTracker
         public final Set<SSTableReader> sstables;
         public final Set<SSTableReader> compacting;
 
-        public View(Memtable memtable, Set<Memtable> pendingFlush, Set<SSTableReader> sstables, Set<SSTableReader> compacting)
+        View(Memtable memtable, Set<Memtable> pendingFlush, Set<SSTableReader> sstables, Set<SSTableReader> compacting)
         {
             this.memtable = memtable;
-            this.memtablesPendingFlush = Collections.unmodifiableSet(pendingFlush);
-            this.sstables = Collections.unmodifiableSet(sstables);
-            this.compacting = Collections.unmodifiableSet(compacting);
+            this.memtablesPendingFlush = pendingFlush;
+            this.sstables = sstables;
+            this.compacting = compacting;
         }
 
         public View switchMemtable(Memtable newMemtable)
         {
-            Set<Memtable> newPending = new HashSet<Memtable>(memtablesPendingFlush);
-            newPending.add(memtable);
+            Set<Memtable> newPending = ImmutableSet.<Memtable>builder().addAll(memtablesPendingFlush).add(memtable).build();
             return new View(newMemtable, newPending, sstables, compacting);
         }
 
@@ -472,32 +469,27 @@ public class DataTracker
 
         public View replaceFlushed(Memtable flushedMemtable, SSTableReader newSSTable)
         {
-            Set<Memtable> newPendings = new HashSet<Memtable>(memtablesPendingFlush);
-            Set<SSTableReader> newSSTables = new HashSet<SSTableReader>(sstables);
-            newPendings.remove(flushedMemtable);
-            newSSTables.add(newSSTable);
-            return new View(memtable, newPendings, newSSTables, compacting);
+            Set<Memtable> newPending = ImmutableSet.copyOf(Sets.difference(memtablesPendingFlush, Collections.singleton(flushedMemtable)));
+            Set<SSTableReader> newSSTables = ImmutableSet.<SSTableReader>builder().addAll(sstables).add(newSSTable).build();
+            return new View(memtable, newPending, newSSTables, compacting);
         }
 
         public View replace(Collection<SSTableReader> oldSSTables, Iterable<SSTableReader> replacements)
         {
-            Set<SSTableReader> sstablesNew = new HashSet<SSTableReader>(sstables);
-            Iterables.addAll(sstablesNew, replacements);
-            sstablesNew.removeAll(oldSSTables);
-            return new View(memtable, memtablesPendingFlush, sstablesNew, compacting);
+            Sets.SetView<SSTableReader> remaining = Sets.difference(sstables, ImmutableSet.copyOf(oldSSTables));
+            Set<SSTableReader> newSSTables = ImmutableSet.<SSTableReader>builder().addAll(remaining).addAll(replacements).build();
+            return new View(memtable, memtablesPendingFlush, newSSTables, compacting);
         }
 
         public View markCompacting(Collection<SSTableReader> tomark)
         {
-            Set<SSTableReader> compactingNew = new HashSet<SSTableReader>(compacting);
-            compactingNew.addAll(tomark);
+            Set<SSTableReader> compactingNew = ImmutableSet.<SSTableReader>builder().addAll(compacting).addAll(tomark).build();
             return new View(memtable, memtablesPendingFlush, sstables, compactingNew);
         }
 
         public View unmarkCompacting(Collection<SSTableReader> tounmark)
         {
-            Set<SSTableReader> compactingNew = new HashSet<SSTableReader>(compacting);
-            compactingNew.removeAll(tounmark);
+            Set<SSTableReader> compactingNew = ImmutableSet.copyOf(Sets.difference(compacting, ImmutableSet.copyOf(tounmark)));
             return new View(memtable, memtablesPendingFlush, sstables, compactingNew);
         }
     }

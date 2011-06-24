@@ -134,7 +134,7 @@ public class StreamOutSession
             Thread.sleep(10);
     }
 
-    Collection<PendingFile> getFiles()
+    public Collection<PendingFile> getFiles()
     {
         return files.values();
     }

@@ -21,6 +21,7 @@ SCRIPTNAME=/etc/init.d/$NAME
 CONFDIR=/etc/cassandra
 JSVC=/usr/bin/jsvc
 WAIT_FOR_START=10
+CASSANDRA_HOME=/usr/share/cassandra
 
 # The first existing directory is used for JAVA_HOME if needed.
 JVM_SEARCH_DIRS="/usr/lib/jvm/java-6-openjdk /usr/lib/jvm/java-6-sun"
@@ -80,6 +81,9 @@ fi
 classpath()
 {
     cp="$EXTRA_CLASSPATH"
+    for j in /usr/share/$NAME/lib/*.jar; do
+        [ "x$cp" = "x" ] && cp=$j || cp=$cp:$j
+    done
     for j in /usr/share/$NAME/*.jar; do
         [ "x$cp" = "x" ] && cp=$j || cp=$cp:$j
     done

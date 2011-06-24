@@ -25,8 +25,8 @@
     <property name="debuglevel" value="source,lines,vars"/>
 
     <!-- default version and SCM information (we need the default SCM info as people may checkout with git-svn) -->
-    <property name="base.version" value="0.8.0-rc1"/>
-    <property name="scm.default.path" value="cassandra/branches/cassandra-0.7"/>
+    <property name="base.version" value="0.8.1"/>
+    <property name="scm.default.path" value="cassandra/branches/cassandra-0.8"/>
     <property name="scm.default.connection" value="scm:svn:http://svn.apache.org/repos/asf/${scm.default.path}"/>
     <property name="scm.default.developerConnection" value="scm:svn:https://svn.apache.org/repos/asf/${scm.default.path}"/>
     <property name="scm.default.url" value="http://svn.apache.org/viewvc/${scm.default.path}"/>
@@ -36,7 +36,6 @@
     <property name="build.src" value="${basedir}/src"/>
     <property name="build.src.java" value="${basedir}/src/java"/>
     <property name="build.src.resources" value="${basedir}/src/resources"/>
-    <property name="build.src.driver" value="${basedir}/drivers/java/src" />
     <property name="avro.src" value="${basedir}/src/avro"/>
     <property name="build.src.gen-java" value="${basedir}/src/gen-java"/>
     <property name="build.lib" value="${basedir}/lib"/>
@@ -46,7 +45,6 @@
     <property name="build.classes" value="${build.dir}/classes"/>
     <property name="build.classes.main" value="${build.classes}/main" />
     <property name="build.classes.thrift" value="${build.classes}/thrift" />
-    <property name="build.classes.cql" value="${build.classes}/cql" />
     <property name="javadoc.dir" value="${build.dir}/javadoc"/>
     <property name="javadoc.jars.dir" value="${build.dir}/javadocs"/>
     <property name="interface.dir" value="${basedir}/interface"/>
@@ -60,11 +58,9 @@
     <property name="test.data" value="${test.dir}/data"/>
     <property name="test.name" value="*Test"/>
     <property name="test.unit.src" value="${test.dir}/unit"/>
-    <property name="test.src.driver" value="${basedir}/drivers/java/test"/>
     <property name="test.long.src" value="${test.dir}/long"/>
     <property name="test.distributed.src" value="${test.dir}/distributed"/>
     <property name="dist.dir" value="${build.dir}/dist"/>
-    <property name="cql.driver.version" value="1.0.2" />
     <condition property="version" value="${base.version}">
       <isset property="release"/>
     </condition>
@@ -161,7 +157,6 @@
             message="Not a source artifact, stopping here." />
         <mkdir dir="${build.classes.main}"/>
         <mkdir dir="${build.classes.thrift}"/>
-        <mkdir dir="${build.classes.cql}"/>
         <mkdir dir="${test.lib}"/>
         <mkdir dir="${test.classes}"/>
         <mkdir dir="${build.src.gen-java}"/>
@@ -301,7 +296,7 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
         <attribute name="classifier" default=""/>
         <attribute name="packaging" default="jar"/>
         <sequential>
-          <artifact:mvn mavenVersion="${maven.version}" fork="true">
+          <artifact:mvn mavenVersion="${maven.version}" fork="true" failonerror="true">
             <arg value="org.apache.maven.plugins:maven-install-plugin:2.3.1:install-file" />
             <arg value="-DpomFile=@{pomFile}" />
             <arg value="-Dfile=@{file}" />
@@ -317,7 +312,7 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
         <attribute name="classifier" default=""/>
         <attribute name="packaging" default="jar"/>
         <sequential>
-          <artifact:mvn mavenVersion="${maven.version}" fork="true">
+          <artifact:mvn mavenVersion="${maven.version}" fork="true" failonerror="true">
             <jvmarg value="-Xmx512m"/>
             <arg value="org.apache.maven.plugins:maven-gpg-plugin:1.2:sign-and-deploy-file" />
             <arg value="-Durl=${maven-repository-url}" />
@@ -399,7 +394,6 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
           <dependency groupId="log4j" artifactId="log4j" version="1.2.16" />
           <dependency groupId="org.apache.cassandra" artifactId="cassandra-all" version="${version}" />
           <dependency groupId="org.apache.cassandra" artifactId="cassandra-thrift" version="${version}" />
-          <dependency groupId="org.apache.cassandra" artifactId="cassandra-cql" version="${version}" />
         </dependencyManagement>
         <developer id="alakshman" name="Avinash Lakshman"/>
         <developer id="antelder" name="Anthony Elder"/>
@@ -509,22 +503,6 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
         <dependency groupId="org.slf4j" artifactId="slf4j-api"/>
         <dependency groupId="org.apache.thrift" artifactId="libthrift"/>
       </artifact:pom>
-      <artifact:pom id="cql-pom"
-                    artifactId="cassandra-cql"
-                    url="http://cassandra.apache.org"
-                    name="Apache Cassandra">
-        <parent groupId="org.apache.cassandra"
-                artifactId="cassandra-parent"
-                version="${version}"/>
-        <scm connection="${scm.connection}" developerConnection="${scm.developerConnection}" url="${scm.url}"/>
-        <dependency groupId="com.google.guava" artifactId="guava"/>
-        <dependency groupId="org.slf4j" artifactId="slf4j-api"/>
-        <dependency groupId="org.apache.thrift" artifactId="libthrift"/>
-        <dependency groupId="org.apache.cassandra" artifactId="cassandra-thrift"/>
-        <dependency groupId="org.apache.cassandra" artifactId="cassandra-all"/>
-        <!-- because cassandra-all uses log4j, and we need cassandra-all, consumers must use log4j, so force log4j version of slf4j -->
-        <dependency groupId="org.slf4j" artifactId="slf4j-log4j12" scope="runtime"/>
-      </artifact:pom>
 
       <artifact:pom id="dist-pom"
                     artifactId="apache-cassandra"
@@ -592,24 +570,14 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
       <taskdef name="avro-protocol" classname="org.apache.avro.specific.ProtocolTask">
         <classpath refid="cassandra.classpath" />
       </taskdef>
-      <uptodate property="avroInterfaceUpToDate"
-                srcfile="${build.src.java}/org/apache/cassandra/hadoop/hadoop.genavro"
-                targetfile="${build.src.gen-java}/org/apache/cassandra/hadoop/hadoop.avpr" />
       <uptodate property="avroINProtoUpToDate" srcfile="${avro.src}/internode.genavro"
                 targetfile="${build.dir}/internode.avpr" />
     </target>
 
     <target name="avro-generate"
-            depends="avro-interface-generate-hadoop,avro-interface-generate-internode"
+            depends="avro-interface-generate-internode"
             description="Generates Java Avro classes for client and internal use." />
-
-    <target name="avro-interface-generate-hadoop" unless="avroInterfaceUpToDate"
-            depends="init,check-avro-generate,maven-ant-tasks-retrieve-build">
-      <avromacro protocolname="hadoop"
-                 inputfile="${build.src.java}/org/apache/cassandra/hadoop/hadoop.genavro"
-                 jsondir="${build.src.gen-java}/org/apache/cassandra/hadoop"
-                 outputdir="${build.src}" />
-    </target>
+    
     <target name="avro-interface-generate-internode" unless="avroINProtoUpToDate"
             depends="init,check-avro-generate,maven-ant-tasks-retrieve-build">
       <avromacro protocolname="internode" inputfile="${avro.src}/internode.genavro"
@@ -703,12 +671,6 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
                destdir="${build.classes.main}" includeantruntime="false">
             <src path="${build.src.java}"/>
             <src path="${build.src.gen-java}"/>
-            <src path="${build.src.driver}" />
-            <classpath refid="cassandra.classpath"/>
-        </javac>
-        <javac debug="true" debuglevel="${debuglevel}"
-               destdir="${build.classes.cql}" includeantruntime="false">
-            <src path="${build.src.driver}" />
             <classpath refid="cassandra.classpath"/>
         </javac>
         <copy todir="${build.classes.main}">
@@ -768,20 +730,6 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
         <!-- </section> -->
         </manifest>
       </jar>
-
-      <!-- CQL driver Jar -->
-      <artifact:writepom pomRefId="cql-pom" 
-              file="${build.dir}/${ant.project.name}-cql-${cql.driver.version}.pom"/>
-      <jar jarfile="${build.dir}/${ant.project.name}-cql-${cql.driver.version}.jar"
-           basedir="${build.classes.cql}">
-        <manifest>
-          <attribute name="Implementation-Title" value="Cassandra"/>
-          <attribute name="Implementation-Version" value="${version}"/>
-          <attribute name="Implementation-Vendor" value="Apache"/>
-          <attribute name="Class-Path"
-                     value="${ant.project.name}-thrift-${version}.jar" />
-        </manifest>
-      </jar>
     </target>
 
     <!--
@@ -807,23 +755,11 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
         <fileset dir="${build.src.gen-java}" defaultexcludes="yes">
           <include name="org/apache/**/*.java"/>
         </fileset>
-        <fileset dir="${build.src.driver}" defaultexcludes="yes">
-          <include name="org/apache/**/*.java"/>
-        </fileset>
         </filesets>
       </create-javadoc>
       <jar jarfile="${build.dir}/${final.name}-javadoc.jar"
            basedir="${javadoc.jars.dir}/main"/>
 
-      <create-javadoc destdir="${javadoc.jars.dir}/cql">
-        <filesets>
-        <fileset dir="${build.src.driver}" defaultexcludes="yes">
-          <include name="org/apache/**/*.java"/>
-        </fileset>
-        </filesets>
-      </create-javadoc>
-      <jar jarfile="${build.dir}/${ant.project.name}-cql-${cql.driver.version}-javadoc.jar"
-           basedir="${javadoc.jars.dir}/cql"/>
       <!-- javadoc task always rebuilds so might as well remove the generated docs to prevent 
            being pulled into the distribution by accident -->
       <delete quiet="true" dir="${javadoc.jars.dir}"/>
@@ -845,19 +781,11 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
         <fileset dir="${build.src.gen-java}" defaultexcludes="yes">
           <include name="org/apache/**/*.java"/>
         </fileset>
-        <fileset dir="${build.src.driver}" defaultexcludes="yes">
-          <include name="org/apache/**/*.java"/>
-        </fileset>
-      </jar>
-      <jar jarfile="${build.dir}/${ant.project.name}-cql-${cql.driver.version}-sources.jar">
-        <fileset dir="${build.src.driver}" defaultexcludes="yes">
-          <include name="org/apache/**/*.java"/>
-        </fileset>
       </jar>
     </target>
 
     <!-- creates release tarballs -->
-    <target name="artifacts" depends="jar,javadoc,py-cql-driver,tx-cql-driver"
+    <target name="artifacts" depends="jar,javadoc"
             description="Create Cassandra release artifacts">
       <mkdir dir="${dist.dir}"/>
       <copy todir="${dist.dir}/lib">
@@ -947,14 +875,12 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
                 algorithm="MD5">
         <fileset dir="${build.dir}">
           <include name="*.tar.gz" />
-          <include name="${ant.project.name}-cql-${cql.driver.version}.jar" />
         </fileset>
       </checksum>
       <checksum forceOverwrite="yes" todir="${build.dir}" fileext=".sha"
                 algorithm="SHA">
         <fileset dir="${build.dir}">
           <include name="*.tar.gz" />
-          <include name="${ant.project.name}-cql-${cql.driver.version}.jar" />
         </fileset>
       </checksum>
 
@@ -982,10 +908,11 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
      debug="true"
      debuglevel="${debuglevel}"
      destdir="${test.classes}">
-      <classpath refid="cassandra.classpath"/>
+      <classpath>
+        <path refid="cassandra.classpath"/>
+      </classpath>
       <src path="${test.unit.src}"/>
       <src path="${test.long.src}"/>
-      <src path="${test.src.driver}"/>
     </javac>
 
     <!-- Non-java resources needed by the test suite -->
@@ -1061,9 +988,6 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
     <testmacro suitename="unit" inputdir="${test.unit.src}" timeout="60000">
       <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
       <jvmarg value="-Dcorrupt-sstable-root=${test.data}/corrupt-sstables"/>
-    </testmacro>
-    <testmacro suitename="driverunit" inputdir="${test.src.driver}" timeout="60000">
-      <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
     </testmacro>
   </target>
     
@@ -1211,8 +1135,6 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
   <classpathentry kind="src" path="src/java"/>
   <classpathentry kind="src" path="src/gen-java"/>
   <classpathentry kind="src" path="interface/thrift/gen-java"/>
-  <classpathentry kind="src" path="drivers/java/src"/>
-  <classpathentry kind="src" path="drivers/java/test"/>
   <classpathentry kind="src" path="test/unit"/>
   <classpathentry kind="src" path="test/long"/>
   <classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
@@ -1252,10 +1174,10 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
     <mkdir dir=".externalToolBuilders" />
     <echo file=".externalToolBuilders/Cassandra_Ant_Builder.launch"><![CDATA[<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <launchConfiguration type="org.eclipse.ant.AntBuilderLaunchConfigurationType">
-<stringAttribute key="org.eclipse.ant.ui.ATTR_ANT_AFTER_CLEAN_TARGETS" value="build,build-test,"/>
-<stringAttribute key="org.eclipse.ant.ui.ATTR_ANT_AUTO_TARGETS" value="build,build-test,"/>
-<stringAttribute key="org.eclipse.ant.ui.ATTR_ANT_CLEAN_TARGETS" value="build,build-test,"/>
-<stringAttribute key="org.eclipse.ant.ui.ATTR_ANT_MANUAL_TARGETS" value="build,build-test,"/>
+<stringAttribute key="org.eclipse.ant.ui.ATTR_ANT_AFTER_CLEAN_TARGETS" value="build-test,"/>
+<stringAttribute key="org.eclipse.ant.ui.ATTR_ANT_AUTO_TARGETS" value="build-test,"/>
+<stringAttribute key="org.eclipse.ant.ui.ATTR_ANT_CLEAN_TARGETS" value="clean"/>
+<stringAttribute key="org.eclipse.ant.ui.ATTR_ANT_MANUAL_TARGETS" value="build-test,"/>
 <booleanAttribute key="org.eclipse.ant.ui.ATTR_TARGETS_UPDATED" value="true"/>
 <booleanAttribute key="org.eclipse.ant.ui.DEFAULT_VM_INSTALL" value="false"/>
 <listAttribute key="org.eclipse.debug.core.MAPPED_RESOURCE_PATHS">
@@ -1288,28 +1210,6 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
     <delete dir=".settings" />
   	<delete dir=".externalToolBuilders" />
   	<delete dir="build/eclipse-classes" />
-  </target>
-
-  <target name="py-cql-driver"
-          description="Generate Python CQL driver artifact">
-    <echo>Creating Python CQL driver artifact...</echo>
-    <exec executable="python" dir="${basedir}/drivers/py" failonerror="true">
-      <arg line="setup.py" />
-      <arg line="sdist" />
-      <arg line="--dist-dir" />
-      <arg line="${build.dir}" />
-    </exec>
-  </target>
-
-  <target name="tx-cql-driver"
-          description="Generate Twisted CQL driver artifact">
-    <echo>Creating Twisted CQL driver artifact...</echo>
-    <exec executable="python" dir="${basedir}/drivers/txpy" failonerror="true">
-      <arg line="setup.py" />
-      <arg line="sdist" />
-      <arg line="--dist-dir" />
-      <arg line="${build.dir}" />
-    </exec>
   </target>
 
   <!-- Publish artifacts to Maven repositories -->
@@ -1354,16 +1254,6 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
     <install pomFile="${build.dir}/${final.name}.pom"
              file="${build.dir}/${final.name}-javadoc.jar"
              classifier="javadoc"/>
-
-    <!-- the cassandra-cql jar -->
-    <install pomFile="${build.dir}/${ant.project.name}-cql-${cql.driver.version}.pom"
-             file="${build.dir}/${ant.project.name}-cql-${cql.driver.version}.jar"/>
-    <install pomFile="${build.dir}/${ant.project.name}-cql-${cql.driver.version}.pom"
-             file="${build.dir}/${ant.project.name}-cql-${cql.driver.version}-sources.jar"
-             classifier="sources"/>
-    <install pomFile="${build.dir}/${ant.project.name}-cql-${cql.driver.version}.pom"
-             file="${build.dir}/${ant.project.name}-cql-${cql.driver.version}-javadoc.jar"
-             classifier="javadoc"/>
   </target>
 
   <target name="publish"
@@ -1407,16 +1297,6 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
             classifier="sources"/>
     <deploy pomFile="${build.dir}/${final.name}.pom"
             file="${build.dir}/${final.name}-javadoc.jar"
-            classifier="javadoc"/>
-
-    <!-- the cassandra-cql jar -->
-    <deploy pomFile="${build.dir}/${ant.project.name}-cql-${cql.driver.version}.pom"
-            file="${build.dir}/${ant.project.name}-cql-${cql.driver.version}.jar"/>
-    <deploy pomFile="${build.dir}/${ant.project.name}-cql-${cql.driver.version}.pom"
-            file="${build.dir}/${ant.project.name}-cql-${cql.driver.version}-sources.jar"
-            classifier="sources"/>
-    <deploy pomFile="${build.dir}/${ant.project.name}-cql-${cql.driver.version}.pom"
-            file="${build.dir}/${ant.project.name}-cql-${cql.driver.version}-javadoc.jar"
             classifier="javadoc"/>
   </target>
 

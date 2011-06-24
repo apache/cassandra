@@ -21,6 +21,7 @@ package org.apache.cassandra;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.commons.lang.NotImplementedException;
 
 import com.google.common.base.Charsets;
@@ -67,7 +68,8 @@ public class SchemaLoader
         String ks6 = "Keyspace6";
         String ks_kcs = "KeyCacheSpace";
         String ks_rcs = "RowCacheSpace";
-
+        String ks_nocommit = "NoCommitlogSpace";
+        
         Class<? extends AbstractReplicationStrategy> simple = SimpleStrategy.class;
 
         Map<String, String> opts_rf1 = KSMetaData.optsWithRF(1);
@@ -111,6 +113,12 @@ public class SchemaLoader
                                   standardCFMD(ks1, "Standard4"),
                                   standardCFMD(ks1, "StandardLong1"),
                                   standardCFMD(ks1, "StandardLong2"),
+                                  new CFMetaData(ks1,
+                                                 "ValuesWithQuotes",
+                                                 st,
+                                                 BytesType.instance,
+                                                 null)
+                                                 .defaultValidator(UTF8Type.instance),
                                   superCFMD(ks1, "Super1", LongType.instance),
                                   superCFMD(ks1, "Super2", LongType.instance),
                                   superCFMD(ks1, "Super3", LongType.instance),
@@ -223,6 +231,13 @@ public class SchemaLoader
                                   standardCFMD(ks_rcs, "CachedCF")
                                               .rowCacheSize(100)));
 
+        schema.add(new KSMetaData(ks_nocommit,
+                simple,
+                opts_rf1,
+                false,
+                standardCFMD(ks_nocommit, "Standard1")));
+
+        
         return schema;
     }
 
@@ -241,7 +256,7 @@ public class SchemaLoader
                     {{
                         ByteBuffer cName = ByteBuffer.wrap("birthdate".getBytes(Charsets.UTF_8));
                         IndexType keys = withIdxType ? IndexType.KEYS : null;
-                        put(cName, new ColumnDefinition(cName, LongType.instance, keys, null));
+                        put(cName, new ColumnDefinition(cName, LongType.instance, keys, ByteBufferUtil.bytesToHex(cName)));
                     }});
     }
     private static CFMetaData jdbcCFMD(String ksName, String cfName, AbstractType comp)

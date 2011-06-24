@@ -33,10 +33,10 @@ import org.antlr.runtime.tree.Tree;
 import org.apache.cassandra.auth.SimpleAuthenticator;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
-import org.apache.cassandra.db.CompactionManagerMBean;
+import org.apache.cassandra.db.compaction.CompactionInfo;
+import org.apache.cassandra.db.compaction.CompactionManagerMBean;
+import org.apache.cassandra.db.compaction.CompactionType;
 import org.apache.cassandra.db.marshal.*;
-import org.apache.cassandra.io.CompactionInfo;
-import org.apache.cassandra.io.CompactionType;
 import org.apache.cassandra.locator.SimpleSnitch;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.thrift.*;
@@ -103,7 +103,8 @@ public class CliClient
      */
     private enum AddKeyspaceArgument {
         PLACEMENT_STRATEGY,
-        STRATEGY_OPTIONS
+        STRATEGY_OPTIONS,
+        DURABLE_WRITES
     }
 
     /*
@@ -263,6 +264,7 @@ public class CliClient
                     break;
                 case CliParser.NODE_CONSISTENCY_LEVEL:
                     executeConsistencyLevelStatement(tree);
+                    break;
                 case CliParser.NODE_THRIFT_INCR:
                     executeIncr(tree, 1L);
                     break;
@@ -504,7 +506,7 @@ public class CliClient
         {
             try
             {
-                return FBUtilities.getComparator(compareWith);
+                return TypeParser.parse(compareWith);
             }
             catch (ConfigurationException ce)
             {
@@ -1088,6 +1090,9 @@ public class CliClient
             case STRATEGY_OPTIONS:
                 ksDef.setStrategy_options(getStrategyOptionsFromTree(statement.getChild(i + 1)));
                 break;
+            case DURABLE_WRITES:
+                ksDef.setDurable_writes(Boolean.parseBoolean(mValue));
+                break;
             default:
                 //must match one of the above or we'd throw an exception at the valueOf statement above.
                 assert(false);
@@ -1639,6 +1644,8 @@ public class CliClient
             ks_def = metadata == null ? thriftClient.describe_keyspace(keySpaceName) : metadata;
             sessionState.out.println("  Replication Strategy: " + ks_def.strategy_class);
 
+            sessionState.out.println("  Durable Writes: " + ks_def.durable_writes);
+
             Map<String, String> options = ks_def.strategy_options;
             sessionState.out.println("    Options: [" + ((options == null) ? "" : FBUtilities.toString(options)) + "]");
 
@@ -2069,17 +2076,6 @@ public class CliClient
         }
 
         return getBytesAccordingToType(superColumn, getFormatType(comparatorClass));
-    }
-
-    /**
-     * Converts column name into byte[] according to comparator type
-     * @param superColumn - sub-column name from parser
-     * @param columnFamily - column family name from parser
-     * @return bytes[] - into which column name was converted according to comparator type
-     */
-    private byte[] subColumnNameAsByteArray(String superColumn, String columnFamily)
-    {
-        return TBaseHelper.byteBufferToByteArray(subColumnNameAsBytes(superColumn, columnFamily));
     }
 
     /**

@@ -200,6 +200,12 @@ class ArrivalWindow
     private double tLast_ = 0L;
     private BoundedStatsDeque arrivalIntervals_;
 
+    // this is useless except to provide backwards compatibility in phi_convict_threshold,
+    // because everyone seems pretty accustomed to the default of 8, and users who have
+    // already tuned their phi_convict_threshold for their own environments won't need to
+    // change.
+    private final double PHI_FACTOR = 1.0 / Math.log(10.0);
+
     ArrivalWindow(int size)
     {
         arrivalIntervals_ = new BoundedStatsDeque(size);
@@ -249,26 +255,16 @@ class ArrivalWindow
     {
         arrivalIntervals_.clear();
     }
-    
-    double p(double t)
+
+    // see CASSANDRA-2597 for an explanation of the math at work here.
+    synchronized double phi(long tnow)
     {
-        double mean = mean();
-        double exponent = (-1)*(t)/mean;
-        return Math.pow(Math.E, exponent);
-    }
-    
-    double phi(long tnow)
-    {            
         int size = arrivalIntervals_.size();
-        double log = 0d;
-        if ( size > 0 )
-        {
-            double t = tnow - tLast_;                
-            double probability = p(t);       
-            log = (-1) * Math.log10( probability );                                 
-        }
-        return log;           
-    } 
+        double t = tnow - tLast_;
+        return (size > 0)
+               ? PHI_FACTOR * t / mean()
+               : 0.0;
+    }
     
     public String toString()
     {

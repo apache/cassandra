@@ -20,8 +20,8 @@ package org.apache.cassandra.db;
 
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
+import java.io.IOError;
 import java.io.IOException;
-import java.util.concurrent.ExecutionException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,12 +30,6 @@ import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 
-/**
- * Handles the TRUNCATE verb
- *
- * @author rantav@gmail.com
- *
- */
 public class TruncateVerbHandler implements IVerbHandler
 {
     private static Logger logger = LoggerFactory.getLogger(TruncateVerbHandler.class);
@@ -52,25 +46,13 @@ public class TruncateVerbHandler implements IVerbHandler
 
             try
             {
-                Table.open(t.keyspace).truncate(t.columnFamily);
+                ColumnFamilyStore cfs = Table.open(t.keyspace).getColumnFamilyStore(t.columnFamily);
+                cfs.truncate().get();
             }
-            catch (IOException e)
+            catch (Exception e)
             {
                 logger.error("Error in truncation", e);
                 respondError(t, message);
-                throw e;
-            }
-            catch (InterruptedException e)
-            {
-                logger.error("Error in truncation", e);
-                respondError(t, message);
-                throw e;
-            }
-            catch (ExecutionException e)
-            {
-                logger.error("Error in truncation", e);
-                respondError(t, message);
-                throw e;
             }
             logger.debug("Truncate operation succeeded at this host");
 
@@ -81,18 +63,7 @@ public class TruncateVerbHandler implements IVerbHandler
         }
         catch (IOException e)
         {
-            logger.error("Error in truncation", e);
-            throw new RuntimeException("Error in truncation", e);
-        }
-        catch (InterruptedException e)
-        {
-            logger.error("Error in truncation", e);
-            throw new RuntimeException("Error in truncation", e);
-        }
-        catch (ExecutionException e)
-        {
-            logger.error("Error in truncation", e);
-            throw new RuntimeException("Error in truncation", e);
+            throw new IOError(e);
         }
     }
 

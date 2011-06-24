@@ -36,12 +36,11 @@ import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.commitlog.CommitLog;
-import org.apache.cassandra.db.commitlog.ReplayPosition;
+import org.apache.cassandra.db.compaction.CompactionInfo;
+import org.apache.cassandra.db.compaction.CompactionType;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.dht.LocalToken;
-import org.apache.cassandra.io.CompactionInfo;
-import org.apache.cassandra.io.CompactionType;
 import org.apache.cassandra.io.sstable.ReducingKeyIterator;
 import org.apache.cassandra.io.sstable.SSTableDeletingReference;
 import org.apache.cassandra.io.sstable.SSTableReader;
@@ -56,8 +55,9 @@ public class Table
 {
     public static final String SYSTEM_TABLE = "system";
 
+    public static final String SNAPSHOT_SUBDIR_NAME = "snapshots";
+
     private static final Logger logger = LoggerFactory.getLogger(Table.class);
-    private static final String SNAPSHOT_SUBDIR_NAME = "snapshots";
 
     /**
      * accesses to CFS.memtable should acquire this for thread safety.
@@ -253,7 +253,7 @@ public class Table
     }
     
     /**
-     * @return A list of open SSTableReaders (TODO: ensure that the caller doesn't modify these).
+     * @return A list of open SSTableReaders
      */
     public List<SSTableReader> getAllSSTables()
     {
@@ -729,23 +729,6 @@ public class Table
             }
         };
         return Iterables.transform(DatabaseDescriptor.getTables(), transformer);
-    }
-
-    /**
-     * Performs a synchronous truncate operation, effectively deleting all data
-     * from the column family cfname
-     * @param cfname
-     * @throws IOException
-     * @throws ExecutionException
-     * @throws InterruptedException
-     */
-    public void truncate(String cfname) throws InterruptedException, ExecutionException, IOException
-    {
-        logger.debug("Truncating...");
-        ColumnFamilyStore cfs = getColumnFamilyStore(cfname);
-        // truncate, blocking
-        cfs.truncate().get();
-        logger.debug("Truncation done.");
     }
 
     @Override

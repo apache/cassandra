@@ -1,26 +1,95 @@
 0.8.1
- * add support for insert, delete in cql BATCH (CASSANDRA-2537)
- * add support for IN to cql SELECT, UPDATE (CASSANDRA-2553)
- * add timestamp support to cql INSERT, UPDATE, and BATCH (CASSANDRA-2555)
+ * CQL:
+   - support for insert, delete in BATCH (CASSANDRA-2537)
+   - support for IN to SELECT, UPDATE (CASSANDRA-2553)
+   - timestamp support for INSERT, UPDATE, and BATCH (CASSANDRA-2555)
+   - TTL support (CASSANDRA-2476)
+   - counter support (CASSANDRA-2473)
+   - ALTER COLUMNFAMILY (CASSANDRA-1709)
+   - DROP INDEX (CASSANDRA-2617)
+   - add SCHEMA/TABLE as aliases for KS/CF (CASSANDRA-2743)
+   - server handles wait-for-schema-agreement (CASSANDRA-2756)
+   - key alias support (CASSANDRA-2480)
  * add support for comparator parameters and a generic ReverseType
    (CASSANDRA-2355)
  * add CompositeType and DynamicCompositeType (CASSANDRA-2231)
- * add CQL TTL support (CASSANDRA-2476)
  * optimize batches containing multiple updates to the same row
    (CASSANDRA-2583)
-
-
-0.8-?
  * adjust hinted handoff page size to avoid OOM with large columns 
    (CASSANDRA-2652)
- * update CQL consistency levels (CASSANDRA-2566)
  * mark BRAF buffer invalid post-flush so we don't re-flush partial
    buffers again, especially on CL writes (CASSANDRA-2660)
  * add DROP INDEX support to CLI (CASSANDRA-2616)
  * don't perform HH to client-mode [storageproxy] nodes (CASSANDRA-2668)
+ * Improve forceDeserialize/getCompactedRow encapsulation (CASSANDRA-2659)
+ * Assert ranges are not overlapping in AB.normalize (CASSANDRA-2641)
+ * Don't write CounterUpdateColumn to disk in tests (CASSANDRA-2650)
+ * Add sstable bulk loading utility (CASSANDRA-1278)
+ * avoid replaying hints to dropped columnfamilies (CASSANDRA-2685)
+ * add placeholders for missing rows in range query pseudo-RR (CASSANDRA-2680)
+ * remove no-op HHOM.renameHints (CASSANDRA-2693)
+ * clone super columns to avoid modifying them during flush (CASSANDRA-2675)
+ * allow writes to bypass the commitlog for certain keyspaces (CASSANDRA-2683)
+ * avoid NPE when bypassing commitlog during memtable flush (CASSANDRA-2781)
+ * close scrub file handles (CASSANDRA-2669)
+ * throttle migration replay (CASSANDRA-2714)
+ * optimize column serializer creation (CASSANDRA-2716)
+ * Added support for making bootstrap retry if nodes flap (CASSANDRA-2644)
+ * Added statusthrift to nodetool to report if thrift server is running
+   (CASSANDRA-2722)
+ * Fixed rows being cached if they do not exist (CASSANDRA-2723)
+ * fix truncate/compaction race (CASSANDRA-2673)
+ * Support passing tableName and cfName to RowCacheProviders (CASSANDRA-2702)
+ * workaround large resultsets causing large allocation retention
+   by nio sockets (CASSANDRA-2654)
+ * restrict repair streaming to specific columnfamilies (CASSANDRA-2280)
+ * fix nodetool ring use with Ec2Snitch (CASSANDRA-2733)
+ * fix inconsistency window during bootstrap (CASSANDRA-833)
+ * fix removing columns and subcolumns that are supressed by a row or
+   supercolumn tombstone during replica resolution (CASSANDRA-2590)
+ * support sstable2json against snapshot sstables (CASSANDRA-2386)
+ * remove active-pull schema requests (CASSANDRA-2715)
+ * avoid marking entire list of sstables as actively being compacted
+   in multithreaded compaction (CASSANDRA-2765)
+ * seek back after deserializing a row to update cache with (CASSANDRA-2752)
+ * avoid skipping rows in scrub for counter column family (CASSANDRA-2759)
+ * fix ConcurrentModificationException in repair when dealing with 0.7 node
+   (CASSANDRA-2767)
+ * use threadsafe collections for StreamInSession (CASSANDRA-2766)
+ * avoid infinite loop when creating merkle tree (CASSANDRA-2758)
+ * avoids unmarking compacting sstable prematurely in cleanup (CASSANDRA-2769)
+ * fix NPE when the commit log is bypassed (CASSANDRA-2718)
+ * don't throw an exception in SS.isRPCServerRunning (CASSANDRA-2721)
+ * make stress.jar executable (CASSANDRA-2744)
+ * add daemon mode to java stress (CASSANDRA-2267)
+ * expose the DC and rack of a node through JMX and nodetool ring (CASSANDRA-2531)
+ * fix cache mbean getSize (CASSANDRA-2781)
+ * Add Date, Float, Double, and Boolean types (CASSANDRA-2530)
+ * Add startup flag to renew counter node id (CASSANDRA-2788)
+ * add jamm agent to cassandra.bat (CASSANDRA-2787)
+ * fix repair hanging if a neighbor has nothing to send (CASSANDRA-2797)
+ * purge tombstone even if row is in only one sstable (CASSANDRA-2801)
+ * Fix wrong purge of deleted cf during compaction (CASSANDRA-2786)
 
 
-0.8.0-rc1 
+0.8.0-final
+ * fix CQL grammar warning and cqlsh regression from CASSANDRA-2622
+ * add ant generate-cql-html target (CASSANDRA-2526)
+ * update CQL consistency levels (CASSANDRA-2566)
+ * debian packaging fixes (CASSANDRA-2481, 2647)
+ * fix UUIDType, IntegerType for direct buffers (CASSANDRA-2682, 2684)
+ * switch to native Thrift for Hadoop map/reduce (CASSANDRA-2667)
+ * fix StackOverflowError when building from eclipse (CASSANDRA-2687)
+ * only provide replication_factor to strategy_options "help" for
+   SimpleStrategy, OldNetworkTopologyStrategy (CASSANDRA-2678, 2713)
+ * fix exception adding validators to non-string columns (CASSANDRA-2696)
+ * avoid instantiating DatabaseDescriptor in JDBC (CASSANDRA-2694)
+ * fix potential stack overflow during compaction (CASSANDRA-2626)
+ * clone super columns to avoid modifying them during flush (CASSANDRA-2675)
+ * reset underlying iterator in EchoedRow constructor (CASSANDRA-2653)
+
+
+0.8.0-rc1
  * faster flushes and compaction from fixing excessively pessimistic 
    rebuffering in BRAF (CASSANDRA-2581)
  * fix returning null column values in the python cql driver (CASSANDRA-2593)
@@ -107,7 +176,9 @@
  * add key type information and alias (CASSANDRA-2311, 2396)
  * cli no longer divides read_repair_chance by 100 (CASSANDRA-2458)
  * made CompactionInfo.getTaskType return an enum (CASSANDRA-2482)
- * add a server-wide cap on measured memtable memory usage (CASSANDRA-2006)
+ * add a server-wide cap on measured memtable memory usage and aggressively
+   flush to keep under that threshold (CASSANDRA-2006)
+ * add unified UUIDType (CASSANDRA-2233)
 
 
 0.7.5
@@ -117,6 +188,9 @@
  * reduce contention on Table.flusherLock (CASSANDRA-1954)
  * try harder to detect failures during streaming, cleaning up temporary
    files more reliably (CASSANDRA-2088)
+
+
+0.6.13
  * shut down server for OOM on a Thrift thread (CASSANDRA-2269)
  * fix tombstone handling in repair and sstable2json (CASSANDRA-2279)
  * preserve version when streaming data from old sstables (CASSANDRA-2283)
