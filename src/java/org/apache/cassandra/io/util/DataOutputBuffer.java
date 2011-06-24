@@ -43,14 +43,6 @@ public final class DataOutputBuffer extends DataOutputStream
     }
 
     /**
-     * @return The valid contents of the buffer, possibly by copying: only safe for one-time-use buffers.
-     */
-    public byte[] asByteArray()
-    {
-        return buffer().asByteArray();
-    }
-    
-    /**
      * Returns the current contents of the buffer. Data is only valid to
      * {@link #getLength()}.
      */
