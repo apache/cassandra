@@ -5,6 +5,8 @@
  * Expose number of threads blocked on submitting memtable to flush
    (CASSANDRA-2817)
  * add ability to return "endpoints" to nodetool (CASSANDRA-2776)
+ * Add support for multiple (comma-delimited) coordinator addresses
+   to ColumnFamilyInputFormat (CASSANDRA-2807)
 
 
 0.8.1

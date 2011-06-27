@@ -214,7 +214,30 @@ public class ColumnFamilyInputFormat extends InputFormat<ByteBuffer, SortedMap<B
 
     private List<TokenRange> getRangeMap(Configuration conf) throws IOException
     {
-        Cassandra.Client client = createConnection(ConfigHelper.getInitialAddress(conf), ConfigHelper.getRpcPort(conf), true);
+        String[] addresses = ConfigHelper.getInitialAddress(conf).split(",");
+        Cassandra.Client client = null;
+        List<IOException> exceptions = new ArrayList<IOException>();
+        for (String address : addresses)
+        {
+            try
+            {
+                client = createConnection(address, ConfigHelper.getRpcPort(conf), true);
+                break;
+            }
+            catch (IOException ioe)
+            {
+                exceptions.add(ioe);
+            }
+        }
+        if (client == null)
+        {
+            logger.error("failed to connect to any initial addresses");
+            for (IOException ioe : exceptions)
+            {
+                logger.error("", ioe);
+            }
+            throw exceptions.get(exceptions.size() - 1);
+        }
 
         List<TokenRange> map;
         try
