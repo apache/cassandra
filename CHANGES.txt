@@ -22,6 +22,7 @@
    (CASSANDRA-2766, CASSANDRA-2792)
  * Expose number of threads blocked on submitting memtable to flush
    (CASSANDRA-2817)
+ * Fix potential NPE during read repair (CASSANDRA-2823)
 
 
 0.7.6

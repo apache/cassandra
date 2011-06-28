@@ -117,7 +117,9 @@ public class RangeSliceResponseResolver implements IResponseResolver<Iterable<Ro
                         }
                     }
                 }
-                RowRepairResolver.maybeScheduleRepairs(resolved, table, key, versions, versionSources);
+                // resolved can be null even if versions doesn't have all nulls because of the call to removeDeleted in resolveSuperSet
+                if (resolved != null)
+                    RowRepairResolver.maybeScheduleRepairs(resolved, table, key, versions, versionSources);
                 versions.clear();
                 versionSources.clear();
                 return new Row(key, resolved);
