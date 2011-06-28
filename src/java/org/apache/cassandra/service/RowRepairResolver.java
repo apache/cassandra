@@ -79,7 +79,9 @@ public class RowRepairResolver extends AbstractRowResolver
             resolved = resolveSuperset(versions);
             if (logger.isDebugEnabled())
                 logger.debug("versions merged");
-            maybeScheduleRepairs(resolved, table, key, versions, endpoints);
+            // resolved can be null even if versions doesn't have all nulls because of the call to removeDeleted in resolveSuperSet
+            if (resolved != null)
+                maybeScheduleRepairs(resolved, table, key, versions, endpoints);
         }
         else
         {

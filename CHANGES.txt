@@ -16,6 +16,8 @@
  * Expose number of threads blocked on submitting memtable to flush
    (CASSANDRA-2817)
  * add ability to return "endpoints" to nodetool (CASSANDRA-2776)
+ * fix potential NPE while scheduling read repair for range slice
+   (CASSANDRA-2823)
 
 
 0.8.1
