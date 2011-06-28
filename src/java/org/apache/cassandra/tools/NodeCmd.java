@@ -445,6 +445,7 @@ public class NodeCmd
                 outs.println("\t\tSSTable count: " + cfstore.getLiveSSTableCount());
                 outs.println("\t\tSpace used (live): " + cfstore.getLiveDiskSpaceUsed());
                 outs.println("\t\tSpace used (total): " + cfstore.getTotalDiskSpaceUsed());
+                outs.println("\t\tNumber of Keys (estimate): " + cfstore.estimateKeys());				
                 outs.println("\t\tMemtable Columns Count: " + cfstore.getMemtableColumnsCount());
                 outs.println("\t\tMemtable Data Size: " + cfstore.getMemtableDataSize());
                 outs.println("\t\tMemtable Switch Count: " + cfstore.getMemtableSwitchCount());
