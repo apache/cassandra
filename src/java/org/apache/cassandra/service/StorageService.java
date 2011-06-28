@@ -2329,7 +2329,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                     public void run()
                     {
                         // TODO each call to transferRanges re-flushes, this is potentially a lot of waste
-                        StreamOut.transferRanges(newEndpoint, Table.open(table), Arrays.asList(range), callback, OperationType.UNBOOTSTRAP);
+                        StreamOut.transferRanges(newEndpoint, table, Arrays.asList(range), callback, OperationType.UNBOOTSTRAP);
                     }
                 });
             }
