@@ -380,6 +380,8 @@ public class SystemTable
         ColumnFamily cf = table.getColumnFamilyStore(NODE_ID_CF).getColumnFamily(filter);
         if (cf != null)
         {
+            // Even though gc_grace==0 on System table, we can have a race where we get back tombstones (see CASSANDRA-2824)
+            cf = ColumnFamilyStore.removeDeleted(cf, 0);
             assert cf.getColumnCount() <= 1;
             if (cf.getColumnCount() > 0)
                 id = cf.iterator().next().name();

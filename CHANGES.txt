@@ -18,6 +18,7 @@
  * add ability to return "endpoints" to nodetool (CASSANDRA-2776)
  * fix potential NPE while scheduling read repair for range slice
    (CASSANDRA-2823)
+ * Fix race in SystemTable.getCurrentLocalNodeId (CASSANDRA-2824)
 
 
 0.8.1
