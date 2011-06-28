@@ -32,15 +32,14 @@ import java.util.concurrent.TimeUnit;
 import org.apache.cassandra.client.RingCache;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.thrift.*;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.mapreduce.OutputFormat;
 import org.apache.hadoop.mapreduce.RecordWriter;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.thrift.TException;
 import org.apache.thrift.transport.TSocket;
 
-import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
  * The <code>ColumnFamilyRecordWriter</code> maps the output &lt;key, value&gt;
@@ -219,27 +218,33 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<org.apache.cass
     @Override
     public void close(TaskAttemptContext context) throws IOException, InterruptedException
     {
-        close((org.apache.hadoop.mapred.Reporter)null);
+        close();
     }
 
     /** Fills the deprecated RecordWriter interface for streaming. */
     @Deprecated
     public void close(org.apache.hadoop.mapred.Reporter reporter) throws IOException
     {
+        close();
+    }
+
+    private void close() throws IOException
+    {
+        // close all the clients before throwing anything
+        IOException clientException = null;
         for (RangeClient client : clients.values())
-            client.stopNicely();
-        try
         {
-            for (RangeClient client : clients.values())
+            try
             {
-                client.join();
                 client.close();
             }
+            catch (IOException e)
+            {
+                clientException = e;
+            }
         }
-        catch (InterruptedException e)
-        {
-            throw new AssertionError(e);
-        }
+        if (clientException != null)
+            throw clientException;
     }
 
     /**
@@ -255,6 +260,9 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<org.apache.cass
         private final BlockingQueue<Pair<ByteBuffer, Mutation>> queue = new ArrayBlockingQueue<Pair<ByteBuffer,Mutation>>(queueSize);
 
         private volatile boolean run = true;
+        // we want the caller to know if something went wrong, so we record any unrecoverable exception while writing
+        // so we can throw it on the caller's stack when he calls put() again, or if there are no more put calls,
+        // when the client is closed.
         private volatile IOException lastException;
 
         private Cassandra.Client thriftClient;
@@ -291,15 +299,25 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<org.apache.cass
             }
         }
 
-        public void stopNicely() throws IOException
+        public void close() throws IOException
         {
-            if (lastException != null)
-                throw lastException;
+            // stop the run loop.  this will result in closeInternal being called by the time join() finishes.
             run = false;
             interrupt();
+            try
+            {
+                this.join();
+            }
+            catch (InterruptedException e)
+            {
+                throw new AssertionError(e);
+            }
+
+            if (lastException != null)
+                throw lastException;
         }
 
-        public void close()
+        private void closeInternal()
         {
             if (thriftSocket != null)
             {
@@ -356,7 +374,7 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<org.apache.cass
                     }
                     catch (Exception e)
                     {
-                        close();
+                        closeInternal();
                         if (!iter.hasNext())
                         {
                             lastException = new IOException(e);
@@ -373,7 +391,7 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<org.apache.cass
                     }
                     catch (Exception e)
                     {
-                        close();
+                        closeInternal();
                         // TException means something unexpected went wrong to that endpoint, so
                         // we should try again to another.  Other exceptions (auth or invalid request) are fatal.
                         if ((!(e instanceof TException)) || !iter.hasNext())
