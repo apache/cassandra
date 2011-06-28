@@ -165,9 +165,10 @@ public class OutboundTcpConnection extends Thread
             try
             {
                 // zero means 'bind on any available port.'
-                if (DatabaseDescriptor.getEncryptionOptions().internode_encryption == EncryptionOptions.InternodeEncryption.all)
+                EncryptionOptions options = DatabaseDescriptor.getEncryptionOptions();
+                if (options != null && options.internode_encryption == EncryptionOptions.InternodeEncryption.all)
                 {
-                    socket = SSLFactory.getSocket(DatabaseDescriptor.getEncryptionOptions(), endpoint, DatabaseDescriptor.getStoragePort(), FBUtilities.getLocalAddress(), 0);
+                    socket = SSLFactory.getSocket(options, endpoint, DatabaseDescriptor.getStoragePort(), FBUtilities.getLocalAddress(), 0);
                 }
                 else {
                     socket = new Socket(endpoint, DatabaseDescriptor.getStoragePort(), FBUtilities.getLocalAddress(), 0);

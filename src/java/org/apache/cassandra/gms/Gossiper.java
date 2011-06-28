@@ -871,17 +871,13 @@ public class Gossiper implements IFailureDetectionEventListener
      */
     public void addSavedEndpoint(InetAddress ep)
     {
-        EndpointState epState = endpointStateMap.get(ep);
-        if (epState == null)
-        {
-            epState = new EndpointState(new HeartBeatState(0));
-            epState.markDead();
-            epState.setHasToken(true);
-            endpointStateMap.put(ep, epState);
-            unreachableEndpoints.put(ep, System.currentTimeMillis());
-            if (logger.isTraceEnabled())
-                logger.trace("Adding saved endpoint " + ep + " " + epState.getHeartBeatState().getGeneration());
-        }
+        EndpointState epState = new EndpointState(new HeartBeatState(0));
+        epState.markDead();
+        epState.setHasToken(true);
+        endpointStateMap.put(ep, epState);
+        unreachableEndpoints.put(ep, System.currentTimeMillis());
+        if (logger.isTraceEnabled())
+            logger.trace("Adding saved endpoint " + ep + " " + epState.getHeartBeatState().getGeneration());
     }
 
     public void addLocalApplicationState(ApplicationState state, VersionedValue value)

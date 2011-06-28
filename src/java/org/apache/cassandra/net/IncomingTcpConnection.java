@@ -70,25 +70,43 @@ public class IncomingTcpConnection extends Thread
                 // we should buffer
                 input = new DataInputStream(new BufferedInputStream(socket.getInputStream(), 4096));
             version = MessagingService.getBits(header, 15, 8);
-            Gossiper.instance.setVersion(socket.getInetAddress(), version);
+            if (logger.isDebugEnabled())
+                logger.debug("Version for " + socket.getInetAddress() + " is " + version);
         }
         catch (IOException e)
         {
             close();
             throw new IOError(e);
         }
+
+        if (version > MessagingService.version_)
+        {
+            // save the endpoint so gossip will reconnect to it
+            Gossiper.instance.addSavedEndpoint(socket.getInetAddress());
+            logger.info("Received " + (isStream ? "streaming " : "") + "connection from newer protocol version. Ignorning");
+
+            // streaming connections are per-session and have a fixed version.  we can't do anything with a new-version
+            // stream connection, so drop it.
+            if (isStream)
+            {
+                close();
+                return;
+            }
+            // for non-streaming connections, continue to read the messages (and ignore them) until sender
+            // starts sending correct-version messages (which it can do without reconnecting -- version is per-Message)
+        }
+        else
+        {
+            // only set version when <= to us, otherwise it's the responsibility of the other end to mimic us
+            Gossiper.instance.setVersion(socket.getInetAddress(), version);
+        }
+
         while (true)
         {
             try
             {
                 if (isStream)
                 {
-                    if (version > MessagingService.version_)
-                    {
-                        logger.error("Received untranslated stream from newer protcol version. Terminating connection!");
-                        close();
-                        return;
-                    }
                     int size = input.readInt();
                     byte[] headerBytes = new byte[size];
                     input.readFully(headerBytes);
@@ -106,11 +124,8 @@ public class IncomingTcpConnection extends Thread
                         input.readFully(contentBytes, offset, CHUNK_SIZE);
                     input.readFully(contentBytes, size - remainder, remainder);
 
-                    if (version > MessagingService.version_)
-                        logger.info("Received connection from newer protocol version. Ignorning message.");
-                    else
+                    if (version <= MessagingService.version_)
                     {
-                        // todo: need to be aware of message version.
                         DataInputStream dis = new DataInputStream(new ByteArrayInputStream(contentBytes));
                         String id = dis.readUTF();
                         Message message = Message.serializer().deserialize(dis, version);
@@ -120,9 +135,8 @@ public class IncomingTcpConnection extends Thread
                 // prepare to read the next message
                 MessagingService.validateMagic(input.readInt());
                 int header = input.readInt();
-                version = MessagingService.getBits(header, 15, 8);
                 assert isStream == (MessagingService.getBits(header, 3, 1) == 1) : "Connections cannot change type: " + isStream;
-                assert version == MessagingService.getBits(header, 15, 8) : "Protocol version shouldn't change during a session";
+                version = MessagingService.getBits(header, 15, 8);
             }
             catch (EOFException e)
             {

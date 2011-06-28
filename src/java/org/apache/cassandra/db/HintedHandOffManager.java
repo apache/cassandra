@@ -92,7 +92,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
     public static final String HINTS_CF = "HintsColumnFamily";
 
     private static final Logger logger_ = LoggerFactory.getLogger(HintedHandOffManager.class);
-    private static final int PAGE_SIZE = 10000;
+    private static final int PAGE_SIZE = 1024;
     private static final String SEPARATOR = "-";
     private static final int LARGE_NUMBER = 65536; // 64k nodes ought to be enough for anybody.
 

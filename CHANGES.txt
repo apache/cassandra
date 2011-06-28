@@ -16,9 +16,12 @@
  * Expose number of threads blocked on submitting memtable to flush
    (CASSANDRA-2817)
  * add ability to return "endpoints" to nodetool (CASSANDRA-2776)
+ * Add support for multiple (comma-delimited) coordinator addresses
+   to ColumnFamilyInputFormat (CASSANDRA-2807)
  * fix potential NPE while scheduling read repair for range slice
    (CASSANDRA-2823)
  * Fix race in SystemTable.getCurrentLocalNodeId (CASSANDRA-2824)
+ * Correctly set default for replicate_on_write (CASSANDRA-2835)
 
 
 0.8.1
@@ -96,6 +99,8 @@
  * fix repair hanging if a neighbor has nothing to send (CASSANDRA-2797)
  * purge tombstone even if row is in only one sstable (CASSANDRA-2801)
  * Fix wrong purge of deleted cf during compaction (CASSANDRA-2786)
+ * fix race that could result in Hadoop writer failing to throw an
+   exception encountered after close() (CASSANDRA-2755)
 
 
 0.8.0-final
@@ -214,9 +219,6 @@
  * reduce contention on Table.flusherLock (CASSANDRA-1954)
  * try harder to detect failures during streaming, cleaning up temporary
    files more reliably (CASSANDRA-2088)
-
-
-0.6.13
  * shut down server for OOM on a Thrift thread (CASSANDRA-2269)
  * fix tombstone handling in repair and sstable2json (CASSANDRA-2279)
  * preserve version when streaming data from old sstables (CASSANDRA-2283)

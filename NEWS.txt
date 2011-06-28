@@ -7,6 +7,20 @@ Upgrading
       sstableloader tool instead.
 
 
+0.8.2
+=====
+
+Upgrading
+---------
+    - 0.8.0 and 0.8.1 shipped with a bug that was setting the
+      replicate_on_write option for counter column families to false (this
+      option has no effect on non-counter column family). This is an unsafe
+      default and 0.8.2 correct this, the default for replicate_on_write is
+      now true. It is advised to update your counter column family definitions
+      if replicate_on_write was uncorrectly set to false (before or after
+      upgrade).
+
+
 0.8.1
 =====
 

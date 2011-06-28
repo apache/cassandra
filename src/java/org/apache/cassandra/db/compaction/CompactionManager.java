@@ -540,7 +540,7 @@ public class CompactionManager implements CompactionManagerMBean
                             goodRows++;
                         }
                         if (!key.key.equals(currentIndexKey) || dataStart != dataStartFromIndex)
-                            logger.warn("Row scrubbed successfully but index file contains a different key or row size; consider rebuilding the index as described in http://www.mail-archive.com/user@cassandra.apache.org/msg03325.html");
+                            logger.warn("Index file contained a different key or row size; using key from data file");
                     }
                     catch (Throwable th)
                     {
