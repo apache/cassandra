@@ -7,6 +7,7 @@
    (CASSANDRA-2062)
  * Fixed the ability to set compaction strategy in cli using create column family command (CASSANDRA-2778)
  * clean up tmp files after failed compaction (CASSANDRA-2468)
+ * restrict repair streaming to specific columnfamilies (CASSANDRA-2280)
 
 
 0.8.2
@@ -71,7 +72,6 @@
  * fix truncate/compaction race (CASSANDRA-2673)
  * workaround large resultsets causing large allocation retention
    by nio sockets (CASSANDRA-2654)
- * restrict repair streaming to specific columnfamilies (CASSANDRA-2280)
  * fix nodetool ring use with Ec2Snitch (CASSANDRA-2733)
  * fix inconsistency window during bootstrap (CASSANDRA-833)
  * fix removing columns and subcolumns that are supressed by a row or

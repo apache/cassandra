@@ -59,7 +59,7 @@ public final class MessagingService implements MessagingServiceMBean
 {
     public static final int VERSION_07 = 1;
     public static final int VERSION_080 = 2;
-    public static final int version_ = 81;
+    public static final int version_ = 3; // 8 bits, so don't waste versions
 
     //TODO: make this parameter dynamic somehow.  Not sure if config is appropriate.
     private SerializerType serializerType_ = SerializerType.BINARY;
