@@ -66,7 +66,7 @@ public class IndexScanCommand implements MessageProducer
         {
             throw new IOError(e);
         }
-        return new Message(FBUtilities.getLocalAddress(),
+        return new Message(FBUtilities.getBroadcastAddress(),
                            StorageService.Verb.INDEX_SCAN,
                            Arrays.copyOf(dob.getData(), dob.getLength()),
                            version);

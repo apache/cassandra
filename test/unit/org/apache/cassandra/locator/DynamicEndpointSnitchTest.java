@@ -38,7 +38,7 @@ public class DynamicEndpointSnitchTest
         StorageService.instance.initClient();
         int sleeptime = 150;
         DynamicEndpointSnitch dsnitch = new DynamicEndpointSnitch(new SimpleSnitch());
-        InetAddress self = FBUtilities.getLocalAddress();
+        InetAddress self = FBUtilities.getBroadcastAddress();
         ArrayList<InetAddress> order = new ArrayList<InetAddress>();
         InetAddress host1 = InetAddress.getByName("127.0.0.1");
         InetAddress host2 = InetAddress.getByName("127.0.0.2");

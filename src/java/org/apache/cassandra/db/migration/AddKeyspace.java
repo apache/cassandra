@@ -38,7 +38,7 @@ public class AddKeyspace extends Migration
     
     public AddKeyspace(KSMetaData ksm) throws ConfigurationException, IOException
     {
-        super(UUIDGen.makeType1UUIDFromHost(FBUtilities.getLocalAddress()), DatabaseDescriptor.getDefsVersion());
+        super(UUIDGen.makeType1UUIDFromHost(FBUtilities.getBroadcastAddress()), DatabaseDescriptor.getDefsVersion());
         
         if (DatabaseDescriptor.getTableDefinition(ksm.name) != null)
             throw new ConfigurationException("Keyspace already exists.");

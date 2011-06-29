@@ -131,7 +131,7 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
 
     public void sortByProximity(final InetAddress address, List<InetAddress> addresses)
     {
-        assert address.equals(FBUtilities.getLocalAddress()); // we only know about ourself
+        assert address.equals(FBUtilities.getBroadcastAddress()); // we only know about ourself
         if (BADNESS_THRESHOLD == 0)
         {
             sortByProximityWithScore(address, addresses);

@@ -63,6 +63,7 @@ public class Config
     
     public Integer storage_port = 7000;
     public String listen_address;
+    public String broadcast_address;
     
     public String rpc_address;
     public Integer rpc_port = 9160;

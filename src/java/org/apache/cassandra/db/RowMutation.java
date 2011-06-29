@@ -222,7 +222,7 @@ public class RowMutation implements IMutation, MessageProducer
 
     public Message makeRowMutationMessage(StorageService.Verb verb, int version) throws IOException
     {
-        return new Message(FBUtilities.getLocalAddress(), verb, getSerializedBuffer(version), version);
+        return new Message(FBUtilities.getBroadcastAddress(), verb, getSerializedBuffer(version), version);
     }
 
     public synchronized byte[] getSerializedBuffer(int version) throws IOException

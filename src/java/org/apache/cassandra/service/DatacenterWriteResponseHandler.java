@@ -48,7 +48,7 @@ public class DatacenterWriteResponseHandler extends WriteResponseHandler
     private static final String localdc;
     static
     {
-        localdc = snitch.getDatacenter(FBUtilities.getLocalAddress());
+        localdc = snitch.getDatacenter(FBUtilities.getBroadcastAddress());
     }
 
     protected DatacenterWriteResponseHandler(Collection<InetAddress> writeEndpoints, Multimap<InetAddress, InetAddress> hintedEndpoints, ConsistencyLevel consistencyLevel, String table)

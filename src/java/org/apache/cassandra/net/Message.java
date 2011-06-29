@@ -111,7 +111,7 @@ public class Message
 
     public Message getInternalReply(byte[] body, int version)
     {
-        Header header = new Header(FBUtilities.getLocalAddress(), StorageService.Verb.INTERNAL_RESPONSE);
+        Header header = new Header(FBUtilities.getBroadcastAddress(), StorageService.Verb.INTERNAL_RESPONSE);
         return new Message(header, body, version);
     }
 

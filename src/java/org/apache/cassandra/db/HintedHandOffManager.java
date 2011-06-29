@@ -282,7 +282,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         waited = 0;
         // then wait for the correct schema version.
         while (!gossiper.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.SCHEMA).value.equals(
-                gossiper.getEndpointStateForEndpoint(FBUtilities.getLocalAddress()).getApplicationState(ApplicationState.SCHEMA).value))
+                gossiper.getEndpointStateForEndpoint(FBUtilities.getBroadcastAddress()).getApplicationState(ApplicationState.SCHEMA).value))
         {
             Thread.sleep(1000);
             waited += 1000;

@@ -106,7 +106,7 @@ class StreamRequestMessage implements MessageProducer
         {
             throw new IOError(e);
         }
-        return new Message(FBUtilities.getLocalAddress(), StorageService.Verb.STREAM_REQUEST, bos.toByteArray(), version);
+        return new Message(FBUtilities.getBroadcastAddress(), StorageService.Verb.STREAM_REQUEST, bos.toByteArray(), version);
     }
 
     public String toString()

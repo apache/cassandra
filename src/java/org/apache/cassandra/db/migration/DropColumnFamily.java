@@ -44,7 +44,7 @@ public class DropColumnFamily extends Migration
     
     public DropColumnFamily(String tableName, String cfName) throws ConfigurationException, IOException
     {
-        super(UUIDGen.makeType1UUIDFromHost(FBUtilities.getLocalAddress()), DatabaseDescriptor.getDefsVersion());
+        super(UUIDGen.makeType1UUIDFromHost(FBUtilities.getBroadcastAddress()), DatabaseDescriptor.getDefsVersion());
         this.tableName = tableName;
         this.cfName = cfName;
         

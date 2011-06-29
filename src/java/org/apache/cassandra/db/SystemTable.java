@@ -407,7 +407,7 @@ public class SystemTable
     public static void writeCurrentLocalNodeId(NodeId oldNodeId, NodeId newNodeId)
     {
         long now = System.currentTimeMillis();
-        ByteBuffer ip = ByteBuffer.wrap(FBUtilities.getLocalAddress().getAddress());
+        ByteBuffer ip = ByteBuffer.wrap(FBUtilities.getBroadcastAddress().getAddress());
 
         ColumnFamily cf = ColumnFamily.create(Table.SYSTEM_TABLE, NODE_ID_CF);
         cf.addColumn(new Column(newNodeId.bytes(), ip, now));

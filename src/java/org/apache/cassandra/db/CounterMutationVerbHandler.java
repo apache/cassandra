@@ -51,7 +51,7 @@ public class CounterMutationVerbHandler implements IVerbHandler
             if (logger.isDebugEnabled())
               logger.debug("Applying forwarded " + cm);
 
-            String localDataCenter = DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getLocalAddress());
+            String localDataCenter = DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getBroadcastAddress());
             StorageProxy.applyCounterMutationOnLeader(cm, localDataCenter).get();
             WriteResponse response = new WriteResponse(cm.getTable(), cm.key(), true);
             Message responseMessage = WriteResponse.makeWriteResponseMessage(message, response);

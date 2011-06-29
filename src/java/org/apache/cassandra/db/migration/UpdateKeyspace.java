@@ -40,7 +40,7 @@ public class UpdateKeyspace extends Migration
     /** create migration based on thrift parameters */
     public UpdateKeyspace(KSMetaData ksm) throws ConfigurationException, IOException
     {
-        super(UUIDGen.makeType1UUIDFromHost(FBUtilities.getLocalAddress()), DatabaseDescriptor.getDefsVersion());
+        super(UUIDGen.makeType1UUIDFromHost(FBUtilities.getBroadcastAddress()), DatabaseDescriptor.getDefsVersion());
         
         assert ksm != null;
         assert ksm.cfMetaData() != null;

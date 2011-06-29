@@ -91,7 +91,7 @@ public class RangeSliceCommand implements MessageProducer, IReadCommand
     {
         DataOutputBuffer dob = new DataOutputBuffer();
         serializer.serialize(this, dob, version);
-        return new Message(FBUtilities.getLocalAddress(),
+        return new Message(FBUtilities.getBroadcastAddress(),
                            StorageService.Verb.RANGE_SLICE,
                            Arrays.copyOf(dob.getData(), dob.getLength()), version);
     }

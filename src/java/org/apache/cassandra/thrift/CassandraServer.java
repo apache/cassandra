@@ -760,7 +760,7 @@ public class CassandraServer implements Cassandra.Iface
             InetAddress address = InetAddress.getByName(endpoint);
             boolean endpointValid = null != Gossiper.instance.getEndpointStateForEndpoint(address);
             String datacenter = DatabaseDescriptor
-                    .getEndpointSnitch().getDatacenter(endpointValid ? address : FBUtilities.getLocalAddress());
+                    .getEndpointSnitch().getDatacenter(endpointValid ? address : FBUtilities.getBroadcastAddress());
             List<InetAddress> addresses = new ArrayList<InetAddress>();
             for(String ep : endpoints)
             {

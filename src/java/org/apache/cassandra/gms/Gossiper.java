@@ -108,9 +108,9 @@ public class Gossiper implements IFailureDetectionEventListener
                 MessagingService.instance().waitUntilListening();
                 
                 /* Update the local heartbeat counter. */
-                endpointStateMap.get(FBUtilities.getLocalAddress()).getHeartBeatState().updateHeartBeat();
+                endpointStateMap.get(FBUtilities.getBroadcastAddress()).getHeartBeatState().updateHeartBeat();
                 if (logger.isTraceEnabled())
-                    logger.trace("My heartbeat is now " + endpointStateMap.get(FBUtilities.getLocalAddress()).getHeartBeatState().getHeartBeatVersion());
+                    logger.trace("My heartbeat is now " + endpointStateMap.get(FBUtilities.getBroadcastAddress()).getHeartBeatState().getHeartBeatVersion());
                 final List<GossipDigest> gDigests = new ArrayList<GossipDigest>();
                 Gossiper.instance.makeRandomGossipDigest(gDigests);
 
@@ -210,8 +210,8 @@ public class Gossiper implements IFailureDetectionEventListener
     public Set<InetAddress> getLiveMembers()
     {
         Set<InetAddress> liveMbrs = new HashSet<InetAddress>(liveEndpoints);
-        if (!liveMbrs.contains(FBUtilities.getLocalAddress()))
-            liveMbrs.add(FBUtilities.getLocalAddress());
+        if (!liveMbrs.contains(FBUtilities.getBroadcastAddress()))
+            liveMbrs.add(FBUtilities.getBroadcastAddress());
         return liveMbrs;
     }
 
@@ -338,7 +338,7 @@ public class Gossiper implements IFailureDetectionEventListener
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream( bos );
         GossipDigestSynMessage.serializer().serialize(gDigestMessage, dos, version);
-        return new Message(FBUtilities.getLocalAddress(), StorageService.Verb.GOSSIP_DIGEST_SYN, bos.toByteArray(), version);
+        return new Message(FBUtilities.getBroadcastAddress(), StorageService.Verb.GOSSIP_DIGEST_SYN, bos.toByteArray(), version);
     }
 
     Message makeGossipDigestAckMessage(GossipDigestAckMessage gDigestAckMessage, int version) throws IOException
@@ -346,7 +346,7 @@ public class Gossiper implements IFailureDetectionEventListener
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(bos);
         GossipDigestAckMessage.serializer().serialize(gDigestAckMessage, dos, version);
-        return new Message(FBUtilities.getLocalAddress(), StorageService.Verb.GOSSIP_DIGEST_ACK, bos.toByteArray(), version);
+        return new Message(FBUtilities.getBroadcastAddress(), StorageService.Verb.GOSSIP_DIGEST_ACK, bos.toByteArray(), version);
     }
 
     Message makeGossipDigestAck2Message(GossipDigestAck2Message gDigestAck2Message, int version) throws IOException
@@ -354,7 +354,7 @@ public class Gossiper implements IFailureDetectionEventListener
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(bos);
         GossipDigestAck2Message.serializer().serialize(gDigestAck2Message, dos, version);
-        return new Message(FBUtilities.getLocalAddress(), StorageService.Verb.GOSSIP_DIGEST_ACK2, bos.toByteArray(), version);
+        return new Message(FBUtilities.getBroadcastAddress(), StorageService.Verb.GOSSIP_DIGEST_ACK2, bos.toByteArray(), version);
     }
 
     /**
@@ -414,7 +414,7 @@ public class Gossiper implements IFailureDetectionEventListener
         int size = seeds.size();
         if ( size > 0 )
         {
-            if ( size == 1 && seeds.contains(FBUtilities.getLocalAddress()) )
+            if ( size == 1 && seeds.contains(FBUtilities.getBroadcastAddress()) )
             {
                 return;
             }
@@ -441,7 +441,7 @@ public class Gossiper implements IFailureDetectionEventListener
         Set<InetAddress> eps = endpointStateMap.keySet();
         for ( InetAddress endpoint : eps )
         {
-            if ( endpoint.equals(FBUtilities.getLocalAddress()) )
+            if ( endpoint.equals(FBUtilities.getBroadcastAddress()) )
                 continue;
 
             FailureDetector.instance.interpret(endpoint);
@@ -655,7 +655,7 @@ public class Gossiper implements IFailureDetectionEventListener
         for (Entry<InetAddress, EndpointState> entry : epStateMap.entrySet())
         {
             InetAddress ep = entry.getKey();
-            if ( ep.equals(FBUtilities.getLocalAddress()))
+            if ( ep.equals(FBUtilities.getBroadcastAddress()))
                 continue;
             if (justRemovedEndpoints.containsKey(ep))
             {
@@ -832,14 +832,14 @@ public class Gossiper implements IFailureDetectionEventListener
         Set<InetAddress> seedHosts = DatabaseDescriptor.getSeeds();
         for (InetAddress seed : seedHosts)
         {
-            if (seed.equals(FBUtilities.getLocalAddress()))
+            if (seed.equals(FBUtilities.getBroadcastAddress()))
                 continue;
             seeds.add(seed);
         }
 
         /* initialize the heartbeat state for this localEndpoint */
         maybeInitializeLocalState(generationNbr);
-        EndpointState localState = endpointStateMap.get(FBUtilities.getLocalAddress());
+        EndpointState localState = endpointStateMap.get(FBUtilities.getBroadcastAddress());
 
         //notify snitches that Gossiper is about to start
         DatabaseDescriptor.getEndpointSnitch().gossiperStarting();
@@ -855,13 +855,13 @@ public class Gossiper implements IFailureDetectionEventListener
     // initialize local HB state if needed.
     public void maybeInitializeLocalState(int generationNbr) 
     {
-        EndpointState localState = endpointStateMap.get(FBUtilities.getLocalAddress());
+        EndpointState localState = endpointStateMap.get(FBUtilities.getBroadcastAddress());
         if ( localState == null )
         {
             HeartBeatState hbState = new HeartBeatState(generationNbr);
             localState = new EndpointState(hbState);
             localState.markAlive();
-            endpointStateMap.put(FBUtilities.getLocalAddress(), localState);
+            endpointStateMap.put(FBUtilities.getBroadcastAddress(), localState);
         }
     }
     
@@ -882,7 +882,7 @@ public class Gossiper implements IFailureDetectionEventListener
 
     public void addLocalApplicationState(ApplicationState state, VersionedValue value)
     {
-        EndpointState epState = endpointStateMap.get(FBUtilities.getLocalAddress());
+        EndpointState epState = endpointStateMap.get(FBUtilities.getBroadcastAddress());
         assert epState != null;
         epState.addApplicationState(state, value);
     }

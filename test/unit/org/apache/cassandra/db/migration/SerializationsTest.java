@@ -50,7 +50,7 @@ public class SerializationsTest extends AbstractSerializationsTester
         {
             String tableName = "Keyspace" + (i + 1);
             KSMetaData ksm = DatabaseDescriptor.getKSMetaData(tableName);
-            UUID uuid = UUIDGen.makeType1UUIDFromHost(FBUtilities.getLocalAddress());
+            UUID uuid = UUIDGen.makeType1UUIDFromHost(FBUtilities.getBroadcastAddress());
             DatabaseDescriptor.clearTableDefinition(ksm, uuid);
             Migration m = new AddKeyspace(ksm);
             ByteBuffer bytes = m.serialize();

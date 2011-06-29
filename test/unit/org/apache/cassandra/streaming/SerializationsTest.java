@@ -146,9 +146,9 @@ public class SerializationsTest extends AbstractSerializationsTester
         for (int i = 0; i < 5; i++)
             ranges.add(new Range(new BytesToken(ByteBufferUtil.bytes(Integer.toString(10*i))), new BytesToken(ByteBufferUtil.bytes(Integer.toString(10*i+5)))));
         List<ColumnFamilyStore> stores = Collections.singletonList(Table.open("Keyspace1").getColumnFamilyStore("Standard1"));
-        StreamRequestMessage msg0 = new StreamRequestMessage(FBUtilities.getLocalAddress(), ranges, "Keyspace1", stores, 123L, OperationType.RESTORE_REPLICA_COUNT);
-        StreamRequestMessage msg1 = new StreamRequestMessage(FBUtilities.getLocalAddress(), makePendingFile(true, 100, OperationType.BOOTSTRAP), 124L);
-        StreamRequestMessage msg2 = new StreamRequestMessage(FBUtilities.getLocalAddress(), makePendingFile(false, 100, OperationType.BOOTSTRAP), 124L);
+        StreamRequestMessage msg0 = new StreamRequestMessage(FBUtilities.getBroadcastAddress(), ranges, "Keyspace1", stores, 123L, OperationType.RESTORE_REPLICA_COUNT);
+        StreamRequestMessage msg1 = new StreamRequestMessage(FBUtilities.getBroadcastAddress(), makePendingFile(true, 100, OperationType.BOOTSTRAP), 124L);
+        StreamRequestMessage msg2 = new StreamRequestMessage(FBUtilities.getBroadcastAddress(), makePendingFile(false, 100, OperationType.BOOTSTRAP), 124L);
 
         DataOutputStream out = getOutput("streaming.StreamRequestMessage.bin");
         StreamRequestMessage.serializer().serialize(msg0, out, getVersion());

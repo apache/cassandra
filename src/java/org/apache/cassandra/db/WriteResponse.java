@@ -49,7 +49,7 @@ public class WriteResponse
     	ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream( bos );
         WriteResponse.serializer().serialize(writeResponseMessage, dos, original.getVersion());
-        return original.getReply(FBUtilities.getLocalAddress(), bos.toByteArray(), original.getVersion());
+        return original.getReply(FBUtilities.getBroadcastAddress(), bos.toByteArray(), original.getVersion());
     }
 
 	private final String table_;

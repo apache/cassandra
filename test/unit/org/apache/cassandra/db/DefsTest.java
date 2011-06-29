@@ -164,7 +164,7 @@ public class DefsTest extends CleanupHelper
     public void saveAndRestore() throws IOException
     {
         // verify dump and reload.
-        UUID first = UUIDGen.makeType1UUIDFromHost(FBUtilities.getLocalAddress());
+        UUID first = UUIDGen.makeType1UUIDFromHost(FBUtilities.getBroadcastAddress());
         DefsTable.dumpToStorage(first);
         List<KSMetaData> defs = new ArrayList<KSMetaData>(DefsTable.loadFromStorage(first));
 
@@ -200,7 +200,7 @@ public class DefsTest extends CleanupHelper
     {
         // do a save. make sure it doesn't mess with the defs version.
         UUID prior = DatabaseDescriptor.getDefsVersion();
-        UUID ver0 = UUIDGen.makeType1UUIDFromHost(FBUtilities.getLocalAddress());
+        UUID ver0 = UUIDGen.makeType1UUIDFromHost(FBUtilities.getBroadcastAddress());
         DefsTable.dumpToStorage(ver0);
         assert DatabaseDescriptor.getDefsVersion().equals(prior);
 

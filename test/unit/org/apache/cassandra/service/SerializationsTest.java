@@ -78,8 +78,8 @@ public class SerializationsTest extends AbstractSerializationsTester
         DataOutputStream out = getOutput("service.TreeResponse.bin");
         AntiEntropyService.TreeResponseVerbHandler.SERIALIZER.serialize(v0, out, getVersion());
         AntiEntropyService.TreeResponseVerbHandler.SERIALIZER.serialize(v1, out, getVersion());
-        Message.serializer().serialize(AntiEntropyService.TreeResponseVerbHandler.makeVerb(FBUtilities.getLocalAddress(), v0), out, getVersion());
-        Message.serializer().serialize(AntiEntropyService.TreeResponseVerbHandler.makeVerb(FBUtilities.getLocalAddress(), v1), out, getVersion());
+        Message.serializer().serialize(AntiEntropyService.TreeResponseVerbHandler.makeVerb(FBUtilities.getBroadcastAddress(), v0), out, getVersion());
+        Message.serializer().serialize(AntiEntropyService.TreeResponseVerbHandler.makeVerb(FBUtilities.getBroadcastAddress(), v1), out, getVersion());
         out.close();
     }
     
@@ -100,6 +100,6 @@ public class SerializationsTest extends AbstractSerializationsTester
     private static class Statics
     {
         private static final AntiEntropyService.CFPair pair = new AntiEntropyService.CFPair("Keyspace1", "Standard1");
-        private static final AntiEntropyService.TreeRequest req = new AntiEntropyService.TreeRequest("sessionId", FBUtilities.getLocalAddress(), FULL_RANGE, pair);
+        private static final AntiEntropyService.TreeRequest req = new AntiEntropyService.TreeRequest("sessionId", FBUtilities.getBroadcastAddress(), FULL_RANGE, pair);
     }
 }

@@ -176,12 +176,12 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
     public Collection<Range> getLocalRanges(String table)
     {
-        return getRangesForEndpoint(table, FBUtilities.getLocalAddress());
+        return getRangesForEndpoint(table, FBUtilities.getBroadcastAddress());
     }
 
     public Range getLocalPrimaryRange()
     {
-        return getPrimaryRangeForEndpoint(FBUtilities.getLocalAddress());
+        return getPrimaryRangeForEndpoint(FBUtilities.getBroadcastAddress());
     }
 
     private Set<InetAddress> replicatingNodes = Collections.synchronizedSet(new HashSet<InetAddress>());
@@ -217,7 +217,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         if (logger_.isDebugEnabled())
             logger_.debug("Setting token to {}", token);
         SystemTable.updateToken(token);
-        tokenMetadata_.updateNormalToken(token, FBUtilities.getLocalAddress());
+        tokenMetadata_.updateNormalToken(token, FBUtilities.getBroadcastAddress());
         Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS, valueFactory.normal(getLocalToken()));
         setMode("Normal", false);
     }
@@ -431,7 +431,6 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         Gossiper.instance.register(this);
         Gossiper.instance.register(migrationManager);
         Gossiper.instance.start(SystemTable.incrementAndGetGeneration()); // needed for node-ring gathering.
-
         MessagingService.instance().listen(FBUtilities.getLocalAddress());
         StorageLoadBalancer.instance.startBroadcasting();
         MigrationManager.passiveAnnounce(DatabaseDescriptor.getDefsVersion());
@@ -440,19 +439,19 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         HintedHandOffManager.instance.registerMBean();
 
         if (DatabaseDescriptor.isAutoBootstrap()
-                && DatabaseDescriptor.getSeeds().contains(FBUtilities.getLocalAddress())
+                && DatabaseDescriptor.getSeeds().contains(FBUtilities.getBroadcastAddress())
                 && !SystemTable.isBootstrapped())
             logger_.info("This node will not auto bootstrap because it is configured to be a seed node.");
 
         Token token;
         if (DatabaseDescriptor.isAutoBootstrap()
-            && !(DatabaseDescriptor.getSeeds().contains(FBUtilities.getLocalAddress()) || SystemTable.isBootstrapped()))
+            && !(DatabaseDescriptor.getSeeds().contains(FBUtilities.getBroadcastAddress()) || SystemTable.isBootstrapped()))
         {
             setMode("Joining: getting load and schema information", true);
             StorageLoadBalancer.instance.waitForLoadInfo();
             if (logger_.isDebugEnabled())
                 logger_.debug("... got load + schema info");
-            if (tokenMetadata_.isMember(FBUtilities.getLocalAddress()))
+            if (tokenMetadata_.isMember(FBUtilities.getBroadcastAddress()))
             {
                 String s = "This node is already a member of the token ring; bootstrap aborted. (If replacing a dead node, remove the old one from the ring first.)";
                 throw new UnsupportedOperationException(s);
@@ -542,7 +541,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             throw new AssertionError(e);
         }
         setMode("Bootstrapping", true);
-        new BootStrapper(FBUtilities.getLocalAddress(), token, tokenMetadata_).bootstrap(); // handles token update
+        new BootStrapper(FBUtilities.getBroadcastAddress(), token, tokenMetadata_).bootstrap(); // handles token update
     }
 
     public boolean isBootstrapMode()
@@ -873,7 +872,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         if (removeEndpoint == null)
             return;
         
-        if (removeEndpoint.equals(FBUtilities.getLocalAddress()))
+        if (removeEndpoint.equals(FBUtilities.getBroadcastAddress()))
         {
             logger_.info("Received removeToken gossip about myself. Is this node a replacement for a removed one?");
             return;
@@ -1026,7 +1025,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      */
     private Multimap<InetAddress, Range> getNewSourceRanges(String table, Set<Range> ranges) 
     {
-        InetAddress myAddress = FBUtilities.getLocalAddress();
+        InetAddress myAddress = FBUtilities.getBroadcastAddress();
         Multimap<Range, InetAddress> rangeAddresses = Table.open(table).getReplicationStrategy().getRangeAddresses(tokenMetadata_);
         Multimap<InetAddress, Range> sourceRanges = HashMultimap.create();
         IFailureDetector failureDetector = FailureDetector.instance;
@@ -1093,7 +1092,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         final Multimap<InetAddress, String> fetchSources = HashMultimap.create();
         Multimap<String, Map.Entry<InetAddress, Collection<Range>>> rangesToFetch = HashMultimap.create();
 
-        final InetAddress myAddress = FBUtilities.getLocalAddress();
+        final InetAddress myAddress = FBUtilities.getBroadcastAddress();
 
         for (String table : DatabaseDescriptor.getNonSystemTables())
         {
@@ -1232,7 +1231,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             map.put(entry.getKey().getHostAddress(), FileUtils.stringifyFileSize(entry.getValue()));
         }
         // gossiper doesn't see its own updates, so we need to special-case the local node
-        map.put(FBUtilities.getLocalAddress().getHostAddress(), getLoadString());
+        map.put(FBUtilities.getBroadcastAddress().getHostAddress(), getLoadString());
         return map;
     }
 
@@ -1313,7 +1312,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
     public int getCurrentGenerationNumber()
     {
-        return Gossiper.instance.getCurrentGenerationNumber(FBUtilities.getLocalAddress());
+        return Gossiper.instance.getCurrentGenerationNumber(FBUtilities.getBroadcastAddress());
     }
 
     public void forceTableCleanup(String tableName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException
@@ -1717,19 +1716,19 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     private void startLeaving()
     {
         Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS, valueFactory.leaving(getLocalToken()));
-        tokenMetadata_.addLeavingEndpoint(FBUtilities.getLocalAddress());
+        tokenMetadata_.addLeavingEndpoint(FBUtilities.getBroadcastAddress());
         calculatePendingRanges();
     }
 
     public void decommission() throws InterruptedException
     {
-        if (!tokenMetadata_.isMember(FBUtilities.getLocalAddress()))
+        if (!tokenMetadata_.isMember(FBUtilities.getBroadcastAddress()))
             throw new UnsupportedOperationException("local node is not a member of the token ring yet");
         if (tokenMetadata_.cloneAfterAllLeft().sortedTokens().size() < 2)
             throw new UnsupportedOperationException("no other normal nodes in the ring; decommission would be pointless");
         for (String table : DatabaseDescriptor.getNonSystemTables())
         {
-            if (tokenMetadata_.getPendingRanges(table, FBUtilities.getLocalAddress()).size() > 0)
+            if (tokenMetadata_.getPendingRanges(table, FBUtilities.getBroadcastAddress()).size() > 0)
                 throw new UnsupportedOperationException("data is currently moving to this node; unable to leave the ring");
         }
 
@@ -1756,7 +1755,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     private void leaveRing()
     {
         SystemTable.setBootstrapped(false);
-        tokenMetadata_.removeEndpoint(FBUtilities.getLocalAddress());
+        tokenMetadata_.removeEndpoint(FBUtilities.getBroadcastAddress());
         calculatePendingRanges();
 
         Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS, valueFactory.left(getLocalToken()));
@@ -1777,7 +1776,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
         for (final String table : DatabaseDescriptor.getNonSystemTables())
         {
-            Multimap<Range, InetAddress> rangesMM = getChangedRangesForLeaving(table, FBUtilities.getLocalAddress());
+            Multimap<Range, InetAddress> rangesMM = getChangedRangesForLeaving(table, FBUtilities.getBroadcastAddress());
 
             if (logger_.isDebugEnabled())
                 logger_.debug("Ranges needing transfer are [" + StringUtils.join(rangesMM.keySet(), ",") + "]");
@@ -1825,7 +1824,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             throw new IOException("target token " + newToken + " is already owned by another node.");
 
         // address of the current node
-        InetAddress localAddress = FBUtilities.getLocalAddress();
+        InetAddress localAddress = FBUtilities.getBroadcastAddress();
         List<String> tablesToProcess = DatabaseDescriptor.getNonSystemTables();
 
         // checking if data is moving to this node
@@ -1988,7 +1987,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      */
     public void removeToken(String tokenString)
     {
-        InetAddress myAddress = FBUtilities.getLocalAddress();
+        InetAddress myAddress = FBUtilities.getBroadcastAddress();
         Token localToken = tokenMetadata_.getToken(myAddress);
         Token token = partitioner.getTokenFactory().fromString(tokenString);
         InetAddress endpoint = tokenMetadata_.getEndpoint(token);

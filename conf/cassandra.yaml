@@ -183,6 +183,10 @@ storage_port: 7000
 # Setting this to 0.0.0.0 is always wrong.
 listen_address: localhost
 
+# Address to broadcast to other Cassandra nodes
+# Leaving this blank will set it to the same value as listen_address
+# broadcast_address: 1.2.3.4
+
 # The address to bind the Thrift RPC service to -- clients connect
 # here. Unlike ListenAddress above, you *can* specify 0.0.0.0 here if
 # you want Thrift to listen on all interfaces.

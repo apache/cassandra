@@ -49,7 +49,7 @@ public class RangeSliceReply
             Row.serializer().serialize(row, dob, originalMessage.getVersion());
         }
         byte[] data = Arrays.copyOf(dob.getData(), dob.getLength());
-        return originalMessage.getReply(FBUtilities.getLocalAddress(), data, originalMessage.getVersion());
+        return originalMessage.getReply(FBUtilities.getBroadcastAddress(), data, originalMessage.getVersion());
     }
 
     @Override

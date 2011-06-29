@@ -291,7 +291,7 @@ public class LazilyCompactedRowTest extends CleanupHelper
 
         ByteBuffer key = ByteBufferUtil.bytes("k");
         RowMutation rm = new RowMutation("Keyspace4", key);
-        ByteBuffer scKey = ByteBuffer.wrap(UUIDGen.decompose(UUIDGen.makeType1UUIDFromHost(FBUtilities.getLocalAddress())));
+        ByteBuffer scKey = ByteBuffer.wrap(UUIDGen.decompose(UUIDGen.makeType1UUIDFromHost(FBUtilities.getBroadcastAddress())));
         rm.add(new QueryPath("Super5", scKey , ByteBufferUtil.bytes("c")), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
         rm.apply();
         cfs.forceBlockingFlush();

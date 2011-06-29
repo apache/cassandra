@@ -72,7 +72,7 @@ public class Truncation implements MessageProducer
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(bos);
         serializer().serialize(this, dos, version);
-        return new Message(FBUtilities.getLocalAddress(), StorageService.Verb.TRUNCATE, bos.toByteArray(), version);
+        return new Message(FBUtilities.getBroadcastAddress(), StorageService.Verb.TRUNCATE, bos.toByteArray(), version);
     }
 
     public String toString()

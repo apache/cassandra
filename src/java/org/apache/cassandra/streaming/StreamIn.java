@@ -67,7 +67,7 @@ public class StreamIn
         if (logger.isDebugEnabled())
             logger.debug("Requesting from {} ranges {}", source, StringUtils.join(ranges, ", "));
         StreamInSession session = StreamInSession.create(source, callback);
-        StreamRequestMessage srm = new StreamRequestMessage(FBUtilities.getLocalAddress(),
+        StreamRequestMessage srm = new StreamRequestMessage(FBUtilities.getBroadcastAddress(),
                                                             ranges,
                                                             tableName,
                                                             columnFamilies,

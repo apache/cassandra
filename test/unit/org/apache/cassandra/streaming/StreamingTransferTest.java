@@ -48,7 +48,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class StreamingTransferTest extends CleanupHelper
 {
-    public static final InetAddress LOCAL = FBUtilities.getLocalAddress();
+    public static final InetAddress LOCAL = FBUtilities.getBroadcastAddress();
 
     @BeforeClass
     public static void setup() throws Exception

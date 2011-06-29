@@ -76,7 +76,7 @@ public class ReadVerbHandler implements IVerbHandler
             byte[] bytes = new byte[readCtx.bufOut_.getLength()];
             System.arraycopy(readCtx.bufOut_.getData(), 0, bytes, 0, bytes.length);
 
-            Message response = message.getReply(FBUtilities.getLocalAddress(), bytes, message.getVersion());
+            Message response = message.getReply(FBUtilities.getBroadcastAddress(), bytes, message.getVersion());
             if (logger_.isDebugEnabled())
               logger_.debug(String.format("Read key %s; sending response to %s@%s",
                                           ByteBufferUtil.bytesToHex(command.key), id, message.getFrom()));

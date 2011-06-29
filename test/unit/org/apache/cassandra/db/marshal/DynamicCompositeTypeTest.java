@@ -53,7 +53,7 @@ public class DynamicCompositeTypeTest extends CleanupHelper
     static
     {
         for (int i = 0; i < UUID_COUNT; ++i)
-            uuids[i] = UUIDGen.makeType1UUIDFromHost(FBUtilities.getLocalAddress());
+            uuids[i] = UUIDGen.makeType1UUIDFromHost(FBUtilities.getBroadcastAddress());
     }
 
     @Test

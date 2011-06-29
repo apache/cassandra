@@ -54,7 +54,7 @@ public class TruncateResponse
     	ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(bos);
         TruncateResponse.serializer().serialize(truncateResponseMessage, dos, original.getVersion());
-        return original.getReply(FBUtilities.getLocalAddress(), bos.toByteArray(), original.getVersion());
+        return original.getReply(FBUtilities.getBroadcastAddress(), bos.toByteArray(), original.getVersion());
     }
 
     public TruncateResponse(String keyspace, String columnFamily, boolean success) {

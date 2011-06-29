@@ -41,7 +41,7 @@ public class DropKeyspace extends Migration
     
     public DropKeyspace(String name) throws ConfigurationException, IOException
     {
-        super(UUIDGen.makeType1UUIDFromHost(FBUtilities.getLocalAddress()), DatabaseDescriptor.getDefsVersion());
+        super(UUIDGen.makeType1UUIDFromHost(FBUtilities.getBroadcastAddress()), DatabaseDescriptor.getDefsVersion());
         this.name = name;
         KSMetaData ksm = DatabaseDescriptor.getTableDefinition(name);
         if (ksm == null)

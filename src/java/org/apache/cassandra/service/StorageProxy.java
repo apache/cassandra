@@ -134,7 +134,7 @@ public class StorageProxy implements StorageProxyMBean
     */
     public static void mutate(List<? extends IMutation> mutations, ConsistencyLevel consistency_level) throws UnavailableException, TimeoutException
     {
-        final String localDataCenter = DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getLocalAddress());
+        final String localDataCenter = DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getBroadcastAddress());
 
         long startTime = System.nanoTime();
         List<IWriteResponseHandler> responseHandlers = new ArrayList<IWriteResponseHandler>();
@@ -235,7 +235,7 @@ public class StorageProxy implements StorageProxyMBean
             if (targets.size() == 1 && targets.iterator().next().equals(destination))
             {
                 // unhinted writes
-                if (destination.equals(FBUtilities.getLocalAddress()))
+                if (destination.equals(FBUtilities.getBroadcastAddress()))
                 {
                     if (insertLocalMessages)
                         insertLocal(rm, responseHandler);
@@ -378,7 +378,7 @@ public class StorageProxy implements StorageProxyMBean
     {
         InetAddress endpoint = findSuitableEndpoint(cm.getTable(), cm.key());
 
-        if (endpoint.equals(FBUtilities.getLocalAddress()))
+        if (endpoint.equals(FBUtilities.getBroadcastAddress()))
         {
             return applyCounterMutationOnCoordinator(cm, localDataCenter);
         }
@@ -405,7 +405,7 @@ public class StorageProxy implements StorageProxyMBean
     private static InetAddress findSuitableEndpoint(String table, ByteBuffer key) throws UnavailableException
     {
         List<InetAddress> endpoints = StorageService.instance.getLiveNaturalEndpoints(table, key);
-        DatabaseDescriptor.getEndpointSnitch().sortByProximity(FBUtilities.getLocalAddress(), endpoints);
+        DatabaseDescriptor.getEndpointSnitch().sortByProximity(FBUtilities.getBroadcastAddress(), endpoints);
         if (endpoints.isEmpty())
             throw new UnavailableException();
         return endpoints.get(0);
@@ -509,7 +509,7 @@ public class StorageProxy implements StorageProxyMBean
             logger.debug("Command/ConsistencyLevel is {}/{}", command, consistency_level);
 
             List<InetAddress> endpoints = StorageService.instance.getLiveNaturalEndpoints(command.table, command.key);
-            DatabaseDescriptor.getEndpointSnitch().sortByProximity(FBUtilities.getLocalAddress(), endpoints);
+            DatabaseDescriptor.getEndpointSnitch().sortByProximity(FBUtilities.getBroadcastAddress(), endpoints);
 
             RowDigestResolver resolver = new RowDigestResolver(command.table, command.key);
             ReadCallback<Row> handler = getReadCallback(resolver, command, consistency_level, endpoints);
@@ -526,7 +526,7 @@ public class StorageProxy implements StorageProxyMBean
             }
 
             InetAddress dataPoint = handler.endpoints.get(0);
-            if (dataPoint.equals(FBUtilities.getLocalAddress()))
+            if (dataPoint.equals(FBUtilities.getBroadcastAddress()))
             {
                 if (logger.isDebugEnabled())
                     logger.debug("reading data locally");
@@ -544,7 +544,7 @@ public class StorageProxy implements StorageProxyMBean
             MessageProducer producer = new CachingMessageProducer(digestCommand);
             for (InetAddress digestPoint : handler.endpoints.subList(1, handler.endpoints.size()))
             {
-                if (digestPoint.equals(FBUtilities.getLocalAddress()))
+                if (digestPoint.equals(FBUtilities.getBroadcastAddress()))
                 {
                     if (logger.isDebugEnabled())
                         logger.debug("reading digest locally");
@@ -639,7 +639,7 @@ public class StorageProxy implements StorageProxyMBean
 
             Table table = Table.open(command.table);
             ReadResponse result = ReadVerbHandler.getResponse(command, command.getRow(table));
-            MessagingService.instance().addLatency(FBUtilities.getLocalAddress(), System.currentTimeMillis() - start);
+            MessagingService.instance().addLatency(FBUtilities.getBroadcastAddress(), System.currentTimeMillis() - start);
             handler.response(result);
         }
     }
@@ -672,9 +672,9 @@ public class StorageProxy implements StorageProxyMBean
             for (AbstractBounds range : ranges)
             {
                 List<InetAddress> liveEndpoints = StorageService.instance.getLiveNaturalEndpoints(command.keyspace, range.right);
-                DatabaseDescriptor.getEndpointSnitch().sortByProximity(FBUtilities.getLocalAddress(), liveEndpoints);
+                DatabaseDescriptor.getEndpointSnitch().sortByProximity(FBUtilities.getBroadcastAddress(), liveEndpoints);
 
-                if (consistency_level == ConsistencyLevel.ONE && !liveEndpoints.isEmpty() && liveEndpoints.get(0).equals(FBUtilities.getLocalAddress()))
+                if (consistency_level == ConsistencyLevel.ONE && !liveEndpoints.isEmpty() && liveEndpoints.get(0).equals(FBUtilities.getBroadcastAddress()))
                 {
                     if (logger.isDebugEnabled())
                         logger.debug("local range slice");
@@ -773,7 +773,7 @@ public class StorageProxy implements StorageProxyMBean
         // an empty message acts as a request to the SchemaCheckVerbHandler.
         for (InetAddress endpoint : liveHosts)
         {
-            Message message = new Message(FBUtilities.getLocalAddress(), 
+            Message message = new Message(FBUtilities.getBroadcastAddress(),
                                           StorageService.Verb.SCHEMA_CHECK, 
                                           ArrayUtils.EMPTY_BYTE_ARRAY, 
                                           Gossiper.instance.getVersion(endpoint));
@@ -953,7 +953,7 @@ public class StorageProxy implements StorageProxyMBean
         for (AbstractBounds range : ranges)
         {
             List<InetAddress> liveEndpoints = StorageService.instance.getLiveNaturalEndpoints(keyspace, range.right);
-            DatabaseDescriptor.getEndpointSnitch().sortByProximity(FBUtilities.getLocalAddress(), liveEndpoints);
+            DatabaseDescriptor.getEndpointSnitch().sortByProximity(FBUtilities.getBroadcastAddress(), liveEndpoints);
 
             // collect replies and resolve according to consistency level
             RangeSliceResponseResolver resolver = new RangeSliceResponseResolver(keyspace, liveEndpoints);

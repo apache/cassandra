@@ -61,6 +61,7 @@ public class FBUtilities
     public static final BigInteger TWO = new BigInteger("2");
 
     private static volatile InetAddress localInetAddress_;
+    private static volatile InetAddress broadcastInetAddress_;
 
     private static final ThreadLocal<MessageDigest> localMD5Digest = new ThreadLocal<MessageDigest>()
     {
@@ -127,6 +128,15 @@ public class FBUtilities
                 throw new RuntimeException(e);
             }
         return localInetAddress_;
+    }
+
+    public static InetAddress getBroadcastAddress()
+    {
+        if (broadcastInetAddress_ == null)
+            broadcastInetAddress_ = DatabaseDescriptor.getBroadcastAddress() == null
+                                ? getLocalAddress()
+                                : DatabaseDescriptor.getBroadcastAddress();
+        return broadcastInetAddress_;
     }
 
     /**

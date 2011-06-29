@@ -170,7 +170,7 @@ public abstract class AbstractReplicationStrategy
         //
         // we do a 2nd pass on targets instead of using temporary storage,
         // to optimize for the common case (everything was alive).
-        InetAddress localAddress = FBUtilities.getLocalAddress();
+        InetAddress localAddress = FBUtilities.getBroadcastAddress();
         for (InetAddress ep : targets)
         {
             if (map.containsKey(ep))

@@ -76,7 +76,7 @@ public abstract class AntiEntropyServiceTestAbstract extends CleanupHelper
 
             init();
 
-            LOCAL = FBUtilities.getLocalAddress();
+            LOCAL = FBUtilities.getBroadcastAddress();
             StorageService.instance.initServer();
             // generate a fake endpoint for which we can spoof receiving/sending trees
             REMOTE = InetAddress.getByName("127.0.0.2");
@@ -180,7 +180,7 @@ public abstract class AntiEntropyServiceTestAbstract extends CleanupHelper
     {
         // generate rf+1 nodes, and ensure that all nodes are returned
         Set<InetAddress> expected = addTokens(1 + Table.open(tablename).getReplicationStrategy().getReplicationFactor());
-        expected.remove(FBUtilities.getLocalAddress());
+        expected.remove(FBUtilities.getBroadcastAddress());
         Collection<Range> ranges = StorageService.instance.getLocalRanges(tablename);
         Set<InetAddress> neighbors = new HashSet<InetAddress>();
         for (Range range : ranges)
@@ -199,11 +199,11 @@ public abstract class AntiEntropyServiceTestAbstract extends CleanupHelper
         addTokens(2 * Table.open(tablename).getReplicationStrategy().getReplicationFactor());
         AbstractReplicationStrategy ars = Table.open(tablename).getReplicationStrategy();
         Set<InetAddress> expected = new HashSet<InetAddress>();
-        for (Range replicaRange : ars.getAddressRanges().get(FBUtilities.getLocalAddress()))
+        for (Range replicaRange : ars.getAddressRanges().get(FBUtilities.getBroadcastAddress()))
         {
             expected.addAll(ars.getRangeAddresses(tmd).get(replicaRange));
         }
-        expected.remove(FBUtilities.getLocalAddress());
+        expected.remove(FBUtilities.getBroadcastAddress());
         Collection<Range> ranges = StorageService.instance.getLocalRanges(tablename);
         Set<InetAddress> neighbors = new HashSet<InetAddress>();
         for (Range range : ranges)

@@ -80,7 +80,7 @@ public class Mx4jTool
 
     private static String getAddress()
     {
-        return System.getProperty("mx4jaddress", FBUtilities.getLocalAddress().getHostAddress());
+        return System.getProperty("mx4jaddress", FBUtilities.getBroadcastAddress().getHostAddress());
     }
 
     private static int getPort()

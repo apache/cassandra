@@ -46,7 +46,7 @@ public class RenameKeyspace extends Migration
     
     public RenameKeyspace(String oldName, String newName) throws ConfigurationException, IOException
     {
-        super(UUIDGen.makeType1UUIDFromHost(FBUtilities.getLocalAddress()), DatabaseDescriptor.getDefsVersion());
+        super(UUIDGen.makeType1UUIDFromHost(FBUtilities.getBroadcastAddress()), DatabaseDescriptor.getDefsVersion());
         this.oldName = oldName;
         this.newName = newName;
         

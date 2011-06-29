@@ -102,7 +102,7 @@ public class NodeId implements Comparable<NodeId>
 
     public static NodeId generate()
     {
-        return new NodeId(ByteBuffer.wrap(UUIDGen.decompose(UUIDGen.makeType1UUIDFromHost(FBUtilities.getLocalAddress()))));
+        return new NodeId(ByteBuffer.wrap(UUIDGen.decompose(UUIDGen.makeType1UUIDFromHost(FBUtilities.getBroadcastAddress()))));
     }
 
     /*

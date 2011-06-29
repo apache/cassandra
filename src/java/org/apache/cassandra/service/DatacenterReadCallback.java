@@ -40,7 +40,7 @@ import org.apache.cassandra.utils.FBUtilities;
 public class DatacenterReadCallback<T> extends ReadCallback<T>
 {
     private static final IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
-    private static final String localdc = snitch.getDatacenter(FBUtilities.getLocalAddress());
+    private static final String localdc = snitch.getDatacenter(FBUtilities.getBroadcastAddress());
 
     public DatacenterReadCallback(IResponseResolver resolver, ConsistencyLevel consistencyLevel, IReadCommand command, List<InetAddress> endpoints)
     {

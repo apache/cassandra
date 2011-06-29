@@ -42,7 +42,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 public class RowIterationTest extends CleanupHelper
 {
     public static final String TABLE1 = "Keyspace2";
-    public static final InetAddress LOCAL = FBUtilities.getLocalAddress();
+    public static final InetAddress LOCAL = FBUtilities.getBroadcastAddress();
 
     @Test
     public void testRowIteration() throws IOException, ExecutionException, InterruptedException

@@ -184,7 +184,7 @@ public class BulkLoader
                 StorageService.instance.initClient();
 
                 Set<InetAddress> hosts = Gossiper.instance.getLiveMembers();
-                hosts.remove(FBUtilities.getLocalAddress());
+                hosts.remove(FBUtilities.getBroadcastAddress());
                 if (hosts.isEmpty())
                     throw new IllegalStateException("Cannot load any sstable, no live member found in the cluster");
 

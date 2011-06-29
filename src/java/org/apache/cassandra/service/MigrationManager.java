@@ -212,7 +212,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
         }
         dout.close();
         byte[] body = bout.toByteArray();
-        return new Message(FBUtilities.getLocalAddress(), StorageService.Verb.DEFINITIONS_UPDATE, body, version);
+        return new Message(FBUtilities.getBroadcastAddress(), StorageService.Verb.DEFINITIONS_UPDATE, body, version);
     }
     
     // other half of this transformation is in MigrationManager.

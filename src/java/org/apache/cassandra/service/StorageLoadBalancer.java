@@ -222,7 +222,7 @@ public class StorageLoadBalancer implements IEndpointStateChangeSubscriber
 
     private double localLoad()
     {
-        Double load = loadInfo2_.get(FBUtilities.getLocalAddress());
+        Double load = loadInfo2_.get(FBUtilities.getBroadcastAddress());
         return load == null ? 0 : load;
     }
 
@@ -277,11 +277,11 @@ public class StorageLoadBalancer implements IEndpointStateChangeSubscriber
 
     private boolean isANeighbour(InetAddress neighbour)
     {
-        InetAddress predecessor = StorageService.instance.getPredecessor(FBUtilities.getLocalAddress());
+        InetAddress predecessor = StorageService.instance.getPredecessor(FBUtilities.getBroadcastAddress());
         if ( predecessor.equals(neighbour) )
             return true;
 
-        InetAddress successor = StorageService.instance.getSuccessor(FBUtilities.getLocalAddress());
+        InetAddress successor = StorageService.instance.getSuccessor(FBUtilities.getBroadcastAddress());
         if ( successor.equals(neighbour) )
             return true;
 

@@ -88,7 +88,7 @@ public class RowMutationVerbHandler implements IVerbHandler
         // remove fwds from message to avoid infinite loop
         message.removeHeader(RowMutation.FORWARD_HEADER);
 
-        int bytesPerInetAddress = FBUtilities.getLocalAddress().getAddress().length;
+        int bytesPerInetAddress = FBUtilities.getBroadcastAddress().getAddress().length;
         assert forwardBytes.length >= bytesPerInetAddress;
         assert forwardBytes.length % bytesPerInetAddress == 0;
 

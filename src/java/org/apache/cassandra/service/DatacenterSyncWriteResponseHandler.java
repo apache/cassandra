@@ -51,7 +51,7 @@ public class DatacenterSyncWriteResponseHandler extends AbstractWriteResponseHan
     private static final String localdc;
     static
     {
-        localdc = snitch.getDatacenter(FBUtilities.getLocalAddress());
+        localdc = snitch.getDatacenter(FBUtilities.getBroadcastAddress());
     }
 
 	private final NetworkTopologyStrategy strategy;

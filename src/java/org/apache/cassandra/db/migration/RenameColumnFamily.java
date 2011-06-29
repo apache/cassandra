@@ -47,7 +47,7 @@ public class RenameColumnFamily extends Migration
     // be called during deserialization of this migration.
     public RenameColumnFamily(String tableName, String oldName, String newName) throws ConfigurationException, IOException
     {
-        super(UUIDGen.makeType1UUIDFromHost(FBUtilities.getLocalAddress()), DatabaseDescriptor.getDefsVersion());
+        super(UUIDGen.makeType1UUIDFromHost(FBUtilities.getBroadcastAddress()), DatabaseDescriptor.getDefsVersion());
         this.tableName = tableName;
         this.oldName = oldName;
         this.newName = newName;
