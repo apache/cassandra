@@ -27,6 +27,8 @@
    exception encountered after close() (CASSANDRA-2755)
  * fix CLI parsing of read_repair_chance (CASSANDRA-2837)
  * fix scan wrongly throwing assertion error (CASSANDRA-2653)
+ * Always use even distribution for merkle tree with RandomPartitionner
+   (CASSANDRA-2841)
 
 
 0.7.6

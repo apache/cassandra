@@ -37,6 +37,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.CompactionManager;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Table;
+import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.FailureDetector;
@@ -297,25 +298,33 @@ public class AntiEntropyService
         
         public void prepare(ColumnFamilyStore cfs)
         {
-            List<DecoratedKey> keys = new ArrayList<DecoratedKey>();
-            for (DecoratedKey sample : cfs.allKeySamples())
-                keys.add(sample);
-
-            if (keys.isEmpty())
+            if (tree.partitioner() instanceof RandomPartitioner)
             {
-                // use an even tree distribution
+                // You can't beat an even tree distribution for md5
                 tree.init();
             }
             else
             {
-                int numkeys = keys.size();
-                Random random = new Random();
-                // sample the column family using random keys from the index 
-                while (true)
+                List<DecoratedKey> keys = new ArrayList<DecoratedKey>();
+                for (DecoratedKey sample : cfs.allKeySamples())
+                    keys.add(sample);
+
+                if (keys.isEmpty())
                 {
-                    DecoratedKey dk = keys.get(random.nextInt(numkeys));
-                    if (!tree.split(dk.token))
-                        break;
+                    // use an even tree distribution
+                    tree.init();
+                }
+                else
+                {
+                    int numkeys = keys.size();
+                    Random random = new Random();
+                    // sample the column family using random keys from the index
+                    while (true)
+                    {
+                        DecoratedKey dk = keys.get(random.nextInt(numkeys));
+                        if (!tree.split(dk.token))
+                            break;
+                    }
                 }
             }
             logger.debug("Prepared AEService tree of size " + tree.size() + " for " + request);
