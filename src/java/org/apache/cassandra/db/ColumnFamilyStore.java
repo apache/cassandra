@@ -1350,6 +1350,16 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return rows;
     }
 
+    private NamesQueryFilter getExtraFilter(IndexClause clause)
+    {
+        SortedSet<ByteBuffer> columns = new TreeSet<ByteBuffer>(getComparator());
+        for (IndexExpression expr : clause.expressions)
+        {
+            columns.add(expr.column_name);
+        }
+        return new NamesQueryFilter(columns);
+    }
+
     public List<Row> scan(IndexClause clause, AbstractBounds range, IFilter dataFilter)
     {
         // Start with the most-restrictive indexed clause, then apply remaining clauses
@@ -1366,50 +1376,33 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         // it needs to be expanded to include those too
         IFilter firstFilter = dataFilter;
         NamesQueryFilter extraFilter = null;
-        if (clause.expressions.size() > 1)
+        if (dataFilter instanceof SliceQueryFilter)
         {
-            if (dataFilter instanceof SliceQueryFilter)
+            // if we have a high chance of getting all the columns in a single index slice, do that.
+            // otherwise, we'll create an extraFilter (lazily) to fetch by name the columns referenced by the additional expressions.
+            if (getMaxRowSize() < DatabaseDescriptor.getColumnIndexSize())
             {
-                // if we have a high chance of getting all the columns in a single index slice, do that.
-                // otherwise, create an extraFilter to fetch by name the columns referenced by the additional expressions.
-                if (getMaxRowSize() < DatabaseDescriptor.getColumnIndexSize())
-                {
-                    logger.debug("Expanding slice filter to entire row to cover additional expressions");
-                    firstFilter = new SliceQueryFilter(ByteBufferUtil.EMPTY_BYTE_BUFFER,
-                                                       ByteBufferUtil.EMPTY_BYTE_BUFFER,
-                                                       ((SliceQueryFilter) dataFilter).reversed,
-                                                       Integer.MAX_VALUE);
-                }
-                else
-                {
-                    logger.debug("adding extraFilter to cover additional expressions");
-                    SortedSet<ByteBuffer> columns = new TreeSet<ByteBuffer>(getComparator());
-                    for (IndexExpression expr : clause.expressions)
-                    {
-                        if (expr == primary)
-                            continue;
-                        columns.add(expr.column_name);
-                    }
-                    extraFilter = new NamesQueryFilter(columns);
-                }
+                logger.debug("Expanding slice filter to entire row to cover additional expressions");
+                firstFilter = new SliceQueryFilter(ByteBufferUtil.EMPTY_BYTE_BUFFER,
+                        ByteBufferUtil.EMPTY_BYTE_BUFFER,
+                        ((SliceQueryFilter) dataFilter).reversed,
+                        Integer.MAX_VALUE);
             }
-            else
+        }
+        else
+        {
+            logger.debug("adding columns to firstFilter to cover additional expressions");
+            // just add in columns that are not part of the resultset
+            assert dataFilter instanceof NamesQueryFilter;
+            SortedSet<ByteBuffer> columns = new TreeSet<ByteBuffer>(getComparator());
+            for (IndexExpression expr : clause.expressions)
             {
-                logger.debug("adding columns to firstFilter to cover additional expressions");
-                // just add in columns that are not part of the resultset
-                assert dataFilter instanceof NamesQueryFilter;
-                SortedSet<ByteBuffer> columns = new TreeSet<ByteBuffer>(getComparator());
-                for (IndexExpression expr : clause.expressions)
-                {
-                    if (expr == primary || ((NamesQueryFilter) dataFilter).columns.contains(expr.column_name))
-                        continue;
-                    columns.add(expr.column_name);
-                }
-                if (columns.size() > 0)
-                {
-                    columns.addAll(((NamesQueryFilter) dataFilter).columns);
-                    firstFilter = new NamesQueryFilter(columns);
-                }
+                columns.add(expr.column_name);
+            }
+            if (columns.size() > 0)
+            {
+                columns.addAll(((NamesQueryFilter) dataFilter).columns);
+                firstFilter = new NamesQueryFilter(columns);
             }
         }
 
@@ -1464,18 +1457,23 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
                 // get the row columns requested, and additional columns for the expressions if necessary
                 ColumnFamily data = getColumnFamily(new QueryFilter(dk, path, firstFilter));
-                assert data != null : String.format("No data found for %s in %s:%s (original filter %s) from expression %s",
-                                                    firstFilter, dk, path, dataFilter, expressionString(primary));
+                // While we the column family we'll get in the end should contains the primary clause column, the firstFilter may not have found it.
+                if (data == null)
+                    data = ColumnFamily.create(metadata);
                 logger.debug("fetched data row {}", data);
-                if (extraFilter != null)
+                if (dataFilter instanceof SliceQueryFilter)
                 {
                     // we might have gotten the expression columns in with the main data slice, but
                     // we can't know for sure until that slice is done.  So, we'll do the extra query
                     // if we go through and any expression columns are not present.
                     for (IndexExpression expr : clause.expressions)
                     {
-                        if (expr != primary && data.getColumn(expr.column_name) == null)
+                        if (data.getColumn(expr.column_name) == null)
                         {
+                            logger.debug("adding extraFilter to cover additional expressions");
+                            // Lazily creating extra filter
+                            if (extraFilter == null)
+                                extraFilter = getExtraFilter(clause);
                             data.addAll(getColumnFamily(new QueryFilter(dk, path, extraFilter)));
                             break;
                         }
@@ -1539,11 +1537,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     private static boolean satisfies(ColumnFamily data, IndexClause clause, IndexExpression first)
     {
+        // We enforces even the primary clause because reads are not synchronized with writes and it is thus possible to have a race
+        // where the index returned a row which doesn't have the primarycolumn when we actually read it
         for (IndexExpression expression : clause.expressions)
         {
-            // (we can skip "first" since we already know it's satisfied)
-            if (expression == first)
-                continue;
             // check column data vs expression
             IColumn column = data.getColumn(expression.column_name);
             if (column == null)
