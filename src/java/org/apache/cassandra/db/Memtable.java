@@ -236,7 +236,10 @@ public class Memtable
                 ColumnFamily cf = entry.getValue();
                 if (cf.isMarkedForDelete())
                 {
-                    // don't bother persisting data shadowed by a row tombstone
+                    // Pedantically, you could purge column level tombstones that are past GcGRace when writing to the SSTable.
+                    // But it can result in unexpected behaviour where deletes never make it to disk,
+                    // as they are lost and so cannot override existing column values. So we only remove deleted columns if there
+                    // is a CF level tombstone to ensure the delete makes it into an SSTable.
                     ColumnFamilyStore.removeDeletedColumnsOnly(cf, Integer.MIN_VALUE);
                 }
                 writer.append(entry.getKey(), cf);
