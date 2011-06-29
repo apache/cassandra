@@ -86,6 +86,8 @@
  * fix race that could result in Hadoop writer failing to throw an
    exception encountered after close() (CASSANDRA-2755)
  * fix scan wrongly throwing assertion error (CASSANDRA-2653)
+ * Always use even distribution for merkle tree with RandomPartitionner
+   (CASSANDRA-2841)
 
 
 0.8.0-final

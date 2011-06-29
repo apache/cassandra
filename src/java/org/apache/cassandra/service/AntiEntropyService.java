@@ -41,6 +41,7 @@ import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.io.ICompactSerializer;
@@ -315,28 +316,36 @@ public class AntiEntropyService
 
         public void prepare(ColumnFamilyStore cfs)
         {
-            List<DecoratedKey> keys = new ArrayList<DecoratedKey>();
-            for (DecoratedKey sample : cfs.keySamples(request.range))
+            if (tree.partitioner() instanceof RandomPartitioner)
             {
-                assert request.range.contains(sample.token);
-                keys.add(sample);
-            }
-
-            if (keys.isEmpty())
-            {
-                // use an even tree distribution
+                // You can't beat an even tree distribution for md5
                 tree.init();
             }
             else
             {
-                int numkeys = keys.size();
-                Random random = new Random();
-                // sample the column family using random keys from the index 
-                while (true)
+                List<DecoratedKey> keys = new ArrayList<DecoratedKey>();
+                for (DecoratedKey sample : cfs.keySamples(request.range))
                 {
-                    DecoratedKey dk = keys.get(random.nextInt(numkeys));
-                    if (!tree.split(dk.token))
-                        break;
+                    assert request.range.contains(sample.token);
+                    keys.add(sample);
+                }
+
+                if (keys.isEmpty())
+                {
+                    // use an even tree distribution
+                    tree.init();
+                }
+                else
+                {
+                    int numkeys = keys.size();
+                    Random random = new Random();
+                    // sample the column family using random keys from the index
+                    while (true)
+                    {
+                        DecoratedKey dk = keys.get(random.nextInt(numkeys));
+                        if (!tree.split(dk.token))
+                            break;
+                    }
                 }
             }
             logger.debug("Prepared AEService tree of size " + tree.size() + " for " + request);
