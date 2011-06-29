@@ -26,6 +26,7 @@
  * fix race that could result in Hadoop writer failing to throw an
    exception encountered after close() (CASSANDRA-2755)
  * fix CLI parsing of read_repair_chance (CASSANDRA-2837)
+ * fix scan wrongly throwing assertion error (CASSANDRA-2653)
 
 
 0.7.6
