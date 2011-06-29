@@ -197,7 +197,7 @@ public class ColumnFamilyInputFormat extends InputFormat<ByteBuffer, SortedMap<B
         throw new IOException("failed connecting to all endpoints " + StringUtils.join(range.endpoints, ","));
     }
 
-    static Cassandra.Client createConnection(String host, Integer port, boolean framed) throws IOException
+    private static Cassandra.Client createConnection(String host, Integer port, boolean framed) throws IOException
     {
         TSocket socket = new TSocket(host, port);
         TTransport trans = framed ? new TFramedTransport(socket) : socket;

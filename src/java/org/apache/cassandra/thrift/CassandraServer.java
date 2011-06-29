@@ -33,8 +33,6 @@ import java.util.zip.Inflater;
 
 import com.google.common.base.Predicates;
 import com.google.common.collect.Maps;
-import java.net.InetAddress;
-import java.net.UnknownHostException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -50,15 +48,12 @@ import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.db.migration.*;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.dht.*;
-import org.apache.cassandra.gms.FailureDetector;
-import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.*;
 import org.apache.cassandra.scheduler.IRequestScheduler;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.thrift.TException;
 
 public class CassandraServer implements Cassandra.Iface
@@ -749,45 +744,6 @@ public class CassandraServer implements Cassandra.Iface
             splits.add(tf.toString(token));
         }
         return splits;
-    }
-
-    public List<String> sort_endpoints_by_proximity(String endpoint, List<String> endpoints, boolean restrictToSameDC)
-            throws TException, InvalidRequestException
-    {
-        try
-        {
-            List<String> results = new ArrayList<String>();
-            InetAddress address = InetAddress.getByName(endpoint);
-            boolean endpointValid = null != Gossiper.instance.getEndpointStateForEndpoint(address);
-            String datacenter = DatabaseDescriptor
-                    .getEndpointSnitch().getDatacenter(endpointValid ? address : FBUtilities.getLocalAddress());
-            List<InetAddress> addresses = new ArrayList<InetAddress>();
-            for(String ep : endpoints)
-            {
-                addresses.add(InetAddress.getByName(ep));
-            }
-            IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
-            
-            //Only use the dynamic snitch when endpoint is a cassandra node
-            if (!endpointValid && snitch instanceof DynamicEndpointSnitch)
-                snitch = ((DynamicEndpointSnitch)snitch).subsnitch;
-            
-            snitch.sortByProximity(address, addresses);
-            for(InetAddress ep : addresses)
-            {
-                String dc = DatabaseDescriptor.getEndpointSnitch().getDatacenter(ep);
-                if(FailureDetector.instance.isAlive(ep) && (!restrictToSameDC || datacenter.equals(dc)))
-                {
-                    results.add(ep.getHostName());
-                }
-            }
-                        
-            return results;
-        }
-        catch (UnknownHostException e)
-        {
-            throw new InvalidRequestException(e.getMessage());
-        }
     }
 
     public void login(AuthenticationRequest auth_request) throws AuthenticationException, AuthorizationException, TException
