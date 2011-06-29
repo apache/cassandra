@@ -85,6 +85,7 @@
  * Fix wrong purge of deleted cf during compaction (CASSANDRA-2786)
  * fix race that could result in Hadoop writer failing to throw an
    exception encountered after close() (CASSANDRA-2755)
+ * fix scan wrongly throwing assertion error (CASSANDRA-2653)
 
 
 0.8.0-final
