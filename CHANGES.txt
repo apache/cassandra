@@ -25,6 +25,7 @@
  * Fix potential NPE during read repair (CASSANDRA-2823)
  * fix race that could result in Hadoop writer failing to throw an
    exception encountered after close() (CASSANDRA-2755)
+ * fix CLI parsing of read_repair_chance (CASSANDRA-2837)
 
 
 0.7.6
