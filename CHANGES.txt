@@ -5,9 +5,11 @@
  * make AbstractBounds.normalize de-overlapp overlapping ranges (CASSANDRA-2641)
  * replace CollatingIterator, ReducingIterator with MergeIterator 
    (CASSANDRA-2062)
- * Fixed the ability to set compaction strategy in cli using create column family command (CASSANDRA-2778)
+ * Fixed the ability to set compaction strategy in cli using create column 
+   family command (CASSANDRA-2778)
  * clean up tmp files after failed compaction (CASSANDRA-2468)
  * restrict repair streaming to specific columnfamilies (CASSANDRA-2280)
+ * don't bother persisting columns shadowed by a row tombstone (CASSANDRA-2589)
 
 
 0.8.2

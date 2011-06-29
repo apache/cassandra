@@ -795,7 +795,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return removeDeletedCF(cf, gcBefore);
     }
 
-    private static void removeDeletedColumnsOnly(ColumnFamily cf, int gcBefore)
+    public static void removeDeletedColumnsOnly(ColumnFamily cf, int gcBefore)
     {
         if (cf.isSuper())
             removeDeletedSuper(cf, gcBefore);

@@ -232,7 +232,15 @@ public class Memtable
             // (we can't clear out the map as-we-go to free up memory,
             //  since the memtable is being used for queries in the "pending flush" category)
             for (Map.Entry<DecoratedKey, ColumnFamily> entry : columnFamilies.entrySet())
-                writer.append(entry.getKey(), entry.getValue());
+            {
+                ColumnFamily cf = entry.getValue();
+                if (cf.isMarkedForDelete())
+                {
+                    // don't bother persisting data shadowed by a row tombstone
+                    ColumnFamilyStore.removeDeletedColumnsOnly(cf, Integer.MIN_VALUE);
+                }
+                writer.append(entry.getKey(), cf);
+            }
 
             ssTable = writer.closeAndOpenReader();
         }
