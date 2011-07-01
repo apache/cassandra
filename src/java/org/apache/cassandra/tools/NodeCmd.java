@@ -354,26 +354,22 @@ public class NodeCmd
             completed += n;
         outs.printf("%-25s%10s%10s%15s%n", "Responses", "n/a", pending, completed);
     }
-   
+
     public void printCompactionStats(PrintStream outs)
     {
         CompactionManagerMBean cm = probe.getCompactionManagerProxy();
+        outs.println("pending tasks: " + cm.getPendingTasks());
+        if (cm.getCompactions().size() > 0)
+            outs.printf("%25s%16s%16s%16s%16s%10s%n", "compaction type", "keyspace", "column family", "bytes compacted", "bytes total", "progress");
         for (CompactionInfo c : cm.getCompactions())
         {
-            outs.println("compaction type: " + c.getTaskType());
-            outs.println("keyspace: " + c.getKeyspace());
-            outs.println("column family: " + c.getColumnFamily());
-            outs.println("bytes compacted: " + c.getBytesComplete());
-            outs.println("bytes total: " + c.getTotalBytes());
             String percentComplete = c.getTotalBytes() == 0
                                    ? "n/a"
-                                   : new DecimalFormat("#.##").format((double) c.getBytesComplete() / c.getTotalBytes() * 100) + "%";
-            outs.println("compaction progress: " + percentComplete);
-            outs.println("-----------------");
+                                   : new DecimalFormat("0.00").format((double) c.getBytesComplete() / c.getTotalBytes() * 100) + "%";
+            outs.printf("%25s%16s%16s%16s%16s%10s%n", c.getTaskType(), c.getKeyspace(), c.getColumnFamily(), c.getBytesComplete(), c.getTotalBytes(), percentComplete);
         }
-        outs.println("pending tasks: " + cm.getPendingTasks());
     }
- 
+
     public void printColumnFamilyStats(PrintStream outs)
     {
         Map <String, List <ColumnFamilyStoreMBean>> cfstoreMap = new HashMap <String, List <ColumnFamilyStoreMBean>>();
