@@ -14,6 +14,7 @@
  * improve nodetool compactionstats formatting (CASSANDRA-2844)
  * fix index-building status display (CASSANDRA-2853)
  * fix CLI perpetuating obsolete KsDef.replication_factor (CASSANDRA-2846)
+ * improve cli treatment of multiline comments (CASSANDRA-2852)
 
 
 0.8.1
