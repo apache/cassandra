@@ -35,9 +35,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.IColumn;
-import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.thrift.*;
+import org.apache.cassandra.thrift.Cassandra;
+import org.apache.cassandra.thrift.InvalidRequestException;
+import org.apache.cassandra.thrift.TokenRange;
+import org.apache.cassandra.thrift.TBinaryProtocol;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.*;
 import org.apache.thrift.TException;
@@ -100,43 +101,11 @@ public class ColumnFamilyInputFormat extends InputFormat<ByteBuffer, SortedMap<B
 
         try
         {
-            KeyRange jobKeyRange = ConfigHelper.getInputKeyRange(conf);
-            IPartitioner partitioner = null;
-            Range jobRange = null;
-            if (jobKeyRange != null)
-            {
-                partitioner = ConfigHelper.getPartitioner(context.getConfiguration());
-                assert partitioner.preservesOrder() : "ConfigHelper.setInputKeyRange(..) can only be used with a order preserving paritioner";
-                jobRange = new Range(partitioner.getToken(jobKeyRange.start_key),
-                                     partitioner.getToken(jobKeyRange.end_key),
-                                     partitioner);
-            }
-
             List<Future<List<InputSplit>>> splitfutures = new ArrayList<Future<List<InputSplit>>>();
             for (TokenRange range : masterRangeNodes)
             {
-                if (jobRange == null)
-                {
                     // for each range, pick a live owner and ask it to compute bite-sized splits
                     splitfutures.add(executor.submit(new SplitCallable(range, conf)));
-                }
-                else
-                {
-                    Range dhtRange = new Range(partitioner.getTokenFactory().fromString(range.start_token),
-                                               partitioner.getTokenFactory().fromString(range.end_token),
-                                               partitioner);
-
-                    if (dhtRange.intersects(jobRange))
-                    {
-                        Set<Range> intersections = dhtRange.intersectionWith(jobRange);
-                        assert intersections.size() == 1 : "wrapping ranges not supported";
-                        Range intersection = intersections.iterator().next();
-                        range.start_token = partitioner.getTokenFactory().toString(intersection.left);
-                        range.end_token = partitioner.getTokenFactory().toString(intersection.right);
-                        // for each range, pick a live owner and ask it to compute bite-sized splits
-                        splitfutures.add(executor.submit(new SplitCallable(range, conf)));
-                    }
-                }
             }
 
             // wait until we have all the results back

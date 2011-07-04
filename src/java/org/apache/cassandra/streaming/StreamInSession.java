@@ -51,7 +51,6 @@ public class StreamInSession
     private final Runnable callback;
     private String table;
     private final Collection<Future<SSTableReader>> buildFutures = new LinkedBlockingQueue<Future<SSTableReader>>();
-    private final List<SSTableReader> readers = new ArrayList<SSTableReader>();
     private PendingFile current;
 
     private StreamInSession(Pair<InetAddress, Long> context, Runnable callback)
@@ -103,21 +102,13 @@ public class StreamInSession
         }
     }
 
-    public void finished(PendingFile remoteFile, PendingFile localFile, SSTableReader reader) throws IOException
+    public void finished(PendingFile remoteFile, PendingFile localFile) throws IOException
     {
         if (logger.isDebugEnabled())
             logger.debug("Finished {}. Sending ack to {}", remoteFile, this);
 
-        if (reader != null)
-        {
-            // SSTR was already built during streaming
-            readers.add(reader);
-        }
-        else
-        {
-            Future<SSTableReader> future = CompactionManager.instance.submitSSTableBuild(localFile.desc, remoteFile.type);
-            buildFutures.add(future);
-        }
+        Future<SSTableReader> future = CompactionManager.instance.submitSSTableBuild(localFile.desc, remoteFile.type);
+        buildFutures.add(future);
 
         files.remove(remoteFile);
         if (remoteFile.equals(current))
@@ -145,7 +136,14 @@ public class StreamInSession
                 try
                 {
                     SSTableReader sstable = future.get();
-                    readers.add(sstable);
+                    assert sstable.getTableName().equals(table);
+                    if (sstable == null)
+                        continue;
+                    ColumnFamilyStore cfs = Table.open(sstable.getTableName()).getColumnFamilyStore(sstable.getColumnFamilyName());
+                    cfs.addSSTable(sstable);
+                    if (!cfstores.containsKey(cfs))
+                        cfstores.put(cfs, new ArrayList<SSTableReader>());
+                    cfstores.get(cfs).add(sstable);
                 }
                 catch (InterruptedException e)
                 {
@@ -155,18 +153,6 @@ public class StreamInSession
                 {
                     throw new RuntimeException(e);
                 }
-            }
-            
-            for (SSTableReader sstable : readers)
-            {
-                assert sstable.getTableName().equals(table);
-                if (sstable == null)
-                    continue;
-                ColumnFamilyStore cfs = Table.open(sstable.getTableName()).getColumnFamilyStore(sstable.getColumnFamilyName());
-                cfs.addSSTable(sstable);
-                if (!cfstores.containsKey(cfs))
-                    cfstores.put(cfs, new ArrayList<SSTableReader>());
-                cfstores.get(cfs).add(sstable);
             }
 
             // build secondary indexes

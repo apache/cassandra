@@ -42,45 +42,27 @@ public class IndexHelper
      * @param in the data input from which the bloom filter should be skipped
      * @throws IOException
      */
-    public static void skipBloomFilter(DataInput in) throws IOException
+    public static void skipBloomFilter(FileDataInput in) throws IOException
     {
         /* size of the bloom filter */
         int size = in.readInt();
         /* skip the serialized bloom filter */
-        if (in instanceof FileDataInput)
-        {
-            FileUtils.skipBytesFully(in, size);
-        }
-        else
-        {
-            // skip bytes
-            byte[] skip = new byte[size];
-            in.readFully(skip);
-        }
+        FileUtils.skipBytesFully(in, size);
     }
 
-    /**
-     * Skip the index
-     * @param in the data input from which the index should be skipped
-     * @throws IOException if an I/O error occurs.
-     */
-    public static void skipIndex(DataInput in) throws IOException
-    {
+	/**
+	 * Skip the index
+	 * @param file the data input from which the index should be skipped
+	 * @throws IOException if an I/O error occurs.
+	 */
+	public static void skipIndex(FileDataInput file) throws IOException
+	{
         /* read only the column index list */
-        int columnIndexSize = in.readInt();
+        int columnIndexSize = file.readInt();
         /* skip the column index data */
-        if (in instanceof FileDataInput)
-        {
-            FileUtils.skipBytesFully(in, columnIndexSize);
-        }
-        else
-        {
-            // skip bytes
-            byte[] skip = new byte[columnIndexSize];
-            in.readFully(skip);
-        }
-    }
-
+        FileUtils.skipBytesFully(file, columnIndexSize);
+	}
+    
     /**
      * Deserialize the index into a structure and return it
      *

@@ -53,20 +53,14 @@ public class PendingFile
     public final List<Pair<Long,Long>> sections;
     public final OperationType type;
     public final long size;
-    public final long estimatedKeys;
     public long progress;
 
     public PendingFile(Descriptor desc, PendingFile pf)
     {
-        this(null, desc, pf.component, pf.sections, pf.type, pf.estimatedKeys);
+        this(null, desc, pf.component, pf.sections, pf.type);
     }
 
     public PendingFile(SSTable sstable, Descriptor desc, String component, List<Pair<Long,Long>> sections, OperationType type)
-    {
-        this(sstable, desc, component, sections, type, 0);
-    }
-    
-    public PendingFile(SSTable sstable, Descriptor desc, String component, List<Pair<Long,Long>> sections, OperationType type, long estimatedKeys)
     {
         this.sstable = sstable;
         this.desc = desc;
@@ -80,8 +74,6 @@ public class PendingFile
             tempSize += section.right - section.left;
         }
         size = tempSize;
-
-        this.estimatedKeys = estimatedKeys;
     }
 
     public String getFilename()
@@ -127,7 +119,6 @@ public class PendingFile
             }
             if (version > MessagingService.VERSION_07)
                 dos.writeUTF(sc.type.name());
-            dos.writeLong(sc.estimatedKeys);
         }
 
         public PendingFile deserialize(DataInputStream dis, int version) throws IOException
@@ -146,8 +137,7 @@ public class PendingFile
             OperationType type = OperationType.RESTORE_REPLICA_COUNT;
             if (version > MessagingService.VERSION_07)
                 type = OperationType.valueOf(dis.readUTF());
-            long estimatedKeys = dis.readLong();
-            return new PendingFile(null, desc, component, sections, type, estimatedKeys);
+            return new PendingFile(null, desc, component, sections, type);
         }
     }
 }
