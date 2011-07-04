@@ -1072,7 +1072,10 @@ public class CliClient
     private KsDef updateKsDefAttributes(Tree statement, KsDef ksDefToUpdate)
     {
         KsDef ksDef = new KsDef(ksDefToUpdate);
-        
+        // server helpfully sets deprecated replication factor when it sends a KsDef back, for older clients.
+        // we need to unset that on the new KsDef we create to avoid being treated as a legacy client in return.
+        ksDef.unsetReplication_factor();
+
         // removing all column definitions - thrift system_update_keyspace method requires that 
         ksDef.setCf_defs(new LinkedList<CfDef>());
         
