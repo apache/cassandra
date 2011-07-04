@@ -631,8 +631,8 @@ public class Table
             return new CompactionInfo(cfs.table.name,
                                       cfs.columnFamily,
                                       CompactionType.INDEX_BUILD,
-                                      iter.getTotalBytes(),
-                                      iter.getBytesRead());
+                                      iter.getBytesRead(),
+                                      iter.getTotalBytes());
         }
 
         public void build()

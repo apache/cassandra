@@ -12,6 +12,7 @@
  * Fix race in SystemTable.getCurrentLocalNodeId (CASSANDRA-2824)
  * Correctly set default for replicate_on_write (CASSANDRA-2835)
  * improve nodetool compactionstats formatting (CASSANDRA-2844)
+ * fix index-building status display (CASSANDRA-2853)
 
 
 0.8.1
