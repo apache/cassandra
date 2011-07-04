@@ -19,6 +19,7 @@
 package org.apache.cassandra.db.compaction;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.concurrent.ExecutionException;
 
@@ -31,6 +32,7 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.SuperColumn;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.io.sstable.SSTableReader;
@@ -184,7 +186,7 @@ public class CompactionsPurgeTest extends CleanupHelper
     }
 
     @Test
-    public void testCompactionPurgeTombstonedRow() throws IOException, ExecutionException, InterruptedException
+    public void testCompactionPurgeCachedRow() throws IOException, ExecutionException, InterruptedException
     {
         CompactionManager.instance.disableAutoCompaction();
 
@@ -229,5 +231,97 @@ public class CompactionsPurgeTest extends CleanupHelper
         assertEquals(10, cf.getColumnCount());
         for (IColumn c : cf)
             assert !c.isMarkedForDelete();
+    }
+
+    @Test
+    public void testCompactionPurgeTombstonedRow() throws IOException, ExecutionException, InterruptedException
+    {
+        CompactionManager.instance.disableAutoCompaction();
+
+        String tableName = "Keyspace1";
+        String cfName = "Standard1";
+        Table table = Table.open(tableName);
+        ColumnFamilyStore cfs = table.getColumnFamilyStore(cfName);
+
+        DecoratedKey key = Util.dk("key3");
+        RowMutation rm;
+
+        // inserts
+        rm = new RowMutation(tableName, key.key);
+        for (int i = 0; i < 10; i++)
+        {
+            rm.add(new QueryPath(cfName, null, ByteBufferUtil.bytes(String.valueOf(i))), ByteBufferUtil.EMPTY_BYTE_BUFFER, i);
+        }
+        rm.apply();
+
+        // deletes row with timestamp such that not all columns are deleted
+        rm = new RowMutation(tableName, key.key);
+        rm.delete(new QueryPath(cfName, null, null), 4);
+        rm.apply();
+
+        // flush and major compact (with tombstone purging)
+        cfs.forceBlockingFlush();
+        Util.compactAll(cfs).get();
+
+        // re-inserts with timestamp lower than delete
+        rm = new RowMutation(tableName, key.key);
+        for (int i = 0; i < 5; i++)
+        {
+            rm.add(new QueryPath(cfName, null, ByteBufferUtil.bytes(String.valueOf(i))), ByteBufferUtil.EMPTY_BYTE_BUFFER, i);
+        }
+        rm.apply();
+
+        // Check that the second insert did went in
+        ColumnFamily cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(key, new QueryPath(cfName)));
+        assertEquals(10, cf.getColumnCount());
+        for (IColumn c : cf)
+            assert !c.isMarkedForDelete();
+    }
+
+    @Test
+    public void testCompactionPurgeTombstonedSuperColumn() throws IOException, ExecutionException, InterruptedException
+    {
+        CompactionManager.instance.disableAutoCompaction();
+
+        String tableName = "Keyspace1";
+        String cfName = "Super5";
+        Table table = Table.open(tableName);
+        ColumnFamilyStore cfs = table.getColumnFamilyStore(cfName);
+
+        DecoratedKey key = Util.dk("key5");
+        RowMutation rm;
+
+        ByteBuffer scName = ByteBufferUtil.bytes("sc");
+
+        // inserts
+        rm = new RowMutation(tableName, key.key);
+        for (int i = 0; i < 10; i++)
+        {
+            rm.add(new QueryPath(cfName, scName, ByteBuffer.wrap(String.valueOf(i).getBytes())), ByteBufferUtil.EMPTY_BYTE_BUFFER, i);
+        }
+        rm.apply();
+
+        // deletes supercolumn with timestamp such that not all columns go
+        rm = new RowMutation(tableName, key.key);
+        rm.delete(new QueryPath(cfName, scName, null), 4);
+        rm.apply();
+
+        // flush and major compact
+        cfs.forceBlockingFlush();
+        Util.compactAll(cfs).get();
+
+        // re-inserts with timestamp lower than delete
+        rm = new RowMutation(tableName, key.key);
+        for (int i = 0; i < 5; i++)
+        {
+            rm.add(new QueryPath(cfName, scName, ByteBuffer.wrap(String.valueOf(i).getBytes())), ByteBufferUtil.EMPTY_BYTE_BUFFER, i);
+        }
+        rm.apply();
+
+        // Check that the second insert did went in
+        ColumnFamily cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(key, new QueryPath(cfName)));
+        SuperColumn sc = (SuperColumn)cf.getColumn(scName);
+        assert sc != null;
+        assertEquals(10, sc.getColumnCount());
     }
 }

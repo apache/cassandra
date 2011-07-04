@@ -190,7 +190,7 @@ public class RowMutation implements IMutation, MessageProducer
         else if (path.columnName == null)
         {
             SuperColumn sc = new SuperColumn(path.superColumnName, columnFamily.getSubComparator());
-            sc.markForDeleteAt(localDeleteTime, timestamp);
+            sc.delete(localDeleteTime, timestamp);
             columnFamily.addColumn(sc);
         }
         else

@@ -54,7 +54,7 @@ public class RowTest extends SchemaLoader
         sc1.addColumn(column("subcolumn", "A", 0));
 
         SuperColumn sc2 = new SuperColumn(ByteBufferUtil.bytes("one"), AsciiType.instance);
-        sc2.markForDeleteAt(0, 0);
+        sc2.delete(0, 0);
 
         SuperColumn scDiff = (SuperColumn)sc1.diff(sc2);
         assertEquals(scDiff.getSubColumns().size(), 0);

@@ -28,8 +28,6 @@ import java.util.Comparator;
 import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentSkipListMap;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -42,7 +40,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 
-public class SuperColumn implements IColumn, IColumnContainer
+public class SuperColumn extends AbstractColumnContainer implements IColumn
 {
     private static NonBlockingHashMap<Comparator, SuperColumnSerializer> serializers = new NonBlockingHashMap<Comparator, SuperColumnSerializer>();
     public static SuperColumnSerializer serializer(AbstractType comparator)
@@ -56,10 +54,7 @@ public class SuperColumn implements IColumn, IColumnContainer
         return serializer;
     }
 
-    private ByteBuffer name_;
-    private ConcurrentSkipListMap<ByteBuffer, IColumn> columns_;
-    private AtomicInteger localDeletionTime = new AtomicInteger(Integer.MIN_VALUE);
-    private AtomicLong markedForDeleteAt = new AtomicLong(Long.MIN_VALUE);
+    private ByteBuffer name;
 
     public SuperColumn(ByteBuffer name, AbstractType comparator)
     {
@@ -68,54 +63,41 @@ public class SuperColumn implements IColumn, IColumnContainer
 
     SuperColumn(ByteBuffer name, ConcurrentSkipListMap<ByteBuffer, IColumn> columns)
     {
+        super(columns);
         assert name != null;
         assert name.remaining() <= IColumn.MAX_NAME_LENGTH;
-        name_ = name;
-        columns_ = columns;
-    }
-
-    public AbstractType getComparator()
-    {
-        return (AbstractType)columns_.comparator();
+        this.name = name;
     }
 
     public SuperColumn cloneMeShallow()
     {
-        SuperColumn sc = new SuperColumn(name_, getComparator());
-        sc.markForDeleteAt(localDeletionTime.get(), markedForDeleteAt.get());
+        SuperColumn sc = new SuperColumn(name, getComparator());
+        // since deletion info is immutable, aliasing it is fine
+        sc.deletionInfo.set(deletionInfo.get());
         return sc;
     }
 
     public IColumn cloneMe()
     {
-        SuperColumn sc = new SuperColumn(name_, new ConcurrentSkipListMap<ByteBuffer, IColumn>(columns_));
-        sc.markForDeleteAt(localDeletionTime.get(), markedForDeleteAt.get());
+        SuperColumn sc = new SuperColumn(name, new ConcurrentSkipListMap<ByteBuffer, IColumn>(columns));
+        // since deletion info is immutable, aliasing it is fine
+        sc.deletionInfo.set(deletionInfo.get());
         return sc;
     }
 
-	public boolean isMarkedForDelete()
-	{
-        return markedForDeleteAt.get() > Long.MIN_VALUE;
-	}
-
     public ByteBuffer name()
     {
-    	return name_;
+        return name;
     }
 
     public Collection<IColumn> getSubColumns()
     {
-    	return columns_.values();
-    }
-
-    public Collection<IColumn> getSortedColumns()
-    {
-        return getSubColumns();
+        return getSortedColumns();
     }
 
     public IColumn getSubColumn(ByteBuffer columnName)
     {
-        IColumn column = columns_.get(columnName);
+        IColumn column = columns.get(columnName);
         assert column == null || column instanceof Column;
         return column;
     }
@@ -143,12 +125,7 @@ public class SuperColumn implements IColumn, IColumnContainer
     	 * We need to keep the way we are calculating the column size in sync with the
     	 * way we are calculating the size for the column family serializer.
     	 */
-      return DBConstants.shortSize_ + name_.remaining() + DBConstants.intSize_ + DBConstants.longSize_ + DBConstants.intSize_ + size();
-    }
-
-    public void remove(ByteBuffer columnName)
-    {
-    	columns_.remove(columnName);
+      return DBConstants.shortSize_ + name.remaining() + DBConstants.intSize_ + DBConstants.longSize_ + DBConstants.intSize_ + size();
     }
 
     public long timestamp()
@@ -159,7 +136,7 @@ public class SuperColumn implements IColumn, IColumnContainer
     public long mostRecentLiveChangeAt()
     {
         long max = Long.MIN_VALUE;
-        for (IColumn column : columns_.values())
+        for (IColumn column : getSubColumns())
         {
             if (!column.isMarkedForDelete() && column.timestamp() > max)
             {
@@ -174,42 +151,24 @@ public class SuperColumn implements IColumn, IColumnContainer
     	throw new UnsupportedOperationException("This operation is not supported for Super Columns.");
     }
 
+    @Override
     public void addColumn(IColumn column)
     {
         assert column instanceof Column : "A super column can only contain simple columns";
-
-        ByteBuffer name = column.name();
-        IColumn oldColumn;
-        while ((oldColumn = columns_.putIfAbsent(name, column)) != null)
-        {
-            IColumn reconciledColumn = column.reconcile(oldColumn);
-            if (columns_.replace(name, oldColumn, reconciledColumn))
-                break;
-
-            // We failed to replace column due to a concurrent update or a concurrent removal. Keep trying.
-            // (Currently, concurrent removal should not happen (only updates), but let us support that anyway.)
-        }
+        super.addColumn((Column)column);
     }
 
     /*
      * Go through each sub column if it exists then as it to resolve itself
      * if the column does not exist then create it.
      */
-    public void putColumn(IColumn column)
+    protected void putColumn(SuperColumn column)
     {
-        assert column instanceof SuperColumn;
-
         for (IColumn subColumn : column.getSubColumns())
         {
         	addColumn(subColumn);
         }
-        FBUtilities.atomicSetMax(localDeletionTime, column.getLocalDeletionTime()); // do this first so we won't have a column that's "deleted" but has no local deletion time
-        FBUtilities.atomicSetMax(markedForDeleteAt, column.getMarkedForDeleteAt());
-    }
-
-    public long getMarkedForDeleteAt()
-    {
-        return markedForDeleteAt.get();
+        delete(column);
     }
 
     public IColumn diff(IColumn columnNew)
@@ -217,7 +176,7 @@ public class SuperColumn implements IColumn, IColumnContainer
     	IColumn columnDiff = new SuperColumn(columnNew.name(), ((SuperColumn)columnNew).getComparator());
         if (columnNew.getMarkedForDeleteAt() > getMarkedForDeleteAt())
         {
-            ((SuperColumn)columnDiff).markForDeleteAt(columnNew.getLocalDeletionTime(), columnNew.getMarkedForDeleteAt());
+            ((SuperColumn)columnDiff).delete(columnNew.getLocalDeletionTime(), columnNew.getMarkedForDeleteAt());
         }
 
         // (don't need to worry about columnNew containing subColumns that are shadowed by
@@ -225,7 +184,7 @@ public class SuperColumn implements IColumn, IColumnContainer
         // takes care of those for us.)
         for (IColumn subColumn : columnNew.getSubColumns())
         {
-        	IColumn columnInternal = columns_.get(subColumn.name());
+        	IColumn columnInternal = columns.get(subColumn.name());
         	if(columnInternal == null )
         	{
         		columnDiff.addColumn(subColumn);
@@ -248,19 +207,19 @@ public class SuperColumn implements IColumn, IColumnContainer
 
     public void updateDigest(MessageDigest digest)
     {
-        assert name_ != null;
-        digest.update(name_.duplicate());
+        assert name != null;
+        digest.update(name.duplicate());
         DataOutputBuffer buffer = new DataOutputBuffer();
         try
         {
-            buffer.writeLong(markedForDeleteAt.get());
+            buffer.writeLong(getMarkedForDeleteAt());
         }
         catch (IOException e)
         {
             throw new RuntimeException(e);
         }
         digest.update(buffer.getData(), 0, buffer.getLength());
-        for (IColumn column : columns_.values())
+        for (IColumn column : getSubColumns())
         {
             column.updateDigest(digest);
         }
@@ -270,14 +229,14 @@ public class SuperColumn implements IColumn, IColumnContainer
     {
     	StringBuilder sb = new StringBuilder();
         sb.append("SuperColumn(");
-    	sb.append(comparator.getString(name_));
+    	sb.append(comparator.getString(name));
 
         if (isMarkedForDelete()) {
             sb.append(" -delete at ").append(getMarkedForDeleteAt()).append("-");
         }
 
         sb.append(" [");
-        sb.append(getComparator().getColumnsString(columns_.values()));
+        sb.append(getComparator().getColumnsString(getSubColumns()));
         sb.append("])");
 
         return sb.toString();
@@ -285,26 +244,14 @@ public class SuperColumn implements IColumn, IColumnContainer
 
     public boolean isLive()
     {
-        return mostRecentLiveChangeAt() > markedForDeleteAt.get();
-    }
-
-    public int getLocalDeletionTime()
-    {
-        return localDeletionTime.get();
-    }
-
-    @Deprecated // TODO this is a hack to set initial value outside constructor
-    public void markForDeleteAt(int localDeleteTime, long timestamp)
-    {
-        this.localDeletionTime.set(localDeleteTime);
-        this.markedForDeleteAt.set(timestamp);
+        return mostRecentLiveChangeAt() > getMarkedForDeleteAt();
     }
 
     public IColumn shallowCopy()
     {
-        SuperColumn sc = new SuperColumn(ByteBufferUtil.clone(name_), this.getComparator());
-        sc.localDeletionTime = localDeletionTime;
-        sc.markedForDeleteAt = markedForDeleteAt;
+        SuperColumn sc = new SuperColumn(ByteBufferUtil.clone(name()), this.getComparator());
+        // since deletion info is immutable, aliasing it is fine
+        sc.deletionInfo.set(deletionInfo.get());
         return sc;
     }
     
@@ -312,11 +259,9 @@ public class SuperColumn implements IColumn, IColumnContainer
     {
         // we don't try to intern supercolumn names, because if we're using Cassandra correctly it's almost
         // certainly just going to pollute our interning map with unique, dynamic values
-        SuperColumn sc = new SuperColumn(ByteBufferUtil.clone(name_), this.getComparator());
-        sc.localDeletionTime = localDeletionTime;
-        sc.markedForDeleteAt = markedForDeleteAt;
-        
-        for(Map.Entry<ByteBuffer, IColumn> c : columns_.entrySet())
+        SuperColumn sc = (SuperColumn)shallowCopy();
+
+        for(Map.Entry<ByteBuffer, IColumn> c : columns.entrySet())
         {
             sc.addColumn(c.getValue().localCopy(cfs));
         }
@@ -414,7 +359,7 @@ class SuperColumnSerializer implements IColumnSerializer
         {
             throw new IOException("Invalid localDeleteTime read: " + localDeleteTime);
         }
-        superColumn.markForDeleteAt(localDeleteTime, markedForDeleteAt);
+        superColumn.delete(localDeleteTime, markedForDeleteAt);
         return superColumn;
     }
 }

@@ -22,16 +22,9 @@ import static org.apache.cassandra.db.DBConstants.*;
 
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
-import java.util.Collection;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.SortedSet;
 import java.util.concurrent.ConcurrentSkipListMap;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -42,10 +35,8 @@ import org.apache.cassandra.io.IColumnSerializer;
 import org.apache.cassandra.io.util.IIterableColumns;
 import org.apache.cassandra.utils.FBUtilities;
 
-public class ColumnFamily implements IColumnContainer, IIterableColumns
+public class ColumnFamily extends AbstractColumnContainer
 {
-    private static Logger logger = LoggerFactory.getLogger(ColumnFamily.class);
-
     /* The column serializer for this Column Family. Create based on config. */
     private static ColumnFamilySerializer serializer = new ColumnFamilySerializer();
     private final CFMetaData cfm;
@@ -71,23 +62,25 @@ public class ColumnFamily implements IColumnContainer, IIterableColumns
     }
 
     private transient IColumnSerializer columnSerializer;
-    final AtomicLong markedForDeleteAt = new AtomicLong(Long.MIN_VALUE);
-    final AtomicInteger localDeletionTime = new AtomicInteger(Integer.MIN_VALUE);
-    private ConcurrentSkipListMap<ByteBuffer, IColumn> columns;
     
     public ColumnFamily(CFMetaData cfm)
     {
+        this(cfm, new ConcurrentSkipListMap<ByteBuffer, IColumn>(cfm.comparator));
+    }
+
+    private ColumnFamily(CFMetaData cfm, ConcurrentSkipListMap<ByteBuffer, IColumn> map)
+    {
+        super(map);
         assert cfm != null;
         this.cfm = cfm;
         columnSerializer = cfm.cfType == ColumnFamilyType.Standard ? Column.serializer() : SuperColumn.serializer(cfm.subcolumnComparator);
-        columns = new ConcurrentSkipListMap<ByteBuffer, IColumn>(cfm.comparator);
      }
     
     public ColumnFamily cloneMeShallow()
     {
         ColumnFamily cf = new ColumnFamily(cfm);
-        cf.markedForDeleteAt.set(markedForDeleteAt.get());
-        cf.localDeletionTime.set(localDeletionTime.get());
+        // since deletion info is immutable, aliasing it is fine
+        cf.deletionInfo.set(deletionInfo.get());
         return cf;
     }
 
@@ -103,8 +96,9 @@ public class ColumnFamily implements IColumnContainer, IIterableColumns
 
     public ColumnFamily cloneMe()
     {
-        ColumnFamily cf = cloneMeShallow();
-        cf.columns = columns.clone();
+        ColumnFamily cf = new ColumnFamily(cfm, columns.clone());
+        // since deletion info is immutable, aliasing it is fine
+        cf.deletionInfo.set(deletionInfo.get());
         return cf;
     }
 
@@ -121,30 +115,9 @@ public class ColumnFamily implements IColumnContainer, IIterableColumns
         return cfm;
     }
 
-    /*
-     *  We need to go through each column
-     *  in the column family and resolve it before adding
-    */
-    public void addAll(ColumnFamily cf)
-    {
-        for (IColumn column : cf.getSortedColumns())
-            addColumn(column);
-        delete(cf);
-    }
-
     public IColumnSerializer getColumnSerializer()
     {
         return columnSerializer;
-    }
-
-    public int getColumnCount()
-    {
-        return columns.size();
-    }
-
-    public boolean isEmpty()
-    {
-        return columns.isEmpty();
     }
 
     public boolean isSuper()
@@ -214,82 +187,6 @@ public class ColumnFamily implements IColumnContainer, IIterableColumns
     }
 
     /*
-     * If we find an old column that has the same name
-     * the ask it to resolve itself else add the new column .
-    */
-    public void addColumn(IColumn column)
-    {
-        ByteBuffer name = column.name();
-        IColumn oldColumn;
-        while ((oldColumn = columns.putIfAbsent(name, column)) != null)
-        {
-            if (oldColumn instanceof SuperColumn)
-            {
-                ((SuperColumn) oldColumn).putColumn(column);
-                break;  // Delegated to SuperColumn
-            }
-            else
-            {
-                // calculate reconciled col from old (existing) col and new col
-                IColumn reconciledColumn = column.reconcile(oldColumn);
-                if (columns.replace(name, oldColumn, reconciledColumn))
-                    break;
-
-                // We failed to replace column due to a concurrent update or a concurrent removal. Keep trying.
-                // (Currently, concurrent removal should not happen (only updates), but let us support that anyway.)
-            }
-        }
-    }
-
-    public IColumn getColumn(ByteBuffer name)
-    {
-        return columns.get(name);
-    }
-
-    public SortedSet<ByteBuffer> getColumnNames()
-    {
-        return columns.keySet();
-    }
-
-    public Collection<IColumn> getSortedColumns()
-    {
-        return columns.values();
-    }
-
-    public Collection<IColumn> getReverseSortedColumns()
-    {
-        return columns.descendingMap().values();
-    }
-
-    public Map<ByteBuffer, IColumn> getColumnsMap()
-    {
-        return columns;
-    }
-
-    public void remove(ByteBuffer columnName)
-    {
-        columns.remove(columnName);
-    }
-
-    @Deprecated // TODO this is a hack to set initial value outside constructor
-    public void delete(int localtime, long timestamp)
-    {
-        localDeletionTime.set(localtime);
-        markedForDeleteAt.set(timestamp);
-    }
-
-    public void delete(ColumnFamily cf2)
-    {
-        FBUtilities.atomicSetMax(localDeletionTime, cf2.getLocalDeletionTime()); // do this first so we won't have a column that's "deleted" but has no local deletion time
-        FBUtilities.atomicSetMax(markedForDeleteAt, cf2.getMarkedForDeleteAt());
-    }
-
-    public boolean isMarkedForDelete()
-    {
-        return markedForDeleteAt.get() > Long.MIN_VALUE;
-    }
-
-    /*
      * This function will calculate the difference between 2 column families.
      * The external input is assumed to be a superset of internal.
      */
@@ -328,11 +225,6 @@ public class ColumnFamily implements IColumnContainer, IIterableColumns
         if (!cfDiff.getColumnsMap().isEmpty() || cfDiff.isMarkedForDelete())
             return cfDiff;
         return null;
-    }
-
-    public AbstractType getComparator()
-    {
-        return (AbstractType)columns.comparator();
     }
 
     int size()
@@ -382,16 +274,6 @@ public class ColumnFamily implements IColumnContainer, IIterableColumns
             column.updateDigest(digest);
     }
 
-    public long getMarkedForDeleteAt()
-    {
-        return markedForDeleteAt.get();
-    }
-
-    public int getLocalDeletionTime()
-    {
-        return localDeletionTime.get();
-    }
-
     public static AbstractType getComparatorFor(String table, String columnFamilyName, ByteBuffer superColumnName)
     {
         return superColumnName == null
@@ -412,16 +294,6 @@ public class ColumnFamily implements IColumnContainer, IIterableColumns
         if (cf == null)
             return;
         addAll(cf);
-    }
-
-    public int getEstimatedColumnCount()
-    {
-        return getColumnCount();
-    }
-
-    public Iterator<IColumn> iterator()
-    {
-        return columns.values().iterator();
     }
 
     public long serializedSize()
@@ -448,5 +320,10 @@ public class ColumnFamily implements IColumnContainer, IIterableColumns
         {
             column.validateFields(metadata);
         }
+    }
+
+    protected void putColumn(SuperColumn sc)
+    {
+        throw new UnsupportedOperationException("Unsupported operation for a column family");
     }
 }

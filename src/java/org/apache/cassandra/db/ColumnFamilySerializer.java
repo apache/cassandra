@@ -97,8 +97,8 @@ public class ColumnFamilySerializer implements ICompactSerializer3<ColumnFamily>
 
     public void serializeCFInfo(ColumnFamily columnFamily, DataOutput dos) throws IOException
     {
-        dos.writeInt(columnFamily.localDeletionTime.get());
-        dos.writeLong(columnFamily.markedForDeleteAt.get());
+        dos.writeInt(columnFamily.getLocalDeletionTime());
+        dos.writeLong(columnFamily.getMarkedForDeleteAt());
     }
 
     public int serializeWithIndexes(ColumnFamily columnFamily, DataOutput dos)

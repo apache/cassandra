@@ -129,10 +129,10 @@ public class QueryFilter
                     // time of the cf, if that is greater.
                     long deletedAt = c.getMarkedForDeleteAt();
                     if (returnCF.getMarkedForDeleteAt() > deletedAt)
-                        ((SuperColumn)c).markForDeleteAt(c.getLocalDeletionTime(), returnCF.getMarkedForDeleteAt());
+                        ((SuperColumn)c).delete(c.getLocalDeletionTime(), returnCF.getMarkedForDeleteAt());
 
                     c = filter.filterSuperColumn((SuperColumn)c, gcBefore);
-                    ((SuperColumn)c).markForDeleteAt(c.getLocalDeletionTime(), deletedAt); // reset sc tombstone time to what it should be
+                    ((SuperColumn)c).delete(c.getLocalDeletionTime(), deletedAt); // reset sc tombstone time to what it should be
                 }
                 curCF.clear();           
 

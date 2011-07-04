@@ -775,6 +775,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         // (we want this to be deterministic to avoid confusion.)
         if (cf.getColumnCount() == 0 && cf.getLocalDeletionTime() <= gcBefore)
             return null;
+
+        // If there is non deleted columns, we still need to reset the column family
+        // deletion times since gc_grace seconds had elapsed
+        cf.maybeResetDeletionTimes(gcBefore);
         return cf;
     }
 
@@ -843,6 +847,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             if (c.getSubColumns().isEmpty() && c.getLocalDeletionTime() <= gcBefore)
             {
                 cf.remove(c.name());
+            }
+            else
+            {
+                // If there is non deleted columns, we still need to reset the column family
+                // deletion times since gc_grace seconds had elapsed
+                c.maybeResetDeletionTimes(gcBefore);
             }
         }
     }

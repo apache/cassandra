@@ -10,6 +10,7 @@
  * clean up tmp files after failed compaction (CASSANDRA-2468)
  * restrict repair streaming to specific columnfamilies (CASSANDRA-2280)
  * don't bother persisting columns shadowed by a row tombstone (CASSANDRA-2589)
+ * reset CF and SC deletion times after gc_grace (CASSANDRA-2317)
 
 
 0.8.2

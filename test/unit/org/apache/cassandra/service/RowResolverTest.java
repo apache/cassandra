@@ -131,7 +131,7 @@ public class RowResolverTest extends SchemaLoader
         // subcolumn is newer than a tombstone on its parent, but not newer than the row deletion
         ColumnFamily scf1 = ColumnFamily.create("Keyspace1", "Super1");
         SuperColumn sc = superColumn(scf1, "super-foo", column("one", "A", 1));
-        sc.markForDeleteAt((int) (System.currentTimeMillis() / 1000), 0);
+        sc.delete((int) (System.currentTimeMillis() / 1000), 0);
         scf1.addColumn(sc);
 
         ColumnFamily scf2 = ColumnFamily.create("Keyspace1", "Super1");
