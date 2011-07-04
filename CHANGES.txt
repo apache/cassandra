@@ -31,6 +31,7 @@
    (CASSANDRA-2841)
  * allow deleting a row and updating indexed columns in it in the
    same mutation (CASSANDRA-2773)
+ * improve cli treatment of multiline comments (CASSANDRA-2852)
 
 
 0.7.6

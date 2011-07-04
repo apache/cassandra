@@ -365,12 +365,26 @@ public class CliMain
         String line = "";
         String currentStatement = "";
 
+        boolean commentedBlock = false;
+
         while ((line = reader.readLine()) != null)
         {
             line = line.trim();
 
             // skipping empty and comment lines
             if (line.isEmpty() || line.startsWith("--"))
+                continue;
+
+            if (line.startsWith("/*"))
+                commentedBlock = true;
+
+            if (line.startsWith("*/") || line.endsWith("*/"))
+            {
+                commentedBlock = false;
+                continue;
+            }
+
+            if (commentedBlock) // skip commented lines
                 continue;
 
             currentStatement += line;
