@@ -57,6 +57,8 @@ import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 public final class MessagingService implements MessagingServiceMBean
 {
+    public static final String MBEAN_NAME = "org.apache.cassandra.net:type=MessagingService";
+
     public static final int VERSION_07 = 1;
     public static final int version_ = 2;
     //TODO: make this parameter dynamic somehow.  Not sure if config is appropriate.
@@ -81,13 +83,33 @@ public final class MessagingService implements MessagingServiceMBean
 
     private SocketThread socketThread;
     private final SimpleCondition listenGate;
+
+    /**
+     * Verbs it's okay to drop if the request has been queued longer than RPC_TIMEOUT.  These
+     * all correspond to client requests or something triggered by them; we don't want to
+     * drop internal messages like bootstrap or repair notifications.
+     */
+    public static final EnumSet<StorageService.Verb> DROPPABLE_VERBS = EnumSet.of(StorageService.Verb.BINARY,
+                                                                                  StorageService.Verb.MUTATION,
+                                                                                  StorageService.Verb.READ_REPAIR,
+                                                                                  StorageService.Verb.READ,
+                                                                                  StorageService.Verb.RANGE_SLICE,
+                                                                                  StorageService.Verb.REQUEST_RESPONSE);
+
+    // total dropped message counts for server lifetime
     private final Map<StorageService.Verb, AtomicInteger> droppedMessages = new EnumMap<StorageService.Verb, AtomicInteger>(StorageService.Verb.class);
+    // dropped count when last requested for the Recent api.  high concurrency isn't necessary here.
+    private final Map<StorageService.Verb, Integer> lastDropped = Collections.synchronizedMap(new EnumMap<StorageService.Verb, Integer>(StorageService.Verb.class));
+
     private final List<ILatencySubscriber> subscribers = new ArrayList<ILatencySubscriber>();
     private static final long DEFAULT_CALLBACK_TIMEOUT = (long) (1.1 * DatabaseDescriptor.getRpcTimeout());
 
     {
-        for (StorageService.Verb verb : StorageService.Verb.values())
+        for (StorageService.Verb verb : DROPPABLE_VERBS)
+        {
             droppedMessages.put(verb, new AtomicInteger());
+            lastDropped.put(verb, 0);
+        }
     }
 
     private static class MSHandle
@@ -127,7 +149,7 @@ public final class MessagingService implements MessagingServiceMBean
         MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
         try
         {
-            mbs.registerMBean(this, new ObjectName("org.apache.cassandra.net:type=MessagingService"));
+            mbs.registerMBean(this, new ObjectName(MBEAN_NAME));
         }
         catch (Exception e)
         {
@@ -546,9 +568,10 @@ public final class MessagingService implements MessagingServiceMBean
         return buffer;
     }
 
-    public int incrementDroppedMessages(StorageService.Verb verb)
+    public void incrementDroppedMessages(StorageService.Verb verb)
     {
-        return droppedMessages.get(verb).incrementAndGet();
+        assert DROPPABLE_VERBS.contains(verb) : "Verb " + verb + " should not legally be dropped";
+        droppedMessages.get(verb).incrementAndGet();
     }
 
     private void logDroppedMessages()
@@ -560,10 +583,9 @@ public final class MessagingService implements MessagingServiceMBean
             if (dropped.get() > 0)
             {
                 logTpstats = true;
-                logger_.warn("Dropped {} {} messages in the last {}ms",
-                             new Object[] {dropped, entry.getKey(), LOG_DROPPED_INTERVAL_IN_MS});
+                logger_.info("{} {} messages dropped in server lifetime",
+                             dropped, entry.getKey());
             }
-            dropped.set(0);
         }
 
         if (logTpstats)
@@ -643,5 +665,27 @@ public final class MessagingService implements MessagingServiceMBean
     public static long getDefaultCallbackTimeout()
     {
         return DEFAULT_CALLBACK_TIMEOUT;
+    }
+
+    public Map<String, Integer> getDroppedMessages()
+    {
+        Map<String, Integer> map = new HashMap<String, Integer>();
+        for (Map.Entry<StorageService.Verb, AtomicInteger> entry : droppedMessages.entrySet())
+            map.put(entry.getKey().toString(), entry.getValue().get());
+        return map;
+    }
+
+    public Map<String, Integer> getRecentlyDroppedMessages()
+    {
+        Map<String, Integer> map = new HashMap<String, Integer>();
+        for (Map.Entry<StorageService.Verb, AtomicInteger> entry : droppedMessages.entrySet())
+        {
+            StorageService.Verb verb = entry.getKey();
+            Integer dropped = entry.getValue().get();
+            Integer recentlyDropped = dropped - lastDropped.get(verb);
+            map.put(verb.toString(), recentlyDropped);
+            lastDropped.put(verb, dropped);
+        }
+        return map;
     }
 }

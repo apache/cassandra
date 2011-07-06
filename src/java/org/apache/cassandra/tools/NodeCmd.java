@@ -31,19 +31,18 @@ import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.ExecutionException;
 
-import org.apache.cassandra.db.compaction.CompactionInfo;
-import org.apache.cassandra.utils.Pair;
-import org.apache.cassandra.config.ConfigurationException;
-
 import org.apache.commons.cli.*;
 
 import org.apache.cassandra.cache.InstrumentingCacheMBean;
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutorMBean;
+import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
+import org.apache.cassandra.db.compaction.CompactionInfo;
 import org.apache.cassandra.db.compaction.CompactionManagerMBean;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.net.MessagingServiceMBean;
 import org.apache.cassandra.utils.EstimatedHistogram;
+import org.apache.cassandra.utils.Pair;
 
 public class NodeCmd
 {
@@ -238,6 +237,10 @@ public class NodeCmd
                         threadPoolProxy.getCurrentlyBlockedTasks(),
                         threadPoolProxy.getTotalBlockedTasks());
         }
+
+        outs.printf("%n%-20s%10s%n", "Message type", "Dropped");
+        for (Entry<String, Integer> entry : probe.getDroppedMessages().entrySet())
+            outs.printf("%-20s%10s%n", entry.getKey(), entry.getValue());
     }
 
     /**
@@ -248,7 +251,7 @@ public class NodeCmd
     public void printInfo(PrintStream outs)
     {
         boolean gossipInitialized = probe.isInitialized();
-        outs.println(probe.getToken());
+        outs.printf("%-17s: %s%n", "Token", probe.getToken());
         outs.printf("%-17s: %s%n", "Gossip active", gossipInitialized);
         outs.printf("%-17s: %s%n", "Load", probe.getLoadString());
         if (gossipInitialized)
@@ -269,6 +272,9 @@ public class NodeCmd
         // Data Center/Rack
         outs.printf("%-17s: %s%n", "Data Center", probe.getDataCenter());
         outs.printf("%-17s: %s%n", "Rack", probe.getRack());
+
+        // Exceptions
+        outs.printf("%-17s: %s%n", "Exceptions", probe.getExceptionCount());
     }
 
     public void printReleaseVersion(PrintStream outs)
@@ -329,7 +335,7 @@ public class NodeCmd
             }
         }
 
-        MessagingServiceMBean ms = probe.getMsProxy();
+        MessagingServiceMBean ms = probe.msProxy;
         outs.printf("%-25s", "Pool Name");
         outs.printf("%10s", "Active");
         outs.printf("%10s", "Pending");

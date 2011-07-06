@@ -291,6 +291,8 @@ public interface StorageServiceMBean
     public void joinRing() throws IOException, org.apache.cassandra.config.ConfigurationException;
     public boolean isJoined();
 
+    public int getExceptionCount();
+
     public void setCompactionThroughputMbPerSec(int value);
 
     public void bulkLoad(String directory);

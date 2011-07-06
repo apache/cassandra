@@ -16,6 +16,8 @@
  * fix CLI perpetuating obsolete KsDef.replication_factor (CASSANDRA-2846)
  * improve cli treatment of multiline comments (CASSANDRA-2852)
  * handle row tombstones correctly in EchoedRow (CASSANDRA-2786)
+ * add MessagingService.get[Recently]DroppedMessages and
+   StorageService.getExceptionCount (CASSANDRA-2804)
 
 
 0.8.1

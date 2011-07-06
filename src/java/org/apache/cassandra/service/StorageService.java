@@ -2472,4 +2472,9 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             throw new RuntimeException(e);
         }
     }
+
+    public int getExceptionCount()
+    {
+        return AbstractCassandraDaemon.exceptions.get();
+    }
 }
