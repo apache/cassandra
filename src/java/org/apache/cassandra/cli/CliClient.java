@@ -287,15 +287,21 @@ public class CliClient
         }
         catch (InvalidRequestException e)
         {
-            throw new RuntimeException(e.getWhy());
+        	RuntimeException rtEx = new RuntimeException(e.getWhy());
+            rtEx.initCause(e);
+            throw rtEx;
         }
         catch (SchemaDisagreementException e)
         {
-            throw new RuntimeException("schema does not match across nodes, (try again later).");
+        	RuntimeException rtEx = new RuntimeException("schema does not match across nodes, (try again later).");
+            rtEx.initCause(e);
+            throw new RuntimeException();
         }
         catch (Exception e)
         {
-            throw new RuntimeException(e.getMessage());
+            RuntimeException rtEx = new RuntimeException(e.getMessage());
+            rtEx.initCause(e);
+            throw rtEx;
         }
     }
 
