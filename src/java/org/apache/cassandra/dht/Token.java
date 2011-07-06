@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 
+import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.io.ICompactSerializer2;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -74,6 +75,8 @@ public abstract class Token<T> implements Comparable<Token<T>>, Serializable
         public abstract Token<T> fromByteArray(ByteBuffer bytes);
         public abstract String toString(Token<T> token); // serialize as string, not necessarily human-readable
         public abstract Token<T> fromString(String string); // deserialize
+
+        public abstract void validate(String token) throws ConfigurationException;
     }
 
     public static class TokenSerializer implements ICompactSerializer2<Token>

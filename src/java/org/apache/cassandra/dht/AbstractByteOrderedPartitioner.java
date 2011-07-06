@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
+import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.commons.lang.ArrayUtils;
 
@@ -149,6 +150,18 @@ public abstract class AbstractByteOrderedPartitioner implements IPartitioner<Byt
         public String toString(Token<byte[]> bytesToken)
         {
             return FBUtilities.bytesToHex(bytesToken.token);
+        }
+
+        public void validate(String token) throws ConfigurationException
+        {
+            try
+            {
+                FBUtilities.hexToBytes(token);
+            }
+            catch (NumberFormatException e)
+            {
+                throw new ConfigurationException("Token " + token + " contains non-hex digits");
+            }
         }
 
         public Token<byte[]> fromString(String string)

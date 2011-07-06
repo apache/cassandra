@@ -24,6 +24,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.util.*;
 
+import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -111,6 +112,18 @@ public class RandomPartitioner implements IPartitioner<BigIntegerToken>
         public String toString(Token<BigInteger> bigIntegerToken)
         {
             return bigIntegerToken.token.toString();
+        }
+
+        public void validate(String token) throws ConfigurationException
+        {
+            try
+            {
+                new BigInteger(token);
+            }
+            catch (NumberFormatException e)
+            {
+                throw new ConfigurationException(e.getMessage());
+            }
         }
 
         public Token<BigInteger> fromString(String string)

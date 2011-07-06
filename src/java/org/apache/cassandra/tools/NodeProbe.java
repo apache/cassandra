@@ -357,7 +357,7 @@ public class NodeProbe
         ssProxy.decommission();
     }
 
-    public void move(String newToken) throws IOException, InterruptedException
+    public void move(String newToken) throws IOException, InterruptedException, ConfigurationException
     {
         ssProxy.move(newToken);
     }
