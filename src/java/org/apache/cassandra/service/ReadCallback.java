@@ -204,7 +204,11 @@ public class ReadCallback<T> implements IAsyncCallback
     public void assureSufficientLiveNodes() throws UnavailableException
     {
         if (endpoints.size() < blockfor)
+        {
+            logger.debug("Live nodes {} do not satisfy ConsistencyLevel ({} required)",
+                         StringUtils.join(endpoints, ", "), blockfor);
             throw new UnavailableException();
+        }
     }
 
     public boolean isLatencyForSnitch()
