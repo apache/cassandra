@@ -77,8 +77,22 @@ public class DatacenterReadCallback<T> extends ReadCallback<T>
             if (localdc.equals(snitch.getDatacenter(endpoint)))
                 localEndpoints++;
         }
-        
-        if(localEndpoints < blockfor)
+
+        if (localEndpoints < blockfor)
+        {
+            if (logger.isDebugEnabled())
+            {
+                StringBuilder builder = new StringBuilder("Local replicas [");
+                for (InetAddress endpoint : endpoints)
+                {
+                    if (localdc.equals(snitch.getDatacenter(endpoint)))
+                        builder.append(endpoint).append(",");
+                }
+                builder.append("] are insufficient to satisfy LOCAL_QUORUM requirement of ").append(blockfor).append(" live nodes");
+                logger.debug(builder.toString());
+            }
+
             throw new UnavailableException();
+        }
     }
 }
