@@ -113,7 +113,7 @@ public class CompactionController
     public AbstractCompactedRow getCompactedRow(List<SSTableIdentityIterator> rows)
     {
         if (rows.size() == 1 && !needDeserialize() && !shouldPurge(rows.get(0).getKey()))
-            return new EchoedRow(rows.get(0));
+            return new EchoedRow(this, rows.get(0));
 
         long rowSize = 0;
         for (SSTableIdentityIterator row : rows)

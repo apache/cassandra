@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -116,16 +117,42 @@ public class CompactionsTest extends CleanupHelper
             if (i % 2 == 0)
                 store.forceBlockingFlush();
         }
+        Collection<SSTableReader> toCompact = store.getSSTables();
 
-        // Force compaction. Since each row is in only one sstable, we will be using EchoedRow.
-        CompactionManager.instance.performMaximal(store);
+        // Reinserting the same keys. We will compact only the previous sstable, but we need those new ones
+        // to make sure we use EchoedRow, otherwise it won't be used because purge can be done.
+        for (int i=1; i < 5; i++)
+        {
+            DecoratedKey key = Util.dk(String.valueOf(i));
+            RowMutation rm = new RowMutation(TABLE1, key.key);
+            rm.add(new QueryPath("Standard2", null, ByteBufferUtil.bytes(String.valueOf(i))), ByteBufferUtil.EMPTY_BYTE_BUFFER, i);
+            rm.apply();
+        }
+        store.forceBlockingFlush();
+        SSTableReader tmpSSTable = null;
+        for (SSTableReader sstable : store.getSSTables())
+            if (!toCompact.contains(sstable))
+                tmpSSTable = sstable;
 
-        // Now assert we do have the two keys
+        // Force compaction on first sstables. Since each row is in only one sstable, we will be using EchoedRow.
+        Util.compact(store, toCompact, false);
+
+        // Now, we remove the sstable that was just created to force the use of EchoedRow (so that it doesn't hide the problem)
+        store.markCompacted(Collections.singleton(tmpSSTable));
+
+        // Now assert we do have the 4 keys
         assertEquals(4, Util.getRangeSlice(store).size());
     }
 
     @Test
     public void testDontPurgeAccidentaly() throws IOException, ExecutionException, InterruptedException
+    {
+        // Testing with and without forcing deserialization. Without deserialization, EchoedRow will be used.
+        testDontPurgeAccidentaly("test1", false);
+        testDontPurgeAccidentaly("test2", true);
+    }
+
+    private void testDontPurgeAccidentaly(String k, boolean forceDeserialize) throws IOException, ExecutionException, InterruptedException
     {
         // This test catches the regression of CASSANDRA-2786
         Table table = Table.open(TABLE1);
@@ -133,10 +160,11 @@ public class CompactionsTest extends CleanupHelper
         ColumnFamilyStore store = table.getColumnFamilyStore(cfname);
 
         // disable compaction while flushing
+        store.removeAllSSTables();
         store.disableAutoCompaction();
 
         // Add test row
-        DecoratedKey key = Util.dk("test");
+        DecoratedKey key = Util.dk(k);
         RowMutation rm = new RowMutation(TABLE1, key.key);
         rm.add(new QueryPath(cfname, ByteBufferUtil.bytes("sc"), ByteBufferUtil.bytes("c")), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
         rm.apply();
@@ -145,11 +173,10 @@ public class CompactionsTest extends CleanupHelper
 
         Collection<SSTableReader> sstablesBefore = store.getSSTables();
 
-        QueryFilter filter = QueryFilter.getIdentityFilter(Util.dk("test"), new QueryPath(cfname, null, null));
+        QueryFilter filter = QueryFilter.getIdentityFilter(key, new QueryPath(cfname, null, null));
         assert !store.getColumnFamily(filter).isEmpty();
 
         // Remove key
-        key = Util.dk("test");
         rm = new RowMutation(TABLE1, key.key);
         rm.delete(new QueryPath(cfname, null, null), 2);
         rm.apply();
@@ -160,12 +187,12 @@ public class CompactionsTest extends CleanupHelper
         store.forceBlockingFlush();
 
         Collection<SSTableReader> sstablesAfter = store.getSSTables();
-        Collection<Descriptor> toCompact = new ArrayList<Descriptor>();
+        Collection<SSTableReader> toCompact = new ArrayList<SSTableReader>();
         for (SSTableReader sstable : sstablesAfter)
             if (!sstablesBefore.contains(sstable))
-                toCompact.add(sstable.descriptor);
+                toCompact.add(sstable);
 
-        CompactionManager.instance.submitUserDefined(store, toCompact, (int) (System.currentTimeMillis() / 1000) - store.metadata.getGcGraceSeconds()).get();
+        Util.compact(store, toCompact, forceDeserialize);
 
         cf = store.getColumnFamily(filter);
         assert cf.isEmpty() : "should be empty: " + cf;

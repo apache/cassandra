@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.security.MessageDigest;
 
 import org.apache.cassandra.db.compaction.AbstractCompactedRow;
+import org.apache.cassandra.db.compaction.CompactionController;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
 
 /**
@@ -35,11 +36,13 @@ import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
 public class EchoedRow extends AbstractCompactedRow
 {
     private final SSTableIdentityIterator row;
+    private final int gcBefore;
 
-    public EchoedRow(SSTableIdentityIterator row)
+    public EchoedRow(CompactionController controller, SSTableIdentityIterator row)
     {
         super(row.getKey());
         this.row = row;
+        this.gcBefore = controller.gcBefore;
         // Reset SSTableIdentityIterator because we have not guarantee the filePointer hasn't moved since the Iterator was built
         row.reset();
     }
@@ -59,7 +62,7 @@ public class EchoedRow extends AbstractCompactedRow
 
     public boolean isEmpty()
     {
-        return !row.hasNext();
+        return !row.hasNext() && ColumnFamilyStore.removeDeletedCF(row.getColumnFamily(), gcBefore) == null;
     }
 
     public int columnCount()

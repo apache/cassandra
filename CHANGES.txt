@@ -26,6 +26,7 @@
    (CASSANDRA-2823)
  * Fix race in SystemTable.getCurrentLocalNodeId (CASSANDRA-2824)
  * Correctly set default for replicate_on_write (CASSANDRA-2835)
+ * handle row tombstones correctly in EchoedRow (CASSANDRA-2786)
 
 
 0.8.1
