@@ -412,7 +412,8 @@ public class CompactionManager implements CompactionManagerMBean
                         // success: perform the compaction
                         try
                         {
-                            doCompactionWithoutSizeEstimation(cfs, sstables, gcBefore, location);
+                            // Forcing deserialization because in case the user wants expired columns to be transformed to tombstones
+                            doCompactionWithoutSizeEstimation(cfs, sstables, gcBefore, location, true);
                         }
                         finally
                         {
@@ -501,7 +502,7 @@ public class CompactionManager implements CompactionManagerMBean
         {
             String compactionFileLocation = table.getDataFileLocation(cfs.getExpectedCompactedFileSize(smallerSSTables));
             if (compactionFileLocation != null)
-                return doCompactionWithoutSizeEstimation(cfs, smallerSSTables, gcBefore, compactionFileLocation);
+                return doCompactionWithoutSizeEstimation(cfs, smallerSSTables, gcBefore, compactionFileLocation, false);
 
             logger.warn("insufficient space to compact all requested files " + StringUtils.join(smallerSSTables, ", "));
             smallerSSTables.remove(cfs.getMaxSizeFile(smallerSSTables));
@@ -515,7 +516,7 @@ public class CompactionManager implements CompactionManagerMBean
      * For internal use and testing only.  The rest of the system should go through the submit* methods,
      * which are properly serialized.
      */
-    int doCompactionWithoutSizeEstimation(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, int gcBefore, String compactionFileLocation) throws IOException
+    int doCompactionWithoutSizeEstimation(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, int gcBefore, String compactionFileLocation, boolean forceDeserialize) throws IOException
     {
         // The collection of sstables passed may be empty (but not null); even if
         // it is not empty, it may compact down to nothing if all rows are deleted.
@@ -529,10 +530,6 @@ public class CompactionManager implements CompactionManagerMBean
         for (SSTableReader sstable : sstables)
             assert sstable.descriptor.cfname.equals(cfs.columnFamily);
 
-        // compaction won't normally compact a single sstable, so if that's what we're doing
-        // it must have been requested manually by the user, which probably means he wants to force
-        // tombstone purge, which won't happen unless we force deserializing the rows.
-        boolean forceDeserialize = sstables.size() == 1;
         CompactionController controller = new CompactionController(cfs, sstables, gcBefore, forceDeserialize);
         // new sstables from flush can be added during a compaction, but only the compaction can remove them,
         // so in our single-threaded compaction world this is a valid way of determining if we're compacting

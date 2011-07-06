@@ -15,6 +15,7 @@
  * fix index-building status display (CASSANDRA-2853)
  * fix CLI perpetuating obsolete KsDef.replication_factor (CASSANDRA-2846)
  * improve cli treatment of multiline comments (CASSANDRA-2852)
+ * handle row tombstones correctly in EchoedRow (CASSANDRA-2786)
 
 
 0.8.1
