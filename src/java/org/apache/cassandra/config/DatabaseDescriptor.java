@@ -40,6 +40,8 @@ import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.*;
@@ -359,6 +361,9 @@ public class    DatabaseDescriptor
                 if (conf.saved_caches_directory == null)
                     throw new ConfigurationException("saved_caches_directory missing");
             }
+
+            if (conf.initial_token != null)
+                partitioner.getTokenFactory().validate(conf.initial_token);
 
             // Hardcoded system tables
             KSMetaData systemMeta = new KSMetaData(Table.SYSTEM_TABLE,

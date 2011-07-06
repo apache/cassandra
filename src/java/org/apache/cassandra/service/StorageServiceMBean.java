@@ -192,7 +192,7 @@ public interface StorageServiceMBean
      * @param newToken token to move this node to.
      * This node will unload its data onto its neighbors, and bootstrap to the new token.
      */
-    public void move(String newToken) throws IOException, InterruptedException;
+    public void move(String newToken) throws IOException, InterruptedException, ConfigurationException;
 
     /**
      * This node will unload its data onto its neighbors, and bootstrap to share the range

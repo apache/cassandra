@@ -33,6 +33,7 @@
    same mutation (CASSANDRA-2773)
  * improve cli treatment of multiline comments (CASSANDRA-2852)
  * fix describeOwnership for OPP (CASSANDRA-2800)
+ * ensure that string tokens do not contain commas (CASSANDRA-2762)
 
 
 0.7.6
