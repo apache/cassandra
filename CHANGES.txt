@@ -95,6 +95,7 @@
  * fix scan wrongly throwing assertion error (CASSANDRA-2653)
  * Always use even distribution for merkle tree with RandomPartitionner
    (CASSANDRA-2841)
+ * fix describeOwnership for OPP (CASSANDRA-2800)
 
 
 0.8.0-final
