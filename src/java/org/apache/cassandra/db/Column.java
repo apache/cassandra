@@ -98,6 +98,11 @@ public class Column implements IColumn
         return timestamp;
     }
 
+    public long maxTimestamp()
+    {
+        return timestamp;
+    }
+
     public boolean isMarkedForDelete()
     {
         return false;

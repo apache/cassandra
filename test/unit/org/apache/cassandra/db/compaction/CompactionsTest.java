@@ -19,6 +19,7 @@
 package org.apache.cassandra.db.compaction;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Collection;
@@ -45,33 +46,100 @@ public class CompactionsTest extends CleanupHelper
     public static final String TABLE1 = "Keyspace1";
 
     @Test
-    public void testCompactions() throws IOException, ExecutionException, InterruptedException
+    public void testStandardColumnCompactions() throws IOException, ExecutionException, InterruptedException
     {
         // this test does enough rows to force multiple block indexes to be used
         Table table = Table.open(TABLE1);
         ColumnFamilyStore store = table.getColumnFamilyStore("Standard1");
 
         final int ROWS_PER_SSTABLE = 10;
-        final int SSTABLES = (DatabaseDescriptor.getIndexInterval() * 3 / ROWS_PER_SSTABLE);
+        final int SSTABLES = DatabaseDescriptor.getIndexInterval() * 3 / ROWS_PER_SSTABLE;
 
         // disable compaction while flushing
         store.disableAutoCompaction();
 
+        long maxTimestampExpected = Long.MIN_VALUE;
         Set<DecoratedKey> inserted = new HashSet<DecoratedKey>();
         for (int j = 0; j < SSTABLES; j++) {
             for (int i = 0; i < ROWS_PER_SSTABLE; i++) {
                 DecoratedKey key = Util.dk(String.valueOf(i % 2));
                 RowMutation rm = new RowMutation(TABLE1, key.key);
-                rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes(String.valueOf(i / 2))), ByteBufferUtil.EMPTY_BYTE_BUFFER, j * ROWS_PER_SSTABLE + i);
+                long timestamp = j * ROWS_PER_SSTABLE + i;
+                rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes(String.valueOf(i / 2))),
+                       ByteBufferUtil.EMPTY_BYTE_BUFFER,
+                       timestamp);
+                maxTimestampExpected = Math.max(timestamp, maxTimestampExpected);
                 rm.apply();
                 inserted.add(key);
             }
             store.forceBlockingFlush();
+            assertMaxTimestamp(store, maxTimestampExpected);
             assertEquals(inserted.toString(), inserted.size(), Util.getRangeSlice(store).size());
         }
+
+        forceCompactions(store);
+
+        assertEquals(inserted.size(), Util.getRangeSlice(store).size());
+
+        // make sure max timestamp of compacted sstables is recorded properly after compaction.
+        assertMaxTimestamp(store, maxTimestampExpected);
+    }
+
+
+    @Test
+    public void testSuperColumnCompactions() throws IOException, ExecutionException, InterruptedException
+    {
+        Table table = Table.open(TABLE1);
+        ColumnFamilyStore store = table.getColumnFamilyStore("Super1");
+
+        final int ROWS_PER_SSTABLE = 10;
+        final int SSTABLES = DatabaseDescriptor.getIndexInterval() * 3 / ROWS_PER_SSTABLE;
+
+        //disable compaction while flushing
+        store.disableAutoCompaction();
+
+        long maxTimestampExpected = Long.MIN_VALUE;
+        Set<DecoratedKey> inserted = new HashSet<DecoratedKey>();
+        ByteBuffer superColumn = ByteBufferUtil.bytes("TestSuperColumn");
+        for (int j = 0; j < SSTABLES; j++) {
+            for (int i = 0; i < ROWS_PER_SSTABLE; i++) {
+                DecoratedKey key = Util.dk(String.valueOf(i % 2));
+                RowMutation rm = new RowMutation(TABLE1, key.key);
+                long timestamp = j * ROWS_PER_SSTABLE + i;
+                rm.add(new QueryPath("Super1", superColumn, ByteBufferUtil.bytes(String.valueOf(i / 2))),
+                       ByteBufferUtil.EMPTY_BYTE_BUFFER,
+                       timestamp);
+                maxTimestampExpected = Math.max(timestamp, maxTimestampExpected);
+                rm.apply();
+                inserted.add(key);
+            }
+            store.forceBlockingFlush();
+            assertMaxTimestamp(store, maxTimestampExpected);
+            assertEquals(inserted.toString(), inserted.size(), Util.getRangeSlice(store, superColumn).size());
+        }
+
+        forceCompactions(store);
+
+        assertEquals(inserted.size(), Util.getRangeSlice(store, superColumn).size());
+
+        // make sure max timestamp of compacted sstables is recorded properly after compaction.
+        assertMaxTimestamp(store, maxTimestampExpected);
+    }
+
+    public void assertMaxTimestamp(ColumnFamilyStore store, long maxTimestampExpected)
+    {
+        long maxTimestampObserved = Long.MIN_VALUE;
+        for (SSTableReader sstable : store.getSSTables())
+            maxTimestampObserved = Math.max(sstable.getMaxTimestamp(), maxTimestampObserved);
+        assertEquals(maxTimestampExpected, maxTimestampObserved);
+    }
+
+    private void forceCompactions(ColumnFamilyStore store) throws ExecutionException, InterruptedException
+    {
         // re-enable compaction with thresholds low enough to force a few rounds
         store.setMinimumCompactionThreshold(2);
         store.setMaximumCompactionThreshold(4);
+
         // loop submitting parallel compactions until they all return 0
         while (true)
         {
@@ -91,7 +159,6 @@ public class CompactionsTest extends CleanupHelper
         {
             CompactionManager.instance.performMaximal(store);
         }
-        assertEquals(inserted.size(), Util.getRangeSlice(store).size());
     }
 
     @Test

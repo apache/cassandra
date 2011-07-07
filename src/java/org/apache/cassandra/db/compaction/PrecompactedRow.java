@@ -132,6 +132,11 @@ public class PrecompactedRow extends AbstractCompactedRow
         return compactedCf == null ? 0 : compactedCf.getColumnCount();
     }
 
+    public long maxTimestamp()
+    {
+        return compactedCf.maxTimestamp();
+    }
+
     /**
      * @return the full column family represented by this compacted row.
      *

@@ -73,8 +73,8 @@ public class ColumnFamily extends AbstractColumnContainer
         super(map);
         assert cfm != null;
         this.cfm = cfm;
-        columnSerializer = cfm.cfType == ColumnFamilyType.Standard ? Column.serializer() : SuperColumn.serializer(cfm.subcolumnComparator);
-     }
+        columnSerializer = cfm.getColumnSerializer();
+    }
     
     public ColumnFamily cloneMeShallow()
     {
@@ -235,6 +235,14 @@ public class ColumnFamily extends AbstractColumnContainer
             size += column.size();
         }
         return size;
+    }
+
+    public long maxTimestamp()
+    {
+        long maxTimestamp = Long.MIN_VALUE;
+        for (IColumn column : columns.values())
+            maxTimestamp = Math.max(maxTimestamp, column.maxTimestamp());
+        return maxTimestamp;
     }
 
     public int hashCode()

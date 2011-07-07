@@ -188,6 +188,12 @@ public class EstimatedHistogram
         return buckets.get(buckets.length() - 1) > 0;
     }
 
+    public boolean equals(EstimatedHistogram o)
+    {
+        return Arrays.equals(getBucketOffsets(), o.getBucketOffsets()) &&
+               Arrays.equals(getBuckets(false), o.getBuckets(false));
+    }
+
     public static class EstimatedHistogramSerializer implements ICompactSerializer2<EstimatedHistogram>
     {
         public void serialize(EstimatedHistogram eh, DataOutput dos) throws IOException

@@ -103,8 +103,13 @@ public class Util
     
     public static List<Row> getRangeSlice(ColumnFamilyStore cfs) throws IOException, ExecutionException, InterruptedException
     {
+        return getRangeSlice(cfs, null);
+    }
+
+    public static List<Row> getRangeSlice(ColumnFamilyStore cfs, ByteBuffer superColumn) throws IOException, ExecutionException, InterruptedException
+    {
         Token min = StorageService.getPartitioner().getMinimumToken();
-        return cfs.getRangeSlice(null,
+        return cfs.getRangeSlice(superColumn,
                                  new Bounds(min, min),
                                  10000,
                                  new IdentityQueryFilter());

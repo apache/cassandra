@@ -728,6 +728,11 @@ public class DatabaseDescriptor
         return conf.in_memory_compaction_limit_in_mb * 1024 * 1024;
     }
 
+    public static void setInMemoryCompactionLimit(int sizeInMB)
+    {
+        conf.in_memory_compaction_limit_in_mb = sizeInMB;
+    }
+
     public static int getConcurrentCompactors()
     {
         return conf.concurrent_compactors;

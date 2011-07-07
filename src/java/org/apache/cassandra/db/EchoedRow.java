@@ -69,4 +69,9 @@ public class EchoedRow extends AbstractCompactedRow
     {
         return row.columnCount;
     }
+
+    public long maxTimestamp()
+    {
+        throw new UnsupportedOperationException();
+    }
 }

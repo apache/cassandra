@@ -2089,13 +2089,24 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public SSTableWriter createFlushWriter(long estimatedRows, long estimatedSize, ReplayPosition context) throws IOException
     {
-        return new SSTableWriter(getFlushPath(estimatedSize, Descriptor.CURRENT_VERSION), estimatedRows, metadata, partitioner, context);
+        SSTableMetadata.Collector sstableMetadataCollector = SSTableMetadata.createCollector().replayPosition(context);
+        return new SSTableWriter(getFlushPath(estimatedSize, Descriptor.CURRENT_VERSION),
+                                 estimatedRows,
+                                 metadata,
+                                 partitioner,
+                                 sstableMetadataCollector);
     }
 
     public SSTableWriter createCompactionWriter(long estimatedRows, String location, Collection<SSTableReader> sstables) throws IOException
     {
         ReplayPosition rp = ReplayPosition.getReplayPosition(sstables);
-        return new SSTableWriter(getTempSSTablePath(location), estimatedRows, metadata, partitioner, rp);
+        SSTableMetadata.Collector sstableMetadataCollector = SSTableMetadata.createCollector().replayPosition(rp);
+
+        // get the max timestamp of the precompacted sstables
+        for (SSTableReader sstable : sstables)
+            sstableMetadataCollector.updateMaxTimestamp(sstable.getMaxTimestamp());
+
+        return new SSTableWriter(getTempSSTablePath(location), estimatedRows, metadata, partitioner, sstableMetadataCollector);
     }
 
     public Iterable<ColumnFamilyStore> concatWithIndexes()

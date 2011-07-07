@@ -24,14 +24,15 @@ package org.apache.cassandra.db;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.util.Collection;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.io.ICompactSerializer2;
 import org.apache.cassandra.io.ICompactSerializer3;
+import org.apache.cassandra.io.sstable.SSTableMetadata;
 
 public class ColumnFamilySerializer implements ICompactSerializer3<ColumnFamily>
 {
@@ -147,5 +148,19 @@ public class ColumnFamilySerializer implements ICompactSerializer3<ColumnFamily>
     public long serializedSize(ColumnFamily cf)
     {
         return cf.serializedSize();
+    }
+
+    /**
+     * Observes columns in a single row, without adding them to the column family.
+     */
+    public void observeColumnsInSSTable(CFMetaData cfm, RandomAccessFile dis, SSTableMetadata.Collector sstableMetadataCollector) throws IOException
+    {
+        int size = dis.readInt();
+        sstableMetadataCollector.addColumnCount(size);
+        for (int i = 0; i < size; ++i)
+        {
+            IColumn column = cfm.getColumnSerializer().deserialize(dis);
+            sstableMetadataCollector.updateMaxTimestamp(column.maxTimestamp());
+        }
     }
 }

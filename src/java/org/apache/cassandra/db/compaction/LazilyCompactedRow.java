@@ -30,11 +30,13 @@ import java.util.*;
 import com.google.common.base.Predicates;
 import com.google.common.collect.Iterators;
 
+import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ColumnIndexer;
 import org.apache.cassandra.db.CounterColumn;
 import org.apache.cassandra.db.IColumn;
+import org.apache.cassandra.db.SuperColumn;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
 import org.apache.cassandra.io.util.DataOutputBuffer;
@@ -61,6 +63,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements IIterabl
     private ColumnFamily emptyColumnFamily;
     private Reducer reducer;
     private int columnCount;
+    private long maxTimestamp;
     private long columnSerializedSize;
 
     public LazilyCompactedRow(CompactionController controller, List<SSTableIdentityIterator> rows)
@@ -83,9 +86,10 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements IIterabl
         // initialize row header so isEmpty can be called
         headerBuffer = new DataOutputBuffer();
         ColumnIndexer.serialize(this, headerBuffer);
-        // reach into the reducer used during iteration to get column count and size
+        // reach into the reducer used during iteration to get column count, size, max column timestamp
         columnCount = reducer.size;
         columnSerializedSize = reducer.serializedSize;
+        maxTimestamp = reducer.maxTimestampSeen;
         reducer = null;
     }
 
@@ -166,11 +170,17 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements IIterabl
         return columnCount;
     }
 
+    public long maxTimestamp()
+    {
+        return maxTimestamp;
+    }
+
     private class Reducer extends MergeIterator.Reducer<IColumn, IColumn>
     {
         ColumnFamily container = emptyColumnFamily.cloneMeShallow();
         long serializedSize = 4; // int for column count
         int size = 0;
+        long maxTimestampSeen = Long.MIN_VALUE;
 
         public void reduce(IColumn current)
         {
@@ -194,6 +204,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements IIterabl
             container.clear();
             serializedSize += reduced.serializedSize();
             size++;
+            maxTimestampSeen = Math.max(maxTimestampSeen, reduced.maxTimestamp());
             return reduced;
         }
     }

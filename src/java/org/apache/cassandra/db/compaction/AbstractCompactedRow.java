@@ -60,4 +60,9 @@ public abstract class AbstractCompactedRow
      * @return the number of columns in the row
      */
     public abstract int columnCount();
+
+    /**
+     * @return the max column timestamp in the row
+     */
+    public abstract long maxTimestamp();
 }

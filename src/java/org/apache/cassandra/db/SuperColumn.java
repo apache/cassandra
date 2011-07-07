@@ -133,6 +133,14 @@ public class SuperColumn extends AbstractColumnContainer implements IColumn
     	throw new UnsupportedOperationException("This operation is not supported for Super Columns.");
     }
 
+    public long maxTimestamp()
+    {
+        long maxTimestamp = Long.MIN_VALUE;
+        for (IColumn subColumn : getSubColumns())
+            maxTimestamp = Math.max(maxTimestamp, subColumn.maxTimestamp());
+        return maxTimestamp;
+    }
+
     public long mostRecentLiveChangeAt()
     {
         long max = Long.MIN_VALUE;

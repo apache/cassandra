@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.net.InetAddress;
 import java.util.Arrays;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
@@ -41,6 +42,7 @@ import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.dht.BytesToken;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.IndexClause;
@@ -75,11 +77,18 @@ public class CleanupTest extends CleanupHelper
 
         // insert data and verify we get it back w/ range query
         fillCF(cfs, LOOPS);
+
+        // record max timestamps of the sstables pre-cleanup
+        List<Long> expectedMaxTimestamps = getMaxTimestampList(cfs);
+
         rows = cfs.getRangeSlice(null, Util.range("", ""), 1000, new IdentityQueryFilter());
         assertEquals(LOOPS, rows.size());
 
         // with one token in the ring, owned by the local node, cleanup should be a no-op
         CompactionManager.instance.performCleanup(cfs, new NodeId.OneShotRenewer());
+
+        // ensure max timestamp of the sstables are retained post-cleanup
+        assert expectedMaxTimestamps.equals(getMaxTimestampList(cfs));
 
         // check data is still there
         rows = cfs.getRangeSlice(null, Util.range("", ""), 1000, new IdentityQueryFilter());
@@ -150,5 +159,13 @@ public class CleanupTest extends CleanupHelper
         }
 
         cfs.forceBlockingFlush();
+    }
+
+    protected List<Long> getMaxTimestampList(ColumnFamilyStore cfs)
+    {
+        List<Long> list = new LinkedList<Long>();
+        for (SSTableReader sstable : cfs.getSSTables())
+            list.add(sstable.getMaxTimestamp());
+        return list;
     }
 }

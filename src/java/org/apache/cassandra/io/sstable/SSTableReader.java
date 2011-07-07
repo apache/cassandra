@@ -121,6 +121,8 @@ public class SSTableReader extends SSTable
 
     private volatile SSTableDeletingReference phantomReference;
 
+    private final SSTableMetadata sstableMetadata;
+
     public static long getApproximateKeyCount(Iterable<SSTableReader> sstables)
     {
         long count = 0;
@@ -157,35 +159,20 @@ public class SSTableReader extends SSTable
         long start = System.currentTimeMillis();
         logger.info("Opening " + descriptor);
 
-        EstimatedHistogram rowSizes;
-        EstimatedHistogram columnCounts;
-        File statsFile = new File(descriptor.filenameFor(SSTable.COMPONENT_STATS));
-        ReplayPosition rp = ReplayPosition.NONE;
-        if (components.contains(Component.STATS) && statsFile.exists())
-        {
-            DataInputStream dis = null;
-            try
-            {
-                logger.debug("Load metadata for {}", descriptor);
-                dis = new DataInputStream(new BufferedInputStream(new FileInputStream(statsFile)));
-                rowSizes = EstimatedHistogram.serializer.deserialize(dis);
-                columnCounts = EstimatedHistogram.serializer.deserialize(dis);
-                if (descriptor.hasReplayPosition())
-                    rp = ReplayPosition.serializer.deserialize(dis);
-            }
-            finally
-            {
-                FileUtils.closeQuietly(dis);
-            }
-        }
-        else
-        {
-            logger.debug("No statistics for {}", descriptor);
-            rowSizes = SSTable.defaultRowHistogram();
-            columnCounts = SSTable.defaultColumnHistogram();
-        }
+        SSTableMetadata sstableMetadata = components.contains(Component.STATS)
+                                        ? SSTableMetadata.serializer.deserialize(descriptor)
+                                        : SSTableMetadata.createDefaultInstance();
 
-        SSTableReader sstable = new SSTableReader(descriptor, components, metadata, rp, partitioner, null, null, null, null, System.currentTimeMillis(), rowSizes, columnCounts);
+        SSTableReader sstable = new SSTableReader(descriptor,
+                                                  components,
+                                                  metadata,
+                                                  partitioner,
+                                                  null,
+                                                  null,
+                                                  null,
+                                                  null,
+                                                  System.currentTimeMillis(),
+                                                  sstableMetadata);
         sstable.setTrackedBy(tracker);
 
         // versions before 'c' encoded keys as utf-16 before hashing to the filter
@@ -210,28 +197,43 @@ public class SSTableReader extends SSTable
     /**
      * Open a RowIndexedReader which already has its state initialized (by SSTableWriter).
      */
-    static SSTableReader internalOpen(Descriptor desc, Set<Component> components, CFMetaData metadata, ReplayPosition replayPosition, IPartitioner partitioner, SegmentedFile ifile, SegmentedFile dfile, IndexSummary isummary, Filter bf, long maxDataAge, EstimatedHistogram rowsize,
-                                      EstimatedHistogram columncount) throws IOException
+    static SSTableReader internalOpen(Descriptor desc,
+                                      Set<Component> components,
+                                      CFMetaData metadata,
+                                      IPartitioner partitioner,
+                                      SegmentedFile ifile,
+                                      SegmentedFile dfile,
+                                      IndexSummary isummary,
+                                      Filter bf,
+                                      long maxDataAge,
+                                      SSTableMetadata sstableMetadata) throws IOException
     {
-        assert desc != null && partitioner != null && ifile != null && dfile != null && isummary != null && bf != null;
-        return new SSTableReader(desc, components, metadata, replayPosition, partitioner, ifile, dfile, isummary, bf, maxDataAge, rowsize, columncount);
+        assert desc != null && partitioner != null && ifile != null && dfile != null && isummary != null && bf != null && sstableMetadata != null;
+        return new SSTableReader(desc,
+                                 components,
+                                 metadata,
+                                 partitioner,
+                                 ifile, dfile,
+                                 isummary,
+                                 bf,
+                                 maxDataAge,
+                                 sstableMetadata);
     }
 
     private SSTableReader(Descriptor desc,
                           Set<Component> components,
                           CFMetaData metadata,
-                          ReplayPosition replayPosition,
                           IPartitioner partitioner,
                           SegmentedFile ifile,
                           SegmentedFile dfile,
                           IndexSummary indexSummary,
                           Filter bloomFilter,
                           long maxDataAge,
-                          EstimatedHistogram rowSizes,
-                          EstimatedHistogram columnCounts)
+                          SSTableMetadata sstableMetadata)
     throws IOException
     {
-        super(desc, components, metadata, replayPosition, partitioner, rowSizes, columnCounts);
+        super(desc, components, metadata, partitioner);
+        this.sstableMetadata = sstableMetadata;
         this.maxDataAge = maxDataAge;
 
         this.ifile = ifile;
@@ -772,5 +774,25 @@ public class SSTableReader extends SSTable
     public InstrumentingCache<Pair<Descriptor,DecoratedKey>, Long> getKeyCache()
     {
         return keyCache;
+    }
+
+    public EstimatedHistogram getEstimatedRowSize()
+    {
+        return sstableMetadata.getEstimatedRowSize();
+    }
+
+    public EstimatedHistogram getEstimatedColumnCount()
+    {
+        return sstableMetadata.getEstimatedColumnCount();
+    }
+
+    public ReplayPosition getReplayPosition()
+    {
+        return sstableMetadata.getReplayPosition();
+    }
+
+    public long getMaxTimestamp()
+    {
+        return sstableMetadata.getMaxTimestamp();
     }
 }
