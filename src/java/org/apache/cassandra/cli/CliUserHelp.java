@@ -143,9 +143,9 @@ public class CliUserHelp {
                 state.out.println("                        Applies to Simple and OldNT strategies but NOT NTS.");
                 state.out.println("    placement_strategy: the fully qualified class used to place replicas in");
                 state.out.println("                        this keyspace. Valid values are");
-                state.out.println("                        org.apache.cassandra.locator.SimpleStrategy,");
-                state.out.println("                        org.apache.cassandra.locator.NetworkTopologyStrategy,");
-                state.out.println("                        and org.apache.cassandra.locator.OldNetworkTopologyStrategy");
+                state.out.println("                        'org.apache.cassandra.locator.SimpleStrategy',");
+                state.out.println("                        'org.apache.cassandra.locator.NetworkTopologyStrategy',");
+                state.out.println("                        and 'org.apache.cassandra.locator.OldNetworkTopologyStrategy'");
                 state.out.println("      strategy_options: additional options for placement_strategy.");
                 state.out.println("                        Applies only to NetworkTopologyStrategy.");
                 state.out.println("\nexamples:");
@@ -168,9 +168,9 @@ public class CliUserHelp {
                 state.out.println("                        Applies to Simple and OldNT strategies but NOT NTS.");
                 state.out.println("    placement_strategy: the fully qualified class used to place replicas in");
                 state.out.println("                        this keyspace. Valid values are");
-                state.out.println("                        org.apache.cassandra.locator.SimpleStrategy,");
-                state.out.println("                        org.apache.cassandra.locator.NetworkTopologyStrategy,");
-                state.out.println("                        and org.apache.cassandra.locator.OldNetworkTopologyStrategy");
+                state.out.println("                        'org.apache.cassandra.locator.SimpleStrategy',");
+                state.out.println("                        'org.apache.cassandra.locator.NetworkTopologyStrategy',");
+                state.out.println("                        and 'org.apache.cassandra.locator.OldNetworkTopologyStrategy'");
                 state.out.println("      strategy_options: additional options for placement_strategy.");
                 state.out.println("                        Applies only to NetworkTopologyStrategy.");
                 state.out.println("\nexamples:");
