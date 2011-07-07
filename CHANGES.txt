@@ -34,6 +34,9 @@
  * improve cli treatment of multiline comments (CASSANDRA-2852)
  * fix describeOwnership for OPP (CASSANDRA-2800)
  * ensure that string tokens do not contain commas (CASSANDRA-2762)
+ * add ant-optional as dependence for the debian package (CASSANDRA-2164)
+ * add option to specify limit for get_slice in the CLI (CASSANDRA-2646)
+ * decrease HH page size (CASSANDRA-2832)
 
 
 0.7.6
