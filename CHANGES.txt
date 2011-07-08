@@ -1,3 +1,8 @@
+0.7.8
+ * fix possibility of spurious UnavailableException for LOCAL_QUORUM
+   reads with dynamic snitch + read repair disabled (CASSANDRA-2870)
+
+
 0.7.7
  * adjust hinted handoff page size to avoid OOM with large columns 
    (CASSANDRA-2652)
