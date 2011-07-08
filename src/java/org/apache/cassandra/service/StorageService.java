@@ -33,6 +33,7 @@ import javax.management.ObjectName;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
+import org.apache.log4j.Level;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,15 +41,12 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.concurrent.RetryingScheduledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
-import org.apache.cassandra.config.*;
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.commitlog.CommitLog;
-import org.apache.cassandra.db.migration.AddKeyspace;
-import org.apache.cassandra.db.migration.Migration;
-import org.apache.cassandra.dht.BootStrapper;
-import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.dht.*;
 import org.apache.cassandra.gms.*;
 import org.apache.cassandra.io.DeletionService;
 import org.apache.cassandra.io.sstable.SSTableLoader;
@@ -65,12 +63,10 @@ import org.apache.cassandra.service.AntiEntropyService.TreeRequestVerbHandler;
 import org.apache.cassandra.streaming.*;
 import org.apache.cassandra.thrift.Constants;
 import org.apache.cassandra.thrift.UnavailableException;
-import org.apache.cassandra.utils.*;
-import org.apache.log4j.Level;
-import org.yaml.snakeyaml.Dumper;
-import org.yaml.snakeyaml.DumperOptions;
-import org.yaml.snakeyaml.Yaml;
-import org.yaml.snakeyaml.nodes.Tag;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.NodeId;
+import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.WrappedRunnable;
 
 /*
  * This abstraction contains the token/identifier of this node
@@ -1704,10 +1700,17 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         }
         FBUtilities.sortSampledKeys(keys, range);
 
-        if (keys.size() < 3)
-            return partitioner.midpoint(range.left, range.right);
-        else
-            return keys.get(keys.size() / 2).token;
+        Token token = keys.size() < 3
+                    ? partitioner.midpoint(range.left, range.right)
+                    : keys.get(keys.size() / 2).token;
+        // Hack to prevent giving nodes tokens with DELIMITER_STR in them (which is fine in a row key/token)
+        if (token instanceof StringToken)
+        {
+            token = new StringToken(((String)token.token).replaceAll(VersionedValue.DELIMITER_STR, ""));
+            if (tokenMetadata_.getTokenToEndpointMap().containsKey(token))
+                throw new RuntimeException("Unable to compute unique token for new node -- specify one manually with initial_token");
+        }
+        return token;
     }
 
     /**
@@ -1803,8 +1806,9 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         onFinish.run();
     }
 
-    public void move(String newToken) throws IOException, InterruptedException
+    public void move(String newToken) throws IOException, InterruptedException, ConfigurationException
     {
+        partitioner.getTokenFactory().validate(newToken);
         move(partitioner.getTokenFactory().fromString(newToken));
     }
 
@@ -2467,5 +2471,10 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         {
             throw new RuntimeException(e);
         }
+    }
+
+    public int getExceptionCount()
+    {
+        return AbstractCassandraDaemon.exceptions.get();
     }
 }

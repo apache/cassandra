@@ -49,4 +49,14 @@ public interface MessagingServiceMBean
      * Completed tasks for Response(GOSSIP & RESPONSE) TCP Connections
      */
     public Map<String, Long> getResponseCompletedTasks();
+
+    /**
+     * dropped message counts for server lifetime
+     */
+    public Map<String, Integer> getDroppedMessages();
+
+    /**
+     * dropped message counts since last called
+     */
+    public Map<String, Integer> getRecentlyDroppedMessages();
 }

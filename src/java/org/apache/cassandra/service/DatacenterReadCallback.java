@@ -22,6 +22,7 @@ package org.apache.cassandra.service;
 
 
 import java.net.InetAddress;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -45,6 +46,20 @@ public class DatacenterReadCallback<T> extends ReadCallback<T>
     public DatacenterReadCallback(IResponseResolver resolver, ConsistencyLevel consistencyLevel, IReadCommand command, List<InetAddress> endpoints)
     {
         super(resolver, consistencyLevel, command, endpoints);
+    }
+
+    @Override
+    protected List<InetAddress> preferredEndpoints(List<InetAddress> endpoints)
+    {
+        ArrayList<InetAddress> preferred = new ArrayList<InetAddress>(blockfor);
+        for (InetAddress endpoint : endpoints)
+        {
+            if (localdc.equals(snitch.getDatacenter(endpoint)))
+                preferred.add(endpoint);
+            if (preferred.size() == blockfor)
+                break;
+        }
+        return preferred;
     }
 
     @Override
@@ -77,8 +92,22 @@ public class DatacenterReadCallback<T> extends ReadCallback<T>
             if (localdc.equals(snitch.getDatacenter(endpoint)))
                 localEndpoints++;
         }
-        
-        if(localEndpoints < blockfor)
+
+        if (localEndpoints < blockfor)
+        {
+            if (logger.isDebugEnabled())
+            {
+                StringBuilder builder = new StringBuilder("Local replicas [");
+                for (InetAddress endpoint : endpoints)
+                {
+                    if (localdc.equals(snitch.getDatacenter(endpoint)))
+                        builder.append(endpoint).append(",");
+                }
+                builder.append("] are insufficient to satisfy LOCAL_QUORUM requirement of ").append(blockfor).append(" live nodes in '").append(localdc).append("'");
+                logger.debug(builder.toString());
+            }
+
             throw new UnavailableException();
+        }
     }
 }

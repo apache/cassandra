@@ -26,7 +26,6 @@ import java.lang.management.MemoryUsage;
 import java.lang.management.RuntimeMXBean;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.ExecutionException;
@@ -43,22 +42,18 @@ import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.cache.InstrumentingCacheMBean;
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutorMBean;
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.CompactionManagerMBean;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.MessagingServiceMBean;
 import org.apache.cassandra.service.StorageServiceMBean;
 import org.apache.cassandra.streaming.StreamingService;
 import org.apache.cassandra.streaming.StreamingServiceMBean;
 import org.apache.cassandra.thrift.UnavailableException;
-
-import static com.google.common.base.Charsets.UTF_8;
 
 /**
  * JMX client operations for Cassandra.
@@ -80,7 +75,8 @@ public class NodeProbe
     private MemoryMXBean memProxy;
     private RuntimeMXBean runtimeProxy;
     private StreamingServiceMBean streamProxy;
-    
+    public MessagingServiceMBean msProxy;
+
     /**
      * Creates a NodeProbe using the specified JMX host, port, username, and password.
      *
@@ -148,6 +144,8 @@ public class NodeProbe
         {
             ObjectName name = new ObjectName(ssObjName);
             ssProxy = JMX.newMBeanProxy(mbeanServerConn, name, StorageServiceMBean.class);
+            name = new ObjectName(MessagingService.MBEAN_NAME);
+            msProxy = JMX.newMBeanProxy(mbeanServerConn, name, MessagingServiceMBean.class);
             name = new ObjectName(StreamingService.MBEAN_OBJECT_NAME);
             streamProxy = JMX.newMBeanProxy(mbeanServerConn, name, StreamingServiceMBean.class);
             name = new ObjectName(CompactionManager.MBEAN_OBJECT_NAME);
@@ -359,7 +357,7 @@ public class NodeProbe
         ssProxy.decommission();
     }
 
-    public void move(String newToken) throws IOException, InterruptedException
+    public void move(String newToken) throws IOException, InterruptedException, ConfigurationException
     {
         ssProxy.move(newToken);
     }
@@ -502,18 +500,6 @@ public class NodeProbe
         }
     }
     
-    public MessagingServiceMBean getMsProxy()
-    {
-        try
-        {
-            return JMX.newMBeanProxy(mbeanServerConn, new ObjectName("org.apache.cassandra.net:type=MessagingService"), MessagingServiceMBean.class);
-        }
-        catch (MalformedObjectNameException e)
-        {
-            throw new RuntimeException(e);
-        }
-    }
-    
     public ColumnFamilyStoreMBean getCfsProxy(String ks, String cf)
     {
         ColumnFamilyStoreMBean cfsProxy = null;
@@ -594,6 +580,16 @@ public class NodeProbe
     public void setCompactionThroughput(int value)
     {
         ssProxy.setCompactionThroughputMbPerSec(value);
+    }
+
+    public int getExceptionCount()
+    {
+        return ssProxy.getExceptionCount();
+    }
+
+    public Map<String, Integer> getDroppedMessages()
+    {
+        return msProxy.getDroppedMessages();
     }
 }
 

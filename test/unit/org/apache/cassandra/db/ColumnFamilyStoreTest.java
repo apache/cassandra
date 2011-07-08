@@ -316,6 +316,24 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         rm.apply();
         rows = cfs.scan(clause, range, filter);
         assert rows.isEmpty() : StringUtils.join(rows, ",");
+
+        // try insert followed by row delete in the same mutation
+        rm = new RowMutation("Keyspace3", ByteBufferUtil.bytes("k1"));
+        rm.add(new QueryPath("Indexed1", null, ByteBufferUtil.bytes("birthdate")), ByteBufferUtil.bytes(1L), 1);
+        rm.delete(new QueryPath("Indexed1"), 2);
+        rm.apply();
+        rows = cfs.scan(clause, range, filter);
+        assert rows.isEmpty() : StringUtils.join(rows, ",");
+
+        // try row delete followed by insert in the same mutation
+        rm = new RowMutation("Keyspace3", ByteBufferUtil.bytes("k1"));
+        rm.delete(new QueryPath("Indexed1"), 3);
+        rm.add(new QueryPath("Indexed1", null, ByteBufferUtil.bytes("birthdate")), ByteBufferUtil.bytes(1L), 4);
+        rm.apply();
+        rows = cfs.scan(clause, range, filter);
+        assert rows.size() == 1 : StringUtils.join(rows, ",");
+        key = new String(rows.get(0).key.key.array(),rows.get(0).key.key.position(),rows.get(0).key.key.remaining());
+        assert "k1".equals( key );
     }
 
     @Test

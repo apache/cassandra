@@ -197,7 +197,7 @@ public interface StorageServiceMBean
      * @param newToken token to move this node to.
      * This node will unload its data onto its neighbors, and bootstrap to the new token.
      */
-    public void move(String newToken) throws IOException, InterruptedException;
+    public void move(String newToken) throws IOException, InterruptedException, ConfigurationException;
 
     /**
      * removeToken removes token (and all data associated with
@@ -290,6 +290,8 @@ public interface StorageServiceMBean
     // allows a node that have been started without joining the ring to join it
     public void joinRing() throws IOException, org.apache.cassandra.config.ConfigurationException;
     public boolean isJoined();
+
+    public int getExceptionCount();
 
     public void setCompactionThroughputMbPerSec(int value);
 

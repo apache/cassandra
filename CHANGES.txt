@@ -26,7 +26,23 @@
    (CASSANDRA-2823)
  * Fix race in SystemTable.getCurrentLocalNodeId (CASSANDRA-2824)
  * Correctly set default for replicate_on_write (CASSANDRA-2835)
+ * improve nodetool compactionstats formatting (CASSANDRA-2844)
+ * fix index-building status display (CASSANDRA-2853)
+ * fix CLI perpetuating obsolete KsDef.replication_factor (CASSANDRA-2846)
+ * improve cli treatment of multiline comments (CASSANDRA-2852)
  * handle row tombstones correctly in EchoedRow (CASSANDRA-2786)
+<<<<<<< .working
+ * add MessagingService.get[Recently]DroppedMessages and
+   StorageService.getExceptionCount (CASSANDRA-2804)
+ * fix possibility of spurious UnavailableException for LOCAL_QUORUM
+   reads with dynamic snitch + read repair disabled (CASSANDRA-2870)
+ * add ant-optional as dependence for the debian package (CASSANDRA-2164)
+ * add option to specify limit for get_slice in the CLI (CASSANDRA-2646)
+ * decrease HH page size (CASSANDRA-2832)
+=======
+ * add MessagingService.get[Recently]DroppedMessages and
+   StorageService.getExceptionCount (CASSANDRA-2804)
+>>>>>>> .merge-right.r1143437
 
 
 0.8.1
@@ -109,6 +125,7 @@
  * Always use even distribution for merkle tree with RandomPartitionner
    (CASSANDRA-2841)
  * fix describeOwnership for OPP (CASSANDRA-2800)
+ * ensure that string tokens do not contain commas (CASSANDRA-2762)
 
 
 0.8.0-final

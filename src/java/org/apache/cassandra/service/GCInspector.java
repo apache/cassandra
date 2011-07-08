@@ -104,7 +104,7 @@ public class GCInspector
                 continue;
 
             Long previous = gctimes.get(gcw.getName());
-            if (previous != null && previous.longValue() == gcw.getCollectionTime().longValue())            
+            if (previous != null && previous.longValue() == gcw.getCollectionTime().longValue())
                 continue;
             gctimes.put(gcw.getName(), gcw.getCollectionTime());
 
@@ -124,7 +124,7 @@ public class GCInspector
 
             String st = String.format("GC for %s: %s ms, %s reclaimed leaving %s used; max is %s",
                                       gcw.getName(), gcw.getDuration(), previousMemoryUsed - memoryUsed, memoryUsed, memoryMax);
-            if (gcw.getDuration() > MIN_DURATION)                          
+            if (gcw.getDuration() > MIN_DURATION)
                 logger.info(st);
             else if (logger.isDebugEnabled())
                 logger.debug(st);
