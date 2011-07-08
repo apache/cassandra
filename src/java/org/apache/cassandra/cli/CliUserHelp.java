@@ -19,9 +19,6 @@ package org.apache.cassandra.cli;
 
 import java.util.List;
 
-/**
- * @author Pavel A. Yaskevich
- */
 public class CliUserHelp
 {
     public String banner;
