@@ -78,13 +78,18 @@ public class ReadCallback<T> implements IAsyncCallback
         boolean repair = randomlyReadRepair();
         this.endpoints = repair || resolver instanceof RowRepairResolver
                        ? endpoints
-                       : endpoints.subList(0, Math.min(endpoints.size(), blockfor)); // min so as to not throw exception until assureSufficient is called
+                       : preferredEndpoints(endpoints);
 
         if (logger.isDebugEnabled())
             logger.debug(String.format("Blockfor/repair is %s/%s; setting up requests to %s",
                                        blockfor, repair, StringUtils.join(this.endpoints, ",")));
     }
-    
+
+    protected List<InetAddress> preferredEndpoints(List<InetAddress> endpoints)
+    {
+        return endpoints.subList(0, Math.min(endpoints.size(), blockfor)); // min so as to not throw exception until assureSufficient is called
+    }
+
     private boolean randomlyReadRepair()
     {
         if (resolver instanceof RowDigestResolver)
