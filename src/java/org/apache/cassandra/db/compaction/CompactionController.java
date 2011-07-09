@@ -57,7 +57,11 @@ public class CompactionController
         this.forceDeserialize = forceDeserialize;
         isMajor = cfs.isCompleteSSTables(this.sstables);
         // how many rows we expect to compact in 100ms
-        throttleResolution = (int) (DatabaseDescriptor.getCompactionThroughputMbPerSec() * 1024 * 1024 / (10 * cfs.getMeanRowSize()));
+        long rowSize = cfs.getMeanRowSize();
+        int rowsPerSecond = rowSize > 0
+                          ? (int) (DatabaseDescriptor.getCompactionThroughputMbPerSec() * 1024 * 1024 / rowSize)
+                          : 1000;
+        throttleResolution = rowsPerSecond / 10;
         if (throttleResolution <= 0)
             throttleResolution = 1;
     }
