@@ -23,6 +23,7 @@
  * add ant-optional as dependence for the debian package (CASSANDRA-2164)
  * add option to specify limit for get_slice in the CLI (CASSANDRA-2646)
  * decrease HH page size (CASSANDRA-2832)
+ * reset cli keyspace after dropping the current one (CASSANDRA-2763)
 
 
 0.8.1

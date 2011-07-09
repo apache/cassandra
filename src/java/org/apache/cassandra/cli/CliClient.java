@@ -1249,6 +1249,9 @@ public class CliClient
         String version = thriftClient.system_drop_keyspace(keyspaceName);
         sessionState.out.println(version);
         validateSchemaIsSettled(version);
+       
+        if (keyspaceName.equals(keySpace)) //we just deleted the keyspace we were authenticated too
+            keySpace = null;
     }
 
     /**
