@@ -31,7 +31,6 @@
  * fix CLI perpetuating obsolete KsDef.replication_factor (CASSANDRA-2846)
  * improve cli treatment of multiline comments (CASSANDRA-2852)
  * handle row tombstones correctly in EchoedRow (CASSANDRA-2786)
-<<<<<<< .working
  * add MessagingService.get[Recently]DroppedMessages and
    StorageService.getExceptionCount (CASSANDRA-2804)
  * fix possibility of spurious UnavailableException for LOCAL_QUORUM
@@ -39,10 +38,6 @@
  * add ant-optional as dependence for the debian package (CASSANDRA-2164)
  * add option to specify limit for get_slice in the CLI (CASSANDRA-2646)
  * decrease HH page size (CASSANDRA-2832)
-=======
- * add MessagingService.get[Recently]DroppedMessages and
-   StorageService.getExceptionCount (CASSANDRA-2804)
->>>>>>> .merge-right.r1143437
 
 
 0.8.1
