@@ -138,4 +138,9 @@ public class BloomFilter extends Filter
     {
         bitset.clear(0, bitset.size());
     }
+
+    public int serializedSize()
+    {
+        return BloomFilterSerializer.serializedSize(this);
+    }
 }

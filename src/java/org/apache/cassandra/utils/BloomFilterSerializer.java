@@ -25,6 +25,7 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 
+import org.apache.cassandra.db.DBConstants;
 import org.apache.cassandra.io.ICompactSerializer2;
 import org.apache.cassandra.utils.obs.OpenBitSet;
 
@@ -52,6 +53,19 @@ class BloomFilterSerializer implements ICompactSerializer2<BloomFilter>
         OpenBitSet bs = new OpenBitSet(bits, bitLength);
         return new BloomFilter(hashes, bs);
     }
+
+    /**
+     * Calculates a serialized size of the given Bloom Filter
+     * @see this.serialize(BloomFilter, DataOutput)
+     *
+     * @param bf Bloom filter to calculate serialized size
+     *
+     * @return serialized size of the given bloom filter
+     */
+    public static int serializedSize(BloomFilter bf)
+    {
+        return DBConstants.intSize_ // hash count
+               + DBConstants.intSize_ // length
+               + bf.bitset.getBits().length * DBConstants.longSize_; // buckets
+    }
 }
-
-

@@ -27,19 +27,15 @@ import java.util.HashSet;
 import java.util.Set;
 
 import com.google.common.collect.Sets;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.*;
-import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.Table;
 import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.io.*;
-import org.apache.cassandra.io.sstable.SSTableMetadata;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
 import org.apache.cassandra.io.util.FileMark;
 import org.apache.cassandra.io.util.FileUtils;
@@ -148,23 +144,20 @@ public class SSTableWriter extends SSTable
     {
         long startPosition = beforeAppend(decoratedKey);
         ByteBufferUtil.writeWithShortLength(decoratedKey.key, dataFile);
-        // write placeholder for the row size, since we don't know it yet
-        long sizePosition = dataFile.getFilePointer();
-        dataFile.writeLong(-1);
-        // write out row data
-        int columnCount = ColumnFamily.serializer().serializeWithIndexes(cf, dataFile);
-        // seek back and write the row size (not including the size Long itself)
-        long endPosition = dataFile.getFilePointer();
-        dataFile.seek(sizePosition);
-        long dataSize = endPosition - (sizePosition + 8);
-        assert dataSize > 0;
-        dataFile.writeLong(dataSize);
-        // finally, reset for next row
-        dataFile.seek(endPosition);
+
+        // serialize index and bloom filter into in-memory structure
+        ColumnIndexer.RowHeader header = ColumnIndexer.serialize(cf);
+
+        // write out row size
+        dataFile.writeLong(header.serializedSize() + cf.serializedSizeForSSTable());
+
+        // write out row header and data
+        int columnCount = ColumnFamily.serializer().serializeWithIndexes(cf, header, dataFile);
         afterAppend(decoratedKey, startPosition);
+
         // track max column timestamp
         sstableMetadataCollector.updateMaxTimestamp(cf.maxTimestamp());
-        sstableMetadataCollector.addRowSize(endPosition - startPosition);
+        sstableMetadataCollector.addRowSize(dataFile.getFilePointer() - startPosition);
         sstableMetadataCollector.addColumnCount(columnCount);
     }
 

@@ -22,6 +22,7 @@ import java.io.DataOutput;
 import java.io.IOError;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -39,15 +40,15 @@ public class ColumnIndexer
 	/**
 	 * Given a column family this, function creates an in-memory structure that represents the
 	 * column index for the column family, and subsequently writes it to disk.
+     *
 	 * @param columns Column family to create index for
 	 * @param dos data output stream
-	 * @throws IOException
 	 */
     public static void serialize(IIterableColumns columns, DataOutput dos)
     {
         try
         {
-            serializeInternal(columns, dos);
+            writeIndex(serialize(columns), dos);
         }
         catch (IOException e)
         {
@@ -55,24 +56,41 @@ public class ColumnIndexer
         }
     }
 
-    public static void serializeInternal(IIterableColumns columns, DataOutput dos) throws IOException
+    public static void serialize(RowHeader indexInfo, DataOutput dos)
+    {
+        try
+        {
+            writeIndex(indexInfo, dos);
+        }
+        catch (IOException e)
+        {
+            throw new IOError(e);
+        }
+    }
+
+    /**
+     * Serializes the index into in-memory structure with all required components
+     * such as Bloom Filter, index block size, IndexInfo list
+     *
+     * @param columns Column family to create index for
+     *
+     * @return information about index - it's Bloom Filter, block size and IndexInfo list
+     */
+    public static RowHeader serialize(IIterableColumns columns)
     {
         int columnCount = columns.getEstimatedColumnCount();
 
         BloomFilter bf = BloomFilter.getFilter(columnCount, 4);
 
         if (columnCount == 0)
-        {
-            writeEmptyHeader(dos, bf);
-            return;
-        }
+            return new RowHeader(bf, Collections.<IndexHelper.IndexInfo>emptyList());
 
         // update bloom filter and create a list of IndexInfo objects marking the first and last column
         // in each block of ColumnIndexSize
         List<IndexHelper.IndexInfo> indexList = new ArrayList<IndexHelper.IndexInfo>();
         int endPosition = 0, startPosition = -1;
-        int indexSizeInBytes = 0;
         IColumn lastColumn = null, firstColumn = null;
+
         for (IColumn column : columns)
         {
             bf.add(column.name());
@@ -82,13 +100,14 @@ public class ColumnIndexer
                 firstColumn = column;
                 startPosition = endPosition;
             }
+
             endPosition += column.serializedSize();
-            /* if we hit the column index size that we have to index after, go ahead and index it. */
+
+            // if we hit the column index size that we have to index after, go ahead and index it.
             if (endPosition - startPosition >= DatabaseDescriptor.getColumnIndexSize())
             {
                 IndexHelper.IndexInfo cIndexInfo = new IndexHelper.IndexInfo(firstColumn.name(), column.name(), startPosition, endPosition - startPosition);
                 indexList.add(cIndexInfo);
-                indexSizeInBytes += cIndexInfo.serializedSize();
                 firstColumn = null;
             }
 
@@ -97,45 +116,43 @@ public class ColumnIndexer
 
         // all columns were GC'd after all
         if (lastColumn == null)
-        {
-            writeEmptyHeader(dos, bf);
-            return;
-        }
+            return new RowHeader(bf, Collections.<IndexHelper.IndexInfo>emptyList());
 
         // the last column may have fallen on an index boundary already.  if not, index it explicitly.
         if (indexList.isEmpty() || columns.getComparator().compare(indexList.get(indexList.size() - 1).lastName, lastColumn.name()) != 0)
         {
             IndexHelper.IndexInfo cIndexInfo = new IndexHelper.IndexInfo(firstColumn.name(), lastColumn.name(), startPosition, endPosition - startPosition);
             indexList.add(cIndexInfo);
-            indexSizeInBytes += cIndexInfo.serializedSize();
         }
 
-        /* Write out the bloom filter. */
-        writeBloomFilter(dos, bf);
-
-        // write the index.  we should always have at least one computed index block, but we only write it out if there is more than that.
-        assert indexSizeInBytes > 0;
-        if (indexList.size() > 1)
-        {
-            dos.writeInt(indexSizeInBytes);
-            for (IndexHelper.IndexInfo cIndexInfo : indexList)
-            {
-                cIndexInfo.serialize(dos);
-            }
-        }
-        else
-        {
-            dos.writeInt(0);
-        }
-	}
-
-    private static void writeEmptyHeader(DataOutput dos, BloomFilter bf)
-            throws IOException
-    {
-        writeBloomFilter(dos, bf);
-        dos.writeInt(0);
+        // we should always have at least one computed index block, but we only write it out if there is more than that.
+        assert indexList.size() > 0;
+        return new RowHeader(bf, indexList);
     }
 
+    private static void writeIndex(RowHeader indexInfo, DataOutput dos) throws IOException
+    {
+        assert indexInfo != null;
+
+        /* Write out the bloom filter. */
+        writeBloomFilter(dos, indexInfo.bloomFilter);
+
+        dos.writeInt(indexInfo.entriesSize);
+        if (indexInfo.indexEntries.size() > 1)
+        {
+            for (IndexHelper.IndexInfo cIndexInfo : indexInfo.indexEntries)
+                cIndexInfo.serialize(dos);
+        }
+    }
+
+    /**
+     * Write a Bloom filter into file
+     *
+     * @param dos file to serialize Bloom Filter
+     * @param bf Bloom Filter
+     *
+     * @throws IOException on any I/O error.
+     */
     private static void writeBloomFilter(DataOutput dos, BloomFilter bf) throws IOException
     {
         DataOutputBuffer bufOut = new DataOutputBuffer();
@@ -145,4 +162,36 @@ public class ColumnIndexer
         bufOut.flush();
     }
 
+    /**
+     * Holds information about serialized index and bloom filter
+     */
+    public static class RowHeader
+    {
+        public final BloomFilter bloomFilter;
+        public final List<IndexHelper.IndexInfo> indexEntries;
+        public final int entriesSize;
+
+        public RowHeader(BloomFilter bf, List<IndexHelper.IndexInfo> indexes)
+        {
+            assert bf != null;
+            assert indexes != null;
+            bloomFilter = bf;
+            indexEntries = indexes;
+            int entriesSize = 0;
+            if (indexEntries.size() > 1)
+            {
+                for (IndexHelper.IndexInfo info : indexEntries)
+                    entriesSize += info.serializedSize();
+            }
+            this.entriesSize = entriesSize;
+        }
+
+        public long serializedSize()
+        {
+            return DBConstants.intSize_  // length of Bloom Filter
+                   + bloomFilter.serializedSize() // BF data
+                   + DBConstants.intSize_ // length of index block
+                   + entriesSize; // index block
+        }
+    }
 }
