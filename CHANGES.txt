@@ -212,6 +212,7 @@
  * add a server-wide cap on measured memtable memory usage and aggressively
    flush to keep under that threshold (CASSANDRA-2006)
  * add unified UUIDType (CASSANDRA-2233)
+ * add off-heap row cache support (CASSANDRA-1969)
 
 
 0.7.5
