@@ -23,7 +23,6 @@ import static org.apache.cassandra.db.DBConstants.*;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.util.Map;
-import java.util.SortedSet;
 import java.util.concurrent.ConcurrentSkipListMap;
 
 import org.apache.cassandra.config.CFMetaData;
@@ -32,7 +31,6 @@ import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.io.IColumnSerializer;
-import org.apache.cassandra.io.util.IIterableColumns;
 import org.apache.cassandra.utils.FBUtilities;
 
 public class ColumnFamily extends AbstractColumnContainer
@@ -306,16 +304,16 @@ public class ColumnFamily extends AbstractColumnContainer
 
     public long serializedSize()
     {
-        return boolSize_ // nullness bool
-               + intSize_ // id
+        return boolSize // nullness bool
+               + intSize // id
                + serializedSizeForSSTable();
     }
 
     public long serializedSizeForSSTable()
     {
-        int size = intSize_ // local deletion time
-                 + longSize_ // client deletion time
-                 + intSize_; // column count
+        int size = intSize // local deletion time
+                 + longSize // client deletion time
+                 + intSize; // column count
         for (IColumn column : columns.values())
             size += column.serializedSize();
         return size;

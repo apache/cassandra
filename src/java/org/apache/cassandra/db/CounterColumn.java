@@ -19,10 +19,8 @@
 package org.apache.cassandra.db;
 
 import java.io.IOException;
-import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
-import java.util.Arrays;
 import java.util.Map;
 
 import org.apache.log4j.Logger;
@@ -34,7 +32,6 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.NodeId;
 
 /**
@@ -93,7 +90,7 @@ public class CounterColumn extends Column
          * A counter column adds to a Column :
          *  + 8 bytes for timestampOfLastDelete
          */
-        return super.size() + DBConstants.tsSize_;
+        return super.size() + DBConstants.tsSize;
     }
 
     @Override

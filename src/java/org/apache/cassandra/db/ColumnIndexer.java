@@ -188,9 +188,9 @@ public class ColumnIndexer
 
         public long serializedSize()
         {
-            return DBConstants.intSize_  // length of Bloom Filter
+            return DBConstants.intSize  // length of Bloom Filter
                    + bloomFilter.serializedSize() // BF data
-                   + DBConstants.intSize_ // length of index block
+                   + DBConstants.intSize // length of index block
                    + entriesSize; // index block
         }
     }

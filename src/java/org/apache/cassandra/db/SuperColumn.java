@@ -25,7 +25,6 @@ import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.util.Collection;
 import java.util.Comparator;
-import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentSkipListMap;
 
@@ -36,7 +35,6 @@ import org.apache.cassandra.io.IColumnSerializer;
 import org.apache.cassandra.io.util.ColumnSortedMap;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 
@@ -125,7 +123,7 @@ public class SuperColumn extends AbstractColumnContainer implements IColumn
     	 * We need to keep the way we are calculating the column size in sync with the
     	 * way we are calculating the size for the column family serializer.
     	 */
-      return DBConstants.shortSize_ + name.remaining() + DBConstants.intSize_ + DBConstants.longSize_ + DBConstants.intSize_ + size();
+      return DBConstants.shortSize + name.remaining() + DBConstants.intSize + DBConstants.longSize + DBConstants.intSize + size();
     }
 
     public long timestamp()

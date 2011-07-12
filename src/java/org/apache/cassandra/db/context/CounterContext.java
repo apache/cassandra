@@ -59,10 +59,10 @@ import org.apache.cassandra.utils.NodeId;
  */
 public class CounterContext implements IContext
 {
-    private static final int HEADER_SIZE_LENGTH = DBConstants.shortSize_;
-    private static final int HEADER_ELT_LENGTH = DBConstants.shortSize_;
-    private static final int CLOCK_LENGTH = DBConstants.longSize_;
-    private static final int COUNT_LENGTH = DBConstants.longSize_;
+    private static final int HEADER_SIZE_LENGTH = DBConstants.shortSize;
+    private static final int HEADER_ELT_LENGTH = DBConstants.shortSize;
+    private static final int CLOCK_LENGTH = DBConstants.longSize;
+    private static final int COUNT_LENGTH = DBConstants.longSize;
     private static final int STEP_LENGTH = NodeId.LENGTH + CLOCK_LENGTH + COUNT_LENGTH;
 
     // Time in ms since a node id has been renewed before we consider using it

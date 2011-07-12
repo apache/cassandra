@@ -85,7 +85,7 @@ public class ExpiringColumn extends Column
          *    4 bytes for the localExpirationTime
          *  + 4 bytes for the timeToLive
         */
-        return super.size() + DBConstants.intSize_ + DBConstants.intSize_;
+        return super.size() + DBConstants.intSize + DBConstants.intSize;
     }
 
     @Override

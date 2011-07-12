@@ -64,8 +64,8 @@ class BloomFilterSerializer implements ICompactSerializer2<BloomFilter>
      */
     public static int serializedSize(BloomFilter bf)
     {
-        return DBConstants.intSize_ // hash count
-               + DBConstants.intSize_ // length
-               + bf.bitset.getBits().length * DBConstants.longSize_; // buckets
+        return DBConstants.intSize // hash count
+               + DBConstants.intSize // length
+               + bf.bitset.getBits().length * DBConstants.longSize; // buckets
     }
 }
