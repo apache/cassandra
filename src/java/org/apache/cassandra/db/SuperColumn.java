@@ -138,7 +138,8 @@ public class SuperColumn extends AbstractColumnContainer implements IColumn
         long maxTimestamp = Long.MIN_VALUE;
         for (IColumn subColumn : getSubColumns())
             maxTimestamp = Math.max(maxTimestamp, subColumn.maxTimestamp());
-        return maxTimestamp;
+
+        return Math.max(maxTimestamp, getMarkedForDeleteAt());
     }
 
     public long mostRecentLiveChangeAt()
