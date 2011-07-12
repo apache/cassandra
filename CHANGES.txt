@@ -24,6 +24,7 @@
  * add option to specify limit for get_slice in the CLI (CASSANDRA-2646)
  * decrease HH page size (CASSANDRA-2832)
  * reset cli keyspace after dropping the current one (CASSANDRA-2763)
+ * add KeyRange option to Hadoop inputformat (CASSANDRA-1125)
 
 
 0.8.1
