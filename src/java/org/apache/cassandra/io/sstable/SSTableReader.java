@@ -382,6 +382,19 @@ public class SSTableReader extends SSTable
     {
         return indexSummary.getIndexPositions().size() * DatabaseDescriptor.getIndexInterval();
     }
+    
+    /**
+     * @param ranges
+     * @return An estimate of the number of keys for given ranges in this SSTable.
+     */
+    public long estimatedKeysForRanges(Collection<Range> ranges)
+    {
+        long sampleKeyCount = 0;
+        List<Pair<Integer, Integer>> sampleIndexes = getSampleIndexesForRanges(indexSummary.getIndexPositions(), ranges);
+        for (Pair<Integer, Integer> sampleIndexRange : sampleIndexes)
+            sampleKeyCount += (sampleIndexRange.right - sampleIndexRange.left + 1);
+        return sampleKeyCount * DatabaseDescriptor.getIndexInterval();
+    }
 
     /**
      * @return Approximately 1/INDEX_INTERVALth of the keys in this SSTable.

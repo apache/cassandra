@@ -21,11 +21,11 @@ package org.apache.cassandra.io.sstable;
  */
 
 
+import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.EOFException;
 import java.io.IOError;
 import java.io.IOException;
-import java.util.ArrayList;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,7 +37,7 @@ import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.columniterator.IColumnIterator;
 import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
-import org.apache.cassandra.utils.Filter;
+import org.apache.cassandra.utils.BytesReadTracker;
 
 public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterator>, IColumnIterator
 {
@@ -45,14 +45,16 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
 
     private final DecoratedKey key;
     private final long finishedAt;
-    private final BufferedRandomAccessFile file;
+    private final DataInput input;
     private final long dataStart;
     public final long dataSize;
     public final boolean fromRemote;
 
     private final ColumnFamily columnFamily;
     public final int columnCount;
-    private final long columnPosition;
+    private long columnPosition;
+
+    private BytesReadTracker inputWithTracker; // tracks bytes read
 
     // Used by lazilyCompactedRow, so that we see the same things when deserializing the first and second time
     private final int expireBefore;
@@ -90,17 +92,18 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
         this(sstable.metadata, file, key, dataStart, dataSize, checkData, sstable, false);
     }
 
-    public SSTableIdentityIterator(CFMetaData metadata, BufferedRandomAccessFile file, DecoratedKey key, long dataStart, long dataSize, boolean fromRemote)
+    public SSTableIdentityIterator(CFMetaData metadata, DataInput file, DecoratedKey key, long dataStart, long dataSize, boolean fromRemote)
     throws IOException
     {
         this(metadata, file, key, dataStart, dataSize, false, null, fromRemote);
     }
 
     // sstable may be null *if* deserializeRowHeader is false
-    private SSTableIdentityIterator(CFMetaData metadata, BufferedRandomAccessFile file, DecoratedKey key, long dataStart, long dataSize, boolean checkData, SSTableReader sstable, boolean fromRemote)
+    private SSTableIdentityIterator(CFMetaData metadata, DataInput input, DecoratedKey key, long dataStart, long dataSize, boolean checkData, SSTableReader sstable, boolean fromRemote)
     throws IOException
     {
-        this.file = file;
+        this.input = input;
+        this.inputWithTracker = new BytesReadTracker(input);
         this.key = key;
         this.dataStart = dataStart;
         this.dataSize = dataSize;
@@ -111,38 +114,47 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
 
         try
         {
-            file.seek(this.dataStart);
-            if (checkData)
+            if (input instanceof BufferedRandomAccessFile)
             {
-                try
-                {
-                    IndexHelper.defreezeBloomFilter(file, dataSize, sstable.descriptor.usesOldBloomFilter);
-                }
-                catch (Exception e)
-                {
-                    if (e instanceof EOFException)
-                        throw (EOFException) e;
-
-                    logger.debug("Invalid bloom filter in {}; will rebuild it", sstable);
-                    // deFreeze should have left the file position ready to deserialize index
-                }
-                try
-                {
-                    IndexHelper.deserializeIndex(file);
-                }
-                catch (Exception e)
-                {
-                    logger.debug("Invalid row summary in {}; will rebuild it", sstable);
-                }
+                BufferedRandomAccessFile file = (BufferedRandomAccessFile) input;
                 file.seek(this.dataStart);
+                if (checkData)
+                {
+                    try
+                    {
+                        IndexHelper.defreezeBloomFilter(file, dataSize, sstable.descriptor.usesOldBloomFilter);
+                    }
+                    catch (Exception e)
+                    {
+                        if (e instanceof EOFException)
+                            throw (EOFException) e;
+
+                        logger.debug("Invalid bloom filter in {}; will rebuild it", sstable);
+                        // deFreeze should have left the file position ready to deserialize index
+                    }
+                    try
+                    {
+                        IndexHelper.deserializeIndex(file);
+                    }
+                    catch (Exception e)
+                    {
+                        logger.debug("Invalid row summary in {}; will rebuild it", sstable);
+                    }
+                    file.seek(this.dataStart);
+                }
             }
 
-            IndexHelper.skipBloomFilter(file);
-            IndexHelper.skipIndex(file);
+            IndexHelper.skipBloomFilter(inputWithTracker);
+            IndexHelper.skipIndex(inputWithTracker);
             columnFamily = ColumnFamily.create(metadata);
-            ColumnFamily.serializer().deserializeFromSSTableNoColumns(columnFamily, file);
-            columnCount = file.readInt();
-            columnPosition = file.getFilePointer();
+            ColumnFamily.serializer().deserializeFromSSTableNoColumns(columnFamily, inputWithTracker);
+            columnCount = inputWithTracker.readInt();
+
+            if (input instanceof BufferedRandomAccessFile)
+            {
+                BufferedRandomAccessFile file = (BufferedRandomAccessFile) input;
+                columnPosition = file.getFilePointer();
+            }
         }
         catch (IOException e)
         {
@@ -162,14 +174,22 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
 
     public boolean hasNext()
     {
-        return file.getFilePointer() < finishedAt;
+        if (input instanceof BufferedRandomAccessFile)
+        {
+            BufferedRandomAccessFile file = (BufferedRandomAccessFile) input;
+            return file.getFilePointer() < finishedAt;
+        }
+        else
+        {
+            return inputWithTracker.getBytesRead() < dataSize;
+        }
     }
 
     public IColumn next()
     {
         try
         {
-            IColumn column = columnFamily.getColumnSerializer().deserialize(file, null, fromRemote, expireBefore);
+            IColumn column = columnFamily.getColumnSerializer().deserialize(inputWithTracker, null, fromRemote, expireBefore);
             if (validateColumns)
                 column.validateFields(columnFamily.metadata());
             return column;
@@ -196,23 +216,50 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
 
     public String getPath()
     {
-        return file.getPath();
+        // if input is from file, then return that path, otherwise it's from streaming
+        if (input instanceof BufferedRandomAccessFile)
+        {
+            BufferedRandomAccessFile file = (BufferedRandomAccessFile) input;
+            return file.getPath();
+        }
+        else
+        {
+            throw new UnsupportedOperationException();
+        }
     }
 
     public void echoData(DataOutput out) throws IOException
     {
-        file.seek(dataStart);
-        while (file.getFilePointer() < finishedAt)
+        // only effective when input is from file
+        if (input instanceof BufferedRandomAccessFile)
         {
-            out.write(file.readByte());
+            BufferedRandomAccessFile file = (BufferedRandomAccessFile) input;
+            file.seek(dataStart);
+            while (file.getFilePointer() < finishedAt)
+            {
+                out.write(file.readByte());
+            }
+        }
+        else
+        {
+            throw new UnsupportedOperationException();
         }
     }
 
     public ColumnFamily getColumnFamilyWithColumns() throws IOException
     {
-        file.seek(columnPosition - 4); // seek to before column count int
         ColumnFamily cf = columnFamily.cloneMeShallow();
-        ColumnFamily.serializer().deserializeColumns(file, cf, false, fromRemote);
+        if (input instanceof BufferedRandomAccessFile)
+        {
+            BufferedRandomAccessFile file = (BufferedRandomAccessFile) input;
+            file.seek(columnPosition - 4); // seek to before column count int
+            ColumnFamily.serializer().deserializeColumns(inputWithTracker, cf, false, fromRemote);
+        }
+        else
+        {
+            // since we already read column count, just pass that value and continue deserialization
+            ColumnFamily.serializer().deserializeColumns(inputWithTracker, cf, columnCount, false, fromRemote);
+        }
         if (validateColumns)
         {
             try
@@ -234,13 +281,23 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
 
     public void reset()
     {
-        try
+        // only effective when input is from file
+        if (input instanceof BufferedRandomAccessFile)
         {
-            file.seek(columnPosition);
+            BufferedRandomAccessFile file = (BufferedRandomAccessFile) input;
+            try
+            {
+                file.seek(columnPosition);
+            }
+            catch (IOException e)
+            {
+                throw new IOError(e);
+            }
+            inputWithTracker.reset();
         }
-        catch (IOException e)
+        else
         {
-            throw new IOError(e);
+            throw new UnsupportedOperationException();
         }
     }
 }

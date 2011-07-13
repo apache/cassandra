@@ -277,6 +277,8 @@ public class SSTableWriter extends SSTable
     /**
      * Removes the given SSTable from temporary status and opens it, rebuilding the
      * bloom filter and row index from the data file.
+     *
+     * TODO remove this post-1.0, we have one-pass streaming now (see IncomingStreamReader)
      */
     public static class Builder implements CompactionInfo.Holder
     {

@@ -151,7 +151,7 @@ public class StreamOut
             List<Pair<Long,Long>> sections = sstable.getPositionsForRanges(ranges);
             if (sections.isEmpty())
                 continue;
-            pending.add(new PendingFile(sstable, desc, SSTable.COMPONENT_DATA, sections, type));
+            pending.add(new PendingFile(sstable, desc, SSTable.COMPONENT_DATA, sections, type, sstable.estimatedKeysForRanges(ranges)));
         }
         logger.info("Stream context metadata {}, {} sstables.", pending, Iterables.size(sstables));
         return pending;
