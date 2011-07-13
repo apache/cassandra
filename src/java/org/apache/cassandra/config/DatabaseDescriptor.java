@@ -100,7 +100,7 @@ public class    DatabaseDescriptor
         try
         {
             url = new URL(configUrl);
-            url.openStream(); // catches well-formed but bogus URLs
+            url.openStream().close(); // catches well-formed but bogus URLs
         }
         catch (Exception e)
         {
