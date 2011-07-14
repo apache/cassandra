@@ -59,8 +59,6 @@ public class ColumnFamily extends AbstractColumnContainer
         return new ColumnFamily(cfm);
     }
 
-    private transient IColumnSerializer columnSerializer;
-    
     public ColumnFamily(CFMetaData cfm)
     {
         this(cfm, new ConcurrentSkipListMap<ByteBuffer, IColumn>(cfm.comparator));
@@ -71,7 +69,6 @@ public class ColumnFamily extends AbstractColumnContainer
         super(map);
         assert cfm != null;
         this.cfm = cfm;
-        columnSerializer = cfm.getColumnSerializer();
     }
     
     public ColumnFamily cloneMeShallow()
@@ -84,7 +81,8 @@ public class ColumnFamily extends AbstractColumnContainer
 
     public AbstractType getSubComparator()
     {
-        return (columnSerializer instanceof SuperColumnSerializer) ? ((SuperColumnSerializer)columnSerializer).getComparator() : null;
+        IColumnSerializer s = getColumnSerializer();
+        return (s instanceof SuperColumnSerializer) ? ((SuperColumnSerializer) s).getComparator() : null;
     }
 
     public ColumnFamilyType getType()
@@ -115,7 +113,7 @@ public class ColumnFamily extends AbstractColumnContainer
 
     public IColumnSerializer getColumnSerializer()
     {
-        return columnSerializer;
+        return cfm.getColumnSerializer();
     }
 
     public boolean isSuper()

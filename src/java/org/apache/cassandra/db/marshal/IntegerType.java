@@ -24,7 +24,6 @@ import java.nio.ByteBuffer;
 import java.sql.Types;
 
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.thrift.TBaseHelper;
 
 public final class IntegerType extends AbstractType<BigInteger>
 {
