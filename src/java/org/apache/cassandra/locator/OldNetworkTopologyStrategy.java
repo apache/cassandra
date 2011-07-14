@@ -96,9 +96,6 @@ public class OldNetworkTopologyStrategy extends AbstractReplicationStrategy
                 if (!endpoints.contains(metadata.getEndpoint(t)))
                     endpoints.add(metadata.getEndpoint(t));
             }
-
-            if (endpoints.size() < replicas)
-                throw new IllegalStateException(String.format("replication factor (%s) exceeds number of endpoints (%s)", replicas, endpoints.size()));
         }
 
         return endpoints;

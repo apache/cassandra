@@ -85,9 +85,9 @@ public class WriteResponseHandler extends AbstractWriteResponseHandler
             case THREE:
                 return 3;
             case QUORUM:
-                return (writeEndpoints.size() / 2) + 1;
+                return (Table.open(table).getReplicationStrategy().getReplicationFactor() / 2) + 1;
             case ALL:
-                return writeEndpoints.size();
+                return Table.open(table).getReplicationStrategy().getReplicationFactor();
             default:
                 throw new UnsupportedOperationException("invalid consistency level: " + consistencyLevel.toString());
         }

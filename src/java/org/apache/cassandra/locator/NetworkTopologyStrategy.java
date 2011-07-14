@@ -120,9 +120,6 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
                     dcEndpoints.add(endpoint);
             }
 
-            if (dcEndpoints.size() < dcReplicas)
-                throw new IllegalStateException(String.format("datacenter (%s) has no more endpoints, (%s) replicas still needed",
-                                                              dcName, dcReplicas - dcEndpoints.size()));
             if (logger.isDebugEnabled())
                 logger.debug("{} endpoints in datacenter {} for token {} ",
                              new Object[] { StringUtils.join(dcEndpoints, ","), dcName, searchToken});
