@@ -21,16 +21,15 @@ package org.apache.cassandra.io.sstable;
  */
 
 
+import static org.apache.cassandra.Util.addMutation;
 import static org.junit.Assert.*;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 
+import org.apache.cassandra.Util;
 import org.junit.Test;
 
 import org.apache.cassandra.CleanupHelper;
@@ -136,5 +135,39 @@ public class SSTableWriterTest extends CleanupHelper {
 
         // ensure max timestamp is captured during rebuild
         assert sstr.getMaxTimestamp() == 4321L;
+    }
+    
+    @Test
+    public void testSuperColumnMaxTimestamp() throws IOException, ExecutionException, InterruptedException
+    {
+        ColumnFamilyStore store = Table.open("Keyspace1").getColumnFamilyStore("Super1");
+        RowMutation rm;
+        DecoratedKey dk = Util.dk("key1");
+
+        // add data
+        rm = new RowMutation("Keyspace1", dk.key);
+        addMutation(rm, "Super1", "SC1", 1, "val1", 0);
+        rm.apply();
+        store.forceBlockingFlush();
+        
+        validateMinTimeStamp(store.getSSTables(), 0);
+
+        // remove
+        rm = new RowMutation("Keyspace1", dk.key);
+        rm.delete(new QueryPath("Super1", ByteBufferUtil.bytes("SC1")), 1);
+        rm.apply();
+        store.forceBlockingFlush();
+        
+        validateMinTimeStamp(store.getSSTables(), 0);
+
+        CompactionManager.instance.performMaximal(store);
+        assertEquals(1, store.getSSTables().size());
+        validateMinTimeStamp(store.getSSTables(), 1);
+    }
+
+    private void validateMinTimeStamp(Collection<SSTableReader> ssTables, int timestamp)
+    {
+        for (SSTableReader ssTable : ssTables)
+            assertTrue(ssTable.getMaxTimestamp() >= timestamp);
     }
 }
