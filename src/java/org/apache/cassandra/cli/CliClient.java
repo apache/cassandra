@@ -376,13 +376,14 @@ public class CliClient
 
         Tree columnFamilySpec = statement.getChild(0);
 
-        String key = CliCompiler.getKey(columnFamilySpec);
         String columnFamily = CliCompiler.getColumnFamily(columnFamilySpec, keyspacesMap.get(keySpace).cf_defs);
+        CfDef cfDef = getCfDef(columnFamily);
+
+        ByteBuffer key = getKeyAsBytes(columnFamily, columnFamilySpec.getChild(1));
         int columnSpecCnt = CliCompiler.numColumnSpecifiers(columnFamilySpec);
 
         byte[] superColumnName = null;
         byte[] columnName = null;
-        CfDef cfDef = getCfDef(columnFamily);
         boolean isSuper = cfDef.column_type.equals("Super");
      
         if ((columnSpecCnt < 0) || (columnSpecCnt > 2))
@@ -390,20 +391,42 @@ public class CliClient
             sessionState.out.println("Invalid row, super column, or column specification.");
             return;
         }
-        
+
+        Tree columnTree = (columnSpecCnt >= 1)
+                           ? columnFamilySpec.getChild(2)
+                           : null;
+
+        Tree subColumnTree = (columnSpecCnt == 2)
+                              ? columnFamilySpec.getChild(3)
+                              : null;
+
         if (columnSpecCnt == 1)
         {
+            assert columnTree != null;
+
+            byte[] columnNameBytes = (columnTree.getType() == CliParser.FUNCTION_CALL)
+                                      ? convertValueByFunction(columnTree, null, null).array()
+                                      : columnNameAsByteArray(CliCompiler.getColumn(columnFamilySpec, 0), cfDef);
+
             // table.cf['key']['column']
             if (isSuper)
-                superColumnName = columnNameAsByteArray(CliCompiler.getColumn(columnFamilySpec, 0), cfDef);
+                superColumnName = columnNameBytes;
             else
-                columnName = columnNameAsByteArray(CliCompiler.getColumn(columnFamilySpec, 0), cfDef);
+                columnName = columnNameBytes;
         }
         else if (columnSpecCnt == 2)
         {
+            assert columnTree != null;
+            assert subColumnTree != null;
+
             // table.cf['key']['column']['column']
-            superColumnName = columnNameAsByteArray(CliCompiler.getColumn(columnFamilySpec, 0), cfDef);
-            columnName = subColumnNameAsByteArray(CliCompiler.getColumn(columnFamilySpec, 1), cfDef);
+            superColumnName = (columnTree.getType() == CliParser.FUNCTION_CALL)
+                                      ? convertValueByFunction(columnTree, null, null).array()
+                                      : columnNameAsByteArray(CliCompiler.getColumn(columnFamilySpec, 0), cfDef);
+
+            columnName = (subColumnTree.getType() == CliParser.FUNCTION_CALL)
+                                         ? convertValueByFunction(subColumnTree, null, null).array()
+                                         : subColumnNameAsByteArray(CliCompiler.getColumn(columnFamilySpec, 1), cfDef);
         }
 
         ColumnPath path = new ColumnPath(columnFamily);
@@ -415,12 +438,11 @@ public class CliClient
 
         if (isCounterCF(cfDef))
         {
-            thriftClient.remove_counter(ByteBufferUtil.bytes(key), path, consistencyLevel);
+            thriftClient.remove_counter(key, path, consistencyLevel);
         }
         else
         {
-            thriftClient.remove(ByteBufferUtil.bytes(key), path,
-                    FBUtilities.timestampMicros(), consistencyLevel);
+            thriftClient.remove(key, path, FBUtilities.timestampMicros(), consistencyLevel);
         }
         sessionState.out.println(String.format("%s removed.", (columnSpecCnt == 0) ? "row" : "column"));
     }
