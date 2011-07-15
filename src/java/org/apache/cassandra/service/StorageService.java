@@ -1225,6 +1225,26 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         return stringify(Gossiper.instance.getUnreachableMembers());
     }
 
+    public String[] getAllDataFileLocations()
+    {
+        return DatabaseDescriptor.getAllDataFileLocations();
+    }
+
+    public String[] getAllDataFileLocationsForTable(String table)
+    {
+        return DatabaseDescriptor.getAllDataFileLocationsForTable(table);
+    }
+
+    public String getCommitLogLocation()
+    {
+        return DatabaseDescriptor.getCommitLogLocation();
+    }
+
+    public String getSavedCachesLocation()
+    {
+        return DatabaseDescriptor.getSavedCachesLocation();
+    }
+
     private List<String> stringify(Iterable<InetAddress> endpoints)
     {
         List<String> stringEndpoints = new ArrayList<String>();
