@@ -934,7 +934,7 @@ public class CliClient extends CliUserHelp
                 cfDef.setKey_cache_save_period_in_seconds(Integer.parseInt(mValue));
                 break;
             case DEFAULT_VALIDATION_CLASS:
-                cfDef.setDefault_validation_class(mValue);
+                cfDef.setDefault_validation_class(CliUtils.unescapeSQLString(mValue));
                 break;
             case MIN_COMPACTION_THRESHOLD:
                 cfDef.setMin_compaction_threshold(Integer.parseInt(mValue));
