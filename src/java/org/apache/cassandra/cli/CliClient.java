@@ -349,7 +349,6 @@ public class CliClient
 
         Tree columnFamilySpec = statement.getChild(0);
 
-        String key = CliCompiler.getKey(columnFamilySpec);
         String columnFamily = CliCompiler.getColumnFamily(columnFamilySpec, keyspacesMap.get(keySpace).cf_defs);
         int columnSpecCnt = CliCompiler.numColumnSpecifiers(columnFamilySpec);
        
@@ -357,14 +356,19 @@ public class CliClient
        
         if (columnSpecCnt != 0)
         {
-            byte[] superColumn = columnNameAsByteArray(CliCompiler.getColumn(columnFamilySpec, 0), columnFamily);
+            Tree columnTree = columnFamilySpec.getChild(2);
+
+            byte[] superColumn = (columnTree.getType() == CliParser.FUNCTION_CALL)
+                                  ? convertValueByFunction(columnTree, null, null).array()
+                                  : columnNameAsByteArray(CliCompiler.getColumn(columnFamilySpec, 0), columnFamily);
+
             colParent = new ColumnParent(columnFamily).setSuper_column(superColumn);
         }
 
         SliceRange range = new SliceRange(ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, Integer.MAX_VALUE);
         SlicePredicate predicate = new SlicePredicate().setColumn_names(null).setSlice_range(range);
 
-        int count = thriftClient.get_count(ByteBufferUtil.bytes(key), colParent, predicate, consistencyLevel);
+        int count = thriftClient.get_count(getKeyAsBytes(columnFamily, columnFamilySpec.getChild(1)), colParent, predicate, consistencyLevel);
         sessionState.out.printf("%d columns%n", count);
     }
     
