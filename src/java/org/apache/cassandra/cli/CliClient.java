@@ -408,12 +408,6 @@ public class CliClient
                                       ? convertValueByFunction(columnTree, null, null).array()
                                       : columnNameAsByteArray(CliCompiler.getColumn(columnFamilySpec, 0), cfDef);
 
-            // table.cf['key']['column']
-            assert columnTree != null;
-
-            byte[] columnNameBytes = (columnTree.getType() == CliParser.FUNCTION_CALL)
-                                      ? convertValueByFunction(columnTree, null, null).array()
-                                      : columnNameAsByteArray(CliCompiler.getColumn(columnFamilySpec, 0), cfDef);
 
             if (isSuper)
                 superColumnName = columnNameBytes;
