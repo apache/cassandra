@@ -409,6 +409,12 @@ public class CliClient
                                       : columnNameAsByteArray(CliCompiler.getColumn(columnFamilySpec, 0), cfDef);
 
             // table.cf['key']['column']
+            assert columnTree != null;
+
+            byte[] columnNameBytes = (columnTree.getType() == CliParser.FUNCTION_CALL)
+                                      ? convertValueByFunction(columnTree, null, null).array()
+                                      : columnNameAsByteArray(CliCompiler.getColumn(columnFamilySpec, 0), cfDef);
+
             if (isSuper)
                 superColumnName = columnNameBytes;
             else
@@ -1226,7 +1232,7 @@ public class CliClient
                 cfDef.setKey_cache_save_period_in_seconds(Integer.parseInt(mValue));
                 break;
             case DEFAULT_VALIDATION_CLASS:
-                cfDef.setDefault_validation_class(mValue);
+                cfDef.setDefault_validation_class(CliUtils.unescapeSQLString(mValue));
                 break;
             case MIN_COMPACTION_THRESHOLD:
                 cfDef.setMin_compaction_threshold(Integer.parseInt(mValue));

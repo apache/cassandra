@@ -603,17 +603,19 @@ public class NodeCmd
 
         switch (command)
         {
-            case RING            : nodeCmd.printRing(System.out); break;
-            case INFO            : nodeCmd.printInfo(System.out); break;
-            case CFSTATS         : nodeCmd.printColumnFamilyStats(System.out); break;
-            case DECOMMISSION    : probe.decommission(); break;
-            case TPSTATS         : nodeCmd.printThreadPoolStats(System.out); break;
-            case VERSION         : nodeCmd.printReleaseVersion(System.out); break;
-            case COMPACTIONSTATS : nodeCmd.printCompactionStats(System.out); break;
-            case DISABLEGOSSIP   : probe.stopGossiping(); break;
-            case ENABLEGOSSIP    : probe.startGossiping(); break;
-            case DISABLETHRIFT   : probe.stopThriftServer(); break;
-            case ENABLETHRIFT    : probe.startThriftServer(); break;
+            case RING            : complainNonzeroArgs(arguments, command); nodeCmd.printRing(System.out); break;
+            case INFO            : complainNonzeroArgs(arguments, command); nodeCmd.printInfo(System.out); break;
+            case CFSTATS         : complainNonzeroArgs(arguments, command); nodeCmd.printColumnFamilyStats(System.out); break;
+            case DECOMMISSION    : complainNonzeroArgs(arguments, command); probe.decommission(); break;
+            case LOADBALANCE     : complainNonzeroArgs(arguments, command); probe.loadBalance(); break;
+            case CLEARSNAPSHOT   : complainNonzeroArgs(arguments, command); probe.clearSnapshot(); break;
+            case TPSTATS         : complainNonzeroArgs(arguments, command); nodeCmd.printThreadPoolStats(System.out); break;
+            case VERSION         : complainNonzeroArgs(arguments, command); nodeCmd.printReleaseVersion(System.out); break;
+            case COMPACTIONSTATS : complainNonzeroArgs(arguments, command); nodeCmd.printCompactionStats(System.out); break;
+            case DISABLEGOSSIP   : complainNonzeroArgs(arguments, command); probe.stopGossiping(); break;
+            case ENABLEGOSSIP    : complainNonzeroArgs(arguments, command); probe.startGossiping(); break;
+            case DISABLETHRIFT   : complainNonzeroArgs(arguments, command); probe.stopThriftServer(); break;
+            case ENABLETHRIFT    : complainNonzeroArgs(arguments, command); probe.startThriftServer(); break;
             case STATUSTHRIFT    : nodeCmd.printIsThriftServerRunning(System.out); break;
 
             case DRAIN :
@@ -721,24 +723,12 @@ public class NodeCmd
         System.exit(3);
     }
 
-    private static void handleSnapshots(NodeCommand nc, String tag, String[] cmdArgs, NodeProbe probe) throws InterruptedException, IOException
+    private static void complainNonzeroArgs(String[] args, NodeCommand cmd)
     {
-        int length = cmdArgs.length > 1 ? cmdArgs.length - 1 : 0;
-        String[] keyspaces = new String[length];
-        for (int i = 0; i < keyspaces.length; i++)
-            keyspaces[i] = cmdArgs[i + 1];
-
-        switch (nc)
-        {
-            case SNAPSHOT :
-                if (tag == null || tag.equals(""))
-                    tag = new Long(System.currentTimeMillis()).toString();
-                probe.takeSnapshot(tag, keyspaces);
-                System.out.println("Snapshot directory: " + tag);
-                break;
-            case CLEARSNAPSHOT :
-                probe.clearSnapshot(tag, keyspaces);
-                break;
+        if (args.length > 0) {
+            System.err.println("Too many arguments for command '"+cmd.toString()+"'.");
+            printUsage();
+            System.exit(1);
         }
     }
 

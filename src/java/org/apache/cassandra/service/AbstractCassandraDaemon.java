@@ -74,12 +74,30 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
         }
         catch (MalformedURLException ex) 
         {
-            // load from the classpath.
+            // then try loading from the classpath.
             configLocation = AbstractCassandraDaemon.class.getClassLoader().getResource(config);
-            if (configLocation == null)
-                throw new RuntimeException("Couldn't figure out log4j configuration.");
         }
-        PropertyConfigurator.configureAndWatch(configLocation.getFile(), 10000);
+        
+        if (configLocation == null)
+            throw new RuntimeException("Couldn't figure out log4j configuration: "+config);
+
+        // Now convert URL to a filename
+        String configFileName = null;
+        try
+        {
+            // first try URL.getFile() which works for opaque URLs (file:foo) and paths without spaces
+            configFileName = configLocation.getFile();
+            File configFile = new File(configFileName);
+            // then try alternative approach which works for all hierarchical URLs with or without spaces
+            if (!configFile.exists())
+                configFileName = new File(configLocation.toURI()).getCanonicalPath();
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException("Couldn't convert log4j configuration location to a valid file", e);
+        }
+
+        PropertyConfigurator.configureAndWatch(configFileName, 10000);
         org.apache.log4j.Logger.getLogger(AbstractCassandraDaemon.class).info("Logging initialized");
     }
 

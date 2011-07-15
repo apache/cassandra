@@ -86,6 +86,31 @@ public interface StorageServiceMBean
     public String getReleaseVersion();
 
     /**
+     * Get the list of all data file locations from conf
+     * @return String array of all locations
+     */
+    public String[] getAllDataFileLocations();
+
+    /**
+     * Get the list of data file locations for a given keyspace
+     * @param keyspace the keyspace to get locatiosn for.
+     * @return String array of all locations
+     */
+    public String[] getAllDataFileLocationsForTable(String table);
+
+    /**
+     * Get location of the commit log
+     * @return a string path
+     */
+    public String getCommitLogLocation();
+
+    /**
+     * Get location of the saved caches dir
+     * @return a string path
+     */
+    public String getSavedCachesLocation();
+
+    /**
      * Retrieve a map of range to end points that describe the ring topology
      * of a Cassandra cluster.
      *
