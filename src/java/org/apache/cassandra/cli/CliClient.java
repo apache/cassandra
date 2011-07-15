@@ -278,20 +278,42 @@ public class CliClient extends CliUserHelp
             sessionState.out.println("Invalid row, super column, or column specification.");
             return;
         }
-        
+
+        Tree columnTree = (columnSpecCnt >= 1)
+                           ? columnFamilySpec.getChild(2)
+                           : null;
+
+        Tree subColumnTree = (columnSpecCnt == 2)
+                              ? columnFamilySpec.getChild(3)
+                              : null;
+
         if (columnSpecCnt == 1)
         {
             // table.cf['key']['column']
+            assert columnTree != null;
+
+            byte[] columnNameBytes = (columnTree.getType() == CliParser.FUNCTION_CALL)
+                                      ? convertValueByFunction(columnTree, null, null).array()
+                                      : columnNameAsByteArray(CliCompiler.getColumn(columnFamilySpec, 0), cfDef);
+
             if (isSuper)
-                superColumnName = columnNameAsByteArray(CliCompiler.getColumn(columnFamilySpec, 0), cfDef);
+                superColumnName = columnNameBytes;
             else
-                columnName = columnNameAsByteArray(CliCompiler.getColumn(columnFamilySpec, 0), cfDef);
+                columnName = columnNameBytes;
         }
         else if (columnSpecCnt == 2)
         {
+            assert columnTree != null;
+            assert subColumnTree != null;
+
             // table.cf['key']['column']['column']
-            superColumnName = columnNameAsByteArray(CliCompiler.getColumn(columnFamilySpec, 0), cfDef);
-            columnName = subColumnNameAsByteArray(CliCompiler.getColumn(columnFamilySpec, 1), cfDef);
+            superColumnName = (columnTree.getType() == CliParser.FUNCTION_CALL)
+                                      ? convertValueByFunction(columnTree, null, null).array()
+                                      : columnNameAsByteArray(CliCompiler.getColumn(columnFamilySpec, 0), cfDef);
+
+            columnName = (subColumnTree.getType() == CliParser.FUNCTION_CALL)
+                                         ? convertValueByFunction(subColumnTree, null, null).array()
+                                         : subColumnNameAsByteArray(CliCompiler.getColumn(columnFamilySpec, 1), cfDef);
         }
 
         ColumnPath path = new ColumnPath(columnFamily);
