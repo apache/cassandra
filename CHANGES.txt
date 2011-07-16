@@ -25,6 +25,7 @@
  * decrease HH page size (CASSANDRA-2832)
  * reset cli keyspace after dropping the current one (CASSANDRA-2763)
  * add KeyRange option to Hadoop inputformat (CASSANDRA-1125)
+ * fix protocol versioning (CASSANDRA-2818, 2860)
  * support spaces in path to log4j configuration (CASSANDRA-2383)
 
 
