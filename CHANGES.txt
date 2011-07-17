@@ -2,6 +2,7 @@
  * fix possibility of spurious UnavailableException for LOCAL_QUORUM
    reads with dynamic snitch + read repair disabled (CASSANDRA-2870)
  * support spaces in path to log4j configuration (CASSANDRA-2383)
+ * avoid including inferred types in CF update (CASSANDRA-2809)
 
 
 0.7.7

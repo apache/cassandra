@@ -828,11 +828,15 @@ public class CliClient extends CliUserHelp
             return;
 
         String cfName = CliCompiler.getColumnFamily(statement, keyspacesMap.get(keySpace).cf_defs);
-        // first child is a column family name
-        CfDef cfDef = getCfDef(cfName);
 
         try
         {
+            // request correct cfDef from the server
+            CfDef cfDef = getCfDef(thriftClient.describe_keyspace(this.keySpace), cfName);
+
+            if (cfDef == null)
+                throw new RuntimeException("Column Family " + cfName + " was not found in the current keyspace.");
+
             String mySchemaVersion = thriftClient.system_update_column_family(updateCfDefAttributes(statement, cfDef));
             sessionState.out.println(mySchemaVersion);
             validateSchemaIsSettled(mySchemaVersion);
@@ -1578,7 +1582,18 @@ public class CliClient extends CliUserHelp
     {
         return getCfDef(this.keySpace, columnFamilyName);
     }
-    
+
+    private CfDef getCfDef(KsDef keyspace, String columnFamilyName)
+    {
+        for (CfDef cfDef : keyspace.cf_defs)
+        {
+            if (cfDef.name.equals(columnFamilyName))
+                return cfDef;
+        }
+
+        return null;
+    }
+
     /**
      * Used to parse meta tree and compile meta attributes into List<ColumnDef>
      * @param cfDef - column family definition 
