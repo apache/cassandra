@@ -82,7 +82,9 @@ public class IncomingStreamReader
         if (logger.isDebugEnabled())
         {
             logger.debug("Receiving stream");
-            logger.debug("Creating file for {}", localFile.getFilename());
+            logger.debug("Creating file for {} with {} estimated keys",
+                         localFile.getFilename(),
+                         remoteFile.estimatedKeys);
         }
 
         SSTableReader reader = null;

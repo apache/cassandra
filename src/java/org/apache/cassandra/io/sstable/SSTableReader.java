@@ -393,7 +393,7 @@ public class SSTableReader extends SSTable
         List<Pair<Integer, Integer>> sampleIndexes = getSampleIndexesForRanges(indexSummary.getIndexPositions(), ranges);
         for (Pair<Integer, Integer> sampleIndexRange : sampleIndexes)
             sampleKeyCount += (sampleIndexRange.right - sampleIndexRange.left + 1);
-        return sampleKeyCount * DatabaseDescriptor.getIndexInterval();
+        return Math.max(1, sampleKeyCount * DatabaseDescriptor.getIndexInterval());
     }
 
     /**
@@ -444,7 +444,7 @@ public class SSTableReader extends SSTable
                     right--;
             }
 
-            if (left >= right)
+            if (left > right)
                 // empty range
                 continue;
             positions.add(new Pair(Integer.valueOf(left), Integer.valueOf(right)));

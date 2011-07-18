@@ -66,9 +66,10 @@ public class StreamingTransferTest extends CleanupHelper
         for (int i = 1; i <= 3; i++)
         {
             String key = "key" + i;
+            String col = "col" + i;
             RowMutation rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes(key));
             ColumnFamily cf = ColumnFamily.create(table.name, cfs.columnFamily);
-            cf.addColumn(column(key, "v", 0));
+            cf.addColumn(column(col, "v", 0));
             cf.addColumn(new Column(ByteBufferUtil.bytes("birthdate"), ByteBufferUtil.bytes((long) i), 0));
             rm.add(cf);
             rm.apply();
@@ -94,7 +95,7 @@ public class StreamingTransferTest extends CleanupHelper
         assert rows.get(1).key.key.equals( ByteBufferUtil.bytes("key3"));
         assertEquals(2, rows.get(0).cf.getColumnsMap().size());
         assertEquals(2, rows.get(1).cf.getColumnsMap().size());
-        assert rows.get(1).cf.getColumn(ByteBufferUtil.bytes("key3")) != null;
+        assert rows.get(1).cf.getColumn(ByteBufferUtil.bytes("col3")) != null;
 
         // and that the index and filter were properly recovered
         assert null != cfs.getColumnFamily(QueryFilter.getIdentityFilter(Util.dk("key1"), new QueryPath(cfs.columnFamily)));
