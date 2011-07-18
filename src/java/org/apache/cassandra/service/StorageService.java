@@ -2472,7 +2472,15 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
         SSTableLoader.Client client = new SSTableLoader.Client()
         {
-            public void init() {}
+            public void init(String keyspace)
+            {
+                for (Map.Entry<Range, List<InetAddress>> entry : StorageService.instance.getRangeToAddressMap(keyspace).entrySet())
+                {
+                    Range range = entry.getKey();
+                    for (InetAddress endpoint : entry.getValue())
+                        addRangeForEndpoint(range, endpoint);
+                }
+            }
 
             public boolean validateColumnFamily(String keyspace, String cfName)
             {

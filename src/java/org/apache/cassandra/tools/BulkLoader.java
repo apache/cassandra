@@ -57,7 +57,7 @@ public class BulkLoader
         LoaderOptions options = LoaderOptions.parseArgs(args);
         try
         {
-            SSTableLoader loader = new SSTableLoader(options.directory, new ExternalClient(options.directory.getName(), options), options);
+            SSTableLoader loader = new SSTableLoader(options.directory, new ExternalClient(options), options);
             SSTableLoader.LoaderFuture future = loader.stream(options.ignores);
 
             if (options.noProgress)
@@ -164,18 +164,16 @@ public class BulkLoader
 
     static class ExternalClient extends SSTableLoader.Client
     {
-        private final String keyspace;
-        private final Map<String, Set<String>> knownCfs = new HashMap<String, Set<String>>();
+        private final Map<String, Map<String, CFMetaData>> knownCfs = new HashMap<String, Map<String, CFMetaData>>();
         private final SSTableLoader.OutputHandler outputHandler;
 
-        public ExternalClient(String keyspace, SSTableLoader.OutputHandler outputHandler)
+        public ExternalClient(SSTableLoader.OutputHandler outputHandler)
         {
             super();
-            this.keyspace = keyspace;
             this.outputHandler = outputHandler;
         }
 
-        public void init()
+        public void init(String keyspace)
         {
             outputHandler.output(String.format("Starting client (and waiting %d seconds for gossip) ...", StorageService.RING_DELAY / 1000));
             try
