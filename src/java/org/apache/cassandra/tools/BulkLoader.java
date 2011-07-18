@@ -164,7 +164,7 @@ public class BulkLoader
 
     static class ExternalClient extends SSTableLoader.Client
     {
-        private final Map<String, Map<String, CFMetaData>> knownCfs = new HashMap<String, Map<String, CFMetaData>>();
+        private final Map<String, Set<String>> knownCfs = new HashMap<String, Set<String>>();
         private final SSTableLoader.OutputHandler outputHandler;
 
         public ExternalClient(SSTableLoader.OutputHandler outputHandler)
