@@ -56,10 +56,6 @@ public class SimpleStrategy extends AbstractReplicationStrategy
         {
             endpoints.add(metadata.getEndpoint(iter.next()));
         }
-
-        if (endpoints.size() < replicas)
-            throw new IllegalStateException(String.format("replication factor (%s) exceeds number of endpoints (%s)", replicas, endpoints.size()));
-        
         return endpoints;
     }
 

@@ -31,9 +31,6 @@ import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * A truncate operation descriptor
- *
- * @author rantav@gmail.com
- *
  */
 public class Truncation implements MessageProducer
 {

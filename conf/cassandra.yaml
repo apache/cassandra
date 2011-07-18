@@ -80,13 +80,16 @@ saved_caches_directory: /var/lib/cassandra/saved_caches
 # commitlog_sync may be either "periodic" or "batch." 
 # When in batch mode, Cassandra won't ack writes until the commit log
 # has been fsynced to disk.  It will wait up to
-# CommitLogSyncBatchWindowInMS milliseconds for other writes, before
+# commitlog_sync_batch_window_in_ms milliseconds for other writes, before
 # performing the sync.
-commitlog_sync: periodic
-
+#
+# commitlog_sync: batch
+# commitlog_sync_batch_window_in_ms: 50
+#
 # the other option is "periodic" where writes may be acked immediately
 # and the CommitLog is simply synced every commitlog_sync_period_in_ms
 # milliseconds.
+commitlog_sync: periodic
 commitlog_sync_period_in_ms: 10000
 
 # any class that implements the SeedProvider interface and has a constructor that takes a Map<String, String> of

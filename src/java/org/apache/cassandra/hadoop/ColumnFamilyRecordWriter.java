@@ -53,7 +53,6 @@ import org.apache.thrift.transport.TSocket;
  * directly to a responsible endpoint.
  * </p>
  * 
- * @author Karthick Sankarachary
  * @see ColumnFamilyOutputFormat
  * @see OutputFormat
  * 

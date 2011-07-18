@@ -77,9 +77,6 @@ commitlog_directory: /var/lib/cassandra/commitlog
 # saved caches
 saved_caches_directory: /var/lib/cassandra/saved_caches
 
-# Size to allow commitlog to grow to before creating a new segment 
-commitlog_rotation_threshold_in_mb: 128
-
 # commitlog_sync may be either "periodic" or "batch." 
 # When in batch mode, Cassandra won't ack writes until the commit log
 # has been fsynced to disk.  It will wait up to

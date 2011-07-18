@@ -433,7 +433,7 @@ commands:
           store the whole values of its rows, so it is extremely space-intensive.
           It's best to only use the row cache if you have hot rows or static rows.
 
-        - keys_cache_save_period: Duration in seconds after which Cassandra should
+        - key_cache_save_period: Duration in seconds after which Cassandra should
           safe the keys cache. Caches are saved to saved_caches_directory as
           specified in conf/Cassandra.yaml. Default is 14400 or 4 hours.
 
@@ -674,7 +674,7 @@ commands:
           store the whole values of its rows, so it is extremely space-intensive.
           It's best to only use the row cache if you have hot rows or static rows.
 
-        - keys_cache_save_period: Duration in seconds after which Cassandra should
+        - key_cache_save_period: Duration in seconds after which Cassandra should
           safe the keys cache. Caches are saved to saved_caches_directory as
           specified in conf/Cassandra.yaml. Default is 14400 or 4 hours.
 

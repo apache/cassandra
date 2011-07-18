@@ -45,8 +45,6 @@ import org.apache.thrift.transport.TTransportException;
         cassandra.start();
 
  * </pre>
- * @author Ran Tavory (rantav@gmail.com)
- *
  */
 public class EmbeddedCassandraService
 {

@@ -960,6 +960,7 @@ public class CassandraServer implements Cassandra.Iface
         CFMetaData oldCfm = DatabaseDescriptor.getCFMetaData(CFMetaData.getId(cf_def.keyspace, cf_def.name));
         if (oldCfm == null)
             throw new InvalidRequestException("Could not find column family definition to modify.");
+        ThriftValidation.validateCfDef(cf_def, oldCfm);
         validateSchemaAgreement();
 
         try

@@ -87,9 +87,8 @@ public abstract class AbstractReplicationStrategy
      * we return a List to avoid an extra allocation when sorting by proximity later
      * @param searchToken the token the natural endpoints are requested for
      * @return a copy of the natural endpoints for the given token
-     * @throws IllegalStateException if the number of requested replicas is greater than the number of known endpoints
      */
-    public ArrayList<InetAddress> getNaturalEndpoints(Token searchToken) throws IllegalStateException
+    public ArrayList<InetAddress> getNaturalEndpoints(Token searchToken)
     {
         Token keyToken = TokenMetadata.firstToken(tokenMetadata.sortedTokens(), searchToken);
         ArrayList<InetAddress> endpoints = getCachedEndpoints(keyToken);
@@ -99,10 +98,6 @@ public abstract class AbstractReplicationStrategy
             keyToken = TokenMetadata.firstToken(tokenMetadataClone.sortedTokens(), searchToken);
             endpoints = new ArrayList<InetAddress>(calculateNaturalEndpoints(searchToken, tokenMetadataClone));
             cacheEndpoint(keyToken, endpoints);
-            // calculateNaturalEndpoints should have checked this already, this is a safety
-            assert getReplicationFactor() <= endpoints.size() : String.format("endpoints %s generated for RF of %s",
-                                                                              Arrays.toString(endpoints.toArray()),
-                                                                              getReplicationFactor());
         }
 
         return new ArrayList<InetAddress>(endpoints);
@@ -115,9 +110,8 @@ public abstract class AbstractReplicationStrategy
      *
      * @param searchToken the token the natural endpoints are requested for
      * @return a copy of the natural endpoints for the given token
-     * @throws IllegalStateException if the number of requested replicas is greater than the number of known endpoints
      */
-    public abstract List<InetAddress> calculateNaturalEndpoints(Token searchToken, TokenMetadata tokenMetadata) throws IllegalStateException;
+    public abstract List<InetAddress> calculateNaturalEndpoints(Token searchToken, TokenMetadata tokenMetadata);
 
     public IWriteResponseHandler getWriteResponseHandler(Collection<InetAddress> writeEndpoints,
                                                          Multimap<InetAddress, InetAddress> hintedEndpoints,

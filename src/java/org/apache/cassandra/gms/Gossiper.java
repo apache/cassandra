@@ -194,6 +194,11 @@ public class Gossiper implements IFailureDetectionEventListener
         versions.put(address, version);
     }
     
+    public void resetVersion(InetAddress endpoint)
+    {
+        versions.remove(endpoint);
+    }
+
     public Integer getVersion(InetAddress address)
     {
         Integer v = versions.get(address);

@@ -22,6 +22,7 @@ package org.apache.cassandra.hadoop;
 
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.thrift.KeyRange;
 import org.apache.cassandra.thrift.SlicePredicate;
 import org.apache.cassandra.thrift.TBinaryProtocol;
 import org.apache.cassandra.utils.FBUtilities;
@@ -42,6 +43,7 @@ public class ConfigHelper
     private static final String INPUT_COLUMNFAMILY_CONFIG = "cassandra.input.columnfamily";
     private static final String OUTPUT_COLUMNFAMILY_CONFIG = "cassandra.output.columnfamily";
     private static final String INPUT_PREDICATE_CONFIG = "cassandra.input.predicate";
+    private static final String INPUT_KEYRANGE_CONFIG = "cassandra.input.keyRange";
     private static final String OUTPUT_PREDICATE_CONFIG = "cassandra.output.predicate";
     private static final String INPUT_SPLIT_SIZE_CONFIG = "cassandra.input.split.size";
     private static final int DEFAULT_SPLIT_SIZE = 64 * 1024;
@@ -193,6 +195,53 @@ public class ConfigHelper
             throw new RuntimeException(e);
         }
         return predicate;
+    }
+
+    /**
+     * Set the KeyRange to limit the rows.
+     * @param conf Job configuration you are about to run
+     */
+    public static void setInputRange(Configuration conf, String startToken, String endToken)
+    {
+        KeyRange range = new KeyRange().setStart_token(startToken).setEnd_token(endToken);
+        conf.set(INPUT_KEYRANGE_CONFIG, keyRangeToString(range));
+    }
+
+    /** may be null if unset */
+    public static KeyRange getInputKeyRange(Configuration conf)
+    {
+        String str = conf.get(INPUT_KEYRANGE_CONFIG);
+        return null != str ? keyRangeFromString(str) : null;
+    }
+
+    private static String keyRangeToString(KeyRange keyRange)
+    {
+        assert keyRange != null;
+        TSerializer serializer = new TSerializer(new TBinaryProtocol.Factory());
+        try
+        {
+            return FBUtilities.bytesToHex(serializer.serialize(keyRange));
+        }
+        catch (TException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static KeyRange keyRangeFromString(String st)
+    {
+        assert st != null;
+        TDeserializer deserializer = new TDeserializer(new TBinaryProtocol.Factory());
+        KeyRange keyRange = new KeyRange();
+        try
+        {
+            deserializer.deserialize(keyRange, FBUtilities.hexToBytes(st));
+        }
+        catch (TException e)
+        {
+            throw new RuntimeException(e);
+        }
+        return keyRange;
     }
 
     public static String getInputKeyspace(Configuration conf)

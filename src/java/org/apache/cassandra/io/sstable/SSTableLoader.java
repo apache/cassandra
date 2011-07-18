@@ -101,7 +101,7 @@ public class SSTableLoader
 
     public LoaderFuture stream(Set<InetAddress> toIgnore) throws IOException
     {
-        client.init();
+        client.init(keyspace);
 
         Collection<SSTableReader> sstables = openSSTables();
         if (sstables.isEmpty())
@@ -234,7 +234,7 @@ public class SSTableLoader
          * This method is guaranted to be called before any other method of a
          * client.
          */
-        public abstract void init();
+        public abstract void init(String keyspace);
 
         /**
          * Stop the client.

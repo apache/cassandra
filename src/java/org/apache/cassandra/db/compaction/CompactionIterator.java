@@ -121,9 +121,7 @@ implements CloseableIterator<AbstractCompactedRow>, CompactionInfo.Holder
         int newTarget = totalBytesPerMS /
             Math.max(1, CompactionManager.instance.getActiveCompactions());
         if (newTarget != targetBytesPerMS)
-            logger.info(String.format("%s now compacting at %d bytes/ms.",
-                                      this,
-                                      newTarget));
+            logger.debug("{} now compacting at {} bytes/ms.", this, newTarget);
         targetBytesPerMS = newTarget;
 
         // the excess bytes that were compacted in this period
@@ -136,7 +134,14 @@ implements CloseableIterator<AbstractCompactedRow>, CompactionInfo.Holder
             if (logger.isTraceEnabled())
                 logger.trace(String.format("Compacted %d bytes in %d ms: throttling for %d ms",
                                            bytesSinceLast, msSinceLast, timeToDelay));
-            try { Thread.sleep(timeToDelay); } catch (InterruptedException e) { throw new AssertionError(e); }
+            try
+            {
+                Thread.sleep(timeToDelay);
+            }
+            catch (InterruptedException e)
+            {
+                throw new AssertionError(e);
+            }
         }
         bytesAtLastDelay = bytesRead;
         timeAtLastDelay = System.currentTimeMillis();

@@ -720,6 +720,15 @@ public class NodeCmd
         e.printStackTrace();
         System.exit(3);
     }
+    
+    private static void complainNonzeroArgs(String[] args, NodeCommand cmd)
+    {
+        if (args.length > 0) {
+            System.err.println("Too many arguments for command '"+cmd.toString()+"'.");
+            printUsage();
+            System.exit(1);
+        }
+    }
 
     private static void handleSnapshots(NodeCommand nc, String tag, String[] cmdArgs, NodeProbe probe) throws InterruptedException, IOException
     {

@@ -40,6 +40,12 @@
  * add ant-optional as dependence for the debian package (CASSANDRA-2164)
  * add option to specify limit for get_slice in the CLI (CASSANDRA-2646)
  * decrease HH page size (CASSANDRA-2832)
+ * reset cli keyspace after dropping the current one (CASSANDRA-2763)
+ * add KeyRange option to Hadoop inputformat (CASSANDRA-1125)
+ * fix protocol versioning (CASSANDRA-2818, 2860)
+ * support spaces in path to log4j configuration (CASSANDRA-2383)
+ * avoid including inferred types in CF update (CASSANDRA-2809)
+ * fix JMX bulkload call (CASSANDRA-2908)
 
 
 0.8.1
@@ -232,6 +238,7 @@
  * add a server-wide cap on measured memtable memory usage and aggressively
    flush to keep under that threshold (CASSANDRA-2006)
  * add unified UUIDType (CASSANDRA-2233)
+ * add off-heap row cache support (CASSANDRA-1969)
 
 
 0.7.5

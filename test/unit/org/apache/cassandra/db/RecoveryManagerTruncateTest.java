@@ -36,9 +36,6 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
  * Test for the truncate operation.
- *
- * @author Ran Tavory (rantav@gmail.com)
- *
  */
 public class RecoveryManagerTruncateTest extends CleanupHelper
 {

@@ -30,6 +30,7 @@ import java.nio.ByteBuffer;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
+import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -138,6 +139,9 @@ public class OutboundTcpConnection extends Thread
             output = null;
             socket = null;
         }
+
+        // when we see the node again, try to connect at the most recent protocol we know about
+        Gossiper.instance.resetVersion(endpoint);
     }
 
     private ByteBuffer take()

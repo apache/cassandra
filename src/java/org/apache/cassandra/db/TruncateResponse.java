@@ -31,8 +31,6 @@ import org.apache.cassandra.utils.FBUtilities;
 /**
  * This message is sent back the truncate operation and basically specifies if
  * the truncate succeeded.
- *
- * @author rantav@gmail.com
  */
 public class TruncateResponse
 {

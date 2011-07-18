@@ -1296,6 +1296,26 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         return stringify(Gossiper.instance.getUnreachableMembers());
     }
 
+    public String[] getAllDataFileLocations()
+    {
+        return DatabaseDescriptor.getAllDataFileLocations();
+    }
+
+    public String[] getAllDataFileLocationsForTable(String table)
+    {
+        return DatabaseDescriptor.getAllDataFileLocationsForTable(table);
+    }
+
+    public String getCommitLogLocation()
+    {
+        return DatabaseDescriptor.getCommitLogLocation();
+    }
+
+    public String getSavedCachesLocation()
+    {
+        return DatabaseDescriptor.getSavedCachesLocation();
+    }
+
     private List<String> stringify(Iterable<InetAddress> endpoints)
     {
         List<String> stringEndpoints = new ArrayList<String>();
@@ -2448,7 +2468,15 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
         SSTableLoader.Client client = new SSTableLoader.Client()
         {
-            public void init() {}
+            public void init(String keyspace)
+            {
+                for (Map.Entry<Range, List<InetAddress>> entry : StorageService.instance.getRangeToAddressMap(keyspace).entrySet())
+                {
+                    Range range = entry.getKey();
+                    for (InetAddress endpoint : entry.getValue())
+                        addRangeForEndpoint(range, endpoint);
+                }
+            }
 
             public boolean validateColumnFamily(String keyspace, String cfName)
             {
