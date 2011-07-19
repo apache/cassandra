@@ -30,6 +30,8 @@
  * avoid including inferred types in CF update (CASSANDRA-2809)
  * fix JMX bulkload call (CASSANDRA-2908)
  * fix updating KS with durable_writes=false (CASSANDRA-2907)
+ * add simplified facade to SSTableWriter for bulk loading use
+   (CASSANDRA-2911)
 
 
 0.8.1
