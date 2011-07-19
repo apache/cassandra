@@ -47,9 +47,9 @@ public class DeleteStatement extends AbstractModification
     private List<Term> columns;
     private List<Term> keys;
     
-    public DeleteStatement(List<Term> columns, String columnFamily, String keyName, ConsistencyLevel cLevel, List<Term> keys)
+    public DeleteStatement(List<Term> columns, String columnFamily, String keyName, List<Term> keys, Attributes attrs)
     {
-        super(columnFamily, keyName, cLevel, null, 0);
+        super(columnFamily, keyName, attrs);
 
         this.columns = columns;
         this.keys = keys;
@@ -107,7 +107,7 @@ public class DeleteStatement extends AbstractModification
         AbstractType comparator = metadata.getComparatorFor(null);
 
         if (columns.size() < 1) // No columns, delete the row
-            mutation.delete(new QueryPath(columnFamily), System.currentTimeMillis());
+            mutation.delete(new QueryPath(columnFamily), (timestamp == null) ? getTimestamp() : timestamp);
         else    // Delete specific columns
         {
             for (Term column : columns)

@@ -226,9 +226,17 @@ usingClause[Attributes attrs]
     : K_USING usingClauseObjective[attrs] ( K_AND? usingClauseObjective[attrs] )*
     ;
 
-usingClauseObjective[Attributes attrs]
+usingClauseDelete[Attributes attrs]
+    : K_USING usingClauseDeleteObjective[attrs] ( K_AND? usingClauseDeleteObjective[attrs] )*
+    ;
+
+usingClauseDeleteObjective[Attributes attrs]
     : K_CONSISTENCY K_LEVEL  { attrs.setConsistencyLevel(ConsistencyLevel.valueOf($K_LEVEL.text)); }
     | K_TIMESTAMP ts=INTEGER { attrs.setTimestamp(Long.valueOf($ts.text)); }
+    ;
+
+usingClauseObjective[Attributes attrs]
+    : usingClauseDeleteObjective[attrs]
     | K_TTL t=INTEGER        { attrs.setTimeToLive(Integer.parseInt($t.text)); }
     ;
 
@@ -319,21 +327,23 @@ updateStatement returns [UpdateStatement expr]
  */
 deleteStatement returns [DeleteStatement expr]
     : {
-          ConsistencyLevel cLevel = null;
+          Attributes attrs = new Attributes();
           List<Term> keyList = null;
           List<Term> columnsList = Collections.emptyList();
       }
       K_DELETE
           ( cols=termList { columnsList = $cols.items; })?
           K_FROM columnFamily=( IDENT | STRING_LITERAL | INTEGER )
-          ( K_USING K_CONSISTENCY K_LEVEL { cLevel = ConsistencyLevel.valueOf($K_LEVEL.text); } )?
+          ( usingClauseDelete[attrs] )?
           K_WHERE ( key_alias=term ('=' key=term           { keyList = Collections.singletonList(key); }
                                    | K_IN '(' keys=termList { keyList = $keys.items; } ')')
                   )?
       {
-          return new DeleteStatement(columnsList, $columnFamily.text, key_alias.getText(), cLevel, keyList);
+          return new DeleteStatement(columnsList, $columnFamily.text, key_alias.getText(), keyList, attrs);
       }
     ;
+
+
 
 /** CREATE KEYSPACE <KEYSPACE> WITH attr1 = value1 AND attr2 = value2; */
 createKeyspaceStatement returns [CreateKeyspaceStatement expr]
