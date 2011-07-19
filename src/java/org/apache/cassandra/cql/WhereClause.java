@@ -22,15 +22,14 @@ package org.apache.cassandra.cql;
 
 
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.thrift.InvalidRequestException;
-import org.apache.cassandra.thrift.ThriftValidation;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * WhereClauses encapsulate all of the predicates of a SELECT query.
@@ -39,10 +38,10 @@ import java.util.List;
 public class WhereClause
 {
     // added to either by the parser, e.g. from an IN clause, or by extractKeysFromColumns
-    private List<Term> keys = new ArrayList<Term>();
+    private Set<Term> keys = new LinkedHashSet<Term>();
     private Term startKey, finishKey;
     private List<Relation> columns = new ArrayList<Relation>();
-    private boolean includeStartKey = false, includeFinishKey = false;
+    private boolean includeStartKey = false, includeFinishKey = false, multiKey = false;
     // set by extractKeysFromColumns
     private String keyAlias = null;
 
@@ -117,7 +116,7 @@ public class WhereClause
         return finishKey;
     }
     
-    public List<Term> getKeys()
+    public Set<Term> getKeys()
     {
         return keys;
     }
@@ -135,6 +134,15 @@ public class WhereClause
     public void setKeyAlias(String alias)
     {
         keyAlias = alias.toUpperCase();
+    }
+
+    public boolean isMultiKey() {
+        return multiKey;
+    }
+
+    public void setMultiKey(boolean multiKey)
+    {
+        this.multiKey = multiKey;
     }
 
     public String getKeyAlias()

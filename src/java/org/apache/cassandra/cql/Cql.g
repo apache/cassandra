@@ -188,7 +188,7 @@ whereClause returns [WhereClause clause]
       | key_alias=term { inClause.setKeyAlias(key_alias.getText()); }
            K_IN '(' f1=term { inClause.andKeyEquals(f1); }
                   (',' fN=term { inClause.andKeyEquals(fN); } )* ')'
-        { $clause = inClause; }
+        { inClause.setMultiKey(true); $clause = inClause; }
     ;
 
 /**

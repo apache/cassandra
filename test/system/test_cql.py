@@ -881,6 +881,19 @@ class TestCql(ThriftTester):
             assert r[2] == "p4ssw0rd", \
                    "unrecognized value '%s'" % r[1]
 
+        # select with same KEY AND'ed (see CASSANDRA-2717)
+        cursor.execute("SELECT * FROM StandardString1 WHERE KEY = 'mUser1' AND KEY = 'mUser1'")
+        assert cursor.rowcount == 1, "expected 1 result, got %d" % cursor.rowcount
+
+        # select with different KEYs AND'ed
+        assert_raises(cql.ProgrammingError,
+                      cursor.execute,
+                      "SELECT * FROM StandardString1 WHERE KEY = 'mUser1' AND KEY = 'mUser2'")
+
+        # select with same KEY repeated in IN
+        cursor.execute("SELECT * FROM StandardString1 WHERE KEY IN ('mUser1', 'mUser1')")
+        assert cursor.rowcount == 1, "expected 1 result, got %d" % cursor.rowcount
+
     def test_insert_with_timestamp_and_ttl(self):
         "insert statement should support setting timestamp"
         cursor = init()
