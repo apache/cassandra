@@ -22,6 +22,7 @@ package org.apache.cassandra.cql;
 
 import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.Set;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -58,7 +59,7 @@ public class SelectStatement
         return clause.isKeyRange();
     }
     
-    public List<Term> getKeys()
+    public Set<Term> getKeys()
     {
         return clause.getKeys();
     }
@@ -148,6 +149,11 @@ public class SelectStatement
         return clause.getKeyAlias();
     }
 
+    public boolean isMultiKey()
+    {
+        return clause.isMultiKey();
+    }
+
     public void extractKeyAliasFromColumns(CFMetaData cfm)
     {
         clause.extractKeysFromColumns(cfm);
@@ -162,4 +168,5 @@ public class SelectStatement
     {
         return DatabaseDescriptor.getValueValidator(keyspace, columnFamily, column);
     }
+
 }

@@ -334,6 +334,10 @@ public class QueryProcessor
         if (select.isKeyRange() && (select.getKeyFinish() != null) && (select.getColumnRelations().size() > 0))
             throw new InvalidRequestException("You cannot combine key range and by-column clauses in a SELECT");
         
+        // Can't use more than one KEY =
+        if (!select.isMultiKey() && select.getKeys().size() > 1)
+            throw new InvalidRequestException("You cannot use more than one KEY = in a SELECT");
+
         AbstractType<?> comparator = select.getComparator(keyspace);
         
         if (select.getColumnRelations().size() > 0)

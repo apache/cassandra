@@ -133,12 +133,12 @@ public final class KSMetaData
     {
         StringBuilder sb = new StringBuilder();
         sb.append(name)
-          .append("rep strategy:")
+          .append(", rep strategy:")
           .append(strategyClass.getSimpleName())
           .append("{")
           .append(StringUtils.join(cfMetaData.values(), ", "))
           .append("}")
-          .append("durable_writes: ").append(durable_writes);
+          .append(", durable_writes: ").append(durable_writes);
         return sb.toString();
     }
 
@@ -205,8 +205,8 @@ public final class KSMetaData
         ksdef.setStrategy_options(ksm.strategyOptions);
         if (ksm.strategyOptions != null && ksm.strategyOptions.containsKey("replication_factor"))
             ksdef.setReplication_factor(Integer.parseInt(ksm.strategyOptions.get("replication_factor")));
-        ksdef.durable_writes = ksm.durable_writes;
-        
+        ksdef.setDurable_writes(ksm.durable_writes);
+
         return ksdef;
     }
 }
