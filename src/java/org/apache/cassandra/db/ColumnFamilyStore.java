@@ -466,13 +466,24 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         // get the max generation number, to prevent generation conflicts
         List<Integer> generations = new ArrayList<Integer>();
-        for (Descriptor desc : files(table.name, columnFamily, true).keySet())
+        for (String path : DatabaseDescriptor.getAllDataFileLocationsForTable(table.name))
         {
-            generations.add(desc.generation);
-            if (desc.isFromTheFuture())
+            Iterable<Pair<Descriptor, Component>> pairs = files(new File(path));
+            File incrementalsPath = new File(path, "backups");
+            if (incrementalsPath.exists())
+                pairs = Iterables.concat(pairs, files(incrementalsPath));
+
+            for (Pair<Descriptor, Component> pair : pairs)
             {
-                throw new RuntimeException(String.format("Can't open sstables from the future! Current version %s, found file: %s",
-                                                         Descriptor.CURRENT_VERSION, desc));
+                Descriptor desc = pair.left;
+                if (!desc.cfname.equals(columnFamily))
+                    continue;
+                generations.add(desc.generation);
+                if (desc.isFromTheFuture())
+                {
+                    throw new RuntimeException(String.format("Can't open sstables from the future! Current version %s, found file: %s",
+                                                             Descriptor.CURRENT_VERSION, desc));
+                }
             }
         }
         Collections.sort(generations);
@@ -622,31 +633,42 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         final Map<Descriptor,Set<Component>> sstables = new HashMap<Descriptor,Set<Component>>();
         for (String directory : DatabaseDescriptor.getAllDataFileLocationsForTable(keyspace))
         {
-            // NB: we never "accept" a file in the FilenameFilter sense: they are added to the sstable map
-            new File(directory).list(new FilenameFilter()
+            for (Pair<Descriptor, Component> component : files(new File(directory)))
             {
-                public boolean accept(File dir, String name)
+                if (component != null && component.left.cfname.equals(columnFamily))
                 {
-                    Pair<Descriptor,Component> component = SSTable.tryComponentFromFilename(dir, name);
-                    if (component != null && component.left.cfname.equals(columnFamily))
+                    if (includeCompacted || !new File(component.left.filenameFor(Component.COMPACTED_MARKER)).exists())
                     {
-                        if (includeCompacted || !new File(component.left.filenameFor(Component.COMPACTED_MARKER)).exists())
+                        Set<Component> components = sstables.get(component.left);
+                        if (components == null)
                         {
-                            Set<Component> components = sstables.get(component.left);
-                            if (components == null)
-                            {
-                                components = new HashSet<Component>();
-                                sstables.put(component.left, components);
-                            }
-                            components.add(component.right);
+                            components = new HashSet<Component>();
+                            sstables.put(component.left, components);
                         }
-                        else
-                            logger.debug("not including compacted sstable " + component.left.cfname + "-" + component.left.generation);
+                        components.add(component.right);
                     }
-                    return false;
+                    else
+                        logger.debug("not including compacted sstable " + component.left.cfname + "-" + component.left.generation);
                 }
-            });
+            }
         }
+        return sstables;
+    }
+
+    private static List<Pair<Descriptor, Component>> files(File path)
+    {
+        final List<Pair<Descriptor, Component>> sstables = new ArrayList<Pair<Descriptor, Component>>();
+        // NB: we never "accept" a file in the FilenameFilter sense: they are added to the sstable map
+        path.list(new FilenameFilter()
+        {
+            public boolean accept(File dir, String name)
+            {
+                Pair<Descriptor, Component> pair = SSTable.tryComponentFromFilename(dir, name);
+                if (pair != null)
+                    sstables.add(pair);
+                return false;
+            }
+        });
         return sstables;
     }
 
