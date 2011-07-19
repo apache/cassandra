@@ -34,6 +34,7 @@
    (CASSANDRA-2911)
  * CQL: include only one row per unique key for IN queries
    (CASSANDRA-2717)
+ * fix re-using index CF sstable names after drop/recreate (CASSANDRA-2872)
 
 
 0.8.1
