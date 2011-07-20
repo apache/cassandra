@@ -382,20 +382,12 @@ public class ByteBufferUtil
 
     private static ByteBuffer read(DataInput in, int length) throws IOException
     {
-        ByteBuffer array;
-
         if (in instanceof FileDataInput)
-        {
-            array = ((FileDataInput) in).readBytes(length);
-        }
-        else
-        {
-            byte[] buff = new byte[length];
-            in.readFully(buff);
-            array = ByteBuffer.wrap(buff);
-        }
+            return ((FileDataInput) in).readBytes(length);
 
-        return array;
+        byte[] buff = new byte[length];
+        in.readFully(buff);
+        return ByteBuffer.wrap(buff);
     }
 
     /**
