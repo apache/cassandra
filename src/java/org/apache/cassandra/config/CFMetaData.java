@@ -378,7 +378,7 @@ public final class CFMetaData
         {
             ColumnDefinition cd = ColumnDefinition.inflate(aColumn_metadata);
             if (cd.getIndexName() == null)
-                cd.setIndexName(getDefaultIndexName(comparator, cd.name));
+                cd.setIndexName(getDefaultIndexName(cf.name.toString(), comparator, cd.name));
             column_metadata.put(cd.name, cd);
         }
 
@@ -964,13 +964,13 @@ public final class CFMetaData
         for (org.apache.cassandra.thrift.ColumnDef column : cf_def.column_metadata)
         {
             if (column.index_type != null && column.index_name == null)
-                column.index_name = getDefaultIndexName(comparator, column.name);
+                column.index_name = getDefaultIndexName(cf_def.name, comparator, column.name);
         }
     }
 
-    public static String getDefaultIndexName(AbstractType comparator, ByteBuffer columnName)
+    public static String getDefaultIndexName(String cfName, AbstractType comparator, ByteBuffer columnName)
     {
-        return comparator.getString(columnName).replaceAll("\\W", "") + "_idx";
+        return (cfName + "_" + comparator.getString(columnName) + "_idx").replaceAll("\\W", "");
     }
 
     @Override
