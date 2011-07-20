@@ -789,14 +789,11 @@ commands:
         Examples:
         update column family Super4
             with column_type = 'Super'
-            and comparator = 'AsciiType'
             and rows_cached = 10000;
         update column family Standard3
-            with comparator = 'LongType'
-            and rows_cached = 10000;
+            with rows_cached = 10000;
         update column family Standard4
-            with comparator = AsciiType
-            and column_metadata =
+            with column_metadata =
             [{
                 column_name : Test,
                 validation_class : IntegerType,
