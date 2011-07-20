@@ -1050,6 +1050,68 @@ class TestCql(ThriftTester):
         r = cursor.fetchone()
         assert len(r) == 1, "expected 0 results, got %d" % len(r)
 
+    def test_delete_with_timestamp(self):
+        "delete statement should support setting timestamp"
+        cursor = init()
+        cursor.compression = 'NONE'
+
+        # insert to the StandardString1
+        cursor.execute("UPDATE StandardString1 USING TIMESTAMP 10 SET name = 'name here' WHERE KEY = 'TimestampedUser3'")
+
+        # try to read it
+        cursor.execute("SELECT * FROM StandardString1 WHERE KEY = 'TimestampedUser3'")
+        assert cursor.rowcount == 1, "expected 1 results, got %d" % cursor.rowcount
+        colnames = [col_d[0] for col_d in cursor.description]
+
+        assert colnames[1] == "name", \
+               "unrecognized name '%s'" % colnames[1]
+
+        r = cursor.fetchone()
+        assert r[1] == "name here", \
+               "unrecognized value '%s'" % r[1]
+
+        # DELETE with a lower TIMESTAMP
+        cursor.execute("DELETE 'name here' FROM StandardString1 USING TIMESTAMP 3 WHERE KEY = 'TimestampedUser3'")
+
+        # try to read it
+        cursor.execute("SELECT * FROM StandardString1 WHERE KEY = 'TimestampedUser3'")
+        assert cursor.rowcount == 1, "expected 1 results, got %d" % cursor.rowcount
+        colnames = [col_d[0] for col_d in cursor.description]
+
+        assert len(colnames) == 2, "expected 2 columns, got %d" % len(colnames)
+        assert colnames[1] == "name", \
+               "unrecognized name '%s'" % colnames[1]
+
+        r = cursor.fetchone()
+        assert r[1] == "name here", \
+               "unrecognized value '%s'" % r[1]
+
+        # now DELETE the whole row with a lower TIMESTAMP
+        cursor.execute("DELETE FROM StandardString1 USING TIMESTAMP 3 WHERE KEY = 'TimestampedUser3'")
+
+        # try to read it
+        cursor.execute("SELECT * FROM StandardString1 WHERE KEY = 'TimestampedUser3'")
+        assert cursor.rowcount == 1, "expected 1 results, got %d" % cursor.rowcount
+        colnames = [col_d[0] for col_d in cursor.description]
+
+        assert len(colnames) == 2, "expected 2 columns, got %d" % len(colnames)
+        assert colnames[1] == "name", \
+               "unrecognized name '%s'" % colnames[1]
+
+        r = cursor.fetchone()
+        assert r[1] == "name here", \
+               "unrecognized value '%s'" % r[1]
+
+        # now DELETE the row with a greater TIMESTAMP
+        cursor.execute("DELETE FROM StandardString1 USING TIMESTAMP 15 WHERE KEY = 'TimestampedUser3'")
+        # try to read it
+        cursor.execute("SELECT * FROM StandardString1 WHERE KEY = 'TimestampedUser3'")
+        assert cursor.rowcount == 1, "expected 1 results, got %d" % cursor.rowcount
+        colnames = [col_d[0] for col_d in cursor.description]
+
+        assert len(colnames) == 1, "expected only the KEY column, got %d" % len(colnames)
+        assert colnames[0] == "KEY", "unrecognized name '%s'" % colnames[0]
+
     def test_alter_table_statement(self):
         "test ALTER statement"
         cursor = init()

@@ -16,6 +16,9 @@
 
 
 0.8.2
+ * CQL: 
+   - include only one row per unique key for IN queries (CASSANDRA-2717)
+   - respect client timestamp on full row deletions (CASSANDRA-2912)
  * improve thread-safety in StreamOutSession (CASSANDRA-2792)
  * allow deleting a row and updating indexed columns in it in the
    same mutation (CASSANDRA-2773)
@@ -49,8 +52,6 @@
  * fix updating KS with durable_writes=false (CASSANDRA-2907)
  * add simplified facade to SSTableWriter for bulk loading use
    (CASSANDRA-2911)
- * CQL: include only one row per unique key for IN queries
-   (CASSANDRA-2717)
  * fix re-using index CF sstable names after drop/recreate (CASSANDRA-2872)
 
 
