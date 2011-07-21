@@ -342,28 +342,36 @@ public class CompactionManager implements CompactionManagerMBean
                         }
                     }
 
-                    if (sstables.isEmpty())
+                    Collection<SSTableReader> toCompact;
+                    try
                     {
-                        logger.error("No file to compact for user defined compaction");
-                    }
-                    // attempt to schedule the set
-                    else if ((sstables = cfs.getDataTracker().markCompacting(sstables, 1, Integer.MAX_VALUE)) != null)
-                    {
-                        // success: perform the compaction
-                        try
+                        if (sstables.isEmpty())
                         {
-                            AbstractCompactionStrategy strategy = cfs.getCompactionStrategy();
-                            AbstractCompactionTask task = strategy.getUserDefinedTask(sstables, gcBefore);
-                            task.execute(executor);
+                            logger.error("No file to compact for user defined compaction");
                         }
-                        finally
+                        // attempt to schedule the set
+                        else if ((toCompact = cfs.getDataTracker().markCompacting(sstables, 1, Integer.MAX_VALUE)) != null)
                         {
-                            cfs.getDataTracker().unmarkCompacting(sstables);
+                            // success: perform the compaction
+                            try
+                            {
+                                AbstractCompactionStrategy strategy = cfs.getCompactionStrategy();
+                                AbstractCompactionTask task = strategy.getUserDefinedTask(toCompact, gcBefore);
+                                task.execute(executor);
+                            }
+                            finally
+                            {
+                                cfs.getDataTracker().unmarkCompacting(toCompact);
+                            }
+                        }
+                        else
+                        {
+                            logger.error("SSTables for user defined compaction are already being compacted.");
                         }
                     }
-                    else
+                    finally
                     {
-                        logger.error("SSTables for user defined compaction are already being compacted.");
+                        SSTableReader.releaseReferences(sstables);
                     }
 
                     return this;
@@ -377,18 +385,23 @@ public class CompactionManager implements CompactionManagerMBean
         return executor.submit(callable);
     }
 
+    // This acquire a reference on the sstable
+    // This is not efficent, do not use in any critical path
     private SSTableReader lookupSSTable(final ColumnFamilyStore cfs, Descriptor descriptor)
     {
-        for (SSTableReader sstable : cfs.getSSTables())
+        SSTableReader found = null;
+        for (SSTableReader sstable : cfs.markCurrentSSTablesReferenced())
         {
             // .equals() with no other changes won't work because in sstable.descriptor, the directory is an absolute path.
             // We could construct descriptor with an absolute path too but I haven't found any satisfying way to do that
             // (DB.getDataFileLocationForTable() may not return the right path if you have multiple volumes). Hence the
             // endsWith.
             if (sstable.descriptor.toString().endsWith(descriptor.toString()))
-                return sstable;
+                found = sstable;
+            else
+                sstable.releaseReference();
         }
-        return null;
+        return found;
     }
 
     /**
@@ -779,7 +792,8 @@ public class CompactionManager implements CompactionManagerMBean
             throw new AssertionError(e);
         }
 
-        CompactionIterator ci = new ValidationCompactionIterator(cfs, validator.request.range);
+        Collection<SSTableReader> sstables = cfs.markCurrentSSTablesReferenced();
+        CompactionIterator ci = new ValidationCompactionIterator(cfs, sstables, validator.request.range);
         executor.beginCompaction(ci);
         try
         {
@@ -796,6 +810,7 @@ public class CompactionManager implements CompactionManagerMBean
         }
         finally
         {
+            SSTableReader.releaseReferences(sstables);
             ci.close();
             executor.finishCompaction(ci);
         }
@@ -940,11 +955,11 @@ public class CompactionManager implements CompactionManagerMBean
 
     private static class ValidationCompactionIterator extends CompactionIterator
     {
-        public ValidationCompactionIterator(ColumnFamilyStore cfs, Range range) throws IOException
+        public ValidationCompactionIterator(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, Range range) throws IOException
         {
             super(CompactionType.VALIDATION,
-                  getScanners(cfs.getSSTables(), range),
-                  new CompactionController(cfs, cfs.getSSTables(), getDefaultGcBefore(cfs), true));
+                  getScanners(sstables, range),
+                  new CompactionController(cfs, sstables, getDefaultGcBefore(cfs), true));
         }
 
         protected static List<SSTableScanner> getScanners(Iterable<SSTableReader> sstables, Range range) throws IOException

@@ -30,6 +30,7 @@ import org.apache.cassandra.dht.BytesToken;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTable;
+import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -176,7 +177,7 @@ public class SerializationsTest extends AbstractSerializationsTester
         in.close();
     }
     
-    private static SSTable makeSSTable()
+    private static SSTableReader makeSSTable()
     {
         Table t = Table.open("Keyspace1");
         for (int i = 0; i < 100; i++)

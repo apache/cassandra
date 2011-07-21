@@ -321,4 +321,6 @@ public interface StorageServiceMBean
     public void setCompactionThroughputMbPerSec(int value);
 
     public void bulkLoad(String directory);
+
+    public void rescheduleFailedDeletions();
 }

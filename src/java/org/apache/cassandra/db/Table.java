@@ -32,6 +32,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
@@ -42,9 +43,10 @@ import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.dht.LocalToken;
 import org.apache.cassandra.io.sstable.ReducingKeyIterator;
-import org.apache.cassandra.io.sstable.SSTableDeletingReference;
+import org.apache.cassandra.io.sstable.SSTableDeletingTask;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.io.util.MmappedSegmentedFile;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -683,13 +685,18 @@ public class Table
     public String getDataFileLocation(long expectedSize)
     {
         String path = DatabaseDescriptor.getDataFileLocationForTable(name, expectedSize);
-        if (path == null)
+        // Requesting GC has a chance to free space only if we're using mmap and a non SUN jvm
+        if (path == null
+         && (DatabaseDescriptor.getDiskAccessMode() == Config.DiskAccessMode.mmap || DatabaseDescriptor.getIndexAccessMode() == Config.DiskAccessMode.mmap)
+         && !MmappedSegmentedFile.isCleanerAvailable())
         {
-            // retry after GCing to force unmap of compacted SSTables so they can be deleted
             StorageService.instance.requestGC();
+            // retry after GCing has forced unmap of compacted SSTables so they can be deleted
+            // Note: GCInspector will do this already, but only sun JVM supports GCInspector so far
+            SSTableDeletingTask.rescheduleFailedTasks();
             try
             {
-                Thread.sleep(SSTableDeletingReference.RETRY_DELAY * 2);
+                Thread.sleep(10000);
             }
             catch (InterruptedException e)
             {

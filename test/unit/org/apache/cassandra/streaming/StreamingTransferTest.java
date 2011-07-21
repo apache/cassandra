@@ -77,6 +77,8 @@ public class StreamingTransferTest extends CleanupHelper
         cfs.forceBlockingFlush();
         assert cfs.getSSTables().size() == 1;
         SSTableReader sstable = cfs.getSSTables().iterator().next();
+        // We acquire a reference now, because removeAllSSTables will mark the sstable compacted, and we have work to do with it
+        sstable.acquireReference();
         cfs.removeAllSSTables();
 
         // transfer the first and last key
@@ -134,6 +136,9 @@ public class StreamingTransferTest extends CleanupHelper
         List<Range> ranges = new ArrayList<Range>();
         ranges.add(new Range(p.getMinimumToken(), p.getToken(ByteBufferUtil.bytes("test"))));
         ranges.add(new Range(p.getToken(ByteBufferUtil.bytes("transfer2")), p.getMinimumToken()));
+        // Acquiring references, transferSSTables needs it
+        sstable.acquireReference();
+        sstable2.acquireReference();
         StreamOutSession session = StreamOutSession.create(tablename, LOCAL, null);
         StreamOut.transferSSTables(session, Arrays.asList(sstable, sstable2), ranges, OperationType.BOOTSTRAP);
         session.await();
@@ -185,6 +190,9 @@ public class StreamingTransferTest extends CleanupHelper
         ranges.add(new Range(p.getMinimumToken(), first.getKey().token));
         // the left hand side of the range is exclusive, so we transfer from the second-to-last token
         ranges.add(new Range(secondtolast.getKey().token, p.getMinimumToken()));
+
+        // Acquiring references, transferSSTables needs it
+        SSTableReader.acquireReferences(ssTableReaders);
 
         StreamOutSession session = StreamOutSession.create(keyspace, LOCAL, null);
         StreamOut.transferSSTables(session, ssTableReaders, ranges, OperationType.BOOTSTRAP);

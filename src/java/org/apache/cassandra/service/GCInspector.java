@@ -33,6 +33,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.io.sstable.SSTableDeletingTask;
 import org.apache.cassandra.utils.StatusLogger;
 
 public class GCInspector
@@ -135,6 +136,8 @@ public class GCInspector
             // if we just finished a full collection and we're still using a lot of memory, try to reduce the pressure
             if (gcw.getName().equals("ConcurrentMarkSweep"))
             {
+                SSTableDeletingTask.rescheduleFailedTasks();
+
                 double usage = (double) memoryUsed / memoryMax;
 
                 if (memoryUsed > DatabaseDescriptor.getReduceCacheSizesAt() * memoryMax && !cacheSizesReduced)

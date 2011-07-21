@@ -29,7 +29,7 @@ import java.util.List;
 
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.sstable.SSTable;
+import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.Pair;
 
@@ -45,8 +45,8 @@ public class PendingFile
         return serializer_;
     }
 
-    // NB: this reference prevents garbage collection of the sstable on the source node
-    private final SSTable sstable;
+    // NB: this reference is used to be able to release the acquired reference upon completion
+    public final SSTableReader sstable;
 
     public final Descriptor desc;
     public final String component;
@@ -61,12 +61,12 @@ public class PendingFile
         this(null, desc, pf.component, pf.sections, pf.type, pf.estimatedKeys);
     }
 
-    public PendingFile(SSTable sstable, Descriptor desc, String component, List<Pair<Long,Long>> sections, OperationType type)
+    public PendingFile(SSTableReader sstable, Descriptor desc, String component, List<Pair<Long,Long>> sections, OperationType type)
     {
         this(sstable, desc, component, sections, type, 0);
     }
     
-    public PendingFile(SSTable sstable, Descriptor desc, String component, List<Pair<Long,Long>> sections, OperationType type, long estimatedKeys)
+    public PendingFile(SSTableReader sstable, Descriptor desc, String component, List<Pair<Long,Long>> sections, OperationType type, long estimatedKeys)
     {
         this.sstable = sstable;
         this.desc = desc;

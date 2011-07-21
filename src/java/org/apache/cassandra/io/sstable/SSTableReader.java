@@ -20,10 +20,10 @@
 package org.apache.cassandra.io.sstable;
 
 import java.io.*;
-import java.lang.ref.Reference;
-import java.lang.ref.ReferenceQueue;
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.google.common.base.Function;
 import com.google.common.collect.Collections2;
@@ -36,11 +36,9 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.db.filter.QueryFilter;
-import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.io.IColumnSerializer;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileUtils;
@@ -58,41 +56,6 @@ public class SSTableReader extends SSTable
 
     // guesstimated size of INDEX_INTERVAL index entries
     private static final int INDEX_FILE_BUFFER_BYTES = 16 * DatabaseDescriptor.getIndexInterval();
-
-    // `finalizers` is required to keep the PhantomReferences alive after the enclosing SSTR is itself
-    // unreferenced.  otherwise they will never get enqueued.
-    private static final Set<Reference<SSTableReader>> finalizers = new HashSet<Reference<SSTableReader>>();
-    private static final ReferenceQueue<SSTableReader> finalizerQueue = new ReferenceQueue<SSTableReader>()
-    {{
-        Runnable runnable = new Runnable()
-        {
-            public void run()
-            {
-                while (true)
-                {
-                    SSTableDeletingReference r;
-                    try
-                    {
-                        r = (SSTableDeletingReference) finalizerQueue.remove();
-                        finalizers.remove(r);
-                    }
-                    catch (InterruptedException e)
-                    {
-                        throw new RuntimeException(e);
-                    }
-                    try
-                    {
-                        r.cleanup();
-                    }
-                    catch (IOException e)
-                    {
-                        logger.error("Error deleting " + r.desc, e);
-                    }
-                }
-            }
-        };
-        new Thread(runnable, "SSTABLE-DELETER").start();
-    }};
 
     /**
      * maxDataAge is a timestamp in local server time (e.g. System.currentTimeMilli) which represents an uppper bound
@@ -119,7 +82,10 @@ public class SSTableReader extends SSTable
 
     private BloomFilterTracker bloomFilterTracker = new BloomFilterTracker();
 
-    private volatile SSTableDeletingReference phantomReference;
+    private final AtomicInteger holdReferences = new AtomicInteger(0);
+    private final AtomicBoolean isCompacted = new AtomicBoolean(false);
+    private final AtomicBoolean isScheduledForDeletion = new AtomicBoolean(false);
+    private final SSTableDeletingTask deletingTask;
 
     private final SSTableMetadata sstableMetadata;
 
@@ -240,15 +206,15 @@ public class SSTableReader extends SSTable
         this.dfile = dfile;
         this.indexSummary = indexSummary;
         this.bf = bloomFilter;
+        this.deletingTask = new SSTableDeletingTask(this);
     }
 
     public void setTrackedBy(DataTracker tracker)
     {
         if (tracker != null)
         {
-            phantomReference = new SSTableDeletingReference(tracker, this, finalizerQueue);
-            finalizers.add(phantomReference);
             keyCache = tracker.getKeyCache();
+            deletingTask.setTracker(tracker);
         }
     }
 
@@ -639,6 +605,35 @@ public class SSTableReader extends SSTable
         return dfile.length;
     }
 
+    public void acquireReference()
+    {
+        holdReferences.incrementAndGet();
+    }
+
+    public void releaseReference()
+    {
+        if (holdReferences.decrementAndGet() == 0 && isCompacted.get())
+        {
+            // Force finalizing mmapping if necessary
+            ifile.cleanup();
+            dfile.cleanup();
+
+            deletingTask.schedule();
+        }
+        assert holdReferences.get() >= 0 : "Reference counter " +  holdReferences.get() + " for " + dfile.path;
+    }
+
+    /**
+     * Mark the sstable as compacted.
+     * When calling this function, the caller must ensure two things:
+     *  - He must have acquired a reference with acquireReference()
+     *  - He must ensure that the SSTableReader is not referenced anywhere except for threads holding a reference.
+     *
+     * The reason we ask caller to acquire a reference is because this greatly simplify the logic here.
+     * If that wasn't the case, markCompacted would have to deal with both the case where some thread still
+     * have references and the case where no thread have any reference. Making this logic thread-safe is a
+     * bit hard, so we make sure that at least the caller thread has a reference and delegate the rest to releaseRefence()
+     */
     public void markCompacted()
     {
         if (logger.isDebugEnabled())
@@ -652,7 +647,9 @@ public class SSTableReader extends SSTable
         {
             throw new IOError(e);
         }
-        phantomReference.deleteOnCleanup();
+
+        boolean alreadyCompacted = isCompacted.getAndSet(true);
+        assert !alreadyCompacted : this + " was already marked compacted";
     }
 
     /**
@@ -807,5 +804,30 @@ public class SSTableReader extends SSTable
     public long getMaxTimestamp()
     {
         return sstableMetadata.getMaxTimestamp();
+    }
+
+    public static void acquireReferences(Iterable<SSTableReader> sstables)
+    {
+        for (SSTableReader sstable : sstables)
+        {
+            if (sstable != null)
+                sstable.acquireReference();
+        }
+    }
+
+    public static void releaseReferences(Iterable<SSTableReader> sstables)
+    {
+        for (SSTableReader sstable : sstables)
+        {
+            try
+            {
+                if (sstable != null)
+                    sstable.releaseReference();
+            }
+            catch (Throwable ex)
+            {
+                logger.error("Failed releasing reference on " + sstable, ex);
+            }
+        }
     }
 }

@@ -114,6 +114,7 @@ public class StreamOutSession
     public void startNext() throws IOException
     {
         assert files.containsKey(currentFile);
+        files.get(currentFile).sstable.releaseReference();
         files.remove(currentFile);
         Iterator<PendingFile> iter = files.values().iterator();
         if (iter.hasNext())
@@ -122,6 +123,9 @@ public class StreamOutSession
 
     public void close()
     {
+        // Release reference on last file
+        for (PendingFile file : files.values())
+            file.sstable.releaseReference();
         streams.remove(context);
         if (callback != null)
             callback.run();

@@ -343,7 +343,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 {
                     throw new AssertionError(e);
                 }
-                buildSecondaryIndexes(getSSTables(), FBUtilities.singleton(info.name));
+                Collection<SSTableReader> sstables = markCurrentViewReferenced().sstables;
+                try
+                {
+                    buildSecondaryIndexes(sstables, FBUtilities.singleton(info.name));
+                }
+                finally
+                {
+                    SSTableReader.releaseReferences(sstables);
+                }
                 SystemTable.setIndexBuilt(table.name, indexedCfMetadata.cfName);
             }
         };
@@ -356,6 +364,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         logger.info(String.format("Submitting index build of %s for data in %s",
                                   metadata.comparator.getString(columns), StringUtils.join(sstables, ", ")));
+
         Table.IndexBuilder builder = table.createIndexBuilder(this, columns, new ReducingKeyIterator(sstables));
         Future future = CompactionManager.instance.submitIndexBuild(this, builder);
         try
@@ -372,6 +381,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             throw new RuntimeException(e);
         }
+
         logger.info("Index build of " + metadata.comparator.getString(columns) + " complete");
     }
 
@@ -1234,16 +1244,56 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return cf.isSuper() ? removeDeleted(cf, gcBefore) : removeDeletedCF(cf, gcBefore);
     }
 
+    /**
+     * Get the current view and acquires references on all its sstables.
+     * This is a bit tricky because we must ensure that between the time we
+     * get the current view and the time we acquire the references the set of
+     * sstables hasn't changed. Otherwise we could get a view for which an
+     * sstable have been deleted in the meantime.
+     *
+     * At the end of this method, a reference on all the sstables of the
+     * returned view will have been acquired and must thus be released when
+     * appropriate.
+     */
+    private DataTracker.View markCurrentViewReferenced()
+    {
+        while (true)
+        {
+            DataTracker.View currentView = data.getView();
+            SSTableReader.acquireReferences(currentView.sstables);
+            if (currentView.sstables == data.getView().sstables) // reference equality is fine
+            {
+                return currentView;
+            }
+            else
+            {
+                // the set of sstables has changed, let's release the acquired references and try again
+                SSTableReader.releaseReferences(currentView.sstables);
+            }
+        }
+    }
+
+    /**
+     * Get the current sstables, acquiring references on all of them.
+     * The caller is in charge of releasing the references on the sstables.
+     *
+     * See markCurrentViewReferenced() above.
+     */
+    public Collection<SSTableReader> markCurrentSSTablesReferenced()
+    {
+        return markCurrentViewReferenced().sstables;
+    }
+
     private ColumnFamily getTopLevelColumns(QueryFilter filter, int gcBefore)
     {
         // we are querying top-level columns, do a merging fetch with indexes.
         List<IColumnIterator> iterators = new ArrayList<IColumnIterator>();
         final ColumnFamily returnCF = ColumnFamily.create(metadata);
+        DataTracker.View currentView = markCurrentViewReferenced();
         try
         {
             IColumnIterator iter;
             int sstablesToIterate = 0;
-            DataTracker.View currentView = data.getView();
 
             /* add the current memtable */
             iter = filter.getMemtableColumnIterator(currentView.memtable, getComparator());
@@ -1303,6 +1353,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     logger.error("error closing " + ci, th);
                 }
             }
+            SSTableReader.releaseReferences(currentView.sstables);
         }
     }
 
@@ -1328,58 +1379,66 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         QueryFilter filter = new QueryFilter(null, new QueryPath(columnFamily, superColumn, null), columnFilter);
         int gcBefore = (int)(System.currentTimeMillis() / 1000) - metadata.getGcGraceSeconds();
 
-        DataTracker.View currentView = data.getView();
-        Collection<Memtable> memtables = new ArrayList<Memtable>();
-        memtables.add(currentView.memtable);
-        memtables.addAll(currentView.memtablesPendingFlush);
-        // It is fine to aliases the View.sstables since it's an unmodifiable collection
-        Collection<SSTableReader> sstables = currentView.sstables;
-
-        CloseableIterator<Row> iterator = RowIteratorFactory.getIterator(memtables, sstables, startWith, stopAt, filter, getComparator(), this);
-        List<Row> rows = new ArrayList<Row>();
-
+        DataTracker.View currentView = markCurrentViewReferenced();
         try
         {
-            // pull rows out of the iterator
-            boolean first = true;
-            while (iterator.hasNext())
+            Collection<Memtable> memtables = new ArrayList<Memtable>();
+            memtables.add(currentView.memtable);
+            memtables.addAll(currentView.memtablesPendingFlush);
+            // It is fine to aliases the View.sstables since it's an unmodifiable collection
+            Collection<SSTableReader> sstables = currentView.sstables;
+
+            CloseableIterator<Row> iterator = RowIteratorFactory.getIterator(memtables, sstables, startWith, stopAt, filter, getComparator(), this);
+            List<Row> rows = new ArrayList<Row>();
+
+            try
             {
-                Row current = iterator.next();
-                DecoratedKey key = current.key;
-
-                if (!stopAt.isEmpty() && stopAt.compareTo(key) < 0)
-                    return rows;
-
-                // skip first one
-                if(range instanceof Bounds || !first || !key.equals(startWith))
+                // pull rows out of the iterator
+                boolean first = true;
+                while (iterator.hasNext())
                 {
-                    // TODO this is necessary because when we collate supercolumns together, we don't check
-                    // their subcolumns for relevance, so we need to do a second prune post facto here.
-                    rows.add(current.cf != null && current.cf.isSuper()
-                             ? new Row(current.key, ColumnFamilyStore.removeDeleted(current.cf, gcBefore))
-                             : current);
-                    if (logger.isDebugEnabled())
-                        logger.debug("scanned " + key);
-                }
-                first = false;
+                    Row current = iterator.next();
+                    DecoratedKey key = current.key;
 
-                if (rows.size() >= maxResults)
-                    return rows;
+                    if (!stopAt.isEmpty() && stopAt.compareTo(key) < 0)
+                        return rows;
+
+                    // skip first one
+                    if(range instanceof Bounds || !first || !key.equals(startWith))
+                    {
+                        // TODO this is necessary because when we collate supercolumns together, we don't check
+                        // their subcolumns for relevance, so we need to do a second prune post facto here.
+                        rows.add(current.cf != null && current.cf.isSuper()
+                                ? new Row(current.key, ColumnFamilyStore.removeDeleted(current.cf, gcBefore))
+                                : current);
+                        if (logger.isDebugEnabled())
+                            logger.debug("scanned " + key);
+                    }
+                    first = false;
+
+                    if (rows.size() >= maxResults)
+                        return rows;
+                }
             }
+            finally
+            {
+                try
+                {
+                    iterator.close();
+                }
+                catch (IOException e)
+                {
+                    throw new IOError(e);
+                }
+            }
+
+            return rows;
         }
         finally
         {
-            try
-            {
-                iterator.close();
-            }
-            catch (IOException e)
-            {
-                throw new IOError(e);
-            }
+            SSTableReader.releaseReferences(currentView.sstables);
         }
 
-        return rows;
     }
 
     private NamesQueryFilter getExtraFilter(IndexClause clause)
@@ -1633,25 +1692,33 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         for (ColumnFamilyStore cfs : concatWithIndexes())
         {
-            for (SSTableReader ssTable : cfs.data.getSSTables())
+            DataTracker.View currentView = cfs.markCurrentViewReferenced();
+            try
             {
-                try
+                for (SSTableReader ssTable : currentView.sstables)
                 {
-                    // mkdir
-                    File dataDirectory = ssTable.descriptor.directory.getParentFile();
-                    String snapshotDirectoryPath = Table.getSnapshotPath(dataDirectory.getAbsolutePath(), table.name, snapshotName);
-                    FileUtils.createDirectory(snapshotDirectoryPath);
+                    try
+                    {
+                        // mkdir
+                        File dataDirectory = ssTable.descriptor.directory.getParentFile();
+                        String snapshotDirectoryPath = Table.getSnapshotPath(dataDirectory.getAbsolutePath(), table.name, snapshotName);
+                        FileUtils.createDirectory(snapshotDirectoryPath);
 
-                    // hard links
-                    ssTable.createLinks(snapshotDirectoryPath);
-                    if (logger.isDebugEnabled())
-                        logger.debug("Snapshot for " + table + " keyspace data file " + ssTable.getFilename() +
-                            " created in " + snapshotDirectoryPath);
+                        // hard links
+                        ssTable.createLinks(snapshotDirectoryPath);
+                        if (logger.isDebugEnabled())
+                            logger.debug("Snapshot for " + table + " keyspace data file " + ssTable.getFilename() +
+                                    " created in " + snapshotDirectoryPath);
+                    }
+                    catch (IOException e)
+                    {
+                        throw new IOError(e);
+                    }
                 }
-                catch (IOException e)
-                {
-                    throw new IOError(e);
-                }
+            }
+            finally
+            {
+                SSTableReader.releaseReferences(currentView.sstables);
             }
         }
     }

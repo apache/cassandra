@@ -494,7 +494,8 @@ public class AntiEntropyService
             ColumnFamilyStore cfstore = Table.open(request.cf.left).getColumnFamilyStore(request.cf.right);
             try
             {
-                Collection<SSTableReader> sstables = cfstore.getSSTables();
+                // We acquire references for transferSSTables
+                Collection<SSTableReader> sstables = cfstore.markCurrentSSTablesReferenced();
                 Callback callback = new Callback();
                 // send ranges to the remote node
                 StreamOutSession outsession = StreamOutSession.create(request.cf.left, request.endpoint, callback);

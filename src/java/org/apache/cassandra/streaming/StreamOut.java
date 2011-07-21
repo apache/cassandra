@@ -118,7 +118,7 @@ public class StreamOut
             flushSSTables(cfses);
             Iterable<SSTableReader> sstables = Collections.emptyList();
             for (ColumnFamilyStore cfStore : cfses)
-                sstables = Iterables.concat(sstables, cfStore.getSSTables());
+                sstables = Iterables.concat(sstables, cfStore.markCurrentSSTablesReferenced());
             transferSSTables(session, sstables, ranges, type);
         }
         catch (IOException e)
@@ -129,7 +129,7 @@ public class StreamOut
 
     /**
      * Low-level transfer of matching portions of a group of sstables from a single table to the target endpoint.
-     * You should probably call transferRanges instead.
+     * You should probably call transferRanges instead. This moreover assumes that references have been acquired on the sstables.
      */
     public static void transferSSTables(StreamOutSession session, Iterable<SSTableReader> sstables, Collection<Range> ranges, OperationType type) throws IOException
     {
@@ -150,7 +150,11 @@ public class StreamOut
             Descriptor desc = sstable.descriptor;
             List<Pair<Long,Long>> sections = sstable.getPositionsForRanges(ranges);
             if (sections.isEmpty())
+            {
+                // A reference was acquired on the sstable and we won't stream it
+                sstable.releaseReference();
                 continue;
+            }
             pending.add(new PendingFile(sstable, desc, SSTable.COMPONENT_DATA, sections, type, sstable.estimatedKeysForRanges(ranges)));
         }
         logger.info("Stream context metadata {}, {} sstables.", pending, Iterables.size(sstables));

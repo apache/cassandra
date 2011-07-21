@@ -140,43 +140,61 @@ public class StreamInSession
         {
             // wait for bloom filters and row indexes to finish building
             HashMap <ColumnFamilyStore, List<SSTableReader>> cfstores = new HashMap<ColumnFamilyStore, List<SSTableReader>>();
-            for (Future<SSTableReader> future : buildFutures)
+            List<SSTableReader> referenced = new LinkedList<SSTableReader>();
+            try
             {
-                try
+                for (Future<SSTableReader> future : buildFutures)
                 {
-                    SSTableReader sstable = future.get();
+                    try
+                    {
+                        SSTableReader sstable = future.get();
+                        assert sstable.getTableName().equals(table);
+
+                        // Acquiring the reference (for secondary index building) before adding it makes sure we don't have to care about races
+                        sstable.acquireReference();
+                        referenced.add(sstable);
+
+                        ColumnFamilyStore cfs = Table.open(sstable.getTableName()).getColumnFamilyStore(sstable.getColumnFamilyName());
+                        cfs.addSSTable(sstable);
+                        if (!cfstores.containsKey(cfs))
+                            cfstores.put(cfs, new ArrayList<SSTableReader>());
+                        cfstores.get(cfs).add(sstable);
+                    }
+                    catch (InterruptedException e)
+                    {
+                        throw new AssertionError(e);
+                    }
+                    catch (ExecutionException e)
+                    {
+                        throw new RuntimeException(e);
+                    }
+                }
+
+                for (SSTableReader sstable : readers)
+                {
                     assert sstable.getTableName().equals(table);
+
+                    // Acquiring the reference (for secondary index building) before adding it makes sure we don't have to care about races
+                    sstable.acquireReference();
+                    referenced.add(sstable);
+
                     ColumnFamilyStore cfs = Table.open(sstable.getTableName()).getColumnFamilyStore(sstable.getColumnFamilyName());
                     cfs.addSSTable(sstable);
                     if (!cfstores.containsKey(cfs))
                         cfstores.put(cfs, new ArrayList<SSTableReader>());
                     cfstores.get(cfs).add(sstable);
                 }
-                catch (InterruptedException e)
-                {
-                    throw new AssertionError(e);
-                }
-                catch (ExecutionException e)
-                {
-                    throw new RuntimeException(e);
-                }
-            }
-            
-            for (SSTableReader sstable : readers)
-            {
-                assert sstable.getTableName().equals(table);
-                ColumnFamilyStore cfs = Table.open(sstable.getTableName()).getColumnFamilyStore(sstable.getColumnFamilyName());
-                cfs.addSSTable(sstable);
-                if (!cfstores.containsKey(cfs))
-                    cfstores.put(cfs, new ArrayList<SSTableReader>());
-                cfstores.get(cfs).add(sstable);
-            }
 
-            // build secondary indexes
-            for (Map.Entry<ColumnFamilyStore, List<SSTableReader>> entry : cfstores.entrySet())
+                // build secondary indexes
+                for (Map.Entry<ColumnFamilyStore, List<SSTableReader>> entry : cfstores.entrySet())
+                {
+                    if (entry.getKey() != null && !entry.getKey().getIndexedColumns().isEmpty())
+                        entry.getKey().buildSecondaryIndexes(entry.getValue(), entry.getKey().getIndexedColumns());
+                }
+            }
+            finally
             {
-                if (entry.getKey() != null && !entry.getKey().getIndexedColumns().isEmpty())
-                    entry.getKey().buildSecondaryIndexes(entry.getValue(), entry.getKey().getIndexedColumns());
+                SSTableReader.releaseReferences(referenced);
             }
 
             // send reply to source that we're done

@@ -13,6 +13,8 @@
  * reset CF and SC deletion times after gc_grace (CASSANDRA-2317)
  * optimize away seek when compacting wide rows (CASSANDRA-2879)
  * single-pass streaming (CASSANDRA-2677)
+ * use reference counting for deleting sstables instead of relying on the GC
+   (CASSANDRA-2521)
 
 
 0.8.2

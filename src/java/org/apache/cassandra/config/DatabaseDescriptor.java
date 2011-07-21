@@ -38,13 +38,13 @@ import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.db.DefsTable;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.io.util.MmappedSegmentedFile;
 import org.apache.cassandra.locator.*;
 import org.apache.cassandra.scheduler.IRequestScheduler;
 import org.apache.cassandra.scheduler.NoScheduler;
@@ -186,6 +186,9 @@ public class DatabaseDescriptor
                 indexAccessMode = conf.disk_access_mode;
                 logger.info("DiskAccessMode is " + conf.disk_access_mode + ", indexAccessMode is " + indexAccessMode );
             }
+            // We could enable cleaner for index only mmap but it probably doesn't matter much
+            if (conf.disk_access_mode == Config.DiskAccessMode.mmap)
+                MmappedSegmentedFile.initCleaner();
 
             /* Authentication and authorization backend, implementing IAuthenticator and IAuthority */
             if (conf.authenticator != null)

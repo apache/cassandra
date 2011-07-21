@@ -49,6 +49,7 @@ import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.gms.*;
 import org.apache.cassandra.io.DeletionService;
+import org.apache.cassandra.io.sstable.SSTableDeletingTask;
 import org.apache.cassandra.io.sstable.SSTableLoader;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
@@ -2516,5 +2517,10 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     public int getExceptionCount()
     {
         return AbstractCassandraDaemon.exceptions.get();
+    }
+
+    public void rescheduleFailedDeletions()
+    {
+        SSTableDeletingTask.rescheduleFailedTasks();
     }
 }

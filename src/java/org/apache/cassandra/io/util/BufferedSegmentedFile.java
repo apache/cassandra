@@ -68,4 +68,9 @@ public class BufferedSegmentedFile extends SegmentedFile
             throw new IOError(e);
         }
     }
+
+    public void cleanup()
+    {
+        // nothing to do
+    }
 }

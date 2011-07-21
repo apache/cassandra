@@ -24,6 +24,9 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DecoratedKey;
@@ -35,6 +38,8 @@ import org.apache.cassandra.Util;
 
 public class SSTableUtils
 {
+    private static Logger logger = LoggerFactory.getLogger(SSTableUtils.class);
+
     // first configured table and cf
     public static String TABLENAME = "Keyspace1";
     public static String CFNAME = "Standard1";

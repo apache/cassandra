@@ -72,6 +72,11 @@ public abstract class SegmentedFile
     }
 
     /**
+     * Do whatever action is needed to reclaim ressources used by this SegmentedFile.
+     */
+    public abstract void cleanup();
+
+    /**
      * Collects potential segmentation points in an underlying file, and builds a SegmentedFile to represent it.
      */
     public static abstract class Builder

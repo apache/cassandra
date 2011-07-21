@@ -37,7 +37,7 @@ import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.utils.Pair;
 
-public class    DataTracker
+public class DataTracker
 {
     private static final Logger logger = LoggerFactory.getLogger(DataTracker.class);
 
@@ -157,6 +157,10 @@ public class    DataTracker
      * @return A subset of the given active sstables that have been marked compacting,
      * or null if the thresholds cannot be met: files that are marked compacting must
      * later be unmarked using unmarkCompacting.
+     *
+     * Note that we could acquire references on the marked sstables and release them in
+     * unmarkCompacting, but since we will never call markCompacted on a sstable marked
+     * as compacting (unless there is a serious bug), we can skip this.
      */
     public Set<SSTableReader> markCompacting(Collection<SSTableReader> tomark, int min, int max)
     {
@@ -280,7 +284,16 @@ public class    DataTracker
             if (logger.isDebugEnabled())
                 logger.debug(String.format("removing %s from list of files tracked for %s.%s",
                             sstable.descriptor, cfstore.table.name, cfstore.getColumnFamilyName()));
-            sstable.markCompacted();
+            // A reference must be acquire before any call to markCompacted, see SSTableReader for details
+            sstable.acquireReference();
+            try
+            {
+                sstable.markCompacted();
+            }
+            finally
+            {
+                sstable.releaseReference();
+            }
             liveSize.addAndGet(-sstable.bytesOnDisk());
         }
     }
