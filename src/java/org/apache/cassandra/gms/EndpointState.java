@@ -131,12 +131,12 @@ public class EndpointState
         isAGossiper_ = value;        
     }
 
-    public void setHasToken(boolean value)
+    void setHasToken(boolean value)
     {
         hasToken_ = value;
     }
 
-    public boolean hasToken()
+    boolean hasToken()
     {
         return hasToken_;
     }

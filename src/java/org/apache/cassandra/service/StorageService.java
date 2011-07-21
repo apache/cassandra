@@ -1127,7 +1127,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
     public void onAlive(InetAddress endpoint, EndpointState state)
     {
-        if (!isClientMode && state.hasToken())
+        if (!isClientMode && StorageService.instance.getTokenMetadata().isMember(endpoint))
             deliverHints(endpoint);
     }
 
