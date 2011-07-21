@@ -1,3 +1,12 @@
+0.7.8
+=====
+
+Upgrading
+---------
+    - Nothing specific to 0.7.8, but see 0.7.3 Upgrading if upgrading
+      from earlier than 0.7.1.
+
+
 0.7.7
 =====
 

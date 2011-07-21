@@ -5,6 +5,11 @@
  * avoid including inferred types in CF update (CASSANDRA-2809)
  * fix re-using index CF sstable names after drop/recreate (CASSANDRA-2872)
  * fix hint replay (CASSANDRA-2928)
+ * don't accept extra args for 0-arg nodetool commands (CASSANDRA-2740)
+ * allows using cli functions in cli del statement (CASSANDRA-2821)
+ * allows quoted classes in CLI (CASSANDRA-2899)
+ * log unavailableexception details at debug level (CASSANDRA-2856)
+ * expose data_dir though jmx (CASSANDRA-2770)
 
 
 0.7.7
