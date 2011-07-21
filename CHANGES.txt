@@ -53,6 +53,8 @@
  * add simplified facade to SSTableWriter for bulk loading use
    (CASSANDRA-2911)
  * fix re-using index CF sstable names after drop/recreate (CASSANDRA-2872)
+ * prepend CF to default index names (CASSANDRA-2903)
+ * fix hint replay (CASSANDRA-2928)
 
 
 0.8.1
