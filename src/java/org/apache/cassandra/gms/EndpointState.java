@@ -123,12 +123,12 @@ public class EndpointState
         isAlive = false;
     }
 
-    public void setHasToken(boolean value)
+    void setHasToken(boolean value)
     {
         hasToken = value;
     }
 
-    public boolean hasToken()
+    boolean hasToken()
     {
         return hasToken;
     }
