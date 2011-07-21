@@ -134,7 +134,7 @@ public abstract class AntiEntropyServiceTestAbstract extends CleanupHelper
     {
         Validator validator = new Validator(request);
         validator.prepare(store);
-        validator.complete();
+        validator.completeTree();
 
         // confirm that the tree was validated
         Token min = validator.tree.partitioner().getMinimumToken();
@@ -151,7 +151,7 @@ public abstract class AntiEntropyServiceTestAbstract extends CleanupHelper
 
         // add a row
         validator.add(new PrecompactedRow(new DecoratedKey(mid, ByteBufferUtil.bytes("inconceivable!")), null));
-        validator.complete();
+        validator.completeTree();
 
         // confirm that the tree was validated
         assert null != validator.tree.hash(local_range);
@@ -162,14 +162,13 @@ public abstract class AntiEntropyServiceTestAbstract extends CleanupHelper
     {
         AntiEntropyService.RepairSession sess = AntiEntropyService.instance.getRepairSession(local_range, tablename, cfname);
         sess.start();
-        sess.blockUntilRunning();
 
         // ensure that the session doesn't end without a response from REMOTE
-        sess.join(100);
+        sess.join(500);
         assert sess.isAlive();
 
         // deliver a fake response from REMOTE
-        AntiEntropyService.instance.completedRequest(new TreeRequest(sess.getName(), REMOTE, local_range, request.cf));
+        sess.completed(REMOTE, request.cf.right);
 
         // block until the repair has completed
         sess.join();
@@ -222,13 +221,13 @@ public abstract class AntiEntropyServiceTestAbstract extends CleanupHelper
         // generate a tree
         Validator validator = new Validator(request);
         validator.prepare(store);
-        validator.complete();
+        validator.completeTree();
         MerkleTree ltree = validator.tree;
 
         // and a clone
         validator = new Validator(request);
         validator.prepare(store);
-        validator.complete();
+        validator.completeTree();
         MerkleTree rtree = validator.tree;
 
         // change a range in one of the trees
@@ -241,7 +240,7 @@ public abstract class AntiEntropyServiceTestAbstract extends CleanupHelper
         interesting.add(changed);
 
         // difference the trees
-        Differencer diff = new Differencer(request, ltree, rtree);
+        AntiEntropyService.RepairSession.Differencer diff = sess.new Differencer(cfname, request.endpoint, ltree, rtree);
         diff.run();
         
         // ensure that the changed range was recorded
