@@ -11,6 +11,16 @@ Upgrading
       if replicate_on_write was uncorrectly set to false (before or after
       upgrade).
 
+Tools
+-----
+    - Add new simplified classes to write sstables (to complement the bulk
+      loading utility).
+
+Other
+-----
+    - This release fix a regression of 0.8.1 that made hinted handoff being
+      never delivered. Upgrade from 0.8.1 is thus highly encourage.
+
 
 0.8.1
 =====

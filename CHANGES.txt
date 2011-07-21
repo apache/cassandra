@@ -39,6 +39,13 @@
  * prepend CF to default index names (CASSANDRA-2903)
  * fix hint replay (CASSANDRA-2928)
  * Properly synchronize merkle tree computation (CASSANDRA-2816)
+ * escape quotes in sstable2json (CASSANDRA-2780)
+ * allows using cli functions in cli del statement (CASSANDRA-2821)
+ * allows quoted classes in CLI (CASSANDRA-2899)
+ * expose data_dir though jmx (CASSANDRA-2770)
+ * proper support for validation and functions for cli count statement
+   (CASSANDRA-1902)
+ * debian package now depend on libjna-java (CASSANDRA-2803)
 
 
 0.8.1
