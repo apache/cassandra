@@ -15,6 +15,7 @@
  * single-pass streaming (CASSANDRA-2677)
  * use reference counting for deleting sstables instead of relying on the GC
    (CASSANDRA-2521)
+ * store hints as serialized mutations instead of pointers to data rows
 
 
 0.8.2
