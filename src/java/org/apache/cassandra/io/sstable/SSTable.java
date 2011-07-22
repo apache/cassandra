@@ -230,7 +230,7 @@ public abstract class SSTable
             FileUtils.skipBytesFully(ifile, 8);
             keys++;
         }
-        assert keys > 0 && ifile.getFilePointer() > 0 && ifile.length() > 0;
+        assert keys > 0 && ifile.getFilePointer() > 0 && ifile.length() > 0 : "Unexpected empty index file: " + ifile;
         long estimatedRows = ifile.length() / (ifile.getFilePointer() / keys);
         ifile.seek(0);
         return estimatedRows;
