@@ -1,4 +1,4 @@
-h1. Cassandra Query Language (CQL) v1.0.0
+h1. Cassandra Query Language (CQL) v1.1.0
 
 h2. Table of Contents
 
@@ -364,5 +364,8 @@ Versioning of the CQL language adheres to the "Semantic Versioning":http://semve
 h1. Changes
 
 pre. 
+Sat, 01 Jun 2011 15:58:00 -0600 - Pavel Yaskevich
+ * Updated to support ALTER (CASSANDRA-1709)
+
 Tue, 22 Mar 2011 18:10:28 -0700 - Eric Evans <eevans@rackspace.com>
  * Initial version, 1.0.0
