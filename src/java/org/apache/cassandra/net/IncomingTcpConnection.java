@@ -75,8 +75,9 @@ public class IncomingTcpConnection extends Thread
         }
         catch (IOException e)
         {
+            logger.debug("Incoming IOException", e);
             close();
-            throw new IOError(e);
+            return;
         }
 
         if (version > MessagingService.version_)
