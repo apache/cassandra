@@ -193,7 +193,7 @@ public abstract class AbstractColumnContainer implements IColumnContainer, IIter
         return columns.values().iterator();
     }
 
-    private static class DeletionInfo
+    protected static class DeletionInfo
     {
         public final long markedForDeleteAt;
         public final int localDeletionTime;
