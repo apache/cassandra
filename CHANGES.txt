@@ -16,6 +16,8 @@
  * use reference counting for deleting sstables instead of relying on the GC
    (CASSANDRA-2521)
  * store hints as serialized mutations instead of pointers to data rows
+ * store hints in the coordinator node instead of in the closest 
+   replica (CASSANDRA-2914). 
 
 
 0.8.2

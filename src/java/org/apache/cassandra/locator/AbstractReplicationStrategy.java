@@ -157,10 +157,7 @@ public abstract class AbstractReplicationStrategy
         if (map.size() == targets.size() || !StorageProxy.isHintedHandoffEnabled())
             return map;
 
-        // assign dead endpoints to be hinted to the closest live one, or to the local node
-        // (since it is trivially the closest) if none are alive.  This way, the cost of doing
-        // a hint is only adding the hint header, rather than doing a full extra write, if any
-        // destination nodes are alive.
+        // Assign dead endpoints to be hinted to the local node.
         //
         // we do a 2nd pass on targets instead of using temporary storage,
         // to optimize for the common case (everything was alive).
@@ -176,10 +173,8 @@ public abstract class AbstractReplicationStrategy
                 continue;
             }
 
-            InetAddress destination = map.isEmpty()
-                                    ? localAddress
-                                    : snitch.getSortedListByProximity(localAddress, map.keySet()).get(0);
-            map.put(destination, ep);
+            // We always store the hint on the coordinator node.
+            map.put(localAddress, ep);
         }
 
         return map;

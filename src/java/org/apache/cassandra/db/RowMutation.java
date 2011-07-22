@@ -97,6 +97,23 @@ public class RowMutation implements IMutation, MessageProducer
         return modifications_.values();
     }
 
+    /**
+     * Returns mutation representing a Hints to be sent to <code>address</code>
+     * as soon as it becomes available.
+     * The format is the following:
+     *
+     * HintsColumnFamily: {        // cf
+     *   <dest ip>: {              // key
+     *     <uuid>: {               // super-column
+     *       table: <table>        // columns
+     *       key: <key>
+     *       mutation: <mutation>
+     *       version: <version>
+     *     }
+     *   }
+     * }
+     *
+     */
     public static RowMutation hintFor(RowMutation mutation, ByteBuffer address) throws IOException
     {
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, address);
