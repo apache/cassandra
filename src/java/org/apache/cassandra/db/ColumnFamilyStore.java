@@ -256,7 +256,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         data = new DataTracker(this);
         Set<DecoratedKey> savedKeys = keyCache.readSaved();
         List<SSTableReader> sstables = new ArrayList<SSTableReader>();
-        for (Map.Entry<Descriptor,Set<Component>> sstableFiles : files(table.name, columnFamilyName, false).entrySet())
+        for (Map.Entry<Descriptor,Set<Component>> sstableFiles : files(table.name, columnFamilyName, false, false).entrySet())
         {
             SSTableReader sstable;
             try
@@ -468,7 +468,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public static void scrubDataDirectories(String table, String columnFamily)
     {
         logger.info("Removing compacted SSTable files (see http://wiki.apache.org/cassandra/MemtableSSTable)");
-        for (Map.Entry<Descriptor,Set<Component>> sstableFiles : files(table, columnFamily, true).entrySet())
+        for (Map.Entry<Descriptor,Set<Component>> sstableFiles : files(table, columnFamily, true, true).entrySet())
         {
             Descriptor desc = sstableFiles.getKey();
             Set<Component> components = sstableFiles.getValue();
@@ -559,7 +559,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     /**
      * Collects a map of sstable components.
      */
-    private static Map<Descriptor,Set<Component>> files(String keyspace, final String columnFamily, final boolean includeCompacted)
+    private static Map<Descriptor,Set<Component>> files(String keyspace, final String columnFamily, final boolean includeCompacted, final boolean includeTemporary)
     {
         final Map<Descriptor,Set<Component>> sstables = new HashMap<Descriptor,Set<Component>>();
         for (String directory : DatabaseDescriptor.getAllDataFileLocationsForTable(keyspace))
@@ -568,7 +568,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             {
                 if (component != null && component.left.cfname.equals(columnFamily))
                 {
-                    if (includeCompacted || !new File(component.left.filenameFor(Component.COMPACTED_MARKER)).exists())
+                    if ((includeCompacted || !new File(component.left.filenameFor(Component.COMPACTED_MARKER)).exists())
+                     && (includeTemporary || !component.left.temporary))
                     {
                         Set<Component> components = sstables.get(component.left);
                         if (components == null)
