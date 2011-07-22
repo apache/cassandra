@@ -36,10 +36,9 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.*;
 import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.io.util.BufferedRandomAccessFile;
-import org.apache.cassandra.io.util.FileMark;
-import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.io.util.SegmentedFile;
+import org.apache.cassandra.io.util.*;
+import org.apache.cassandra.io.util.RandomAccessReader;
+import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.OperationType;
 import org.apache.cassandra.utils.BloomFilter;
@@ -52,7 +51,7 @@ public class SSTableWriter extends SSTable
 
     private IndexWriter iwriter;
     private SegmentedFile.Builder dbuilder;
-    private final BufferedRandomAccessFile dataFile;
+    private final SequentialWriter dataFile;
     private DecoratedKey lastWrittenKey;
     private FileMark dataMark;
     private SSTableMetadata.Collector sstableMetadataCollector;
@@ -78,7 +77,7 @@ public class SSTableWriter extends SSTable
               partitioner);
         iwriter = new IndexWriter(descriptor, partitioner, keyCount);
         dbuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode());
-        dataFile = new BufferedRandomAccessFile(new File(getFilename()), "rw", BufferedRandomAccessFile.DEFAULT_BUFFER_SIZE, true);
+        dataFile = SequentialWriter.open(new File(getFilename()), true);
         this.sstableMetadataCollector = sstableMetadataCollector;
     }
     
@@ -88,12 +87,12 @@ public class SSTableWriter extends SSTable
         iwriter.mark();
     }
 
-    public void reset()
+    public void resetAndTruncate()
     {
         try
         {
-            dataFile.reset(dataMark);
-            iwriter.reset();
+            dataFile.resetAndTruncate(dataMark);
+            iwriter.resetAndTruncate();
         }
         catch (IOException e)
         {
@@ -130,8 +129,8 @@ public class SSTableWriter extends SSTable
     public long append(AbstractCompactedRow row) throws IOException
     {
         long currentPosition = beforeAppend(row.key);
-        ByteBufferUtil.writeWithShortLength(row.key.key, dataFile);
-        row.write(dataFile);
+        ByteBufferUtil.writeWithShortLength(row.key.key, dataFile.stream);
+        row.write(dataFile.stream);
         // max timestamp is not collected here, because we want to avoid deserializing an EchoedRow
         // instead, it is collected when calling ColumnFamilyStore.createCompactionWriter
         sstableMetadataCollector.addRowSize(dataFile.getFilePointer() - currentPosition);
@@ -143,16 +142,16 @@ public class SSTableWriter extends SSTable
     public void append(DecoratedKey decoratedKey, ColumnFamily cf) throws IOException
     {
         long startPosition = beforeAppend(decoratedKey);
-        ByteBufferUtil.writeWithShortLength(decoratedKey.key, dataFile);
+        ByteBufferUtil.writeWithShortLength(decoratedKey.key, dataFile.stream);
 
         // serialize index and bloom filter into in-memory structure
         ColumnIndexer.RowHeader header = ColumnIndexer.serialize(cf);
 
         // write out row size
-        dataFile.writeLong(header.serializedSize() + cf.serializedSizeForSSTable());
+        dataFile.stream.writeLong(header.serializedSize() + cf.serializedSizeForSSTable());
 
         // write out row header and data
-        int columnCount = ColumnFamily.serializer().serializeWithIndexes(cf, header, dataFile);
+        int columnCount = ColumnFamily.serializer().serializeWithIndexes(cf, header, dataFile.stream);
         afterAppend(decoratedKey, startPosition);
 
         // track max column timestamp
@@ -164,10 +163,10 @@ public class SSTableWriter extends SSTable
     public void append(DecoratedKey decoratedKey, ByteBuffer value) throws IOException
     {
         long currentPosition = beforeAppend(decoratedKey);
-        ByteBufferUtil.writeWithShortLength(decoratedKey.key, dataFile);
+        ByteBufferUtil.writeWithShortLength(decoratedKey.key, dataFile.stream);
         assert value.remaining() > 0;
-        dataFile.writeLong(value.remaining());
-        ByteBufferUtil.write(value, dataFile);
+        dataFile.stream.writeLong(value.remaining());
+        ByteBufferUtil.write(value, dataFile.stream);
         afterAppend(decoratedKey, currentPosition);
     }
 
@@ -233,11 +232,8 @@ public class SSTableWriter extends SSTable
 
     private static void writeMetadata(Descriptor desc, SSTableMetadata sstableMetadata) throws IOException
     {
-        BufferedRandomAccessFile out = new BufferedRandomAccessFile(new File(desc.filenameFor(SSTable.COMPONENT_STATS)),
-                                                                     "rw",
-                                                                     BufferedRandomAccessFile.DEFAULT_BUFFER_SIZE,
-                                                                     true);
-        SSTableMetadata.serializer.serialize(sstableMetadata, out);
+        SequentialWriter out = SequentialWriter.open(new File(desc.filenameFor(SSTable.COMPONENT_STATS)), true);
+        SSTableMetadata.serializer.serialize(sstableMetadata, out.stream);
         out.close();
     }
 
@@ -382,7 +378,7 @@ public class SSTableWriter extends SSTable
     static class RowIndexer implements Closeable
     {
         protected final Descriptor desc;
-        public final BufferedRandomAccessFile dfile;
+        public final RandomAccessReader dfile;
         private final OperationType type;
 
         protected IndexWriter iwriter;
@@ -391,10 +387,10 @@ public class SSTableWriter extends SSTable
 
         RowIndexer(Descriptor desc, ColumnFamilyStore cfs, OperationType type) throws IOException
         {
-            this(desc, new BufferedRandomAccessFile(new File(desc.filenameFor(SSTable.COMPONENT_DATA)), "r", 8 * 1024 * 1024, true), cfs, type);
+            this(desc, RandomAccessReader.open(new File(desc.filenameFor(SSTable.COMPONENT_DATA)), 8 * 1024 * 1024, true), cfs, type);
         }
 
-        protected RowIndexer(Descriptor desc, BufferedRandomAccessFile dfile, ColumnFamilyStore cfs, OperationType type) throws IOException
+        protected RowIndexer(Descriptor desc, RandomAccessReader dfile, ColumnFamilyStore cfs, OperationType type) throws IOException
         {
             this.desc = desc;
             this.dfile = dfile;
@@ -549,12 +545,12 @@ public class SSTableWriter extends SSTable
      */
     static class CommutativeRowIndexer extends RowIndexer
     {
-        protected BufferedRandomAccessFile writerDfile;
+        protected SequentialWriter writerDfile;
 
         CommutativeRowIndexer(Descriptor desc, ColumnFamilyStore cfs, OperationType type) throws IOException
         {
-            super(desc, new BufferedRandomAccessFile(new File(desc.filenameFor(SSTable.COMPONENT_DATA)), "r", 8 * 1024 * 1024, true), cfs, type);
-            writerDfile = new BufferedRandomAccessFile(new File(desc.filenameFor(SSTable.COMPONENT_DATA)), "rw", 8 * 1024 * 1024, true);
+            super(desc, RandomAccessReader.open(new File(desc.filenameFor(SSTable.COMPONENT_DATA)), 8 * 1024 * 1024, true), cfs, type);
+            writerDfile = SequentialWriter.open(new File(desc.filenameFor(SSTable.COMPONENT_DATA)), 8 * 1024 * 1024, true);
         }
 
         @Override
@@ -583,8 +579,8 @@ public class SSTableWriter extends SSTable
                 // update index writer
                 iwriter.afterAppend(key, writerDfile.getFilePointer());
                 // write key and row
-                ByteBufferUtil.writeWithShortLength(key.key, writerDfile);
-                row.write(writerDfile);
+                ByteBufferUtil.writeWithShortLength(key.key, writerDfile.stream);
+                row.write(writerDfile.stream);
 
                 rows++;
             }
@@ -593,7 +589,7 @@ public class SSTableWriter extends SSTable
             if (writerDfile.getFilePointer() != dfile.getFilePointer())
             {
                 // truncate file to new, reduced length
-                writerDfile.setLength(writerDfile.getFilePointer());
+                writerDfile.truncate(writerDfile.getFilePointer());
             }
             writerDfile.sync();
 
@@ -613,7 +609,7 @@ public class SSTableWriter extends SSTable
      */
     static class IndexWriter implements Closeable
     {
-        private final BufferedRandomAccessFile indexFile;
+        private final SequentialWriter indexFile;
         public final Descriptor desc;
         public final IPartitioner partitioner;
         public final SegmentedFile.Builder builder;
@@ -625,7 +621,7 @@ public class SSTableWriter extends SSTable
         {
             this.desc = desc;
             this.partitioner = part;
-            indexFile = new BufferedRandomAccessFile(new File(desc.filenameFor(SSTable.COMPONENT_INDEX)), "rw", 8 * 1024 * 1024, true);
+            indexFile = SequentialWriter.open(new File(desc.filenameFor(SSTable.COMPONENT_INDEX)), 8 * 1024 * 1024, true);
             builder = SegmentedFile.getBuilder(DatabaseDescriptor.getIndexAccessMode());
             summary = new IndexSummary(keyCount);
             bf = BloomFilter.getFilter(keyCount, 15);
@@ -635,8 +631,8 @@ public class SSTableWriter extends SSTable
         {
             bf.add(key.key);
             long indexPosition = indexFile.getFilePointer();
-            ByteBufferUtil.writeWithShortLength(key.key, indexFile);
-            indexFile.writeLong(dataPosition);
+            ByteBufferUtil.writeWithShortLength(key.key, indexFile.stream);
+            indexFile.stream.writeLong(dataPosition);
             if (logger.isTraceEnabled())
                 logger.trace("wrote index of " + key + " at " + indexPosition);
 
@@ -671,12 +667,12 @@ public class SSTableWriter extends SSTable
             mark = indexFile.mark();
         }
 
-        public void reset() throws IOException
+        public void resetAndTruncate() throws IOException
         {
             // we can't un-set the bloom filter addition, but extra keys in there are harmless.
             // we can't reset dbuilder either, but that is the last thing called in afterappend so
             // we assume that if that worked then we won't be trying to reset.
-            indexFile.reset(mark);
+            indexFile.resetAndTruncate(mark);
         }
 
         public String toString()

@@ -79,7 +79,7 @@ public final class CLibrary
     public static native int fcntl(int fd, int command, long flags) throws LastErrorException;
 
     // fadvice
-    public static native int posix_fadvise(int fd, int offset, int len, int flag) throws LastErrorException;
+    public static native int posix_fadvise(int fd, long offset, int len, int flag) throws LastErrorException;
         
     private static int errno(RuntimeException e)
     {
@@ -189,7 +189,7 @@ public final class CLibrary
         }
     }
 
-    public static void trySkipCache(int fd, int offset, int len)
+    public static void trySkipCache(int fd, long offset, int len)
     {
         if (fd < 0)
             return;
@@ -199,10 +199,6 @@ public final class CLibrary
             if (System.getProperty("os.name").toLowerCase().contains("linux"))
             {
                 posix_fadvise(fd, offset, len, POSIX_FADV_DONTNEED);
-            }
-            else if (System.getProperty("os.name").toLowerCase().contains("mac"))
-            {
-                tryFcntl(fd, F_NOCACHE, 1);
             }
         }
         catch (UnsatisfiedLinkError e)

@@ -20,31 +20,23 @@
  */
 package org.apache.cassandra.io.sstable;
 
-import static org.junit.Assert.*;
-
+import java.io.File;
 import java.io.IOException;
-import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
 import org.apache.cassandra.CleanupHelper;
-import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.marshal.CounterColumnType;
-import org.apache.cassandra.io.util.BufferedRandomAccessFile;
-import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.streaming.OperationType;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.NodeId;
 import org.junit.Test;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -206,8 +198,8 @@ public class SSTableWriterCommutativeTest extends CleanupHelper
         SSTableReader cleaned = SSTableUtils.prepare().ks(keyspace).cf(cfname).generation(0).write(cleanedEntries);
 
         // verify
-        BufferedRandomAccessFile origFile    = new BufferedRandomAccessFile(orig.descriptor.filenameFor(SSTable.COMPONENT_DATA), "r", 8 * 1024 * 1024);
-        BufferedRandomAccessFile cleanedFile = new BufferedRandomAccessFile(cleaned.descriptor.filenameFor(SSTable.COMPONENT_DATA), "r", 8 * 1024 * 1024);
+        RandomAccessReader origFile    = RandomAccessReader.open(new File(orig.descriptor.filenameFor(SSTable.COMPONENT_DATA)), 8 * 1024 * 1024);
+        RandomAccessReader cleanedFile = RandomAccessReader.open(new File(cleaned.descriptor.filenameFor(SSTable.COMPONENT_DATA)), 8 * 1024 * 1024);
 
         while(origFile.getFilePointer() < origFile.length() && cleanedFile.getFilePointer() < cleanedFile.length())
         {

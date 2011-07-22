@@ -42,8 +42,8 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.io.sstable.*;
-import org.apache.cassandra.io.util.BufferedRandomAccessFile;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.service.AntiEntropyService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.OperationType;
@@ -470,9 +470,9 @@ public class CompactionManager implements CompactionManagerMBean
         // we'll also loop through the index at the same time, using the position from the index to recover if the
         // row header (key or data size) is corrupt. (This means our position in the index file will be one row
         // "ahead" of the data file.)
-        final BufferedRandomAccessFile dataFile = BufferedRandomAccessFile.getUncachingReader(sstable.getFilename());
+        final RandomAccessReader dataFile = RandomAccessReader.open(new File(sstable.getFilename()), true);
         String indexFilename = sstable.descriptor.filenameFor(Component.PRIMARY_INDEX);
-        BufferedRandomAccessFile indexFile = BufferedRandomAccessFile.getUncachingReader(indexFilename);
+        RandomAccessReader indexFile = RandomAccessReader.open(new File(indexFilename), true);
         try
         {
             ByteBuffer nextIndexKey = ByteBufferUtil.readWithShortLength(indexFile);
@@ -559,7 +559,7 @@ public class CompactionManager implements CompactionManagerMBean
                     {
                         throwIfFatal(th);
                         logger.warn("Non-fatal error reading row (stacktrace follows)", th);
-                        writer.reset();
+                        writer.resetAndTruncate();
 
                         if (currentIndexKey != null
                             && (key == null || !key.key.equals(currentIndexKey) || dataStart != dataStartFromIndex || dataSize != dataSizeFromIndex))
@@ -589,7 +589,7 @@ public class CompactionManager implements CompactionManagerMBean
                                     throw new IOError(th2);
 
                                 logger.warn("Retry failed too.  Skipping to next row (retry's stacktrace follows)", th2);
-                                writer.reset();
+                                writer.resetAndTruncate();
                                 dataFile.seek(nextRowPositionFromIndex);
                                 badRows++;
                             }
@@ -1119,9 +1119,9 @@ public class CompactionManager implements CompactionManagerMBean
 
     private static class ScrubInfo implements CompactionInfo.Holder
     {
-        private final BufferedRandomAccessFile dataFile;
+        private final RandomAccessReader dataFile;
         private final SSTableReader sstable;
-        public ScrubInfo(BufferedRandomAccessFile dataFile, SSTableReader sstable)
+        public ScrubInfo(RandomAccessReader dataFile, SSTableReader sstable)
         {
             this.dataFile = dataFile;
             this.sstable = sstable;

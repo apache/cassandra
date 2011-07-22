@@ -36,7 +36,7 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.columniterator.IColumnIterator;
 import org.apache.cassandra.db.marshal.MarshalException;
-import org.apache.cassandra.io.util.BufferedRandomAccessFile;
+import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.utils.BytesReadTracker;
 
 public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterator>, IColumnIterator
@@ -70,7 +70,7 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
      * @param dataSize length of row data
      * @throws IOException
      */
-    public SSTableIdentityIterator(SSTableReader sstable, BufferedRandomAccessFile file, DecoratedKey key, long dataStart, long dataSize)
+    public SSTableIdentityIterator(SSTableReader sstable, RandomAccessReader file, DecoratedKey key, long dataStart, long dataSize)
     throws IOException
     {
         this(sstable, file, key, dataStart, dataSize, false);
@@ -86,7 +86,7 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
      * @param checkData if true, do its best to deserialize and check the coherence of row data
      * @throws IOException
      */
-    public SSTableIdentityIterator(SSTableReader sstable, BufferedRandomAccessFile file, DecoratedKey key, long dataStart, long dataSize, boolean checkData)
+    public SSTableIdentityIterator(SSTableReader sstable, RandomAccessReader file, DecoratedKey key, long dataStart, long dataSize, boolean checkData)
     throws IOException
     {
         this(sstable.metadata, file, key, dataStart, dataSize, checkData, sstable, false);
@@ -114,9 +114,9 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
 
         try
         {
-            if (input instanceof BufferedRandomAccessFile)
+            if (input instanceof RandomAccessReader)
             {
-                BufferedRandomAccessFile file = (BufferedRandomAccessFile) input;
+                RandomAccessReader file = (RandomAccessReader) input;
                 file.seek(this.dataStart);
                 if (checkData)
                 {
@@ -150,9 +150,9 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
             ColumnFamily.serializer().deserializeFromSSTableNoColumns(columnFamily, inputWithTracker);
             columnCount = inputWithTracker.readInt();
 
-            if (input instanceof BufferedRandomAccessFile)
+            if (input instanceof RandomAccessReader)
             {
-                BufferedRandomAccessFile file = (BufferedRandomAccessFile) input;
+                RandomAccessReader file = (RandomAccessReader) input;
                 columnPosition = file.getFilePointer();
             }
         }
@@ -174,9 +174,9 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
 
     public boolean hasNext()
     {
-        if (input instanceof BufferedRandomAccessFile)
+        if (input instanceof RandomAccessReader)
         {
-            BufferedRandomAccessFile file = (BufferedRandomAccessFile) input;
+            RandomAccessReader file = (RandomAccessReader) input;
             return file.getFilePointer() < finishedAt;
         }
         else
@@ -217,9 +217,9 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
     public String getPath()
     {
         // if input is from file, then return that path, otherwise it's from streaming
-        if (input instanceof BufferedRandomAccessFile)
+        if (input instanceof RandomAccessReader)
         {
-            BufferedRandomAccessFile file = (BufferedRandomAccessFile) input;
+            RandomAccessReader file = (RandomAccessReader) input;
             return file.getPath();
         }
         else
@@ -231,9 +231,9 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
     public void echoData(DataOutput out) throws IOException
     {
         // only effective when input is from file
-        if (input instanceof BufferedRandomAccessFile)
+        if (input instanceof RandomAccessReader)
         {
-            BufferedRandomAccessFile file = (BufferedRandomAccessFile) input;
+            RandomAccessReader file = (RandomAccessReader) input;
             file.seek(dataStart);
             while (file.getFilePointer() < finishedAt)
             {
@@ -249,9 +249,9 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
     public ColumnFamily getColumnFamilyWithColumns() throws IOException
     {
         ColumnFamily cf = columnFamily.cloneMeShallow();
-        if (input instanceof BufferedRandomAccessFile)
+        if (input instanceof RandomAccessReader)
         {
-            BufferedRandomAccessFile file = (BufferedRandomAccessFile) input;
+            RandomAccessReader file = (RandomAccessReader) input;
             file.seek(columnPosition - 4); // seek to before column count int
             ColumnFamily.serializer().deserializeColumns(inputWithTracker, cf, false, fromRemote);
         }
@@ -282,9 +282,9 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
     public void reset()
     {
         // only effective when input is from file
-        if (input instanceof BufferedRandomAccessFile)
+        if (input instanceof RandomAccessReader)
         {
-            BufferedRandomAccessFile file = (BufferedRandomAccessFile) input;
+            RandomAccessReader file = (RandomAccessReader) input;
             try
             {
                 file.seek(columnPosition);

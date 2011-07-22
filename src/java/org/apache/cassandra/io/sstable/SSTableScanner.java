@@ -31,7 +31,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.columniterator.IColumnIterator;
 import org.apache.cassandra.db.filter.QueryFilter;
-import org.apache.cassandra.io.util.BufferedRandomAccessFile;
+import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CloseableIterator;
 
@@ -39,7 +39,7 @@ public class SSTableScanner implements CloseableIterator<IColumnIterator>
 {
     private static Logger logger = LoggerFactory.getLogger(SSTableScanner.class);
 
-    protected final BufferedRandomAccessFile file;
+    protected final RandomAccessReader file;
     public final SSTableReader sstable;
     private IColumnIterator row;
     protected boolean exhausted = false;
@@ -53,7 +53,7 @@ public class SSTableScanner implements CloseableIterator<IColumnIterator>
     {
         try
         {
-            this.file = new BufferedRandomAccessFile(new File(sstable.getFilename()), "r", bufferSize, skipCache);
+            this.file = RandomAccessReader.open(new File(sstable.getFilename()), skipCache);
         }
         catch (IOException e)
         {
@@ -70,7 +70,7 @@ public class SSTableScanner implements CloseableIterator<IColumnIterator>
     {
         try
         {
-            this.file = new BufferedRandomAccessFile(sstable.getFilename(), "r", bufferSize);
+            this.file = RandomAccessReader.open(new File(sstable.getFilename()), bufferSize);
         }
         catch (IOException e)
         {

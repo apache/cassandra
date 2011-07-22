@@ -28,7 +28,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.io.util.BufferedRandomAccessFile;
+import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.service.StorageService;
 
 import org.apache.commons.cli.*;
@@ -235,7 +235,7 @@ public class SSTableExport
     public static void export(String ssTableFile, PrintStream outs, Collection<String> toExport, String[] excludes) throws IOException
     {
         SSTableReader reader = SSTableReader.open(Descriptor.fromFilename(ssTableFile));
-        SSTableScanner scanner = reader.getDirectScanner(BufferedRandomAccessFile.DEFAULT_BUFFER_SIZE);
+        SSTableScanner scanner = reader.getDirectScanner(RandomAccessReader.DEFAULT_BUFFER_SIZE);
 
         IPartitioner<?> partitioner = StorageService.getPartitioner();
 
@@ -292,7 +292,7 @@ public class SSTableExport
 
 
         SSTableIdentityIterator row;
-        SSTableScanner scanner = reader.getDirectScanner(BufferedRandomAccessFile.DEFAULT_BUFFER_SIZE);
+        SSTableScanner scanner = reader.getDirectScanner(RandomAccessReader.DEFAULT_BUFFER_SIZE);
 
         outs.println("{");
 

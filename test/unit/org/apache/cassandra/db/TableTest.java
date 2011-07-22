@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.db;
 
+import java.io.File;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.text.DecimalFormat;
@@ -35,6 +36,7 @@ import static junit.framework.Assert.*;
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.filter.QueryFilter;
+import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.utils.WrappedRunnable;
 import static org.apache.cassandra.Util.column;
 import static org.apache.cassandra.Util.getBytes;
@@ -43,7 +45,6 @@ import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.io.sstable.IndexHelper;
 import org.apache.cassandra.io.sstable.SSTableReader;
-import org.apache.cassandra.io.util.BufferedRandomAccessFile;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 
@@ -405,7 +406,7 @@ public class TableTest extends CleanupHelper
         // verify that we do indeed have multiple index entries
         SSTableReader sstable = cfStore.getSSTables().iterator().next();
         long position = sstable.getPosition(key, SSTableReader.Operator.EQ);
-        BufferedRandomAccessFile file = new BufferedRandomAccessFile(sstable.getFilename(), "r");
+        RandomAccessReader file = RandomAccessReader.open(new File(sstable.getFilename()));
         file.seek(position);
         assert ByteBufferUtil.readWithShortLength(file).equals(key.key);
         SSTableReader.readRowSize(file, sstable.descriptor);

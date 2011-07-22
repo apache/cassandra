@@ -24,19 +24,18 @@ package org.apache.cassandra.io.sstable;
 import java.io.File;
 import java.io.IOError;
 import java.io.IOException;
-import java.util.Iterator;
 
 import com.google.common.collect.AbstractIterator;
 
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.io.util.BufferedRandomAccessFile;
+import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CloseableIterator;
 
 public class KeyIterator extends AbstractIterator<DecoratedKey> implements CloseableIterator<DecoratedKey>
 {
-    private final BufferedRandomAccessFile in;
+    private final RandomAccessReader in;
     private final Descriptor desc;
 
     public KeyIterator(Descriptor desc)
@@ -44,10 +43,7 @@ public class KeyIterator extends AbstractIterator<DecoratedKey> implements Close
         this.desc = desc;
         try
         {
-            in = new BufferedRandomAccessFile(new File(desc.filenameFor(SSTable.COMPONENT_INDEX)),
-                                              "r",
-                                              BufferedRandomAccessFile.DEFAULT_BUFFER_SIZE,
-                                              true);
+            in = RandomAccessReader.open(new File(desc.filenameFor(SSTable.COMPONENT_INDEX)), true);
         }
         catch (IOException e)
         {

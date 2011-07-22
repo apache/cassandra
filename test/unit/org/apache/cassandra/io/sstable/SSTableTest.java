@@ -19,6 +19,7 @@
 
 package org.apache.cassandra.io.sstable;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
@@ -26,7 +27,7 @@ import java.util.*;
 import org.junit.Test;
 
 import org.apache.cassandra.CleanupHelper;
-import org.apache.cassandra.io.util.BufferedRandomAccessFile;
+import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class SSTableTest extends CleanupHelper
@@ -50,7 +51,7 @@ public class SSTableTest extends CleanupHelper
 
     private void verifySingle(SSTableReader sstable, ByteBuffer bytes, ByteBuffer key) throws IOException
     {
-        BufferedRandomAccessFile file = new BufferedRandomAccessFile(sstable.getFilename(), "r");
+        RandomAccessReader file = RandomAccessReader.open(new File(sstable.getFilename()));
         file.seek(sstable.getPosition(sstable.partitioner.decorateKey(key), SSTableReader.Operator.EQ));
         assert key.equals(ByteBufferUtil.readWithShortLength(file));
         int size = (int)SSTableReader.readRowSize(file, sstable.descriptor);
@@ -87,7 +88,7 @@ public class SSTableTest extends CleanupHelper
     {
         List<ByteBuffer> keys = new ArrayList<ByteBuffer>(map.keySet());
         Collections.shuffle(keys);
-        BufferedRandomAccessFile file = new BufferedRandomAccessFile(sstable.getFilename(), "r");
+        RandomAccessReader file = RandomAccessReader.open(new File(sstable.getFilename()));
         for (ByteBuffer key : keys)
         {
             file.seek(sstable.getPosition(sstable.partitioner.decorateKey(key), SSTableReader.Operator.EQ));

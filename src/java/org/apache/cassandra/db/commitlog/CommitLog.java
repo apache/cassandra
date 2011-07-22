@@ -31,6 +31,7 @@ import java.util.zip.Checksum;
 import com.google.common.collect.Ordering;
 
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
@@ -42,8 +43,6 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.DeletionService;
-import org.apache.cassandra.io.util.BufferedRandomAccessFile;
-import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.WrappedRunnable;
@@ -204,7 +203,7 @@ public class CommitLog implements CommitLogMBean
             final long segment = CommitLogSegment.idFromFilename(file.getName());
 
             int bufferSize = (int) Math.min(Math.max(file.length(), 1), 32 * 1024 * 1024);
-            BufferedRandomAccessFile reader = new BufferedRandomAccessFile(new File(file.getAbsolutePath()), "r", bufferSize, true);
+            RandomAccessReader reader = RandomAccessReader.open(new File(file.getAbsolutePath()), bufferSize, true);
             assert reader.length() <= Integer.MAX_VALUE;
 
             try

@@ -88,7 +88,7 @@ public class MmappedSegmentedFile extends SegmentedFile
         try
         {
             // FIXME: brafs are unbounded, so this segment will cover the rest of the file, rather than just the row
-            BufferedRandomAccessFile file = new BufferedRandomAccessFile(path, "r", bufferSize);
+            RandomAccessReader file = RandomAccessReader.open(new File(path), bufferSize);
             file.seek(position);
             return file;
         }

@@ -37,8 +37,7 @@ import org.apache.cassandra.db.compaction.CompactionInfo;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.compaction.CompactionType;
-import org.apache.cassandra.io.util.BufferedRandomAccessFile;
-import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -243,7 +242,7 @@ public abstract class AutoSavingCache<K, V> extends InstrumentingCache<K, V>
             logger.debug("Saving {}", path);
             File tmpFile = File.createTempFile(path.getName(), null, path.getParentFile());
 
-            BufferedRandomAccessFile out = new BufferedRandomAccessFile(tmpFile, "rw", BufferedRandomAccessFile.DEFAULT_BUFFER_SIZE, true);
+            DataOutputStream out = SequentialWriter.open(tmpFile, true).stream;
             try
             {
                 for (K key : keys)

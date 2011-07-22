@@ -59,7 +59,7 @@ public class BufferedSegmentedFile extends SegmentedFile
     {
         try
         {
-            BufferedRandomAccessFile file = new BufferedRandomAccessFile(path, "r", bufferSize);
+            RandomAccessReader file = RandomAccessReader.open(new File(path), bufferSize);
             file.seek(position);
             return file;
         }

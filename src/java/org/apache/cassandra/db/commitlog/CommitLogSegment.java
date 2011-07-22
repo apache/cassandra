@@ -31,13 +31,13 @@ import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.cassandra.net.MessagingService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.RowMutation;
-import org.apache.cassandra.io.util.BufferedRandomAccessFile;
 
 public class CommitLogSegment
 {
@@ -45,7 +45,7 @@ public class CommitLogSegment
     private static Pattern COMMIT_LOG_FILE_PATTERN = Pattern.compile("CommitLog-(\\d+).log");
 
     public final long id;
-    private final BufferedRandomAccessFile logWriter;
+    private final SequentialWriter logWriter;
 
     // cache which cf is dirty in this segment to avoid having to lookup all ReplayPositions to decide if we could delete this segment
     public final Set<Integer> cfDirty = new HashSet<Integer>();
@@ -88,9 +88,9 @@ public class CommitLogSegment
         return COMMIT_LOG_FILE_PATTERN.matcher(filename).matches();
     }
 
-    private static BufferedRandomAccessFile createWriter(String file) throws IOException
+    private static SequentialWriter createWriter(String file) throws IOException
     {
-        return new BufferedRandomAccessFile(new File(file), "rw", 128 * 1024, true);
+        return SequentialWriter.open(new File(file), 128 * 1024, true);
     }
 
     public ReplayPosition write(RowMutation rowMutation) throws IOException
@@ -106,18 +106,18 @@ public class CommitLogSegment
             Checksum checksum = new CRC32();
             byte[] serializedRow = rowMutation.getSerializedBuffer(MessagingService.version_);
             checksum.update(serializedRow.length);
-            logWriter.writeInt(serializedRow.length);
-            logWriter.writeLong(checksum.getValue());
+            logWriter.stream.writeInt(serializedRow.length);
+            logWriter.stream.writeLong(checksum.getValue());
             logWriter.write(serializedRow);
             checksum.update(serializedRow, 0, serializedRow.length);
-            logWriter.writeLong(checksum.getValue());
+            logWriter.stream.writeLong(checksum.getValue());
 
             return cLogCtx;
         }
         catch (IOException e)
         {
             if (currentPosition != -1)
-                logWriter.seek(currentPosition);
+                logWriter.truncate(currentPosition);
             throw e;
         }
     }
