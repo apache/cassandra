@@ -205,7 +205,7 @@ public class Gossiper implements IFailureDetectionEventListener
         if (v == null)
         {
             // we don't know the version. assume current. we'll know soon enough if that was incorrect.
-            logger.debug("Assuming current protocol version for {}", address);
+            logger.trace("Assuming current protocol version for {}", address);
             return MessagingService.version_;
         }
         else
