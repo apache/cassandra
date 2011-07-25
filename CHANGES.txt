@@ -1,6 +1,7 @@
 0.8.3
  * add ability to drop local reads/writes that are going to timeout
    (CASSANDRA-2943)
+ * revamp token removal process, keep gossip states for 3 days (CASSANDRA-2946)
 
 
 0.8.2

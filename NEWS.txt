@@ -1,3 +1,12 @@
+0.8.3
+=====
+
+Upgrading
+---------
+    - Token removal has been revamped.  Removing tokens in a mixed cluster with
+      0.8.3 will not work, so the entire cluster will need to be running 0.8.3
+      first, except for the dead node.
+
 0.8.2
 =====
 
