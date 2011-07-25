@@ -349,7 +349,7 @@ public class StorageProxy implements StorageProxyMBean
     {
         if (logger.isDebugEnabled())
             logger.debug("insert writing local " + rm.toString(true));
-        Runnable runnable = new WrappedRunnable()
+        Runnable runnable = new DroppableRunnable(StorageService.Verb.MUTATION)
         {
             public void runMayThrow() throws IOException
             {
@@ -431,7 +431,7 @@ public class StorageProxy implements StorageProxyMBean
         if (logger.isDebugEnabled())
             logger.debug("insert writing local & replicate " + mutation.toString(true));
 
-        Runnable runnable = new WrappedRunnable()
+        Runnable runnable = new DroppableRunnable(StorageService.Verb.MUTATION)
         {
             public void runMayThrow() throws IOException
             {
@@ -447,7 +447,7 @@ public class StorageProxy implements StorageProxyMBean
                 {
                     // We do the replication on another stage because it involves a read (see CM.makeReplicationMutation)
                     // and we want to avoid blocking too much the MUTATION stage
-                    StageManager.getStage(Stage.REPLICATE_ON_WRITE).execute(new WrappedRunnable()
+                    StageManager.getStage(Stage.REPLICATE_ON_WRITE).execute(new DroppableRunnable(StorageService.Verb.READ)
                     {
                         public void runMayThrow() throws IOException
                         {
@@ -620,7 +620,7 @@ public class StorageProxy implements StorageProxyMBean
         return rows;
     }
 
-    static class LocalReadRunnable extends WrappedRunnable
+    static class LocalReadRunnable extends DroppableRunnable
     {
         private final ReadCommand command;
         private final ReadCallback<Row> handler;
@@ -628,6 +628,7 @@ public class StorageProxy implements StorageProxyMBean
 
         LocalReadRunnable(ReadCommand command, ReadCallback<Row> handler)
         {
+            super(StorageService.Verb.READ);
             this.command = command;
             this.handler = handler;
         }
@@ -1081,5 +1082,36 @@ public class StorageProxy implements StorageProxyMBean
     private interface WritePerformer
     {
         public void apply(IMutation mutation, Multimap<InetAddress, InetAddress> hintedEndpoints, IWriteResponseHandler responseHandler, String localDataCenter, ConsistencyLevel consistency_level) throws IOException;
+    }
+
+    private static abstract class DroppableRunnable implements Runnable
+    {
+        private final long constructionTime = System.currentTimeMillis();
+        private final StorageService.Verb verb;
+
+        public DroppableRunnable(StorageService.Verb verb)
+        {
+            this.verb = verb;
+        }
+
+        public final void run()
+        {
+            if (System.currentTimeMillis() > constructionTime + DatabaseDescriptor.getRpcTimeout())
+            {
+                MessagingService.instance().incrementDroppedMessages(verb);
+                return;
+            }
+
+            try
+            {
+                runMayThrow();
+            }
+            catch (Exception e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
+
+        abstract protected void runMayThrow() throws Exception;
     }
 }

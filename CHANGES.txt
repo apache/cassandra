@@ -1,3 +1,8 @@
+0.8.3
+ * add ability to drop local reads/writes that are going to timeout
+   (CASSANDRA-2943)
+
+
 0.8.2
  * CQL: 
    - include only one row per unique key for IN queries (CASSANDRA-2717)
