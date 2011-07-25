@@ -1415,13 +1415,13 @@ class TestMutations(ThriftTester):
 
         ks1 = client.describe_keyspace('Keyspace1')
         cfid = [x.id for x in ks1.cf_defs if x.name=='BlankCF'][0]
-        modified_cd = ColumnDef('birthdate', 'BytesType', IndexType.KEYS, 'birthdate_index')
+        modified_cd = ColumnDef('birthdate', 'BytesType', IndexType.KEYS, None)
         modified_cf = CfDef('Keyspace1', 'BlankCF', column_metadata=[modified_cd])
         modified_cf.id = cfid
         client.system_update_column_family(modified_cf)
 
         # Add a second indexed CF ...
-        birthdate_coldef = ColumnDef('birthdate', 'BytesType', IndexType.KEYS, 'birthdate2_index')
+        birthdate_coldef = ColumnDef('birthdate', 'BytesType', IndexType.KEYS, None)
         age_coldef = ColumnDef('age', 'BytesType', IndexType.KEYS, 'age_index')
         cfdef = CfDef('Keyspace1', 'BlankCF2', column_metadata=[birthdate_coldef, age_coldef])
         client.system_add_column_family(cfdef)
@@ -1472,7 +1472,7 @@ class TestMutations(ThriftTester):
         # add an index on 'birthdate'
         ks1 = client.describe_keyspace('Keyspace1')
         cfid = [x.id for x in ks1.cf_defs if x.name=='ToBeIndexed'][0]
-        modified_cd = ColumnDef('birthdate', 'BytesType', IndexType.KEYS, None)
+        modified_cd = ColumnDef('birthdate', 'BytesType', IndexType.KEYS, 'bd_index')
         modified_cf = CfDef('Keyspace1', 'ToBeIndexed', column_metadata=[modified_cd])
         modified_cf.id = cfid
         client.system_update_column_family(modified_cf)
