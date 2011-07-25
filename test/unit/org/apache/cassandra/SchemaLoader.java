@@ -143,7 +143,8 @@ public class SchemaLoader
                                                  su,
                                                  bytes,
                                                  bytes)
-                                                 .defaultValidator(CounterColumnType.instance),
+                                                 .defaultValidator(CounterColumnType.instance)
+                                                 .mergeShardsChance(1.0),
                                   jdbcCFMD(ks1, "JdbcInteger", IntegerType.instance).columnMetadata(integerColumn),
                                   jdbcCFMD(ks1, "JdbcUtf8", UTF8Type.instance).columnMetadata(utf8Column),
                                   jdbcCFMD(ks1, "JdbcLong", LongType.instance),

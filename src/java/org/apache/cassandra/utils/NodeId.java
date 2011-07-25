@@ -49,9 +49,14 @@ public class NodeId implements Comparable<NodeId>
      * To use only when this strictly necessary, as using this will make all
      * counter context grow with time.
      */
-    public static synchronized void renewLocalId()
+    public static void renewLocalId()
     {
-        localIds.renewCurrent();
+        renewLocalId(System.currentTimeMillis());
+    }
+
+    public static synchronized void renewLocalId(long now)
+    {
+        localIds.renewCurrent(now);
     }
 
     /**
@@ -194,13 +199,13 @@ public class NodeId implements Comparable<NodeId>
             }
         }
 
-        synchronized void renewCurrent()
+        synchronized void renewCurrent(long now)
         {
             NodeId newNodeId = generate();
             NodeId old = current.get();
             SystemTable.writeCurrentLocalNodeId(old, newNodeId);
             current.set(newNodeId);
-            olds.add(new NodeIdRecord(old));
+            olds.add(new NodeIdRecord(old, now));
         }
     }
 
@@ -209,15 +214,15 @@ public class NodeId implements Comparable<NodeId>
         public final NodeId id;
         public final long timestamp;
 
-        public NodeIdRecord(NodeId id)
-        {
-            this(id, System.currentTimeMillis());
-        }
-
         public NodeIdRecord(NodeId id, long timestamp)
         {
             this.id = id;
             this.timestamp = timestamp;
+        }
+
+        public String toString()
+        {
+            return String.format("(%s, %d)", id.toString(), timestamp);
         }
     }
 }
