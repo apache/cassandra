@@ -28,9 +28,6 @@ import org.apache.cassandra.gms.Gossiper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.EncryptionOptions;
-import org.apache.cassandra.security.streaming.SSLIncomingStreamReader;
 import org.apache.cassandra.streaming.IncomingStreamReader;
 import org.apache.cassandra.streaming.StreamHeader;
 
@@ -171,9 +168,6 @@ public class IncomingTcpConnection extends Thread
 
     private void stream(StreamHeader streamHeader, DataInputStream input) throws IOException
     {
-        if (DatabaseDescriptor.getEncryptionOptions().internode_encryption == EncryptionOptions.InternodeEncryption.all)
-            new SSLIncomingStreamReader(streamHeader, socket, input).read();
-        else
-            new IncomingStreamReader(streamHeader, socket).read();
+        new IncomingStreamReader(streamHeader, socket).read();
     }
 }

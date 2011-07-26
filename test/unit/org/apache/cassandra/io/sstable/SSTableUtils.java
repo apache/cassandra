@@ -31,10 +31,12 @@ import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IColumn;
+import org.apache.cassandra.db.columniterator.IColumnIterator;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import org.apache.cassandra.Util;
+import static org.junit.Assert.assertEquals;
 
 public class SSTableUtils
 {
@@ -72,6 +74,48 @@ public class SSTableUtils
             throw new IOException("unable to create file " + datafile);
         datafile.deleteOnExit();
         return datafile;
+    }
+
+    public static void assertContentEquals(SSTableReader lhs, SSTableReader rhs) throws IOException
+    {
+        SSTableScanner slhs = lhs.getDirectScanner(2048);
+        SSTableScanner srhs = rhs.getDirectScanner(2048);
+        while (slhs.hasNext())
+        {
+            IColumnIterator ilhs = slhs.next();
+            assert srhs.hasNext() : "LHS contained more rows than RHS";
+            IColumnIterator irhs = srhs.next();
+            assertContentEquals(ilhs, irhs);
+        }
+        assert !srhs.hasNext() : "RHS contained more rows than LHS";
+    }
+
+    public static void assertContentEquals(IColumnIterator lhs, IColumnIterator rhs) throws IOException
+    {
+        assertEquals(lhs.getKey(), rhs.getKey());
+        // check metadata
+        ColumnFamily lcf = lhs.getColumnFamily();
+        ColumnFamily rcf = rhs.getColumnFamily();
+        if (lcf == null)
+        {
+            if (rcf == null)
+                return;
+            throw new AssertionError("LHS had no content for " + rhs.getKey());
+        }
+        else if (rcf == null)
+            throw new AssertionError("RHS had no content for " + lhs.getKey());
+        assertEquals(lcf.getMarkedForDeleteAt(), rcf.getMarkedForDeleteAt());
+        assertEquals(lcf.getLocalDeletionTime(), rcf.getLocalDeletionTime());
+        // iterate columns
+        while (lhs.hasNext())
+        {
+            IColumn clhs = lhs.next();
+            assert rhs.hasNext() : "LHS contained more columns than RHS for " + lhs.getKey();
+            IColumn crhs = rhs.next();
+
+            assertEquals("Mismatched columns for " + lhs.getKey(), clhs, crhs);
+        }
+        assert !rhs.hasNext() : "RHS contained more columns than LHS for " + lhs.getKey();
     }
 
     /**
@@ -190,6 +234,7 @@ public class SSTableUtils
             long start = System.currentTimeMillis();
             while (appender.append(writer)) { /* pass */ }
             SSTableReader reader = writer.closeAndOpenReader();
+            reader.acquireReference();
             // mark all components for removal
             if (cleanup)
                 for (Component component : reader.components)

@@ -857,39 +857,6 @@ public class CompactionManager implements CompactionManagerMBean
             return executor.submit(runnable);
     }
 
-    /**
-     * Submits an sstable to be rebuilt: is not scheduled, since the sstable must not exist.
-     */
-    public Future<SSTableReader> submitSSTableBuild(final Descriptor desc, OperationType type)
-    {
-        // invalid descriptions due to missing or dropped CFS are handled by SSTW and StreamInSession.
-        final SSTableWriter.Builder builder = SSTableWriter.createBuilder(desc, type);
-        Callable<SSTableReader> callable = new Callable<SSTableReader>()
-        {
-            public SSTableReader call() throws IOException
-            {
-                compactionLock.readLock().lock();
-                try
-                {
-                    executor.beginCompaction(builder);
-                    try
-                    {
-                        return builder.build();
-                    }
-                    finally
-                    {
-                        executor.finishCompaction(builder);
-                    }
-                }
-                finally
-                {
-                    compactionLock.readLock().unlock();
-                }
-            }
-        };
-        return executor.submit(callable);
-    }
-
     public Future<?> submitCacheWrite(final AutoSavingCache.Writer writer)
     {
         Runnable runnable = new WrappedRunnable()

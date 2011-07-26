@@ -73,33 +73,6 @@ public class LongCompactionSpeedTest extends CleanupHelper
         testCompaction(100, 800, 5);
     }
 
-    /**
-     * Test aes counter repair with a very wide row.
-     */
-    @Test
-    public void testAESCountersRepairWide() throws Exception
-    {
-        testAESCountersRepair(2, 1, 500000);
-    }
-
-    /**
-     * Test aes counter repair with lots of skinny rows.
-     */
-    @Test
-    public void testAESCountersRepairSlim() throws Exception
-    {
-        testAESCountersRepair(2, 500000, 1);
-    }
-
-    /**
-     * Test aes counter repair with lots of small sstables.
-     */
-    @Test
-    public void testAESCounterRepairMany() throws Exception
-    {
-        testAESCountersRepair(100, 1000, 5);
-    }
-
     protected void testCompaction(int sstableCount, int rowsPerSSTable, int colsPerRow) throws Exception
     {
         CompactionManager.instance.disableAutoCompaction();
@@ -139,65 +112,5 @@ public class LongCompactionSpeedTest extends CleanupHelper
                                          rowsPerSSTable,
                                          colsPerRow,
                                          System.currentTimeMillis() - start));
-    }
-
-    protected void testAESCountersRepair(int sstableCount, final int rowsPerSSTable, final int colsPerRow) throws Exception
-    {
-        final String cfName = "Counter1";
-        CompactionManager.instance.disableAutoCompaction();
-
-        ArrayList<SSTableReader> sstables = new ArrayList<SSTableReader>();
-        for (int k = 0; k < sstableCount; k++)
-        {
-            final int sstableNum = k;
-            SSTableReader sstable = SSTableUtils.prepare().ks(TABLE1).cf(cfName).write(rowsPerSSTable, new SSTableUtils.Appender(){
-                int written = 0;
-                public boolean append(SSTableWriter writer) throws IOException
-                {
-                    if (written > rowsPerSSTable)
-                        return false;
-
-                    DecoratedKey key = Util.dk(String.format("%020d", written));
-                    ColumnFamily cf = ColumnFamily.create(TABLE1, cfName);
-                    for (int i = 0; i < colsPerRow; i++)
-                        cf.addColumn(createCounterColumn(String.valueOf(i)));
-                    writer.append(key, cf);
-                    written++;
-                    return true;
-                }
-            });
-
-            // whack the index to trigger the recover
-            FileUtils.deleteWithConfirm(sstable.descriptor.filenameFor(Component.PRIMARY_INDEX));
-            FileUtils.deleteWithConfirm(sstable.descriptor.filenameFor(Component.FILTER));
-
-            sstables.add(sstable);
-        }
-
-        // give garbage collection a bit of time to catch up
-        Thread.sleep(1000);
-
-        long start = System.currentTimeMillis();
-
-        for (SSTableReader sstable : sstables)
-            CompactionManager.instance.submitSSTableBuild(sstable.descriptor, OperationType.AES).get();
-
-        System.out.println(String.format("%s: sstables=%d rowsper=%d colsper=%d: %d ms",
-                                         this.getClass().getName(),
-                                         sstableCount,
-                                         rowsPerSSTable,
-                                         colsPerRow,
-                                         System.currentTimeMillis() - start));
-    }
-
-    protected CounterColumn createCounterColumn(String name)
-    {
-        ContextState context = ContextState.allocate(4, 1);
-        context.writeElement(NodeId.fromInt(1), 4L, 2L, true);
-        context.writeElement(NodeId.fromInt(2), 4L, 2L);
-        context.writeElement(NodeId.fromInt(4), 3L, 3L);
-        context.writeElement(NodeId.fromInt(8), 2L, 4L);
-
-        return new CounterColumn(ByteBufferUtil.bytes(name), context.context, 0L);
     }
 }

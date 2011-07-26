@@ -21,7 +21,6 @@ package org.apache.cassandra.streaming;
 import java.io.*;
 import java.net.InetSocketAddress;
 import java.net.Socket;
-import java.nio.channels.FileChannel;
 import java.nio.channels.SocketChannel;
 import java.util.Collections;
 
@@ -52,12 +51,12 @@ public class IncomingStreamReader
 
     protected final PendingFile localFile;
     protected final PendingFile remoteFile;
-    private final SocketChannel socketChannel;
     protected final StreamInSession session;
+    private final Socket socket;
 
     public IncomingStreamReader(StreamHeader header, Socket socket) throws IOException
     {
-        this.socketChannel = socket.getChannel();
+        this.socket = socket;
         InetSocketAddress remoteAddress = (InetSocketAddress)socket.getRemoteSocketAddress();
         session = StreamInSession.get(remoteAddress.getAddress(), header.sessionId);
         session.addFiles(header.pendingFiles);
@@ -72,26 +71,19 @@ public class IncomingStreamReader
     public void read() throws IOException
     {
         if (remoteFile != null)
-            readFile();
-
-        session.closeIfFinished();
-    }
-
-    protected void readFile() throws IOException
-    {
-        if (logger.isDebugEnabled())
         {
-            logger.debug("Receiving stream");
-            logger.debug("Creating file for {} with {} estimated keys",
-                         localFile.getFilename(),
-                         remoteFile.estimatedKeys);
-        }
+            if (logger.isDebugEnabled())
+            {
+                logger.debug("Receiving stream");
+                logger.debug("Creating file for {} with {} estimated keys",
+                             localFile.getFilename(),
+                             remoteFile.estimatedKeys);
+            }
 
-        SSTableReader reader = null;
-        if (remoteFile.estimatedKeys > 0)
-        {
+            assert remoteFile.estimatedKeys > 0;
+            SSTableReader reader = null;
             logger.debug("Estimated keys {}", remoteFile.estimatedKeys);
-            DataInputStream dis = new DataInputStream(socketChannel.socket().getInputStream());
+            DataInputStream dis = new DataInputStream(socket.getInputStream());
             try
             {
                 reader = streamIn(dis, localFile, remoteFile);
@@ -105,53 +97,11 @@ public class IncomingStreamReader
             {
                 dis.close();
             }
-        }
-        else
-        {
-            // backwards compatibility path
-            FileOutputStream fos = new FileOutputStream(localFile.getFilename(), true);
-            FileChannel fc = fos.getChannel();
 
-            long offset = 0;
-            try
-            {
-                for (Pair<Long, Long> section : localFile.sections)
-                {
-                    long length = section.right - section.left;
-                    long bytesRead = 0;
-                    while (bytesRead < length)
-                    {
-                        bytesRead = readnwrite(length, bytesRead, offset, fc);
-                    }
-                    offset += length;
-                }
-            }
-            catch (IOException ex)
-            {
-                retry();
-                throw ex;
-            }
-            finally
-            {
-                fc.close();
-            }
+            session.finished(remoteFile, reader);
         }
 
-        session.finished(remoteFile, localFile, reader);
-    }
-
-    protected long readnwrite(long length, long bytesRead, long offset, FileChannel fc) throws IOException
-    {
-        long toRead = Math.min(FileStreamTask.CHUNK_SIZE, length - bytesRead);
-        long lastRead = fc.transferFrom(socketChannel, offset + bytesRead, toRead);
-        // if the other side fails, we will not get an exception, but instead transferFrom will constantly return 0 byte read
-        // and we would thus enter an infinite loop. So intead, if no bytes are tranferred we assume the other side is dead and 
-        // raise an exception (that will be catch belove and 'the right thing' will be done).
-        if (lastRead == 0)
-            throw new IOException("Transfer failed for remote file " + remoteFile);
-        bytesRead += lastRead;
-        remoteFile.progress += lastRead;
-        return bytesRead;
+        session.closeIfFinished();
     }
 
     private SSTableReader streamIn(DataInput input, PendingFile localFile, PendingFile remoteFile) throws IOException
@@ -183,6 +133,8 @@ public class IncomingStreamReader
                         SSTableIdentityIterator iter = new SSTableIdentityIterator(cfs.metadata, in, key, 0, dataSize, true);
                         AbstractCompactedRow row = controller.getCompactedRow(iter);
                         writer.append(row);
+                        // row append does not update the max timestamp on its own
+                        writer.updateMaxTimestamp(row.maxTimestamp());
 
                         if (row instanceof PrecompactedRow)
                         {
