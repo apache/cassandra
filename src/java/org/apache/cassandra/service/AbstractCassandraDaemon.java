@@ -113,6 +113,7 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
     protected void setup() throws IOException
     {
         logger.info("Heap size: {}/{}", Runtime.getRuntime().totalMemory(), Runtime.getRuntime().maxMemory());
+		logger.info("Classpath: {}", System.getProperty("java.class.path"));
     	CLibrary.tryMlockall();
 
         listenPort = DatabaseDescriptor.getRpcPort();
