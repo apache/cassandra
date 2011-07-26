@@ -163,6 +163,11 @@ public class SerializingCache<K, V> implements ICache<K, V>
         return map.keySet();
     }
 
+    public Set<K> hotKeySet(int n)
+    {
+        return map.descendingKeySetWithLimit(n);
+    }
+
     public boolean isPutCopying()
     {
         return true;

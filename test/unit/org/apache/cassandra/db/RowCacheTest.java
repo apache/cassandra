@@ -114,6 +114,19 @@ public class RowCacheTest extends CleanupHelper
     @Test
     public void testRowCacheLoad() throws Exception
     {
+        rowCacheLoad(100, 100, Integer.MAX_VALUE);
+    }
+
+
+    @Test
+    public void testRowCachePartialLoad() throws Exception
+    {
+        rowCacheLoad(100, 50, 50);
+    }
+
+
+    public void rowCacheLoad(int totalKeys, int expectedKeys, int keysToSave) throws Exception
+    {
         CompactionManager.instance.disableAutoCompaction();
 
         ColumnFamilyStore store = Table.open(KEYSPACE).getColumnFamilyStore(COLUMN_FAMILY_WITH_CACHE);
@@ -123,12 +136,12 @@ public class RowCacheTest extends CleanupHelper
         assert store.getRowCacheSize() == 0;
 
         // insert data and fill the cache
-        insertData(KEYSPACE, COLUMN_FAMILY_WITH_CACHE, 0, 100);
-        readData(KEYSPACE, COLUMN_FAMILY_WITH_CACHE, 0, 100);
-        assert store.getRowCacheSize() == 100;
+        insertData(KEYSPACE, COLUMN_FAMILY_WITH_CACHE, 0, totalKeys);
+        readData(KEYSPACE, COLUMN_FAMILY_WITH_CACHE, 0, totalKeys);
+        assert store.getRowCacheSize() == totalKeys;
 
         // force the cache to disk
-        store.rowCache.submitWrite().get();
+        store.rowCache.submitWrite(keysToSave).get();
 
         // empty the cache again to make sure values came from disk
         store.invalidateRowCache();
@@ -136,12 +149,28 @@ public class RowCacheTest extends CleanupHelper
 
         // load the cache from disk
         store.initCaches();
-        assert store.getRowCacheSize() == 100;
+        assert store.getRowCacheSize() == expectedKeys;
 
-        for (int i = 0; i < 100; i++)
+        // If we are loading less than the entire cache back, we can't
+        // be sure which rows we will get if all rows are equally hot.
+        int nulls = 0;
+        int nonNull = 0;
+        for (int i = 0; i < expectedKeys; i++)
         {
-            // verify the correct data was found
-            assert store.getRawCachedRow(Util.dk("key" + i)).getColumn(ByteBufferUtil.bytes("col" + i)).value().equals(ByteBufferUtil.bytes("val" + i));
+            // verify the correct data was found when we expect to get
+            // back the entire cache.  Otherwise only make assertions
+            // about how many items are read back.
+            ColumnFamily row = store.getRawCachedRow(Util.dk("key" + i));
+            if (expectedKeys == totalKeys)
+            {
+                assert row != null;
+                assert row.getColumn(ByteBufferUtil.bytes("col" + i)).value().equals(ByteBufferUtil.bytes("val" + i));
+            }
+            if (row == null)
+                nulls++;
+            else
+                nonNull++;
         }
+        assert nulls + nonNull == expectedKeys;
     }
 }

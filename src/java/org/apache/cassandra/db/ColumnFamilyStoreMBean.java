@@ -231,4 +231,7 @@ public interface ColumnFamilyStoreMBean
 
     public int getKeyCacheSavePeriodInSeconds();
     public void setKeyCacheSavePeriodInSeconds(int kcspis);
+
+    public int getRowCacheKeysToSave();
+    public void setRowCacheKeysToSave(int keysToSave);
 }

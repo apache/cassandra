@@ -150,6 +150,11 @@ public class InstrumentingCache<K, V> implements InstrumentingCacheMBean
         return map.keySet();
     }
 
+    public Set<K> hotKeySet(int n)
+    {
+        return map.hotKeySet(n);
+    }
+
     public boolean isPutCopying()
     {
         return map.isPutCopying();

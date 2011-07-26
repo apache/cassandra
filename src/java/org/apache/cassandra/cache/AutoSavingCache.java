@@ -77,12 +77,12 @@ public abstract class AutoSavingCache<K, V> extends InstrumentingCache<K, V>
         return DatabaseDescriptor.getSerializedCachePath(tableName, cfName, cacheType);
     }
 
-    public Writer getWriter()
+    public Writer getWriter(int keysToSave)
     {
-        return new Writer(tableName, cfName);
+        return new Writer(tableName, cfName, keysToSave);
     }
 
-    public void scheduleSaving(int savePeriodInSeconds)
+    public void scheduleSaving(int savePeriodInSeconds, final int keysToSave)
     {
         if (saveTask != null)
         {
@@ -95,7 +95,7 @@ public abstract class AutoSavingCache<K, V> extends InstrumentingCache<K, V>
             {
                 public void runMayThrow()
                 {
-                    submitWrite();
+                    submitWrite(keysToSave);
                 }
             };
             saveTask = StorageService.tasks.scheduleWithFixedDelay(runnable,
@@ -105,9 +105,9 @@ public abstract class AutoSavingCache<K, V> extends InstrumentingCache<K, V>
         }
     }
 
-    public Future<?> submitWrite()
+    public Future<?> submitWrite(int keysToSave)
     {
-        return CompactionManager.instance.submitCacheWrite(getWriter());
+        return CompactionManager.instance.submitCacheWrite(getWriter(keysToSave));
     }
 
     public Set<DecoratedKey> readSaved()
@@ -195,9 +195,12 @@ public abstract class AutoSavingCache<K, V> extends InstrumentingCache<K, V>
         private final long estimatedTotalBytes;
         private long bytesWritten;
 
-        private Writer(String ksname, String cfname)
+        private Writer(String ksname, String cfname, int keysToSave)
         {
-            keys = getKeySet();
+            if (keysToSave >= getKeySet().size())
+                keys = getKeySet();
+            else
+                keys = hotKeySet(keysToSave);
             long bytes = 0;
             for (K key : keys)
                 bytes += translateKey(key).remaining();

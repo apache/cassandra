@@ -71,6 +71,7 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
   private static final org.apache.thrift.protocol.TField KEY_ALIAS_FIELD_DESC = new org.apache.thrift.protocol.TField("key_alias", org.apache.thrift.protocol.TType.STRING, (short)28);
   private static final org.apache.thrift.protocol.TField COMPACTION_STRATEGY_FIELD_DESC = new org.apache.thrift.protocol.TField("compaction_strategy", org.apache.thrift.protocol.TType.STRING, (short)29);
   private static final org.apache.thrift.protocol.TField COMPACTION_STRATEGY_OPTIONS_FIELD_DESC = new org.apache.thrift.protocol.TField("compaction_strategy_options", org.apache.thrift.protocol.TType.MAP, (short)30);
+  private static final org.apache.thrift.protocol.TField ROW_CACHE_KEYS_TO_SAVE_FIELD_DESC = new org.apache.thrift.protocol.TField("row_cache_keys_to_save", org.apache.thrift.protocol.TType.I32, (short)31);
 
   public String keyspace;
   public String name;
@@ -98,6 +99,7 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
   public ByteBuffer key_alias;
   public String compaction_strategy;
   public Map<String,String> compaction_strategy_options;
+  public int row_cache_keys_to_save;
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
   public enum _Fields implements org.apache.thrift.TFieldIdEnum {
@@ -126,7 +128,8 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     ROW_CACHE_PROVIDER((short)27, "row_cache_provider"),
     KEY_ALIAS((short)28, "key_alias"),
     COMPACTION_STRATEGY((short)29, "compaction_strategy"),
-    COMPACTION_STRATEGY_OPTIONS((short)30, "compaction_strategy_options");
+    COMPACTION_STRATEGY_OPTIONS((short)30, "compaction_strategy_options"),
+    ROW_CACHE_KEYS_TO_SAVE((short)31, "row_cache_keys_to_save");
 
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -193,6 +196,8 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
           return COMPACTION_STRATEGY;
         case 30: // COMPACTION_STRATEGY_OPTIONS
           return COMPACTION_STRATEGY_OPTIONS;
+        case 31: // ROW_CACHE_KEYS_TO_SAVE
+          return ROW_CACHE_KEYS_TO_SAVE;
         default:
           return null;
       }
@@ -246,7 +251,8 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
   private static final int __MEMTABLE_OPERATIONS_IN_MILLIONS_ISSET_ID = 10;
   private static final int __REPLICATE_ON_WRITE_ISSET_ID = 11;
   private static final int __MERGE_SHARDS_CHANCE_ISSET_ID = 12;
-  private BitSet __isset_bit_vector = new BitSet(13);
+  private static final int __ROW_CACHE_KEYS_TO_SAVE_ISSET_ID = 13;
+  private BitSet __isset_bit_vector = new BitSet(14);
 
   public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
   static {
@@ -306,6 +312,8 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
         new org.apache.thrift.meta_data.MapMetaData(org.apache.thrift.protocol.TType.MAP, 
             new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING), 
             new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING))));
+    tmpMap.put(_Fields.ROW_CACHE_KEYS_TO_SAVE, new org.apache.thrift.meta_data.FieldMetaData("row_cache_keys_to_save", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32)));
     metaDataMap = Collections.unmodifiableMap(tmpMap);
     org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(CfDef.class, metaDataMap);
   }
@@ -409,6 +417,7 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       }
       this.compaction_strategy_options = __this__compaction_strategy_options;
     }
+    this.row_cache_keys_to_save = other.row_cache_keys_to_save;
   }
 
   public CfDef deepCopy() {
@@ -459,6 +468,8 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     this.key_alias = null;
     this.compaction_strategy = null;
     this.compaction_strategy_options = null;
+    setRow_cache_keys_to_saveIsSet(false);
+    this.row_cache_keys_to_save = 0;
   }
 
   public String getKeyspace() {
@@ -1108,6 +1119,29 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     }
   }
 
+  public int getRow_cache_keys_to_save() {
+    return this.row_cache_keys_to_save;
+  }
+
+  public CfDef setRow_cache_keys_to_save(int row_cache_keys_to_save) {
+    this.row_cache_keys_to_save = row_cache_keys_to_save;
+    setRow_cache_keys_to_saveIsSet(true);
+    return this;
+  }
+
+  public void unsetRow_cache_keys_to_save() {
+    __isset_bit_vector.clear(__ROW_CACHE_KEYS_TO_SAVE_ISSET_ID);
+  }
+
+  /** Returns true if field row_cache_keys_to_save is set (has been assigned a value) and false otherwise */
+  public boolean isSetRow_cache_keys_to_save() {
+    return __isset_bit_vector.get(__ROW_CACHE_KEYS_TO_SAVE_ISSET_ID);
+  }
+
+  public void setRow_cache_keys_to_saveIsSet(boolean value) {
+    __isset_bit_vector.set(__ROW_CACHE_KEYS_TO_SAVE_ISSET_ID, value);
+  }
+
   public void setFieldValue(_Fields field, Object value) {
     switch (field) {
     case KEYSPACE:
@@ -1318,6 +1352,14 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       }
       break;
 
+    case ROW_CACHE_KEYS_TO_SAVE:
+      if (value == null) {
+        unsetRow_cache_keys_to_save();
+      } else {
+        setRow_cache_keys_to_save((Integer)value);
+      }
+      break;
+
     }
   }
 
@@ -1401,6 +1443,9 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     case COMPACTION_STRATEGY_OPTIONS:
       return getCompaction_strategy_options();
 
+    case ROW_CACHE_KEYS_TO_SAVE:
+      return new Integer(getRow_cache_keys_to_save());
+
     }
     throw new IllegalStateException();
   }
@@ -1464,6 +1509,8 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       return isSetCompaction_strategy();
     case COMPACTION_STRATEGY_OPTIONS:
       return isSetCompaction_strategy_options();
+    case ROW_CACHE_KEYS_TO_SAVE:
+      return isSetRow_cache_keys_to_save();
     }
     throw new IllegalStateException();
   }
@@ -1715,6 +1762,15 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
         return false;
     }
 
+    boolean this_present_row_cache_keys_to_save = true && this.isSetRow_cache_keys_to_save();
+    boolean that_present_row_cache_keys_to_save = true && that.isSetRow_cache_keys_to_save();
+    if (this_present_row_cache_keys_to_save || that_present_row_cache_keys_to_save) {
+      if (!(this_present_row_cache_keys_to_save && that_present_row_cache_keys_to_save))
+        return false;
+      if (this.row_cache_keys_to_save != that.row_cache_keys_to_save)
+        return false;
+    }
+
     return true;
   }
 
@@ -1851,6 +1907,11 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     builder.append(present_compaction_strategy_options);
     if (present_compaction_strategy_options)
       builder.append(compaction_strategy_options);
+
+    boolean present_row_cache_keys_to_save = true && (isSetRow_cache_keys_to_save());
+    builder.append(present_row_cache_keys_to_save);
+    if (present_row_cache_keys_to_save)
+      builder.append(row_cache_keys_to_save);
 
     return builder.toHashCode();
   }
@@ -2123,6 +2184,16 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
         return lastComparison;
       }
     }
+    lastComparison = Boolean.valueOf(isSetRow_cache_keys_to_save()).compareTo(typedOther.isSetRow_cache_keys_to_save());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    if (isSetRow_cache_keys_to_save()) {
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.row_cache_keys_to_save, typedOther.row_cache_keys_to_save);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
     return 0;
   }
 
@@ -2358,6 +2429,14 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
             org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
+        case 31: // ROW_CACHE_KEYS_TO_SAVE
+          if (field.type == org.apache.thrift.protocol.TType.I32) {
+            this.row_cache_keys_to_save = iprot.readI32();
+            setRow_cache_keys_to_saveIsSet(true);
+          } else { 
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
         default:
           org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
       }
@@ -2539,6 +2618,11 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
         }
         oprot.writeFieldEnd();
       }
+    }
+    if (isSetRow_cache_keys_to_save()) {
+      oprot.writeFieldBegin(ROW_CACHE_KEYS_TO_SAVE_FIELD_DESC);
+      oprot.writeI32(this.row_cache_keys_to_save);
+      oprot.writeFieldEnd();
     }
     oprot.writeFieldStop();
     oprot.writeStructEnd();
@@ -2750,6 +2834,12 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       } else {
         sb.append(this.compaction_strategy_options);
       }
+      first = false;
+    }
+    if (isSetRow_cache_keys_to_save()) {
+      if (!first) sb.append(", ");
+      sb.append("row_cache_keys_to_save:");
+      sb.append(this.row_cache_keys_to_save);
       first = false;
     }
     sb.append(")");

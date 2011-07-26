@@ -159,6 +159,7 @@ public abstract class Migration
         assert !StorageService.instance.isClientMode();
         assert column != null;
         MigrationManager.announce(column);
+        passiveAnnounce(); // keeps gossip in sync w/ what we just told everyone
     }
 
     public final void passiveAnnounce()

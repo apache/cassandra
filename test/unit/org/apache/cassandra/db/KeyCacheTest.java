@@ -84,7 +84,7 @@ public class KeyCacheTest extends CleanupHelper
         }
 
         // force the cache to disk
-        store.keyCache.submitWrite().get();
+        store.keyCache.submitWrite(Integer.MAX_VALUE).get();
 
         // empty the cache again to make sure values came from disk
         store.invalidateKeyCache();

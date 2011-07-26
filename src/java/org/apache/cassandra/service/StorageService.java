@@ -2216,8 +2216,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         logger_.debug("submitting cache saves");
         for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
         {
-            futures.add(cfs.keyCache.submitWrite());
-            futures.add(cfs.rowCache.submitWrite());
+            futures.add(cfs.keyCache.submitWrite(-1));
+            futures.add(cfs.rowCache.submitWrite(cfs.getRowCacheKeysToSave()));
         }
         FBUtilities.waitOnFutures(futures);
         logger_.debug("cache saves completed");

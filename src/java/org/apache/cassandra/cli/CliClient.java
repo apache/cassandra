@@ -119,6 +119,7 @@ public class CliClient
         COMMENT,
         ROWS_CACHED,
         ROW_CACHE_SAVE_PERIOD,
+        ROW_CACHE_KEYS_TO_SAVE,
         KEYS_CACHED,
         KEY_CACHE_SAVE_PERIOD,
         READ_REPAIR_CHANCE,
@@ -1231,6 +1232,9 @@ public class CliClient
             case KEY_CACHE_SAVE_PERIOD:
                 cfDef.setKey_cache_save_period_in_seconds(Integer.parseInt(mValue));
                 break;
+            case ROW_CACHE_KEYS_TO_SAVE:
+                cfDef.setRow_cache_keys_to_save(Integer.parseInt(mValue));
+                break;
             case DEFAULT_VALIDATION_CLASS:
                 cfDef.setDefault_validation_class(CliUtils.unescapeSQLString(mValue));
                 break;
@@ -1716,7 +1720,9 @@ public class CliClient
                 if (cf_def.default_validation_class != null)
                     sessionState.out.printf("      Default column value validator: %s%n", cf_def.default_validation_class);
                 sessionState.out.printf("      Columns sorted by: %s%s%n", cf_def.comparator_type, cf_def.column_type.equals("Super") ? "/" + cf_def.subcomparator_type : "");
-                sessionState.out.printf("      Row cache size / save period in seconds: %s/%s%n", cf_def.row_cache_size, cf_def.row_cache_save_period_in_seconds);
+                sessionState.out.printf("      Row cache size / save period in seconds / keys to save : %s/%s/%s%n",
+                                        cf_def.row_cache_size, cf_def.row_cache_save_period_in_seconds,
+                                        cf_def.row_cache_keys_to_save == Integer.MAX_VALUE ? "all" : cf_def.row_cache_keys_to_save);
                 sessionState.out.printf("      Key cache size / save period in seconds: %s/%s%n", cf_def.key_cache_size, cf_def.key_cache_save_period_in_seconds);
                 sessionState.out.printf("      Memtable thresholds: %s/%s (millions of ops/MB)%n",
                                 cf_def.memtable_operations_in_millions, cf_def.memtable_throughput_in_mb);

@@ -142,6 +142,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private volatile DefaultDouble memops;
     private volatile DefaultInteger rowCacheSaveInSeconds;
     private volatile DefaultInteger keyCacheSaveInSeconds;
+    private volatile DefaultInteger rowCacheKeysToSave; 
 
     /** Lock to allow migrations to block all flushing, so we can be sure not to write orphaned data files */
     public final Lock flushLock = new ReentrantLock();
@@ -195,11 +196,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             rowCacheSaveInSeconds = new DefaultInteger(metadata.getRowCacheSavePeriodInSeconds());
         if (!keyCacheSaveInSeconds.isModified())
             keyCacheSaveInSeconds = new DefaultInteger(metadata.getKeyCacheSavePeriodInSeconds());
+        if (!rowCacheKeysToSave.isModified())
+            rowCacheKeysToSave = new DefaultInteger(metadata.getRowCacheKeysToSave());
 
         compactionStrategy = metadata.createCompactionStrategyInstance(this);
 
         updateCacheSizes();
-        scheduleCacheSaving(rowCacheSaveInSeconds.value(), keyCacheSaveInSeconds.value());
+        scheduleCacheSaving(rowCacheSaveInSeconds.value(), keyCacheSaveInSeconds.value(), rowCacheKeysToSave.value());
         
         // figure out what needs to be added and dropped.
         // future: if/when we have modifiable settings for secondary indexes, they'll need to be handled here.
@@ -241,6 +244,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         this.memops = new DefaultDouble(metadata.getMemtableOperationsInMillions());
         this.rowCacheSaveInSeconds = new DefaultInteger(metadata.getRowCacheSavePeriodInSeconds());
         this.keyCacheSaveInSeconds = new DefaultInteger(metadata.getKeyCacheSavePeriodInSeconds());
+        this.rowCacheKeysToSave = new DefaultInteger(metadata.getRowCacheKeysToSave());
         this.partitioner = partitioner;
         fileIndexGenerator.set(generation);
 
@@ -542,13 +546,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                                       table.name,
                                       columnFamily));
 
-        scheduleCacheSaving(metadata.getRowCacheSavePeriodInSeconds(), metadata.getKeyCacheSavePeriodInSeconds());
+        scheduleCacheSaving(metadata.getRowCacheSavePeriodInSeconds(), metadata.getKeyCacheSavePeriodInSeconds(), metadata.getRowCacheKeysToSave());
     }
 
-    public void scheduleCacheSaving(int rowCacheSavePeriodInSeconds, int keyCacheSavePeriodInSeconds)
+    public void scheduleCacheSaving(int rowCacheSavePeriodInSeconds, int keyCacheSavePeriodInSeconds, int rowCacheKeysToSave)
     {
-        keyCache.scheduleSaving(keyCacheSavePeriodInSeconds);
-        rowCache.scheduleSaving(rowCacheSavePeriodInSeconds);
+        keyCache.scheduleSaving(keyCacheSavePeriodInSeconds, Integer.MAX_VALUE);
+        rowCache.scheduleSaving(rowCacheSavePeriodInSeconds, rowCacheKeysToSave);
     }
 
     public AutoSavingCache<Pair<Descriptor,DecoratedKey>, Long> getKeyCache()
@@ -1985,6 +1989,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
        - get/set memtime
        - get/set rowCacheSavePeriodInSeconds
        - get/set keyCacheSavePeriodInSeconds
+       - get/set rowCacheKeysToSave
      */
 
     public AbstractCompactionStrategy getCompactionStrategy()
@@ -2056,7 +2061,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             throw new RuntimeException("RowCacheSavePeriodInSeconds must be non-negative.");
         }
         this.rowCacheSaveInSeconds.set(rcspis);
-        scheduleCacheSaving(rowCacheSaveInSeconds.value(), keyCacheSaveInSeconds.value());
+        scheduleCacheSaving(rowCacheSaveInSeconds.value(), keyCacheSaveInSeconds.value(), rowCacheKeysToSave.value());
     }
 
     public int getKeyCacheSavePeriodInSeconds()
@@ -2070,7 +2075,17 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             throw new RuntimeException("KeyCacheSavePeriodInSeconds must be non-negative.");
         }
         this.keyCacheSaveInSeconds.set(kcspis);
-        scheduleCacheSaving(rowCacheSaveInSeconds.value(), keyCacheSaveInSeconds.value());
+        scheduleCacheSaving(rowCacheSaveInSeconds.value(), keyCacheSaveInSeconds.value(), rowCacheKeysToSave.value());
+    }
+
+    public int getRowCacheKeysToSave()
+    {
+        return rowCacheKeysToSave.value();
+    }
+
+    public void setRowCacheKeysToSave(int keysToSave)
+    {
+        this.rowCacheKeysToSave.set(keysToSave);
     }
     // End JMX get/set.
 
