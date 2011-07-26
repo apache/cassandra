@@ -114,18 +114,24 @@ public class RowCacheTest extends CleanupHelper
     @Test
     public void testRowCacheLoad() throws Exception
     {
-        rowCacheLoad(100, 100, Integer.MAX_VALUE);
+        rowCacheLoad(100, 100, Integer.MAX_VALUE, false);
     }
-
 
     @Test
     public void testRowCachePartialLoad() throws Exception
     {
-        rowCacheLoad(100, 50, 50);
+        rowCacheLoad(100, 50, 50, false);
+    }
+
+    @Test
+    public void testRowCacheCapacityLoad() throws Exception
+    {
+        // 60 is default from DatabaseDescriptor
+        rowCacheLoad(100, 60, Integer.MAX_VALUE, true);
     }
 
 
-    public void rowCacheLoad(int totalKeys, int expectedKeys, int keysToSave) throws Exception
+    public void rowCacheLoad(int totalKeys, int expectedKeys, int keysToSave, boolean reduceLoadCapacity) throws Exception
     {
         CompactionManager.instance.disableAutoCompaction();
 
@@ -142,6 +148,9 @@ public class RowCacheTest extends CleanupHelper
 
         // force the cache to disk
         store.rowCache.submitWrite(keysToSave).get();
+
+        if (reduceLoadCapacity)
+            store.reduceCacheSizes();
 
         // empty the cache again to make sure values came from disk
         store.invalidateRowCache();

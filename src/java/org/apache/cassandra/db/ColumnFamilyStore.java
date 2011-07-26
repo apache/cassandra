@@ -537,8 +537,16 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         long start = System.currentTimeMillis();
         // results are sorted on read (via treeset) because there are few reads and many writes and reads only happen at startup
+        int cachedRowsRead = 0;
         for (DecoratedKey key : rowCache.readSaved())
+        {
             cacheRow(key);
+            if (cachedRowsRead++ > rowCache.getCapacity())
+            {
+                logger.debug(String.format("Stopped loading row cache after capacity %d was reached", rowCache.getCapacity()));
+                break;
+            }
+        }
         if (rowCache.size() > 0)
             logger.info(String.format("completed loading (%d ms; %d keys) row cache for %s.%s",
                                       System.currentTimeMillis()-start,
