@@ -81,6 +81,7 @@ public class CompactionManager implements CompactionManagerMBean
     }
 
     private CompactionExecutor executor = new CompactionExecutor();
+    private CompactionExecutor validationExecutor = new ValidationExecutor();
 
     /**
      * @return A lock, for which acquisition means no compactions can run.
@@ -426,7 +427,7 @@ public class CompactionManager implements CompactionManagerMBean
                 }
             }
         };
-        return executor.submit(callable);
+        return validationExecutor.submit(callable);
     }
 
     /* Used in tests. */
@@ -794,7 +795,7 @@ public class CompactionManager implements CompactionManagerMBean
 
         Collection<SSTableReader> sstables = cfs.markCurrentSSTablesReferenced();
         CompactionIterator ci = new ValidationCompactionIterator(cfs, sstables, validator.request.range);
-        executor.beginCompaction(ci);
+        validationExecutor.beginCompaction(ci);
         try
         {
             Iterator<AbstractCompactedRow> nni = Iterators.filter(ci, Predicates.notNull());
@@ -812,7 +813,7 @@ public class CompactionManager implements CompactionManagerMBean
         {
             SSTableReader.releaseReferences(sstables);
             ci.close();
-            executor.finishCompaction(ci);
+            validationExecutor.finishCompaction(ci);
         }
     }
 
@@ -940,28 +941,32 @@ public class CompactionManager implements CompactionManagerMBean
 
     public int getActiveCompactions()
     {
-        return executor.getActiveCount();
+        return executor.getActiveCount() + validationExecutor.getActiveCount();
     }
 
     private static class CompactionExecutor extends DebuggableThreadPoolExecutor implements CompactionExecutorStatsCollector
     {
         // a synchronized identity set of running tasks to their compaction info
-        private final Set<CompactionInfo.Holder> compactions;
+        private static final Set<CompactionInfo.Holder> compactions = Collections.synchronizedSet(Collections.newSetFromMap(new IdentityHashMap<CompactionInfo.Holder, Boolean>()));
+
+        protected CompactionExecutor(int minThreads, int maxThreads, String name, BlockingQueue<Runnable> queue)
+        {
+            super(minThreads,
+                  maxThreads,
+                  60,
+                  TimeUnit.SECONDS,
+                  queue,
+                  new NamedThreadFactory(name, DatabaseDescriptor.getCompactionThreadPriority()));
+        }
+
+        private CompactionExecutor(int threadCount, String name)
+        {
+            this(threadCount, threadCount, name, new LinkedBlockingQueue<Runnable>());
+        }
 
         public CompactionExecutor()
         {
-            super(getThreadCount(),
-                  60,
-                  TimeUnit.SECONDS,
-                  new LinkedBlockingQueue<Runnable>(),
-                  new NamedThreadFactory("CompactionExecutor", DatabaseDescriptor.getCompactionThreadPriority()));
-            Map<CompactionInfo.Holder, Boolean> cmap = new IdentityHashMap<CompactionInfo.Holder, Boolean>();
-            compactions = Collections.synchronizedSet(Collections.newSetFromMap(cmap));
-        }
-
-        private static int getThreadCount()
-        {
-            return Math.max(1, DatabaseDescriptor.getConcurrentCompactors());
+            this(Math.max(1, DatabaseDescriptor.getConcurrentCompactors()), "CompactionExecutor");
         }
 
         public void beginCompaction(CompactionInfo.Holder ci)
@@ -974,9 +979,17 @@ public class CompactionManager implements CompactionManagerMBean
             compactions.remove(ci);
         }
 
-        public List<CompactionInfo.Holder> getCompactions()
+        public static List<CompactionInfo.Holder> getCompactions()
         {
             return new ArrayList<CompactionInfo.Holder>(compactions);
+        }
+    }
+
+    private static class ValidationExecutor extends CompactionExecutor
+    {
+        public ValidationExecutor()
+        {
+            super(1, Integer.MAX_VALUE, "ValidationExecutor", new SynchronousQueue<Runnable>());
         }
     }
 
@@ -989,7 +1002,7 @@ public class CompactionManager implements CompactionManagerMBean
     public List<CompactionInfo> getCompactions()
     {
         List<CompactionInfo> out = new ArrayList<CompactionInfo>();
-        for (CompactionInfo.Holder ci : executor.getCompactions())
+        for (CompactionInfo.Holder ci : CompactionExecutor.getCompactions())
             out.add(ci.getCompactionInfo());
         return out;
     }
@@ -997,7 +1010,7 @@ public class CompactionManager implements CompactionManagerMBean
     public List<String> getCompactionSummary()
     {
         List<String> out = new ArrayList<String>();
-        for (CompactionInfo.Holder ci : executor.getCompactions())
+        for (CompactionInfo.Holder ci : CompactionExecutor.getCompactions())
             out.add(ci.getCompactionInfo().toString());
         return out;
     }
@@ -1012,12 +1025,12 @@ public class CompactionManager implements CompactionManagerMBean
                 n += cfs.getCompactionStrategy().getEstimatedRemainingTasks();
             }
         }
-        return (int) (executor.getTaskCount() - executor.getCompletedTaskCount()) + n;
+        return (int) (executor.getTaskCount() + validationExecutor.getTaskCount() - executor.getCompletedTaskCount() - validationExecutor.getCompletedTaskCount()) + n;
     }
 
     public long getCompletedTasks()
     {
-        return executor.getCompletedTaskCount();
+        return executor.getCompletedTaskCount() + validationExecutor.getCompletedTaskCount();
     }
     
     private static class SimpleFuture implements Future

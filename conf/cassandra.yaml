@@ -260,13 +260,15 @@ column_index_size_in_kb: 64
 # will be logged specifying the row key.
 in_memory_compaction_limit_in_mb: 64
 
-# Number of compaction threads. This default to the number of processors,
+# Number of compaction threads (NOT including validation "compactions"
+# for anti-entropy repair). This default to the number of processors,
 # enabling multiple compactions to execute at once. Using more than one
 # thread is highly recommended to preserve read performance in a mixed
 # read/write workload as this avoids sstables from accumulating during long
 # running compactions. The default is usually fine and if you experience
 # problems with compaction running too slowly or too fast, you should look at
 # compaction_throughput_mb_per_sec first.
+#
 # Uncomment to make compaction mono-threaded.
 #concurrent_compactors: 1
 
@@ -274,7 +276,8 @@ in_memory_compaction_limit_in_mb: 64
 # system. The faster you insert data, the faster you need to compact in
 # order to keep the sstable count down, but in general, setting this to
 # 16 to 32 times the rate you are inserting data is more than sufficient.
-# Setting this to 0 disables throttling.
+# Setting this to 0 disables throttling. Note that this account for all types
+# of compaction, including validation compaction.
 compaction_throughput_mb_per_sec: 16
 
 # Track cached row keys during compaction, and re-cache their new

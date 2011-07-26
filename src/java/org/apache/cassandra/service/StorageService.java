@@ -1497,7 +1497,17 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         List<AntiEntropyService.RepairSession> sessions = new ArrayList<AntiEntropyService.RepairSession>();
         for (Range range : getLocalRanges(tableName))
         {
-            sessions.add(forceTableRepair(range, tableName, columnFamilies));
+            AntiEntropyService.RepairSession session = forceTableRepair(range, tableName, columnFamilies);
+            sessions.add(session);
+            // wait for a session to be done with its differencing before starting the next one
+            try
+            {
+                session.differencingDone.await();
+            }
+            catch (InterruptedException e)
+            {
+                logger_.error("Interrupted while waiting for the differencing of repair session " + session + " to be done. Repair may be imprecise.", e);
+            }
         }
 
         boolean failedSession = false;
