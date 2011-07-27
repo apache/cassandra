@@ -38,7 +38,14 @@ import org.apache.cassandra.utils.Pair;
  */
 public class Descriptor
 {
-    public static final String LEGACY_VERSION = "a";
+    public static final String LEGACY_VERSION = "a"; // "pre-history"
+    // b (0.7.0): added version to sstable filenames
+    // c (0.7.0): bloom filter component computes hashes over raw key bytes instead of strings
+    // d (0.7.0): row size in data component becomes a long instead of int
+    // e (0.7.0): stores undecorated keys in data and index components
+    // f (0.7.0): switched bloom filter implementations in data component
+    // g (0.8): tracks flushed-at context in metadata component
+    // h (1.0): tracks max client timestamp in metadata component
     public static final String CURRENT_VERSION = "h";
 
     public final File directory;
