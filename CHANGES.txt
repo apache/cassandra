@@ -22,6 +22,8 @@
  * check column family validity in nodetool repair (CASSANDRA-2933)
  * use lazy initialization instead of class initialization in NodeId
    (CASSANDRA-2953)
+ * fix potential use of free'd native memory in SerializingCache 
+   (CASSANDRA-1951)
 
 
 0.8.2

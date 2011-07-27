@@ -22,19 +22,40 @@ package org.apache.cassandra.cache;
 
 
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import com.sun.jna.Memory;
 
 public class FreeableMemory extends Memory
 {
-	protected volatile boolean valid = true;
-	
+    AtomicInteger references = new AtomicInteger(0);
+
     public FreeableMemory(long size)
     {
         super(size);
     }
 
-    public void free()
+    /** @return true if we succeed in referencing before the reference count reaches zero */
+    public boolean reference()
+    {
+        while (true)
+        {
+            int n = references.get();
+            if (n <= 0)
+                return false;
+            if (references.compareAndSet(n, n + 1))
+                return true;
+        }
+    }
+
+    /** decrement reference count.  if count reaches zero, the object is freed. */
+    public void unreference()
+    {
+        if (references.decrementAndGet() == 0)
+            free();
+    }
+
+    private void free()
     {
         assert peer != 0;
         super.finalize(); // calls free and sets peer to zero
@@ -46,8 +67,8 @@ public class FreeableMemory extends Memory
     @Override
     protected void finalize()
     {
-        if (peer != 0)
-            super.finalize();
+        assert references.get() == 0;
+        assert peer == 0;
     }
     
     public byte getValidByte(long offset)

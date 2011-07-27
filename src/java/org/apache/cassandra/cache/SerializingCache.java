@@ -55,7 +55,7 @@ public class SerializingCache<K, V> implements ICache<K, V>
         {
             public void onEviction(K k, FreeableMemory mem)
             {
-                mem.free();
+                mem.unreference();
             }
         };
         this.map = new ConcurrentLinkedHashMap.Builder<K, FreeableMemory>()
@@ -137,7 +137,16 @@ public class SerializingCache<K, V> implements ICache<K, V>
         FreeableMemory mem = map.get(key);
         if (mem == null)
             return null;
-        return deserialize(mem);
+        if (!mem.reference())
+            return null;
+        try
+        {
+            return deserialize(mem);
+        }
+        finally
+        {
+            mem.unreference();
+        }
     }
 
     public void put(K key, V value)
@@ -146,16 +155,17 @@ public class SerializingCache<K, V> implements ICache<K, V>
         if (mem == null)
             return; // out of memory.  never mind.
 
+        mem.reference();
         FreeableMemory old = map.put(key, mem);
         if (old != null)
-            old.free();
+            old.unreference();
     }
 
     public void remove(K key)
     {
         FreeableMemory mem = map.remove(key);
         if (mem != null)
-            mem.free();
+            mem.unreference();
     }
 
     public Set<K> keySet()
