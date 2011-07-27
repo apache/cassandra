@@ -5,6 +5,8 @@
  * don't accept extra args for 0-arg nodetool commands (CASSANDRA-2740)
  * log unavailableexception details at debug level (CASSANDRA-2856)
  * expose data_dir though jmx (CASSANDRA-2770)
+ * don't include tmp files as sstable when create cfs (CASSANDRA-2929)
+ * log Java classpath on startup (CASSANDRA-2895)
 
 
 0.8.2
