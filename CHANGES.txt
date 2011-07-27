@@ -11,6 +11,7 @@
    (CASSANDRA-2946)
  * use lazy initialization instead of class initialization in NodeId
    (CASSANDRA-2953)
+ * check column family validity in nodetool repair (CASSANDRA-2933)
 
 
 0.8.2
