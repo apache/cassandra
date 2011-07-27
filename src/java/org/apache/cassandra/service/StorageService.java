@@ -335,6 +335,11 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
     public synchronized void initClient() throws IOException, ConfigurationException
     {
+        initClient(RING_DELAY);
+    }
+
+    public synchronized void initClient(int delay) throws IOException, ConfigurationException
+    {
         if (initialized)
         {
             if (!isClientMode)
@@ -352,7 +357,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         // sleep a while to allow gossip to warm up (the other nodes need to know about this one before they can reply).
         try
         {
-            Thread.sleep(RING_DELAY);
+            Thread.sleep(delay);
         }
         catch (Exception ex)
         {
