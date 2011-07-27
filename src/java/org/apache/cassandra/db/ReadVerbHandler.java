@@ -35,48 +35,38 @@ import org.apache.cassandra.utils.FBUtilities;
 
 public class ReadVerbHandler implements IVerbHandler
 {
-    protected static class ReadContext
-    {
-        protected ByteArrayInputStream bufIn_;
-        protected DataOutputBuffer bufOut_ = new DataOutputBuffer();
-    }
-
     private static Logger logger_ = LoggerFactory.getLogger( ReadVerbHandler.class );
-    /* We use this so that we can reuse readcontext objects */
-    private static ThreadLocal<ReadVerbHandler.ReadContext> tls_ = new InheritableThreadLocal<ReadVerbHandler.ReadContext>();
+
+    // re-use output buffers between requests
+    private static ThreadLocal<DataOutputBuffer> threadLocalOut = new ThreadLocal<DataOutputBuffer>()
+    {
+        @Override
+        protected DataOutputBuffer initialValue()
+        {
+            return new DataOutputBuffer();
+        }
+    };
 
     public void doVerb(Message message, String id)
     {
-        byte[] body = message.getMessageBody();
-        /* Obtain a Read Context from TLS */
-        ReadContext readCtx = tls_.get();
-        if ( readCtx == null )
+        if (StorageService.instance.isBootstrapMode())
         {
-            readCtx = new ReadContext();
-            tls_.set(readCtx);
+            throw new RuntimeException("Cannot service reads while bootstrapping!");
         }
-        readCtx.bufIn_ = new ByteArrayInputStream(body);
 
         try
         {
-            if (StorageService.instance.isBootstrapMode())
-            {
-                /* Don't service reads! */
-                throw new RuntimeException("Cannot service reads while bootstrapping!");
-            }
-            ReadCommand command = ReadCommand.serializer().deserialize(new DataInputStream(readCtx.bufIn_), message.getVersion());
+            ByteArrayInputStream in = new ByteArrayInputStream(message.getMessageBody());
+            ReadCommand command = ReadCommand.serializer().deserialize(new DataInputStream(in), message.getVersion());
             Table table = Table.open(command.table);
             Row row = command.getRow(table);
-            ReadResponse readResponse = getResponse(command, row);
-            /* serialize the ReadResponseMessage. */
-            readCtx.bufOut_.reset();
 
-            ReadResponse.serializer().serialize(readResponse, readCtx.bufOut_, message.getVersion());
-
-            byte[] bytes = new byte[readCtx.bufOut_.getLength()];
-            System.arraycopy(readCtx.bufOut_.getData(), 0, bytes, 0, bytes.length);
-
+            DataOutputBuffer out = threadLocalOut.get();
+            ReadResponse.serializer().serialize(getResponse(command, row), out, message.getVersion());
+            byte[] bytes = new byte[out.getLength()];
+            System.arraycopy(out.getData(), 0, bytes, 0, bytes.length);
             Message response = message.getReply(FBUtilities.getBroadcastAddress(), bytes, message.getVersion());
+
             if (logger_.isDebugEnabled())
               logger_.debug(String.format("Read key %s; sending response to %s@%s",
                                           ByteBufferUtil.bytesToHex(command.key), id, message.getFrom()));
