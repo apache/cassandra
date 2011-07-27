@@ -981,6 +981,7 @@ public class Gossiper implements IFailureDetectionEventListener
         EndpointState epState = endpointStateMap.get(FBUtilities.getLocalAddress());
         assert epState != null;
         epState.addApplicationState(state, value);
+        doNotifications(FBUtilities.getLocalAddress(), state, value);
     }
 
     public void stop()
