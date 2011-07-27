@@ -9,6 +9,8 @@
  * log Java classpath on startup (CASSANDRA-2895)
  * keep gossipped version in sync with actual on migration coordinator 
    (CASSANDRA-2946)
+ * use lazy initialization instead of class initialization in NodeId
+   (CASSANDRA-2953)
 
 
 0.8.2
