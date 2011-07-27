@@ -528,14 +528,12 @@ public class StorageProxy implements StorageProxyMBean
             InetAddress dataPoint = handler.endpoints.get(0);
             if (dataPoint.equals(FBUtilities.getBroadcastAddress()))
             {
-                if (logger.isDebugEnabled())
-                    logger.debug("reading data locally");
+                logger.debug("reading data locally");
                 StageManager.getStage(Stage.READ).execute(new LocalReadRunnable(command, handler));
             }
             else
             {
-                if (logger.isDebugEnabled())
-                    logger.debug("reading data from " + dataPoint);
+                logger.debug("reading data from {}", dataPoint);
                 MessagingService.instance().sendRR(command, dataPoint, handler);
             }
 
@@ -546,14 +544,12 @@ public class StorageProxy implements StorageProxyMBean
             {
                 if (digestPoint.equals(FBUtilities.getBroadcastAddress()))
                 {
-                    if (logger.isDebugEnabled())
-                        logger.debug("reading digest locally");
+                    logger.debug("reading digest locally");
                     StageManager.getStage(Stage.READ).execute(new LocalReadRunnable(digestCommand, handler));
                 }
                 else
                 {
-                    if (logger.isDebugEnabled())
-                        logger.debug("reading digest for from " + digestPoint);
+                    logger.debug("reading digest from {}", digestPoint);
                     MessagingService.instance().sendRR(producer, digestPoint, handler);
                 }
             }

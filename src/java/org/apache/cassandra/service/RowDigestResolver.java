@@ -49,12 +49,12 @@ public class RowDigestResolver extends AbstractRowResolver
     /*
      * This method handles two different scenarios:
      *
-     * 1a)we're handling the initial read, of data from the closest replica + digests
+     * a) we're handling the initial read, of data from the closest replica + digests
      *    from the rest.  In this case we check the digests against each other,
      *    throw an exception if there is a mismatch, otherwise return the data row.
      *
-     * 1b)we're checking additional digests that arrived after the minimum to handle
-     *    the requested ConsistencyLevel, i.e. asynchronouse read repair check
+     * b) we're checking additional digests that arrived after the minimum to handle
+     *    the requested ConsistencyLevel, i.e. asynchronous read repair check
      */
     public Row resolve() throws DigestMismatchException, IOException
     {
@@ -64,7 +64,7 @@ public class RowDigestResolver extends AbstractRowResolver
         long startTime = System.currentTimeMillis();
 		ColumnFamily data = null;
 
-        // case 1: validate digests against each other; throw immediately on mismatch.
+        // validate digests against each other; throw immediately on mismatch.
         // also, collects data results into versions/endpoints lists.
         //
         // results are cleared as we process them, to avoid unnecessary duplication of work
@@ -93,12 +93,11 @@ public class RowDigestResolver extends AbstractRowResolver
             }
         }
 
-		// If there was a digest query compare it with all the data digests
-		// If there is a mismatch then throw an exception so that read repair can happen.
+		// Compare digest (only one, since we threw earlier if there were different replies)
+        // with the data response. If there is a mismatch then throw an exception so that read repair can happen.
         //
-        // It's important to note that we do not compare the digests of multiple data responses --
-        // if we are in that situation we know there was a previous mismatch and now we're doing a repair,
-        // so our job is now case 2: figure out what the most recent version is and update everyone to that version.
+        // It's important to note that we do not consider the possibility of multiple data responses --
+        // that can only happen when we're doing the repair post-mismatch, and will be handled by RowRepairResolver.
         if (digest != null)
         {
             ByteBuffer digest2 = ColumnFamily.digest(data);

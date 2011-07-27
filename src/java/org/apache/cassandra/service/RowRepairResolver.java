@@ -45,7 +45,7 @@ public class RowRepairResolver extends AbstractRowResolver
     /*
     * This method handles the following scenario:
     *
-    * there was a mismatch on the initial read (1a or 1b), so we redid the digest requests
+    * there was a mismatch on the initial read, so we redid the digest requests
     * as full data reads.  In this case we need to compute the most recent version
     * of each column, and send diffs to out-of-date replicas.
     */
