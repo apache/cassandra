@@ -35,13 +35,23 @@ public class NodeId implements Comparable<NodeId>
 
     public static final int LENGTH = 16; // we assume a fixed length size for all NodeIds
 
-    private static final LocalNodeIdHistory localIds = new LocalNodeIdHistory();
+    // Lazy holder because this opens the system table and we want to avoid
+    // having this triggered during class initialization
+    private static class LocalIds
+    {
+        static final LocalNodeIdHistory instance = new LocalNodeIdHistory();
+    }
 
     private ByteBuffer id;
 
+    private static LocalNodeIdHistory localIds()
+    {
+        return LocalIds.instance;
+    }
+
     public static NodeId getLocalId()
     {
-        return localIds.current.get();
+        return localIds().current.get();
     }
 
     /**
@@ -56,7 +66,7 @@ public class NodeId implements Comparable<NodeId>
 
     public static synchronized void renewLocalId(long now)
     {
-        localIds.renewCurrent(now);
+        localIds().renewCurrent(now);
     }
 
     /**
@@ -66,7 +76,7 @@ public class NodeId implements Comparable<NodeId>
      */
     public static List<NodeIdRecord> getOldLocalNodeIds()
     {
-        return localIds.olds;
+        return localIds().olds;
     }
 
     /**
