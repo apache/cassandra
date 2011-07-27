@@ -19,6 +19,7 @@
  * store hints in the coordinator node instead of in the closest 
    replica (CASSANDRA-2914). 
  * add row_cache_keys_to_save CF option (CASSANDRA-1966)
+ * check column family validity in nodetool repair (CASSANDRA-2933)
 
 
 0.8.2
