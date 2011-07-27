@@ -7,6 +7,8 @@
  * expose data_dir though jmx (CASSANDRA-2770)
  * don't include tmp files as sstable when create cfs (CASSANDRA-2929)
  * log Java classpath on startup (CASSANDRA-2895)
+ * keep gossipped version in sync with actual on migration coordinator 
+   (CASSANDRA-2946)
 
 
 0.8.2
