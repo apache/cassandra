@@ -154,44 +154,6 @@ public class RemoveTest extends CleanupHelper
         assertTrue(tmd.getLeavingEndpoints().isEmpty());
     }
 
-    @Test
-    public void testStartRemoving()
-    {
-        IPartitioner partitioner = StorageService.getPartitioner();
-        VersionedValue.VersionedValueFactory valueFactory = new VersionedValue.VersionedValueFactory(partitioner);
-
-        NotificationSink nSink = new NotificationSink();
-        ReplicationSink rSink = new ReplicationSink();
-        SinkManager.add(nSink);
-        SinkManager.add(rSink);
-
-        assertEquals(0, tmd.getLeavingEndpoints().size());
-
-        ss.onChange(hosts.get(1),
-                    ApplicationState.STATUS,
-                    valueFactory.removingNonlocal(endpointTokens.get(1), removaltoken));
-
-        assertEquals(1, nSink.callCount);
-        assertTrue(tmd.isLeaving(removalhost));
-        assertEquals(1, tmd.getLeavingEndpoints().size());
-    }
-
-    @Test
-    public void testFinishRemoving()
-    {
-        IPartitioner partitioner = StorageService.getPartitioner();
-        VersionedValue.VersionedValueFactory valueFactory = new VersionedValue.VersionedValueFactory(partitioner);
-
-        assertEquals(0, tmd.getLeavingEndpoints().size());
-
-        ss.onChange(hosts.get(1),
-                    ApplicationState.STATUS,
-                    valueFactory.removedNonlocal(endpointTokens.get(1), removaltoken));
-
-        assertFalse(Gossiper.instance.getLiveMembers().contains(removalhost));
-        assertFalse(tmd.isMember(removalhost));
-    }
-
     class ReplicationSink implements IMessageSink
     {
         public Message handleMessage(Message msg, String id, InetAddress to)
@@ -205,25 +167,4 @@ public class RemoveTest extends CleanupHelper
         }
     }
 
-    class NotificationSink implements IMessageSink
-    {
-        public int callCount = 0;
-
-        public Message handleMessage(Message msg, String id, InetAddress to)
-        {
-            if (msg.getVerb().equals(StorageService.Verb.REPLICATION_FINISHED))
-            {
-                callCount++;
-                assertEquals(Stage.MISC, msg.getMessageType());
-                // simulate a response from remote server
-                Message response = msg.getReply(FBUtilities.getLocalAddress(), new byte[]{ }, msg.getVersion());
-                MessagingService.instance().sendReply(response, id, FBUtilities.getLocalAddress());
-                return null;
-            }
-            else
-            {
-                return msg;
-            }
-        }
-    }
 }
