@@ -67,7 +67,7 @@ public class FreeableMemory extends Memory
     @Override
     protected void finalize()
     {
-        assert references.get() == 0;
+        assert references.get() <= 0;
         assert peer == 0;
     }
     
