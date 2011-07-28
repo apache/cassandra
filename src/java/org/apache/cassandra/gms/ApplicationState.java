@@ -29,6 +29,7 @@ public enum ApplicationState
     DC,
     RACK,
     RELEASE_VERSION,
+    INTERNAL_IP,
     // pad to allow adding new states to existing cluster
     X1,
     X2,

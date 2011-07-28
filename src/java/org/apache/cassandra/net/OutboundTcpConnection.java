@@ -44,10 +44,10 @@ public class OutboundTcpConnection extends Thread
 {
     private static final Logger logger = LoggerFactory.getLogger(OutboundTcpConnection.class);
 
-    private static final ByteBuffer CLOSE_SENTINEL = ByteBuffer.allocate(0);
+    public static final ByteBuffer CLOSE_SENTINEL = ByteBuffer.allocate(0);
     private static final int OPEN_RETRY_DELAY = 100; // ms between retries
 
-    private final InetAddress endpoint;
+    private InetAddress endpoint;
     private final BlockingQueue<ByteBuffer> queue = new LinkedBlockingQueue<ByteBuffer>();
     private DataOutputStream output;
     private Socket socket;
@@ -56,7 +56,12 @@ public class OutboundTcpConnection extends Thread
     public OutboundTcpConnection(InetAddress remoteEp)
     {
         super("WRITE-" + remoteEp);
-        this.endpoint = remoteEp;
+        setEndPoint(remoteEp);        
+    }
+    
+    public void setEndPoint(InetAddress remoteEndPoint)
+    {
+        this.endpoint = remoteEndPoint;
     }
 
     public void write(ByteBuffer buffer)

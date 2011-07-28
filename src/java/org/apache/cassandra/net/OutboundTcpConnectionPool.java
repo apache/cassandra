@@ -22,7 +22,7 @@ import java.net.InetAddress;
 
 import org.apache.cassandra.concurrent.Stage;
 
-class OutboundTcpConnectionPool
+public class OutboundTcpConnectionPool
 {
     public final OutboundTcpConnection cmdCon;
     public final OutboundTcpConnection ackCon;
@@ -51,5 +51,13 @@ class OutboundTcpConnectionPool
     {
         for (OutboundTcpConnection con : new OutboundTcpConnection[] { cmdCon, ackCon })
             con.closeSocket();
+    }
+    
+    public void reset(InetAddress remoteEP)
+    {
+        ackCon.setEndPoint(remoteEP);
+        ackCon.write(OutboundTcpConnection.CLOSE_SENTINEL);
+        cmdCon.setEndPoint(remoteEP);
+        cmdCon.write(OutboundTcpConnection.CLOSE_SENTINEL);
     }
 }

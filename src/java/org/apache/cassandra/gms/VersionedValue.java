@@ -159,6 +159,11 @@ public class VersionedValue implements Comparable<VersionedValue>
         {
             return new VersionedValue(FBUtilities.getReleaseVersionString());
         }
+
+        public VersionedValue internalIP(String private_ip)
+        {
+            return new VersionedValue(private_ip);
+        }
     }
 
     private static class VersionedValueSerializer implements ICompactSerializer<VersionedValue>
