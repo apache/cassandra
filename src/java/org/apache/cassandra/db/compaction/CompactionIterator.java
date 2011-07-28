@@ -24,13 +24,10 @@ package org.apache.cassandra.db.compaction;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.Iterator;
 import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.google.common.collect.AbstractIterator;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.columniterator.IColumnIterator;
@@ -38,11 +35,10 @@ import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.sstable.SSTableScanner;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.MergeIterator;
 
-public class CompactionIterator extends AbstractIterator<AbstractCompactedRow>
+public class CompactionIterator
 implements CloseableIterator<AbstractCompactedRow>, CompactionInfo.Holder
 {
     private static Logger logger = LoggerFactory.getLogger(CompactionIterator.class);
@@ -99,11 +95,19 @@ implements CloseableIterator<AbstractCompactedRow>, CompactionInfo.Holder
     }
 
 
-    public AbstractCompactedRow computeNext()
+    public boolean hasNext()
     {
-        if (!source.hasNext())
-            return endOfData();
+        return source.hasNext();
+    }
+
+    public AbstractCompactedRow next()
+    {
         return source.next();
+    }
+
+    public void remove()
+    {
+        throw new UnsupportedOperationException();
     }
 
     private void throttle()
