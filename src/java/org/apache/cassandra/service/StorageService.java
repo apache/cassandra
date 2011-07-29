@@ -1910,7 +1910,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
             // ring ranges and endpoints associated with them
             // this used to determine what nodes should we ping about range data
-            Multimap<Range, InetAddress> rangeAddresses = strategy.getRangeAddresses(tokenMetaClone);
+            Multimap<Range, InetAddress> rangeAddresses = strategy.getRangeAddresses(tokenMetadata_);
 
             // calculated parts of the ranges to request/stream from/to nodes in the ring
             Pair<Set<Range>, Set<Range>> rangesPerTable = calculateStreamAndFetchRanges(currentRanges, updatedRanges);
