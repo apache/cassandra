@@ -110,20 +110,15 @@ public class IncomingTcpConnection extends Thread
         } 
         catch (EOFException e)
         {
-            if (logger.isTraceEnabled())
-                logger.trace("eof reading from socket; closing", e);
+            logger.trace("eof reading from socket; closing", e);
             // connection will be reset so no need to throw an exception.
         } 
         catch (IOException e)
         {
-            if (logger.isTraceEnabled())
-                logger.trace("IOError reading from socket; closing", e);
-            // throw to be logged else where.
-            throw new IOError(e);
-        } 
+            logger.debug("IOError reading from socket; closing", e);
+        }
         finally
         {
-            // cleanup.
             close();
         }
     }
