@@ -119,6 +119,7 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
     {
     	logger.info("JVM vendor/version: {}/{}", System.getProperty("java.vm.name"), System.getProperty("java.version") );
         logger.info("Heap size: {}/{}", Runtime.getRuntime().totalMemory(), Runtime.getRuntime().maxMemory());
+		logger.info("Classpath: {}", System.getProperty("java.class.path"));
     	CLibrary.tryMlockall();
 
         listenPort = DatabaseDescriptor.getRpcPort();

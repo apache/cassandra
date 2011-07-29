@@ -335,6 +335,11 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
     public synchronized void initClient() throws IOException, ConfigurationException
     {
+        initClient(RING_DELAY);
+    }
+
+    public synchronized void initClient(int delay) throws IOException, ConfigurationException
+    {
         if (initialized)
         {
             if (!isClientMode)
@@ -352,7 +357,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         // sleep a while to allow gossip to warm up (the other nodes need to know about this one before they can reply).
         try
         {
-            Thread.sleep(RING_DELAY);
+            Thread.sleep(delay);
         }
         catch (Exception ex)
         {
@@ -622,29 +627,35 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     }
 
     /*
-     * onChange only ever sees one ApplicationState piece change at a time, so we perform a kind of state machine here.
-     * We are concerned with two events: knowing the token associated with an endpoint, and knowing its operation mode.
-     * Nodes can start in either bootstrap or normal mode, and from bootstrap mode can change mode to normal.
-     * A node in bootstrap mode needs to have pendingranges set in TokenMetadata; a node in normal mode
-     * should instead be part of the token ring.
+     * Handle the reception of a new particular ApplicationState for a particular endpoint. Note that the value of the
+     * ApplicationState has not necessarily "changed" since the last known value, if we already received the same update
+     * from somewhere else.
+     *
+     * onChange only ever sees one ApplicationState piece change at a time (even if many ApplicationState updates were
+     * received at the same time), so we perform a kind of state machine here. We are concerned with two events: knowing
+     * the token associated with an endpoint, and knowing its operation mode. Nodes can start in either bootstrap or
+     * normal mode, and from bootstrap mode can change mode to normal. A node in bootstrap mode needs to have
+     * pendingranges set in TokenMetadata; a node in normal mode should instead be part of the token ring.
      * 
-     * Normal MOVE_STATE progression of a node should be like this:
-     * STATE_BOOTSTRAPPING,token
+     * Normal progression of ApplicationState.STATUS values for a node should be like this:
+     * STATUS_BOOTSTRAPPING,token
      *   if bootstrapping. stays this way until all files are received.
-     * STATE_NORMAL,token 
+     * STATUS_NORMAL,token
      *   ready to serve reads and writes.
-     * STATE_NORMAL,token,REMOVE_TOKEN,token
-     *   specialized normal state in which this node acts as a proxy to tell the cluster about a dead node whose
-     *   token is being removed. this value becomes the permanent state of this node (unless it coordinates another
-     *   removetoken in the future).
-     * STATE_LEAVING,token 
-     *   get ready to leave the cluster as part of a decommission or move
-     * STATE_LEFT,token 
-     *   set after decommission or move is completed.
-     * STATE_MOVE,token
-     *   set if node if currently moving to a new token in the ring
-     * 
-     * Note: Any time a node state changes from STATE_NORMAL, it will not be visible to new nodes. So it follows that
+     * STATUS_LEAVING,token
+     *   get ready to leave the cluster as part of a decommission
+     * STATUS_LEFT,token
+     *   set after decommission is completed.
+     *
+     * Other STATUS values that may be seen (possibly anywhere in the normal progression):
+     * STATUS_MOVING,newtoken
+     *   set if node is currently moving to a new token in the ring
+     * REMOVING_TOKEN,deadtoken
+     *   set if the node is dead and is being removed by its REMOVAL_COORDINATOR
+     * REMOVED_TOKEN,deadtoken
+     *   set if the node is dead and has been removed by its REMOVAL_COORDINATOR
+     *
+     * Note: Any time a node state changes from STATUS_NORMAL, it will not be visible to new nodes. So it follows that
      * you should never bootstrap a new node during a removetoken, decommission or move.
      */
     public void onChange(InetAddress endpoint, ApplicationState state, VersionedValue value)
@@ -665,6 +676,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                     handleStateBootstrap(endpoint, pieces);
                 else if (moveName.equals(VersionedValue.STATUS_NORMAL))
                     handleStateNormal(endpoint, pieces);
+                else if (moveName.equals(VersionedValue.REMOVING_TOKEN) || moveName.equals(VersionedValue.REMOVED_TOKEN))
+                    handleStateRemoving(endpoint, pieces);
                 else if (moveName.equals(VersionedValue.STATUS_LEAVING))
                     handleStateLeaving(endpoint, pieces);
                 else if (moveName.equals(VersionedValue.STATUS_LEFT))
@@ -731,7 +744,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      * in reads.
      *
      * @param endpoint node
-     * @param pieces STATE_NORMAL,token[,other_state,token]
+     * @param pieces STATE_NORMAL,token
      */
     private void handleStateNormal(InetAddress endpoint, String[] pieces)
     {
@@ -771,12 +784,6 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         {
             logger_.info(String.format("Nodes %s and %s have the same token %s.  Ignoring %s",
                                        endpoint, currentOwner, token, endpoint));
-        }
-
-        if (pieces.length > 2)
-        {
-            assert pieces.length == 4;
-            handleStateRemoving(endpoint, getPartitioner().getTokenFactory().fromString(pieces[3]), pieces[2]);
         }
 
         if (tokenMetadata_.isMoving(endpoint)) // if endpoint was moving to a new token
@@ -860,37 +867,50 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      * Handle notification that a node being actively removed from the ring via 'removetoken'
      *
      * @param endpoint node
-     * @param state either REMOVED_TOKEN (node is gone) or REMOVING_TOKEN (replicas need to be restored)
+     * @param pieces either REMOVED_TOKEN (node is gone) or REMOVING_TOKEN (replicas need to be restored)
      */
-    private void handleStateRemoving(InetAddress endpoint, Token removeToken, String state)
+    private void handleStateRemoving(InetAddress endpoint, String[] pieces)
     {
-        InetAddress removeEndpoint = tokenMetadata_.getEndpoint(removeToken);
-        
-        if (removeEndpoint == null)
+        String state = pieces[0];
+        assert (pieces.length > 0);
+
+        if (endpoint.equals(FBUtilities.getBroadcastAddress()))
+        {
+            logger_.info("Received removeToken gossip about myself. Is this node rejoining after an explicit removetoken?");
+            try
+            {
+                drain();
+            }
+            catch (Exception e)
+            {
+                throw new RuntimeException(e);
+            }
             return;
-        
-        if (removeEndpoint.equals(FBUtilities.getBroadcastAddress()))
-        {
-            logger_.info("Received removeToken gossip about myself. Is this node a replacement for a removed one?");
-            return;
         }
-
-        if (VersionedValue.REMOVED_TOKEN.equals(state))
+        if (tokenMetadata_.isMember(endpoint))
         {
-            excise(removeToken, removeEndpoint);
-        }
-        else if (VersionedValue.REMOVING_TOKEN.equals(state))
-        {
-            if (logger_.isDebugEnabled())
-                logger_.debug("Token " + removeToken + " removed manually (endpoint was " + removeEndpoint + ")");
+            Token removeToken = tokenMetadata_.getToken(endpoint);
 
-            // Note that the endpoint is being removed
-            tokenMetadata_.addLeavingEndpoint(removeEndpoint);
-            calculatePendingRanges();
+            if (VersionedValue.REMOVED_TOKEN.equals(state))
+            {
+                excise(removeToken, endpoint);
+            }
+            else if (VersionedValue.REMOVING_TOKEN.equals(state))
+            {
+                if (logger_.isDebugEnabled())
+                    logger_.debug("Token " + removeToken + " removed manually (endpoint was " + endpoint + ")");
 
-            // grab any data we are now responsible for and notify responsible node
-            restoreReplicaCount(removeEndpoint, endpoint);
-        }
+                // Note that the endpoint is being removed
+                tokenMetadata_.addLeavingEndpoint(endpoint);
+                calculatePendingRanges();
+
+                // find the endpoint coordinating this removal that we need to notify when we're done
+                String[] coordinator = Gossiper.instance.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.REMOVAL_COORDINATOR).value.split(VersionedValue.DELIMITER_STR, -1);
+                Token coordtoken = getPartitioner().getTokenFactory().fromString(coordinator[1]);
+                // grab any data we are now responsible for and notify responsible node
+                restoreReplicaCount(endpoint, tokenMetadata_.getEndpoint(coordtoken));
+            }
+        } // not a member, nothing to do
     }
 
     private void excise(Token token, InetAddress endpoint)
@@ -1059,6 +1079,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         // notify the remote token
         Message msg = new Message(local, StorageService.Verb.REPLICATION_FINISHED, new byte[0], Gossiper.instance.getVersion(remote));
         IFailureDetector failureDetector = FailureDetector.instance;
+        if (logger_.isDebugEnabled())
+            logger_.debug("Notifying " + remote.toString() + " of replication completion\n");
         while (failureDetector.isAlive(remote))
         {
             IAsyncResult iar = MessagingService.instance().sendRR(msg, remote);
@@ -1993,9 +2015,14 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      */
     public void forceRemoveCompletion()
     {
-        if (!replicatingNodes.isEmpty())
+        if (!replicatingNodes.isEmpty()  || !tokenMetadata_.getLeavingEndpoints().isEmpty())
         {
             logger_.warn("Removal not confirmed for for " + StringUtils.join(this.replicatingNodes, ","));
+            for (InetAddress endpoint : tokenMetadata_.getLeavingEndpoints())
+            {
+                Gossiper.instance.advertiseTokenRemoved(endpoint, tokenMetadata_.getToken(endpoint));
+                tokenMetadata_.removeEndpoint(endpoint);
+            }
             replicatingNodes.clear();
         }
         else
@@ -2059,9 +2086,9 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
         tokenMetadata_.addLeavingEndpoint(endpoint);
         calculatePendingRanges();
-        // bundle two states together. include this nodes state to keep the status quo, 
-        // but indicate the leaving token so that it can be dealt with.
-        Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS, valueFactory.removingNonlocal(localToken, token));
+        // the gossiper will handle spoofing this node's state to REMOVING_TOKEN for us
+        // we add our own token so other nodes to let us know when they're done
+        Gossiper.instance.advertiseRemoving(endpoint, token, localToken);
 
         // kick off streaming commands
         restoreReplicaCount(endpoint, myAddress);
@@ -2081,8 +2108,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
         excise(token, endpoint);
 
-        // indicate the token has left
-        Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS, valueFactory.removedNonlocal(localToken, token));
+        // gossiper will indicate the token has left
+        Gossiper.instance.advertiseTokenRemoved(endpoint, token);
 
         replicatingNodes.clear();
         removingNode = null;
@@ -2090,8 +2117,18 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
     public void confirmReplication(InetAddress node)
     {
-        assert !replicatingNodes.isEmpty();
-        replicatingNodes.remove(node);
+        // replicatingNodes can be empty in the case where this node used to be a removal coordinator,
+        // but restarted before all 'replication finished' messages arrived. In that case, we'll
+        // still go ahead and acknowledge it.
+        if (!replicatingNodes.isEmpty())
+        {
+            replicatingNodes.remove(node);
+        }
+        else
+        {
+            logger_.info("Received unexpected REPLICATION_FINISHED message from " + node
+                         + ". Was this node recently a removal coordinator?");
+        }
     }
 
     public boolean isClientMode()

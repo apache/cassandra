@@ -71,6 +71,11 @@ class HeartBeatState
     {
         return version;
     }
+
+    void forceNewerGenerationUnsafe()
+    {
+        generation += 1;
+    }
 }
 
 class HeartBeatStateSerializer implements ICompactSerializer<HeartBeatState>

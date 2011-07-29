@@ -204,6 +204,9 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         }
         waited = 0;
         // then wait for the correct schema version.
+        // usually we use DD.getDefsVersion, which checks the local schema uuid as stored in the system table.
+        // here we check the one in gossip instead; this serves as a canary to warn us if we introduce a bug that
+        // causes the two to diverge (see CASSANDRA-2946)
         while (!gossiper.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.SCHEMA).value.equals(
                 gossiper.getEndpointStateForEndpoint(FBUtilities.getBroadcastAddress()).getApplicationState(ApplicationState.SCHEMA).value))
         {

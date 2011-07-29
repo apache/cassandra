@@ -49,7 +49,7 @@ public class VersionedValue implements Comparable<VersionedValue>
     public final static char DELIMITER = ',';
     public final static String DELIMITER_STR = new String(new char[] { DELIMITER });
 
-    // values for State.STATUS
+    // values for ApplicationState.STATUS
     public final static String STATUS_BOOTSTRAPPING = "BOOT";
     public final static String STATUS_NORMAL = "NORMAL";
     public final static String STATUS_LEAVING = "LEAVING";
@@ -58,6 +58,9 @@ public class VersionedValue implements Comparable<VersionedValue>
 
     public final static String REMOVING_TOKEN = "removing";
     public final static String REMOVED_TOKEN = "removed";
+
+    // values for ApplicationState.REMOVAL_COORDINATOR
+    public final static String REMOVAL_COORDINATOR = "REMOVER";
 
     public final int version;
     public final String value;
@@ -129,20 +132,19 @@ public class VersionedValue implements Comparable<VersionedValue>
             return new VersionedValue(VersionedValue.STATUS_MOVING + VersionedValue.DELIMITER + partitioner.getTokenFactory().toString(token));
         }
 
-        public VersionedValue removingNonlocal(Token localToken, Token token)
+        public VersionedValue removingNonlocal(Token token)
         {
-            return new VersionedValue(VersionedValue.STATUS_NORMAL
-                                        + VersionedValue.DELIMITER + partitioner.getTokenFactory().toString(localToken)
-                                        + VersionedValue.DELIMITER + VersionedValue.REMOVING_TOKEN
-                                        + VersionedValue.DELIMITER + partitioner.getTokenFactory().toString(token));
+            return new VersionedValue(VersionedValue.REMOVING_TOKEN + VersionedValue.DELIMITER + partitioner.getTokenFactory().toString(token));
         }
 
-        public VersionedValue removedNonlocal(Token localToken, Token token)
+        public VersionedValue removedNonlocal(Token token)
         {
-            return new VersionedValue(VersionedValue.STATUS_NORMAL
-                                        + VersionedValue.DELIMITER + partitioner.getTokenFactory().toString(localToken)
-                                        + VersionedValue.DELIMITER + VersionedValue.REMOVED_TOKEN
-                                        + VersionedValue.DELIMITER + partitioner.getTokenFactory().toString(token));
+            return new VersionedValue(VersionedValue.REMOVED_TOKEN + VersionedValue.DELIMITER + partitioner.getTokenFactory().toString(token));
+        }
+
+        public VersionedValue removalCoordinator(Token token)
+        {
+            return new VersionedValue(VersionedValue.REMOVAL_COORDINATOR + VersionedValue.DELIMITER + partitioner.getTokenFactory().toString(token));
         }
 
         public VersionedValue datacenter(String dcId)

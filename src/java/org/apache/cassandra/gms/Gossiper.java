@@ -27,6 +27,7 @@ import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.*;
 
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.db.SystemTable;
 import org.apache.cassandra.net.MessageProducer;
 import org.apache.cassandra.config.ConfigurationException;
@@ -58,6 +59,8 @@ public class Gossiper implements IFailureDetectionEventListener
     private static final RetryingScheduledThreadPoolExecutor executor = new RetryingScheduledThreadPoolExecutor("GossipTasks");
 
     static final ApplicationState[] STATES = ApplicationState.values();
+    static final List<String> DEAD_STATES = Arrays.asList(VersionedValue.REMOVING_TOKEN, VersionedValue.REMOVED_TOKEN, VersionedValue.STATUS_LEFT);
+
     private ScheduledFuture<?> scheduledGossipTask;
     public final static int intervalInMillis = 1000;
     public final static int QUARANTINE_DELAY = StorageService.RING_DELAY * 2;
@@ -264,17 +267,21 @@ public class Gossiper implements IFailureDetectionEventListener
     }
 
     /**
-     * Removes the endpoint from unreachable endpoint set
+     * Removes the endpoint from gossip completely
      *
      * @param endpoint endpoint to be removed from the current membership.
     */
     private void evictFromMembership(InetAddress endpoint)
     {
         unreachableEndpoints.remove(endpoint);
+        endpointStateMap.remove(endpoint);
+        justRemovedEndpoints.put(endpoint, System.currentTimeMillis());
+        if (logger.isDebugEnabled())
+            logger.debug("evicting " + endpoint + " from gossip");
     }
 
     /**
-     * Removes the endpoint completely from Gossip
+     * Removes the endpoint from Gossip but retains endpoint state
      */
     public void removeEndpoint(InetAddress endpoint)
     {
@@ -288,6 +295,8 @@ public class Gossiper implements IFailureDetectionEventListener
         FailureDetector.instance.remove(endpoint);
         versions.remove(endpoint);
         justRemovedEndpoints.put(endpoint, System.currentTimeMillis());
+        if (logger.isDebugEnabled())
+            logger.debug("removing endpoint " + endpoint);
     }
 
     /**
@@ -325,6 +334,67 @@ public class Gossiper implements IFailureDetectionEventListener
                 sb.append(" ");
             }
                 logger.trace("Gossip Digests are : " + sb.toString());
+        }
+    }
+
+    /**
+     * This method will begin removing an existing endpoint from the cluster by spoofing its state
+     * This should never be called unless this coordinator has had 'removetoken' invoked
+     *
+     * @param endpoint - the endpoint being removed
+     * @param token - the token being removed
+     * @param mytoken - my own token for replication coordination
+     */
+    public void advertiseRemoving(InetAddress endpoint, Token token, Token mytoken)
+    {
+        EndpointState epState = endpointStateMap.get(endpoint);
+        // remember this node's generation
+        int generation = epState.getHeartBeatState().getGeneration();
+        logger.info("Removing token: " + token);
+        logger.info("Sleeping for " + StorageService.RING_DELAY + "ms to ensure " + endpoint + " does not change");
+        try
+        {
+            Thread.sleep(StorageService.RING_DELAY);
+        }
+        catch (InterruptedException e)
+        {
+            throw new AssertionError(e);
+        }
+        // make sure it did not change
+        epState = endpointStateMap.get(endpoint);
+        if (epState.getHeartBeatState().getGeneration() != generation)
+            throw new RuntimeException("Endpoint " + endpoint + " generation changed while trying to remove it");
+        // update the other node's generation to mimic it as if it had changed it itself
+        logger.info("Advertising removal for " + endpoint);
+        epState.updateTimestamp(); // make sure we don't evict it too soon
+        epState.getHeartBeatState().forceNewerGenerationUnsafe();
+        epState.addApplicationState(ApplicationState.STATUS, StorageService.instance.valueFactory.removingNonlocal(token));
+        epState.addApplicationState(ApplicationState.REMOVAL_COORDINATOR, StorageService.instance.valueFactory.removalCoordinator(mytoken));
+        endpointStateMap.put(endpoint, epState);
+    }
+
+    /**
+     * Handles switching the endpoint's state from REMOVING_TOKEN to REMOVED_TOKEN
+     * This should only be called after advertiseRemoving
+     * @param endpoint
+     * @param token
+     */
+    public void advertiseTokenRemoved(InetAddress endpoint, Token token)
+    {
+        EndpointState epState = endpointStateMap.get(endpoint);
+        epState.updateTimestamp(); // make sure we don't evict it too soon
+        epState.getHeartBeatState().forceNewerGenerationUnsafe();
+        epState.addApplicationState(ApplicationState.STATUS, StorageService.instance.valueFactory.removedNonlocal(token));
+        logger.info("Completing removal of " + endpoint);
+        endpointStateMap.put(endpoint, epState);
+        // ensure at least one gossip round occurs before returning
+        try
+        {
+            Thread.sleep(intervalInMillis * 2);
+        }
+        catch (InterruptedException e)
+        {
+            throw new AssertionError(e);
         }
     }
 
@@ -456,23 +526,18 @@ public class Gossiper implements IFailureDetectionEventListener
             {
                 long duration = now - epState.getUpdateTimestamp();
 
+                if (StorageService.instance.getTokenMetadata().isMember(endpoint))
+                    epState.setHasToken(true);
                 // check if this is a fat client. fat clients are removed automatically from
                 // gosip after FatClientTimeout
-                if (!epState.hasToken() && !epState.isAlive() && (duration > FatClientTimeout))
+                if (!epState.hasToken() && !epState.isAlive() && !justRemovedEndpoints.containsKey(endpoint) && (duration > FatClientTimeout))
                 {
-                    if (StorageService.instance.getTokenMetadata().isMember(endpoint))
-                        epState.setHasToken(true);
-                    else
-                    {
-                        if (!justRemovedEndpoints.containsKey(endpoint)) // if the node was decommissioned, it will have been removed but still appear as a fat client
-                        {
-                            logger.info("FatClient " + endpoint + " has been silent for " + FatClientTimeout + "ms, removing from gossip");
-                            removeEndpoint(endpoint); // after quarantine justRemoveEndpoints will remove the state
-                        }
-                    }
+                    logger.info("FatClient " + endpoint + " has been silent for " + FatClientTimeout + "ms, removing from gossip");
+                    removeEndpoint(endpoint); // will put it in justRemovedEndpoints to respect quarantine delay
+                    evictFromMembership(endpoint); // can get rid of the state immediately
                 }
 
-                if ( !epState.isAlive() && (duration > aVeryLongTime) )
+                if ( !epState.isAlive() && (duration > aVeryLongTime) && (!StorageService.instance.getTokenMetadata().isMember(endpoint)))
                 {
                     evictFromMembership(endpoint);
                 }
@@ -488,7 +553,6 @@ public class Gossiper implements IFailureDetectionEventListener
                     if (logger.isDebugEnabled())
                         logger.debug(QUARANTINE_DELAY + " elapsed, " + entry.getKey() + " gossip quarantine over");
                     justRemovedEndpoints.remove(entry.getKey());
-                    endpointStateMap.remove(entry.getKey());
                 }
             }
         }
@@ -585,6 +649,7 @@ public class Gossiper implements IFailureDetectionEventListener
             int remoteGeneration = remoteEndpointState.getHeartBeatState().getGeneration();
             if ( remoteGeneration > localGeneration )
             {
+                localEndpointState.updateTimestamp();
                 fd.report(endpoint);
                 return;
             }
@@ -595,6 +660,7 @@ public class Gossiper implements IFailureDetectionEventListener
                 int remoteVersion = remoteEndpointState.getHeartBeatState().getHeartBeatVersion();
                 if ( remoteVersion > localVersion )
                 {
+                    localEndpointState.updateTimestamp();
                     fd.report(endpoint);
                 }
             }
@@ -607,6 +673,7 @@ public class Gossiper implements IFailureDetectionEventListener
         if (logger.isTraceEnabled())
             logger.trace("marking as alive {}", addr);
         localState.markAlive();
+        localState.updateTimestamp(); // prevents doStatusCheck from racing us and evicting if it was down > aVeryLongTime
         liveEndpoints.add(addr);
         unreachableEndpoints.remove(addr);
         logger.info("InetAddress {} is now UP", addr);
@@ -638,10 +705,13 @@ public class Gossiper implements IFailureDetectionEventListener
      */
     private void handleMajorStateChange(InetAddress ep, EndpointState epState)
     {
-        if (endpointStateMap.get(ep) != null)
-            logger.info("Node {} has restarted, now UP again", ep);
-        else
-            logger.info("Node {} is now part of the cluster", ep);
+        if (epState.getApplicationState(ApplicationState.STATUS) != null && !isDeadState(epState.getApplicationState(ApplicationState.STATUS).value))
+        {
+            if (endpointStateMap.get(ep) != null)
+                logger.info("Node {} has restarted, now UP again", ep);
+            else
+                logger.info("Node {} is now part of the cluster", ep);
+        }
         if (logger.isTraceEnabled())
             logger.trace("Adding endpoint state for " + ep);
         endpointStateMap.put(ep, epState);
@@ -651,9 +721,29 @@ public class Gossiper implements IFailureDetectionEventListener
             for (IEndpointStateChangeSubscriber subscriber : subscribers)
                 subscriber.onDead(ep, epState);
         }
-        markAlive(ep, epState);
+        if (epState.getApplicationState(ApplicationState.STATUS) != null && !isDeadState(epState.getApplicationState(ApplicationState.STATUS).value))
+            markAlive(ep, epState);
+        else
+        {
+            logger.debug("Not marking " + ep + " alive due to dead state");
+            epState.markDead();
+            epState.setHasToken(true); // fat clients won't have a dead state
+        }
         for (IEndpointStateChangeSubscriber subscriber : subscribers)
             subscriber.onJoin(ep, epState);
+    }
+
+    private Boolean isDeadState(String value)
+    {
+        String[] pieces = value.split(VersionedValue.DELIMITER_STR, -1);
+        assert (pieces.length > 0);
+        String state = pieces[0];
+        for (String deadstate : DEAD_STATES)
+        {
+            if (state.equals(deadstate))
+                return true;
+        }
+        return false;
     }
 
     void applyStateLocally(Map<InetAddress, EndpointState> epStateMap)
