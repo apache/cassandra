@@ -1252,6 +1252,7 @@ public class CliClient
                 break;
             case KEY_VALIDATION_CLASS:
                 cfDef.setKey_validation_class(CliUtils.unescapeSQLString(mValue));
+                break;
             case COMPACTION_STRATEGY:
                 cfDef.setCompaction_strategy(CliUtils.unescapeSQLString(mValue));
                 break;
