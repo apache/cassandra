@@ -203,16 +203,35 @@ rpc_port: 9160
 # enable or disable keepalive on rpc connections
 rpc_keepalive: true
 
-# Cassandra uses thread-per-client for client RPC.  This can
-# be expensive in memory used for thread stack for a large
-# enough number of clients.  (Hence, connection pooling is
-# very, very strongly recommended.)
-# 
+# Cassandra provides you with a variety of options for RPC Server
+# sync  -> Creates one thread per connection but with a configurable number of
+#           threads.  This can be expensive in memory used for thread stack for
+#           a large enough number of clients.  (Hence, connection pooling is
+#           very, very strongly recommended.)
+#
+# async -> Nonblocking server implementation with one thread to serve 
+#           rpc connections.  This is not recommended for high throughput use
+#           cases.
+#
+# hsha  -> half sync and half async implementation with configurable number
+#           of worker threads (For managing connections).  IO Management is
+#           done by a set of threads currently equal to the number of
+#           processors in the system. The number of threads in the threadpool
+#           is configured via rpc_min_threads and rpc_max_threads.  (Connection
+#           pooling is strongly recommended in this case too.) 
+
+rpc_server_type: sync
+
 # Uncomment rpc_min|max|thread to set request pool size.
-# You would primarily set max as a safeguard against misbehaved
-# clients; if you do hit the max, Cassandra will block until
-# one disconnects before accepting more.  The defaults are
-# min of 16 and max unlimited.
+# You would primarily set max for the sync server to safeguard against
+# misbehaved clients; if you do hit the max, Cassandra will block until one
+# disconnects before accepting more.  The defaults are min of 16 and max
+# unlimited.
+# 
+# For the Hsha server, you would set the max so that a fair amount of resources
+# are provided to the other working threads on the server.
+#
+# This configuration is not used for the async server.
 #
 # rpc_min_threads: 16
 # rpc_max_threads: 2048
