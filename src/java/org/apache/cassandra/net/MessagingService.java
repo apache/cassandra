@@ -29,7 +29,6 @@ import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
@@ -144,19 +143,6 @@ public final class MessagingService implements MessagingServiceMBean
             {
                 Pair<InetAddress, IMessageCallback> expiredValue = pair.right;
                 maybeAddLatency(expiredValue.right, expiredValue.left, (double) DatabaseDescriptor.getRpcTimeout());
-                totalTimeouts++;
-                String ip = expiredValue.left.getHostAddress();
-                Long c = timeoutsPerHost.get(ip);
-                if (c == null)
-                    timeoutsPerHost.put(ip, 1L);
-                else
-                    timeoutsPerHost.put(ip, c + 1L);
-
-                // we only create AtomicLong instances here, so that the write
-                // access to the hashmap happens single-threadedly.
-                if (recentTimeoutsPerHost.get(ip) == null)
-                    recentTimeoutsPerHost.put(ip, new AtomicLong());
-
                 return null;
             }
         };
@@ -707,37 +693,5 @@ public final class MessagingService implements MessagingServiceMBean
             lastDropped.put(verb, dropped);
         }
         return map;
-    }
-
-    public long getTotalTimeouts()
-    {
-        return totalTimeouts;
-    }
-
-    public long getRecentTotalTimouts()
-    {
-        long recent = totalTimeouts - recentTotalTimeouts;
-        recentTotalTimeouts = totalTimeouts;
-        return recent;
-    }
-
-    public Map<String, Long> getTimeoutsPerHost()
-    {
-        return timeoutsPerHost;
-    }
-
-    public Map<String, Long> getRecentTimeoutsPerHost()
-    {
-        Map<String, Long> result = new HashMap<String, Long>();
-        for (Map.Entry<String, Long> entry: timeoutsPerHost.entrySet())
-        {
-            String ip = entry.getKey();
-            Long timeout = entry.getValue();
-            AtomicLong recent = recentTimeoutsPerHost.get(ip);
-            if (recent == null)
-                continue;
-            result.put(ip, timeout - recent.getAndSet(timeout));
-        }
-        return result;
     }
 }
