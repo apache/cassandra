@@ -80,10 +80,10 @@ elif [ -r $CASSANDRA_INCLUDE ]; then
 fi
 
 # Use JAVA_HOME if set, otherwise look for java in PATH
-if [ -x $JAVA_HOME/bin/java ]; then
+if [ -n "$JAVA_HOME" ]; then
     JAVA=$JAVA_HOME/bin/java
 else
-    JAVA=`which java`
+    JAVA=java
 fi
 
 if [ -z $CASSANDRA_CONF -o -z $CLASSPATH ]; then

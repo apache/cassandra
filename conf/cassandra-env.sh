@@ -92,7 +92,7 @@ JMX_PORT="7199"
 JVM_OPTS="$JVM_OPTS -ea"
 
 # add the jamm javaagent
-check_openjdk=$(java -version 2>&1 | awk '{if (NR == 2) {print $1}}')
+check_openjdk=$("${JAVA:-java}" -version 2>&1 | awk '{if (NR == 2) {print $1}}')
 if [ "$check_openjdk" != "OpenJDK" ]
 then
     JVM_OPTS="$JVM_OPTS -javaagent:$CASSANDRA_HOME/lib/jamm-0.2.2.jar"

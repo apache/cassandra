@@ -30,23 +30,15 @@ JVM_SEARCH_DIRS="/usr/lib/jvm/java-6-openjdk /usr/lib/jvm/java-6-sun"
 [ -e /etc/cassandra/cassandra.yaml ] || exit 0
 [ -e /etc/cassandra/cassandra-env.sh ] || exit 0
 
-# Read Cassandra environment file.
-. /etc/cassandra/cassandra-env.sh
-
 # Read configuration variable file if it is present
 [ -r /etc/default/$NAME ] && . /etc/default/$NAME
-
-if [ -z "$JVM_OPTS" ]; then
-    echo "Initialization failed; \$JVM_OPTS not set!" >&2
-    exit 3
-fi
 
 # If JAVA_HOME has not been set, try to determine it.
 if [ -z "$JAVA_HOME" ]; then
     # If java is in PATH, use a JAVA_HOME that corresponds to that. This is
     # both consistent with how the upstream startup script works, and how
     # Debian works (read: the use of alternatives to set a system JVM).
-    if [ -n `which java` ]; then
+    if [ -n "`which java`" ]; then
         java=`which java`
         # Dereference symlink(s)
         while true; do
@@ -66,6 +58,15 @@ if [ -z "$JAVA_HOME" ]; then
             fi
         done
     fi
+fi
+JAVA="$JAVA_HOME/bin/java"
+
+# Read Cassandra environment file.
+. /etc/cassandra/cassandra-env.sh
+
+if [ -z "$JVM_OPTS" ]; then
+    echo "Initialization failed; \$JVM_OPTS not set!" >&2
+    exit 3
 fi
 
 # Load the VERBOSE setting and other rcS variables
