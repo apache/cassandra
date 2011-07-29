@@ -19,6 +19,7 @@
 package org.apache.cassandra.utils;
 
 import java.io.*;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.math.BigInteger;
@@ -62,6 +63,59 @@ public class FBUtilities
 
     private static volatile InetAddress localInetAddress_;
     private static volatile InetAddress broadcastInetAddress_;
+
+    private final static byte[] charToByte = new byte[256];
+    // package protected for use by ByteBufferUtil. Do not modify this array !!
+    static final char[] byteToChar = new char[16];
+    static
+    {
+        for (char c = 0; c < charToByte.length; ++c)
+        {
+            if (c >= '0' && c <= '9')
+                charToByte[c] = (byte)(c - '0');
+            else if (c >= 'A' && c <= 'F')
+                charToByte[c] = (byte)(c - 'A' + 10);
+            else if (c >= 'a' && c <= 'f')
+                charToByte[c] = (byte)(c - 'a' + 10);
+            else
+                charToByte[c] = (byte)-1;
+        }
+
+        for (int i = 0; i < 16; ++i)
+        {
+            byteToChar[i] = Integer.toHexString(i).charAt(0);
+        }
+    }
+
+    /**
+     * This constructor enables us to construct a String directly by wrapping a char array, with zero-copy.
+     * This can save time, and a lot of memory, when converting large column values.
+     */
+    private static final Constructor<String> stringConstructor = getProtectedConstructor(String.class, int.class, int.class, char[].class);
+
+    /**
+     * Create a String from a char array with zero-copy (if available), using reflection to access a package-protected constructor of String.
+     * */
+    public static String wrapCharArray(char[] c)
+    {
+        if (c == null)
+            return null;
+
+        String s = null;
+
+        if (stringConstructor != null)
+        {
+            try
+            {
+                s = stringConstructor.newInstance(0, c.length, c);
+            }
+            catch (Exception e)
+            {
+                // Swallowing as we'll just use a copying constructor
+            }
+        }
+        return s == null ? new String(c) : s;
+    }
 
     private static final ThreadLocal<MessageDigest> localMD5Digest = new ThreadLocal<MessageDigest>()
     {
@@ -314,23 +368,22 @@ public class FBUtilities
         byte[] bytes = new byte[str.length()/2];
         for (int i = 0; i < bytes.length; i++)
         {
-            bytes[i] = (byte)Integer.parseInt(str.substring(i*2, i*2+2), 16);
+            bytes[i] = (byte)((charToByte[str.charAt(i * 2)] << 4) | charToByte[str.charAt(i*2 + 1)]);
         }
         return bytes;
     }
 
     public static String bytesToHex(byte... bytes)
     {
-        StringBuilder sb = new StringBuilder();
-        for (byte b : bytes)
+        char[] c = new char[bytes.length * 2];
+        for (int i = 0; i < bytes.length; i++)
         {
-            int bint = b & 0xff;
-            if (bint <= 0xF)
-                // toHexString does not 0 pad its results.
-                sb.append("0");
-            sb.append(Integer.toHexString(bint));
+            int bint = bytes[i];
+            c[i * 2] = FBUtilities.byteToChar[(bint & 0xf0) >> 4];
+            c[1 + i * 2] = FBUtilities.byteToChar[bint & 0x0f];
         }
-        return sb.toString();
+
+        return wrapCharArray(c);
     }
 
     public static void renameWithConfirm(String tmpFilename, String filename) throws IOException
@@ -589,6 +642,28 @@ public class FBUtilities
         }
 
         return field;
+    }
+
+    /**
+     * Used to get access to protected/private constructor of the specified class
+     * @param klass - name of the class
+     * @param paramTypes - types of the constructor parameters
+     * @return Constructor if successful, null if the constructor cannot be
+     * accessed
+     */
+    public static Constructor getProtectedConstructor(Class klass, Class... paramTypes)
+    {
+        Constructor c;
+        try
+        {
+            c = klass.getDeclaredConstructor(paramTypes);
+            c.setAccessible(true);
+            return c;
+        }
+        catch (Exception e)
+        {
+            return null;
+        }
     }
 
     public static IRowCacheProvider newCacheProvider(String cache_provider) throws ConfigurationException

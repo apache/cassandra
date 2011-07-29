@@ -37,6 +37,7 @@
  * log Java classpath on startup (CASSANDRA-2895)
  * keep gossipped version in sync with actual on migration coordinator 
    (CASSANDRA-2946)
+ * speedup bytes to hex conversions dramatically (CASSANDRA-2850)
 
 
 0.8.2

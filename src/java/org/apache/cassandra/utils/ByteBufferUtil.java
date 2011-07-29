@@ -437,7 +437,6 @@ public class ByteBufferUtil
         return ByteBuffer.allocate(8).putDouble(0, d);
     }
 
-
     public static InputStream inputStream(ByteBuffer bytes)
     {
         final ByteBuffer copy = bytes.duplicate();
@@ -473,16 +472,16 @@ public class ByteBufferUtil
 
     public static String bytesToHex(ByteBuffer bytes)
     {
-        StringBuilder sb = new StringBuilder();
-        for (int i = bytes.position(); i < bytes.limit(); i++)
+        final int offset = bytes.position();
+        final int size = bytes.remaining();
+        final char[] c = new char[size * 2];
+        for (int i = 0; i < size; i++)
         {
-            int bint = bytes.get(i) & 0xff;
-            if (bint <= 0xF)
-                // toHexString does not 0 pad its results.
-                sb.append("0");
-            sb.append(Integer.toHexString(bint));
+            final int bint = bytes.get(i+offset);
+            c[i * 2] = FBUtilities.byteToChar[(bint & 0xf0) >> 4];
+            c[1 + i * 2] = FBUtilities.byteToChar[bint & 0x0f];
         }
-        return sb.toString();
+        return FBUtilities.wrapCharArray(c);
     }
 
     public static ByteBuffer hexToBytes(String str)
