@@ -12,6 +12,7 @@
  * use lazy initialization instead of class initialization in NodeId
    (CASSANDRA-2953)
  * check column family validity in nodetool repair (CASSANDRA-2933)
+ * speedup bytes to hex conversions dramatically (CASSANDRA-2850)
 
 
 0.8.2

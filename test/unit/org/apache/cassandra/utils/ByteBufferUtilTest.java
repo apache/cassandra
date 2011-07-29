@@ -227,11 +227,26 @@ public class ByteBufferUtilTest
         for (int i = Byte.MIN_VALUE; i <= Byte.MAX_VALUE; i++)
         {
             ByteBuffer bb = ByteBuffer.allocate(1);
-            bb.put((byte)i);
+            bb.put((byte) i);
             bb.clear();
             String s = ByteBufferUtil.bytesToHex(bb);
             ByteBuffer bb2 = ByteBufferUtil.hexToBytes(s);
-            assert bb.equals(bb2);
+            assertEquals(bb, bb2);
         }
+        // check that non-zero buffer positions work,
+        // i.e. that conversion accounts for the buffer offset and limit correctly
+        ByteBuffer bb = ByteBuffer.allocate(4);
+        for (int i = 0; i < 4; i++)
+        {
+            bb.put((byte) i);
+        }
+        // use a chunk out of the middle of the buffer
+        bb.position(1);
+        bb.limit(3);
+        assertEquals(2, bb.remaining());
+        String s = ByteBufferUtil.bytesToHex(bb);
+        ByteBuffer bb2 = ByteBufferUtil.hexToBytes(s);
+        assertEquals(bb, bb2);
+        assertEquals("0102", s);
     }
 }
