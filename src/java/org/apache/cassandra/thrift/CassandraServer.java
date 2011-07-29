@@ -21,6 +21,7 @@ package org.apache.cassandra.thrift;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.net.SocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.util.*;
@@ -51,6 +52,7 @@ import org.apache.cassandra.dht.*;
 import org.apache.cassandra.locator.*;
 import org.apache.cassandra.scheduler.IRequestScheduler;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.SocketSessionManagementService;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -86,7 +88,22 @@ public class CassandraServer implements Cassandra.Iface
     
     public ClientState state()
     {
-        return clientState.get();
+        SocketAddress remoteSocket = SocketSessionManagementService.remoteSocket.get();
+        ClientState retval = null;
+        if (null != remoteSocket)
+        {
+            retval = SocketSessionManagementService.instance.get(remoteSocket);
+            if (null == retval)
+            {
+                retval = new ClientState();
+                SocketSessionManagementService.instance.put(remoteSocket, retval);
+            }
+        } 
+        else
+        {
+            retval = clientState.get();
+        }
+        return retval;
     }
 
     protected Map<DecoratedKey, ColumnFamily> readColumnFamily(List<ReadCommand> commands, ConsistencyLevel consistency_level)

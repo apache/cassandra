@@ -48,6 +48,7 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.*;
 import org.apache.cassandra.scheduler.IRequestScheduler;
 import org.apache.cassandra.scheduler.NoScheduler;
+import org.apache.cassandra.thrift.CassandraDaemon;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.yaml.snakeyaml.Loader;
@@ -352,6 +353,9 @@ public class DatabaseDescriptor
             if (conf.compaction_throughput_mb_per_sec == null)
                 conf.compaction_throughput_mb_per_sec = 16;
 
+            if (!CassandraDaemon.rpc_server_types.contains(conf.rpc_server_type.toLowerCase()))
+                throw new ConfigurationException("Unknown rpc_server_type: " + conf.rpc_server_type);
+            
             /* data file and commit log directories. they get created later, when they're needed. */
             if (conf.commitlog_directory != null && conf.data_file_directories != null && conf.saved_caches_directory != null)
             {
@@ -874,6 +878,11 @@ public class DatabaseDescriptor
     public static InetAddress getRpcAddress()
     {
         return rpcAddress;
+    }
+    
+    public static String getRpcServerType()
+    {
+        return conf.rpc_server_type;
     }
 
     public static boolean getRpcKeepAlive()
