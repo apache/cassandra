@@ -221,7 +221,7 @@ public final class MessagingService implements MessagingServiceMBean
                 else
                     throw e;
             }
-            logger_.info("Starting Messaging Service on port {}", DatabaseDescriptor.getStoragePort());
+            logger_.info("Starting Messaging Service on {}", address);
         }
         return ss;
     }
