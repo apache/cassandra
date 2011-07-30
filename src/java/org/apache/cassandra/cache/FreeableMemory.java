@@ -28,14 +28,17 @@ import com.sun.jna.Memory;
 
 public class FreeableMemory extends Memory
 {
-    AtomicInteger references = new AtomicInteger(0);
+    AtomicInteger references = new AtomicInteger(1);
 
     public FreeableMemory(long size)
     {
         super(size);
     }
 
-    /** @return true if we succeed in referencing before the reference count reaches zero */
+    /**
+     * @return true if we succeed in referencing before the reference count reaches zero.
+     * (A FreeableMemory object is created with a reference count of one.)
+     */
     public boolean reference()
     {
         while (true)

@@ -155,7 +155,6 @@ public class SerializingCache<K, V> implements ICache<K, V>
         if (mem == null)
             return; // out of memory.  never mind.
 
-        mem.reference();
         FreeableMemory old = map.put(key, mem);
         if (old != null)
             old.unreference();

@@ -48,6 +48,8 @@ public class CacheProviderTest extends SchemaLoader
     private void simpleCase(ColumnFamily cf, ICache<String, ColumnFamily> cache)
     {
         cache.put(key1, cf);
+        assert cache.get(key1) != null;
+
         assertDigests(cache.get(key1), cf);
         cache.put(key2, cf);
         cache.put(key3, cf);
