@@ -1,7 +1,7 @@
 0.8.3
  * add ability to drop local reads/writes that are going to timeout
    (CASSANDRA-2943)
- * revamp token removal process, keep gossip states for 3 days (CASSANDRA-2946)
+ * revamp token removal process, keep gossip states for 3 days (CASSANDRA-2496)
  * don't accept extra args for 0-arg nodetool commands (CASSANDRA-2740)
  * log unavailableexception details at debug level (CASSANDRA-2856)
  * expose data_dir though jmx (CASSANDRA-2770)
