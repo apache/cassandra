@@ -13,6 +13,8 @@
    (CASSANDRA-2953)
  * check column family validity in nodetool repair (CASSANDRA-2933)
  * speedup bytes to hex conversions dramatically (CASSANDRA-2850)
+ * Flush memtables on shutdown when durable writes are disabled 
+   (CASSANDRA-2958)
 
 
 0.8.2
