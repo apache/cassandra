@@ -15,6 +15,7 @@
  * speedup bytes to hex conversions dramatically (CASSANDRA-2850)
  * Flush memtables on shutdown when durable writes are disabled 
    (CASSANDRA-2958)
+ * improved POSIX compatibility of start scripts (CASsANDRA-2965)
 
 
 0.8.2
