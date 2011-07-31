@@ -61,6 +61,8 @@ import org.apache.thrift.TException;
 public class CassandraServer implements Cassandra.Iface
 {
     private static Logger logger = LoggerFactory.getLogger(CassandraServer.class);
+    
+    private final static int COUNT_PAGE_SIZE = 1024;
 
     private final static List<ColumnOrSuperColumn> EMPTY_COLUMNS = Collections.emptyList();
     private final static List<Column> EMPTY_SUBCOLUMNS = Collections.emptyList();
@@ -404,8 +406,64 @@ public class CassandraServer implements Cassandra.Iface
         logger.debug("get_count");
 
         state().hasColumnFamilyAccess(column_parent.column_family, Permission.READ);
+        Table table = Table.open(state().getKeyspace());
+        ColumnFamilyStore cfs = table.getColumnFamilyStore(column_parent.column_family);
 
-        return get_slice(key, column_parent, predicate, consistency_level).size();
+        if (predicate.column_names != null)
+            return get_slice(key, column_parent, predicate, consistency_level).size();
+
+        int pageSize;
+        // request by page if this is a large row
+        if (cfs.getMeanColumns() > 0)
+        {
+            int averageColumnSize = (int) (cfs.getMeanRowSize() / cfs.getMeanColumns());
+            pageSize = Math.min(COUNT_PAGE_SIZE,
+                                DatabaseDescriptor.getInMemoryCompactionLimit() / averageColumnSize);
+            pageSize = Math.max(2, pageSize);
+            logger.debug("average row column size is {}; using pageSize of {}", averageColumnSize, pageSize);
+        }
+        else
+        {
+            pageSize = COUNT_PAGE_SIZE;
+        }
+
+        int totalCount = 0;
+        List<ColumnOrSuperColumn> columns;
+
+        if (predicate.slice_range == null)
+        {
+            predicate.slice_range = new SliceRange(ByteBufferUtil.EMPTY_BYTE_BUFFER,
+                                                   ByteBufferUtil.EMPTY_BYTE_BUFFER,
+                                                   false,
+                                                   Integer.MAX_VALUE);
+        }
+        
+        int requestedCount = predicate.slice_range.count;
+        while (true)
+        {
+            predicate.slice_range.count = Math.min(pageSize, requestedCount);
+            columns = get_slice(key, column_parent, predicate, consistency_level);
+            if (columns.isEmpty())
+                break;
+
+            totalCount += columns.size();
+            requestedCount -= columns.size();
+            ColumnOrSuperColumn lastColumn = columns.get(columns.size() - 1);
+            ByteBuffer lastName = lastColumn.isSetSuper_column() ? lastColumn.super_column.name : lastColumn.column.name;
+            if ((requestedCount == 0) || ((columns.size() == 1) && (lastName.equals(predicate.slice_range.start))))
+            {
+                break;
+            }
+            else
+            {
+                predicate.slice_range.start = lastName;
+                // remove the count for the column that starts the next slice
+                totalCount--;
+                requestedCount++;
+            }
+        }
+
+        return totalCount;
     }
 
     public Map<ByteBuffer, Integer> multiget_count(List<ByteBuffer> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level)

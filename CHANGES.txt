@@ -24,6 +24,7 @@
    (CASSANDRA-2953)
  * fix potential use of free'd native memory in SerializingCache 
    (CASSANDRA-1951)
+ * add paging to get_count (CASSANDRA-2894)
 
 
 0.8.3

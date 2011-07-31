@@ -254,6 +254,25 @@ class TestMutations(ThriftTester):
         p = SlicePredicate(slice_range=SliceRange('c2', 'c4', False, 1000)) 
         assert client.get_count('key1', ColumnParent('Standard1'), p, ConsistencyLevel.ONE) == 3
 
+    def test_count_paging(self):
+        _set_keyspace('Keyspace1')
+        _insert_simple()
+
+        # Exercise paging
+        column_parent = ColumnParent('Standard1')
+        super_column_parent = ColumnParent('Super1', 'sc3')
+        # Paging for small columns starts at 1024 columns
+        columns_to_insert = [Column('c%d' % (i,), 'value%d' % (i,), 0) for i in xrange(3, 1026)]
+        cfmap = {'Standard1': [Mutation(ColumnOrSuperColumn(c)) for c in columns_to_insert]}
+        client.batch_mutate({'key1' : cfmap }, ConsistencyLevel.ONE)
+
+        p = SlicePredicate(slice_range=SliceRange('', '', False, 2000))
+        assert client.get_count('key1', column_parent, p, ConsistencyLevel.ONE) == 1025
+
+        # Ensure that the count limit isn't clobbered
+        p = SlicePredicate(slice_range=SliceRange('', '', False, 10))
+        assert client.get_count('key1', ColumnParent('Standard1'), p, ConsistencyLevel.ONE) == 10
+
     def test_insert_blocking(self):
         _set_keyspace('Keyspace1')
         _insert_simple()
