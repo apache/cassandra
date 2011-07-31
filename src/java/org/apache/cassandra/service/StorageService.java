@@ -1370,7 +1370,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
     public void forceTableCleanup(String tableName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException
     {
-        if (tableName.equals("system"))
+        if (tableName.equals(Table.SYSTEM_TABLE))
             throw new RuntimeException("Cleanup of the system table is neither necessary nor wise");
 
         NodeId.OneShotRenewer nodeIdRenewer = new NodeId.OneShotRenewer();
