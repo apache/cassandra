@@ -24,8 +24,6 @@
    (CASSANDRA-2953)
  * fix potential use of free'd native memory in SerializingCache 
    (CASSANDRA-1951)
- * split rpc_timeout into read, write, scan, and "other" timeouts
-   (CASSANDRA-2819)
 
 
 0.8.3

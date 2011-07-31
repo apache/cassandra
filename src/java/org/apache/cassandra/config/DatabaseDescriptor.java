@@ -710,21 +710,6 @@ public class DatabaseDescriptor
         return conf.rpc_timeout_in_ms;
     }
 
-    public static long getReadRpcTimeout()
-    {
-        return conf.read_rpc_timeout_in_ms;
-    }
-
-    public static long getRangeRpcTimeout()
-    {
-        return conf.range_rpc_timeout_in_ms;
-    }
-
-    public static long getWriteRpcTimeout()
-    {
-        return conf.write_rpc_timeout_in_ms;
-    }
-
     public static int getPhiConvictThreshold()
     {
         return conf.phi_convict_threshold;
