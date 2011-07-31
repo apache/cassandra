@@ -43,7 +43,7 @@ public class MessageDeliveryTask implements Runnable
     { 
         StorageService.Verb verb = message.getVerb();
         if (MessagingService.DROPPABLE_VERBS.contains(verb)
-            && System.currentTimeMillis() > constructionTime + DatabaseDescriptor.getRpcTimeout())
+            && System.currentTimeMillis() > constructionTime + message.getMessageTimeout())
         {
             MessagingService.instance().incrementDroppedMessages(verb);
             return;

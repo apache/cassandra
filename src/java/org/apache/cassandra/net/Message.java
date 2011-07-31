@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 
 import org.apache.cassandra.concurrent.Stage;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
@@ -127,7 +128,25 @@ public class Message
         	.append(separator);
         return sbuf.toString();
     }
-    
+
+    public long getMessageTimeout()
+    {
+        StorageService.Verb verb = getVerb();
+        switch (verb)
+        {
+            case READ:
+                return DatabaseDescriptor.getReadRpcTimeout();
+            case RANGE_SLICE:
+                return DatabaseDescriptor.getRangeRpcTimeout();
+            case READ_REPAIR:
+            case BINARY:
+            case MUTATION:
+                return DatabaseDescriptor.getWriteRpcTimeout();
+            default:
+                return DatabaseDescriptor.getRpcTimeout();
+        }
+    }
+
     private static class MessageSerializer implements ICompactSerializer<Message>
     {
         public void serialize(Message t, DataOutputStream dos, int version) throws IOException

@@ -48,7 +48,13 @@ public class Config
     /* initial token in the ring */
     public String initial_token;
     
-    public Long rpc_timeout_in_ms = new Long(2000);
+    public Long rpc_timeout_in_ms = new Long(1000);
+
+    public Long read_rpc_timeout_in_ms = new Long(1000);
+
+    public Long range_rpc_timeout_in_ms = new Long(1000);
+    
+    public Long write_rpc_timeout_in_ms = new Long(1000);
 
     public Integer phi_convict_threshold = 8;
     

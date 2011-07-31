@@ -304,8 +304,19 @@ compaction_throughput_mb_per_sec: 16
 # key caches.
 compaction_preheat_key_cache: true
 
-# Time to wait for a reply from other nodes before failing the command 
+# The default timeout for callbacks. Different verb may have different timeouts
+# as below.
 rpc_timeout_in_ms: 10000
+
+# Time to process read on the server node before failing the command 
+read_rpc_timeout_in_ms: 10000
+
+# Time to process range_slice on the server node before failing the command 
+range_rpc_timeout_in_ms: 10000
+
+# Time to process mutation/binary/read_repair on the server node before failing
+# the command 
+write_rpc_timeout_in_ms: 10000
 
 # phi value that must be reached for a host to be marked down.
 # most users should never need to adjust this.

@@ -297,14 +297,6 @@ public final class MessagingService implements MessagingServiceMBean
         return Integer.toString(idGen.incrementAndGet());
     }
 
-    /*
-     * @see #sendRR(Message message, InetAddress to, IMessageCallback cb, long timeout)
-     */
-    public String sendRR(Message message, InetAddress to, IMessageCallback cb)
-    {
-        return sendRR(message, to, cb, DEFAULT_CALLBACK_TIMEOUT);
-    }
-
     /**
      * Send a message to a given endpoint. This method specifies a callback
      * which is invoked with the actual response.
@@ -313,13 +305,12 @@ public final class MessagingService implements MessagingServiceMBean
      * @param cb callback interface which is used to pass the responses or
      *           suggest that a timeout occurred to the invoker of the send().
      *           suggest that a timeout occurred to the invoker of the send().
-     * @param timeout the timeout used for expiration
      * @return an reference to message id used to match with the result
      */
-    public String sendRR(Message message, InetAddress to, IMessageCallback cb, long timeout)
+    public String sendRR(Message message, InetAddress to, IMessageCallback cb)
     {
         String id = nextId();
-        addCallback(cb, id, to, timeout);
+        addCallback(cb, id, to, message.getMessageTimeout());
         sendOneWay(message, id, to);
         return id;
     }
