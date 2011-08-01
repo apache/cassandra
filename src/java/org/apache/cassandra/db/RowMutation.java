@@ -98,6 +98,11 @@ public class RowMutation implements IMutation, MessageProducer
         return modifications_.values();
     }
 
+    public ColumnFamily getColumnFamily(Integer cfId)
+    {
+        return modifications_.get(cfId);
+    }
+
     void addHints(RowMutation rm) throws IOException
     {
         for (ColumnFamily cf : rm.getColumnFamilies())

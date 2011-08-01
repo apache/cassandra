@@ -26,6 +26,7 @@ import java.security.MessageDigest;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.IdentityHashMap;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -340,6 +341,38 @@ public class SuperColumn implements IColumn, IColumnContainer
         for (IColumn column : getSubColumns())
         {
             column.validateFields(metadata);
+        }
+    }
+
+    public void retainAll(SuperColumn sc)
+    {
+        Iterator<IColumn> iter = columns_.values().iterator();
+        Iterator<IColumn> toRetain = sc.columns_.values().iterator();
+        IColumn current = iter.hasNext() ? iter.next() : null;
+        IColumn retain = toRetain.hasNext() ? toRetain.next() : null;
+        AbstractType comparator = getComparator();
+        while (current != null && retain != null)
+        {
+            int c = comparator.compare(current.name(), retain.name());
+            if (c == 0)
+            {
+                current = iter.hasNext() ? iter.next() : null;
+                retain = toRetain.hasNext() ? toRetain.next() : null;
+            }
+            else if (c < 0)
+            {
+                iter.remove();
+                current = iter.hasNext() ? iter.next() : null;
+            }
+            else // c > 0
+            {
+                retain = toRetain.hasNext() ? toRetain.next() : null;
+            }
+        }
+        while (current != null)
+        {
+            iter.remove();
+            current = iter.hasNext() ? iter.next() : null;
         }
     }
 }

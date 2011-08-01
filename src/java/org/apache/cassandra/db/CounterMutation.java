@@ -117,37 +117,18 @@ public class CounterMutation implements IMutation
                 continue;
 
             row = mergeOldShards(readCommand.table, row);
-            replicationMutation.add(row.cf);
+            ColumnFamily cf = row.cf;
+            if (cf.isSuper())
+                cf.retainAll(rowMutation.getColumnFamily(cf.metadata().cfId));
+            replicationMutation.add(cf);
         }
         return replicationMutation;
     }
 
     private void addReadCommandFromColumnFamily(String table, ByteBuffer key, ColumnFamily columnFamily, List<ReadCommand> commands)
     {
-        // CF type: regular
-        if (!columnFamily.isSuper())
-        {
-            QueryPath queryPath = new QueryPath(columnFamily.metadata().cfName);
-            commands.add(new SliceByNamesReadCommand(table, key, queryPath, columnFamily.getColumnNames()));
-        }
-        else
-        {
-            // CF type: super
-            for (IColumn superColumn : columnFamily.getSortedColumns())
-            {
-                QueryPath queryPath = new QueryPath(columnFamily.metadata().cfName, superColumn.name());
-
-                // construct set of sub-column names
-                Collection<IColumn> subColumns = superColumn.getSubColumns();
-                Collection<ByteBuffer> subColNames = new HashSet<ByteBuffer>(subColumns.size());
-                for (IColumn subCol : subColumns)
-                {
-                    subColNames.add(subCol.name());
-                }
-
-                commands.add(new SliceByNamesReadCommand(table, key, queryPath, subColNames));
-            }
-        }
+        QueryPath queryPath = new QueryPath(columnFamily.metadata().cfName);
+        commands.add(new SliceByNamesReadCommand(table, key, queryPath, columnFamily.getColumnNames()));
     }
 
     private Row mergeOldShards(String table, Row row) throws IOException

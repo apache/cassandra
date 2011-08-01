@@ -419,6 +419,43 @@ public class ColumnFamily implements IColumnContainer, IIterableColumns
         return getColumnCount();
     }
 
+    public void retainAll(ColumnFamily cf)
+    {
+        Iterator<IColumn> iter = iterator();
+        Iterator<IColumn> toRetain = cf.iterator();
+        IColumn current = iter.hasNext() ? iter.next() : null;
+        IColumn retain = toRetain.hasNext() ? toRetain.next() : null;
+        AbstractType comparator = getComparator();
+        while (current != null && retain != null)
+        {
+            int c = comparator.compare(current.name(), retain.name());
+            if (c == 0)
+            {
+                if (isSuper())
+                {
+                    assert current instanceof SuperColumn && retain instanceof SuperColumn;
+                    ((SuperColumn)current).retainAll((SuperColumn)retain);
+                }
+                current = iter.hasNext() ? iter.next() : null;
+                retain = toRetain.hasNext() ? toRetain.next() : null;
+            }
+            else if (c < 0)
+            {
+                iter.remove();
+                current = iter.hasNext() ? iter.next() : null;
+            }
+            else // c > 0
+            {
+                retain = toRetain.hasNext() ? toRetain.next() : null;
+            }
+        }
+        while (current != null)
+        {
+            iter.remove();
+            current = iter.hasNext() ? iter.next() : null;
+        }
+    }
+
     public Iterator<IColumn> iterator()
     {
         return columns.values().iterator();
