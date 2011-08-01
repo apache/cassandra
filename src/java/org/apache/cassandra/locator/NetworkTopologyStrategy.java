@@ -67,7 +67,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
             {
                 String dc = entry.getKey();
                 if (dc.equalsIgnoreCase("replication_factor"))
-                    continue; // TODO remove this for 1.0
+                    throw new ConfigurationException("replication_factor is an option for SimpleStrategy, not NetworkTopologyStrategy");
                 Integer replicas = Integer.valueOf(entry.getValue());
                 newDatacenters.put(dc, replicas);
             }
