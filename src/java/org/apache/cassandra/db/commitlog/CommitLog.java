@@ -395,6 +395,12 @@ public class CommitLog implements CommitLogMBean
         }
     }
 
+    // for tests mainly
+    public int segmentsCount()
+    {
+        return segments.size();
+    }
+
     /*
      * Adds the specified row to the commit log. This method will reset the
      * file offset to what it is before the start of the operation in case
@@ -460,30 +466,36 @@ public class CommitLog implements CommitLogMBean
             CommitLogSegment segment = iter.next();
             if (segment.id == context.segment)
             {
-                // we can't just mark the segment where the flush happened clean,
-                // since there may have been writes to it between when the flush
-                // started and when it finished.
-                segment.turnOn(id);
+                // Only unmark this segment if there were not write since the
+                // ReplayPosition was grabbed.
+                segment.turnOffIfNotWritten(id, context.position);
+                maybeDiscardSegment(segment, iter);
                 break;
             }
 
             segment.turnOff(id);
-            if (segment.isSafeToDelete() && iter.hasNext())
-            {
-                logger.info("Discarding obsolete commit log:" + segment);
-                segment.close();
-                DeletionService.executeDelete(segment.getPath());
-                // usually this will be the first (remaining) segment, but not always, if segment A contains
-                // writes to a CF that is unflushed but is followed by segment B whose CFs are all flushed.
-                iter.remove();
-            }
-            else
-            {
-                if (logger.isDebugEnabled())
-                    logger.debug("Not safe to delete commit log " + segment + "; dirty is " + segment.dirtyString() + "; hasNext: " + iter.hasNext());
-            }
+            maybeDiscardSegment(segment, iter);
         }
     }
+
+    private void maybeDiscardSegment(CommitLogSegment segment, Iterator<CommitLogSegment> iter)
+    {
+        if (segment.isSafeToDelete() && iter.hasNext())
+        {
+            logger.info("Discarding obsolete commit log:" + segment);
+            segment.close();
+            DeletionService.executeDelete(segment.getPath());
+            // usually this will be the first (remaining) segment, but not always, if segment A contains
+            // writes to a CF that is unflushed but is followed by segment B whose CFs are all flushed.
+            iter.remove();
+        }
+        else
+        {
+            if (logger.isDebugEnabled())
+                logger.debug("Not safe to delete commit log " + segment + "; dirty is " + segment.dirtyString() + "; hasNext: " + iter.hasNext());
+        }
+    }
+
     
     void sync() throws IOException
     {
@@ -548,7 +560,7 @@ public class CommitLog implements CommitLogMBean
                         // Force a flush on all CFs keeping the oldest segment from being removed
                         CommitLogSegment oldestSegment = segments.peek();
                         assert oldestSegment != null; // has to be at least the one we just added
-                        for (Integer dirtyCFId : oldestSegment.cfDirty)
+                        for (Integer dirtyCFId : oldestSegment.cfLastWrite.keySet())
                         {
                             String keypace = CFMetaData.getCF(dirtyCFId).left;
                             Table.open(keypace).getColumnFamilyStore(dirtyCFId).forceFlush();

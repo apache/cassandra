@@ -39,6 +39,8 @@
  * keep gossipped version in sync with actual on migration coordinator 
    (CASSANDRA-2946)
  * speedup bytes to hex conversions dramatically (CASSANDRA-2850)
+ * fix bug where dirty commit logs were removed (and avoid keeping segment
+   with no post-flush activity permanently dirty) (CASSANDRA-2829)
 
 
 0.8.2

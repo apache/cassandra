@@ -20,6 +20,7 @@
 package org.apache.cassandra.db;
 
 import java.io.*;
+import java.nio.ByteBuffer;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
@@ -29,6 +30,7 @@ import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.utils.Pair;
+import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
 public class CommitLogTest extends CleanupHelper
 {
@@ -85,6 +87,74 @@ public class CommitLogTest extends CleanupHelper
     {
         // garbage from a partial/bad flush could be read as a negative size even if there is no EOF
         testRecoveryWithBadSizeArgument(-10, 10); // negative size, but no EOF
+    }
+
+    @Test
+    public void testDontDeleteIfDirty() throws Exception
+    {
+        CommitLog.instance.resetUnsafe();
+        // Roughly 32 MB mutation
+        RowMutation rm = new RowMutation("Keyspace1", bytes("k"));
+        rm.add(new QueryPath("Standard1", null, bytes("c1")), ByteBuffer.allocate(32 * 1024 * 1024), 0);
+
+        // Adding it 5 times
+        CommitLog.instance.add(rm);
+        CommitLog.instance.add(rm);
+        CommitLog.instance.add(rm);
+        CommitLog.instance.add(rm);
+        CommitLog.instance.add(rm);
+
+        // Adding new mutation on another CF
+        RowMutation rm2 = new RowMutation("Keyspace1", bytes("k"));
+        rm2.add(new QueryPath("Standard2", null, bytes("c1")), ByteBuffer.allocate(4), 0);
+        CommitLog.instance.add(rm2);
+
+        assert CommitLog.instance.segmentsCount() == 2 : "Expecting 2 segments, got " + CommitLog.instance.segmentsCount();
+
+        int cfid2 = rm2.getColumnFamilyIds().iterator().next();
+        CommitLog.instance.discardCompletedSegments(cfid2, CommitLog.instance.getContext());
+
+        // Assert we still have both our segment
+        assert CommitLog.instance.segmentsCount() == 2 : "Expecting 2 segments, got " + CommitLog.instance.segmentsCount();
+    }
+
+    @Test
+    public void testDeleteIfNotDirty() throws Exception
+    {
+        CommitLog.instance.resetUnsafe();
+        // Roughly 32 MB mutation
+        RowMutation rm = new RowMutation("Keyspace1", bytes("k"));
+        rm.add(new QueryPath("Standard1", null, bytes("c1")), ByteBuffer.allocate(32 * 1024 * 1024), 0);
+
+        // Adding it twice (won't change segment)
+        CommitLog.instance.add(rm);
+        CommitLog.instance.add(rm);
+
+        assert CommitLog.instance.segmentsCount() == 1 : "Expecting 1 segment, got " + CommitLog.instance.segmentsCount();
+
+        // "Flush": this won't delete anything
+        int cfid1 = rm.getColumnFamilyIds().iterator().next();
+        CommitLog.instance.discardCompletedSegments(cfid1, CommitLog.instance.getContext());
+
+        assert CommitLog.instance.segmentsCount() == 1 : "Expecting 1 segment, got " + CommitLog.instance.segmentsCount();
+
+        // Adding new mutation on another CF so that a new segment is created
+        RowMutation rm2 = new RowMutation("Keyspace1", bytes("k"));
+        rm2.add(new QueryPath("Standard2", null, bytes("c1")), ByteBuffer.allocate(64 * 1024 * 1024), 0);
+        CommitLog.instance.add(rm2);
+        CommitLog.instance.add(rm2);
+
+        assert CommitLog.instance.segmentsCount() == 2 : "Expecting 2 segments, got " + CommitLog.instance.segmentsCount();
+
+
+        // "Flush" second cf: The first segment should be deleted since we
+        // didn't write anything on cf1 since last flush (and we flush cf2)
+
+        int cfid2 = rm2.getColumnFamilyIds().iterator().next();
+        CommitLog.instance.discardCompletedSegments(cfid2, CommitLog.instance.getContext());
+
+        // Assert we still have both our segment
+        assert CommitLog.instance.segmentsCount() == 1 : "Expecting 1 segment, got " + CommitLog.instance.segmentsCount();
     }
 
     protected void testRecoveryWithBadSizeArgument(int size, int dataSize) throws Exception
