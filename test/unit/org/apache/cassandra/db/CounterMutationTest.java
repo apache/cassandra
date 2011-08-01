@@ -26,6 +26,7 @@ import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.*;
 import static org.apache.cassandra.db.context.CounterContext.ContextState;
+import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
 public class CounterMutationTest extends CleanupHelper
 {
@@ -71,6 +72,40 @@ public class CounterMutationTest extends CleanupHelper
         s.moveToNext();
         assert s.getNodeId().equals(id2);
         assert s.getCount() == 5;
+    }
+
+    @Test
+    public void testMutateSuperColumns() throws IOException
+    {
+        RowMutation rm;
+        CounterMutation cm;
+
+        rm = new RowMutation("Keyspace1", bytes("key1"));
+        rm.addCounter(new QueryPath("SuperCounter1", bytes("sc1"), bytes("Column1")), 1);
+        rm.addCounter(new QueryPath("SuperCounter1", bytes("sc2"), bytes("Column1")), 1);
+        cm = new CounterMutation(rm, ConsistencyLevel.ONE);
+        cm.apply();
+
+        rm = new RowMutation("Keyspace1", bytes("key1"));
+        rm.addCounter(new QueryPath("SuperCounter1", bytes("sc1"), bytes("Column2")), 1);
+        rm.addCounter(new QueryPath("SuperCounter1", bytes("sc2"), bytes("Column2")), 1);
+        cm = new CounterMutation(rm, ConsistencyLevel.ONE);
+        cm.apply();
+
+        RowMutation reprm = cm.makeReplicationMutation();
+        ColumnFamily cf = reprm.getColumnFamilies().iterator().next();
+
+        assert cf.getColumnCount() == 2;
+
+        IColumn sc1 = cf.getColumn(bytes("sc1"));
+        assert sc1 != null && sc1 instanceof SuperColumn;
+        assert sc1.getSubColumns().size() == 1;
+        assert sc1.getSubColumn(bytes("Column2")) != null;
+
+        IColumn sc2 = cf.getColumn(bytes("sc2"));
+        assert sc2 != null && sc2 instanceof SuperColumn;
+        assert sc2.getSubColumns().size() == 1;
+        assert sc2.getSubColumn(bytes("Column2")) != null;
     }
 }
 

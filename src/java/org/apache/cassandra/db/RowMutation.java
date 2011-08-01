@@ -97,6 +97,11 @@ public class RowMutation implements IMutation, MessageProducer
         return modifications_.values();
     }
 
+    public ColumnFamily getColumnFamily(Integer cfId)
+    {
+        return modifications_.get(cfId);
+    }
+
     /**
      * Returns mutation representing a Hints to be sent to <code>address</code>
      * as soon as it becomes available.

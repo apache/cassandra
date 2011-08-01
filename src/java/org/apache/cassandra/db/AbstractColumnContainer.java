@@ -173,6 +173,43 @@ public abstract class AbstractColumnContainer implements IColumnContainer, IIter
         columns.remove(columnName);
     }
 
+    public void retainAll(AbstractColumnContainer container)
+    {
+        Iterator<IColumn> iter = iterator();
+        Iterator<IColumn> toRetain = container.iterator();
+        IColumn current = iter.hasNext() ? iter.next() : null;
+        IColumn retain = toRetain.hasNext() ? toRetain.next() : null;
+        AbstractType comparator = getComparator();
+        while (current != null && retain != null)
+        {
+            int c = comparator.compare(current.name(), retain.name());
+            if (c == 0)
+            {
+                if (current instanceof SuperColumn)
+                {
+                    assert retain instanceof SuperColumn;
+                    ((SuperColumn)current).retainAll((SuperColumn)retain);
+                }
+                current = iter.hasNext() ? iter.next() : null;
+                retain = toRetain.hasNext() ? toRetain.next() : null;
+            }
+            else if (c < 0)
+            {
+                iter.remove();
+                current = iter.hasNext() ? iter.next() : null;
+            }
+            else // c > 0
+            {
+                retain = toRetain.hasNext() ? toRetain.next() : null;
+            }
+        }
+        while (current != null)
+        {
+            iter.remove();
+            current = iter.hasNext() ? iter.next() : null;
+        }
+    }
+
     public int getColumnCount()
     {
         return columns.size();
