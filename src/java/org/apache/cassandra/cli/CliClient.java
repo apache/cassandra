@@ -1715,7 +1715,7 @@ public class CliClient
                 sessionState.out.printf("      Columns sorted by: %s%s%n", cf_def.comparator_type, cf_def.column_type.equals("Super") ? "/" + cf_def.subcomparator_type : "");
                 sessionState.out.printf("      Row cache size / save period in seconds: %s/%s%n", cf_def.row_cache_size, cf_def.row_cache_save_period_in_seconds);
                 sessionState.out.printf("      Key cache size / save period in seconds: %s/%s%n", cf_def.key_cache_size, cf_def.key_cache_save_period_in_seconds);
-                sessionState.out.printf("      Memtable thresholds: %s/%s/%s (millions of ops/MB/minutes)%n",
+                sessionState.out.printf("      Memtable thresholds: %s/%s/%s (millions of ops/minutes/MB)%n",
                                 cf_def.memtable_operations_in_millions, cf_def.memtable_flush_after_mins, cf_def.memtable_throughput_in_mb);
                 sessionState.out.printf("      GC grace seconds: %s%n", cf_def.gc_grace_seconds);
                 sessionState.out.printf("      Compaction min/max thresholds: %s/%s%n", cf_def.min_compaction_threshold, cf_def.max_compaction_threshold);
