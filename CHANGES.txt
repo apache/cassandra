@@ -21,6 +21,7 @@
    with no post-flush activity permanently dirty) (CASSANDRA-2829)
  * fix throwing exception with batch mutation of counter super columns
    (CASSANDRA-2949)
+ * ignore system tables during repair (CASSANDRA-2979)
 
 
 0.8.2
