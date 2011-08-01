@@ -16,6 +16,7 @@
  * Flush memtables on shutdown when durable writes are disabled 
    (CASSANDRA-2958)
  * improved POSIX compatibility of start scripts (CASsANDRA-2965)
+ * add counter support to Hadoop InputFormat (CASSANDRA-2981)
 
 
 0.8.2
