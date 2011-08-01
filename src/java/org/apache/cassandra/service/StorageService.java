@@ -1516,6 +1516,11 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      */
     public void forceTableRepair(final String tableName, final String... columnFamilies) throws IOException
     {
+        if (Table.SYSTEM_TABLE.equals(tableName)) 
+        {
+            return;
+        }
+        
         List<AntiEntropyService.RepairSession> sessions = new ArrayList<AntiEntropyService.RepairSession>();
         for (Range range : getLocalRanges(tableName))
         {
