@@ -23,8 +23,8 @@ package org.apache.cassandra.db.commitlog;
 import java.io.File;
 import java.io.IOError;
 import java.io.IOException;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.CRC32;
@@ -37,6 +37,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.RowMutation;
+import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
 
 public class CommitLogSegment
@@ -48,7 +49,7 @@ public class CommitLogSegment
     private final BufferedRandomAccessFile logWriter;
 
     // cache which cf is dirty in this segment to avoid having to lookup all ReplayPositions to decide if we could delete this segment
-    private Set<Integer> cfDirty = new HashSet<Integer>();
+    private Map<Integer, Integer> cfLastWrite = new HashMap<Integer, Integer>();
 
     public CommitLogSegment()
     {
@@ -101,6 +102,21 @@ public class CommitLogSegment
             currentPosition = logWriter.getFilePointer();
             assert currentPosition <= Integer.MAX_VALUE;
             ReplayPosition cLogCtx = new ReplayPosition(id, (int) currentPosition);
+
+            for (ColumnFamily columnFamily : rowMutation.getColumnFamilies())
+            {
+                // check for null cfm in case a cl write goes through after the cf is
+                // defined but before a new segment is created.
+                CFMetaData cfm = DatabaseDescriptor.getCFMetaData(columnFamily.id());
+                if (cfm == null)
+                {
+                    logger.error("Attempted to write commit log entry for unrecognized column family: " + columnFamily.id());
+                }
+                else
+                {
+                    turnOn(cfm.cfId, (int) currentPosition);
+                }
+            }
 
             // write mutation, w/ checksum on the size and data
             Checksum checksum = new CRC32();
@@ -168,21 +184,32 @@ public class CommitLogSegment
         }
     }
 
-    void turnOn(Integer cfId)
+    void turnOn(Integer cfId, Integer position)
     {
-        cfDirty.add(cfId);
+        cfLastWrite.put(cfId, position);
+    }
+
+    /**
+     * Turn the dirty bit off only if there has been no write since the flush
+     * position was grabbed.
+     */
+    void turnOffIfNotWritten(Integer cfId, Integer flushPosition)
+    {
+        Integer lastWritten = cfLastWrite.get(cfId);
+        if (lastWritten == null || lastWritten < flushPosition)
+            cfLastWrite.remove(cfId);
     }
 
     void turnOff(Integer cfId)
     {
-        cfDirty.remove(cfId);
+        cfLastWrite.remove(cfId);
     }
 
     // For debugging, not fast
     String dirtyString()
     {
         StringBuilder sb = new StringBuilder();
-        for (Integer cfId : cfDirty)
+        for (Integer cfId : cfLastWrite.keySet())
         {
             CFMetaData m = DatabaseDescriptor.getCFMetaData(cfId);
             sb.append(m == null ? m.cfName : "<deleted>").append(" (").append(cfId).append("), ");
@@ -192,7 +219,7 @@ public class CommitLogSegment
 
     boolean isSafeToDelete()
     {
-        return cfDirty.isEmpty();
+        return cfLastWrite.isEmpty();
     }
 
     @Override
