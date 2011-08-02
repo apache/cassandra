@@ -82,4 +82,9 @@ public class RepairCallback<T> implements IAsyncCallback
     {
         return true;
     }
+
+    public int getMaxLiveColumns()
+    {
+        return resolver.getMaxLiveColumns();
+    }
 }

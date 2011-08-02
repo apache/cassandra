@@ -158,4 +158,9 @@ public class RangeSliceResponseResolver implements IResponseResolver<Iterable<Ro
     {
         return responses;
     }
+
+    public int getMaxLiveColumns()
+    {
+        throw new UnsupportedOperationException();
+    }
 }

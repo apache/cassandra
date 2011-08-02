@@ -225,6 +225,19 @@ public abstract class AbstractColumnContainer implements IColumnContainer, IIter
         return getColumnCount();
     }
 
+    public int getLiveColumnCount()
+    {
+        int count = 0;
+
+        for (IColumn column : columns.values())
+        {
+            if (column.isLive())
+                count++;
+        }
+
+        return count;
+    }
+
     public Iterator<IColumn> iterator()
     {
         return columns.values().iterator();

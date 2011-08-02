@@ -83,4 +83,9 @@ public abstract class AbstractRowResolver implements IResponseResolver<Row>
     {
         return replies.keySet();
     }
+
+    public int getMaxLiveColumns()
+    {
+        throw new UnsupportedOperationException();
+    }
 }

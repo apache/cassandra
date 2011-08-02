@@ -37,6 +37,8 @@ import org.apache.cassandra.utils.*;
 
 public class RowRepairResolver extends AbstractRowResolver
 {
+    protected int maxLiveColumns = 0;
+
     public RowRepairResolver(String table, ByteBuffer key)
     {
         super(key, table);
@@ -76,6 +78,12 @@ public class RowRepairResolver extends AbstractRowResolver
         ColumnFamily resolved;
         if (versions.size() > 1)
         {
+            for (ColumnFamily cf : versions)
+            {
+                int liveColumns = cf.getLiveColumnCount();
+                if (liveColumns > maxLiveColumns)
+                    maxLiveColumns = liveColumns;
+            }
             resolved = resolveSuperset(versions);
             if (logger.isDebugEnabled())
                 logger.debug("versions merged");
@@ -90,8 +98,9 @@ public class RowRepairResolver extends AbstractRowResolver
 
         if (logger.isDebugEnabled())
             logger.debug("resolve: " + (System.currentTimeMillis() - startTime) + " ms.");
-		return new Row(key, resolved);
-	}
+
+        return new Row(key, resolved);
+    }
 
     /**
      * For each row version, compare with resolved (the superset of all row versions);
@@ -162,5 +171,10 @@ public class RowRepairResolver extends AbstractRowResolver
     public boolean isDataPresent()
 	{
         throw new UnsupportedOperationException();
+    }
+
+    public int getMaxLiveColumns()
+    {
+        return maxLiveColumns;
     }
 }
