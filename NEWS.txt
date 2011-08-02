@@ -16,6 +16,19 @@ Upgrading
       0.8.3 will not work, so the entire cluster will need to be running 0.8.3
       first, except for the dead node.
 
+Features
+--------
+    - It is now possible to use thrift asynchronous and
+      half-synchronous/half-asynchronous servers (see cassandra.yaml for more
+      details).
+    - It is now possible to access counter columns through Hadoop.
+
+Other
+-----
+    - This release fix a regression of 0.8 that can make commit log segment to
+      be deleted even though not all data it contains has been flushed.
+      Upgrades from 0.8.* is very much encouraged.
+
 
 0.8.2
 =====
