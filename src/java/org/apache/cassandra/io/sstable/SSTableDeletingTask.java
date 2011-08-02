@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.Sets;
@@ -92,6 +93,29 @@ public class SSTableDeletingTask extends WrappedRunnable
         {
             failedTasks.remove(task);
             task.schedule();
+        }
+    }
+
+    /** for tests */
+    public static void waitForDeletions()
+    {
+        Runnable runnable = new Runnable()
+        {
+            public void run()
+            {
+            }
+        };
+        try
+        {
+            StorageService.tasks.schedule(runnable, 0, TimeUnit.MILLISECONDS).get();
+        }
+        catch (InterruptedException e)
+        {
+            throw new AssertionError(e);
+        }
+        catch (ExecutionException e)
+        {
+            throw new RuntimeException(e);
         }
     }
 }

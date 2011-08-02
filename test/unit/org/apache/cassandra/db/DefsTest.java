@@ -50,6 +50,7 @@ import org.apache.cassandra.db.migration.UpdateKeyspace;
 import org.apache.cassandra.io.SerDeUtils;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.SSTableDeletingTask;
 import org.apache.cassandra.locator.OldNetworkTopologyStrategy;
 import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.net.MessagingService;
@@ -811,7 +812,7 @@ public class DefsTest extends CleanupHelper
 
         // check
         assert cfs.getIndexedColumns().isEmpty();
-        ColumnFamilyStore.scrubDataDirectories("Keyspace6", "Indexed1");
+        SSTableDeletingTask.waitForDeletions();
         assert !new File(desc.filenameFor(Component.DATA)).exists();
     }
 
