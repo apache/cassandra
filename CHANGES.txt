@@ -26,6 +26,8 @@
    (CASSANDRA-2960)
  * fix assertion error during compaction of counter CFs (CASSANDRA-2968)
  * avoid trying to create index names, when no index exists (CASSANDRA-2867)
+ * fix potential use of free'd native memory in SerializingCache 
+   (CASSANDRA-2951)
 
 
 0.8.2
