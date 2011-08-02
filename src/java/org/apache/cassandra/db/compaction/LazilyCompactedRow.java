@@ -193,7 +193,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements IIterabl
             assert container != null;
             IColumn reduced = container.iterator().next();
             ColumnFamily purged = shouldPurge ? ColumnFamilyStore.removeDeleted(container, controller.gcBefore) : container;
-            if (purged != null && purged.metadata().getDefaultValidator().isCommutative())
+            if (shouldPurge && purged != null && purged.metadata().getDefaultValidator().isCommutative())
             {
                 CounterColumn.removeOldShards(purged, controller.gcBefore);
             }

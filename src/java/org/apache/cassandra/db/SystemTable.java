@@ -404,9 +404,8 @@ public class SystemTable
      * table)
      * @param newNodeId the new current local node id to record
      */
-    public static void writeCurrentLocalNodeId(NodeId oldNodeId, NodeId newNodeId)
+    public static void writeCurrentLocalNodeId(NodeId oldNodeId, NodeId newNodeId, long now)
     {
-        long now = System.currentTimeMillis();
         ByteBuffer ip = ByteBuffer.wrap(FBUtilities.getLocalAddress().getAddress());
 
         ColumnFamily cf = ColumnFamily.create(Table.SYSTEM_TABLE, NODE_ID_CF);
@@ -441,7 +440,7 @@ public class SystemTable
         ColumnFamily cf = table.getColumnFamilyStore(NODE_ID_CF).getColumnFamily(filter);
 
         NodeId previous = null;
-        for (IColumn c : cf.getReverseSortedColumns())
+        for (IColumn c : cf)
         {
             if (previous != null)
                 l.add(new NodeId.NodeIdRecord(previous, c.timestamp()));

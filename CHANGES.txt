@@ -24,6 +24,7 @@
  * ignore system tables during repair (CASSANDRA-2979)
  * throw exception when NTS is given replication_factor as an option
    (CASSANDRA-2960)
+ * fix assertion error during compaction of counter CFs (CASSANDRA-2968)
 
 
 0.8.2

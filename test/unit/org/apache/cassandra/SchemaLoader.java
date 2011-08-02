@@ -137,7 +137,8 @@ public class SchemaLoader
                                                  st,
                                                  bytes,
                                                  null)
-                                                 .defaultValidator(CounterColumnType.instance),
+                                                 .defaultValidator(CounterColumnType.instance)
+                                                 .mergeShardsChance(1.0),
                                   new CFMetaData(ks1,
                                                  "SuperCounter1",
                                                  su,

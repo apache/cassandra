@@ -192,7 +192,7 @@ public class NodeId implements Comparable<NodeId>
                 // no recorded local node id, generating a new one and saving it
                 id = generate();
                 logger.info("No saved local node id, using newly generated: {}", id);
-                SystemTable.writeCurrentLocalNodeId(null, id);
+                SystemTable.writeCurrentLocalNodeId(null, id, System.currentTimeMillis());
                 current = new AtomicReference<NodeId>(id);
                 olds = new CopyOnWriteArrayList();
             }
@@ -206,11 +206,12 @@ public class NodeId implements Comparable<NodeId>
 
         synchronized void renewCurrent()
         {
+            long now = System.currentTimeMillis();
             NodeId newNodeId = generate();
             NodeId old = current.get();
-            SystemTable.writeCurrentLocalNodeId(old, newNodeId);
+            SystemTable.writeCurrentLocalNodeId(old, newNodeId, now);
             current.set(newNodeId);
-            olds.add(new NodeIdRecord(old));
+            olds.add(new NodeIdRecord(old, now));
         }
     }
 
@@ -219,15 +220,27 @@ public class NodeId implements Comparable<NodeId>
         public final NodeId id;
         public final long timestamp;
 
-        public NodeIdRecord(NodeId id)
-        {
-            this(id, System.currentTimeMillis());
-        }
-
         public NodeIdRecord(NodeId id, long timestamp)
         {
             this.id = id;
             this.timestamp = timestamp;
+        }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (this == o)
+                return true;
+            if (o == null || getClass() != o.getClass())
+                return false;
+
+            NodeIdRecord otherRecord = (NodeIdRecord)o;
+            return id.equals(otherRecord.id) && timestamp == otherRecord.timestamp;
+        }
+
+        public String toString()
+        {
+            return String.format("(%s, %d)", id.toString(), timestamp);
         }
     }
 }
