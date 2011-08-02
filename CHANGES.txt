@@ -24,6 +24,7 @@
    (CASSANDRA-2953)
  * add paging to get_count (CASSANDRA-2894)
  * fix "short reads" in [multi]get (CASSANDRA-2643)
+ * add optional compression for sstables (CASSANDRA-47)
 
 
 0.8.3
