@@ -22,8 +22,6 @@
  * check column family validity in nodetool repair (CASSANDRA-2933)
  * use lazy initialization instead of class initialization in NodeId
    (CASSANDRA-2953)
- * fix potential use of free'd native memory in SerializingCache 
-   (CASSANDRA-2951)
  * add paging to get_count (CASSANDRA-2894)
  * fix "short reads" in [multi]get (CASSANDRA-2643)
 
@@ -31,7 +29,7 @@
 0.8.3
  * add ability to drop local reads/writes that are going to timeout
    (CASSANDRA-2943)
- * revamp token removal process, keep gossip states for 3 days (CASSANDRA-2946)
+ * revamp token removal process, keep gossip states for 3 days (CASSANDRA-2496)
  * don't accept extra args for 0-arg nodetool commands (CASSANDRA-2740)
  * log unavailableexception details at debug level (CASSANDRA-2856)
  * expose data_dir though jmx (CASSANDRA-2770)
@@ -39,13 +37,25 @@
  * log Java classpath on startup (CASSANDRA-2895)
  * keep gossipped version in sync with actual on migration coordinator 
    (CASSANDRA-2946)
+ * use lazy initialization instead of class initialization in NodeId
+   (CASSANDRA-2953)
+ * check column family validity in nodetool repair (CASSANDRA-2933)
  * speedup bytes to hex conversions dramatically (CASSANDRA-2850)
- * fix bug where dirty commit logs were removed (and avoid keeping segment
+ * Flush memtables on shutdown when durable writes are disabled 
+   (CASSANDRA-2958)
+ * improved POSIX compatibility of start scripts (CASsANDRA-2965)
+ * add counter support to Hadoop InputFormat (CASSANDRA-2981)
+ * fix bug where dirty commit logs were removed (and avoid keeping segments
    with no post-flush activity permanently dirty) (CASSANDRA-2829)
  * fix throwing exception with batch mutation of counter super columns
    (CASSANDRA-2949)
  * ignore system tables during repair (CASSANDRA-2979)
+ * throw exception when NTS is given replication_factor as an option
+   (CASSANDRA-2960)
  * fix assertion error during compaction of counter CFs (CASSANDRA-2968)
+ * avoid trying to create index names, when no index exists (CASSANDRA-2867)
+ * fix potential use of free'd native memory in SerializingCache 
+   (CASSANDRA-2951)
 
 
 0.8.2

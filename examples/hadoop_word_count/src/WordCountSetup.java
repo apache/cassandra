@@ -81,6 +81,19 @@ public class WordCountSetup
         client.batch_mutate(mutationMap, ConsistencyLevel.ONE);
         logger.info("added text3");
 
+        // sentence data for the counters
+        final ByteBuffer key = ByteBufferUtil.bytes("key-if-verse1");
+        final ColumnParent colParent = new ColumnParent(WordCountCounters.COUNTER_COLUMN_FAMILY);
+        for (String sentence : sentenceData())
+        {
+            client.add(key,
+                       colParent,
+                       new CounterColumn(ByteBufferUtil.bytes(sentence),
+                       (long)sentence.split("\\s").length),
+                       ConsistencyLevel.ONE );
+        }
+        logger.info("added key-if-verse1");
+
         System.exit(0);
     }
 
@@ -115,6 +128,10 @@ public class WordCountSetup
         output.setComparator_type("AsciiType");
         output.setDefault_validation_class("AsciiType");
         cfDefList.add(output);
+        CfDef counterInput = new CfDef(WordCount.KEYSPACE, WordCountCounters.COUNTER_COLUMN_FAMILY);
+        counterInput.setComparator_type("UTF8Type");
+        counterInput.setDefault_validation_class("CounterColumnType");
+        cfDefList.add(counterInput);
 
         KsDef ksDef = new KsDef(WordCount.KEYSPACE, "org.apache.cassandra.locator.SimpleStrategy", cfDefList);
         ksDef.putToStrategy_options("replication_factor", "1");
@@ -149,5 +166,19 @@ public class WordCountSetup
         TProtocol protocol = new TBinaryProtocol(trans);
 
         return new Cassandra.Client(protocol);
+    }
+
+    private static String[] sentenceData()
+    {   // Public domain context, source http://en.wikisource.org/wiki/If%E2%80%94
+        return new String[]{
+            "If you can keep your head when all about you",
+            "Are losing theirs and blaming it on you",
+            "If you can trust yourself when all men doubt you,",
+            "But make allowance for their doubting too:",
+            "If you can wait and not be tired by waiting,",
+            "Or being lied about, don’t deal in lies,",
+            "Or being hated, don’t give way to hating,",
+            "And yet don’t look too good, nor talk too wise;"
+        };
     }
 }

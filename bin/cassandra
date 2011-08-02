@@ -61,32 +61,35 @@
 # Be aware that you will be entirely responsible for populating the needed
 # environment variables.
 
+# NB: Developers should be aware that this script should remain compatible with
+# POSIX sh and Solaris sh. This means, in particular, no $(( )) and no $( ).
+
 # If an include wasn't specified in the environment, then search for one...
 if [ "x$CASSANDRA_INCLUDE" = "x" ]; then
     # Locations (in order) to use when searching for an include file.
     for include in /usr/share/cassandra/cassandra.in.sh \
                    /usr/local/share/cassandra/cassandra.in.sh \
                    /opt/cassandra/cassandra.in.sh \
-                   ~/.cassandra.in.sh \
-                   `dirname $0`/cassandra.in.sh; do
-        if [ -r $include ]; then
-            . $include
+                   "$HOME/.cassandra.in.sh" \
+                   "`dirname $0`/cassandra.in.sh"; do
+        if [ -r "$include" ]; then
+            . "$include"
             break
         fi
     done
 # ...otherwise, source the specified include.
-elif [ -r $CASSANDRA_INCLUDE ]; then
-    . $CASSANDRA_INCLUDE
+elif [ -r "$CASSANDRA_INCLUDE" ]; then
+    . "$CASSANDRA_INCLUDE"
 fi
 
 # Use JAVA_HOME if set, otherwise look for java in PATH
-if [ -x $JAVA_HOME/bin/java ]; then
-    JAVA=$JAVA_HOME/bin/java
+if [ -n "$JAVA_HOME" ]; then
+    JAVA="$JAVA_HOME/bin/java"
 else
-    JAVA=`which java`
+    JAVA=java
 fi
 
-if [ -z $CASSANDRA_CONF -o -z $CLASSPATH ]; then
+if [ -z "$CASSANDRA_CONF" -o -z "$CLASSPATH" ]; then
     echo "You must set the CASSANDRA_CONF and CLASSPATH vars" >&2
     exit 1
 fi
@@ -119,11 +122,11 @@ launch_service()
     # to close stdout/stderr, but it's up to us not to background.
     if [ "x$foreground" != "x" ]; then
         cassandra_parms="$cassandra_parms -Dcassandra-foreground=yes"
-        exec $JAVA $JVM_OPTS $cassandra_parms -cp $CLASSPATH $props $class
+        exec "$JAVA" $JVM_OPTS $cassandra_parms -cp "$CLASSPATH" $props "$class"
     # Startup CassandraDaemon, background it, and write the pid.
     else
-        exec $JAVA $JVM_OPTS $cassandra_parms -cp $CLASSPATH $props $class <&- &
-        [ ! -z $pidpath ] && printf "%d" $! > $pidpath
+        exec "$JAVA" $JVM_OPTS $cassandra_parms -cp "$CLASSPATH" $props "$class" <&- &
+        [ ! -z "$pidpath" ] && printf "%d" $! > "$pidpath"
     fi
 
     return $?
@@ -150,7 +153,7 @@ while true; do
             exit 0
         ;;
         -v)
-            $JAVA -cp $CLASSPATH org.apache.cassandra.tools.GetVersion
+            "$JAVA" -cp "$CLASSPATH" org.apache.cassandra.tools.GetVersion
             exit 0
         ;;
         -D)

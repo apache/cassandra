@@ -31,11 +31,15 @@ import com.google.common.collect.AbstractIterator;
 
 import org.apache.cassandra.auth.SimpleAuthenticator;
 import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.db.IColumn;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.thrift.*;
+import org.apache.cassandra.thrift.Column;
+import org.apache.cassandra.thrift.CounterColumn;
+import org.apache.cassandra.thrift.SuperColumn;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.hadoop.conf.Configuration;
@@ -293,8 +297,13 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
 
         private IColumn unthriftify(ColumnOrSuperColumn cosc)
         {
-            if (cosc.column == null)
+            if (cosc.counter_column != null)
+                return unthriftifyCounter(cosc.counter_column);
+            if (cosc.counter_super_column != null)
+                return unthriftifySuperCounter(cosc.counter_super_column);
+            if (cosc.super_column != null)
                 return unthriftifySuper(cosc.super_column);
+            assert cosc.column != null;
             return unthriftifySimple(cosc.column);
         }
 
@@ -311,6 +320,21 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
         private IColumn unthriftifySimple(Column column)
         {
             return new org.apache.cassandra.db.Column(column.name, column.value, column.timestamp);
+        }
+
+        private IColumn unthriftifyCounter(CounterColumn column)
+        {
+            //CounterColumns read the nodeID from the System table, so need the StorageService running and access
+            //to cassandra.yaml. To avoid a Hadoop needing access to yaml return a regular Column.
+            return new org.apache.cassandra.db.Column(column.name, ByteBufferUtil.bytes(column.value), 0);
+        }
+
+        private IColumn unthriftifySuperCounter(CounterSuperColumn superColumn)
+        {
+            org.apache.cassandra.db.SuperColumn sc = new org.apache.cassandra.db.SuperColumn(superColumn.name, subComparator);
+            for (CounterColumn column : superColumn.columns)
+                sc.addColumn(unthriftifyCounter(column));
+            return sc;
         }
     }
 }

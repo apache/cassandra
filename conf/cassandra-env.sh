@@ -24,8 +24,13 @@ calculate_heap_sizes()
         ;;
         FreeBSD)
             system_memory_in_bytes=`sysctl hw.physmem | awk '{print $2}'`
-            system_memory_in_mb=$((system_memory_in_bytes / 1024 / 1024))
+            system_memory_in_mb=`expr $system_memory_in_bytes / 1024 / 1024`
             system_cpu_cores=`sysctl hw.ncpu | awk '{print $2}'`
+            break
+        ;;
+        SunOS)
+            system_memory_in_mb=`prtconf | awk '/Memory size:/ {print $3}'`
+            system_cpu_cores=`psrinfo | wc -l`
             break
         ;;
         *)
@@ -35,14 +40,14 @@ calculate_heap_sizes()
             system_cpu_cores="2"
         ;;
     esac
-    max_heap_size_in_mb=$((system_memory_in_mb / 2))
+    max_heap_size_in_mb=`expr $system_memory_in_mb / 2`
     MAX_HEAP_SIZE="${max_heap_size_in_mb}M"
 
     # Young gen: min(max_sensible_per_modern_cpu_core * num_cores, 1/4 * heap size)
     max_sensible_yg_per_core_in_mb="100"
-    max_sensible_yg_in_mb=$((max_sensible_yg_per_core_in_mb * system_cpu_cores))
+    max_sensible_yg_in_mb=`expr $max_sensible_yg_per_core_in_mb "*" $system_cpu_cores`
 
-    desired_yg_in_mb=$((max_heap_size_in_mb / 4))
+    desired_yg_in_mb=`expr $max_heap_size_in_mb / 4`
 
     if [ "$desired_yg_in_mb" -gt "$max_sensible_yg_in_mb" ]
     then
@@ -92,7 +97,7 @@ JMX_PORT="7199"
 JVM_OPTS="$JVM_OPTS -ea"
 
 # add the jamm javaagent
-check_openjdk=$(java -version 2>&1 | awk '{if (NR == 2) {print $1}}')
+check_openjdk=`"${JAVA:-java}" -version 2>&1 | awk '{if (NR == 2) {print $1}}'`
 if [ "$check_openjdk" != "OpenJDK" ]
 then
     JVM_OPTS="$JVM_OPTS -javaagent:$CASSANDRA_HOME/lib/jamm-0.2.2.jar"

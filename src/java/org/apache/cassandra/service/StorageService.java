@@ -44,6 +44,7 @@ import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.dht.*;
@@ -408,6 +409,18 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                     mutationStage.awaitTermination(1, TimeUnit.SECONDS);
                     CommitLog.instance.shutdownBlocking();
                 }
+
+                List<Future<?>> flushes = new ArrayList<Future<?>>();
+                for (Table table : Table.all())
+                {
+                    KSMetaData ksm = DatabaseDescriptor.getKSMetaData(table.name);
+                    if (!ksm.isDurableWrites())
+                    {
+                        for (ColumnFamilyStore cfs : table.getColumnFamilyStores())
+                            flushes.add(cfs.forceFlush());
+                    }
+                }
+                FBUtilities.waitOnFutures(flushes);
             }
         });
         Runtime.getRuntime().addShutdownHook(drainOnShutdown);
@@ -1356,7 +1369,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
     public void forceTableCleanup(String tableName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException
     {
-        if (tableName.equals("system"))
+        if (tableName.equals(Table.SYSTEM_TABLE))
             throw new RuntimeException("Cleanup of the system table is neither necessary nor wise");
 
         NodeId.OneShotRenewer nodeIdRenewer = new NodeId.OneShotRenewer();
