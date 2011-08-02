@@ -26,6 +26,12 @@
    (CASSANDRA-2960)
  * fix assertion error during compaction of counter CFs (CASSANDRA-2968)
  * avoid trying to create index names, when no index exists (CASSANDRA-2867)
+ * fix dynamic snitch ignoring nodes when read_repair_chance is zero
+   (CASSANDRA-2662)
+ * don't sample the system table when choosing a bootstrap token
+   (CASSANDRA-2825)
+ * gossiper notifies of local state changes (CASSANDRA-2948)
+ * add asynchronous and half-sync/half-async thrift servers (CASSANDRA-1405)
  * fix potential use of free'd native memory in SerializingCache 
    (CASSANDRA-2951)
 
