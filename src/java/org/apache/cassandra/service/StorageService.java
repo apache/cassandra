@@ -417,7 +417,11 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                     if (!ksm.isDurableWrites())
                     {
                         for (ColumnFamilyStore cfs : table.getColumnFamilyStores())
-                            flushes.add(cfs.forceFlush());
+                        {
+                            Future<?> future = cfs.forceFlush();
+                            if (future != null)
+                                flushes.add(future);
+                        }
                     }
                 }
                 FBUtilities.waitOnFutures(flushes);
@@ -1756,6 +1760,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         List<DecoratedKey> keys = new ArrayList<DecoratedKey>();
         for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
         {
+            if (cfs.table.name.equals(Table.SYSTEM_TABLE))
+                continue;
             for (DecoratedKey key : cfs.allKeySamples())
             {
                 if (range.contains(key.token))
@@ -1764,9 +1770,19 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         }
         FBUtilities.sortSampledKeys(keys, range);
 
-        Token token = keys.size() < 3
-                    ? partitioner.midpoint(range.left, range.right)
-                    : keys.get(keys.size() / 2).token;
+        Token token;
+        if (keys.size() < 3)
+        {
+            token = partitioner.midpoint(range.left, range.right);
+            logger_.debug("Used midpoint to assign token " + token);
+        }
+        else
+        {
+            token = keys.get(keys.size() / 2).token;
+            logger_.debug("Used key sample of size " + keys.size() + " to assign token " + token);
+        }
+        if (tokenMetadata_.getEndpoint(token) != null && tokenMetadata_.isMember(tokenMetadata_.getEndpoint(token)))
+            throw new RuntimeException("Chose token " + token + " which is already in use by " + tokenMetadata_.getEndpoint(token) + " -- specify one manually with initial_token");
         // Hack to prevent giving nodes tokens with DELIMITER_STR in them (which is fine in a row key/token)
         if (token instanceof StringToken)
         {
