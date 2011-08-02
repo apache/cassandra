@@ -25,6 +25,7 @@
  * throw exception when NTS is given replication_factor as an option
    (CASSANDRA-2960)
  * fix assertion error during compaction of counter CFs (CASSANDRA-2968)
+ * avoid trying to create index names, when no index exists (CASSANDRA-2867)
 
 
 0.8.2

@@ -377,7 +377,7 @@ public final class CFMetaData
         for (ColumnDef aColumn_metadata : cf.column_metadata)
         {
             ColumnDefinition cd = ColumnDefinition.inflate(aColumn_metadata);
-            if (cd.getIndexName() == null)
+            if (cd.getIndexType() != null && cd.getIndexName() == null)
                 cd.setIndexName(getDefaultIndexName(cf.name.toString(), comparator, cd.name));
             column_metadata.put(cd.name, cd);
         }
