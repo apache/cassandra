@@ -21,6 +21,8 @@ import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.util.*;
 
+import org.apache.log4j.Logger;
+
 import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.db.DBConstants;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -64,6 +66,8 @@ public class CounterContext implements IContext
     private static final int CLOCK_LENGTH = DBConstants.longSize;
     private static final int COUNT_LENGTH = DBConstants.longSize;
     private static final int STEP_LENGTH = NodeId.LENGTH + CLOCK_LENGTH + COUNT_LENGTH;
+
+    private static final Logger logger = Logger.getLogger(CounterContext.class);
 
     // Time in ms since a node id has been renewed before we consider using it
     // during a merge
@@ -524,6 +528,8 @@ public class CounterContext implements IContext
             if (now - currRecord.timestamp < MIN_MERGE_DELAY)
                 return context;
 
+            assert !currRecord.id.equals(NodeId.getLocalId());
+
             int c = state.getNodeId().compareTo(currRecord.id);
             if (c == 0)
             {
@@ -539,6 +545,8 @@ public class CounterContext implements IContext
                 }
                 else
                 {
+                    assert !foundState.getNodeId().equals(state.getNodeId());
+
                     // Found someone to merge it to
                     int nbDelta = foundState.isDelta() ? 1 : 0;
                     nbDelta += state.isDelta() ? 1 : 0;
@@ -585,20 +593,24 @@ public class CounterContext implements IContext
         int hlength = headerLength(context);
         ContextState state = new ContextState(context, hlength);
         int removedBodySize = 0, removedHeaderSize = 0;
+        boolean forceFixing = false;
         while (state.hasRemaining())
         {
             long clock = state.getClock();
-            if (clock < 0 && -((int)(clock / 1000)) < gcBefore)
+            if (clock < 0 && -((int)(clock / 1000)) < gcBefore && (state.getCount() == 0 || !state.isDelta()))
             {
-                assert state.getCount() == 0;
                 removedBodySize += STEP_LENGTH;
                 if (state.isDelta())
                     removedHeaderSize += HEADER_ELT_LENGTH;
             }
+            else if (clock < 0 && state.getCount() != 0 && state.isDelta())
+            {
+                forceFixing = true;
+            }
             state.moveToNext();
         }
 
-        if (removedBodySize == 0)
+        if (removedBodySize == 0 && !forceFixing)
             return context;
 
         int newSize = context.remaining() - removedHeaderSize - removedBodySize;
@@ -608,16 +620,31 @@ public class CounterContext implements IContext
         ContextState cleaned = new ContextState(cleanedContext, newHlength);
 
         state.reset();
+        long toAddBack = 0;
         while (state.hasRemaining())
         {
             long clock = state.getClock();
-            if (clock > 0 || -((int)(clock / 1000)) >= gcBefore)
+            if (!(clock < 0 && -((int)(clock / 1000)) < gcBefore && (state.getCount() == 0 || !state.isDelta())))
             {
-                state.copyTo(cleaned);
+                if (clock < 0 && state.getCount() != 0 && state.isDelta())
+                {
+                    // we should not get there, but we have been creating problematic context prior to #2968
+                    if (state.getNodeId().equals(NodeId.getLocalId()))
+                        throw new RuntimeException("Merged counter shard with a count != 0 (likely due to #2968). You need to restart this node with -Dcassandra.renew_counter_id=true to fix.");
+
+                    // we will "fix" it, but log a message
+                    logger.info("Collectable old shard with a count != 0. Will fix.");
+                    cleaned.writeElement(state.getNodeId(), clock - 1L, 0, true);
+                    toAddBack += state.getCount();
+                }
+                else
+                {
+                    state.copyTo(cleaned);
+                }
             }
             state.moveToNext();
         }
-        return cleanedContext;
+        return toAddBack == 0 ? cleanedContext : merge(cleanedContext, create(toAddBack));
     }
 
     /**

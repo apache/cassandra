@@ -82,8 +82,9 @@ public class PrecompactedRow extends AbstractCompactedRow
                 cf.addAll(thisCF);
             }
         }
-        compactedCf = controller.shouldPurge(key) ? ColumnFamilyStore.removeDeleted(cf, controller.gcBefore) : cf;
-        if (compactedCf != null && compactedCf.metadata().getDefaultValidator().isCommutative())
+        boolean shouldPurge = controller.shouldPurge(key);
+        compactedCf = shouldPurge ? ColumnFamilyStore.removeDeleted(cf, controller.gcBefore) : cf;
+        if (shouldPurge && compactedCf != null && compactedCf.metadata().getDefaultValidator().isCommutative())
         {
             CounterColumn.removeOldShards(compactedCf, controller.gcBefore);
         }
