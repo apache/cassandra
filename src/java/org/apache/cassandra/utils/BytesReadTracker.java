@@ -49,7 +49,6 @@ public class BytesReadTracker implements DataInput
         bytesRead = 0;
     }
 
-    @Override
     public boolean readBoolean() throws IOException
     {
         boolean bool = source.readBoolean();
@@ -57,7 +56,6 @@ public class BytesReadTracker implements DataInput
         return bool;
     }
 
-    @Override
     public byte readByte() throws IOException
     {
         byte b = source.readByte();
@@ -65,15 +63,13 @@ public class BytesReadTracker implements DataInput
         return b;
     }
 
-    @Override
     public char readChar() throws IOException
     {
         char c = source.readChar();
-        bytesRead += 1;
+        bytesRead += 2;
         return c;
     }
 
-    @Override
     public double readDouble() throws IOException
     {
         double d = source.readDouble();
@@ -81,7 +77,6 @@ public class BytesReadTracker implements DataInput
         return d;
     }
 
-    @Override
     public float readFloat() throws IOException
     {
         float f = source.readFloat();
@@ -89,21 +84,18 @@ public class BytesReadTracker implements DataInput
         return f;
     }
 
-    @Override
     public void readFully(byte[] b, int off, int len) throws IOException
     {
         source.readFully(b, off, len);
         bytesRead += len;
     }
 
-    @Override
     public void readFully(byte[] b) throws IOException
     {
         source.readFully(b);
         bytesRead += b.length;
     }
 
-    @Override
     public int readInt() throws IOException
     {
         int i = source.readInt();
@@ -111,7 +103,6 @@ public class BytesReadTracker implements DataInput
         return i;
     }
 
-    @Override
     public String readLine() throws IOException
     {
         // since this method is deprecated and cannot track bytes read
@@ -119,7 +110,6 @@ public class BytesReadTracker implements DataInput
         throw new UnsupportedOperationException();
     }
 
-    @Override
     public long readLong() throws IOException
     {
         long l = source.readLong();
@@ -127,7 +117,6 @@ public class BytesReadTracker implements DataInput
         return l;
     }
 
-    @Override
     public short readShort() throws IOException
     {
         short s = source.readShort();
@@ -135,13 +124,11 @@ public class BytesReadTracker implements DataInput
         return s;
     }
 
-    @Override
     public String readUTF() throws IOException
     {
         return DataInputStream.readUTF(this);
     }
 
-    @Override
     public int readUnsignedByte() throws IOException
     {
         int i = source.readUnsignedByte();
@@ -149,7 +136,6 @@ public class BytesReadTracker implements DataInput
         return i;
     }
 
-    @Override
     public int readUnsignedShort() throws IOException
     {
         int i = source.readUnsignedShort();
@@ -157,11 +143,10 @@ public class BytesReadTracker implements DataInput
         return i;
     }
 
-    @Override
     public int skipBytes(int n) throws IOException
     {
         int skipped = source.skipBytes(n);
-        bytesRead += n;
+        bytesRead += skipped;
         return skipped;
     }
 }

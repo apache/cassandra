@@ -79,34 +79,36 @@ public class BytesReadTrackerTest
             byte b = tracker.readByte();
             assertEquals(b, 0x1);
             assertEquals(2, tracker.getBytesRead());
-            // char = 1byte
+            // char = 2byte
             char c = tracker.readChar();
             assertEquals('a', c);
-            assertEquals(3, tracker.getBytesRead());
+            assertEquals(4, tracker.getBytesRead());
             // short = 2bytes
             short s = tracker.readShort();
             assertEquals(1, s);
-            assertEquals((short) 5, tracker.getBytesRead());
+            assertEquals((short) 6, tracker.getBytesRead());
             // int = 4bytes
             int i = tracker.readInt();
             assertEquals(1, i);
-            assertEquals(9, tracker.getBytesRead());
+            assertEquals(10, tracker.getBytesRead());
             // long = 8bytes
             long l = tracker.readLong();
             assertEquals(1L, l);
-            assertEquals(17, tracker.getBytesRead());
+            assertEquals(18, tracker.getBytesRead());
             // float = 4bytes
             float f = tracker.readFloat();
             assertEquals(1.0f, f, 0);
-            assertEquals(21, tracker.getBytesRead());
+            assertEquals(22, tracker.getBytesRead());
             // double = 8bytes
             double d = tracker.readDouble();
             assertEquals(1.0d, d, 0);
-            assertEquals(29, tracker.getBytesRead());
+            assertEquals(30, tracker.getBytesRead());
             // String("abc") = 2(string size) + 3 = 5 bytes
             String str = tracker.readUTF();
             assertEquals("abc", str);
-            assertEquals(34, tracker.getBytesRead());
+            assertEquals(35, tracker.getBytesRead());
+
+            assertEquals(testData.length, tracker.getBytesRead());
         }
         finally
         {
