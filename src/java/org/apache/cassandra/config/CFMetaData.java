@@ -80,6 +80,7 @@ public final class CFMetaData
     public final static String DEFAULT_ROW_CACHE_PROVIDER = "org.apache.cassandra.cache.ConcurrentLinkedHashCacheProvider";
     public final static String DEFAULT_COMPACTION_STRATEGY_CLASS = "org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy";
     public final static ByteBuffer DEFAULT_KEY_NAME = ByteBufferUtil.bytes("KEY");
+    public final static boolean DEFAULT_COMPRESSION = false;
 
     private static final int MIN_CF_ID = 1000;
     private static final AtomicInteger idGen = new AtomicInteger(MIN_CF_ID);
@@ -171,6 +172,7 @@ public final class CFMetaData
     private double mergeShardsChance;                 // default 0.1, chance [0.0, 1.0] of merging old shards during replication
     private IRowCacheProvider rowCacheProvider;
     private ByteBuffer keyAlias;                      // default NULL
+    private boolean compression;
 
     private Map<ByteBuffer, ColumnDefinition> column_metadata;
     public Class<? extends AbstractCompactionStrategy> compactionStrategyClass;
@@ -193,6 +195,7 @@ public final class CFMetaData
     public CFMetaData memOps(double prop) {memtableOperationsInMillions = prop; return this;}
     public CFMetaData mergeShardsChance(double prop) {mergeShardsChance = prop; return this;}
     public CFMetaData keyAlias(ByteBuffer prop) {keyAlias = prop; return this;}
+    public CFMetaData compression(boolean prop) {compression = prop; return this; }
     public CFMetaData columnMetadata(Map<ByteBuffer,ColumnDefinition> prop) {column_metadata = prop; return this;}
     public CFMetaData rowCacheProvider(IRowCacheProvider prop) { rowCacheProvider = prop; return this;}
     public CFMetaData compactionStrategyClass(Class<? extends AbstractCompactionStrategy> prop) {compactionStrategyClass = prop; return this;}
@@ -243,6 +246,7 @@ public final class CFMetaData
         memtableThroughputInMb       = DEFAULT_MEMTABLE_THROUGHPUT_IN_MB;
         memtableOperationsInMillions = DEFAULT_MEMTABLE_OPERATIONS_IN_MILLIONS;
         mergeShardsChance            = DEFAULT_MERGE_SHARDS_CHANCE;
+        compression                  = DEFAULT_COMPRESSION;
         try
         {
             rowCacheProvider             = FBUtilities.newCacheProvider(DEFAULT_ROW_CACHE_PROVIDER);
@@ -328,7 +332,8 @@ public final class CFMetaData
                       .memOps(oldCFMD.memtableOperationsInMillions)
                       .columnMetadata(oldCFMD.column_metadata)
                       .compactionStrategyClass(oldCFMD.compactionStrategyClass)
-                      .compactionStrategyOptions(oldCFMD.compactionStrategyOptions);
+                      .compactionStrategyOptions(oldCFMD.compactionStrategyOptions)
+                      .compression(oldCFMD.compression);
     }
 
     /** used for evicting cf data out of static tracking collections. */
@@ -378,6 +383,7 @@ public final class CFMetaData
         cf.memtable_operations_in_millions = memtableOperationsInMillions;
         cf.merge_shards_chance = mergeShardsChance;
         cf.key_alias = keyAlias;
+        cf.compression = compression;
         cf.column_metadata = SerDeUtils.createArray(column_metadata.size(),
                                                     org.apache.cassandra.db.migration.avro.ColumnDef.SCHEMA$);
         for (ColumnDefinition cd : column_metadata.values())
@@ -477,7 +483,8 @@ public final class CFMetaData
                       .gcGraceSeconds(cf.gc_grace_seconds)
                       .defaultValidator(validator)
                       .keyValidator(keyValidator)
-                      .columnMetadata(column_metadata);
+                      .columnMetadata(column_metadata)
+                      .compression(cf.compression);
     }
     
     public String getComment()
@@ -570,6 +577,16 @@ public final class CFMetaData
         return keyAlias == null ? DEFAULT_KEY_NAME : keyAlias;
     }
 
+    public boolean useCompression()
+    {
+        return compression;
+    }
+
+    public void useCompression(boolean flag)
+    {
+        compression = flag;
+    }
+
     public Map<ByteBuffer, ColumnDefinition> getColumn_metadata()
     {
         return Collections.unmodifiableMap(column_metadata);
@@ -617,6 +634,7 @@ public final class CFMetaData
             .append(memtableOperationsInMillions, rhs.memtableOperationsInMillions)
             .append(mergeShardsChance, rhs.mergeShardsChance)
             .append(keyAlias, rhs.keyAlias)
+            .append(compression, rhs.compression)
             .append(compactionStrategyClass, rhs.compactionStrategyClass)
             .append(compactionStrategyOptions, rhs.compactionStrategyOptions)
             .isEquals();
@@ -649,6 +667,7 @@ public final class CFMetaData
             .append(memtableOperationsInMillions)
             .append(mergeShardsChance)
             .append(keyAlias)
+            .append(compression)
             .append(compactionStrategyClass)
             .append(compactionStrategyOptions)
             .toHashCode();
@@ -697,6 +716,8 @@ public final class CFMetaData
             cf_def.compaction_strategy = DEFAULT_COMPACTION_STRATEGY_CLASS;
         if (null == cf_def.compaction_strategy_options)
             cf_def.compaction_strategy_options = Collections.<String, String>emptyMap();
+        if (!cf_def.isSetCompression())
+            cf_def.setCompression(CFMetaData.DEFAULT_COMPRESSION);
     }
 
     public static CFMetaData fromThrift(org.apache.cassandra.thrift.CfDef cf_def) throws InvalidRequestException, ConfigurationException
@@ -748,7 +769,8 @@ public final class CFMetaData
                       .replicateOnWrite(cf_def.replicate_on_write)
                       .defaultValidator(TypeParser.parse(cf_def.default_validation_class))
                       .keyValidator(TypeParser.parse(cf_def.key_validation_class))
-                      .columnMetadata(ColumnDefinition.fromColumnDef(cf_def.column_metadata));
+                      .columnMetadata(ColumnDefinition.fromColumnDef(cf_def.column_metadata))
+                      .compression(cf_def.compression);
     }
 
     // merges some final fields from this CFM with modifiable fields from CfDef into a new CFMetaData.
@@ -800,6 +822,7 @@ public final class CFMetaData
         if (cf_def.row_cache_provider != null)
             rowCacheProvider = FBUtilities.newCacheProvider(cf_def.row_cache_provider.toString());
         keyAlias = cf_def.key_alias;
+        compression = cf_def.compression;
 
         // adjust column definitions. figure out who is coming and going.
         Set<ByteBuffer> toRemove = new HashSet<ByteBuffer>();
@@ -918,6 +941,7 @@ public final class CFMetaData
         def.setMemtable_operations_in_millions(cfm.memtableOperationsInMillions);
         def.setMerge_shards_chance(cfm.mergeShardsChance);
         def.setKey_alias(cfm.getKeyName());
+        def.setCompression(cfm.compression);
         List<org.apache.cassandra.thrift.ColumnDef> column_meta = new ArrayList< org.apache.cassandra.thrift.ColumnDef>(cfm.column_metadata.size());
         for (ColumnDefinition cd : cfm.column_metadata.values())
         {
@@ -966,6 +990,7 @@ public final class CFMetaData
         def.merge_shards_chance = cfm.mergeShardsChance;
         def.key_validation_class = cfm.keyValidator.getClass().getName();
         def.key_alias = cfm.keyAlias;
+        def.compression = cfm.compression;
         List<org.apache.cassandra.db.migration.avro.ColumnDef> column_meta = new ArrayList<org.apache.cassandra.db.migration.avro.ColumnDef>(cfm.column_metadata.size());
         for (ColumnDefinition cd : cfm.column_metadata.values())
         {
@@ -1011,7 +1036,7 @@ public final class CFMetaData
         newDef.subcomparator_type = def.getSubcomparator_type();
         newDef.merge_shards_chance = def.getMerge_shards_chance();
         newDef.key_alias = def.key_alias;
-
+        newDef.compression = def.compression;
         List<org.apache.cassandra.db.migration.avro.ColumnDef> columnMeta = new ArrayList<org.apache.cassandra.db.migration.avro.ColumnDef>();
         if (def.isSetColumn_metadata())
         {
@@ -1146,6 +1171,7 @@ public final class CFMetaData
             .append("memtableOperationsInMillions", memtableOperationsInMillions)
             .append("mergeShardsChance", mergeShardsChance)
             .append("keyAlias", keyAlias)
+            .append("compression", compression)
             .append("column_metadata", column_metadata)
             .append("compactionStrategyClass", compactionStrategyClass)
             .append("compactionStrategyOptions", compactionStrategyOptions)

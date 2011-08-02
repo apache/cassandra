@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.db;
 
-import java.io.File;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.text.DecimalFormat;
@@ -406,7 +405,7 @@ public class TableTest extends CleanupHelper
         // verify that we do indeed have multiple index entries
         SSTableReader sstable = cfStore.getSSTables().iterator().next();
         long position = sstable.getPosition(key, SSTableReader.Operator.EQ);
-        RandomAccessReader file = RandomAccessReader.open(new File(sstable.getFilename()));
+        RandomAccessReader file = sstable.openDataReader(false);
         file.seek(position);
         assert ByteBufferUtil.readWithShortLength(file).equals(key.key);
         SSTableReader.readRowSize(file, sstable.descriptor);

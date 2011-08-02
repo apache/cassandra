@@ -988,6 +988,14 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
       <jvmarg value="-Dcorrupt-sstable-root=${test.data}/corrupt-sstables"/>
     </testmacro>
   </target>
+
+  <target name="test-compression" depends="build-test" description="Execute unit tests with sstable compression enabled">
+    <testmacro suitename="unit" inputdir="${test.unit.src}" timeout="60000">
+      <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
+      <jvmarg value="-Dcorrupt-sstable-root=${test.data}/corrupt-sstables"/>
+      <jvmarg value="-Dcassandra.test.compression=true"/>
+    </testmacro>
+  </target>
     
   <target name="msg-ser-gen-test" depends="build-test" description="Generates message serializations">
     <testmacro suitename="unit" inputdir="${test.unit.src}" 

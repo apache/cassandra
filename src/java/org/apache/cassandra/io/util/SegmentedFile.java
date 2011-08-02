@@ -61,6 +61,11 @@ public abstract class SegmentedFile
                : new BufferedSegmentedFile.Builder();
     }
 
+    public static Builder getCompressedBuilder()
+    {
+        return new CompressedSegmentedFile.Builder();
+    }
+
     public abstract FileDataInput getSegment(long position, int bufferSize);
 
     /**

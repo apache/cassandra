@@ -28,6 +28,7 @@ import java.nio.channels.FileChannel;
 import java.nio.channels.SocketChannel;
 
 import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.io.compress.CompressedRandomAccessReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -90,6 +91,12 @@ public class FileStreamTask extends WrappedRunnable
 
         if (header.file == null)
             return;
+
+        if (header.file.sstable.compression)
+        {
+            CompressedRandomAccessReader.transfer(header.file, channel);
+            return;
+        }
 
         RandomAccessFile raf = new RandomAccessFile(new File(header.file.getFilename()), "r");
         try

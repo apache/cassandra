@@ -21,10 +21,7 @@ package org.apache.cassandra.io.sstable;
 
 import java.io.*;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 
 import com.google.common.collect.Sets;
 
@@ -36,11 +33,10 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.*;
 import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.io.compress.CompressedSequentialWriter;
 import org.apache.cassandra.io.util.*;
-import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.streaming.OperationType;
 import org.apache.cassandra.utils.BloomFilter;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -65,6 +61,14 @@ public class SSTableWriter extends SSTable
              SSTableMetadata.createCollector());
     }
 
+    private static Set<Component> components(CFMetaData metadata)
+    {
+        Set<Component> components = new HashSet<Component>(Arrays.asList(Component.DATA, Component.FILTER, Component.PRIMARY_INDEX, Component.STATS));
+        if (metadata.useCompression())
+            components.add(Component.COMPRESSION_INFO);
+        return components;
+    }
+
     public SSTableWriter(String filename,
                          long keyCount,
                          CFMetaData metadata,
@@ -72,12 +76,24 @@ public class SSTableWriter extends SSTable
                          SSTableMetadata.Collector sstableMetadataCollector) throws IOException
     {
         super(Descriptor.fromFilename(filename),
-              new HashSet<Component>(Arrays.asList(Component.DATA, Component.FILTER, Component.PRIMARY_INDEX, Component.STATS)),
+              components(metadata),
               metadata,
               partitioner);
         iwriter = new IndexWriter(descriptor, partitioner, keyCount);
-        dbuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode());
-        dataFile = SequentialWriter.open(new File(getFilename()), true);
+
+        if (compression)
+        {
+            dbuilder = SegmentedFile.getCompressedBuilder();
+            dataFile = CompressedSequentialWriter.open(getFilename(),
+                                                       descriptor.filenameFor(Component.COMPRESSION_INFO),
+                                                       true);
+        }
+        else
+        {
+            dbuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode());
+            dataFile = SequentialWriter.open(new File(getFilename()), true);
+        }
+
         this.sstableMetadataCollector = sstableMetadataCollector;
     }
     
@@ -205,10 +221,8 @@ public class SSTableWriter extends SSTable
         // index and filter
         iwriter.close();
 
-        // main data
-        long position = dataFile.getFilePointer();
-        dataFile.close(); // calls force
-        FileUtils.truncate(dataFile.getPath(), position);
+        // main data, close will truncate if necessary
+        dataFile.close();
 
         // write sstable statistics
         SSTableMetadata sstableMetadata = sstableMetadataCollector.finalizeMetadata();

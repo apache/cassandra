@@ -134,7 +134,8 @@ public class CliClient
         ROW_CACHE_PROVIDER,
         KEY_VALIDATION_CLASS,
         COMPACTION_STRATEGY,
-        COMPACTION_STRATEGY_OPTIONS
+        COMPACTION_STRATEGY_OPTIONS,
+        COMPRESSION
     }
 
     private static final String DEFAULT_PLACEMENT_STRATEGY = "org.apache.cassandra.locator.NetworkTopologyStrategy";
@@ -1259,6 +1260,9 @@ public class CliClient
             case COMPACTION_STRATEGY_OPTIONS:
                 cfDef.setCompaction_strategy_options(getStrategyOptionsFromTree(statement.getChild(i+1)));
                 break;
+            case COMPRESSION:
+                cfDef.setCompression(Boolean.parseBoolean(mValue));
+                break;
             default:
                 //must match one of the above or we'd throw an exception at the valueOf statement above.
                 assert(false);
@@ -1731,6 +1735,7 @@ public class CliClient
                 sessionState.out.printf("      Compaction min/max thresholds: %s/%s%n", cf_def.min_compaction_threshold, cf_def.max_compaction_threshold);
                 sessionState.out.printf("      Read repair chance: %s%n", cf_def.read_repair_chance);
                 sessionState.out.printf("      Replicate on write: %s%n", cf_def.replicate_on_write);
+                sessionState.out.printf("      Compression enabled: %s%n", cf_def.compression);
 
                 // if we have connection to the cfMBean established
                 if (cfMBean != null)

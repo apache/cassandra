@@ -32,6 +32,7 @@ import javax.management.ObjectName;
 
 import com.google.common.base.Predicates;
 import com.google.common.collect.Iterators;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -46,7 +47,6 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.service.AntiEntropyService;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.streaming.OperationType;
 import org.apache.cassandra.utils.*;
 
 /**
@@ -471,7 +471,8 @@ public class CompactionManager implements CompactionManagerMBean
         // we'll also loop through the index at the same time, using the position from the index to recover if the
         // row header (key or data size) is corrupt. (This means our position in the index file will be one row
         // "ahead" of the data file.)
-        final RandomAccessReader dataFile = RandomAccessReader.open(new File(sstable.getFilename()), true);
+        final RandomAccessReader dataFile = sstable.openDataReader(true);
+
         String indexFilename = sstable.descriptor.filenameFor(Component.PRIMARY_INDEX);
         RandomAccessReader indexFile = RandomAccessReader.open(new File(indexFilename), true);
         try

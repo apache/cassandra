@@ -239,8 +239,22 @@ public class SchemaLoader
                 false,
                 standardCFMD(ks_nocommit, "Standard1")));
 
+
+        if (Boolean.parseBoolean(System.getProperty("cassandra.test.compression", "false")))
+            useCompression(schema);
         
         return schema;
+    }
+
+    private static void useCompression(List<KSMetaData> schema)
+    {
+        for (KSMetaData ksm : schema)
+        {
+            for (CFMetaData cfm : ksm.cfMetaData().values())
+            {
+                cfm.compression(true);
+            }
+        }
     }
 
     private static CFMetaData standardCFMD(String ksName, String cfName)

@@ -47,6 +47,8 @@ public class Component
         FILTER("Filter.db"),
         // 0-length file that is created when an sstable is ready to be deleted
         COMPACTED_MARKER("Compacted"),
+        // file to hold information about uncompressed data length, chunk offsets etc.
+        COMPRESSION_INFO("CompressionInfo.db"),
         // statistical metadata about the content of the sstable
         STATS("Statistics.db"),
         // a bitmap secondary index: many of these may exist per sstable
@@ -72,6 +74,7 @@ public class Component
     public final static Component PRIMARY_INDEX = new Component(Type.PRIMARY_INDEX, -1);
     public final static Component FILTER = new Component(Type.FILTER, -1);
     public final static Component COMPACTED_MARKER = new Component(Type.COMPACTED_MARKER, -1);
+    public final static Component COMPRESSION_INFO = new Component(Type.COMPRESSION_INFO, -1);
     public final static Component STATS = new Component(Type.STATS, -1);
 
     public final Type type;
@@ -101,6 +104,7 @@ public class Component
             case PRIMARY_INDEX:
             case FILTER:
             case COMPACTED_MARKER:
+            case COMPRESSION_INFO:
             case STATS:
                 return type.repr;
             case BITMAP_INDEX:
@@ -137,6 +141,7 @@ public class Component
             case PRIMARY_INDEX:     component = Component.PRIMARY_INDEX;    break;
             case FILTER:            component = Component.FILTER;           break;
             case COMPACTED_MARKER:  component = Component.COMPACTED_MARKER; break;
+            case COMPRESSION_INFO:  component = Component.COMPRESSION_INFO; break;
             case STATS:             component = Component.STATS;            break;
             case BITMAP_INDEX:
                  component = new Component(type, id);

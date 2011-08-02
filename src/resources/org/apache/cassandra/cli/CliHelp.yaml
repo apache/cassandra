@@ -531,6 +531,8 @@ commands:
         NOTE: Thsi provider requires JNA.jar to be in the class path to
         enable native methods.
 
+        - compression: Use compression for SSTable data files. Accepts the values true and false.
+
         Examples:
         create column family Super4
             with column_type = 'Super'
@@ -771,6 +773,8 @@ commands:
         stores the data off the JVM Heap. This may reduce the GC pressure.
         NOTE: Thsi provider requires JNA.jar to be in the class path to
         enable native methods.
+
+        - compression: Use compression for SSTable data files. Accepts the values true and false.
 
         Examples:
         update column family Super4

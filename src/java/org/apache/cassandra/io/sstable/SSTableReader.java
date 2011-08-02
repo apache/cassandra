@@ -27,6 +27,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.google.common.base.Function;
 import com.google.common.collect.Collections2;
+import org.apache.cassandra.io.compress.CompressedRandomAccessReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -249,7 +250,9 @@ public class SSTableReader extends SSTable
     {
         boolean cacheLoading = keyCache != null && !keysToLoadInCache.isEmpty();
         SegmentedFile.Builder ibuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getIndexAccessMode());
-        SegmentedFile.Builder dbuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode());
+        SegmentedFile.Builder dbuilder = (components.contains(Component.COMPRESSION_INFO))
+                                          ? SegmentedFile.getCompressedBuilder()
+                                          : SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode());
 
         // we read the positions in a BRAF so we don't have to worry about an entry spanning a mmap boundary.
         RandomAccessReader input = RandomAccessReader.open(new File(descriptor.filenameFor(Component.PRIMARY_INDEX)), true);
@@ -798,6 +801,18 @@ public class SSTableReader extends SSTable
     public long getMaxTimestamp()
     {
         return sstableMetadata.getMaxTimestamp();
+    }
+
+    public RandomAccessReader openDataReader(boolean skipIOCache) throws IOException
+    {
+        return openDataReader(RandomAccessReader.DEFAULT_BUFFER_SIZE, skipIOCache);
+    }
+
+    public RandomAccessReader openDataReader(int bufferSize, boolean skipIOCache) throws IOException
+    {
+        return compression
+                ? CompressedRandomAccessReader.open(getFilename(), skipIOCache)
+                : RandomAccessReader.open(new File(getFilename()), bufferSize, skipIOCache);
     }
 
     public static void acquireReferences(Iterable<SSTableReader> sstables)

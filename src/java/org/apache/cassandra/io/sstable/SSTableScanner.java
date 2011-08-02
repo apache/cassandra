@@ -19,7 +19,6 @@
 
 package org.apache.cassandra.io.sstable;
 
-import java.io.File;
 import java.io.IOError;
 import java.io.IOException;
 import java.util.Arrays;
@@ -53,7 +52,7 @@ public class SSTableScanner implements CloseableIterator<IColumnIterator>
     {
         try
         {
-            this.file = RandomAccessReader.open(new File(sstable.getFilename()), skipCache);
+            this.file = sstable.openDataReader(bufferSize, skipCache);
         }
         catch (IOException e)
         {
@@ -70,7 +69,7 @@ public class SSTableScanner implements CloseableIterator<IColumnIterator>
     {
         try
         {
-            this.file = RandomAccessReader.open(new File(sstable.getFilename()), bufferSize);
+            this.file = sstable.openDataReader(bufferSize, false);
         }
         catch (IOException e)
         {

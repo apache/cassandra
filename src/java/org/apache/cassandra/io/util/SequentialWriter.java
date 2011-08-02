@@ -26,7 +26,7 @@ import org.apache.cassandra.utils.CLibrary;
 public class SequentialWriter extends OutputStream
 {
     // isDirty - true if this.buffer contains any un-synced bytes
-    private boolean isDirty = false, syncNeeded = false;
+    protected boolean isDirty = false, syncNeeded = false;
 
     // absolute path to the given file
     private final String filePath;
@@ -34,14 +34,14 @@ public class SequentialWriter extends OutputStream
     // so we can use the write(int) path w/o tons of new byte[] allocations
     private final byte[] singleByteBuffer = new byte[1];
 
-    private byte[] buffer;
+    protected byte[] buffer;
     private final boolean skipIOCache;
     private final int fd;
 
-    private long current = 0, bufferOffset;
-    private int validBufferBytes;
+    protected long current = 0, bufferOffset;
+    protected int validBufferBytes;
 
-    private final RandomAccessFile out;
+    protected final RandomAccessFile out;
 
     // used if skip I/O cache was enabled
     private long ioCacheStartOffset = 0, bytesSinceCacheFlush = 0;
@@ -140,9 +140,14 @@ public class SequentialWriter extends OutputStream
      */
     public void sync() throws IOException
     {
+        syncInternal();
+    }
+
+    protected void syncInternal() throws IOException
+    {
         if (syncNeeded)
         {
-            flush();
+            flushInternal();
             out.getFD().sync();
 
             syncNeeded = false;
@@ -159,9 +164,14 @@ public class SequentialWriter extends OutputStream
     @Override
     public void flush() throws IOException
     {
+        flushInternal();
+    }
+
+    protected void flushInternal() throws IOException
+    {
         if (isDirty)
         {
-            out.write(buffer, 0, validBufferBytes);
+            flushData();
 
             if (skipIOCache)
             {
@@ -187,6 +197,15 @@ public class SequentialWriter extends OutputStream
         }
     }
 
+    /**
+     * Override this method instead of overriding flush()
+     * @throws IOException on any I/O error.
+     */
+    protected void flushData() throws IOException
+    {
+        out.write(buffer, 0, validBufferBytes);
+    }
+
     public long getFilePointer()
     {
         return current;
@@ -202,14 +221,13 @@ public class SequentialWriter extends OutputStream
         return filePath;
     }
 
-
-    private void reBuffer() throws IOException
+    protected void reBuffer() throws IOException
     {
-        flush();
+        flushInternal();
         resetBuffer();
     }
 
-    private void resetBuffer()
+    protected void resetBuffer()
     {
         bufferOffset = current;
         validBufferBytes = 0;
@@ -229,12 +247,18 @@ public class SequentialWriter extends OutputStream
     {
         assert mark instanceof BufferedFileWriterMark;
 
+        long previous = current;
+        current = ((BufferedFileWriterMark) mark).pointer;
+
+        if (previous - current <= validBufferBytes) // current buffer
+        {
+            validBufferBytes = validBufferBytes - ((int) (previous - current));
+            return;
+        }
+
         // synchronize current buffer with disk
         // because we don't want any data loss
-        sync();
-
-        // setting marker as a current offset
-        current = ((BufferedFileWriterMark) mark).pointer;
+        syncInternal();
 
         // truncate file to given position
         truncate(current);
@@ -253,14 +277,17 @@ public class SequentialWriter extends OutputStream
     @Override
     public void close() throws IOException
     {
-        sync();
+        if (buffer == null)
+            return; // already closed
+
+        syncInternal();
 
         buffer = null;
 
         if (skipIOCache && bytesSinceCacheFlush > 0)
             CLibrary.trySkipCache(fd, 0, 0);
 
-        out.close(); // this will also close channel for us
+        out.close();
     }
 
     /**

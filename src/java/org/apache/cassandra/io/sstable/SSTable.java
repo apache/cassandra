@@ -64,6 +64,7 @@ public abstract class SSTable
     protected final Set<Component> components;
     public final CFMetaData metadata;
     public final IPartitioner partitioner;
+    public final boolean compression;
 
     protected SSTable(Descriptor descriptor, CFMetaData metadata, IPartitioner partitioner)
     {
@@ -82,6 +83,8 @@ public abstract class SSTable
         Set<Component> dataComponents = new HashSet<Component>(components);
         for (Component component : components)
             assert component.type != Component.Type.COMPACTED_MARKER;
+
+        this.compression = dataComponents.contains(Component.COMPRESSION_INFO);
         this.components = Collections.unmodifiableSet(dataComponents);
         this.metadata = metadata;
         this.partitioner = partitioner;
@@ -107,6 +110,7 @@ public abstract class SSTable
         {
             if (component.equals(Component.DATA) || component.equals(Component.COMPACTED_MARKER))
                 continue;
+
             FileUtils.deleteWithConfirm(desc.filenameFor(component));
         }
         // remove the COMPACTED_MARKER component last if it exists

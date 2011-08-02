@@ -77,6 +77,7 @@ public class Session implements Serializable
         availableOptions.addOption("W",  "no-replicate-on-write",false,  "Set replicate_on_write to false for counters. Only counter add with CL=ONE will work");
         availableOptions.addOption("V",  "average-size-values",  false,  "Generate column values of average rather than specific size");
         availableOptions.addOption("T",  "send-to",              true,   "Send this as a request to the stress daemon at specified address.");
+        availableOptions.addOption("I",  "compression",          false,  "Use sstable compression when creating schema");
     }
 
     private int numKeys          = 1000 * 1000;
@@ -92,6 +93,7 @@ public class Session implements Serializable
     private int retryTimes       = 10;
     private int port             = 9160;
     private int superColumns     = 1;
+    private boolean compression  = false;
 
     private int progressInterval  = 10;
     private int keysPerCall       = 1000;
@@ -258,6 +260,9 @@ public class Session implements Serializable
             if (cmd.hasOption("W"))
                 replicateOnWrite = false;
 
+            if (cmd.hasOption("I"))
+                compression = true;
+
             averageSizeValues = cmd.hasOption("V");
 
             try
@@ -412,7 +417,8 @@ public class Session implements Serializable
 
         // column family for standard columns
         CfDef standardCfDef = new CfDef("Keyspace1", "Standard1");
-        standardCfDef.setComparator_type("AsciiType").setDefault_validation_class("BytesType");
+        System.out.println("Compression = " + compression);
+        standardCfDef.setComparator_type("AsciiType").setDefault_validation_class("BytesType").setCompression(compression);
         if (indexType != null)
         {
             ColumnDef standardColumn = new ColumnDef(ByteBufferUtil.bytes("C1"), "BytesType");
@@ -422,13 +428,13 @@ public class Session implements Serializable
 
         // column family with super columns
         CfDef superCfDef = new CfDef("Keyspace1", "Super1").setColumn_type("Super");
-        superCfDef.setComparator_type("AsciiType").setSubcomparator_type("AsciiType").setDefault_validation_class("BytesType");
+        superCfDef.setComparator_type("AsciiType").setSubcomparator_type("AsciiType").setDefault_validation_class("BytesType").setCompression(compression);
 
         // column family for standard counters
-        CfDef counterCfDef = new CfDef("Keyspace1", "Counter1").setDefault_validation_class("CounterColumnType").setReplicate_on_write(replicateOnWrite);
+        CfDef counterCfDef = new CfDef("Keyspace1", "Counter1").setDefault_validation_class("CounterColumnType").setReplicate_on_write(replicateOnWrite).setCompression(compression);
 
         // column family with counter super columns
-        CfDef counterSuperCfDef = new CfDef("Keyspace1", "SuperCounter1").setDefault_validation_class("CounterColumnType").setReplicate_on_write(replicateOnWrite).setColumn_type("Super");
+        CfDef counterSuperCfDef = new CfDef("Keyspace1", "SuperCounter1").setDefault_validation_class("CounterColumnType").setReplicate_on_write(replicateOnWrite).setColumn_type("Super").setCompression(compression);
 
         keyspace.setName("Keyspace1");
         keyspace.setStrategy_class(replicationStrategy);
