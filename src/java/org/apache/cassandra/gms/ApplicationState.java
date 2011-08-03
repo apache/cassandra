@@ -30,6 +30,7 @@ public enum ApplicationState
     RACK,
     RELEASE_VERSION,
     REMOVAL_COORDINATOR,
+    RPC_ADDRESS,
     // pad to allow adding new states to existing cluster
     X1,
     X2,

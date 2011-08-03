@@ -451,6 +451,12 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         Gossiper.instance.register(migrationManager);
         Gossiper.instance.start(SystemTable.incrementAndGetGeneration()); // needed for node-ring gathering.
 
+        // add rpc listening info
+        if (DatabaseDescriptor.getRpcAddress() == null)
+            Gossiper.instance.addLocalApplicationState(ApplicationState.RPC_ADDRESS, valueFactory.rpcaddress(FBUtilities.getLocalAddress()));
+        else
+            Gossiper.instance.addLocalApplicationState(ApplicationState.RPC_ADDRESS, valueFactory.rpcaddress(DatabaseDescriptor.getRpcAddress()));
+
         MessagingService.instance().listen(FBUtilities.getLocalAddress());
         StorageLoadBalancer.instance.startBroadcasting();
         MigrationManager.passiveAnnounce(DatabaseDescriptor.getDefsVersion());
@@ -591,6 +597,35 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         for (Map.Entry<Range,List<InetAddress>> entry : getRangeToAddressMap(keyspace).entrySet())
         {
             map.put(entry.getKey(), stringify(entry.getValue()));
+        }
+        return map;
+    }
+
+    /**
+     * for a keyspace, return the ranges and corresponding RPC addresses for a given keyspace.
+     * @param keyspace
+     * @return
+     */
+    public Map<Range, List<String>> getRangeToRpcaddressMap(String keyspace)
+    {
+        // some people just want to get a visual representation of things. Allow null and set it to the first
+        // non-system table.
+        if (keyspace == null)
+            keyspace = DatabaseDescriptor.getNonSystemTables().get(0);
+
+        /* All the ranges for the tokens */
+        Map<Range, List<String>> map = new HashMap<Range, List<String>>();
+        for (Map.Entry<Range,List<InetAddress>> entry : getRangeToAddressMap(keyspace).entrySet())
+        {
+            List<String> rpcaddrs = new ArrayList<String>();
+            for (InetAddress endpoint: entry.getValue())
+            {
+                if (endpoint.equals(FBUtilities.getLocalAddress()))
+                    rpcaddrs.add(DatabaseDescriptor.getRpcAddress().toString());
+                else
+                    rpcaddrs.add(Gossiper.instance.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.RPC_ADDRESS).value);
+            }
+            map.put(entry.getKey(), rpcaddrs);
         }
         return map;
     }
