@@ -108,11 +108,11 @@ public class IncomingStreamReader
     {
         long toRead = Math.min(FileStreamTask.CHUNK_SIZE, length - bytesRead);
         long lastRead = fc.transferFrom(socketChannel, offset + bytesRead, toRead);
-	// if the other side fails, we will not get an exception, but instead transferFrom will constantly return 0 byte read
-	// and we would thus enter an infinite loop. So intead, if no bytes are tranferred we assume the other side is dead and 
-	// raise an exception (that will be catch belove and 'the right thing' will be done).
-	if (lastRead == 0)
-		throw new IOException("Transfer failed for remote file " + remoteFile);
+        // if the other side fails, we will not get an exception, but instead transferFrom will constantly return 0 byte read
+        // and we would thus enter an infinite loop. So intead, if no bytes are tranferred we assume the other side is dead and
+        // raise an exception (that will be catch belove and 'the right thing' will be done).
+        if (lastRead == 0)
+            throw new IOException("Transfer failed for remote file " + remoteFile);
         bytesRead += lastRead;
         remoteFile.progress += lastRead;
         return bytesRead;

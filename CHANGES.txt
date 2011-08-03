@@ -34,6 +34,7 @@
  * add asynchronous and half-sync/half-async thrift servers (CASSANDRA-1405)
  * fix potential use of free'd native memory in SerializingCache 
    (CASSANDRA-2951)
+ * include files-to-be-streamed in StreamInSession.getSources (CASSANDRA-2972)
 
 
 0.8.2
