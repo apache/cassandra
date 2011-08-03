@@ -21,6 +21,7 @@ package org.apache.cassandra.gms;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.net.InetAddress;
 import java.util.UUID;
 
 import org.apache.cassandra.dht.IPartitioner;
@@ -155,6 +156,11 @@ public class VersionedValue implements Comparable<VersionedValue>
         public VersionedValue rack(String rackId)
         {
             return new VersionedValue(rackId);
+        }
+
+        public VersionedValue rpcaddress(InetAddress endpoint)
+        {
+            return new VersionedValue(endpoint.toString());
         }
 
         public VersionedValue releaseVersion()

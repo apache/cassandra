@@ -111,12 +111,12 @@ public interface StorageServiceMBean
     public String getSavedCachesLocation();
 
     /**
-     * Retrieve a map of range to end points that describe the ring topology
+     * Retrieve a map of range to rpc addresses that describe the ring topology
      * of a Cassandra cluster.
      *
-     * @return mapping of ranges to end points
+     * @return mapping of ranges to rpc addresses
      */
-    public Map<Range, List<String>> getRangeToEndpointMap(String keyspace);
+    public Map<Range, List<String>> getRangeToRpcaddressMap(String keyspace);
 
     /**
      * Retrieve a map of pending ranges to endpoints that describe the ring topology
