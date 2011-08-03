@@ -130,15 +130,15 @@ public class ColumnFamilySerializer implements ICompactSerializer3<ColumnFamily>
 
     public void deserializeColumns(DataInput dis, ColumnFamily cf, boolean intern, boolean fromRemote) throws IOException
     {
-        int size = dis.readInt();
-        deserializeColumns(dis, cf, size, intern, fromRemote);
+        int count = dis.readInt();
+        deserializeColumns(dis, cf, count, intern, fromRemote);
     }
 
     /* column count is already read from DataInput */
-    public void deserializeColumns(DataInput dis, ColumnFamily cf, int size, boolean intern, boolean fromRemote) throws IOException
+    public void deserializeColumns(DataInput dis, ColumnFamily cf, int count, boolean intern, boolean fromRemote) throws IOException
     {
         ColumnFamilyStore interner = intern ? Table.open(CFMetaData.getCF(cf.id()).left).getColumnFamilyStore(cf.id()) : null;
-        for (int i = 0; i < size; ++i)
+        for (int i = 0; i < count; ++i)
         {
             IColumn column = cf.getColumnSerializer().deserialize(dis, interner, fromRemote, (int) (System.currentTimeMillis() / 1000));
             cf.addColumn(column);
