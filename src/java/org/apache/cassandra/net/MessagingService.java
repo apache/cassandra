@@ -63,11 +63,10 @@ public final class MessagingService implements MessagingServiceMBean
     public static final int VERSION_080 = 2;
     public static final int version_ = 3; // 8 bits, so don't waste versions
 
-    //TODO: make this parameter dynamic somehow.  Not sure if config is appropriate.
-    private SerializerType serializerType_ = SerializerType.BINARY;
+    static SerializerType serializerType_ = SerializerType.BINARY;
 
     /** we preface every message with this number so the recipient can validate the sender is sane */
-    private static final int PROTOCOL_MAGIC = 0xCA552DFA;
+    static final int PROTOCOL_MAGIC = 0xCA552DFA;
 
     /* This records all the results mapped by message Id */
     private final ExpiringMap<String, Pair<InetAddress, IMessageCallback>> callbacks;
@@ -380,26 +379,10 @@ public final class MessagingService implements MessagingServiceMBean
         }
 
         // get pooled connection (really, connection queue)
-        OutboundTcpConnection connection = getConnection(to, message);
-
-        // pack message with header in a bytebuffer
-        byte[] data;
-        try
-        {
-            DataOutputBuffer buffer = new DataOutputBuffer();
-            buffer.writeUTF(id);
-            Message.serializer().serialize(message, buffer, message.getVersion());
-            data = buffer.getData();
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
-        assert data.length > 0;
-        ByteBuffer buffer = packIt(data , false, message.getVersion());
+        OutboundTcpConnection connection = getConnection(to, processedMessage);
 
         // write it
-        connection.write(buffer);
+        connection.enqueue(processedMessage, id);
     }
 
     public IAsyncResult sendRR(Message message, InetAddress to)
@@ -491,36 +474,6 @@ public final class MessagingService implements MessagingServiceMBean
     public static int getBits(int x, int p, int n)
     {
         return x >>> (p + 1) - n & ~(-1 << n);
-    }
-        
-    public ByteBuffer packIt(byte[] bytes, boolean compress, int version)
-    {
-        /*
-             Setting up the protocol header. This is 4 bytes long
-             represented as an integer. The first 2 bits indicate
-             the serializer type. The 3rd bit indicates if compression
-             is turned on or off. It is turned off by default. The 4th
-             bit indicates if we are in streaming mode. It is turned off
-             by default. The 5th-8th bits are reserved for future use.
-             The next 8 bits indicate a version number. Remaining 15 bits
-             are not used currently.
-        */
-        int header = 0;
-        // Setting up the serializer bit
-        header |= serializerType_.ordinal();
-        // set compression bit.
-        if (compress)
-            header |= 4;
-        // Setting up the version bit
-        header |= (version << 8);
-
-        ByteBuffer buffer = ByteBuffer.allocate(4 + 4 + 4 + bytes.length);
-        buffer.putInt(PROTOCOL_MAGIC);
-        buffer.putInt(header);
-        buffer.putInt(bytes.length);
-        buffer.put(bytes);
-        buffer.flip();
-        return buffer;
     }
 
     public ByteBuffer constructStreamHeader(StreamHeader streamHeader, boolean compress, int version)

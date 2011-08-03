@@ -32,6 +32,7 @@ import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
@@ -47,6 +48,8 @@ import java.util.*;
 
 public class SerializationsTest extends AbstractSerializationsTester
 {
+    private static MessageSerializer messageSerializer = new MessageSerializer();
+
     private void testPendingFileWrite() throws IOException
     {
         // make sure to test serializing null and a pf with no sstable.
@@ -116,7 +119,7 @@ public class SerializationsTest extends AbstractSerializationsTester
         StreamReply rep = new StreamReply("this is a file", 123L, StreamReply.Status.FILE_FINISHED);
         DataOutputStream out = getOutput("streaming.StreamReply.bin");
         StreamReply.serializer.serialize(rep, out, getVersion());
-        Message.serializer().serialize(rep.getMessage(getVersion()), out, getVersion());
+        messageSerializer.serialize(rep.getMessage(getVersion()), out, getVersion());
         out.close();
     }
     
@@ -128,7 +131,7 @@ public class SerializationsTest extends AbstractSerializationsTester
         
         DataInputStream in = getInput("streaming.StreamReply.bin");
         assert StreamReply.serializer.deserialize(in, getVersion()) != null;
-        assert Message.serializer().deserialize(in, getVersion()) != null;
+        assert messageSerializer.deserialize(in, getVersion()) != null;
         in.close();
     }
     
@@ -155,9 +158,9 @@ public class SerializationsTest extends AbstractSerializationsTester
         StreamRequestMessage.serializer().serialize(msg0, out, getVersion());
         StreamRequestMessage.serializer().serialize(msg1, out, getVersion());
         StreamRequestMessage.serializer().serialize(msg2, out, getVersion());
-        Message.serializer().serialize(msg0.getMessage(getVersion()), out, getVersion());
-        Message.serializer().serialize(msg1.getMessage(getVersion()), out, getVersion());
-        Message.serializer().serialize(msg2.getMessage(getVersion()), out, getVersion());
+        messageSerializer.serialize(msg0.getMessage(getVersion()), out, getVersion());
+        messageSerializer.serialize(msg1.getMessage(getVersion()), out, getVersion());
+        messageSerializer.serialize(msg2.getMessage(getVersion()), out, getVersion());
         out.close();
     }
     
@@ -171,9 +174,9 @@ public class SerializationsTest extends AbstractSerializationsTester
         assert StreamRequestMessage.serializer().deserialize(in, getVersion()) != null;
         assert StreamRequestMessage.serializer().deserialize(in, getVersion()) != null;
         assert StreamRequestMessage.serializer().deserialize(in, getVersion()) != null;
-        assert Message.serializer().deserialize(in, getVersion()) != null;
-        assert Message.serializer().deserialize(in, getVersion()) != null;
-        assert Message.serializer().deserialize(in, getVersion()) != null;
+        assert messageSerializer.deserialize(in, getVersion()) != null;
+        assert messageSerializer.deserialize(in, getVersion()) != null;
+        assert messageSerializer.deserialize(in, getVersion()) != null;
         in.close();
     }
     

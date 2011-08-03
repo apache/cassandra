@@ -21,6 +21,8 @@ package org.apache.cassandra.net;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.net.Inet4Address;
+import java.net.Inet6Address;
 import java.net.InetAddress;
 
 public class CompactEndpointSerializationHelper
@@ -37,5 +39,13 @@ public class CompactEndpointSerializationHelper
         byte[] bytes = new byte[dis.readByte()];
         dis.readFully(bytes, 0, bytes.length);
         return InetAddress.getByAddress(bytes);
+    }
+
+    public static int serializedSize(InetAddress from)
+    {
+        if (from instanceof Inet4Address)
+            return 1 + 4;
+        assert from instanceof Inet6Address;
+        return 1 + 16;
     }
 }

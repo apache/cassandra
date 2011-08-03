@@ -29,6 +29,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class Header
 {
@@ -88,6 +89,21 @@ public class Header
     {
         details_.remove(key);
     }
+
+    public int serializedSize()
+    {
+        int size = 0;
+        size += CompactEndpointSerializationHelper.serializedSize(getFrom());
+        size += 4;
+        size += 4;
+        for (String key : details_.keySet())
+        {
+            size += 2 + FBUtilities.encodedUTF8Length(key);
+            byte[] value = details_.get(key);
+            size += 4 + value.length;
+        }
+        return size;
+    }
 }
 
 class HeaderSerializer implements ICompactSerializer<Header>
@@ -96,13 +112,8 @@ class HeaderSerializer implements ICompactSerializer<Header>
     {           
         CompactEndpointSerializationHelper.serialize(t.getFrom(), dos);
         dos.writeInt(t.getVerb().ordinal());
-        
-        /* Serialize the message header */
-        int size = t.details_.size();
-        dos.writeInt(size);
-        Set<String> keys = t.details_.keySet();
-        
-        for( String key : keys )
+        dos.writeInt(t.details_.size());
+        for (String key : t.details_.keySet())
         {
             dos.writeUTF(key);
             byte[] value = t.details_.get(key);
@@ -115,8 +126,6 @@ class HeaderSerializer implements ICompactSerializer<Header>
     {
         InetAddress from = CompactEndpointSerializationHelper.deserialize(dis);
         int verbOrdinal = dis.readInt();
-        
-        /* Deserializing the message header */
         int size = dis.readInt();
         Map<String, byte[]> details = new Hashtable<String, byte[]>(size);
         for ( int i = 0; i < size; ++i )
@@ -127,7 +136,6 @@ class HeaderSerializer implements ICompactSerializer<Header>
             dis.readFully(bytes);
             details.put(key, bytes);
         }
-        
         return new Header(from, StorageService.VERBS[verbOrdinal], details);
     }
 }

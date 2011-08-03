@@ -56,8 +56,8 @@ public class OutboundTcpConnectionPool
     public void reset(InetAddress remoteEP)
     {
         ackCon.setEndPoint(remoteEP);
-        ackCon.write(OutboundTcpConnection.CLOSE_SENTINEL);
+        ackCon.closeSocket();
         cmdCon.setEndPoint(remoteEP);
-        cmdCon.write(OutboundTcpConnection.CLOSE_SENTINEL);
+        cmdCon.closeSocket();
     }
 }

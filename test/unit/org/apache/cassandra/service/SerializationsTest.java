@@ -21,32 +21,34 @@ package org.apache.cassandra.service;
  */
 
 
-import org.apache.cassandra.AbstractSerializationsTester;
-import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.dht.RandomPartitioner;
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.MerkleTree;
-import org.junit.Test;
-
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.junit.Test;
+
+import org.apache.cassandra.AbstractSerializationsTester;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.RandomPartitioner;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.net.MessageSerializer;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.MerkleTree;
+
 public class SerializationsTest extends AbstractSerializationsTester
 {
+    private static MessageSerializer messageSerializer = new MessageSerializer();
+
     public static Range FULL_RANGE = new Range(StorageService.getPartitioner().getMinimumToken(), StorageService.getPartitioner().getMinimumToken());
 
     private void testTreeRequestWrite() throws IOException
     {
         DataOutputStream out = getOutput("service.TreeRequest.bin");
         AntiEntropyService.TreeRequestVerbHandler.SERIALIZER.serialize(Statics.req, out, getVersion());
-        Message.serializer().serialize(AntiEntropyService.TreeRequestVerbHandler.makeVerb(Statics.req, getVersion()), out, getVersion());
+        messageSerializer.serialize(AntiEntropyService.TreeRequestVerbHandler.makeVerb(Statics.req, getVersion()), out, getVersion());
         out.close();
     }
     
@@ -58,7 +60,7 @@ public class SerializationsTest extends AbstractSerializationsTester
         
         DataInputStream in = getInput("service.TreeRequest.bin");
         assert AntiEntropyService.TreeRequestVerbHandler.SERIALIZER.deserialize(in, getVersion()) != null;
-        assert Message.serializer().deserialize(in, getVersion()) != null;
+        assert messageSerializer.deserialize(in, getVersion()) != null;
         in.close();
     }
     
@@ -78,8 +80,8 @@ public class SerializationsTest extends AbstractSerializationsTester
         DataOutputStream out = getOutput("service.TreeResponse.bin");
         AntiEntropyService.TreeResponseVerbHandler.SERIALIZER.serialize(v0, out, getVersion());
         AntiEntropyService.TreeResponseVerbHandler.SERIALIZER.serialize(v1, out, getVersion());
-        Message.serializer().serialize(AntiEntropyService.TreeResponseVerbHandler.makeVerb(FBUtilities.getBroadcastAddress(), v0), out, getVersion());
-        Message.serializer().serialize(AntiEntropyService.TreeResponseVerbHandler.makeVerb(FBUtilities.getBroadcastAddress(), v1), out, getVersion());
+        messageSerializer.serialize(AntiEntropyService.TreeResponseVerbHandler.makeVerb(FBUtilities.getBroadcastAddress(), v0), out, getVersion());
+        messageSerializer.serialize(AntiEntropyService.TreeResponseVerbHandler.makeVerb(FBUtilities.getBroadcastAddress(), v1), out, getVersion());
         out.close();
     }
     
@@ -92,8 +94,8 @@ public class SerializationsTest extends AbstractSerializationsTester
         DataInputStream in = getInput("service.TreeResponse.bin");
         assert AntiEntropyService.TreeResponseVerbHandler.SERIALIZER.deserialize(in, getVersion()) != null;
         assert AntiEntropyService.TreeResponseVerbHandler.SERIALIZER.deserialize(in, getVersion()) != null;
-        assert Message.serializer().deserialize(in, getVersion()) != null;
-        assert Message.serializer().deserialize(in, getVersion()) != null;
+        assert messageSerializer.deserialize(in, getVersion()) != null;
+        assert messageSerializer.deserialize(in, getVersion()) != null;
         in.close();
     }
     

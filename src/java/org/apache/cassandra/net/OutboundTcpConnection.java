@@ -26,30 +26,36 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.Socket;
-import java.nio.ByteBuffer;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
-import org.apache.cassandra.gms.Gossiper;
-import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.commons.lang.ArrayUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
+import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.security.SSLFactory;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
 
 public class OutboundTcpConnection extends Thread
 {
     private static final Logger logger = LoggerFactory.getLogger(OutboundTcpConnection.class);
 
-    public static final ByteBuffer CLOSE_SENTINEL = ByteBuffer.allocate(0);
+    private static final Message CLOSE_SENTINEL = new Message(FBUtilities.getLocalAddress(),
+                                                              StorageService.Verb.INTERNAL_RESPONSE,
+                                                              ArrayUtils.EMPTY_BYTE_ARRAY,
+                                                              MessagingService.version_);
+
     private static final int OPEN_RETRY_DELAY = 100; // ms between retries
 
     private InetAddress endpoint;
-    private final BlockingQueue<ByteBuffer> queue = new LinkedBlockingQueue<ByteBuffer>();
-    private DataOutputStream output;
+    private final BlockingQueue<Pair<Message, String>> queue = new LinkedBlockingQueue<Pair<Message, String>>();
+    private DataOutputStream out;
+
     private Socket socket;
     private long completedCount;
 
@@ -64,11 +70,11 @@ public class OutboundTcpConnection extends Thread
         this.endpoint = remoteEndPoint;
     }
 
-    public void write(ByteBuffer buffer)
+    public void enqueue(Message message, String id)
     {
         try
         {
-            queue.put(buffer);
+            queue.put(Pair.create(message, id));
         }
         catch (InterruptedException e)
         {
@@ -79,21 +85,23 @@ public class OutboundTcpConnection extends Thread
     void closeSocket()
     {
         queue.clear();
-        write(CLOSE_SENTINEL);
+        enqueue(CLOSE_SENTINEL, null);
     }
 
     public void run()
     {
         while (true)
         {
-            ByteBuffer bb = take();
-            if (bb == CLOSE_SENTINEL)
+            Pair<Message, String> pair = take();
+            Message m = pair.left;
+            String id = pair.right;
+            if (m == CLOSE_SENTINEL)
             {
                 disconnect();
                 continue;
             }
             if (socket != null || connect())
-                writeConnected(bb);
+                writeConnected(m, id);
             else
                 // clear out the queue, else gossip messages back up.
                 queue.clear();            
@@ -110,14 +118,14 @@ public class OutboundTcpConnection extends Thread
         return completedCount;
     }
 
-    private void writeConnected(ByteBuffer bb)
+    private void writeConnected(Message message, String id)
     {
         try
         {
-            ByteBufferUtil.write(bb, output);
+            write(message, id, out);
             if (queue.peek() == null)
             {
-                output.flush();
+                out.flush();
             }
         }
         catch (IOException e)
@@ -126,6 +134,51 @@ public class OutboundTcpConnection extends Thread
                 logger.debug("error writing to " + endpoint, e);
             disconnect();
         }
+    }
+
+    static void write(Message message, String id, DataOutputStream out)
+    {
+        /*
+         Setting up the protocol header. This is 4 bytes long
+         represented as an integer. The first 2 bits indicate
+         the serializer type. The 3rd bit indicates if compression
+         is turned on or off. It is turned off by default. The 4th
+         bit indicates if we are in streaming mode. It is turned off
+         by default. The 5th-8th bits are reserved for future use.
+         The next 8 bits indicate a version number. Remaining 15 bits
+         are not used currently.
+        */
+        int header = 0;
+        // Setting up the serializer bit
+        header |= MessagingService.serializerType_.ordinal();
+        // set compression bit.
+        if (false)
+            header |= 4;
+        // Setting up the version bit
+        header |= (MessagingService.version_ << 8);
+
+        try
+        {
+            out.writeInt(MessagingService.PROTOCOL_MAGIC);
+            out.writeInt(header);
+            // compute total Message length for compatibility w/ 0.8 and earlier
+            byte[] bytes = message.getMessageBody();
+            int total = messageLength(message.header_, id, bytes);
+            out.writeInt(total);
+            out.writeUTF(id);
+            Header.serializer().serialize(message.header_, out, message.getVersion());
+            out.writeInt(bytes.length);
+            out.write(bytes);
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static int messageLength(Header header, String id, byte[] bytes)
+    {
+        return 2 + FBUtilities.encodedUTF8Length(id) + header.serializedSize() + 4 + bytes.length;
     }
 
     private void disconnect()
@@ -141,7 +194,7 @@ public class OutboundTcpConnection extends Thread
                 if (logger.isDebugEnabled())
                     logger.debug("exception closing connection to " + endpoint, e);
             }
-            output = null;
+            out = null;
             socket = null;
         }
 
@@ -149,19 +202,19 @@ public class OutboundTcpConnection extends Thread
         Gossiper.instance.resetVersion(endpoint);
     }
 
-    private ByteBuffer take()
+    private Pair<Message, String> take()
     {
-        ByteBuffer bb;
+        Pair<Message, String> pair;
         try
         {
-            bb = queue.take();
+            pair = queue.take();
             completedCount++;
         }
         catch (InterruptedException e)
         {
             throw new AssertionError(e);
         }
-        return bb;
+        return pair;
     }
 
     private boolean connect()
@@ -185,7 +238,7 @@ public class OutboundTcpConnection extends Thread
 
                 socket.setKeepAlive(true);
                 socket.setTcpNoDelay(true);
-                output = new DataOutputStream(new BufferedOutputStream(socket.getOutputStream(), 4096));
+                out = new DataOutputStream(new BufferedOutputStream(socket.getOutputStream(), 4096));
                 return true;
             }
             catch (IOException e)
