@@ -129,6 +129,7 @@ public class MutationTest extends TestBase
                 .expecting(UnavailableException.class).perform(ConsistencyLevel.QUORUM);
         } finally {
             failure.resolve();
+            Thread.sleep(10000);
         }
 
         // with all nodes up
