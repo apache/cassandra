@@ -201,10 +201,9 @@ public class StreamInSession
             if (entry.getKey().left.equals(host))
             {
                 StreamInSession session = entry.getValue();
-                set.addAll(session.files);
-                if(session.current != null) {
+                if (session.current != null)
                     set.add(session.current);
-                }
+                set.addAll(session.files);
             }
         }
         return set;

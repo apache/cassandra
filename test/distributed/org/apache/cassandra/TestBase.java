@@ -61,7 +61,6 @@ public abstract class TestBase
             cfdef.setRow_cache_size(1000);
             cfdef.setRow_cache_save_period_in_seconds(0);
             cfdef.setKey_cache_save_period_in_seconds(3600);
-            cfdef.setMemtable_flush_after_mins(59);
             cfdef.setMemtable_throughput_in_mb(255);
             cfdef.setMemtable_operations_in_millions(0.29);
         }
@@ -87,8 +86,7 @@ public abstract class TestBase
             client.system_add_keyspace(new KsDef(name,
                                                  "org.apache.cassandra.locator.SimpleStrategy",
                                                  Arrays.asList(cfdef))
-                                               .setStrategy_options(stratOptions)
-                                               .setCf_defs(Collections.<CfDef>emptyList()));
+                                               .setStrategy_options(stratOptions));
 
             // poll, until KS added
             for (InetAddress host : hosts)
@@ -199,7 +197,7 @@ public abstract class TestBase
         protected long timestamp;
 
         private Set<Class<Exception>> expected = new HashSet<Class<Exception>>();
-        private long timeout = StorageService.RING_DELAY;
+        private long timeout = StorageService.RING_DELAY * 2;
 
         public RetryingAction(Cassandra.Client client, String cf, ByteBuffer key)
         {

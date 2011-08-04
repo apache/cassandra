@@ -39,20 +39,20 @@ import org.apache.thrift.transport.TTransport;
 import org.apache.whirr.service.*;
 import org.apache.whirr.service.Cluster.Instance;
 import org.apache.whirr.service.cassandra.CassandraClusterActionHandler;
-import org.apache.whirr.service.jclouds.RunUrlStatement;
+import org.apache.whirr.service.jclouds.StatementBuilder;
 
 import org.jclouds.blobstore.domain.BlobMetadata;
 import org.jclouds.compute.ComputeService;
 import org.jclouds.compute.domain.ExecResponse;
 import org.jclouds.compute.domain.NodeMetadata;
 import org.jclouds.compute.options.RunScriptOptions;
+import org.jclouds.compute.RunScriptOnNodesException;
 import org.jclouds.domain.Credentials;
 import org.jclouds.scriptbuilder.domain.OsFamily;
+import org.jclouds.scriptbuilder.domain.Statements;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import static org.jclouds.io.Payloads.newStringPayload;
 
 public class CassandraServiceController
 {
@@ -76,7 +76,6 @@ public class CassandraServiceController
     private Service             service;
     private Cluster             cluster;
     private ComputeService      computeService;
-    private Credentials         credentials;
     private CompositeConfiguration config;
     private BlobMetadata        tarball;
     private List<InetAddress>   hosts;
@@ -113,12 +112,12 @@ public class CassandraServiceController
             try
             {
                 Cassandra.Client client = createClient(addr);
-
                 client.describe_cluster_name();
                 break;
             }
             catch (TException e)
             {
+                LOG.debug(e.toString());
                 try
                 {
                     Thread.sleep(1000);
@@ -168,13 +167,12 @@ public class CassandraServiceController
         for (Instance instance : cluster.getInstances())
         {
             hosts.add(instance.getPublicAddress());
-            credentials = instance.getLoginCredentials();
         }
-
-        waitForClusterInitialization();
 
         ShutdownHook shutdownHook = new ShutdownHook(this);
         Runtime.getRuntime().addShutdownHook(shutdownHook);
+
+        waitForClusterInitialization();
 
         running = true;
     }
@@ -231,7 +229,7 @@ public class CassandraServiceController
      */
     public void nodetool(String args, InetAddress... hosts)
     {
-        callOnHosts(String.format("apache/cassandra/nodetool %s", args), hosts);
+        callOnHosts(Arrays.asList(hosts), "nodetool_cassandra", args);
     }
 
     /**
@@ -239,25 +237,31 @@ public class CassandraServiceController
      */
     public void wipeHosts(InetAddress... hosts)
     {
-        callOnHosts("apache/cassandra/wipe-state", hosts);
+        callOnHosts(Arrays.asList(hosts), "wipe_cassandra");
     }
 
     public Failure failHosts(List<InetAddress> hosts)
     {
-        return new Failure(hosts.toArray(new InetAddress[hosts.size()])).trigger();
+        return new Failure(hosts).trigger();
     }
 
     public Failure failHosts(InetAddress... hosts)
     {
-        return new Failure(hosts).trigger();
+        return new Failure(Arrays.asList(hosts)).trigger();
     }
 
     /** TODO: Move to CassandraService? */
-    protected void callOnHosts(String payload, InetAddress... hosts)
+    protected void callOnHosts(List<InetAddress> hosts, String functionName, String... functionArgs)
     {
         final Set<String> hostset = new HashSet<String>();
+
         for (InetAddress host : hosts)
             hostset.add(host.getHostAddress());
+
+        StatementBuilder statementBuilder = new StatementBuilder();
+        statementBuilder.addStatement(Statements.call(functionName, functionArgs));
+        Credentials credentials = new Credentials(clusterSpec.getClusterUser(), clusterSpec.getPrivateKey());
+
         Map<? extends NodeMetadata,ExecResponse> results;
         try
         {
@@ -269,18 +273,27 @@ public class CassandraServiceController
                     intersection.retainAll(node.getPublicAddresses());
                     return !intersection.isEmpty();
                 }
-            }, newStringPayload(new RunUrlStatement(clusterSpec.getRunUrlBase(), payload).render(OsFamily.UNIX)),
-            RunScriptOptions.Builder.overrideCredentialsWith(credentials));
+            },
+            statementBuilder,
+            RunScriptOptions.Builder.overrideCredentialsWith(credentials).wrapInInitScript(false).runAsRoot(false));
         }
-        catch (Exception e)
+        catch (RunScriptOnNodesException e)
         {
             throw new RuntimeException(e);
         }
+
         if (results.size() != hostset.size())
+        {
             throw new RuntimeException(results.size() + " hosts matched " + hostset + ": " + results);
+        }
+
         for (ExecResponse response : results.values())
+        {
             if (response.getExitCode() != 0)
-                throw new RuntimeException("Call " + payload + " failed on at least one of " + hostset + ": " + results.values());
+            {
+                throw new RuntimeException("Call " + functionName + " failed on at least one of " + hostset + ": " + results.values());
+            }
+        }
     }
 
     public List<InetAddress> getHosts()
@@ -290,24 +303,26 @@ public class CassandraServiceController
 
     class Failure
     {
-        private InetAddress[] hosts;
+        private List<InetAddress> hosts;
 
-        public Failure(InetAddress... hosts)
+        public Failure(List<InetAddress> hosts)
         {
             this.hosts = hosts;
         }
         
         public Failure trigger()
         {
-            callOnHosts("apache/cassandra/stop", hosts);
+            callOnHosts(hosts, "stop_cassandra");
             return this;
         }
 
         public void resolve()
         {
-            callOnHosts("apache/cassandra/start", hosts);
+            callOnHosts(hosts, "start_cassandra");
             for (InetAddress host : hosts)
+            {
                 waitForNodeInitialization(host);
+            }
         }
     }
 
