@@ -148,7 +148,8 @@ public class SSTableWriter extends SSTable
         ByteBufferUtil.writeWithShortLength(row.key.key, dataFile.stream);
         long dataStart = dataFile.getFilePointer();
         long dataSize = row.write(dataFile.stream);
-        assert dataSize == dataFile.getFilePointer() - (dataStart + 8): "incorrect row size written to " + dataFile.getPath();
+        assert dataSize == dataFile.getFilePointer() - (dataStart + 8)
+                : "incorrect row data size " + dataSize + " written to " + dataFile.getPath() + "; correct is " + (dataFile.getFilePointer() - (dataStart + 8));
         // max timestamp is not collected here, because we want to avoid deserializing an EchoedRow
         // instead, it is collected when calling ColumnFamilyStore.createCompactionWriter
         sstableMetadataCollector.addRowSize(dataFile.getFilePointer() - currentPosition);

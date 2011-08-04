@@ -34,12 +34,24 @@ import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.thrift.IndexType;
 
 import org.junit.BeforeClass;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class SchemaLoader
 {
+    private static Logger logger = LoggerFactory.getLogger(SchemaLoader.class);
+
     @BeforeClass
     public static void loadSchema()
     {
+        Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler()
+        {
+            public void uncaughtException(Thread t, Throwable e)
+            {
+                logger.error("Fatal exception in thread " + t, e);
+            }
+        });
+
         try
         {
             for (KSMetaData ksm : schemaDefinition())
