@@ -44,7 +44,7 @@ public abstract class AbstractCompactedRow
     /**
      * write the row (size + column index + filter + column data, but NOT row key) to @param out
      */
-    public abstract void write(DataOutput out) throws IOException;
+    public abstract long write(DataOutput out) throws IOException;
 
     /**
      * update @param digest with the data bytes of the row (not including row key or row size)

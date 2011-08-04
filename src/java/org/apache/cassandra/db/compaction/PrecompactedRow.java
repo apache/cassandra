@@ -90,7 +90,7 @@ public class PrecompactedRow extends AbstractCompactedRow
         }
     }
 
-    public void write(DataOutput out) throws IOException
+    public long write(DataOutput out) throws IOException
     {
         if (compactedCf != null)
         {
@@ -98,10 +98,13 @@ public class PrecompactedRow extends AbstractCompactedRow
             DataOutputBuffer headerBuffer = new DataOutputBuffer();
             ColumnIndexer.serialize(compactedCf, headerBuffer);
             ColumnFamily.serializer().serializeForSSTable(compactedCf, buffer);
-            out.writeLong(headerBuffer.getLength() + buffer.getLength());
+            int dataSize = headerBuffer.getLength() + buffer.getLength();
+            out.writeLong(dataSize);
             out.write(headerBuffer.getData(), 0, headerBuffer.getLength());
             out.write(buffer.getData(), 0, buffer.getLength());
+            return dataSize;
         }
+        return 0;
     }
 
     public void update(MessageDigest digest)

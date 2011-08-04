@@ -47,11 +47,12 @@ public class EchoedRow extends AbstractCompactedRow
         row.reset();
     }
 
-    public void write(DataOutput out) throws IOException
+    public long write(DataOutput out) throws IOException
     {
         assert row.dataSize > 0;
         out.writeLong(row.dataSize);
         row.echoData(out);
+        return row.dataSize;
     }
 
     public void update(MessageDigest digest)

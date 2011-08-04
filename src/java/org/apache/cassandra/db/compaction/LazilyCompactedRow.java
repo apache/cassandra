@@ -89,7 +89,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements IIterabl
         reducer = null;
     }
 
-    public void write(DataOutput out) throws IOException
+    public long write(DataOutput out) throws IOException
     {
         DataOutputBuffer clockOut = new DataOutputBuffer();
         ColumnFamily.serializer().serializeCFInfo(emptyColumnFamily, clockOut);
@@ -107,6 +107,8 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements IIterabl
             IColumn column = iter.next();
             emptyColumnFamily.getColumnSerializer().serialize(column, out);
         }
+
+        return dataSize;
     }
 
     public void update(MessageDigest digest)
