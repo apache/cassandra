@@ -1,6 +1,8 @@
 0.7.9
  * don't include tmp files as sstable when create cfs (CASSANDRA-2929)
  * log Java classpath on startup (CASSANDRA-2895)
+ * prune index scan resultset back to original request for lazy
+   resultset expansion case (CASSANDRA-2964)
 
 
 0.7.8
