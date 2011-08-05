@@ -181,7 +181,7 @@ implements CloseableIterator<AbstractCompactedRow>, CompactionInfo.Holder
 
             try
             {
-                AbstractCompactedRow compactedRow = controller.getCompactedRow(rows);
+                AbstractCompactedRow compactedRow = controller.getCompactedRow(new ArrayList<SSTableIdentityIterator>(rows));
                 if (compactedRow.isEmpty())
                 {
                     controller.invalidateCachedRow(compactedRow.key);

@@ -46,6 +46,34 @@ import org.slf4j.LoggerFactory;
 public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor
 {
     protected static Logger logger = LoggerFactory.getLogger(DebuggableThreadPoolExecutor.class);
+    public static final RejectedExecutionHandler blockingExecutionHandler = new RejectedExecutionHandler()
+    {
+        public void rejectedExecution(Runnable task, ThreadPoolExecutor executor)
+        {
+            ((DebuggableThreadPoolExecutor) executor).onInitialRejection(task);
+            BlockingQueue<Runnable> queue = executor.getQueue();
+            while (true)
+            {
+                if (executor.isShutdown())
+                {
+                    ((DebuggableThreadPoolExecutor) executor).onFinalRejection(task);
+                    throw new RejectedExecutionException("ThreadPoolExecutor has shut down");
+                }
+                try
+                {
+                    if (queue.offer(task, 1000, TimeUnit.MILLISECONDS))
+                    {
+                        ((DebuggableThreadPoolExecutor) executor).onFinalAccept(task);
+                        break;
+                    }
+                }
+                catch (InterruptedException e)
+                {
+                    throw new AssertionError(e);
+                }
+            }
+        }
+    };
 
     public DebuggableThreadPoolExecutor(String threadPoolName, int priority)
     {
@@ -67,34 +95,7 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor
         // we'll just override this with a handler that retries until it gets in.  ugly, but effective.
         // (there is an extensive analysis of the options here at
         //  http://today.java.net/pub/a/today/2008/10/23/creating-a-notifying-blocking-thread-pool-executor.html)
-        this.setRejectedExecutionHandler(new RejectedExecutionHandler()
-        {
-            public void rejectedExecution(Runnable task, ThreadPoolExecutor executor)
-            {
-                ((DebuggableThreadPoolExecutor)executor).onInitialRejection(task);
-                BlockingQueue<Runnable> queue = executor.getQueue();
-                while (true)
-                {
-                    if (executor.isShutdown())
-                    {
-                        ((DebuggableThreadPoolExecutor)executor).onFinalRejection(task);
-                        throw new RejectedExecutionException("ThreadPoolExecutor has shut down");
-                    }
-                    try
-                    {
-                        if (queue.offer(task, 1000, TimeUnit.MILLISECONDS))
-                        {
-                            ((DebuggableThreadPoolExecutor)executor).onFinalAccept(task);
-                            break;
-                        }
-                    }
-                    catch (InterruptedException e)
-                    {
-                        throw new AssertionError(e);
-                    }
-                }
-            }
-        });
+        this.setRejectedExecutionHandler(blockingExecutionHandler);
     }
 
     protected void onInitialRejection(Runnable task) {}

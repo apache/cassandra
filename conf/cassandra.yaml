@@ -279,13 +279,13 @@ column_index_size_in_kb: 64
 # will be logged specifying the row key.
 in_memory_compaction_limit_in_mb: 64
 
-# Number of compaction threads (NOT including validation "compactions"
-# for anti-entropy repair). This default to the number of processors,
-# enabling multiple compactions to execute at once. Using more than one
-# thread is highly recommended to preserve read performance in a mixed
-# read/write workload as this avoids sstables from accumulating during long
-# running compactions. The default is usually fine and if you experience
-# problems with compaction running too slowly or too fast, you should look at
+# Number of simultaneous compactions to allow, NOT including
+# validation "compactions" for anti-entropy repair. This defaults to
+# the number of cores. This can help preserve read performance in a
+# mixed read/write workload, by mitigating the tendency of small
+# sstables to accumulate during a single long running compactions. The
+# default is usually fine and if you experience problems with
+# compaction running too slowly or too fast, you should look at
 # compaction_throughput_mb_per_sec first.
 #
 # Uncomment to make compaction mono-threaded.
