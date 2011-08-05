@@ -36,7 +36,6 @@ import org.apache.cassandra.db.CounterColumn;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-import sun.tools.tree.ThisExpression;
 
 /**
  * PrecompactedRow merges its rows in its constructor in memory.
