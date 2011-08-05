@@ -25,7 +25,6 @@ import java.io.DataOutput;
 import java.io.IOError;
 import java.io.IOException;
 import java.security.MessageDigest;
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
@@ -33,7 +32,11 @@ import com.google.common.base.Predicates;
 import com.google.common.collect.Iterators;
 import org.apache.commons.collections.iterators.CollatingIterator;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.columniterator.IColumnIterator;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
 import org.apache.cassandra.io.util.DataOutputBuffer;
@@ -53,23 +56,25 @@ import org.apache.cassandra.utils.ReducingIterator;
  */
 public class LazilyCompactedRow extends AbstractCompactedRow implements IIterableColumns
 {
+    private static Logger logger = LoggerFactory.getLogger(LazilyCompactedRow.class);
+
     private final List<SSTableIdentityIterator> rows;
     private final CompactionController controller;
     private final boolean shouldPurge;
     private final DataOutputBuffer headerBuffer;
     private ColumnFamily emptyColumnFamily;
-    private LazyColumnIterator iter;
+    private LazyColumnIterator reducer;
     private int columnCount;
     private long columnSerializedSize;
 
     public LazilyCompactedRow(CompactionController controller, List<SSTableIdentityIterator> rows)
     {
         super(rows.get(0).getKey());
+        this.rows = rows;
         this.controller = controller;
         this.shouldPurge = controller.shouldPurge(key);
-        this.rows = new ArrayList<SSTableIdentityIterator>(rows);
 
-        for (SSTableIdentityIterator row : rows)
+        for (IColumnIterator row : rows)
         {
             ColumnFamily cf = row.getColumnFamily();
 
@@ -83,9 +88,10 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements IIterabl
         headerBuffer = new DataOutputBuffer();
         ColumnIndexer.serialize(this, headerBuffer);
         // reach into iterator used by ColumnIndexer to get column count and size
-        columnCount = iter.size;
-        columnSerializedSize = iter.serializedSize;
-        iter = null;
+        // (however, if there are zero columns, iterator() will not be called by ColumnIndexer and reducer will be null)
+        columnCount = reducer == null ? 0 : reducer.size;
+        columnSerializedSize = reducer == null ? 0 : reducer.serializedSize;
+        reducer = null;
     }
 
     public void write(DataOutput out) throws IOException
@@ -94,6 +100,9 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements IIterabl
         ColumnFamily.serializer().serializeCFInfo(emptyColumnFamily, clockOut);
 
         long dataSize = headerBuffer.getLength() + clockOut.getLength() + columnSerializedSize;
+        if (logger.isDebugEnabled())
+            logger.debug(String.format("header / clock / column sizes are %s / %s / %s",
+                         headerBuffer.getLength(), clockOut.getLength(), columnSerializedSize));
         assert dataSize > 0;
         out.writeLong(dataSize);
         out.write(headerBuffer.getData(), 0, headerBuffer.getLength());
@@ -106,6 +115,9 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements IIterabl
             IColumn column = iter.next();
             emptyColumnFamily.getColumnSerializer().serialize(column, out);
         }
+        long secondPassColumnSize = reducer == null ? 0 : reducer.serializedSize;
+        assert secondPassColumnSize == columnSerializedSize
+               : "originally calculated column size of " + columnSerializedSize + " but now it is " + secondPassColumnSize;
     }
 
     public void update(MessageDigest digest)
@@ -157,8 +169,8 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements IIterabl
         {
             row.reset();
         }
-        iter = new LazyColumnIterator(new CollatingIterator(getComparator().columnComparator, rows));
-        return Iterators.filter(iter, Predicates.notNull());
+        reducer = new LazyColumnIterator(new CollatingIterator(getComparator().columnComparator, rows));
+        return Iterators.filter(reducer, Predicates.notNull());
     }
 
     public int columnCount()
@@ -190,18 +202,13 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements IIterabl
 
         protected IColumn getReduced()
         {
-            assert container != null;
-            IColumn reduced = container.iterator().next();
-            ColumnFamily purged = shouldPurge ? ColumnFamilyStore.removeDeleted(container, controller.gcBefore) : container;
-            if (shouldPurge && purged != null && purged.metadata().getDefaultValidator().isCommutative())
-            {
-                CounterColumn.removeOldShards(purged, controller.gcBefore);
-            }
+            ColumnFamily purged = PrecompactedRow.removeDeletedAndOldShards(shouldPurge, controller, container);
             if (purged == null || !purged.iterator().hasNext())
             {
                 container.clear();
                 return null;
             }
+            IColumn reduced = purged.iterator().next();
             container.clear();
             serializedSize += reduced.serializedSize();
             size++;

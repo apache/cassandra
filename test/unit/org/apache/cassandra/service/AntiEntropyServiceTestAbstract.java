@@ -32,6 +32,7 @@ import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.PrecompactedRow;
 import org.apache.cassandra.dht.IPartitioner;
@@ -150,7 +151,8 @@ public abstract class AntiEntropyServiceTestAbstract extends CleanupHelper
         validator.prepare(store);
 
         // add a row
-        validator.add(new PrecompactedRow(new DecoratedKey(mid, ByteBufferUtil.bytes("inconceivable!")), null));
+        validator.add(new PrecompactedRow(new DecoratedKey(mid, ByteBufferUtil.bytes("inconceivable!")),
+                                          new ColumnFamily(DatabaseDescriptor.getCFMetaData(tablename, cfname))));
         validator.completeTree();
 
         // confirm that the tree was validated

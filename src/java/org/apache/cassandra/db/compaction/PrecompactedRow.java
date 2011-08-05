@@ -36,6 +36,7 @@ import org.apache.cassandra.db.CounterColumn;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import sun.tools.tree.ThisExpression;
 
 /**
  * PrecompactedRow merges its rows in its constructor in memory.
@@ -55,11 +56,28 @@ public class PrecompactedRow extends AbstractCompactedRow
         this.gcBefore = Integer.MAX_VALUE;
     }
 
+    public static ColumnFamily removeDeletedAndOldShards(DecoratedKey key, CompactionController controller, ColumnFamily cf)
+    {
+        return removeDeletedAndOldShards(controller.shouldPurge(key), controller, cf);
+    }
+
+    public static ColumnFamily removeDeletedAndOldShards(boolean shouldPurge, CompactionController controller, ColumnFamily cf)
+    {
+        ColumnFamily compacted = shouldPurge ? ColumnFamilyStore.removeDeleted(cf, controller.gcBefore) : cf;
+        if (shouldPurge && compacted != null && compacted.metadata().getDefaultValidator().isCommutative())
+            CounterColumn.removeOldShards(compacted, controller.gcBefore);
+        return compacted;
+    }
+
     public PrecompactedRow(CompactionController controller, List<SSTableIdentityIterator> rows)
     {
         super(rows.get(0).getKey());
-        this.gcBefore = controller.gcBefore;
+        gcBefore = controller.gcBefore;
+        compactedCf = removeDeletedAndOldShards(rows.get(0).getKey(), controller, merge(rows));
+    }
 
+    private static ColumnFamily merge(List<SSTableIdentityIterator> rows)
+    {
         ColumnFamily cf = null;
         for (SSTableIdentityIterator row : rows)
         {
@@ -70,7 +88,7 @@ public class PrecompactedRow extends AbstractCompactedRow
             }
             catch (IOException e)
             {
-                logger.error("Skipping row " + key + " in " + row.getPath(), e);
+                logger.error("Skipping row " + row.getKey() + " in " + row.getPath(), e);
                 continue;
             }
             if (cf == null)
@@ -82,45 +100,36 @@ public class PrecompactedRow extends AbstractCompactedRow
                 cf.addAll(thisCF);
             }
         }
-        boolean shouldPurge = controller.shouldPurge(key);
-        compactedCf = shouldPurge ? ColumnFamilyStore.removeDeleted(cf, controller.gcBefore) : cf;
-        if (shouldPurge && compactedCf != null && compactedCf.metadata().getDefaultValidator().isCommutative())
-        {
-            CounterColumn.removeOldShards(compactedCf, controller.gcBefore);
-        }
+        return cf;
     }
 
     public void write(DataOutput out) throws IOException
     {
-        if (compactedCf != null)
-        {
-            DataOutputBuffer buffer = new DataOutputBuffer();
-            DataOutputBuffer headerBuffer = new DataOutputBuffer();
-            ColumnIndexer.serialize(compactedCf, headerBuffer);
-            ColumnFamily.serializer().serializeForSSTable(compactedCf, buffer);
-            out.writeLong(headerBuffer.getLength() + buffer.getLength());
-            out.write(headerBuffer.getData(), 0, headerBuffer.getLength());
-            out.write(buffer.getData(), 0, buffer.getLength());
-        }
+        assert compactedCf != null;
+        DataOutputBuffer buffer = new DataOutputBuffer();
+        DataOutputBuffer headerBuffer = new DataOutputBuffer();
+        ColumnIndexer.serialize(compactedCf, headerBuffer);
+        ColumnFamily.serializer().serializeForSSTable(compactedCf, buffer);
+        out.writeLong(headerBuffer.getLength() + buffer.getLength());
+        out.write(headerBuffer.getData(), 0, headerBuffer.getLength());
+        out.write(buffer.getData(), 0, buffer.getLength());
     }
 
     public void update(MessageDigest digest)
     {
-        if (compactedCf != null)
+        assert compactedCf != null;
+        DataOutputBuffer buffer = new DataOutputBuffer();
+        try
         {
-            DataOutputBuffer buffer = new DataOutputBuffer();
-            try
-            {
-                ColumnFamily.serializer().serializeCFInfo(compactedCf, buffer);
-                buffer.writeInt(compactedCf.getColumnCount());
-                digest.update(buffer.getData(), 0, buffer.getLength());
-            }
-            catch (IOException e)
-            {
-                throw new RuntimeException(e);
-            }
-            compactedCf.updateDigest(digest);
+            ColumnFamily.serializer().serializeCFInfo(compactedCf, buffer);
+            buffer.writeInt(compactedCf.getColumnCount());
+            digest.update(buffer.getData(), 0, buffer.getLength());
         }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+        compactedCf.updateDigest(digest);
     }
 
     public boolean isEmpty()
