@@ -124,12 +124,6 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
 
         listenPort = DatabaseDescriptor.getRpcPort();
         listenAddr = DatabaseDescriptor.getRpcAddress();
-        /* 
-         * If ThriftAddress was left completely unconfigured, then assume
-         * the same default as ListenAddress
-         */
-        if (listenAddr == null)
-            listenAddr = FBUtilities.getLocalAddress();
 
         Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler()
         {

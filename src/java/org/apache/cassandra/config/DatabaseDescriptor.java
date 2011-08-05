@@ -291,6 +291,10 @@ public class DatabaseDescriptor
                     throw new ConfigurationException("Unknown host in rpc_address " + conf.rpc_address);
                 }
             }
+            else
+            {
+                rpcAddress = FBUtilities.getLocalAddress();
+            }
 
             if (conf.thrift_framed_transport_size_in_mb <= 0)
                 throw new ConfigurationException("thrift_framed_transport_size_in_mb must be positive");
