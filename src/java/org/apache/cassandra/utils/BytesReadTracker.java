@@ -40,13 +40,13 @@ public class BytesReadTracker implements DataInput
     {
         return bytesRead;
     }
-    
+
     /**
-     * reset counter to 0
+     * reset counter to @param count
      */
-    public void reset()
+    public void reset(long count)
     {
-        bytesRead = 0;
+        bytesRead = count;
     }
 
     public boolean readBoolean() throws IOException

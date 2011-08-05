@@ -115,7 +115,7 @@ public class BytesReadTrackerTest
             dis.close();
         }
 
-        tracker.reset();
+        tracker.reset(0);
         assertEquals(0, tracker.getBytesRead());
     }
 
@@ -152,6 +152,8 @@ public class BytesReadTrackerTest
             int s = tracker.readUnsignedShort();
             assertEquals(1, s);
             assertEquals(3, tracker.getBytesRead());
+
+            assertEquals(testData.length, tracker.getBytesRead());
         }
         finally
         {
@@ -185,6 +187,8 @@ public class BytesReadTrackerTest
             tracker.readFully(out);
             assertEquals("890", new String(out));
             assertEquals(10, tracker.getBytesRead());
+
+            assertEquals(testData.length, tracker.getBytesRead());
         }
         finally
         {

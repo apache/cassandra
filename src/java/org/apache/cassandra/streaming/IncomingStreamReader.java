@@ -117,7 +117,7 @@ public class IncomingStreamReader
                 long bytesRead = 0;
                 while (bytesRead < length)
                 {
-                    in.reset();
+                    in.reset(0);
                     key = SSTableReader.decodeKey(StorageService.getPartitioner(), localFile.desc, ByteBufferUtil.readWithShortLength(in));
                     long dataSize = SSTableReader.readRowSize(in, localFile.desc);
                     ColumnFamily cf = null;

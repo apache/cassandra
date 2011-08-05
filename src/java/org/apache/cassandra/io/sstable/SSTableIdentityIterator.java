@@ -21,11 +21,7 @@ package org.apache.cassandra.io.sstable;
  */
 
 
-import java.io.DataInput;
-import java.io.DataOutput;
-import java.io.EOFException;
-import java.io.IOError;
-import java.io.IOException;
+import java.io.*;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,7 +40,6 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
     private static final Logger logger = LoggerFactory.getLogger(SSTableIdentityIterator.class);
 
     private final DecoratedKey key;
-    private final long finishedAt;
     private final DataInput input;
     private final long dataStart;
     public final long dataSize;
@@ -110,7 +105,6 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
         this.expireBefore = (int)(System.currentTimeMillis() / 1000);
         this.fromRemote = fromRemote;
         this.validateColumns = checkData;
-        finishedAt = dataStart + dataSize;
 
         try
         {
@@ -118,6 +112,9 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
             {
                 RandomAccessReader file = (RandomAccessReader) input;
                 file.seek(this.dataStart);
+                if (dataStart + dataSize > file.length())
+                    throw new IOException(String.format("dataSize of %s starting at %s would be larger than file %s length %s",
+                                          dataSize, dataStart, file.getPath(), file.length()));
                 if (checkData)
                 {
                     try
@@ -141,6 +138,7 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
                         logger.debug("Invalid row summary in {}; will rebuild it", sstable);
                     }
                     file.seek(this.dataStart);
+                    inputWithTracker.reset(0);
                 }
             }
 
@@ -150,11 +148,7 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
             ColumnFamily.serializer().deserializeFromSSTableNoColumns(columnFamily, inputWithTracker);
             columnCount = inputWithTracker.readInt();
 
-            if (input instanceof RandomAccessReader)
-            {
-                RandomAccessReader file = (RandomAccessReader) input;
-                columnPosition = file.getFilePointer();
-            }
+            columnPosition = dataStart + inputWithTracker.getBytesRead();
         }
         catch (IOException e)
         {
@@ -174,15 +168,7 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
 
     public boolean hasNext()
     {
-        if (input instanceof RandomAccessReader)
-        {
-            RandomAccessReader file = (RandomAccessReader) input;
-            return file.getFilePointer() < finishedAt;
-        }
-        else
-        {
-            return inputWithTracker.getBytesRead() < dataSize;
-        }
+        return inputWithTracker.getBytesRead() < dataSize;
     }
 
     public IColumn next()
@@ -230,36 +216,21 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
 
     public void echoData(DataOutput out) throws IOException
     {
-        // only effective when input is from file
-        if (input instanceof RandomAccessReader)
-        {
-            RandomAccessReader file = (RandomAccessReader) input;
-            file.seek(dataStart);
-            while (file.getFilePointer() < finishedAt)
-            {
-                out.write(file.readByte());
-            }
-        }
-        else
-        {
+        if (!(input instanceof RandomAccessReader))
             throw new UnsupportedOperationException();
-        }
+
+        ((RandomAccessReader) input).seek(dataStart);
+        inputWithTracker.reset(0);
+        while (inputWithTracker.getBytesRead() < dataSize)
+            out.write(inputWithTracker.readByte());
     }
 
     public ColumnFamily getColumnFamilyWithColumns() throws IOException
     {
+        assert inputWithTracker.getBytesRead() == headerSize();
         ColumnFamily cf = columnFamily.cloneMeShallow();
-        if (input instanceof RandomAccessReader)
-        {
-            RandomAccessReader file = (RandomAccessReader) input;
-            file.seek(columnPosition - 4); // seek to before column count int
-            ColumnFamily.serializer().deserializeColumns(inputWithTracker, cf, false, fromRemote);
-        }
-        else
-        {
-            // since we already read column count, just pass that value and continue deserialization
-            ColumnFamily.serializer().deserializeColumns(inputWithTracker, cf, columnCount, false, fromRemote);
-        }
+        // since we already read column count, just pass that value and continue deserialization
+        ColumnFamily.serializer().deserializeColumns(inputWithTracker, cf, columnCount, false, fromRemote);
         if (validateColumns)
         {
             try
@@ -274,6 +245,11 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
         return cf;
     }
 
+    private long headerSize()
+    {
+        return columnPosition - dataStart;
+    }
+
     public int compareTo(SSTableIdentityIterator o)
     {
         return key.compareTo(o.key);
@@ -281,23 +257,18 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
 
     public void reset()
     {
-        // only effective when input is from file
-        if (input instanceof RandomAccessReader)
-        {
-            RandomAccessReader file = (RandomAccessReader) input;
-            try
-            {
-                file.seek(columnPosition);
-            }
-            catch (IOException e)
-            {
-                throw new IOError(e);
-            }
-            inputWithTracker.reset();
-        }
-        else
-        {
+        if (!(input instanceof RandomAccessReader))
             throw new UnsupportedOperationException();
+
+        RandomAccessReader file = (RandomAccessReader) input;
+        try
+        {
+            file.seek(columnPosition);
         }
+        catch (IOException e)
+        {
+            throw new IOError(e);
+        }
+        inputWithTracker.reset(headerSize());
     }
 }
