@@ -443,6 +443,8 @@ public class Gossiper implements IFailureDetectionEventListener
     private boolean sendGossip(MessageProducer prod, Set<InetAddress> epSet)
     {
         int size = epSet.size();
+        if (size < 1)
+            return false;
         /* Generate a random number from 0 -> size */
         List<InetAddress> liveEndpoints = new ArrayList<InetAddress>(epSet);
         int index = (size == 1) ? 0 : random.nextInt(size);
