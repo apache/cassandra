@@ -2,7 +2,6 @@
 artifact.remoteRepository.central:     http://repo1.maven.org/maven2
 artifact.remoteRepository.java.net2:   http://download.java.net/maven/2
 artifact.remoteRepository.apache:      https://repository.apache.org/content/repositories/releases
-artifact.remoteRepository.cloudera:    https://repository.cloudera.com/content/repositories/releases
 artifact.remoteRepository.jclouds:     http://jclouds.googlecode.com/svn/repo
 artifact.remoteRepository.oauth:       http://oauth.googlecode.com/svn/code/maven
 

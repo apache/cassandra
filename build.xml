@@ -285,7 +285,6 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
       <artifact:remoteRepository id="central"   url="${artifact.remoteRepository.central}"/>
       <artifact:remoteRepository id="java.net2" url="${artifact.remoteRepository.java.net2}"/>
       <artifact:remoteRepository id="apache"    url="${artifact.remoteRepository.apache}"/>
-      <artifact:remoteRepository id="cloudera"  url="${artifact.remoteRepository.cloudera}"/>
       <!-- for distributed tests -->
       <artifact:remoteRepository id="jclouds"   url="${artifact.remoteRepository.jclouds}"/>
       <artifact:remoteRepository id="oauth"     url="${artifact.remoteRepository.oauth}"/>
@@ -379,8 +378,7 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
           <dependency groupId="junit" artifactId="junit" version="4.6" />
           <dependency groupId="commons-logging" artifactId="commons-logging" version="1.1.1"/>
           <dependency groupId="org.apache.rat" artifactId="apache-rat" version="0.6" />
-          <dependency groupId="com.cloudera.hadoop" artifactId="hadoop-core" version="0.20.2-320"/>
-          <dependency groupId="com.cloudera.hadoop" artifactId="hadoop-streaming" version="0.20.2-320"/>
+          <dependency groupId="org.apache.hadoop" artifactId="hadoop-core" version="0.20.203.0"/>
           <dependency groupId="net.sf.jopt-simple" artifactId="jopt-simple" version="3.2"/>
           <dependency groupId="net.java.dev.jna" artifactId="jna" version="3.2.7"/>
 
@@ -422,8 +420,7 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
         <dependency groupId="junit" artifactId="junit"/>
         <dependency groupId="commons-logging" artifactId="commons-logging"/>
         <dependency groupId="org.apache.rat" artifactId="apache-rat"/>
-        <dependency groupId="com.cloudera.hadoop" artifactId="hadoop-core"/>
-        <dependency groupId="com.cloudera.hadoop" artifactId="hadoop-streaming"/>
+        <dependency groupId="org.apache.hadoop" artifactId="hadoop-core"/>
         <dependency groupId="net.sf.jopt-simple" artifactId="jopt-simple"/>
 
         <dependency groupId="net.java.dev.jna" artifactId="jna"/>
@@ -480,8 +477,7 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
         <dependency groupId="org.apache.cassandra" artifactId="cassandra-thrift"/>
         
         <!-- don't need hadoop classes to run, but if you use the hadoop stuff -->
-        <dependency groupId="com.cloudera.hadoop" artifactId="hadoop-core" optional="true"/>
-        <dependency groupId="com.cloudera.hadoop" artifactId="hadoop-streaming" optional="true"/>
+        <dependency groupId="org.apache.hadoop" artifactId="hadoop-core" optional="true"/>
         
         <!-- don't need jna to run, but nice to have -->
         <dependency groupId="net.java.dev.jna" artifactId="jna" optional="true"/>
@@ -522,7 +518,6 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
                              dependencyRefsBuildFile="${build.dir}/build-dependencies.xml">
           <remoteRepository refid="central"/>
           <remoteRepository refid="apache"/>
-          <remoteRepository refid="cloudera"/>
           <remoteRepository refid="java.net2"/>
       </artifact:dependencies>
       <artifact:dependencies pomRefId="coverage-deps-pom"
