@@ -38,15 +38,16 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.MergeIterator;
 
-public class CompactionIterator
-implements CloseableIterator<AbstractCompactedRow>, CompactionInfo.Holder
+public class CompactionIterable
+implements Iterable<AbstractCompactedRow>, CompactionInfo.Holder
 {
-    private static Logger logger = LoggerFactory.getLogger(CompactionIterator.class);
+    private static Logger logger = LoggerFactory.getLogger(CompactionIterable.class);
 
     public static final int FILE_BUFFER_SIZE = 1024 * 1024;
 
-    private final MergeIterator<IColumnIterator, AbstractCompactedRow> source;
+    private MergeIterator<IColumnIterator, AbstractCompactedRow> source;
     protected final CompactionType type;
+    private final List<SSTableScanner> scanners;
     protected final CompactionController controller;
 
     private long totalBytes;
@@ -61,16 +62,16 @@ implements CloseableIterator<AbstractCompactedRow>, CompactionInfo.Holder
     // current target bytes to compact per millisecond
     private int targetBytesPerMS = -1;
 
-    public CompactionIterator(CompactionType type, Iterable<SSTableReader> sstables, CompactionController controller) throws IOException
+    public CompactionIterable(CompactionType type, Iterable<SSTableReader> sstables, CompactionController controller) throws IOException
     {
         this(type, getScanners(sstables), controller);
     }
 
-    protected CompactionIterator(CompactionType type, List<SSTableScanner> scanners, CompactionController controller)
+    protected CompactionIterable(CompactionType type, List<SSTableScanner> scanners, CompactionController controller)
     {
         this.type = type;
+        this.scanners = scanners;
         this.controller = controller;
-        this.source = MergeIterator.get(scanners, ICOMP, new Reducer());
         row = 0;
         totalBytes = bytesRead = 0;
         for (SSTableScanner scanner : scanners)
@@ -94,20 +95,9 @@ implements CloseableIterator<AbstractCompactedRow>, CompactionInfo.Holder
                                   totalBytes);
     }
 
-
-    public boolean hasNext()
+    public CloseableIterator<AbstractCompactedRow> iterator()
     {
-        return source.hasNext();
-    }
-
-    public AbstractCompactedRow next()
-    {
-        return source.next();
-    }
-
-    public void remove()
-    {
-        throw new UnsupportedOperationException();
+        return MergeIterator.get(scanners, ICOMP, new Reducer());
     }
 
     private void throttle()
@@ -151,16 +141,6 @@ implements CloseableIterator<AbstractCompactedRow>, CompactionInfo.Holder
         timeAtLastDelay = System.currentTimeMillis();
     }
 
-    public void close() throws IOException
-    {
-        source.close();
-    }
-
-    protected Iterable<SSTableScanner> getScanners()
-    {
-        return (Iterable<SSTableScanner>)(source.iterators());
-    }
-
     public String toString()
     {
         return this.getCompactionInfo().toString();
@@ -201,7 +181,7 @@ implements CloseableIterator<AbstractCompactedRow>, CompactionInfo.Holder
                 if ((row++ % 1000) == 0)
                 {
                     bytesRead = 0;
-                    for (SSTableScanner scanner : getScanners())
+                    for (SSTableScanner scanner : scanners)
                     {
                         bytesRead += scanner.getFilePointer();
                     }

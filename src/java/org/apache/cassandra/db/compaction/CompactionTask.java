@@ -41,6 +41,7 @@ import org.apache.cassandra.db.compaction.CompactionManager.CompactionExecutorSt
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.sstable.SSTableWriter;
+import org.apache.cassandra.utils.CloseableIterator;
 
 public class CompactionTask extends AbstractCompactionTask
 {
@@ -129,8 +130,9 @@ public class CompactionTask extends AbstractCompactionTask
 
         SSTableWriter writer = null;
         final SSTableReader ssTable;
-        CompactionIterator ci = new CompactionIterator(type, toCompact, controller); // retain a handle so we can call close()
-        Iterator<AbstractCompactedRow> nni = Iterators.filter(ci, Predicates.notNull());
+        CompactionIterable ci = new CompactionIterable(type, toCompact, controller); // retain a handle so we can call close()
+        CloseableIterator<AbstractCompactedRow> iter = ci.iterator();
+        Iterator<AbstractCompactedRow> nni = Iterators.filter(iter, Predicates.notNull());
         Map<DecoratedKey, Long> cachedKeys = new HashMap<DecoratedKey, Long>();
 
         if (collector != null)
@@ -169,7 +171,7 @@ public class CompactionTask extends AbstractCompactionTask
         }
         finally
         {
-            ci.close();
+            iter.close();
             if (collector != null)
                 collector.finishCompaction(ci);
             if (writer != null)

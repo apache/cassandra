@@ -28,6 +28,7 @@ import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
@@ -58,8 +59,8 @@ public class LazilyCompactedRowTest extends CleanupHelper
     private void assertBytes(ColumnFamilyStore cfs, int gcBefore) throws IOException
     {
         Collection<SSTableReader> sstables = cfs.getSSTables();
-        CompactionIterator ci1 = new CompactionIterator(CompactionType.UNKNOWN, sstables, new PreCompactingController(cfs, sstables, gcBefore, false));
-        CompactionIterator ci2 = new CompactionIterator(CompactionType.UNKNOWN, sstables, new LazilyCompactingController(cfs, sstables, gcBefore, false));
+        Iterator<AbstractCompactedRow> ci1 = new CompactionIterable(CompactionType.UNKNOWN, sstables, new PreCompactingController(cfs, sstables, gcBefore, false)).iterator();
+        Iterator<AbstractCompactedRow> ci2 = new CompactionIterable(CompactionType.UNKNOWN, sstables, new LazilyCompactingController(cfs, sstables, gcBefore, false)).iterator();
 
         while (true)
         {
@@ -133,8 +134,8 @@ public class LazilyCompactedRowTest extends CleanupHelper
     private void assertDigest(ColumnFamilyStore cfs, int gcBefore) throws IOException, NoSuchAlgorithmException
     {
         Collection<SSTableReader> sstables = cfs.getSSTables();
-        CompactionIterator ci1 = new CompactionIterator(CompactionType.UNKNOWN, sstables, new PreCompactingController(cfs, sstables, gcBefore, false));
-        CompactionIterator ci2 = new CompactionIterator(CompactionType.UNKNOWN, sstables, new LazilyCompactingController(cfs, sstables, gcBefore, false));
+        Iterator<AbstractCompactedRow> ci1 = new CompactionIterable(CompactionType.UNKNOWN, sstables, new PreCompactingController(cfs, sstables, gcBefore, false)).iterator();
+        Iterator<AbstractCompactedRow> ci2 = new CompactionIterable(CompactionType.UNKNOWN, sstables, new LazilyCompactingController(cfs, sstables, gcBefore, false)).iterator();
 
         while (true)
         {

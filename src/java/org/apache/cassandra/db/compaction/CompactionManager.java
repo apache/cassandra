@@ -687,7 +687,7 @@ public class CompactionManager implements CompactionManagerMBean
             if (compactionFileLocation == null)
                 throw new IOException("disk full");
 
-            SSTableScanner scanner = sstable.getDirectScanner(CompactionIterator.FILE_BUFFER_SIZE);
+            SSTableScanner scanner = sstable.getDirectScanner(CompactionIterable.FILE_BUFFER_SIZE);
             SortedSet<ByteBuffer> indexedColumns = cfs.getIndexedColumns();
             CleanupInfo ci = new CleanupInfo(sstable, scanner);
             executor.beginCompaction(ci);
@@ -795,11 +795,12 @@ public class CompactionManager implements CompactionManagerMBean
         }
 
         Collection<SSTableReader> sstables = cfs.markCurrentSSTablesReferenced();
-        CompactionIterator ci = new ValidationCompactionIterator(cfs, sstables, validator.request.range);
+        CompactionIterable ci = new ValidationCompactionIterable(cfs, sstables, validator.request.range);
+        CloseableIterator<AbstractCompactedRow> iter = ci.iterator();
         validationExecutor.beginCompaction(ci);
         try
         {
-            Iterator<AbstractCompactedRow> nni = Iterators.filter(ci, Predicates.notNull());
+            Iterator<AbstractCompactedRow> nni = Iterators.filter(iter, Predicates.notNull());
 
             // validate the CF as we iterate over it
             validator.prepare(cfs);
@@ -813,7 +814,7 @@ public class CompactionManager implements CompactionManagerMBean
         finally
         {
             SSTableReader.releaseReferences(sstables);
-            ci.close();
+            iter.close();
             validationExecutor.finishCompaction(ci);
         }
     }
@@ -922,9 +923,9 @@ public class CompactionManager implements CompactionManagerMBean
                : (int) (System.currentTimeMillis() / 1000) - cfs.metadata.getGcGraceSeconds();
     }
 
-    private static class ValidationCompactionIterator extends CompactionIterator
+    private static class ValidationCompactionIterable extends CompactionIterable
     {
-        public ValidationCompactionIterator(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, Range range) throws IOException
+        public ValidationCompactionIterable(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, Range range) throws IOException
         {
             super(CompactionType.VALIDATION,
                   getScanners(sstables, range),
