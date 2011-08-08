@@ -53,7 +53,7 @@ public class CompressedSequentialWriter extends SequentialWriter
         super(file, CHUNK_LENGTH, skipIOCache);
 
         // buffer for compression should be the same size as buffer itself
-        compressed = new byte[buffer.length];
+        compressed = new byte[Snappy.maxCompressedLength(buffer.length)];
 
         /* Index File (-CompressionInfo.db component) and it's header */
         metadataWriter = new CompressionMetadata.Writer(indexFilePath);
@@ -85,6 +85,7 @@ public class CompressedSequentialWriter extends SequentialWriter
         chunkCount++;
 
         // write data itself
+        assert compressedLength <= compressed.length;
         out.write(compressed, 0, compressedLength);
 
         // next chunk should be written right after current

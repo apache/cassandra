@@ -135,7 +135,7 @@ public class CompressedRandomAccessReader extends RandomAccessReader
     {
         super(new File(dataFilePath), metadata.chunkLength, skipIOCache);
         this.metadata = metadata;
-        compressed = new byte[metadata.chunkLength];
+        compressed = new byte[Snappy.maxCompressedLength(metadata.chunkLength)];
         // can't use super.read(...) methods
         // that is why we are allocating special InputStream to read data from disk
         // from already open file descriptor
