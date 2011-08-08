@@ -26,6 +26,9 @@ import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.util.*;
 
+import com.google.common.base.Predicate;
+import com.google.common.collect.Collections2;
+import org.apache.commons.lang.StringUtils;
 import com.google.common.base.Charsets;
 import com.google.common.base.Joiner;
 
@@ -71,7 +74,7 @@ public class CliClient
         COUNTERCOLUMN (CounterColumnType.instance);
 
         private AbstractType validator;
-        
+
         Function(AbstractType validator)
         {
             this.validator = validator;  
@@ -136,6 +139,8 @@ public class CliClient
     }
 
     private static final String DEFAULT_PLACEMENT_STRATEGY = "org.apache.cassandra.locator.NetworkTopologyStrategy";
+    private final String NEWLINE = System.getProperty("line.separator");
+    private final String TAB = "  ";
 
     private Cassandra.Client thriftClient = null;
     private CliSessionState sessionState  = null;
@@ -240,6 +245,9 @@ public class CliClient
                     break;
                 case CliParser.NODE_SHOW_KEYSPACES:
                     executeShowKeySpaces();
+                    break;
+                case CliParser.NODE_SHOW_SCHEMA:
+                    executeShowSchema(tree);
                     break;
                 case CliParser.NODE_DESCRIBE_TABLE:
                     executeDescribeKeySpace(tree);
@@ -1246,7 +1254,7 @@ public class CliClient
                 cfDef.setReplicate_on_write(Boolean.parseBoolean(mValue));
                 break;
             case ROW_CACHE_PROVIDER:
-                cfDef.setRow_cache_provider(mValue);
+                cfDef.setRow_cache_provider(CliUtils.unescapeSQLString(mValue));
                 break;
             case KEY_VALIDATION_CLASS:
                 cfDef.setKey_validation_class(CliUtils.unescapeSQLString(mValue));
@@ -1560,6 +1568,187 @@ public class CliClient
         }
     }
 
+    // SHOW SCHEMA
+    private void executeShowSchema(Tree statement) throws TException, InvalidRequestException
+    {
+        if (!CliMain.isConnected())
+            return;
+
+        final List<KsDef> keyspaces = thriftClient.describe_keyspaces();
+        Collections.sort(keyspaces, new KsDefNamesComparator());
+        final String keyspaceName = (statement.getChildCount() == 0)
+                                ? keySpace
+                                : CliCompiler.getKeySpace(statement, keyspaces);
+
+        Iterator<KsDef> ksIter;
+        if (keyspaceName != null)
+            ksIter = Collections2.filter(keyspaces, new Predicate<KsDef>()
+            {
+                public boolean apply(KsDef ksDef)
+                {
+                    return keyspaceName.equals(ksDef.name);
+                }
+            }).iterator();
+        else
+            ksIter = keyspaces.iterator();
+
+
+        final StringBuilder sb = new StringBuilder();
+        while (ksIter.hasNext())
+            showKeyspace(sb, ksIter.next());
+
+        sessionState.out.printf(sb.toString());
+    }
+
+    /**
+     * Creates a CLI script to create the Keyspace it's Column Families
+     * @param sb StringBuilder to write to.
+     * @param ksDef KsDef to create the cli script for.
+     */
+    private void showKeyspace(StringBuilder sb, KsDef ksDef)
+    {
+
+        sb.append("create keyspace " + ksDef.name);
+        if (ksDef.isSetReplication_factor())
+            writeAttr(sb, false, "replication_factor", ksDef.getReplication_factor());
+        writeAttr(sb, true, "placement_strategy", normaliseType(ksDef.strategy_class, "org.apache.cassandra.locator"));
+        if (ksDef.strategy_options != null && !ksDef.strategy_options.isEmpty())
+        {
+            final StringBuilder opts = new StringBuilder();
+            opts.append("[{");
+            String prefix = "";
+            for (Map.Entry<String, String> opt : ksDef.strategy_options.entrySet())
+            {
+                opts.append(prefix + CliUtils.escapeSQLString(opt.getKey()) + " : " + CliUtils.escapeSQLString(opt.getValue()));
+                prefix = ", ";
+            }
+            opts.append("}]");
+            writeAttrRaw(sb, false, "strategy_options", opts.toString());
+        }
+        sb.append(";" + NEWLINE);
+        sb.append(NEWLINE);
+
+        sb.append("use " + ksDef.name + ";");
+        sb.append(NEWLINE);
+        sb.append(NEWLINE);
+
+        Collections.sort(ksDef.cf_defs, new CfDefNamesComparator());
+        for (CfDef cfDef : ksDef.cf_defs)
+            showColumnFamily(sb, cfDef);
+        sb.append(NEWLINE);
+        sb.append(NEWLINE);
+    }
+
+    /**
+     * Creates a CLI script for the CfDef including meta data to the supplied StringBuilder.
+     * @param sb
+     * @param cfDef
+     */
+    private void showColumnFamily(StringBuilder sb, CfDef cfDef)
+    {
+        sb.append("create column family " + CliUtils.escapeSQLString(cfDef.name));
+
+        writeAttr(sb, true, "column_type", cfDef.column_type);
+        writeAttr(sb, false, "comparator", normaliseType(cfDef.comparator_type, "org.apache.cassandra.db.marshal"));
+        if (cfDef.column_type == "Super")
+            writeAttr(sb, false, "subcomparator", normaliseType(cfDef.subcomparator_type, "org.apache.cassandra.db.marshal"));
+        if (!StringUtils.isEmpty(cfDef.default_validation_class))
+            writeAttr(sb, false, "default_validation_class",
+                        normaliseType(cfDef.default_validation_class, "org.apache.cassandra.db.marshal"));
+        writeAttr(sb, false, "key_validation_class",
+                    normaliseType(cfDef.key_validation_class, "org.apache.cassandra.db.marshal"));
+        writeAttr(sb, false, "memtable_operations", cfDef.memtable_operations_in_millions);
+        writeAttr(sb, false, "memtable_throughput", cfDef.memtable_throughput_in_mb);
+        writeAttr(sb, false, "memtable_flush_after", cfDef.memtable_flush_after_mins);
+        writeAttr(sb, false, "rows_cached", cfDef.row_cache_size);
+        writeAttr(sb, false, "row_cache_save_period", cfDef.row_cache_save_period_in_seconds);
+        writeAttr(sb, false, "keys_cached", cfDef.key_cache_size);
+        writeAttr(sb, false, "key_cache_save_period", cfDef.key_cache_save_period_in_seconds);
+        writeAttr(sb, false, "read_repair_chance", cfDef.read_repair_chance);
+        writeAttr(sb, false, "gc_grace", cfDef.gc_grace_seconds);
+        writeAttr(sb, false, "min_compaction_threshold", cfDef.min_compaction_threshold);
+        writeAttr(sb, false, "max_compaction_threshold", cfDef.max_compaction_threshold);
+        writeAttr(sb, false, "replicate_on_write", cfDef.replicate_on_write);
+        writeAttr(sb, false, "row_cache_provider", normaliseType(cfDef.row_cache_provider, "org.apache.cassandra.cache"));
+
+        if (!StringUtils.isEmpty(cfDef.comment))
+            writeAttr(sb, false, "comment", cfDef.comment);
+
+        if (!cfDef.column_metadata.isEmpty())
+        {
+            StringBuilder colSb = new StringBuilder();
+            colSb.append("[");
+            boolean first = true;
+            for (ColumnDef colDef : cfDef.column_metadata)
+            {
+                if (!first)
+                    colSb.append(",");
+                first = false;
+                showColumnMeta(colSb, cfDef, colDef);
+            }
+            colSb.append("]");
+            writeAttrRaw(sb, false, "column_metadata", colSb.toString());
+        }
+        sb.append(";");
+        sb.append(NEWLINE);
+        sb.append(NEWLINE);
+    }
+
+    /**
+     * Writes the supplied ColumnDef to the StringBuilder as a cli script.
+     * @param sb
+     * @param cfDef
+     * @param colDef
+     */
+    private void showColumnMeta(StringBuilder sb, CfDef cfDef, ColumnDef colDef)
+    {
+        sb.append(NEWLINE + TAB + TAB + "{");
+
+        final AbstractType comparator = getFormatType((cfDef.column_type == "Super")
+                                                        ? cfDef.subcomparator_type
+                                                        : cfDef.comparator_type);
+        sb.append("column_name : '" + CliUtils.escapeSQLString(comparator.getString(colDef.name)) + "'," + NEWLINE);
+        String validationClass = normaliseType(colDef.validation_class, "org.apache.cassandra.db.marshal");
+        sb.append(TAB + TAB + "validation_class : " + CliUtils.escapeSQLString(validationClass));
+        if (colDef.isSetIndex_name())
+        {
+            sb.append("," + NEWLINE);
+            sb.append(TAB + TAB + "index_name : '" + CliUtils.escapeSQLString(colDef.index_name) + "'," + NEWLINE);
+            sb.append(TAB + TAB + "index_type : " + CliUtils.escapeSQLString(Integer.toString(colDef.index_type.getValue())));
+
+        }
+        sb.append("}");
+    }
+
+    private String normaliseType(String path, String expectedPackage)
+    {
+        if (path.startsWith(expectedPackage))
+            return path.substring(expectedPackage.length() + 1);
+
+        return path;
+    }
+
+    private void writeAttr(StringBuilder sb, boolean first, String name, Boolean value)
+    {
+        writeAttrRaw(sb, first, name, value.toString());
+    }
+    private void writeAttr(StringBuilder sb, boolean first, String name, Number value)
+    {
+        writeAttrRaw(sb, first, name, value.toString());
+    }
+
+    private void writeAttr(StringBuilder sb, boolean first, String name, String value)
+    {
+        writeAttrRaw(sb, first, name, "'" + CliUtils.escapeSQLString(value) + "'");
+    }
+
+    private void writeAttrRaw(StringBuilder sb, boolean first, String name, String value)
+    {
+        sb.append(NEWLINE + TAB);
+        sb.append(first ? "with " : "and ");
+        sb.append(name + " = ");
+        sb.append(value);
+    }
     /**
      * Returns true if this.keySpace is set, false otherwise
      * @return boolean
