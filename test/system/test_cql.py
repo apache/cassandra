@@ -1260,6 +1260,11 @@ class TestCql(ThriftTester):
                       cursor.execute,
                       "UPDATE CounterCF SET count_me = count_not_me + 2 WHERE key = 'counter1'")
 
+        # counters can't do ANY
+        assert_raises(cql.ProgrammingError,
+                      cursor.execute,
+                      "UPDATE CounterCF USING CONSISTENCY ANY SET count_me = count_me + 2 WHERE key = 'counter1'")
+
     def test_key_alias_support(self):
         "should be possible to use alias instead of KEY keyword"
         cursor = init()
