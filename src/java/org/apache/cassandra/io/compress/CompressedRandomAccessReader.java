@@ -20,7 +20,10 @@ package org.apache.cassandra.io.compress;
 
 import java.io.*;
 import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.channels.WritableByteChannel;
+import java.util.zip.CRC32;
+import java.util.zip.Checksum;
 
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -28,6 +31,7 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.streaming.FileStreamTask;
 import org.apache.cassandra.streaming.PendingFile;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
 import org.slf4j.Logger;
@@ -129,7 +133,14 @@ public class CompressedRandomAccessReader extends RandomAccessReader
     // used by reBuffer() to escape creating lots of temporary buffers
     private final byte[] compressed;
 
+    // re-use single crc object
+    private final Checksum checksum = new CRC32();
+
+    // raw checksum bytes
+    private final byte[] checksumBytes = new byte[4];
+
     private final FileInputStream source;
+    private final FileChannel channel;
 
     public CompressedRandomAccessReader(String dataFilePath, CompressionMetadata metadata, boolean skipIOCache) throws IOException
     {
@@ -140,6 +151,7 @@ public class CompressedRandomAccessReader extends RandomAccessReader
         // that is why we are allocating special InputStream to read data from disk
         // from already open file descriptor
         source = new FileInputStream(getFD());
+        channel = source.getChannel(); // for position manipulation
     }
 
     @Override
@@ -150,16 +162,38 @@ public class CompressedRandomAccessReader extends RandomAccessReader
 
     private void decompressChunk(CompressionMetadata.Chunk chunk) throws IOException
     {
-        if (source.getChannel().position() != chunk.offset)
-            source.getChannel().position(chunk.offset);
+        if (channel.position() != chunk.offset)
+            channel.position(chunk.offset);
 
         if (source.read(compressed, 0, chunk.length) != chunk.length)
             throw new IOException(String.format("(%s) failed to read %d bytes from offset %d.", getPath(), chunk.length, chunk.offset));
 
         validBufferBytes = Snappy.rawUncompress(compressed, 0, chunk.length, buffer, 0);
 
+        checksum.update(buffer, 0, validBufferBytes);
+
+        if (checksum(chunk) != (int) checksum.getValue())
+            throw new CorruptedBlockException(getPath(), chunk);
+
+        // reset checksum object back to the original (blank) state
+        checksum.reset();
+
+
         // buffer offset is always aligned
         bufferOffset = current & ~(buffer.length - 1);
+    }
+
+    private int checksum(CompressionMetadata.Chunk chunk) throws IOException
+    {
+        assert channel.position() == chunk.offset + chunk.length;
+
+        if (source.read(checksumBytes, 0, checksumBytes.length) != checksumBytes.length)
+            throw new IOException(String.format("(%s) failed to read checksum of the chunk at %d of length %d.",
+                                                getPath(),
+                                                chunk.offset,
+                                                chunk.length));
+
+        return FBUtilities.byteArrayToInt(checksumBytes);
     }
 
     @Override

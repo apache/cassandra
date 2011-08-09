@@ -19,10 +19,16 @@
 package org.apache.cassandra.io.compress;
 
 import java.io.*;
+import java.util.Random;
+import java.util.concurrent.Callable;
 
 import org.junit.Test;
 
 import org.apache.cassandra.io.util.*;
+
+import static org.junit.Assert.assertEquals;
+
+import static org.apache.cassandra.Util.expectException;
 
 public class CompressedRandomAccessReaderTest
 {
@@ -86,5 +92,88 @@ public class CompressedRandomAccessReaderTest
             if (compressed && metadata.exists())
                 metadata.delete();
         }
+    }
+
+    @Test
+    public void testDataCorruptionDetection() throws IOException
+    {
+        String CONTENT = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Etiam vitae.";
+
+        File file = new File("testDataCorruptionDetection");
+        file.deleteOnExit();
+
+        File metadata = new File(file.getPath() + ".meta");
+        metadata.deleteOnExit();
+
+        SequentialWriter writer = new CompressedSequentialWriter(file, metadata.getPath(), false);
+
+        writer.write(CONTENT.getBytes());
+        writer.close();
+
+        // open compression metadata and get chunk information
+        CompressionMetadata meta = new CompressionMetadata(metadata.getPath(), file.length());
+        CompressionMetadata.Chunk chunk = meta.chunkFor(0);
+
+        RandomAccessReader reader = CompressedRandomAccessReader.open(file.getPath(), meta, false);
+        // read and verify compressed data
+        assertEquals(CONTENT, reader.readLine());
+        // close reader
+        reader.close();
+
+        Random random = new Random();
+        RandomAccessFile checksumModifier = null;
+
+        try
+        {
+            checksumModifier = new RandomAccessFile(file, "rw");
+            byte[] checksum = new byte[4];
+
+            // seek to the end of the compressed chunk
+            checksumModifier.seek(chunk.length);
+            // read checksum bytes
+            checksumModifier.read(checksum);
+            // seek back to the chunk end
+            checksumModifier.seek(chunk.length);
+
+            // lets modify one byte of the checksum on each iteration
+            for (int i = 0; i < checksum.length; i++)
+            {
+                checksumModifier.write(random.nextInt());
+                checksumModifier.getFD().sync(); // making sure that change was synced with disk
+
+                final RandomAccessReader r = CompressedRandomAccessReader.open(file.getPath(), meta, false);
+
+                expectException(new Callable<String>()
+                {
+                    public String call() throws Exception
+                    {
+                        return r.readLine();
+                    }
+                }, CorruptedBlockException.class);
+
+                r.close();
+            }
+
+            // lets write original checksum and check if we can read data
+            updateChecksum(checksumModifier, chunk.length, checksum);
+
+            reader = CompressedRandomAccessReader.open(file.getPath(), meta, false);
+            // read and verify compressed data
+            assertEquals(CONTENT, reader.readLine());
+            // close reader
+            reader.close();
+        }
+        finally
+        {
+            if (checksumModifier != null)
+                checksumModifier.close();
+        }
+    }
+
+    private void updateChecksum(RandomAccessFile file, long checksumOffset, byte[] checksum) throws IOException
+    {
+        file.seek(checksumOffset);
+        file.write(checksum);
+        file.getFD().sync();
     }
 }

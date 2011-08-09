@@ -21,7 +21,6 @@ package org.apache.cassandra.io.util;
 
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-import java.io.EOFException;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -29,6 +28,9 @@ import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.util.Arrays;
 import java.util.concurrent.Callable;
+
+import static org.apache.cassandra.Util.expectEOF;
+import static org.apache.cassandra.Util.expectException;
 
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertEquals;
@@ -636,27 +638,5 @@ public class BufferedRandomAccessFileTest
             arr[i] = 'a';
 
         return arr;
-    }
-
-    private void expectEOF(Callable<?> callable)
-    {
-        expectException(callable, EOFException.class);
-    }
-
-    private void expectException(Callable<?> callable, Class<?> exception)
-    {
-        boolean thrown = false;
-
-        try
-        {
-            callable.call();
-        }
-        catch (Exception e)
-        {
-            assert e.getClass().equals(exception) : e.getClass().getName() + " is not " + exception.getName();
-            thrown = true;
-        }
-
-        assert thrown : exception.getName() + " not received";
     }
 }

@@ -20,6 +20,8 @@ package org.apache.cassandra.io.compress;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.zip.CRC32;
+import java.util.zip.Checksum;
 
 import org.apache.cassandra.io.util.FileMark;
 import org.apache.cassandra.io.util.SequentialWriter;
@@ -47,6 +49,8 @@ public class CompressedSequentialWriter extends SequentialWriter
 
     // holds a number of already written chunks
     private int chunkCount = 0;
+
+    private final Checksum checksum = new CRC32();
 
     public CompressedSequentialWriter(File file, String indexFilePath, boolean skipIOCache) throws IOException
     {
@@ -80,16 +84,25 @@ public class CompressedSequentialWriter extends SequentialWriter
         // compressing data with buffer re-use
         int compressedLength = Snappy.rawCompress(buffer, 0, validBufferBytes, compressed, 0);
 
+        // update checksum
+        checksum.update(buffer, 0, validBufferBytes);
+
         // write an offset of the newly written chunk to the index file
         metadataWriter.writeLong(chunkOffset);
         chunkCount++;
 
-        // write data itself
         assert compressedLength <= compressed.length;
-        out.write(compressed, 0, compressedLength);
 
-        // next chunk should be written right after current
-        chunkOffset += compressedLength;
+        // write data itself
+        out.write(compressed, 0, compressedLength);
+        // write corresponding checksum
+        out.writeInt((int) checksum.getValue());
+
+        // reset checksum object to the blank state for re-use
+        checksum.reset();
+
+        // next chunk should be written right after current + length of the checksum (int)
+        chunkOffset += compressedLength + 4;
     }
 
     @Override
@@ -122,13 +135,21 @@ public class CompressedSequentialWriter extends SequentialWriter
         // setting marker as a current offset
         chunkOffset = realMark.chunkOffset;
 
-        // compressed chunk size
-        int chunkSize = (int) (metadataWriter.chunkOffsetBy(realMark.nextChunkIndex) - chunkOffset);
+        // compressed chunk size (- 4 bytes reserved for checksum)
+        int chunkSize = (int) (metadataWriter.chunkOffsetBy(realMark.nextChunkIndex) - chunkOffset - 4);
 
         out.seek(chunkOffset);
         out.read(compressed, 0, chunkSize);
 
-        Snappy.rawUncompress(compressed, 0, chunkSize, buffer, 0);
+        // decompress data chunk and store its length
+        int validBytes = Snappy.rawUncompress(compressed, 0, chunkSize, buffer, 0);
+
+        checksum.update(buffer, 0, validBytes);
+
+        if (out.readInt() != (int) checksum.getValue())
+            throw new CorruptedBlockException(getPath(), chunkOffset, chunkSize);
+
+        checksum.reset();
 
         // reset buffer
         validBufferBytes = realMark.bufferOffset;

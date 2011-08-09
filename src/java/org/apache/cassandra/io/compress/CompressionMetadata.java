@@ -102,7 +102,7 @@ public class CompressionMetadata
                                 ? compressedFileLength
                                 : chunkOffsets[idx + 1];
 
-        return new Chunk(chunkOffset, (int) (nextChunkOffset - chunkOffset));
+        return new Chunk(chunkOffset, (int) (nextChunkOffset - chunkOffset - 4)); // "4" bytes reserved for checksum
     }
 
     public static class Writer extends RandomAccessFile
@@ -204,6 +204,11 @@ public class CompressionMetadata
         {
             this.offset = offset;
             this.length = length;
+        }
+
+        public String toString()
+        {
+            return String.format("Chunk<offset: %d, length: %d>", offset, length);
         }
     }
 }

@@ -299,6 +299,26 @@ public class FBUtilities
         return bytes;
     }
 
+    /**
+     * Convert the byte array to an int starting from the given offset.
+     *
+     * @param b The byte array
+     *
+     * @return The integer
+     */
+    public static int byteArrayToInt(byte[] b)
+    {
+        int value = 0;
+
+        for (int i = 0; i < 4; i++)
+        {
+            int shift = (4 - 1 - i) * 8;
+            value += (b[i] & 0x000000FF) << shift;
+        }
+
+        return value;
+    }
+
     public static int compareUnsigned(byte[] bytes1, byte[] bytes2, int offset1, int offset2, int len1, int len2)
     {
         if (bytes1 == null)

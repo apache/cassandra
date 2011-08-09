@@ -20,6 +20,7 @@ package org.apache.cassandra;
  * 
  */
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -27,6 +28,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
@@ -213,4 +215,25 @@ public class Util
         task.execute(null);
     }
 
+    public static void expectEOF(Callable<?> callable)
+    {
+        expectException(callable, EOFException.class);
+    }
+
+    public static void expectException(Callable<?> callable, Class<?> exception)
+    {
+        boolean thrown = false;
+
+        try
+        {
+            callable.call();
+        }
+        catch (Exception e)
+        {
+            assert e.getClass().equals(exception) : e.getClass().getName() + " is not " + exception.getName();
+            thrown = true;
+        }
+
+        assert thrown : exception.getName() + " not received";
+    }
 }
