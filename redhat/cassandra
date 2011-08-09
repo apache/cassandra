@@ -9,7 +9,6 @@
 
 . /etc/rc.d/init.d/functions
 
-export JAVA_HOME=/usr/lib/jvm/java-1.6.0-openjdk-1.6.0.0/
 export CASSANDRA_HOME=/usr/share/cassandra/
 export CASSANDRA_INCLUDE=/usr/share/cassandra/cassandra.in.sh
 export CASSANDRA_CONF=/etc/cassandra/conf
@@ -19,8 +18,35 @@ log_file=/var/log/cassandra/cassandra.log
 pid_file=/var/run/cassandra/cassandra.pid
 CASSANDRA_PROG=/usr/sbin/cassandra
 
+# The first existing directory is used for JAVA_HOME if needed.
+JVM_SEARCH_DIRS="/usr/lib/jvm/jre /usr/lib/jvm/jre-1.6.* /usr/lib/jvm/java-1.6.*/jre"
+
 # Read configuration variable file if it is present
 [ -r /etc/default/$NAME ] && . /etc/default/$NAME
+
+# If JAVA_HOME has not been set, try to determine it.
+if [ -z "$JAVA_HOME" ]; then
+    # If java is in PATH, use a JAVA_HOME that corresponds to that. This is
+    # both consistent with how the upstream startup script works, and with
+    # the use of alternatives to set a system JVM (as is done on Debian and
+    # Red Hat derivatives).
+    java="`/usr/bin/which java 2>/dev/null`"
+    if [ -n "$java" ]; then
+        java=`readlink --canonicalize "$java"`
+        JAVA_HOME=`dirname "\`dirname \$java\`"`
+    else
+        # No JAVA_HOME set and no java found in PATH; search for a JVM.
+        for jdir in $JVM_SEARCH_DIRS; do
+            if [ -x "$jdir/bin/java" ]; then
+                JAVA_HOME="$jdir"
+                break
+            fi
+        done
+        # if JAVA_HOME is still empty here, punt.
+    fi
+fi
+JAVA="$JAVA_HOME/bin/java"
+export JAVA_HOME JAVA
 
 case "$1" in
     start)

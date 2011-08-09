@@ -44,6 +44,7 @@ tokens {
     NODE_SHOW_CLUSTER_NAME;
     NODE_SHOW_VERSION;
     NODE_SHOW_KEYSPACES;
+    NODE_SHOW_SCHEMA;
     NODE_THRIFT_GET;
     NODE_THRIFT_GET_WITH_CONDITIONS;
     NODE_THRIFT_SET;
@@ -191,6 +192,8 @@ helpStatement
         -> ^(NODE_HELP NODE_SHOW_CLUSTER_NAME)
     | HELP SHOW KEYSPACES 
         -> ^(NODE_HELP NODE_SHOW_KEYSPACES)
+    | HELP SHOW SCHEMA
+            -> ^(NODE_HELP NODE_SHOW_SCHEMA)
     | HELP SHOW API_VERSION
         -> ^(NODE_HELP NODE_SHOW_VERSION)
     | HELP CREATE KEYSPACE 
@@ -284,6 +287,7 @@ showStatement
     : showClusterName
     | showVersion
     | showKeyspaces
+    | showSchema
     ;
 
 listStatement
@@ -354,6 +358,11 @@ showVersion
 showKeyspaces
     : SHOW KEYSPACES 
         -> ^(NODE_SHOW_KEYSPACES)
+    ;
+
+showSchema
+    : SHOW SCHEMA (keyspace)?
+        -> ^(NODE_SHOW_SCHEMA (keyspace)?)
     ;
 
 describeTable
@@ -573,6 +582,7 @@ TTL:         'TTL';
 CONSISTENCYLEVEL:   'CONSISTENCYLEVEL';
 INDEX:       'INDEX';
 ON:          'ON';
+SCHEMA:      'SCHEMA';
 
 IP_ADDRESS 
     : IntegerPositiveLiteral '.' IntegerPositiveLiteral '.' IntegerPositiveLiteral '.' IntegerPositiveLiteral

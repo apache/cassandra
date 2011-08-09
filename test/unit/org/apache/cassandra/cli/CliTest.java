@@ -168,6 +168,7 @@ public class CliTest extends CleanupHelper
         "help QUIT",
         "help show cluster name",
         "help show keyspaces",
+        "help show schema",
         "help show api version",
         "help create keyspace",
         "HELP update KEYSPACE",
@@ -183,7 +184,9 @@ public class CliTest extends CleanupHelper
         "HELP TRUNCATE",
         "help assume",
         "HELP",
-        "?"
+        "?",
+        "show schema",
+        "show schema TestKeySpace"
     };
    
     @Test

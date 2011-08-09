@@ -52,6 +52,7 @@ help: |
     show api version        Show the server API version.
     show cluster name       Show the cluster name.
     show keyspaces          Show all keyspaces and their column families.
+    show schema             Show a cli script to create keyspaces and column families.
     truncate                Drop the data in a column family.
     update column family    Update the settings for a column family.
     update keyspace         Update the settings for a keyspace.
@@ -116,7 +117,8 @@ commands:
         use Keyspace1 user 'badpasswd';
     - name: NODE_DESCRIBE_TABLE
       help: |
-        describe keyspace (<keyspace>)?;
+        describe keyspace;
+        describe keyspace <keyspace>;
 
         Describes the settings for the current or named keyspace, and the settings
         for all column families in the keyspace.
@@ -126,7 +128,7 @@ commands:
 
         Examples:
         describe keyspace;
-        describe keyspace system;
+        describe keyspace Keyspace1;
     - name: NODE_DESCRIBE_CLUSTER
       help: |
         describe cluster;
@@ -177,6 +179,22 @@ commands:
 
         Examples:
         show keyspaces;
+    - name: NODE_SHOW_SCHEMA
+      help: |
+        show schema;
+        show schema <keyspace>;
+
+        Creates a CLI script to create the current, specified or all keyspaces
+        and their column families.
+
+        Optional Parameters:
+        - keyspace: Name of the keyspace to create the script for. If omitted
+        the current keyspace is used, if there is no current keyspace all
+        keyspaces are considered.
+
+        Examples:
+        show schema;
+        show schema Keyspace1;
     - name: NODE_ADD_KEYSPACE
       help: |
         create keyspace <keyspace>;

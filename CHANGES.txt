@@ -33,6 +33,8 @@
 
 0.8.4
  * include files-to-be-streamed in StreamInSession.getSources (CASSANDRA-2972)
+ * use JAVA env var in cassandra-env.sh (CASSANDRA-2785, 2992)
+ * avoid doing read for no-op replicate-on-write at CL=1 (CASSANDRA-2892)
 
 
 0.8.3
