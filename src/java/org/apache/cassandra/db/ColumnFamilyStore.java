@@ -854,10 +854,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     private static void removeDeletedStandard(ColumnFamily cf, int gcBefore)
     {
-        for (Map.Entry<ByteBuffer, IColumn> entry : cf.getColumnsMap().entrySet())
+        for (IColumn c : cf)
         {
-            ByteBuffer cname = entry.getKey();
-            IColumn c = entry.getValue();
+            ByteBuffer cname = c.name();
             // remove columns if
             // (a) the column itself is tombstoned or
             // (b) the CF is tombstoned and the column is not newer than it
@@ -874,9 +873,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         // TODO assume deletion means "most are deleted?" and add to clone, instead of remove from original?
         // this could be improved by having compaction, or possibly even removeDeleted, r/m the tombstone
         // once gcBefore has passed, so if new stuff is added in it doesn't used the wrong algorithm forever
-        for (Map.Entry<ByteBuffer, IColumn> entry : cf.getColumnsMap().entrySet())
+        Iterator<IColumn> iter = cf.iterator();
+        while (iter.hasNext())
         {
-            SuperColumn c = (SuperColumn) entry.getValue();
+            SuperColumn c = (SuperColumn)iter.next();
             long minTimestamp = Math.max(c.getMarkedForDeleteAt(), cf.getMarkedForDeleteAt());
             for (IColumn subColumn : c.getSubColumns())
             {
@@ -891,7 +891,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
             if (c.getSubColumns().isEmpty() && c.getLocalDeletionTime() <= gcBefore)
             {
-                cf.remove(c.name());
+                iter.remove();
             }
             else
             {
@@ -1144,7 +1144,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public ColumnFamily getColumnFamily(QueryFilter filter)
     {
-        return getColumnFamily(filter, gcBefore());
+        return getColumnFamily(filter, gcBefore(), ThreadSafeSortedColumns.factory());
+    }
+
+    public ColumnFamily getColumnFamily(QueryFilter filter, ISortedColumns.Factory factory)
+    {
+        return getColumnFamily(filter, gcBefore(), factory);
     }
 
     public int gcBefore()
@@ -1157,7 +1162,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         ColumnFamily cached;
         if ((cached = rowCache.get(key)) == null)
         {
-            cached = getTopLevelColumns(QueryFilter.getIdentityFilter(key, new QueryPath(columnFamily)), Integer.MIN_VALUE);
+            // We force ThreadSafeSortedColumns because cached row will be accessed concurrently
+            cached = getTopLevelColumns(QueryFilter.getIdentityFilter(key, new QueryPath(columnFamily)), Integer.MIN_VALUE, ThreadSafeSortedColumns.factory());
             if (cached == null)
                 return null;
 
@@ -1165,7 +1171,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             {
                 // make a deep copy of column data so we don't keep references to direct buffers, which
                 // would prevent munmap post-compaction.
-                for (IColumn column : cached.getSortedColumns())
+                for (IColumn column : cached)
                 {
                     cached.remove(column.name());
                     cached.addColumn(column.localCopy(this));
@@ -1178,7 +1184,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return cached;
     }
 
-    private ColumnFamily getColumnFamily(QueryFilter filter, int gcBefore)
+    private ColumnFamily getColumnFamily(QueryFilter filter, int gcBefore, ISortedColumns.Factory factory)
     {
         assert columnFamily.equals(filter.getColumnFamilyName()) : filter.getColumnFamilyName();
 
@@ -1187,7 +1193,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             if (rowCache.getCapacity() == 0)
             {
-                ColumnFamily cf = getTopLevelColumns(filter, gcBefore);
+                ColumnFamily cf = getTopLevelColumns(filter, gcBefore, factory);
 
                 if (cf == null)
                     return null;
@@ -1297,11 +1303,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return markCurrentViewReferenced().sstables;
     }
 
-    private ColumnFamily getTopLevelColumns(QueryFilter filter, int gcBefore)
+    private ColumnFamily getTopLevelColumns(QueryFilter filter, int gcBefore, ISortedColumns.Factory factory)
     {
         // we are querying top-level columns, do a merging fetch with indexes.
         List<IColumnIterator> iterators = new ArrayList<IColumnIterator>();
-        final ColumnFamily returnCF = ColumnFamily.create(metadata);
+        final ColumnFamily returnCF = ColumnFamily.create(metadata, factory, filter.filter.isReversed());
         DataTracker.View currentView = markCurrentViewReferenced();
         try
         {
@@ -1552,7 +1558,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
             ByteBuffer dataKey = null;
             int n = 0;
-            for (IColumn column : indexRow.getSortedColumns())
+            for (IColumn column : indexRow)
             {
                 if (column.isMarkedForDelete())
                     continue;

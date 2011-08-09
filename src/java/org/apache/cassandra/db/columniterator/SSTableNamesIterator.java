@@ -130,7 +130,7 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
             readIndexedColumns(sstable.metadata, file, columns, filteredColumnNames, indexList);
 
         // create an iterator view of the columns we read
-        iter = cf.getSortedColumns().iterator();
+        iter = cf.iterator();
     }
 
     private void readSimpleColumns(FileDataInput file, SortedSet<ByteBuffer> columnNames, List<ByteBuffer> filteredColumnNames) throws IOException

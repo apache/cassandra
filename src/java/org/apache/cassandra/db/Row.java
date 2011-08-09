@@ -63,15 +63,15 @@ public class Row
             ColumnFamily.serializer().serialize(row.cf, dos);
         }
 
-        public Row deserialize(DataInputStream dis, int version, boolean fromRemote) throws IOException
+        public Row deserialize(DataInputStream dis, int version, boolean fromRemote, ISortedColumns.Factory factory) throws IOException
         {
             return new Row(StorageService.getPartitioner().decorateKey(ByteBufferUtil.readWithShortLength(dis)),
-                           ColumnFamily.serializer().deserialize(dis, false, fromRemote));
+                           ColumnFamily.serializer().deserialize(dis, false, fromRemote, factory));
         }
 
         public Row deserialize(DataInputStream dis, int version) throws IOException
         {
-            return deserialize(dis, version, false);
+            return deserialize(dis, version, false, ThreadSafeSortedColumns.FACTORY);
         }
     }
 }

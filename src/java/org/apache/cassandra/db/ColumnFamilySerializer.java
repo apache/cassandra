@@ -110,10 +110,10 @@ public class ColumnFamilySerializer implements ICompactSerializer3<ColumnFamily>
 
     public ColumnFamily deserialize(DataInput dis) throws IOException
     {
-        return deserialize(dis, false, false);
+        return deserialize(dis, false, false, ThreadSafeSortedColumns.FACTORY);
     }
 
-    public ColumnFamily deserialize(DataInput dis, boolean intern, boolean fromRemote) throws IOException
+    public ColumnFamily deserialize(DataInput dis, boolean intern, boolean fromRemote, ISortedColumns.Factory factory) throws IOException
     {
         if (!dis.readBoolean())
             return null;
@@ -122,7 +122,7 @@ public class ColumnFamilySerializer implements ICompactSerializer3<ColumnFamily>
         int cfId = dis.readInt();
         if (CFMetaData.getCF(cfId) == null)
             throw new UnserializableColumnFamilyException("Couldn't find cfId=" + cfId, cfId);
-        ColumnFamily cf = ColumnFamily.create(cfId);
+        ColumnFamily cf = ColumnFamily.create(cfId, factory);
         deserializeFromSSTableNoColumns(cf, dis);
         deserializeColumns(dis, cf, intern, fromRemote);
         return cf;

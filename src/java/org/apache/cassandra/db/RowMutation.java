@@ -368,8 +368,8 @@ public class RowMutation implements IMutation, MessageProducer
         {
             ColumnFamily cf = entry.getValue().cloneMeShallow();
             ColumnFamilyStore cfs = table.getColumnFamilyStore(cf.id());
-            for (Map.Entry<ByteBuffer, IColumn> ce : entry.getValue().getColumnsMap().entrySet())
-                cf.addColumn(ce.getValue().localCopy(cfs));
+            for (IColumn col : entry.getValue())
+                cf.addColumn(col.localCopy(cfs));
             rm.modifications_.put(entry.getKey(), cf);
         }
 
@@ -405,7 +405,7 @@ public class RowMutation implements IMutation, MessageProducer
             for (int i = 0; i < size; ++i)
             {
                 Integer cfid = Integer.valueOf(dis.readInt());
-                ColumnFamily cf = ColumnFamily.serializer().deserialize(dis, true, fromRemote);
+                ColumnFamily cf = ColumnFamily.serializer().deserialize(dis, true, fromRemote, ThreadSafeSortedColumns.FACTORY);
                 modifications.put(cfid, cf);
             }
             return new RowMutation(table, key, modifications);

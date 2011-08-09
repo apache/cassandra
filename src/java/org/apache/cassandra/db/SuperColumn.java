@@ -57,10 +57,10 @@ public class SuperColumn extends AbstractColumnContainer implements IColumn
 
     public SuperColumn(ByteBuffer name, AbstractType comparator)
     {
-        this(name, new ConcurrentSkipListMap<ByteBuffer, IColumn>(comparator));
+        this(name, ThreadSafeSortedColumns.factory().create(comparator, false));
     }
 
-    SuperColumn(ByteBuffer name, ConcurrentSkipListMap<ByteBuffer, IColumn> columns)
+    SuperColumn(ByteBuffer name, ISortedColumns columns)
     {
         super(columns);
         assert name != null;
@@ -78,7 +78,7 @@ public class SuperColumn extends AbstractColumnContainer implements IColumn
 
     public IColumn cloneMe()
     {
-        SuperColumn sc = new SuperColumn(name, new ConcurrentSkipListMap<ByteBuffer, IColumn>(columns));
+        SuperColumn sc = new SuperColumn(name, columns.cloneMe());
         // since deletion info is immutable, aliasing it is fine
         sc.deletionInfo.set(deletionInfo.get());
         return sc;
@@ -96,7 +96,7 @@ public class SuperColumn extends AbstractColumnContainer implements IColumn
 
     public IColumn getSubColumn(ByteBuffer columnName)
     {
-        IColumn column = columns.get(columnName);
+        IColumn column = columns.getColumn(columnName);
         assert column == null || column instanceof Column;
         return column;
     }
@@ -170,7 +170,7 @@ public class SuperColumn extends AbstractColumnContainer implements IColumn
      * Go through each sub column if it exists then as it to resolve itself
      * if the column does not exist then create it.
      */
-    protected void putColumn(SuperColumn column)
+    void putColumn(SuperColumn column)
     {
         for (IColumn subColumn : column.getSubColumns())
         {
@@ -192,7 +192,7 @@ public class SuperColumn extends AbstractColumnContainer implements IColumn
         // takes care of those for us.)
         for (IColumn subColumn : columnNew.getSubColumns())
         {
-        	IColumn columnInternal = columns.get(subColumn.name());
+        	IColumn columnInternal = columns.getColumn(subColumn.name());
         	if(columnInternal == null )
         	{
         		columnDiff.addColumn(subColumn);
@@ -269,9 +269,9 @@ public class SuperColumn extends AbstractColumnContainer implements IColumn
         // certainly just going to pollute our interning map with unique, dynamic values
         SuperColumn sc = (SuperColumn)shallowCopy();
 
-        for(Map.Entry<ByteBuffer, IColumn> c : columns.entrySet())
+        for(IColumn c : columns)
         {
-            sc.addColumn(c.getValue().localCopy(cfs));
+            sc.addColumn(c.localCopy(cfs));
         }
 
         return sc;
@@ -362,7 +362,7 @@ class SuperColumnSerializer implements IColumnSerializer
         int size = dis.readInt();
         ColumnSerializer serializer = Column.serializer();
         ColumnSortedMap preSortedMap = new ColumnSortedMap(comparator, serializer, dis, interner, size, fromRemote, expireBefore);
-        SuperColumn superColumn = new SuperColumn(name, new ConcurrentSkipListMap<ByteBuffer,IColumn>(preSortedMap));
+        SuperColumn superColumn = new SuperColumn(name, ThreadSafeSortedColumns.factory().fromSorted(preSortedMap, false));
         if (localDeleteTime != Integer.MIN_VALUE && localDeleteTime <= 0)
         {
             throw new IOException("Invalid localDeleteTime read: " + localDeleteTime);

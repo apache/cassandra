@@ -121,7 +121,7 @@ public class QueryFilter
 
             protected IColumn getReduced()
             {
-                IColumn c = curCF.getSortedColumns().iterator().next();
+                IColumn c = curCF.iterator().next();
                 if (superFilter != null)
                 {
                     // filterSuperColumn only looks at immediate parent (the supercolumn) when determining if a subcolumn

@@ -27,6 +27,9 @@
  * add optional compression for sstables (CASSANDRA-47)
  * add scheduler JMX metrics (CASSANDRA-2962)
  * add block level checksum for compressed data (CASSANDRA-1717)
+ * make column family backed column map pluggable and introduce unsynchronized
+   ArrayList backed one to speedup reads (CASSANDRA-2843)
+
 
 0.8.4
  * include files-to-be-streamed in StreamInSession.getSources (CASSANDRA-2972)

@@ -99,4 +99,9 @@ public class NamesQueryFilter implements IFilter
                "columns=" + StringUtils.join(columns, ",") +
                ')';
     }
+
+    public boolean isReversed()
+    {
+        return false;
+    }
 }

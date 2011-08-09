@@ -251,35 +251,27 @@ public class CounterColumn extends Column
     {
         if (!cf.isSuper())
         {
-            for (Map.Entry<ByteBuffer, IColumn> entry : cf.getColumnsMap().entrySet())
+            for (IColumn c : cf)
             {
-                ByteBuffer cname = entry.getKey();
-                IColumn c = entry.getValue();
                 if (!(c instanceof CounterColumn))
                     continue;
                 CounterColumn cleaned = ((CounterColumn) c).removeOldShards(gcBefore);
                 if (cleaned != c)
-                {
-                    cf.remove(cname);
-                    cf.addColumn(cleaned);
-                }
+                    cf.replace(c, cleaned);
             }
         }
         else
         {
-            for (Map.Entry<ByteBuffer, IColumn> entry : cf.getColumnsMap().entrySet())
+            for (IColumn col : cf)
             {
-                SuperColumn c = (SuperColumn) entry.getValue();
+                SuperColumn c = (SuperColumn)col;
                 for (IColumn subColumn : c.getSubColumns())
                 {
                     if (!(subColumn instanceof CounterColumn))
                         continue;
                     CounterColumn cleaned = ((CounterColumn) subColumn).removeOldShards(gcBefore);
                     if (cleaned != subColumn)
-                    {
-                        c.remove(subColumn.name());
-                        c.addColumn(cleaned);
-                    }
+                        c.replace(subColumn, cleaned);
                 }
             }
         }

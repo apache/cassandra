@@ -150,4 +150,9 @@ public class SliceQueryFilter implements IFilter
                ", reversed=" + reversed +
                ", count=" + count + "]";
     }
+
+    public boolean isReversed()
+    {
+        return reversed;
+    }
 }

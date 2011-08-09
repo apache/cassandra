@@ -157,7 +157,7 @@ public class RowRepairResolver extends AbstractRowResolver
         {
             if (version == null)
                 continue;
-            iters.add(FBUtilities.closeableIterator(version.getColumnsMap().values().iterator()));
+            iters.add(FBUtilities.closeableIterator(version.iterator()));
         }
         filter.collateColumns(resolved, iters, resolved.metadata().comparator, Integer.MIN_VALUE);
         return ColumnFamilyStore.removeDeleted(resolved, Integer.MIN_VALUE);

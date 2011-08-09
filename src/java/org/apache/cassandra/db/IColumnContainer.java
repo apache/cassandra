@@ -30,6 +30,16 @@ public interface IColumnContainer
     public void addColumn(IColumn column);
     public void remove(ByteBuffer columnName);
 
+    /**
+     * Replace oldColumn if represent by newColumn.
+     * Returns true if oldColumn was present (and thus replaced)
+     * oldColumn and newColumn should have the same name.
+     * !NOTE! This should only be used if you know this is what you need. To
+     * add a column such that it use the usual column resolution rules in a
+     * thread safe manner, use addColumn.
+     */
+    public boolean replace(IColumn oldColumn, IColumn newColumn);
+
     public boolean isMarkedForDelete();
     public long getMarkedForDeleteAt();
     public int getLocalDeletionTime();

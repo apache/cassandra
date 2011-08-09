@@ -41,10 +41,10 @@ public abstract class AbstractColumnContainer implements IColumnContainer, IIter
 {
     private static Logger logger = LoggerFactory.getLogger(AbstractColumnContainer.class);
 
-    protected final ConcurrentSkipListMap<ByteBuffer, IColumn> columns;
     protected final AtomicReference<DeletionInfo> deletionInfo = new AtomicReference<DeletionInfo>(new DeletionInfo());
+    protected final ISortedColumns columns;
 
-    protected AbstractColumnContainer(ConcurrentSkipListMap<ByteBuffer, IColumn> columns)
+    protected AbstractColumnContainer(ISortedColumns columns)
     {
         this.columns = columns;
     }
@@ -85,7 +85,7 @@ public abstract class AbstractColumnContainer implements IColumnContainer, IIter
 
     public AbstractType getComparator()
     {
-        return (AbstractType)columns.comparator();
+        return columns.getComparator();
     }
 
     public void maybeResetDeletionTimes(int gcBefore)
@@ -107,70 +107,48 @@ public abstract class AbstractColumnContainer implements IColumnContainer, IIter
      */
     public void addAll(AbstractColumnContainer cc)
     {
-        for (IColumn column : cc.getSortedColumns())
-            addColumn(column);
+        columns.addAll(cc.columns);
         delete(cc);
     }
 
-    /*
-     * If we find an old column that has the same name
-     * the ask it to resolve itself else add the new column
-    */
     public void addColumn(IColumn column)
     {
-        ByteBuffer name = column.name();
-        IColumn oldColumn;
-        while ((oldColumn = columns.putIfAbsent(name, column)) != null)
-        {
-            if (oldColumn instanceof SuperColumn)
-            {
-                assert column instanceof SuperColumn;
-                ((SuperColumn) oldColumn).putColumn((SuperColumn)column);
-                break;  // Delegated to SuperColumn
-            }
-            else
-            {
-                // calculate reconciled col from old (existing) col and new col
-                IColumn reconciledColumn = column.reconcile(oldColumn);
-                if (columns.replace(name, oldColumn, reconciledColumn))
-                    break;
-
-                // We failed to replace column due to a concurrent update or a concurrent removal. Keep trying.
-                // (Currently, concurrent removal should not happen (only updates), but let us support that anyway.)
-            }
-        }
+        columns.addColumn(column);
     }
-
-    abstract protected void putColumn(SuperColumn sc);
 
     public IColumn getColumn(ByteBuffer name)
     {
-        return columns.get(name);
+        return columns.getColumn(name);
     }
 
+    public boolean replace(IColumn oldColumn, IColumn newColumn)
+    {
+        return columns.replace(oldColumn, newColumn);
+    }
+
+    /*
+     * Note that for some of the implementation backing the container, the
+     * return set may not have implementation for tailSet, headSet and subSet.
+     * See ColumnNamesSet in ArrayBackedSortedColumns for more details.
+     */
     public SortedSet<ByteBuffer> getColumnNames()
     {
-        return columns.keySet();
+        return columns.getColumnNames();
     }
 
     public Collection<IColumn> getSortedColumns()
     {
-        return columns.values();
+        return columns.getSortedColumns();
     }
 
     public Collection<IColumn> getReverseSortedColumns()
     {
-        return columns.descendingMap().values();
-    }
-
-    public Map<ByteBuffer, IColumn> getColumnsMap()
-    {
-        return columns;
+        return columns.getReverseSortedColumns();
     }
 
     public void remove(ByteBuffer columnName)
     {
-        columns.remove(columnName);
+        columns.removeColumn(columnName);
     }
 
     public void retainAll(AbstractColumnContainer container)
@@ -229,7 +207,7 @@ public abstract class AbstractColumnContainer implements IColumnContainer, IIter
     {
         int count = 0;
 
-        for (IColumn column : columns.values())
+        for (IColumn column : columns)
         {
             if (column.isLive())
                 count++;
@@ -240,7 +218,7 @@ public abstract class AbstractColumnContainer implements IColumnContainer, IIter
 
     public Iterator<IColumn> iterator()
     {
-        return columns.values().iterator();
+        return columns.iterator();
     }
 
     protected static class DeletionInfo

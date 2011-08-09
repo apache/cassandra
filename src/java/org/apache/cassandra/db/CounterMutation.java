@@ -157,7 +157,7 @@ public class CounterMutation implements IMutation
         // CF type: regular
         if (!cf.isSuper())
         {
-            for (IColumn column : cf.getSortedColumns())
+            for (IColumn column : cf)
             {
                 if (!(column instanceof CounterColumn))
                     continue;
@@ -172,7 +172,7 @@ public class CounterMutation implements IMutation
         }
         else // CF type: super
         {
-            for (IColumn superColumn : cf.getSortedColumns())
+            for (IColumn superColumn : cf)
             {
                 IColumn mergerSuper = null;
                 for (IColumn column : superColumn.getSubColumns())
@@ -225,7 +225,7 @@ public class CounterMutation implements IMutation
         {
             ColumnFamily cf = cf_.cloneMeShallow();
             ColumnFamilyStore cfs = table.getColumnFamilyStore(cf.id());
-            for (IColumn column : cf_.getColumnsMap().values())
+            for (IColumn column : cf_)
             {
                 cf.addColumn(column.localCopy(cfs));
             }

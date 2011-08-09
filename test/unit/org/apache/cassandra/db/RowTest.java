@@ -43,7 +43,7 @@ public class RowTest extends SchemaLoader
         cf2.delete(0, 0);
 
         ColumnFamily cfDiff = cf1.diff(cf2);
-        assertEquals(cfDiff.getColumnsMap().size(), 0);
+        assertEquals(cfDiff.getColumnCount(), 0);
         assertEquals(cfDiff.getMarkedForDeleteAt(), 0);
     }
 

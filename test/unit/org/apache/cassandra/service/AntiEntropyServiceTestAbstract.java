@@ -152,7 +152,7 @@ public abstract class AntiEntropyServiceTestAbstract extends CleanupHelper
 
         // add a row
         validator.add(new PrecompactedRow(new DecoratedKey(mid, ByteBufferUtil.bytes("inconceivable!")),
-                                          new ColumnFamily(DatabaseDescriptor.getCFMetaData(tablename, cfname))));
+                                          ColumnFamily.create(DatabaseDescriptor.getCFMetaData(tablename, cfname))));
         validator.completeTree();
 
         // confirm that the tree was validated

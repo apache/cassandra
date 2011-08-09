@@ -253,8 +253,8 @@ public class StreamingTransferTest extends CleanupHelper
         assertEquals(2, rows.size());
         assert rows.get(0).key.key.equals(ByteBufferUtil.bytes("test"));
         assert rows.get(1).key.key.equals(ByteBufferUtil.bytes("transfer3"));
-        assert rows.get(0).cf.getColumnsMap().size() == 1;
-        assert rows.get(1).cf.getColumnsMap().size() == 1;
+        assert rows.get(0).cf.getColumnCount() == 1;
+        assert rows.get(1).cf.getColumnCount() == 1;
 
         // these keys fall outside of the ranges and should not be transferred
         assert null == cfstore.getColumnFamily(QueryFilter.getIdentityFilter(Util.dk("transfer1"), new QueryPath("Standard1")));

@@ -374,7 +374,7 @@ public class Table
     public Row getRow(QueryFilter filter) throws IOException
     {
         ColumnFamilyStore cfStore = getColumnFamilyStore(filter.getColumnFamilyName());
-        ColumnFamily columnFamily = cfStore.getColumnFamily(filter);
+        ColumnFamily columnFamily = cfStore.getColumnFamily(filter, ArrayBackedSortedColumns.factory());
         return new Row(filter.key, columnFamily);
     }
 
@@ -560,10 +560,9 @@ public class Table
         if (oldIndexedColumns != null)
         {
             int localDeletionTime = (int) (System.currentTimeMillis() / 1000);
-            for (Map.Entry<ByteBuffer, IColumn> entry : oldIndexedColumns.getColumnsMap().entrySet())
+            for (IColumn column : oldIndexedColumns)
             {
-                ByteBuffer columnName = entry.getKey();
-                IColumn column = entry.getValue();
+                ByteBuffer columnName = column.name();
                 if (column.isMarkedForDelete())
                     continue;
                 DecoratedKey<LocalToken> valueKey = cfs.getIndexKeyFor(columnName, column.value());

@@ -294,11 +294,11 @@ public class CassandraServer implements Cassandra.Iface
 
     private List<ColumnOrSuperColumn> thriftifyColumnFamily(ColumnFamily cf, boolean subcolumnsOnly, boolean reverseOrder)
     {
-        if (cf == null || cf.getColumnsMap().size() == 0)
+        if (cf == null || cf.isEmpty())
             return EMPTY_COLUMNS;
         if (subcolumnsOnly)
         {
-            IColumn column = cf.getColumnsMap().values().iterator().next();
+            IColumn column = cf.iterator().next();
             Collection<IColumn> subcolumns = column.getSubColumns();
             if (subcolumns == null || subcolumns.isEmpty())
                 return EMPTY_COLUMNS;

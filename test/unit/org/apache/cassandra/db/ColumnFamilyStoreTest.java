@@ -104,12 +104,12 @@ public class ColumnFamilyStoreTest extends CleanupHelper
                 QueryFilter sliceFilter = QueryFilter.getSliceFilter(Util.dk("key1"), new QueryPath("Standard2", null, null), ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 1);
                 ColumnFamily cf = store.getColumnFamily(sliceFilter);
                 assert cf.isMarkedForDelete();
-                assert cf.getColumnsMap().isEmpty();
+                assert cf.isEmpty();
 
                 QueryFilter namesFilter = QueryFilter.getNamesFilter(Util.dk("key1"), new QueryPath("Standard2", null, null), ByteBufferUtil.bytes("a"));
                 cf = store.getColumnFamily(namesFilter);
                 assert cf.isMarkedForDelete();
-                assert cf.getColumnsMap().isEmpty();
+                assert cf.isEmpty();
             }
         };
 
