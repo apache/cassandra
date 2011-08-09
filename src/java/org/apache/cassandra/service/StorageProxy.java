@@ -96,7 +96,7 @@ public class StorageProxy implements StorageProxyMBean
             public void apply(IMutation mutation, Multimap<InetAddress, InetAddress> hintedEndpoints, IWriteResponseHandler responseHandler, String localDataCenter, ConsistencyLevel consistency_level) throws IOException
             {
                 assert mutation instanceof RowMutation;
-                sendToHintedEndpoints((RowMutation) mutation, hintedEndpoints, responseHandler, localDataCenter, true, consistency_level);
+                sendToHintedEndpoints((RowMutation) mutation, hintedEndpoints, responseHandler, localDataCenter, consistency_level);
             }
         };
 
@@ -110,7 +110,11 @@ public class StorageProxy implements StorageProxyMBean
         {
             public void apply(IMutation mutation, Multimap<InetAddress, InetAddress> hintedEndpoints, IWriteResponseHandler responseHandler, String localDataCenter, ConsistencyLevel consistency_level) throws IOException
             {
-                applyCounterMutation(mutation, hintedEndpoints, responseHandler, localDataCenter, consistency_level, false);
+                if (logger.isDebugEnabled())
+                    logger.debug("insert writing local & replicate " + mutation.toString(true));
+
+                Runnable runnable = counterWriteTask(mutation, hintedEndpoints, responseHandler, localDataCenter, consistency_level);
+                runnable.run();
             }
         };
 
@@ -118,7 +122,11 @@ public class StorageProxy implements StorageProxyMBean
         {
             public void apply(IMutation mutation, Multimap<InetAddress, InetAddress> hintedEndpoints, IWriteResponseHandler responseHandler, String localDataCenter, ConsistencyLevel consistency_level) throws IOException
             {
-                applyCounterMutation(mutation, hintedEndpoints, responseHandler, localDataCenter, consistency_level, true);
+                if (logger.isDebugEnabled())
+                    logger.debug("insert writing local & replicate " + mutation.toString(true));
+
+                Runnable runnable = counterWriteTask(mutation, hintedEndpoints, responseHandler, localDataCenter, consistency_level);
+                StageManager.getStage(Stage.MUTATION).execute(runnable);
             }
         };
     }
@@ -218,7 +226,7 @@ public class StorageProxy implements StorageProxyMBean
         return ss.getTokenMetadata().getWriteEndpoints(StorageService.getPartitioner().getToken(key), table, naturalEndpoints);
     }
 
-    private static void sendToHintedEndpoints(final RowMutation rm, Multimap<InetAddress, InetAddress> hintedEndpoints, IWriteResponseHandler responseHandler, String localDataCenter, boolean insertLocalMessages, ConsistencyLevel consistency_level)
+    private static void sendToHintedEndpoints(final RowMutation rm, Multimap<InetAddress, InetAddress> hintedEndpoints, IWriteResponseHandler responseHandler, String localDataCenter, ConsistencyLevel consistency_level)
     throws IOException
     {
         // Multimap that holds onto all the messages and addresses meant for a specific datacenter
@@ -237,8 +245,7 @@ public class StorageProxy implements StorageProxyMBean
                 // unhinted writes
                 if (destination.equals(FBUtilities.getLocalAddress()))
                 {
-                    if (insertLocalMessages)
-                        insertLocal(rm, responseHandler);
+                    insertLocal(rm, responseHandler);
                 }
                 else
                 {
@@ -425,13 +432,9 @@ public class StorageProxy implements StorageProxyMBean
         return performWrite(cm, cm.consistency(), localDataCenter, counterWriteOnCoordinatorPerformer);
     }
 
-    private static void applyCounterMutation(final IMutation mutation, final Multimap<InetAddress, InetAddress> hintedEndpoints, final IWriteResponseHandler responseHandler, final String localDataCenter, final ConsistencyLevel consistency_level, boolean executeOnMutationStage)
+    private static Runnable counterWriteTask(final IMutation mutation, final Multimap<InetAddress, InetAddress> hintedEndpoints, final IWriteResponseHandler responseHandler, final String localDataCenter, final ConsistencyLevel consistency_level)
     {
-        // we apply locally first, then send it to other replica
-        if (logger.isDebugEnabled())
-            logger.debug("insert writing local & replicate " + mutation.toString(true));
-
-        Runnable runnable = new DroppableRunnable(StorageService.Verb.MUTATION)
+        return new DroppableRunnable(StorageService.Verb.MUTATION)
         {
             public void runMayThrow() throws IOException
             {
@@ -440,10 +443,11 @@ public class StorageProxy implements StorageProxyMBean
 
                 // apply mutation
                 cm.apply();
-
                 responseHandler.response(null);
 
-                if (cm.shouldReplicateOnWrite())
+                // then send to replicas, if any
+                hintedEndpoints.removeAll(FBUtilities.getLocalAddress());
+                if (cm.shouldReplicateOnWrite() && !hintedEndpoints.isEmpty())
                 {
                     // We do the replication on another stage because it involves a read (see CM.makeReplicationMutation)
                     // and we want to avoid blocking too much the MUTATION stage
@@ -452,16 +456,12 @@ public class StorageProxy implements StorageProxyMBean
                         public void runMayThrow() throws IOException
                         {
                             // send mutation to other replica
-                            sendToHintedEndpoints(cm.makeReplicationMutation(), hintedEndpoints, responseHandler, localDataCenter, false, consistency_level);
+                            sendToHintedEndpoints(cm.makeReplicationMutation(), hintedEndpoints, responseHandler, localDataCenter, consistency_level);
                         }
                     });
                 }
             }
         };
-        if (executeOnMutationStage)
-            StageManager.getStage(Stage.MUTATION).execute(runnable);
-        else
-            runnable.run();
     }
 
     /**
