@@ -1671,7 +1671,6 @@ public class CliClient
                     normaliseType(cfDef.key_validation_class, "org.apache.cassandra.db.marshal"));
         writeAttr(sb, false, "memtable_operations", cfDef.memtable_operations_in_millions);
         writeAttr(sb, false, "memtable_throughput", cfDef.memtable_throughput_in_mb);
-        writeAttr(sb, false, "memtable_flush_after", cfDef.memtable_flush_after_mins);
         writeAttr(sb, false, "rows_cached", cfDef.row_cache_size);
         writeAttr(sb, false, "row_cache_save_period", cfDef.row_cache_save_period_in_seconds);
         writeAttr(sb, false, "keys_cached", cfDef.key_cache_size);
