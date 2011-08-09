@@ -39,6 +39,7 @@ import static org.apache.cassandra.cql.QueryProcessor.validateColumn;
 
 import static org.apache.cassandra.cql.Operation.OperationType;
 import static org.apache.cassandra.thrift.ThriftValidation.validateColumnFamily;
+import static org.apache.cassandra.thrift.ThriftValidation.validateCommutativeForWrite;
 
 /**
  * An <code>UPDATE</code> statement parsed from a CQL query statement.
@@ -142,6 +143,8 @@ public class UpdateStatement extends AbstractModification
         }
 
         CFMetaData metadata = validateColumnFamily(keyspace, columnFamily, hasCommutativeOperation);
+        if (hasCommutativeOperation)
+            validateCommutativeForWrite(metadata, cLevel);
 
         QueryProcessor.validateKeyAlias(metadata, keyName);
 

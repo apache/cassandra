@@ -627,7 +627,11 @@ public class ThriftValidation
 
     public static void validateCommutativeForWrite(CFMetaData metadata, ConsistencyLevel consistency) throws InvalidRequestException
     {
-        if (!metadata.getReplicateOnWrite() && consistency != ConsistencyLevel.ONE)
+        if (consistency == ConsistencyLevel.ANY)
+        {
+            throw new InvalidRequestException("Consistency level ANY is not yet supported for counter columnfamily " + metadata.cfName);
+        }
+        else if (!metadata.getReplicateOnWrite() && consistency != ConsistencyLevel.ONE)
         {
             throw new InvalidRequestException("cannot achieve CL > CL.ONE without replicate_on_write on columnfamily " + metadata.cfName);
         }

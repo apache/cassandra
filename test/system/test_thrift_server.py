@@ -747,6 +747,8 @@ class TestMutations(ThriftTester):
         mutation = Mutation(deletion=deletion)
         mutations = {'key' : {'Super5' : [mutation]}}
         _expect_exception(lambda: client.batch_mutate(mutations, ConsistencyLevel.QUORUM), InvalidRequestException)
+        # counters don't support ANY
+        _expect_exception(lambda: client.add('key1', ColumnParent('Counter1', 'x'), CounterColumn('y', 1), ConsistencyLevel.ANY), InvalidRequestException)
 
     def test_batch_insert_super(self):
          _set_keyspace('Keyspace1')
