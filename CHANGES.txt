@@ -3,6 +3,7 @@
  * use JAVA env var in cassandra-env.sh (CASSANDRA-2785, 2992)
  * avoid doing read for no-op replicate-on-write at CL=1 (CASSANDRA-2892)
  * refuse counter write for CL.ANY (CASSANDRA-2990)
+ * switch back to only logging recent dropped messages (CASSANDRA-3004)
 
 
 0.8.3

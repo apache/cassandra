@@ -100,17 +100,10 @@ public final class MessagingService implements MessagingServiceMBean
     private final Map<StorageService.Verb, AtomicInteger> droppedMessages = new EnumMap<StorageService.Verb, AtomicInteger>(StorageService.Verb.class);
     // dropped count when last requested for the Recent api.  high concurrency isn't necessary here.
     private final Map<StorageService.Verb, Integer> lastDropped = Collections.synchronizedMap(new EnumMap<StorageService.Verb, Integer>(StorageService.Verb.class));
+    private final Map<StorageService.Verb, Integer> lastDroppedInternal = new EnumMap<StorageService.Verb, Integer>(StorageService.Verb.class);
 
     private final List<ILatencySubscriber> subscribers = new ArrayList<ILatencySubscriber>();
     private static final long DEFAULT_CALLBACK_TIMEOUT = (long) (1.1 * DatabaseDescriptor.getRpcTimeout());
-
-    {
-        for (StorageService.Verb verb : DROPPABLE_VERBS)
-        {
-            droppedMessages.put(verb, new AtomicInteger());
-            lastDropped.put(verb, 0);
-        }
-    }
 
     private static class MSHandle
     {
@@ -123,6 +116,13 @@ public final class MessagingService implements MessagingServiceMBean
 
     private MessagingService()
     {
+        for (StorageService.Verb verb : DROPPABLE_VERBS)
+        {
+            droppedMessages.put(verb, new AtomicInteger());
+            lastDropped.put(verb, 0);
+            lastDroppedInternal.put(verb, 0);
+        }
+
         listenGate = new SimpleCondition();
         verbHandlers_ = new EnumMap<StorageService.Verb, IVerbHandler>(StorageService.Verb.class);
         streamExecutor_ = new DebuggableThreadPoolExecutor("Streaming", DatabaseDescriptor.getCompactionThreadPriority());
@@ -584,11 +584,13 @@ public final class MessagingService implements MessagingServiceMBean
         for (Map.Entry<StorageService.Verb, AtomicInteger> entry : droppedMessages.entrySet())
         {
             AtomicInteger dropped = entry.getValue();
-            if (dropped.get() > 0)
+            StorageService.Verb verb = entry.getKey();
+            int recent = dropped.get() - lastDroppedInternal.get(verb);
+            if (recent > 0)
             {
                 logTpstats = true;
-                logger_.info("{} {} messages dropped in server lifetime",
-                             dropped, entry.getKey());
+                logger_.info("{} {} messages dropped in server lifetime", recent, verb);
+                lastDroppedInternal.put(verb, dropped.get());
             }
         }
 
