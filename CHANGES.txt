@@ -36,6 +36,7 @@
  * use JAVA env var in cassandra-env.sh (CASSANDRA-2785, 2992)
  * avoid doing read for no-op replicate-on-write at CL=1 (CASSANDRA-2892)
  * refuse counter write for CL.ANY (CASSANDRA-2990)
+ * force to always deseriale RowMutation for counters (CASSANDRA-3006)
 
 
 0.8.3

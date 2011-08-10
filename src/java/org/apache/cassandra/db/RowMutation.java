@@ -355,7 +355,19 @@ public class RowMutation implements IMutation, MessageProducer
     static RowMutation fromBytes(byte[] raw, int version) throws IOException
     {
         RowMutation rm = serializer_.deserialize(new DataInputStream(new ByteArrayInputStream(raw)), version);
-        rm.preserializedBuffers.put(version, raw);
+        boolean hasCounters = false;
+        for (Map.Entry<Integer, ColumnFamily> entry : rm.modifications_.entrySet())
+        {
+            if (entry.getValue().metadata().getDefaultValidator().isCommutative())
+            {
+                hasCounters = true;
+                break;
+            }
+        }
+
+        // We need to deserialize at least once for counters to cleanup the delta
+        if (!hasCounters)
+            rm.preserializedBuffers.put(version, raw);
         return rm;
     }
 
