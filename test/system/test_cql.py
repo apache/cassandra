@@ -720,7 +720,25 @@ class TestCql(ThriftTester):
         assert len(r) == 1, "wrong number of results"
         d = cursor.description
         assert d[0][0] == "x'and'y"
-        
+
+    def test_newline_strings(self):
+        "reading and writing strings w/ newlines"
+        cursor = init()
+
+        cursor.execute("""
+                       UPDATE StandardString1 SET :name = :val WHERE KEY = :key;
+                       """, {"key": "\nkey", "name": "\nname", "val": "\nval"})
+
+        cursor.execute("""
+                       SELECT :name FROM StandardString1 WHERE KEY = :key
+                       """, {"key": "\nkey", "name": "\nname"})
+        assert cursor.rowcount == 1
+        r = cursor.fetchone()
+        assert len(r) == 1, "wrong number of results"
+        d = cursor.description
+        assert d[0][0] == "\nname"
+        assert r[0] == "\nval"
+
     def test_typed_keys(self):
         "using typed keys"
         cursor = init()

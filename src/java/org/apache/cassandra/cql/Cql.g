@@ -555,7 +555,7 @@ fragment Z: ('z'|'Z');
 STRING_LITERAL
     : '\''
       { StringBuilder b = new StringBuilder(); }
-      ( c=~('\''|'\r'|'\n') { b.appendCodePoint(c);}
+      ( c=~('\'') { b.appendCodePoint(c);}
       | '\'' '\''            { b.appendCodePoint('\'');}
       )*
       '\''
