@@ -442,7 +442,7 @@ public final class MessagingService implements MessagingServiceMBean
     public void receive(Message message, String id)
     {
         if (logger_.isTraceEnabled())
-            logger_.trace(FBUtilities.getLocalAddress() + " received " + message.getVerb()
+            logger_.trace(FBUtilities.getBroadcastAddress() + " received " + message.getVerb()
                           + " from " + id + "@" + message.getFrom());
 
         message = SinkManager.processServerMessage(message, id);

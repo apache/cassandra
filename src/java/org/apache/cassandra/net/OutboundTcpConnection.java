@@ -45,7 +45,7 @@ public class OutboundTcpConnection extends Thread
 {
     private static final Logger logger = LoggerFactory.getLogger(OutboundTcpConnection.class);
 
-    private static final Message CLOSE_SENTINEL = new Message(FBUtilities.getLocalAddress(),
+    private static final Message CLOSE_SENTINEL = new Message(FBUtilities.getBroadcastAddress(),
                                                               StorageService.Verb.INTERNAL_RESPONSE,
                                                               ArrayUtils.EMPTY_BYTE_ARRAY,
                                                               MessagingService.version_);

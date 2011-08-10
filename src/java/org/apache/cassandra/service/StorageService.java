@@ -595,7 +595,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             List<String> rpcaddrs = new ArrayList<String>();
             for (InetAddress endpoint: entry.getValue())
             {
-                if (endpoint.equals(FBUtilities.getLocalAddress()))
+                if (endpoint.equals(FBUtilities.getBroadcastAddress()))
                     rpcaddrs.add(DatabaseDescriptor.getRpcAddress().getHostAddress());
                 else
                     rpcaddrs.add(Gossiper.instance.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.RPC_ADDRESS).value);

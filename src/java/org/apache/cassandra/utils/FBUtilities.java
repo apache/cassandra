@@ -168,6 +168,9 @@ public class FBUtilities
         }
     }
 
+    /**
+     * Please use getBroadcastAddress instead. You need this only when you have to listen/connect.
+     */
     public static InetAddress getLocalAddress()
     {
         if (localInetAddress_ == null)
