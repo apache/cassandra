@@ -7,6 +7,21 @@ Upgrading
       sstableloader tool instead.
 
 
+0.8.4
+=====
+
+Upgrading
+---------
+    - Nothing specific to 0.8.4
+
+Other
+-----
+    - This release comes to fix a bug in counter that could lead to
+      (important) over-count.
+    - It also fixes a slight upgrade regression from 0.8.3. It is thus advised
+      to jump directly to 0.8.4 if upgrading from before 0.8.3.
+
+
 0.8.3
 =====
 
