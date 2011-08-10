@@ -1,4 +1,4 @@
-h1. Cassandra Query Language (CQL) v1.1.0
+h1. Cassandra Query Language (CQL) v1.1.1
 
 h2. Table of Contents
 
@@ -84,14 +84,14 @@ h2. INSERT
 
 _Synopsis:_
 
-bc.
+bc. 
 INSERT INTO <COLUMN FAMILY> (<KEY>, <col>, <col>, ...) VALUES (<key>, <val>, <val>, ...) [USING CONSISTENCY <LEVEL> [AND TIMESTAMP <timestamp>] [AND TTL <timeToLive>]];
 
 An @INSERT@ is used to write one or more columns to a record in a Cassandra column family. No results are returned. 
 
-@INSERT@ works exactly like @UPDATE@ so for information about Column Family and Consistency Level arguments please take at the @UPDATE@ section.
+Unlike SQL, the semantics of @INSERT@ and @UPDATE@ are identical, in either case a record is created if none existed before, and updated when it does.  For information on modifiers and types, see the "@UPDATE@":#update section below.
 
-h2. UPDATE
+h2(#update). UPDATE
 
 _Synopsis:_
 
@@ -136,6 +136,14 @@ UPDATE ... SET name1 = value1, name2 = value2 WHERE <KEY> = keyname;
 UPDATE ... SET name1 = value1, name2 = value2 WHERE <KEY> IN ('<key>', '<key>', ...)
 
 Rows are created or updated by supplying column names and values in term assignment format. Multiple columns can be set by separating the name/value pairs using commas.  Each update statement requires exactly one key to be specified using a WHERE clause and the @KEY@ keyword or key alias.
+
+h3. Updating Counter Columns
+
+bc. 
+UPDATE ... SET name1 = name1 + <value> ...
+UPDATE ... SET name1 = name1 - <value> ...
+
+Counter columns can be incremented or decremented by an arbitrary numeric value though the assignment of an expression that adds or substracts the value.
 
 h2. DELETE
 
@@ -258,6 +266,7 @@ It is possible to assign columns a type during column family creation.  Columns 
 |varint|Arbitrary-precision integer|
 |int|8-byte long (same as bigint)|
 |bigint|8-byte long|
+|counter|Counter column, (8-byte long)|
 
 _Note: In addition to the recognized types listed above, it is also possible to supply a string containing the name of a class (a sub-class of @AbstractType@), either fully qualified, or relative to the @org.apache.cassandra.db.marshal@ package._
 
@@ -364,6 +373,10 @@ Versioning of the CQL language adheres to the "Semantic Versioning":http://semve
 h1. Changes
 
 pre. 
+Wed, 10 Aug 2011 11:22:00 -0500 - Eric Evans
+ * Improved INSERT vs. UPDATE wording.
+ * Documented counter column incr/descr.
+
 Sat, 01 Jun 2011 15:58:00 -0600 - Pavel Yaskevich
  * Updated to support ALTER (CASSANDRA-1709)
 
