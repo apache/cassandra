@@ -32,6 +32,8 @@
  * refactoring of the secondary index api (CASSANDRA-2982)
  * make CL > ONE reads wait for digest reconciliation before returning
    (CASSANDRA-2494)
+ * change auto_bootstrap default to true and remove from example config file
+   (but not config parser) (CASSANDRA-2447)
 
 
 0.8.5
