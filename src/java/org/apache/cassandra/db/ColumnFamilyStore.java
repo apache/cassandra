@@ -1767,15 +1767,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public void invalidateRowCache()
     {
         rowCache.clear();
-        if (rowCache.getCachePath().exists())
-            rowCache.getCachePath().delete();
     }
 
     public void invalidateKeyCache()
     {
         keyCache.clear();
-        if (keyCache.getCachePath().exists())
-            keyCache.getCachePath().delete();
     }
 
     public int getRowCacheCapacity()
