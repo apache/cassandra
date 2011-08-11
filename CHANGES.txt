@@ -773,7 +773,7 @@
    transmitting separately (CASSANDRA-1465)
  * apply reversed flag during collation from different data sources
    (CASSANDRA-1450)
- * make failure to remove comitlog segment non-fatal (CASSANDRA-1348)
+ * make failure to remove commitlog segment non-fatal (CASSANDRA-1348)
  * correct ordering of drain operations so CL.recover is no longer 
    necessary (CASSANDRA-1408)
  * removed keyspace from describe_splits method (CASSANDRA-1425)
