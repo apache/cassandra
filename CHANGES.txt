@@ -4,7 +4,6 @@
  * avoid doing read for no-op replicate-on-write at CL=1 (CASSANDRA-2892)
  * refuse counter write for CL.ANY (CASSANDRA-2990)
  * switch back to only logging recent dropped messages (CASSANDRA-3004)
- * fix issues with parameters being escaped incorrectly in Python CQL (CASSANDRA-2993)
  * always deserialize RowMutation for counters (CASSANDRA-3006)
  * ignore saved replication_factor strategy_option for NTS (CASSANDRA-3011)
 
