@@ -27,8 +27,8 @@
    (CASSANDRA-2958)
  * improved POSIX compatibility of start scripts (CASsANDRA-2965)
  * add counter support to Hadoop InputFormat (CASSANDRA-2981)
- * fix bug where dirty commit logs were removed (and avoid keeping segments
-   with no post-flush activity permanently dirty) (CASSANDRA-2829)
+ * fix bug where dirty commitlog segments were removed (and avoid keeping 
+   segments with no post-flush activity permanently dirty) (CASSANDRA-2829)
  * fix throwing exception with batch mutation of counter super columns
    (CASSANDRA-2949)
  * ignore system tables during repair (CASSANDRA-2979)
