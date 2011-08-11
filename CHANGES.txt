@@ -39,7 +39,6 @@
  * include column name in validation failure exceptions (CASSANDRA-2849)
  * make sure truncate clears out the commitlog so replay won't re-
    populate with truncated data (CASSANDRA-2950)
- * cache invalidate removes saved cache files (CASSANDRA-2325)
 
 
 0.8.4
