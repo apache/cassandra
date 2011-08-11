@@ -402,7 +402,8 @@ public final class MessagingService implements MessagingServiceMBean
     public void stream(StreamHeader header, InetAddress to)
     {
         /* Streaming asynchronously on streamExector_ threads. */
-        if (DatabaseDescriptor.getEncryptionOptions().internode_encryption == EncryptionOptions.InternodeEncryption.all)
+        EncryptionOptions encryption = DatabaseDescriptor.getEncryptionOptions();
+        if (encryption != null && encryption.internode_encryption == EncryptionOptions.InternodeEncryption.all)
             streamExecutor_.execute(new SSLFileStreamTask(header, to));
         else
             streamExecutor_.execute(new FileStreamTask(header, to));

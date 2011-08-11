@@ -34,15 +34,23 @@
    (CASSANDRA-2494)
 
 
+0.8.5
+ * fix NPE when encryption_options is unspecified (CASSANDRA-3007)
+ * include column name in validation failure exceptions (CASSANDRA-2849)
+ * make sure truncate clears out the commitlog so replay won't re-
+   populate with truncated data (CASSANDRA-2950)
+ * cache invalidate removes saved cache files (CASSANDRA-2325)
+
+
 0.8.4
  * include files-to-be-streamed in StreamInSession.getSources (CASSANDRA-2972)
  * use JAVA env var in cassandra-env.sh (CASSANDRA-2785, 2992)
  * avoid doing read for no-op replicate-on-write at CL=1 (CASSANDRA-2892)
  * refuse counter write for CL.ANY (CASSANDRA-2990)
  * switch back to only logging recent dropped messages (CASSANDRA-3004)
- * fix issues with parameters being escaped incorrectly in Python CQL (CASSANDRA-2993)
  * always deserialize RowMutation for counters (CASSANDRA-3006)
  * ignore saved replication_factor strategy_option for NTS (CASSANDRA-3011)
+ * make sure pre-truncate CL segments are discarded (CASSANDRA-2950)
 
 
 0.8.3
@@ -64,8 +72,8 @@
    (CASSANDRA-2958)
  * improved POSIX compatibility of start scripts (CASsANDRA-2965)
  * add counter support to Hadoop InputFormat (CASSANDRA-2981)
- * fix bug where dirty commit logs were removed (and avoid keeping segments
-   with no post-flush activity permanently dirty) (CASSANDRA-2829)
+ * fix bug where dirty commitlog segments were removed (and avoid keeping 
+   segments with no post-flush activity permanently dirty) (CASSANDRA-2829)
  * fix throwing exception with batch mutation of counter super columns
    (CASSANDRA-2949)
  * ignore system tables during repair (CASSANDRA-2979)
@@ -807,7 +815,7 @@
    transmitting separately (CASSANDRA-1465)
  * apply reversed flag during collation from different data sources
    (CASSANDRA-1450)
- * make failure to remove comitlog segment non-fatal (CASSANDRA-1348)
+ * make failure to remove commitlog segment non-fatal (CASSANDRA-1348)
  * correct ordering of drain operations so CL.recover is no longer 
    necessary (CASSANDRA-1408)
  * removed keyspace from describe_splits method (CASSANDRA-1425)

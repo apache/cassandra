@@ -1461,11 +1461,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public void invalidateRowCache()
     {
         rowCache.clear();
+        if (rowCache.getCachePath().exists())
+            rowCache.getCachePath().delete();
     }
 
     public void invalidateKeyCache()
     {
         keyCache.clear();
+        if (keyCache.getCachePath().exists())
+            keyCache.getCachePath().delete();
     }
 
     public int getRowCacheCapacity()
@@ -1590,16 +1594,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         // time.  So to guarantee that all segments can be cleaned out, we need
         // "waitForActiveFlushes" after the new segment has been created.
         CommitLog.instance.forceNewSegment();
-        waitForActiveFlushes();
-        List<Future<?>> futures = new ArrayList<Future<?>>();
         ReplayPosition position = CommitLog.instance.getContext();
         for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
-        {
-            Future<?> f = cfs.forceFlush();
-            if (f != null)
-                futures.add(f);
-        }
-        FBUtilities.waitOnFutures(futures);
+            cfs.forceFlush();
+        waitForActiveFlushes();
         // if everything was clean, flush won't have called discard
         CommitLog.instance.discardCompletedSegments(metadata.cfId, position);
 
@@ -1896,10 +1894,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return data.getMemtablesPendingFlush();
     }
 
-    @Override
     public List<String> getBuiltIndexes()
     {
        return indexManager.getBuiltIndexes();
     }
-
 }

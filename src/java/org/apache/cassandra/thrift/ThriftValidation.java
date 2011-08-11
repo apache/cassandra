@@ -23,6 +23,9 @@ package org.apache.cassandra.thrift;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -51,6 +54,8 @@ import org.apache.cassandra.utils.FBUtilities;
  */
 public class ThriftValidation
 {
+    private static Logger logger = LoggerFactory.getLogger(ThriftValidation.class);
+
     public static void validateKey(CFMetaData metadata, ByteBuffer key) throws InvalidRequestException
     {
         if (key == null || key.remaining() == 0)
@@ -285,7 +290,7 @@ public class ThriftValidation
 
             validateTtl(cosc.column);
             validateColumnPath(metadata, new ColumnPath(metadata.cfName).setSuper_column((ByteBuffer)null).setColumn(cosc.column.name));
-            validateColumnData(metadata, cosc.column);
+            validateColumnData(metadata, cosc.column, false);
         }
 
         if (cosc.super_column != null)
@@ -296,7 +301,7 @@ public class ThriftValidation
             for (Column c : cosc.super_column.columns)
             {
                 validateColumnPath(metadata, new ColumnPath(metadata.cfName).setSuper_column(cosc.super_column.name).setColumn(c.name));
-                validateColumnData(metadata, c);
+                validateColumnData(metadata, c, true);
             }
         }
 
@@ -396,9 +401,9 @@ public class ThriftValidation
     }
 
     /**
-     * Validates the data part of the column (everything in the Column object but the name)
+     * Validates the data part of the column (everything in the Column object but the name, which is assumed to be valid)
      */
-    public static void validateColumnData(CFMetaData metadata, Column column) throws InvalidRequestException
+    public static void validateColumnData(CFMetaData metadata, Column column, boolean isSubColumn) throws InvalidRequestException
     {
         validateTtl(column);
         if (!column.isSetValue())
@@ -413,14 +418,28 @@ public class ThriftValidation
         }
         catch (MarshalException me)
         {
-            throw new InvalidRequestException(String.format("[%s][%s][%s] = [%s] failed validation (%s)",
+            if (logger.isDebugEnabled())
+                logger.debug("rejecting invalid value " + ByteBufferUtil.bytesToHex(summarize(column.value)));
+            throw new InvalidRequestException(String.format("(%s) [%s][%s][%s] failed validation",
+                                                            me.getMessage(),
                                                             metadata.ksName,
                                                             metadata.cfName,
-                                                            ByteBufferUtil.bytesToHex(column.name),
-                                                            ByteBufferUtil.bytesToHex(column.value),
-                                                            me.getMessage()));
+                                                            (isSubColumn ? metadata.subcolumnComparator : metadata.comparator).getString(column.name)));
         }
     }
+
+    /**
+     * Return, at most, the first 64K of the buffer. This avoids very large column values being
+     * logged in their entirety.
+     */
+    private static ByteBuffer summarize(ByteBuffer buffer)
+    {
+        int MAX = Short.MAX_VALUE;
+        if (buffer.remaining() <= MAX)
+            return buffer;
+        return (ByteBuffer) buffer.slice().limit(buffer.position() + MAX);
+    }
+
 
     public static void validatePredicate(CFMetaData metadata, ColumnParent column_parent, SlicePredicate predicate)
             throws InvalidRequestException
