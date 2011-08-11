@@ -1,6 +1,8 @@
 0.8.5
  * fix NPE when encryption_options is unspecified (CASSANDRA-3007)
  * include column name in validation failure exceptions (CASSANDRA-2849)
+ * make sure truncate clears out the commitlog so replay won't re-
+   populate with truncated data (CASSANDRA-2950)
 
 
 0.8.4
@@ -11,6 +13,7 @@
  * switch back to only logging recent dropped messages (CASSANDRA-3004)
  * always deserialize RowMutation for counters (CASSANDRA-3006)
  * ignore saved replication_factor strategy_option for NTS (CASSANDRA-3011)
+ * make sure pre-truncate CL segments are discarded (CASSANDRA-2950)
 
 
 0.8.3
@@ -206,7 +209,7 @@
  * Disable compaction throttling during bootstrap (CASSANDRA-2612) 
  * fix CQL treatment of > and < operators in range slices (CASSANDRA-2592)
  * fix potential double-application of counter updates on commitlog replay
-   (CASSANDRA-2419)
+   by moving replay position from header to sstable metadata (CASSANDRA-2419)
  * JDBC CQL driver exposes getColumn for access to timestamp
  * JDBC ResultSetMetadata properties added to AbstractType
  * r/m clustertool (CASSANDRA-2607)

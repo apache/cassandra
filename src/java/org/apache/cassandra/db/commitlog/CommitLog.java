@@ -486,10 +486,40 @@ public class CommitLog
         }
     }
 
-    
     void sync() throws IOException
     {
         currentSegment().sync();
+    }
+
+    public void forceNewSegment()
+    {
+        Callable<?> task = new Callable()
+        {
+            public Object call() throws IOException
+            {
+                createNewSegment();
+                return null;
+            }
+        };
+
+        try
+        {
+            executor.submit(task).get();
+        }
+        catch (InterruptedException e)
+        {
+            throw new AssertionError(e);
+        }
+        catch (ExecutionException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private void createNewSegment() throws IOException
+    {
+        sync();
+        segments.add(new CommitLogSegment());
     }
 
     // TODO this should be a Runnable since it doesn't actually return anything, but it's difficult to do that
@@ -510,10 +540,7 @@ public class CommitLog
                 currentSegment().write(rowMutation);
                 // roll log if necessary
                 if (currentSegment().length() >= segmentSize)
-                {
-                    sync();
-                    segments.add(new CommitLogSegment());
-                }
+                    createNewSegment();
             }
             catch (IOException e)
             {

@@ -81,9 +81,14 @@ public class SystemTable
         ColumnFamily cf = table.getColumnFamilyStore(STATUS_CF).getColumnFamily(dotSeven);
         if (cf == null)
         {
-            // upgrading from 0.6 to 0.7.
-            logger.info("Upgrading to 0.7. Purging hints if there are any. Old hints will be snapshotted.");
-            new Truncation(Table.SYSTEM_TABLE, HintedHandOffManager.HINTS_CF).apply();
+            // 0.7+ marker not found.  Remove hints and add the marker.
+            ColumnFamilyStore hintsCfs = Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(HintedHandOffManager.HINTS_CF);
+            if (hintsCfs.getSSTables().size() > 0)
+            {
+                logger.info("Possible 0.6-format hints found. Snapshotting as 'old-hints' and purging");
+                hintsCfs.snapshot("old-hints");
+                hintsCfs.removeAllSSTables();
+            }
             RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, COOKIE_KEY);
             rm.add(new QueryPath(STATUS_CF, null, hintsPurged6to7), ByteBufferUtil.bytes("oh yes, it they were purged."), System.currentTimeMillis());
             rm.apply();
