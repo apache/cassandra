@@ -1,3 +1,7 @@
+0.8.5
+ * fix NPE when encryption_options is unspecified (CASSANDRA-3007)
+
+
 0.8.4
  * include files-to-be-streamed in StreamInSession.getSources (CASSANDRA-2972)
  * use JAVA env var in cassandra-env.sh (CASSANDRA-2785, 2992)
