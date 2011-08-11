@@ -39,7 +39,7 @@ public class IndexScanVerbHandler implements IVerbHandler
         {
             IndexScanCommand command = IndexScanCommand.read(message);
             ColumnFamilyStore cfs = Table.open(command.keyspace).getColumnFamilyStore(command.column_family);
-            List<Row> rows = cfs.scan(command.index_clause, command.range, QueryFilter.getFilter(command.predicate, cfs.getComparator()));
+            List<Row> rows = cfs.indexManager.search(command.index_clause, command.range, QueryFilter.getFilter(command.predicate, cfs.getComparator()));
             RangeSliceReply reply = new RangeSliceReply(rows);
             Message response = reply.getReply(message);
             if (logger.isDebugEnabled())

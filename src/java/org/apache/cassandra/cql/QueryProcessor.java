@@ -342,7 +342,7 @@ public class QueryProcessor
         
         if (select.getColumnRelations().size() > 0)
         {
-            Set<ByteBuffer> indexed = Table.open(keyspace).getColumnFamilyStore(select.getColumnFamily()).getIndexedColumns();
+            Set<ByteBuffer> indexed = Table.open(keyspace).getColumnFamilyStore(select.getColumnFamily()).indexManager.getIndexedColumns();
             for (Relation relation : select.getColumnRelations())
             {
                 if ((relation.operator().equals(RelationType.EQ)) && indexed.contains(relation.getEntity().getByteBuffer(comparator)))

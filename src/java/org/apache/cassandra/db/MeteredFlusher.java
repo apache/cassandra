@@ -56,7 +56,7 @@ class MeteredFlusher implements Runnable
                                                             + 1 // potentially a flushed memtable being counted by jamm
                                                             + DatabaseDescriptor.getFlushWriters()
                                                             + DatabaseDescriptor.getFlushQueueSize())
-                                                  / (1 + cfs.getIndexedColumns().size()));
+                                                  / (1 + cfs.indexManager.getIndexedColumns().size()));
                 if (size > (DatabaseDescriptor.getTotalMemtableSpaceInMB() * 1048576L - flushingBytes) / maxInFlight)
                 {
                     logger.info("flushing high-traffic column family {}", cfs);

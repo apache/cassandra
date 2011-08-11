@@ -476,7 +476,7 @@ public class ThriftValidation
     {
         if (index_clause.expressions.isEmpty())
             throw new InvalidRequestException("index clause list may not be empty");
-        Set<ByteBuffer> indexedColumns = Table.open(metadata.ksName).getColumnFamilyStore(metadata.cfName).getIndexedColumns();
+        Set<ByteBuffer> indexedColumns = Table.open(metadata.ksName).getColumnFamilyStore(metadata.cfName).indexManager.getIndexedColumns();
         AbstractType nameValidator =  ColumnFamily.getComparatorFor(metadata.ksName, metadata.cfName, null);
 
         boolean isIndexed = false;

@@ -54,6 +54,8 @@ import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.filter.*;
+import org.apache.cassandra.db.index.SecondaryIndex;
+import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.LocalByPartionerType;
@@ -64,6 +66,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.IndexClause;
 import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.thrift.IndexOperator;
+import org.apache.cassandra.thrift.IndexType;
 import org.apache.cassandra.utils.*;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
@@ -122,7 +125,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     /* This is used to generate the next index for a SSTable */
     private AtomicInteger fileIndexGenerator = new AtomicInteger(0);
 
-    private final ConcurrentSkipListMap<ByteBuffer, ColumnFamilyStore> indexedColumns;
+    public final SecondaryIndexManager indexManager;
 
     private LatencyTracker readStats = new LatencyTracker();
     private LatencyTracker writeStats = new LatencyTracker();
@@ -204,31 +207,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         updateCacheSizes();
         scheduleCacheSaving(rowCacheSaveInSeconds.value(), keyCacheSaveInSeconds.value(), rowCacheKeysToSave.value());
         
-        // figure out what needs to be added and dropped.
-        // future: if/when we have modifiable settings for secondary indexes, they'll need to be handled here.
-        for (ByteBuffer indexedColumn : indexedColumns.keySet())
-        {
-            ColumnDefinition def = metadata.getColumn_metadata().get(indexedColumn);
-            if (def == null || def.getIndexType() == null)
-                removeIndex(indexedColumn);
-        }
-
-        for (ColumnDefinition cdef : metadata.getColumn_metadata().values())
-            if (cdef.getIndexType() != null && !indexedColumns.containsKey(cdef.name))
-                addIndex(cdef);
-    }
-
-    void removeIndex(ByteBuffer indexedColumn)
-    {
-        ColumnFamilyStore indexCfs = indexedColumns.remove(indexedColumn);
-        if (indexCfs == null)
-        {
-            logger.debug("index {} already removed; ignoring", ByteBufferUtil.bytesToHex(indexedColumn));
-            return;
-        }
-        indexCfs.unregisterMBean();
-        SystemTable.setIndexRemoved(metadata.ksName, indexCfs.columnFamily);
-        indexCfs.removeAllSSTables();
+        indexManager.reload();
     }
 
     private ColumnFamilyStore(Table table, String columnFamilyName, IPartitioner partitioner, int generation, CFMetaData metadata)
@@ -246,6 +225,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         this.keyCacheSaveInSeconds = new DefaultInteger(metadata.getKeyCacheSavePeriodInSeconds());
         this.rowCacheKeysToSave = new DefaultInteger(metadata.getRowCacheKeysToSave());
         this.partitioner = partitioner;
+        this.indexManager = new SecondaryIndexManager(this);
         fileIndexGenerator.set(generation);
 
         if (logger.isDebugEnabled())
@@ -282,11 +262,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         data.addSSTables(sstables);
 
         // create the private ColumnFamilyStores for the secondary column indexes
-        indexedColumns = new ConcurrentSkipListMap<ByteBuffer, ColumnFamilyStore>(getComparator());
         for (ColumnDefinition info : metadata.getColumn_metadata().values())
         {
             if (info.getIndexType() != null)
-                addIndex(info);
+                indexManager.addIndexedColumn(info);
         }
 
         // register the mbean
@@ -304,93 +283,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
     }
 
-    public Future<?> addIndex(final ColumnDefinition info)
-    {
-        assert info.getIndexType() != null;
-
-        // create the index CFS
-        IPartitioner rowPartitioner = StorageService.getPartitioner();
-        AbstractType columnComparator = (rowPartitioner instanceof OrderPreservingPartitioner || rowPartitioner instanceof ByteOrderedPartitioner)
-                                        ? BytesType.instance
-                                        : new LocalByPartionerType(StorageService.getPartitioner());
-        final CFMetaData indexedCfMetadata = CFMetaData.newIndexMetadata(metadata, info, columnComparator);
-        ColumnFamilyStore indexedCfs = ColumnFamilyStore.createColumnFamilyStore(table,
-                                                                                 indexedCfMetadata.cfName,
-                                                                                 new LocalPartitioner(metadata.getColumn_metadata().get(info.name).getValidator()),
-                                                                                 indexedCfMetadata);
-
-        // link in indexedColumns.  this means that writes will add new data to the index immediately,
-        // so we don't have to lock everything while we do the build.  it's up to the operator to wait
-        // until the index is actually built before using in queries.
-        if (indexedColumns.putIfAbsent(info.name, indexedCfs) != null)
-            return null;
-
-        // if we're just linking in the index to indexedColumns on an already-built index post-restart, we're done
-        if (indexedCfs.isIndexBuilt())
-            return null;
-
-        // build it asynchronously; addIndex gets called by CFS open and schema update, neither of which
-        // we want to block for a long period.  (actual build is serialized on CompactionManager.)
-        Runnable runnable = new Runnable()
-        {
-            public void run()
-            {
-                try
-                {
-                    forceBlockingFlush();
-                }
-                catch (ExecutionException e)
-                {
-                    throw new RuntimeException(e);
-                }
-                catch (InterruptedException e)
-                {
-                    throw new AssertionError(e);
-                }
-                Collection<SSTableReader> sstables = markCurrentViewReferenced().sstables;
-                try
-                {
-                    buildSecondaryIndexes(sstables, FBUtilities.singleton(info.name));
-                }
-                finally
-                {
-                    SSTableReader.releaseReferences(sstables);
-                }
-                SystemTable.setIndexBuilt(table.name, indexedCfMetadata.cfName);
-            }
-        };
-        FutureTask<?> f = new FutureTask<Object>(runnable, null);
-        new Thread(f, "Create index " + indexedCfMetadata.cfName).start();
-        return f;
-    }
-
-    public void buildSecondaryIndexes(Collection<SSTableReader> sstables, SortedSet<ByteBuffer> columns)
-    {
-        logger.info(String.format("Submitting index build of %s for data in %s",
-                                  metadata.comparator.getString(columns), StringUtils.join(sstables, ", ")));
-
-        Table.IndexBuilder builder = table.createIndexBuilder(this, columns, new ReducingKeyIterator(sstables));
-        Future future = CompactionManager.instance.submitIndexBuild(this, builder);
-        try
-        {
-            future.get();
-            for (ByteBuffer column : columns)
-                getIndexedColumnFamilyStore(column).forceBlockingFlush();
-        }
-        catch (InterruptedException e)
-        {
-            throw new AssertionError(e);
-        }
-        catch (ExecutionException e)
-        {
-            throw new RuntimeException(e);
-        }
-
-        logger.info("Index build of " + metadata.comparator.getString(columns) + " complete");
-    }
-
+   
     // called when dropping or renaming a CF. Performs mbean housekeeping and invalidates CFS to other operations.
-    void unregisterMBean()
+    public void unregisterMBean()
     {
         try
         {
@@ -399,8 +294,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             ObjectName nameObj = new ObjectName(mbeanName);
             if (mbs.isRegistered(nameObj))
                 mbs.unregisterMBean(nameObj);
-            for (ColumnFamilyStore index : indexedColumns.values())
-                index.unregisterMBean();
+           
+            indexManager.unregisterMBeans();
         }
         catch (Exception e)
         {
@@ -608,8 +503,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             public boolean accept(File dir, String name)
             {
                 Pair<Descriptor, Component> pair = SSTable.tryComponentFromFilename(dir, name);
+
                 if (pair != null)
                     sstables.add(pair);
+
                 return false;
             }
         });
@@ -654,7 +551,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     }
 
     /** flush the given memtable and swap in a new one for its CFS, if it hasn't been frozen already.  threadsafe. */
-    Future<?> maybeSwitchMemtable(Memtable oldMemtable, final boolean writeCommitLog)
+    public Future<?> maybeSwitchMemtable(Memtable oldMemtable, final boolean writeCommitLog)
     {
         if (oldMemtable.isFrozen())
         {
@@ -686,7 +583,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             final ReplayPosition ctx = writeCommitLog ? CommitLog.instance.getContext() : ReplayPosition.NONE;
 
             // submit the memtable for any indexed sub-cfses, and our own.
-            List<ColumnFamilyStore> icc = new ArrayList<ColumnFamilyStore>(indexedColumns.size());
+            List<ColumnFamilyStore> icc = new ArrayList<ColumnFamilyStore>();
             // don't assume that this.memtable is dirty; forceFlush can bring us here during index build even if it is not
             for (ColumnFamilyStore cfs : concatWithIndexes())
             {
@@ -785,7 +682,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * param @ key - key for update/insert
      * param @ columnFamily - columnFamily changes
      */
-    Memtable apply(DecoratedKey key, ColumnFamily columnFamily)
+    public Memtable apply(DecoratedKey key, ColumnFamily columnFamily)
     {
         long start = System.nanoTime();
 
@@ -1009,10 +906,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public void removeAllSSTables()
     {
         data.removeAllSSTables();
-        for (ColumnFamilyStore indexedCfs : indexedColumns.values())
-        {
-            indexedCfs.removeAllSSTables();
-        }
+        indexManager.removeAllIndexes();    
     }
 
     public long getMemtableColumnsCount()
@@ -1457,251 +1351,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             SSTableReader.releaseReferences(currentView.sstables);
         }
-
     }
-
-    private NamesQueryFilter getExtraFilter(IndexClause clause)
+    
+    public List<Row> search(IndexClause clause, AbstractBounds range, IFilter dataFilter)
     {
-        SortedSet<ByteBuffer> columns = new TreeSet<ByteBuffer>(getComparator());
-        for (IndexExpression expr : clause.expressions)
-        {
-            columns.add(expr.column_name);
-        }
-        return new NamesQueryFilter(columns);
+        return indexManager.search(clause, range, dataFilter);
     }
-
-    private static boolean isIdentityFilter(SliceQueryFilter filter)
-    {
-        return filter.start.equals(ByteBufferUtil.EMPTY_BYTE_BUFFER)
-            && filter.finish.equals(ByteBufferUtil.EMPTY_BYTE_BUFFER)
-            && filter.count == Integer.MAX_VALUE;
-    }
-
-    public List<Row> scan(IndexClause clause, AbstractBounds range, IFilter dataFilter)
-    {
-        // Start with the most-restrictive indexed clause, then apply remaining clauses
-        // to each row matching that clause.
-        // TODO: allow merge join instead of just one index + loop
-        IndexExpression primary = highestSelectivityPredicate(clause);
-        ColumnFamilyStore indexCFS = getIndexedColumnFamilyStore(primary.column_name);
-        if (logger.isDebugEnabled())
-            logger.debug("Primary scan clause is " + getComparator().getString(primary.column_name));
-        assert indexCFS != null;
-        DecoratedKey indexKey = indexCFS.partitioner.decorateKey(primary.value);
-
-        // if the slicepredicate doesn't contain all the columns for which we have expressions to evaluate,
-        // it needs to be expanded to include those too
-        IFilter firstFilter = dataFilter;
-        if (dataFilter instanceof SliceQueryFilter)
-        {
-            // if we have a high chance of getting all the columns in a single index slice, do that.
-            // otherwise, we'll create an extraFilter (lazily) to fetch by name the columns referenced by the additional expressions.
-            if (getMaxRowSize() < DatabaseDescriptor.getColumnIndexSize())
-            {
-                logger.debug("Expanding slice filter to entire row to cover additional expressions");
-                firstFilter = new SliceQueryFilter(ByteBufferUtil.EMPTY_BYTE_BUFFER,
-                        ByteBufferUtil.EMPTY_BYTE_BUFFER,
-                        ((SliceQueryFilter) dataFilter).reversed,
-                        Integer.MAX_VALUE);
-            }
-        }
-        else
-        {
-            logger.debug("adding columns to firstFilter to cover additional expressions");
-            // just add in columns that are not part of the resultset
-            assert dataFilter instanceof NamesQueryFilter;
-            SortedSet<ByteBuffer> columns = new TreeSet<ByteBuffer>(getComparator());
-            for (IndexExpression expr : clause.expressions)
-            {
-                columns.add(expr.column_name);
-            }
-            if (columns.size() > 0)
-            {
-                columns.addAll(((NamesQueryFilter) dataFilter).columns);
-                firstFilter = new NamesQueryFilter(columns);
-            }
-        }
-
-        List<Row> rows = new ArrayList<Row>();
-        ByteBuffer startKey = clause.start_key;
-        QueryPath path = new QueryPath(columnFamily);
-
-        // we need to store last data key accessed to avoid duplicate results
-        // because in the while loop new iteration we can access the same column if start_key was not set
-        ByteBuffer lastDataKey = null;
-
-        // fetch row keys matching the primary expression, fetch the slice predicate for each
-        // and filter by remaining expressions.  repeat until finished w/ assigned range or index row is exhausted.
-        outer:
-        while (true)
-        {
-            /* we don't have a way to get the key back from the DK -- we just have a token --
-             * so, we need to loop after starting with start_key, until we get to keys in the given `range`.
-             * But, if the calling StorageProxy is doing a good job estimating data from each range, the range
-             * should be pretty close to `start_key`. */
-            if (logger.isDebugEnabled())
-                logger.debug(String.format("Scanning index %s starting with %s",
-                                           expressionString(primary), indexCFS.getComparator().getString(startKey)));
-
-            // We shouldn't fetch only 1 row as this provides buggy paging in case the first row doesn't satisfy all clauses
-            int count = Math.max(clause.count, 2);
-            QueryFilter indexFilter = QueryFilter.getSliceFilter(indexKey,
-                                                                 new QueryPath(indexCFS.getColumnFamilyName()),
-                                                                 startKey,
-                                                                 ByteBufferUtil.EMPTY_BYTE_BUFFER,
-                                                                 false,
-                                                                 count);
-            ColumnFamily indexRow = indexCFS.getColumnFamily(indexFilter);
-            logger.debug("fetched {}", indexRow);
-            if (indexRow == null)
-                break;
-
-            ByteBuffer dataKey = null;
-            int n = 0;
-            for (IColumn column : indexRow)
-            {
-                if (column.isMarkedForDelete())
-                    continue;
-                dataKey = column.name();
-                n++;
-
-                DecoratedKey dk = partitioner.decorateKey(dataKey);
-                if (!range.right.equals(partitioner.getMinimumToken()) && range.right.compareTo(dk.token) < 0)
-                    break outer;
-                if (!range.contains(dk.token) || dataKey.equals(lastDataKey))
-                    continue;
-
-                // get the row columns requested, and additional columns for the expressions if necessary
-                ColumnFamily data = getColumnFamily(new QueryFilter(dk, path, firstFilter));
-                // While we the column family we'll get in the end should contains the primary clause column, the firstFilter may not have found it.
-                if (data == null)
-                    data = ColumnFamily.create(metadata);
-                logger.debug("fetched data row {}", data);
-                if (dataFilter instanceof SliceQueryFilter && !isIdentityFilter((SliceQueryFilter)dataFilter))
-                {
-                    // we might have gotten the expression columns in with the main data slice, but
-                    // we can't know for sure until that slice is done.  So, we'll do the extra query
-                    // if we go through and any expression columns are not present.
-                    boolean needExtraFilter = false;
-                    for (IndexExpression expr : clause.expressions)
-                    {
-                        if (data.getColumn(expr.column_name) == null)
-                        {
-                            logger.debug("adding extraFilter to cover additional expressions");
-                            // Lazily creating extra filter
-                            needExtraFilter = true;
-                            break;
-                        }
-                    }
-                    if (needExtraFilter)
-                    {
-                        // Note: for counters we must be carefull to not add a column that was already there (to avoid overcount). That is
-                        // why we do the dance of avoiding to query any column we already have (it's also more efficient anyway)
-                        NamesQueryFilter extraFilter = getExtraFilter(clause);
-                        for (IndexExpression expr : clause.expressions)
-                        {
-                            if (data.getColumn(expr.column_name) != null)
-                                extraFilter.columns.remove(expr.column_name);
-                        }
-                        assert !extraFilter.columns.isEmpty();
-                        ColumnFamily cf = getColumnFamily(new QueryFilter(dk, path, extraFilter));
-                        if (cf != null)
-                            data.addAll(cf);
-                    }
-
-                }
-
-                if (satisfies(data, clause, primary))
-                {
-                    logger.debug("row {} satisfies all clauses", data);
-                    // cut the resultset back to what was requested, if necessary
-                    if (firstFilter != dataFilter)
-                    {
-                        ColumnFamily expandedData = data;
-                        data = expandedData.cloneMeShallow();
-                        IColumnIterator iter = dataFilter.getMemtableColumnIterator(expandedData, dk, getComparator());
-                        new QueryFilter(dk, path, dataFilter).collateColumns(data, Collections.singletonList(iter), getComparator(), gcBefore());
-                    }
-
-                    rows.add(new Row(dk, data));
-                }
-
-                if (rows.size() == clause.count)
-                    break outer;
-            }
-            if (n < clause.count || startKey.equals(dataKey))
-                break;
-
-            lastDataKey = startKey = dataKey;
-        }
-
-        return rows;
-    }
-
-    private String expressionString(IndexExpression expr)
-    {
-        return String.format("'%s.%s %s %s'",
-                             columnFamily,
-                             getComparator().getString(expr.column_name),
-                             expr.op,
-                             metadata.getColumn_metadata().get(expr.column_name).getValidator().getString(expr.value));
-    }
-
-    private IndexExpression highestSelectivityPredicate(IndexClause clause)
-    {
-        IndexExpression best = null;
-        int bestMeanCount = Integer.MAX_VALUE;
-        for (IndexExpression expression : clause.expressions)
-        {
-            ColumnFamilyStore cfs = getIndexedColumnFamilyStore(expression.column_name);
-            if (cfs == null || !expression.op.equals(IndexOperator.EQ))
-                continue;
-            int columns = cfs.getMeanColumns();
-            if (columns < bestMeanCount)
-            {
-                best = expression;
-                bestMeanCount = columns;
-            }
-        }
-        return best;
-    }
-
-    private static boolean satisfies(ColumnFamily data, IndexClause clause, IndexExpression first)
-    {
-        // We enforces even the primary clause because reads are not synchronized with writes and it is thus possible to have a race
-        // where the index returned a row which doesn't have the primarycolumn when we actually read it
-        for (IndexExpression expression : clause.expressions)
-        {
-            // check column data vs expression
-            IColumn column = data.getColumn(expression.column_name);
-            if (column == null)
-                return false;
-            int v = data.metadata().getValueValidator(expression.column_name).compare(column.value(), expression.value);
-            if (!satisfies(v, expression.op))
-                return false;
-        }
-        return true;
-    }
-
-    private static boolean satisfies(int comparison, IndexOperator op)
-    {
-        switch (op)
-        {
-            case EQ:
-                return comparison == 0;
-            case GTE:
-                return comparison >= 0;
-            case GT:
-                return comparison > 0;
-            case LTE:
-                return comparison <= 0;
-            case LT:
-                return comparison < 0;
-            default:
-                throw new IllegalStateException();
-        }
-    }
-
+  
     public AbstractType getComparator()
     {
         return metadata.comparator;
@@ -1933,10 +1589,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         if (mostRecentProblem != null)
             throw new IOException("One or more IOExceptions encountered while renaming files. Most recent problem is included.", mostRecentProblem);
 
-        for (ColumnFamilyStore indexedCfs : indexedColumns.values())
-        {
-            indexedCfs.renameSSTables(indexedCfs.columnFamily.replace(columnFamily, newCfName));
-        }
+        indexManager.renameIndexes(newCfName);
     }
 
     public long getBloomFilterFalsePositives()
@@ -1959,25 +1612,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return data.getRecentBloomFilterFalseRatio();
     }
 
-    public SortedSet<ByteBuffer> getIndexedColumns()
-    {
-        return indexedColumns.keySet();
-    }
-
-    public ColumnFamilyStore getIndexedColumnFamilyStore(ByteBuffer column)
-    {
-        return indexedColumns.get(column);
-    }
-
-    public ColumnFamily newIndexedColumnFamily(ByteBuffer column)
-    {
-        return ColumnFamily.create(indexedColumns.get(column).metadata);
-    }
-
-    public DecoratedKey<LocalToken> getIndexKeyFor(ByteBuffer name, ByteBuffer value)
-    {
-        return indexedColumns.get(name).partitioner.decorateKey(value);
-    }
+   
 
     @Override
     public String toString()
@@ -2128,34 +1763,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return data.getEstimatedRowSizeHistogram();
     }
 
-    /**
-     * Check if index is already built for current store
-     * @return true if built, false otherwise
-     */
-    public boolean isIndexBuilt()
-    {
-        return SystemTable.isIndexBuilt(table.name, columnFamily);
-    }
-
-    /**
-     * Returns a list of the names of the built column indexes for current store
-     * @return list of the index names
-     */
-    public List<String> getBuiltIndexes()
-    {
-        List<String> indexes = new ArrayList<String>();
-
-        for (ColumnFamilyStore cfs : indexedColumns.values())
-        {
-            if (cfs.isIndexBuilt())
-            {
-                indexes.add(cfs.columnFamily); // store.columnFamily represents a name of the index
-            }
-        }
-
-        return indexes;
-    }
-
     /** true if this CFS contains secondary index data */
     public boolean isIndex()
     {
@@ -2230,11 +1837,18 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public Iterable<ColumnFamilyStore> concatWithIndexes()
     {
-        return Iterables.concat(indexedColumns.values(), Collections.singleton(this));
+        return Iterables.concat(indexManager.getIndexesBackedByCfs(), Collections.singleton(this));
     }
 
     public Set<Memtable> getMemtablesPendingFlush()
     {
         return data.getMemtablesPendingFlush();
     }
+
+    @Override
+    public List<String> getBuiltIndexes()
+    {
+       return indexManager.getBuiltIndexes();
+    }
+
 }

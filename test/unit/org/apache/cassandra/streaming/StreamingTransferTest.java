@@ -144,7 +144,7 @@ public class StreamingTransferTest extends CleanupHelper
             IndexClause clause = new IndexClause(Arrays.asList(expr), ByteBufferUtil.EMPTY_BYTE_BUFFER, 100);
             IFilter filter = new IdentityQueryFilter();
             Range range = new Range(p.getMinimumToken(), p.getMinimumToken());
-            List<Row> rows = cfs.scan(clause, range, filter);
+            List<Row> rows = cfs.search(clause, range, filter);
             assertEquals(1, rows.size());
             assert rows.get(0).key.key.equals(ByteBufferUtil.bytes(key));
         }

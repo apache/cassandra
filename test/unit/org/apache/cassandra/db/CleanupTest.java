@@ -19,26 +19,24 @@
 package org.apache.cassandra.db;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.net.InetAddress;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
-import org.junit.Test;
-
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
+import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.filter.IFilter;
 import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.dht.BytesToken;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
@@ -50,6 +48,7 @@ import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.thrift.IndexOperator;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.NodeId;
+import org.junit.Test;
 
 public class CleanupTest extends CleanupHelper
 {
@@ -100,7 +99,7 @@ public class CleanupTest extends CleanupHelper
     {
         Table table = Table.open(TABLE1);
         ColumnFamilyStore cfs = table.getColumnFamilyStore(CF1);
-        assertEquals(cfs.getIndexedColumns().iterator().next(), COLUMN);
+        assertEquals(cfs.indexManager.getIndexedColumns().iterator().next(), COLUMN);
 
         List<Row> rows;
 
@@ -109,8 +108,8 @@ public class CleanupTest extends CleanupHelper
         rows = cfs.getRangeSlice(null, Util.range("", ""), 1000, new IdentityQueryFilter());
         assertEquals(LOOPS, rows.size());
 
-        ColumnFamilyStore cfi = cfs.getIndexedColumnFamilyStore(COLUMN);
-        assertTrue(cfi.isIndexBuilt());
+        SecondaryIndex index = cfs.indexManager.getIndexForColumn(COLUMN);
+        assertTrue(index.isIndexBuilt());
 
         // verify we get it back w/ index query too
         IndexExpression expr = new IndexExpression(COLUMN, IndexOperator.EQ, VALUE);
@@ -118,7 +117,7 @@ public class CleanupTest extends CleanupHelper
         IFilter filter = new IdentityQueryFilter();
         IPartitioner p = StorageService.getPartitioner();
         Range range = new Range(p.getMinimumToken(), p.getMinimumToken());
-        rows = table.getColumnFamilyStore(CF1).scan(clause, range, filter);
+        rows = table.getColumnFamilyStore(CF1).search(clause, range, filter);
         assertEquals(LOOPS, rows.size());
 
         // we don't allow cleanup when the local host has no range to avoid wipping up all data when a node has not join the ring.
@@ -140,7 +139,7 @@ public class CleanupTest extends CleanupHelper
         assert cfs.getSSTables().isEmpty();
 
         // 2ary indexes should result in no results, too (although tombstones won't be gone until compacted)
-        rows = cfs.scan(clause, range, filter);
+        rows = cfs.search(clause, range, filter);
         assertEquals(0, rows.size());
     }
 

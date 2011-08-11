@@ -799,7 +799,7 @@ public class DefsTest extends CleanupHelper
         rm.apply();
         ColumnFamilyStore cfs = Table.open("Keyspace6").getColumnFamilyStore("Indexed1");
         cfs.forceBlockingFlush();
-        ColumnFamilyStore indexedCfs = cfs.getIndexedColumnFamilyStore(cfs.getIndexedColumns().iterator().next());
+        ColumnFamilyStore indexedCfs = cfs.indexManager.getIndexForColumn(cfs.indexManager.getIndexedColumns().iterator().next()).getUnderlyingCfs();
         Descriptor desc = indexedCfs.getSSTables().iterator().next().descriptor;
 
         // drop the index
@@ -811,7 +811,7 @@ public class DefsTest extends CleanupHelper
         update.apply();
 
         // check
-        assert cfs.getIndexedColumns().isEmpty();
+        assert cfs.indexManager.getIndexedColumns().isEmpty();
         SSTableDeletingTask.waitForDeletions();
         assert !new File(desc.filenameFor(Component.DATA)).exists();
     }

@@ -22,14 +22,20 @@ import java.io.File;
 import java.io.IOError;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-
-import com.google.common.base.Function;
-import com.google.common.collect.Iterables;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Config;
@@ -41,7 +47,7 @@ import org.apache.cassandra.db.compaction.CompactionInfo;
 import org.apache.cassandra.db.compaction.CompactionType;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
-import org.apache.cassandra.dht.LocalToken;
+import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.io.sstable.ReducingKeyIterator;
 import org.apache.cassandra.io.sstable.SSTableDeletingTask;
 import org.apache.cassandra.io.sstable.SSTableReader;
@@ -52,6 +58,11 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.NodeId;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.google.common.base.Function;
+import com.google.common.collect.Iterables;
 
 /**
  * It represents a Keyspace.
@@ -407,7 +418,7 @@ public class Table
                 }
 
                 SortedSet<ByteBuffer> mutatedIndexedColumns = null;
-                for (ByteBuffer column : cfs.getIndexedColumns())
+                for (ByteBuffer column : cfs.indexManager.getIndexedColumns())
                 {
                     if (cf.getColumnNames().contains(column) || cf.isMarkedForDelete())
                     {
@@ -447,7 +458,7 @@ public class Table
                     if (mutatedIndexedColumns != null)
                     {
                         // ignore full index memtables -- we flush those when the "master" one is full
-                        applyIndexUpdates(mutation.key(), cf, cfs, mutatedIndexedColumns, oldIndexedColumns);
+                        cfs.indexManager.applyIndexUpdates(mutation.key(), cf, mutatedIndexedColumns, oldIndexedColumns);
                     }
                 }
             }
@@ -519,149 +530,33 @@ public class Table
         return cfs.getColumnFamily(filter);
     }
 
-    /**
-     * removes obsolete index entries and creates new ones for the given row key and mutated columns.
-     * @return list of full (index CF) memtables
-     */
-    private static List<Memtable> applyIndexUpdates(ByteBuffer key,
-                                                    ColumnFamily cf,
-                                                    ColumnFamilyStore cfs,
-                                                    SortedSet<ByteBuffer> mutatedIndexedColumns,
-                                                    ColumnFamily oldIndexedColumns)
-    {
-        List<Memtable> fullMemtables = Collections.emptyList();
-
-        // add new index entries
-        for (ByteBuffer columnName : mutatedIndexedColumns)
-        {
-            IColumn column = cf.getColumn(columnName);
-            if (column == null || column.isMarkedForDelete())
-                continue; // null column == row deletion
-
-            DecoratedKey<LocalToken> valueKey = cfs.getIndexKeyFor(columnName, column.value());
-            ColumnFamily cfi = cfs.newIndexedColumnFamily(columnName);
-            if (column instanceof ExpiringColumn)
-            {
-                ExpiringColumn ec = (ExpiringColumn)column;
-                cfi.addColumn(new ExpiringColumn(key, ByteBufferUtil.EMPTY_BYTE_BUFFER, ec.timestamp, ec.getTimeToLive(), ec.getLocalDeletionTime()));
-            }
-            else
-            {
-                cfi.addColumn(new Column(key, ByteBufferUtil.EMPTY_BYTE_BUFFER, column.timestamp()));
-            }
-            if (logger.isDebugEnabled())
-                logger.debug("applying index row {}:{}", valueKey, cfi);
-            Memtable fullMemtable = cfs.getIndexedColumnFamilyStore(columnName).apply(valueKey, cfi);
-            if (fullMemtable != null)
-                fullMemtables = addFullMemtable(fullMemtables, fullMemtable);
-        }
-
-        // remove the old index entries
-        if (oldIndexedColumns != null)
-        {
-            int localDeletionTime = (int) (System.currentTimeMillis() / 1000);
-            for (IColumn column : oldIndexedColumns)
-            {
-                ByteBuffer columnName = column.name();
-                if (column.isMarkedForDelete())
-                    continue;
-                DecoratedKey<LocalToken> valueKey = cfs.getIndexKeyFor(columnName, column.value());
-                ColumnFamily cfi = cfs.newIndexedColumnFamily(columnName);
-                cfi.addTombstone(key, localDeletionTime, column.timestamp());
-                Memtable fullMemtable = cfs.getIndexedColumnFamilyStore(columnName).apply(valueKey, cfi);
-                if (logger.isDebugEnabled())
-                    logger.debug("applying index tombstones {}:{}", valueKey, cfi);
-                if (fullMemtable != null)
-                    fullMemtables = addFullMemtable(fullMemtables, fullMemtable);
-            }
-        }
-
-        return fullMemtables;
-    }
-
-    public static void cleanupIndexEntry(ColumnFamilyStore cfs, ByteBuffer key, IColumn column)
-    {
-        if (column.isMarkedForDelete())
-            return;
-        int localDeletionTime = (int) (System.currentTimeMillis() / 1000);
-        DecoratedKey<LocalToken> valueKey = cfs.getIndexKeyFor(column.name(), column.value());
-        ColumnFamily cfi = cfs.newIndexedColumnFamily(column.name());
-        cfi.addTombstone(key, localDeletionTime, column.timestamp());
-        Memtable fullMemtable = cfs.getIndexedColumnFamilyStore(column.name()).apply(valueKey, cfi);
-        if (logger.isDebugEnabled())
-            logger.debug("removed index entry for cleaned-up value {}:{}", valueKey, cfi);
-        if (fullMemtable != null)
-            fullMemtable.cfs.maybeSwitchMemtable(fullMemtable, false);
-    }
-
-    public IndexBuilder createIndexBuilder(ColumnFamilyStore cfs, SortedSet<ByteBuffer> columns, ReducingKeyIterator iter)
-    {
-        return new IndexBuilder(cfs, columns, iter);
-    }
-
     public AbstractReplicationStrategy getReplicationStrategy()
     {
         return replicationStrategy;
     }
 
-    public class IndexBuilder implements CompactionInfo.Holder
+    public static void indexRow(DecoratedKey<?> key, ColumnFamilyStore cfs, SortedSet<ByteBuffer> indexedColumns)
     {
-        private final ColumnFamilyStore cfs;
-        private final SortedSet<ByteBuffer> columns;
-        private final ReducingKeyIterator iter;
-
-        public IndexBuilder(ColumnFamilyStore cfs, SortedSet<ByteBuffer> columns, ReducingKeyIterator iter)
+        logger.debug("Indexing row {} ", key);
+        Set<SecondaryIndex> indexesToFlush = Collections.emptySet();
+        switchLock.readLock().lock();
+        try
         {
-            this.cfs = cfs;
-            this.columns = columns;
-            this.iter = iter;
-        }
-
-        public CompactionInfo getCompactionInfo()
-        {
-            return new CompactionInfo(cfs.table.name,
-                                      cfs.columnFamily,
-                                      CompactionType.INDEX_BUILD,
-                                      iter.getBytesRead(),
-                                      iter.getTotalBytes());
-        }
-
-        public void build()
-        {
-            while (iter.hasNext())
+            synchronized (cfs.table.indexLockFor(key.key))
             {
-                DecoratedKey<?> key = iter.next();
-                logger.debug("Indexing row {} ", key);
-                List<Memtable> memtablesToFlush = Collections.emptyList();
-                switchLock.readLock().lock();
-                try
-                {
-                    synchronized (indexLockFor(key.key))
-                    {
-                        ColumnFamily cf = readCurrentIndexedColumns(key, cfs, columns);
-                        if (cf != null)
-                            memtablesToFlush = applyIndexUpdates(key.key, cf, cfs, cf.getColumnNames(), null);
-                    }
-                }
-                finally
-                {
-                    switchLock.readLock().unlock();
-                }
-
-                // during index build, we do flush index memtables separately from master; otherwise we could OOM
-                for (Memtable memtable : memtablesToFlush)
-                    memtable.cfs.maybeSwitchMemtable(memtable, false);
-            }
-
-            try
-            {
-                iter.close();
-            }
-            catch (IOException e)
-            {
-                throw new RuntimeException(e);
+                ColumnFamily cf = readCurrentIndexedColumns(key, cfs, indexedColumns);
+                if (cf != null)
+                    indexesToFlush = cfs.indexManager.applyIndexUpdates(key.key, cf, cf.getColumnNames(), null);
             }
         }
+        finally
+        {
+            switchLock.readLock().unlock();
+        }
+
+        // during index build, we do flush index memtables separately from master; otherwise we could OOM
+        for (SecondaryIndex index : indexesToFlush)
+            index.maybeFlush();
     }
 
     private Object indexLockFor(ByteBuffer key)

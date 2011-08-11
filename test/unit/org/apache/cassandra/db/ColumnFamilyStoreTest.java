@@ -26,10 +26,6 @@ import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
-import org.apache.commons.lang.ArrayUtils;
-import org.apache.commons.lang.StringUtils;
-import org.junit.Test;
-
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.ColumnDefinition;
@@ -37,6 +33,7 @@ import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.filter.*;
+import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
@@ -47,12 +44,16 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.WrappedRunnable;
+import org.apache.commons.lang.ArrayUtils;
+import org.apache.commons.lang.StringUtils;
 
 import static junit.framework.Assert.assertEquals;
 import static junit.framework.Assert.assertTrue;
 import static org.apache.cassandra.Util.column;
 import static org.apache.cassandra.Util.getBytes;
 import static org.junit.Assert.assertNull;
+
+import org.junit.Test;
 
 public class ColumnFamilyStoreTest extends CleanupHelper
 {
@@ -161,16 +162,16 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         IFilter filter = new IdentityQueryFilter();
         IPartitioner p = StorageService.getPartitioner();
         Range range = new Range(p.getMinimumToken(), p.getMinimumToken());
-        List<Row> rows = Table.open("Keyspace1").getColumnFamilyStore("Indexed1").scan(clause, range, filter);
+        List<Row> rows = Table.open("Keyspace1").getColumnFamilyStore("Indexed1").indexManager.search(clause, range, filter);
 
         assert rows != null;
         assert rows.size() == 2 : StringUtils.join(rows, ",");
         
         String key = new String(rows.get(0).key.key.array(),rows.get(0).key.key.position(),rows.get(0).key.key.remaining()); 
-        assert "k1".equals( key );
+        assert "k1".equals( key ) : key;
     
         key = new String(rows.get(1).key.key.array(),rows.get(1).key.key.position(),rows.get(1).key.key.remaining()); 
-        assert "k3".equals(key);
+        assert "k3".equals(key) : key;
         
         assert ByteBufferUtil.bytes(1L).equals( rows.get(0).cf.getColumn(ByteBufferUtil.bytes("birthdate")).value());
         assert ByteBufferUtil.bytes(1L).equals( rows.get(1).cf.getColumn(ByteBufferUtil.bytes("birthdate")).value());
@@ -178,14 +179,14 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         // add a second expression
         IndexExpression expr2 = new IndexExpression(ByteBufferUtil.bytes("notbirthdate"), IndexOperator.GTE, ByteBufferUtil.bytes(2L));
         clause = new IndexClause(Arrays.asList(expr, expr2), ByteBufferUtil.EMPTY_BYTE_BUFFER, 100);
-        rows = Table.open("Keyspace1").getColumnFamilyStore("Indexed1").scan(clause, range, filter);
+        rows = Table.open("Keyspace1").getColumnFamilyStore("Indexed1").search(clause, range, filter);
 
         assert rows.size() == 1 : StringUtils.join(rows, ",");
         key = new String(rows.get(0).key.key.array(),rows.get(0).key.key.position(),rows.get(0).key.key.remaining()); 
         assert "k3".equals( key );
     
         // same query again, but with resultset not including the subordinate expression
-        rows = Table.open("Keyspace1").getColumnFamilyStore("Indexed1").scan(clause, range, new NamesQueryFilter(ByteBufferUtil.bytes("birthdate")));
+        rows = Table.open("Keyspace1").getColumnFamilyStore("Indexed1").search(clause, range, new NamesQueryFilter(ByteBufferUtil.bytes("birthdate")));
 
         assert rows.size() == 1 : StringUtils.join(rows, ",");
         key = new String(rows.get(0).key.key.array(),rows.get(0).key.key.position(),rows.get(0).key.key.remaining()); 
@@ -195,7 +196,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
 
         // once more, this time with a slice rowset that needs to be expanded
         SliceQueryFilter emptyFilter = new SliceQueryFilter(ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 0);
-        rows = Table.open("Keyspace1").getColumnFamilyStore("Indexed1").scan(clause, range, emptyFilter);
+        rows = Table.open("Keyspace1").getColumnFamilyStore("Indexed1").search(clause, range, emptyFilter);
       
         assert rows.size() == 1 : StringUtils.join(rows, ",");
         key = new String(rows.get(0).key.key.array(),rows.get(0).key.key.position(),rows.get(0).key.key.remaining()); 
@@ -207,7 +208,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         // doesn't tell the scan loop that it's done
         IndexExpression expr3 = new IndexExpression(ByteBufferUtil.bytes("notbirthdate"), IndexOperator.EQ, ByteBufferUtil.bytes(-1L));
         clause = new IndexClause(Arrays.asList(expr, expr3), ByteBufferUtil.EMPTY_BYTE_BUFFER, 1);
-        rows = Table.open("Keyspace1").getColumnFamilyStore("Indexed1").scan(clause, range, filter);
+        rows = Table.open("Keyspace1").getColumnFamilyStore("Indexed1").search(clause, range, filter);
 
         assert rows.isEmpty();
     }
@@ -230,7 +231,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         IFilter filter = new IdentityQueryFilter();
         IPartitioner p = StorageService.getPartitioner();
         Range range = new Range(p.getMinimumToken(), p.getMinimumToken());
-        List<Row> rows = Table.open("Keyspace1").getColumnFamilyStore("Indexed1").scan(clause, range, filter);
+        List<Row> rows = Table.open("Keyspace1").getColumnFamilyStore("Indexed1").search(clause, range, filter);
 
         assert rows != null;
         assert rows.size() == 50 : rows.size();
@@ -256,7 +257,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         IFilter filter = new IdentityQueryFilter();
         IPartitioner p = StorageService.getPartitioner();
         Range range = new Range(p.getMinimumToken(), p.getMinimumToken());
-        List<Row> rows = cfs.scan(clause, range, filter);
+        List<Row> rows = cfs.search(clause, range, filter);
         assert rows.size() == 1 : StringUtils.join(rows, ",");
         String key = new String(rows.get(0).key.key.array(),rows.get(0).key.key.position(),rows.get(0).key.key.remaining()); 
         assert "k1".equals( key );
@@ -265,7 +266,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         rm = new RowMutation("Keyspace3", ByteBufferUtil.bytes("k1"));
         rm.delete(new QueryPath("Indexed1", null, ByteBufferUtil.bytes("birthdate")), 1);
         rm.apply();
-        rows = cfs.scan(clause, range, filter);
+        rows = cfs.search(clause, range, filter);
         assert rows.isEmpty();
 
         // verify that it's not being indexed under the deletion column value either
@@ -273,14 +274,14 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         ByteBuffer deletionLong = ByteBufferUtil.bytes((long) ByteBufferUtil.toInt(deletion.value()));
         IndexExpression expr0 = new IndexExpression(ByteBufferUtil.bytes("birthdate"), IndexOperator.EQ, deletionLong);
         IndexClause clause0 = new IndexClause(Arrays.asList(expr0), ByteBufferUtil.EMPTY_BYTE_BUFFER, 100);
-        rows = cfs.scan(clause0, range, filter);
+        rows = cfs.search(clause0, range, filter);
         assert rows.isEmpty();
 
         // resurrect w/ a newer timestamp
         rm = new RowMutation("Keyspace3", ByteBufferUtil.bytes("k1"));
         rm.add(new QueryPath("Indexed1", null, ByteBufferUtil.bytes("birthdate")), ByteBufferUtil.bytes(1L), 2);
         rm.apply();
-        rows = cfs.scan(clause, range, filter);
+        rows = cfs.search(clause, range, filter);
         assert rows.size() == 1 : StringUtils.join(rows, ",");
         key = new String(rows.get(0).key.key.array(),rows.get(0).key.key.position(),rows.get(0).key.key.remaining());
         assert "k1".equals( key );
@@ -289,7 +290,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         rm = new RowMutation("Keyspace3", ByteBufferUtil.bytes("k1"));
         rm.delete(new QueryPath("Indexed1"), 1);
         rm.apply();
-        rows = cfs.scan(clause, range, filter);
+        rows = cfs.search(clause, range, filter);
         assert rows.size() == 1 : StringUtils.join(rows, ",");
         key = new String(rows.get(0).key.key.array(),rows.get(0).key.key.position(),rows.get(0).key.key.remaining());
         assert "k1".equals( key );
@@ -298,7 +299,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         rm = new RowMutation("Keyspace3", ByteBufferUtil.bytes("k1"));
         rm.delete(new QueryPath("Indexed1", null, ByteBufferUtil.bytes("birthdate")), 1);
         rm.apply();
-        rows = cfs.scan(clause, range, filter);
+        rows = cfs.search(clause, range, filter);
         assert rows.size() == 1 : StringUtils.join(rows, ",");
         key = new String(rows.get(0).key.key.array(),rows.get(0).key.key.position(),rows.get(0).key.key.remaining());
         assert "k1".equals( key );
@@ -307,14 +308,14 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         rm = new RowMutation("Keyspace3", ByteBufferUtil.bytes("k1"));
         rm.delete(new QueryPath("Indexed1"), 3);
         rm.apply();
-        rows = cfs.scan(clause, range, filter);
+        rows = cfs.search(clause, range, filter);
         assert rows.isEmpty() : StringUtils.join(rows, ",");
 
         // make sure obsolete mutations don't generate an index entry
         rm = new RowMutation("Keyspace3", ByteBufferUtil.bytes("k1"));
         rm.add(new QueryPath("Indexed1", null, ByteBufferUtil.bytes("birthdate")), ByteBufferUtil.bytes(1L), 3);
         rm.apply();
-        rows = cfs.scan(clause, range, filter);
+        rows = cfs.search(clause, range, filter);
         assert rows.isEmpty() : StringUtils.join(rows, ",");
 
         // try insert followed by row delete in the same mutation
@@ -322,7 +323,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         rm.add(new QueryPath("Indexed1", null, ByteBufferUtil.bytes("birthdate")), ByteBufferUtil.bytes(1L), 1);
         rm.delete(new QueryPath("Indexed1"), 2);
         rm.apply();
-        rows = cfs.scan(clause, range, filter);
+        rows = cfs.search(clause, range, filter);
         assert rows.isEmpty() : StringUtils.join(rows, ",");
 
         // try row delete followed by insert in the same mutation
@@ -330,7 +331,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         rm.delete(new QueryPath("Indexed1"), 3);
         rm.add(new QueryPath("Indexed1", null, ByteBufferUtil.bytes("birthdate")), ByteBufferUtil.bytes(1L), 4);
         rm.apply();
-        rows = cfs.scan(clause, range, filter);
+        rows = cfs.search(clause, range, filter);
         assert rows.size() == 1 : StringUtils.join(rows, ",");
         key = new String(rows.get(0).key.key.array(),rows.get(0).key.key.position(),rows.get(0).key.key.remaining());
         assert "k1".equals( key );
@@ -355,12 +356,12 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         IFilter filter = new IdentityQueryFilter();
         IPartitioner p = StorageService.getPartitioner();
         Range range = new Range(p.getMinimumToken(), p.getMinimumToken());
-        List<Row> rows = table.getColumnFamilyStore("Indexed1").scan(clause, range, filter);
+        List<Row> rows = table.getColumnFamilyStore("Indexed1").search(clause, range, filter);
         assert rows.size() == 0;
 
         expr = new IndexExpression(ByteBufferUtil.bytes("birthdate"), IndexOperator.EQ, ByteBufferUtil.bytes(2L));
         clause = new IndexClause(Arrays.asList(expr), ByteBufferUtil.EMPTY_BYTE_BUFFER, 100);
-        rows = table.getColumnFamilyStore("Indexed1").scan(clause, range, filter);
+        rows = table.getColumnFamilyStore("Indexed1").search(clause, range, filter);
         String key = new String(rows.get(0).key.key.array(),rows.get(0).key.key.position(),rows.get(0).key.key.remaining()); 
         assert "k1".equals( key );
         
@@ -369,7 +370,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         rm.add(new QueryPath("Indexed1", null, ByteBufferUtil.bytes("birthdate")), ByteBufferUtil.bytes(3L), 0);
         rm.apply();
 
-        rows = table.getColumnFamilyStore("Indexed1").scan(clause, range, filter);
+        rows = table.getColumnFamilyStore("Indexed1").search(clause, range, filter);
         key = new String(rows.get(0).key.key.array(),rows.get(0).key.key.position(),rows.get(0).key.key.remaining()); 
         assert "k1".equals( key );
     
@@ -408,7 +409,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         IFilter filter = new IdentityQueryFilter();
         IPartitioner p = StorageService.getPartitioner();
         Range range = new Range(p.getMinimumToken(), p.getMinimumToken());
-        List<Row> rows = Table.open("Keyspace1").getColumnFamilyStore("Indexed1").scan(clause, range, filter);
+        List<Row> rows = Table.open("Keyspace1").getColumnFamilyStore("Indexed1").search(clause, range, filter);
 
         assert rows != null;
         assert rows.size() == 1 : StringUtils.join(rows, ",");
@@ -428,20 +429,20 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         ColumnFamilyStore cfs = table.getColumnFamilyStore("Indexed2");
         ColumnDefinition old = cfs.metadata.getColumn_metadata().get(ByteBufferUtil.bytes("birthdate"));
         ColumnDefinition cd = new ColumnDefinition(old.name, old.getValidator(), IndexType.KEYS, "birthdate_index");
-        Future<?> future = cfs.addIndex(cd);
+        Future<?> future = cfs.indexManager.addIndexedColumn(cd);
         future.get();
         // we had a bug (CASSANDRA-2244) where index would get created but not flushed -- check for that
-        assert cfs.getIndexedColumnFamilyStore(cd.name).getSSTables().size() > 0;
+        assert cfs.indexManager.getIndexForColumn(cd.name).getUnderlyingCfs().getSSTables().size() > 0;
 
         queryBirthdate(table);
 
         // validate that drop clears it out & rebuild works (CASSANDRA-2320)
-        ColumnFamilyStore indexedCfs = cfs.getIndexedColumnFamilyStore(ByteBufferUtil.bytes("birthdate"));
-        cfs.removeIndex(ByteBufferUtil.bytes("birthdate"));
+        SecondaryIndex indexedCfs = cfs.indexManager.getIndexForColumn(ByteBufferUtil.bytes("birthdate"));
+        cfs.indexManager.removeIndexedColumn(ByteBufferUtil.bytes("birthdate"));
         assert !indexedCfs.isIndexBuilt();
 
         // rebuild & re-query
-        future = cfs.addIndex(cd);
+        future = cfs.indexManager.addIndexedColumn(cd);
         future.get();
         queryBirthdate(table);
     }
@@ -453,7 +454,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         IFilter filter = new IdentityQueryFilter();
         IPartitioner p = StorageService.getPartitioner();
         Range range = new Range(p.getMinimumToken(), p.getMinimumToken());
-        List<Row> rows = table.getColumnFamilyStore("Indexed2").scan(clause, range, filter);
+        List<Row> rows = table.getColumnFamilyStore("Indexed2").search(clause, range, filter);
         assert rows.size() == 1 : StringUtils.join(rows, ",");
         assertEquals("k1", ByteBufferUtil.string(rows.get(0).key.key));
     }

@@ -27,20 +27,16 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
-
-import com.google.common.base.Predicates;
-import com.google.common.collect.Iterators;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cache.AutoSavingCache;
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.index.SecondaryIndexBuilder;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.util.FileUtils;
@@ -48,6 +44,12 @@ import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.service.AntiEntropyService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.*;
+
+import com.google.common.base.Predicates;
+import com.google.common.collect.Iterators;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A singleton which manages a private executor of ongoing compactions. A readwrite lock
@@ -688,7 +690,7 @@ public class CompactionManager implements CompactionManagerMBean
                 throw new IOException("disk full");
 
             SSTableScanner scanner = sstable.getDirectScanner(CompactionIterable.FILE_BUFFER_SIZE);
-            SortedSet<ByteBuffer> indexedColumns = cfs.getIndexedColumns();
+            Collection<ByteBuffer> indexedColumns = cfs.indexManager.getIndexedColumns();
             CleanupInfo ci = new CleanupInfo(sstable, scanner);
             executor.beginCompaction(ci);
             try
@@ -713,7 +715,7 @@ public class CompactionManager implements CompactionManagerMBean
                                 if (column instanceof CounterColumn)
                                     renewer.maybeRenew((CounterColumn) column);
                                 if (indexedColumns.contains(column.name()))
-                                    Table.cleanupIndexEntry(cfs, row.getKey().key, column);
+                                    cfs.indexManager.deleteFromIndex(row.getKey().key, column);
                             }
                         }
                     }
@@ -744,21 +746,19 @@ public class CompactionManager implements CompactionManagerMBean
             }
 
             // flush to ensure we don't lose the tombstones on a restart, since they are not commitlog'd
-            for (ByteBuffer columnName : cfs.getIndexedColumns())
+            try
             {
-                try
-                {
-                    cfs.getIndexedColumnFamilyStore(columnName).forceBlockingFlush();
-                }
-                catch (ExecutionException e)
-                {
-                    throw new RuntimeException(e);
-                }
-                catch (InterruptedException e)
-                {
-                    throw new AssertionError(e);
-                }
+                cfs.indexManager.flushIndexes();
             }
+            catch (ExecutionException e)
+            {
+               throw new IOException(e);
+            }
+            catch (InterruptedException e)
+            {
+               throw new IOException(e);
+            }
+
             cfs.replaceCompactedSSTables(Arrays.asList(sstable), results);
         }
     }
@@ -822,7 +822,7 @@ public class CompactionManager implements CompactionManagerMBean
     /**
      * Is not scheduled, because it is performing disjoint work from sstable compaction.
      */
-    public Future submitIndexBuild(final ColumnFamilyStore cfs, final Table.IndexBuilder builder)
+    public Future<?> submitIndexBuild(final SecondaryIndexBuilder builder)
     {
         Runnable runnable = new Runnable()
         {
@@ -831,8 +831,6 @@ public class CompactionManager implements CompactionManagerMBean
                 compactionLock.readLock().lock();
                 try
                 {
-                    if (cfs.isInvalid())
-                        return;
                     executor.beginCompaction(builder);
                     try
                     {
