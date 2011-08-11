@@ -439,7 +439,7 @@ public class CassandraServer implements Cassandra.Iface
             throw new InvalidRequestException("missing mandatory super column name for super CF " + column_parent.column_family);
         }
         ThriftValidation.validateColumnNames(metadata, column_parent, Arrays.asList(column.name));
-        ThriftValidation.validateColumnData(metadata, column);
+        ThriftValidation.validateColumnData(metadata, column, column_parent.super_column != null);
 
         RowMutation rm = new RowMutation(state().getKeyspace(), key);
         try
