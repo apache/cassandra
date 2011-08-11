@@ -30,6 +30,9 @@
  * make column family backed column map pluggable and introduce unsynchronized
    ArrayList backed one to speedup reads (CASSANDRA-2843)
  * refactoring of the secondary index api (CASSANDRA-2982)
+ * make CL > ONE reads wait for digest reconciliation before returning
+   (CASSANDRA-2494)
+
 
 0.8.4
  * include files-to-be-streamed in StreamInSession.getSources (CASSANDRA-2972)

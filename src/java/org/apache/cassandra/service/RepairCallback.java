@@ -29,13 +29,14 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.Row;
 import org.apache.cassandra.net.IAsyncCallback;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.utils.SimpleCondition;
 
-public class RepairCallback<T> implements IAsyncCallback
+public class RepairCallback implements IAsyncCallback
 {
-    private final IResponseResolver<T> resolver;
+    public final RowRepairResolver resolver;
     private final List<InetAddress> endpoints;
     private final SimpleCondition condition = new SimpleCondition();
     private final long startTime;
@@ -49,14 +50,14 @@ public class RepairCallback<T> implements IAsyncCallback
      * mismatch, and we're going to do full-data reads from everyone -- that is, this is the final
      * stage in the read process.)
      */
-    public RepairCallback(IResponseResolver<T> resolver, List<InetAddress> endpoints)
+    public RepairCallback(RowRepairResolver resolver, List<InetAddress> endpoints)
     {
         this.resolver = resolver;
         this.endpoints = endpoints;
         this.startTime = System.currentTimeMillis();
     }
 
-    public T get() throws TimeoutException, DigestMismatchException, IOException
+    public Row get() throws TimeoutException, DigestMismatchException, IOException
     {
         long timeout = DatabaseDescriptor.getRpcTimeout() - (System.currentTimeMillis() - startTime);
         try

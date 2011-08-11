@@ -30,8 +30,9 @@ import javax.management.ObjectName;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Multimap;
-import org.apache.cassandra.net.CachingMessageProducer;
-import org.apache.cassandra.net.MessageProducer;
+
+import org.apache.cassandra.net.*;
+
 import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
@@ -49,9 +50,6 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.TokenMetadata;
-import org.apache.cassandra.net.IAsyncCallback;
-import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.thrift.IndexClause;
@@ -571,7 +569,7 @@ public class StorageProxy implements StorageProxyMBean
                 repairCommands.clear();
 
             // read results and make a second pass for any digest mismatches
-            List<RepairCallback<Row>> repairResponseHandlers = null;
+            List<RepairCallback> repairResponseHandlers = null;
             for (int i = 0; i < commandsToSend.size(); i++)
             {
                 ReadCallback<Row> handler = readCallbacks.get(i);
@@ -598,7 +596,7 @@ public class StorageProxy implements StorageProxyMBean
                     if (logger.isDebugEnabled())
                         logger.debug("Digest mismatch: {}", ex.toString());
                     RowRepairResolver resolver = new RowRepairResolver(command.table, command.key);
-                    RepairCallback<Row> repairHandler = new RepairCallback<Row>(resolver, handler.endpoints);
+                    RepairCallback repairHandler = new RepairCallback(resolver, handler.endpoints);
 
                     if (repairCommands == Collections.EMPTY_LIST)
                         repairCommands = new ArrayList<ReadCommand>();
@@ -608,7 +606,7 @@ public class StorageProxy implements StorageProxyMBean
                         MessagingService.instance().sendRR(command, endpoint, repairHandler);
 
                     if (repairResponseHandlers == null)
-                        repairResponseHandlers = new ArrayList<RepairCallback<Row>>();
+                        repairResponseHandlers = new ArrayList<RepairCallback>();
                     repairResponseHandlers.add(repairHandler);
                 }
             }
@@ -622,48 +620,49 @@ public class StorageProxy implements StorageProxyMBean
                 for (int i = 0; i < repairCommands.size(); i++)
                 {
                     ReadCommand command = repairCommands.get(i);
-                    RepairCallback<Row> handler = repairResponseHandlers.get(i);
+                    RepairCallback handler = repairResponseHandlers.get(i);
+                    FBUtilities.waitOnFutures(handler.resolver.repairResults, DatabaseDescriptor.getRpcTimeout());
 
+                    Row row;
                     try
                     {
-                        Row row = handler.get();
-
-                        if (command instanceof SliceFromReadCommand)
-                        {
-                            // short reads are only possible on SliceFromReadCommand
-                            SliceFromReadCommand sliceCommand = (SliceFromReadCommand)command;
-                            int maxLiveColumns = handler.getMaxLiveColumns();
-                            int liveColumnsInRow = row != null ? row.cf.getLiveColumnCount() : 0;
-
-                            assert maxLiveColumns <= sliceCommand.count;
-                            if ((maxLiveColumns == sliceCommand.count) && (liveColumnsInRow < sliceCommand.count))
-                            {
-                                if (logger.isDebugEnabled())
-                                    logger.debug("detected short read: expected {} columns, but only resolved {} columns",
-                                                 sliceCommand.count, liveColumnsInRow);
-
-                                int retryCount = sliceCommand.count + sliceCommand.count - liveColumnsInRow;
-                                SliceFromReadCommand retryCommand = new SliceFromReadCommand(command.table,
-                                                                                             command.key,
-                                                                                             command.queryPath,
-                                                                                             sliceCommand.start,
-                                                                                             sliceCommand.finish,
-                                                                                             sliceCommand.reversed,
-                                                                                             retryCount);
-                                if (commandsToRetry == Collections.EMPTY_LIST)
-                                    commandsToRetry = new ArrayList<ReadCommand>();
-                                commandsToRetry.add(retryCommand);
-                            }
-                            else if (row != null)
-                                rows.add(row);
-                        }
-                        else if (row != null)
-                            rows.add(row);
+                        row = handler.get();
                     }
                     catch (DigestMismatchException e)
                     {
                         throw new AssertionError(e); // full data requested from each node here, no digests should be sent
                     }
+
+                    // retry short reads, otherwise add the row to our resultset
+                    if (command instanceof SliceFromReadCommand)
+                    {
+                        // short reads are only possible on SliceFromReadCommand
+                        SliceFromReadCommand sliceCommand = (SliceFromReadCommand) command;
+                        int maxLiveColumns = handler.getMaxLiveColumns();
+                        int liveColumnsInRow = row != null ? row.cf.getLiveColumnCount() : 0;
+
+                        assert maxLiveColumns <= sliceCommand.count;
+                        if ((maxLiveColumns == sliceCommand.count) && (liveColumnsInRow < sliceCommand.count))
+                        {
+                            if (logger.isDebugEnabled())
+                                logger.debug("detected short read: expected {} columns, but only resolved {} columns",
+                                             sliceCommand.count, liveColumnsInRow);
+
+                            int retryCount = sliceCommand.count + sliceCommand.count - liveColumnsInRow;
+                            SliceFromReadCommand retryCommand = new SliceFromReadCommand(command.table,
+                                                                                         command.key,
+                                                                                         command.queryPath,
+                                                                                         sliceCommand.start,
+                                                                                         sliceCommand.finish,
+                                                                                         sliceCommand.reversed,
+                                                                                         retryCount);
+                            if (commandsToRetry == Collections.EMPTY_LIST)
+                                commandsToRetry = new ArrayList<ReadCommand>();
+                            commandsToRetry.add(retryCommand);
+                            continue;
+                        }
+                    }
+                    rows.add(row);
                 }
             }
         } while (!commandsToRetry.isEmpty());
@@ -769,6 +768,7 @@ public class StorageProxy implements StorageProxyMBean
                             rows.add(row);
                             logger.debug("range slices read {}", row.key);
                         }
+                        FBUtilities.waitOnFutures(resolver.repairResults, DatabaseDescriptor.getRpcTimeout());
                     }
                     catch (TimeoutException ex)
                     {
@@ -1035,6 +1035,7 @@ public class StorageProxy implements StorageProxyMBean
                     rows.add(row);
                     logger.debug("read {}", row);
                 }
+                FBUtilities.waitOnFutures(resolver.repairResults, DatabaseDescriptor.getRpcTimeout());
             }
             catch (TimeoutException ex)
             {
@@ -1044,7 +1045,7 @@ public class StorageProxy implements StorageProxyMBean
             }
             catch (DigestMismatchException e)
             {
-                throw new RuntimeException(e);
+                throw new AssertionError(e);
             }
             if (rows.size() >= index_clause.count)
                 return rows.subList(0, index_clause.count);

@@ -32,6 +32,8 @@ import java.security.NoSuchAlgorithmException;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -50,6 +52,7 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.PropertyFileSnitch;
+import org.apache.cassandra.net.IAsyncResult;
 import org.apache.thrift.TBase;
 import org.apache.thrift.TDeserializer;
 import org.apache.thrift.TException;
@@ -573,6 +576,12 @@ public class FBUtilities
                 throw new AssertionError(ie);
             }
         }
+    }
+
+    public static void waitOnFutures(List<IAsyncResult> results, long ms) throws TimeoutException
+    {
+        for (IAsyncResult result : results)
+            result.get(ms, TimeUnit.MILLISECONDS);
     }
 
     public static IPartitioner newPartitioner(String partitionerClassName) throws ConfigurationException

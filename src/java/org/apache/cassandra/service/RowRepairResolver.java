@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -31,13 +32,16 @@ import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.net.IAsyncResult;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.utils.*;
+import org.apache.cassandra.utils.CloseableIterator;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class RowRepairResolver extends AbstractRowResolver
 {
     protected int maxLiveColumns = 0;
+    public List<IAsyncResult> repairResults = Collections.emptyList();
 
     public RowRepairResolver(String table, ByteBuffer key)
     {
@@ -89,7 +93,7 @@ public class RowRepairResolver extends AbstractRowResolver
                 logger.debug("versions merged");
             // resolved can be null even if versions doesn't have all nulls because of the call to removeDeleted in resolveSuperSet
             if (resolved != null)
-                maybeScheduleRepairs(resolved, table, key, versions, endpoints);
+                repairResults = scheduleRepairs(resolved, table, key, versions, endpoints);
         }
         else
         {
@@ -106,8 +110,10 @@ public class RowRepairResolver extends AbstractRowResolver
      * For each row version, compare with resolved (the superset of all row versions);
      * if it is missing anything, send a mutation to the endpoint it come from.
      */
-    public static void maybeScheduleRepairs(ColumnFamily resolved, String table, DecoratedKey key, List<ColumnFamily> versions, List<InetAddress> endpoints)
+    public static List<IAsyncResult> scheduleRepairs(ColumnFamily resolved, String table, DecoratedKey key, List<ColumnFamily> versions, List<InetAddress> endpoints)
     {
+        List<IAsyncResult> results = new ArrayList<IAsyncResult>(versions.size());
+
         for (int i = 0; i < versions.size(); i++)
         {
             ColumnFamily diffCf = ColumnFamily.diff(versions.get(i), resolved);
@@ -126,8 +132,10 @@ public class RowRepairResolver extends AbstractRowResolver
             {
                 throw new IOError(e);
             }
-            MessagingService.instance().sendOneWay(repairMessage, endpoints.get(i));
+            results.add(MessagingService.instance().sendRR(repairMessage, endpoints.get(i)));
         }
+
+        return results;
     }
 
     static ColumnFamily resolveSuperset(List<ColumnFamily> versions)
