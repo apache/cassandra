@@ -581,6 +581,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             assert getMemtableThreadSafe() == oldMemtable;
             oldMemtable.freeze();
             final ReplayPosition ctx = writeCommitLog ? CommitLog.instance.getContext() : ReplayPosition.NONE;
+            logger.debug("flush position is {}", ctx);
 
             // submit the memtable for any indexed sub-cfses, and our own.
             List<ColumnFamilyStore> icc = new ArrayList<ColumnFamilyStore>();
@@ -1532,6 +1533,37 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     }
 
     /**
+     * Waits for flushes started BEFORE THIS METHOD IS CALLED to finish.
+     * Does NOT guarantee that no flush is active when it returns.
+     */
+    private void waitForActiveFlushes()
+    {
+        Future<?> future;
+        Table.switchLock.writeLock().lock();
+        try
+        {
+            future = postFlushExecutor.submit(new Runnable() { public void run() { } });
+        }
+        finally
+        {
+            Table.switchLock.writeLock().unlock();
+        }
+
+        try
+        {
+            future.get();
+        }
+        catch (InterruptedException e)
+        {
+            throw new AssertionError(e);
+        }
+        catch (ExecutionException e)
+        {
+            throw new AssertionError(e);
+        }
+    }
+
+    /**
      * Truncate practically deletes the entire column family's data
      * @return a Future to the delete operation. Call the future's get() to make
      * sure the column family has been deleted
@@ -1544,14 +1576,33 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         // We accomplish this by first flushing manually, then snapshotting, and
         // recording the timestamp IN BETWEEN those actions. Any sstables created
         // with this timestamp or greater time, will not be marked for delete.
-        try
+        //
+        // Bonus complication: since we store replay position in sstable metadata,
+        // truncating those sstables means we will replay any CL segments from the
+        // beginning if we restart before they are discarded for normal reasons
+        // post-truncate.  So we need to (a) force a new segment so the currently
+        // active one can be discarded, and (b) flush *all* CFs so that unflushed
+        // data in others don't keep any pre-truncate CL segments alive.
+        //
+        // Bonus bonus: simply forceFlush of all the CF is not enough, because if
+        // for a given column family the memtable is clean, forceFlush will return
+        // immediately, even though there could be a memtable being flush at the same
+        // time.  So to guarantee that all segments can be cleaned out, we need
+        // "waitForActiveFlushes" after the new segment has been created.
+        CommitLog.instance.forceNewSegment();
+        waitForActiveFlushes();
+        List<Future<?>> futures = new ArrayList<Future<?>>();
+        ReplayPosition position = CommitLog.instance.getContext();
+        for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
         {
-            forceBlockingFlush();
+            Future<?> f = cfs.forceFlush();
+            if (f != null)
+                futures.add(f);
         }
-        catch (Exception e)
-        {
-            throw new RuntimeException(e);
-        }
+        FBUtilities.waitOnFutures(futures);
+        // if everything was clean, flush won't have called discard
+        CommitLog.instance.discardCompletedSegments(metadata.cfId, position);
+
         // sleep a little to make sure that our truncatedAt comes after any sstable
         // that was part of the flushed we forced; otherwise on a tie, it won't get deleted.
         try

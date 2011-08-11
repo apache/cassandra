@@ -496,7 +496,6 @@ public class CommitLog implements CommitLogMBean
         }
     }
 
-    
     void sync() throws IOException
     {
         currentSegment().sync();
@@ -532,6 +531,50 @@ public class CommitLog implements CommitLogMBean
         return getSize();
     }
 
+    public void forceNewSegment()
+    {
+        Callable<?> task = new Callable()
+        {
+            public Object call() throws IOException
+            {
+                createNewSegment();
+                return null;
+            }
+        };
+
+        try
+        {
+            executor.submit(task).get();
+        }
+        catch (InterruptedException e)
+        {
+            throw new AssertionError(e);
+        }
+        catch (ExecutionException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private void createNewSegment() throws IOException
+    {
+        sync();
+        segments.add(new CommitLogSegment());
+
+        // Maintain desired CL size cap
+        if (getSize() >= DatabaseDescriptor.getTotalCommitlogSpaceInMB() * 1024 * 1024)
+        {
+            // Force a flush on all CFs keeping the oldest segment from being removed
+            CommitLogSegment oldestSegment = segments.peek();
+            assert oldestSegment != null; // has to be at least the one we just added
+            for (Integer dirtyCFId : oldestSegment.cfLastWrite.keySet())
+            {
+                String keypace = CFMetaData.getCF(dirtyCFId).left;
+                Table.open(keypace).getColumnFamilyStore(dirtyCFId).forceFlush();
+            }
+        }
+    }
+
     // TODO this should be a Runnable since it doesn't actually return anything, but it's difficult to do that
     // without breaking the fragile CheaterFutureTask in BatchCLES.
     class LogRecordAdder implements Callable, Runnable
@@ -550,23 +593,7 @@ public class CommitLog implements CommitLogMBean
                 currentSegment().write(rowMutation);
                 // roll log if necessary
                 if (currentSegment().length() >= SEGMENT_SIZE)
-                {
-                    sync();
-                    segments.add(new CommitLogSegment());
-
-                    // Maintain desired CL size cap
-                    if (getSize() >= DatabaseDescriptor.getTotalCommitlogSpaceInMB() * 1024 * 1024)
-                    {
-                        // Force a flush on all CFs keeping the oldest segment from being removed
-                        CommitLogSegment oldestSegment = segments.peek();
-                        assert oldestSegment != null; // has to be at least the one we just added
-                        for (Integer dirtyCFId : oldestSegment.cfLastWrite.keySet())
-                        {
-                            String keypace = CFMetaData.getCF(dirtyCFId).left;
-                            Table.open(keypace).getColumnFamilyStore(dirtyCFId).forceFlush();
-                        }
-                    }
-                }
+                    createNewSegment();
             }
             catch (IOException e)
             {

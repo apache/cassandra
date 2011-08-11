@@ -73,6 +73,7 @@ public class RecoveryManagerTruncateTest extends CleanupHelper
 		rm.apply();
 		cfs.forceBlockingFlush();
 		cfs.truncate().get();
+        CommitLog.instance.resetUnsafe();
 		CommitLog.recover();
 		assertNull(getFromTable(table, "Standard1", "keymulti", "col1"));
 	}

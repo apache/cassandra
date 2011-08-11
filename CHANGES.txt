@@ -232,7 +232,7 @@
  * Disable compaction throttling during bootstrap (CASSANDRA-2612) 
  * fix CQL treatment of > and < operators in range slices (CASSANDRA-2592)
  * fix potential double-application of counter updates on commitlog replay
-   (CASSANDRA-2419)
+   by moving replay position from header to sstable metadata (CASSANDRA-2419)
  * JDBC CQL driver exposes getColumn for access to timestamp
  * JDBC ResultSetMetadata properties added to AbstractType
  * r/m clustertool (CASSANDRA-2607)
