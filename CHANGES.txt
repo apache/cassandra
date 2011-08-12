@@ -3,6 +3,8 @@
  * include column name in validation failure exceptions (CASSANDRA-2849)
  * make sure truncate clears out the commitlog so replay won't re-
    populate with truncated data (CASSANDRA-2950)
+ * fix NPE when debug logging is enabled and dropped CF is present
+   in a commitlog segment (CASSANDRA-3021)
 
 
 0.8.4

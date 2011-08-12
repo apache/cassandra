@@ -212,7 +212,7 @@ public class CommitLogSegment
         for (Integer cfId : cfLastWrite.keySet())
         {
             CFMetaData m = DatabaseDescriptor.getCFMetaData(cfId);
-            sb.append(m == null ? m.cfName : "<deleted>").append(" (").append(cfId).append("), ");
+            sb.append(m == null ? "<deleted>" : m.cfName).append(" (").append(cfId).append("), ");
         }
         return sb.toString();
     }
