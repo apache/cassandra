@@ -41,6 +41,8 @@
    populate with truncated data (CASSANDRA-2950)
  * fix NPE when debug logging is enabled and dropped CF is present
    in a commitlog segment (CASSANDRA-3021)
+ * fix cassandra.bat when CASSANDRA_HOME contains spaces (CASSANDRA-2952)
+ * fix to SSTableSimpleUnsortedWriter bufferSize calculation (CASSANDRA-3027)
 
 
 0.8.4

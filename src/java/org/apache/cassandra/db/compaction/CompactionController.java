@@ -133,8 +133,9 @@ public class CompactionController
 
         if (rowSize > DatabaseDescriptor.getInMemoryCompactionLimit())
         {
-            logger.info(String.format("Compacting large row %s (%d bytes) incrementally (keyspace: %s, cf: %s)",
-                                      ByteBufferUtil.bytesToHex(rows.get(0).getKey().key), rowSize), cfs.table.name, cfs.columnFamily);
+            String keyString = cfs.metadata.getKeyValidator().getString(rows.get(0).getKey().key);
+            logger.info(String.format("Compacting large row %s/%s:%s (%d bytes) incrementally",
+                                      cfs.table.name, cfs.columnFamily, keyString, rowSize));
             return new LazilyCompactedRow(this, rows);
         }
         return new PrecompactedRow(this, rows);
