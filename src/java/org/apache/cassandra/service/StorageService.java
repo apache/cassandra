@@ -454,7 +454,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         Gossiper.instance.addLocalApplicationState(ApplicationState.RPC_ADDRESS, valueFactory.rpcaddress(DatabaseDescriptor.getRpcAddress()));
 
         MessagingService.instance().listen(FBUtilities.getLocalAddress());
-        StorageLoadBalancer.instance.startBroadcasting();
+        LoadBroadcaster.instance.startBroadcasting();
         MigrationManager.passiveAnnounce(DatabaseDescriptor.getDefsVersion());
         Gossiper.instance.addLocalApplicationState(ApplicationState.RELEASE_VERSION, valueFactory.releaseVersion());
 
@@ -470,7 +470,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             && !(DatabaseDescriptor.getSeeds().contains(FBUtilities.getBroadcastAddress()) || SystemTable.isBootstrapped()))
         {
             setMode("Joining: getting load and schema information", true);
-            StorageLoadBalancer.instance.waitForLoadInfo();
+            LoadBroadcaster.instance.waitForLoadInfo();
             if (logger_.isDebugEnabled())
                 logger_.debug("... got load + schema info");
             if (tokenMetadata_.isMember(FBUtilities.getBroadcastAddress()))
@@ -479,7 +479,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                 throw new UnsupportedOperationException(s);
             }
             setMode("Joining: getting bootstrap token", true);
-            token = BootStrapper.getBootstrapToken(tokenMetadata_, StorageLoadBalancer.instance.getLoadInfo());
+            token = BootStrapper.getBootstrapToken(tokenMetadata_, LoadBroadcaster.instance.getLoadInfo());
             // don't bootstrap if there are no tables defined.
             if (DatabaseDescriptor.getNonSystemTables().size() > 0)
             {
@@ -1273,7 +1273,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     public Map<String, String> getLoadMap()
     {
         Map<String, String> map = new HashMap<String, String>();
-        for (Map.Entry<InetAddress,Double> entry : StorageLoadBalancer.instance.getLoadInfo().entrySet())
+        for (Map.Entry<InetAddress,Double> entry : LoadBroadcaster.instance.getLoadInfo().entrySet())
         {
             map.put(entry.getKey().getHostAddress(), FileUtils.stringifyFileSize(entry.getValue()));
         }
