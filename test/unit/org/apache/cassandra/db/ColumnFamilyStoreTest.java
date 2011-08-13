@@ -259,7 +259,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         Range range = new Range(p.getMinimumToken(), p.getMinimumToken());
         List<Row> rows = cfs.search(clause, range, filter);
         assert rows.size() == 1 : StringUtils.join(rows, ",");
-        String key = new String(rows.get(0).key.key.array(),rows.get(0).key.key.position(),rows.get(0).key.key.remaining()); 
+        String key = ByteBufferUtil.string(rows.get(0).key.key);
         assert "k1".equals( key );
 
         // delete the column directly
@@ -283,7 +283,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         rm.apply();
         rows = cfs.search(clause, range, filter);
         assert rows.size() == 1 : StringUtils.join(rows, ",");
-        key = new String(rows.get(0).key.key.array(),rows.get(0).key.key.position(),rows.get(0).key.key.remaining());
+        key = ByteBufferUtil.string(rows.get(0).key.key);
         assert "k1".equals( key );
 
         // verify that row and delete w/ older timestamp does nothing
@@ -292,7 +292,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         rm.apply();
         rows = cfs.search(clause, range, filter);
         assert rows.size() == 1 : StringUtils.join(rows, ",");
-        key = new String(rows.get(0).key.key.array(),rows.get(0).key.key.position(),rows.get(0).key.key.remaining());
+        key = ByteBufferUtil.string(rows.get(0).key.key);
         assert "k1".equals( key );
 
         // similarly, column delete w/ older timestamp should do nothing
@@ -301,7 +301,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         rm.apply();
         rows = cfs.search(clause, range, filter);
         assert rows.size() == 1 : StringUtils.join(rows, ",");
-        key = new String(rows.get(0).key.key.array(),rows.get(0).key.key.position(),rows.get(0).key.key.remaining());
+        key = ByteBufferUtil.string(rows.get(0).key.key);
         assert "k1".equals( key );
 
         // delete the entire row (w/ newer timestamp this time)
@@ -333,7 +333,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         rm.apply();
         rows = cfs.search(clause, range, filter);
         assert rows.size() == 1 : StringUtils.join(rows, ",");
-        key = new String(rows.get(0).key.key.array(),rows.get(0).key.key.position(),rows.get(0).key.key.remaining());
+        key = ByteBufferUtil.string(rows.get(0).key.key);
         assert "k1".equals( key );
     }
 
@@ -362,7 +362,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         expr = new IndexExpression(ByteBufferUtil.bytes("birthdate"), IndexOperator.EQ, ByteBufferUtil.bytes(2L));
         clause = new IndexClause(Arrays.asList(expr), ByteBufferUtil.EMPTY_BYTE_BUFFER, 100);
         rows = table.getColumnFamilyStore("Indexed1").search(clause, range, filter);
-        String key = new String(rows.get(0).key.key.array(),rows.get(0).key.key.position(),rows.get(0).key.key.remaining()); 
+        String key = ByteBufferUtil.string(rows.get(0).key.key);
         assert "k1".equals( key );
         
         // update the birthdate value with an OLDER timestamp, and test that the index ignores this
@@ -371,7 +371,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         rm.apply();
 
         rows = table.getColumnFamilyStore("Indexed1").search(clause, range, filter);
-        key = new String(rows.get(0).key.key.array(),rows.get(0).key.key.position(),rows.get(0).key.key.remaining()); 
+        key = ByteBufferUtil.string(rows.get(0).key.key);
         assert "k1".equals( key );
     
     }
@@ -521,7 +521,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         assertRowAndColCount(1, 3, scfName, false, cfs.getRangeSlice(scfName, Util.range("f", "g"), 100, QueryFilter.getFilter(sp, cfs.getComparator())));
     }
     
-    private static void assertRowAndColCount(int rowCount, int colCount, ByteBuffer sc, boolean isDeleted, Collection<Row> rows)
+    private static void assertRowAndColCount(int rowCount, int colCount, ByteBuffer sc, boolean isDeleted, Collection<Row> rows) throws CharacterCodingException
     {
         assert rows.size() == rowCount : "rowcount " + rows.size();
         for (Row row : rows)
@@ -536,11 +536,11 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         }
     }
     
-    private static String str(ColumnFamily cf)
+    private static String str(ColumnFamily cf) throws CharacterCodingException
     {
         StringBuilder sb = new StringBuilder();
         for (IColumn col : cf.getSortedColumns())
-            sb.append(String.format("(%s,%s,%d),", new String(col.name().array()), new String(col.value().array()), col.timestamp()));
+            sb.append(String.format("(%s,%s,%d),", ByteBufferUtil.string(col.name()), ByteBufferUtil.string(col.value()), col.timestamp()));
         return sb.toString();
     }
     
