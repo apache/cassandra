@@ -21,6 +21,14 @@ cluster_name: 'Test Cluster'
 # a random token, which will lead to hot spots.
 initial_token:
 
+# Set to true to make new [non-seed] nodes automatically migrate data
+# to themselves from the pre-existing nodes in the cluster.  Defaults
+# to false because you can only bootstrap N machines at a time from
+# an existing cluster of N, so if you are bringing up a cluster of
+# 10 machines with 3 seeds you would have to do it in stages.  Leaving
+# this off for the initial start simplifies that.
+auto_bootstrap: false
+
 # See http://wiki.apache.org/cassandra/HintedHandoff
 hinted_handoff_enabled: true
 # this defines the maximum amount of time a dead host will have hints
