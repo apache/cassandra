@@ -63,7 +63,7 @@ public class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
                                        int bufferSizeInMB) throws IOException
     {
         super(directory, new CFMetaData(keyspace, columnFamily, subComparator == null ? ColumnFamilyType.Standard : ColumnFamilyType.Super, comparator, subComparator));
-        this.bufferSize = bufferSizeInMB * 1024 * 1024;
+        this.bufferSize = bufferSizeInMB * 1024L * 1024L;
     }
 
     protected void writeRow(DecoratedKey key, ColumnFamily columnFamily) throws IOException
