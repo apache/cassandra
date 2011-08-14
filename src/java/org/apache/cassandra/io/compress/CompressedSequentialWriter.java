@@ -139,7 +139,7 @@ public class CompressedSequentialWriter extends SequentialWriter
         int chunkSize = (int) (metadataWriter.chunkOffsetBy(realMark.nextChunkIndex) - chunkOffset - 4);
 
         out.seek(chunkOffset);
-        out.read(compressed, 0, chunkSize);
+        out.readFully(compressed, 0, chunkSize);
 
         // decompress data chunk and store its length
         int validBytes = Snappy.rawUncompress(compressed, 0, chunkSize, buffer, 0);
