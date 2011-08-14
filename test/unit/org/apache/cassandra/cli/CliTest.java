@@ -21,6 +21,8 @@ package org.apache.cassandra.cli;
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.service.EmbeddedCassandraService;
+import org.apache.cassandra.thrift.*;
+import org.apache.thrift.TException;
 import org.apache.thrift.transport.TTransportException;
 import org.junit.Test;
 
@@ -190,7 +192,7 @@ public class CliTest extends CleanupHelper
     };
    
     @Test
-    public void testCli() throws IOException, TTransportException, ConfigurationException
+    public void testCli() throws IOException, TException, ConfigurationException, ClassNotFoundException, TimedOutException, NotFoundException, SchemaDisagreementException, NoSuchFieldException, InvalidRequestException, UnavailableException, InstantiationException, IllegalAccessException
     {
         new EmbeddedCassandraService().start();
 
@@ -206,8 +208,15 @@ public class CliTest extends CleanupHelper
         CliMain.sessionState.setErr(new PrintStream(errStream));
 
         // re-creating keyspace for tests
-        // dropping in case it exists e.g. could be left from previous run
-        CliMain.processStatement("drop keyspace TestKeySpace;");
+        try
+        {
+            // dropping in case it exists e.g. could be left from previous run
+            CliMain.processStatement("drop keyspace TestKeySpace;");
+        }
+        catch (Exception e)
+        {
+            // TODO check before drop so we don't have this fragile ignored exception block
+        }
         CliMain.processStatement("create keyspace TestKeySpace;");
 
         for (String statement : statements)
@@ -220,7 +229,8 @@ public class CliTest extends CleanupHelper
             assertEquals(errStream.toString() + " processing " + statement, "", errStream.toString());
             if (statement.startsWith("drop ") || statement.startsWith("create ") || statement.startsWith("update "))
             {
-                assert Pattern.compile("(.{8})-(.{4})-(.{4})-(.{4})-(.{12}).*", Pattern.DOTALL).matcher(result).matches() : result;
+                assert Pattern.compile("(.{8})-(.{4})-(.{4})-(.{4})-(.{12}).*", Pattern.DOTALL).matcher(result).matches()
+                       : String.format("\"%s\" failed: %s", statement, result);
             }
             else if (statement.startsWith("set "))
             {

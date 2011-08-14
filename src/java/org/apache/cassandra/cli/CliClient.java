@@ -40,6 +40,7 @@ import org.apache.cassandra.db.compaction.CompactionInfo;
 import org.apache.cassandra.db.compaction.CompactionManagerMBean;
 import org.apache.cassandra.db.compaction.CompactionType;
 import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.SimpleSnitch;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.thrift.*;
@@ -158,12 +159,11 @@ public class CliClient
         this.sessionState = cliSessionState;
         this.thriftClient = thriftClient;
         this.cfKeysComparators = new HashMap<String, AbstractType>();
-        help = getHelp();
     }
 
-        private CliUserHelp getHelp()
+    private CliUserHelp getHelp()
     {
-        final InputStream is =  CliClient.class.getClassLoader().getResourceAsStream("org/apache/cassandra/cli/CliHelp.yaml");
+        final InputStream is = CliClient.class.getClassLoader().getResourceAsStream("org/apache/cassandra/cli/CliHelp.yaml");
         assert is != null;
 
         try
@@ -172,18 +172,11 @@ public class CliClient
             TypeDescription desc = new TypeDescription(CliUserHelp.class);
             desc.putListPropertyType("commands", CliCommandHelp.class);
             final Yaml yaml = new Yaml(new Loader(constructor));
-            return (CliUserHelp)yaml.load(is);
+            return (CliUserHelp) yaml.load(is);
         }
         finally
         {
-            try
-            {
-                is.close();
-            }
-            catch (IOException e)
-            {
-                throw new IOError(e);
-            }
+            FileUtils.closeQuietly(is);
         }
     }
 
@@ -193,7 +186,7 @@ public class CliClient
     }
 
     // Execute a CLI Statement 
-    public void executeCLIStatement(String statement)
+    public void executeCLIStatement(String statement) throws CharacterCodingException, TException, TimedOutException, NotFoundException, NoSuchFieldException, InvalidRequestException, UnavailableException, InstantiationException, IllegalAccessException, ClassNotFoundException, SchemaDisagreementException
     {
         Tree tree = CliCompiler.compileQuery(statement);
 
@@ -296,23 +289,11 @@ public class CliClient
                     break;
             }
         }
-        catch (InvalidRequestException e)
-        {
-        	RuntimeException rtEx = new RuntimeException(e.getWhy());
-            rtEx.initCause(e);
-            throw rtEx;
-        }
         catch (SchemaDisagreementException e)
         {
         	RuntimeException rtEx = new RuntimeException("schema does not match across nodes, (try again later).");
             rtEx.initCause(e);
             throw new RuntimeException();
-        }
-        catch (Exception e)
-        {
-            RuntimeException rtEx = new RuntimeException(e.getMessage());
-            rtEx.initCause(e);
-            throw rtEx;
         }
     }
 
@@ -334,6 +315,9 @@ public class CliClient
 
     private void executeHelp(Tree tree)
     {
+        if (help == null)
+            help = getHelp();
+
         if (tree.getChildCount() > 0)
         {
             String token = tree.getChild(0).getText();
@@ -1394,7 +1378,7 @@ public class CliClient
     }
 
     // DROP INDEX ON <CF>.<COLUMN>
-    private void executeDropIndex(Tree statement)
+    private void executeDropIndex(Tree statement) throws TException, SchemaDisagreementException, InvalidRequestException, NotFoundException
     {
         if (!CliMain.isConnected() || !hasKeySpace())
             return;
@@ -1428,25 +1412,14 @@ public class CliClient
                                                      rawColumName,
                                                      columnFamily));
 
-        try
-        {
-            String mySchemaVersion = thriftClient.system_update_column_family(cfDef);
-            sessionState.out.println(mySchemaVersion);
-            validateSchemaIsSettled(mySchemaVersion);
-            keyspacesMap.put(keySpace, thriftClient.describe_keyspace(keySpace));
-        }
-        catch (InvalidRequestException e)
-        {
-            System.err.println(e.why);
-        }
-        catch (Exception e)
-        {
-            throw new RuntimeException(e.getMessage(), e);
-        }
+        String mySchemaVersion = thriftClient.system_update_column_family(cfDef);
+        sessionState.out.println(mySchemaVersion);
+        validateSchemaIsSettled(mySchemaVersion);
+        keyspacesMap.put(keySpace, thriftClient.describe_keyspace(keySpace));
     }
 
     // TRUNCATE <columnFamily>
-    private void executeTruncate(String columnFamily)
+    private void executeTruncate(String columnFamily) throws TException, InvalidRequestException, UnavailableException
     {
         if (!CliMain.isConnected() || !hasKeySpace())
             return;
@@ -1454,19 +1427,8 @@ public class CliClient
         // getting CfDef, it will fail if there is no such column family in current keySpace. 
         CfDef cfDef = getCfDef(CliCompiler.getColumnFamily(columnFamily, keyspacesMap.get(keySpace).cf_defs));
 
-        try
-        {
-            thriftClient.truncate(cfDef.getName());
-            sessionState.out.println(columnFamily + " truncated.");
-        }
-        catch (InvalidRequestException e)
-        {
-            throw new RuntimeException(e.getWhy());
-        }
-        catch (Exception e)
-        {
-            throw new RuntimeException(e.getMessage());
-        }
+        thriftClient.truncate(cfDef.getName());
+        sessionState.out.println(columnFamily + " truncated.");
     }
 
     /**

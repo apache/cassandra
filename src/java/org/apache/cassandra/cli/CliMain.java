@@ -22,6 +22,7 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
+import java.nio.charset.CharacterCodingException;
 import java.util.*;
 
 import jline.ConsoleReader;
@@ -209,9 +210,13 @@ public class CliMain
         completer.setCandidateStrings(strs);
     }
 
-    public static void processStatement(String query)
+    public static void processStatement(String query) throws CharacterCodingException, ClassNotFoundException, TException, TimedOutException, SchemaDisagreementException, NotFoundException, InvalidRequestException, NoSuchFieldException, UnavailableException, IllegalAccessException, InstantiationException
     {
+        cliClient.executeCLIStatement(query);
+    }
 
+    public static void processStatementInteractive(String query)
+    {
         try
         {
             cliClient.executeCLIStatement(query);
@@ -342,7 +347,7 @@ public class CliMain
 
             if (line.endsWith(";") || line.equals("?"))
             {
-                processStatement(currentStatement);
+                processStatementInteractive(currentStatement);
                 currentStatement = "";
                 inCompoundStatement = false;
             }
@@ -385,7 +390,7 @@ public class CliMain
 
             if (line.endsWith(";"))
             {
-                processStatement(currentStatement);
+                processStatementInteractive(currentStatement);
                 currentStatement = "";
             }
             else
