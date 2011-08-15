@@ -67,7 +67,7 @@ public class CleanupTest extends CleanupHelper
     @Test
     public void testCleanup() throws IOException, ExecutionException, InterruptedException, ConfigurationException
     {
-        StorageService.instance.initServer();
+        StorageService.instance.initServer(0);
 
         Table table = Table.open(TABLE1);
         ColumnFamilyStore cfs = table.getColumnFamilyStore(CF2);

@@ -367,7 +367,12 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         MigrationManager.passiveAnnounce(DatabaseDescriptor.getDefsVersion());
     }
 
-    public synchronized void initServer() throws IOException, org.apache.cassandra.config.ConfigurationException
+    public synchronized void initServer() throws IOException, ConfigurationException
+    {
+        initServer(RING_DELAY);
+    }
+
+    public synchronized void initServer(int delay) throws IOException, ConfigurationException
     {
         logger_.info("Cassandra version: " + FBUtilities.getReleaseVersionString());
         logger_.info("Thrift API version: " + Constants.VERSION);
@@ -431,7 +436,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
         if (Boolean.parseBoolean(System.getProperty("cassandra.join_ring", "true")))
         {
-            joinTokenRing();
+            joinTokenRing(delay);
         }
         else
         {
@@ -439,7 +444,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         }
     }
 
-    private void joinTokenRing() throws IOException, org.apache.cassandra.config.ConfigurationException
+    private void joinTokenRing(int delay) throws IOException, org.apache.cassandra.config.ConfigurationException
     {
         logger_.info("Starting up server gossip");
         joined = true;
@@ -469,10 +474,17 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         if (DatabaseDescriptor.isAutoBootstrap()
             && !(DatabaseDescriptor.getSeeds().contains(FBUtilities.getBroadcastAddress()) || SystemTable.isBootstrapped()))
         {
-            setMode("Joining: getting load and schema information", true);
-            LoadBroadcaster.instance.waitForLoadInfo();
+            setMode("Joining: waiting for ring and schema information", true);
+            try
+            {
+                Thread.sleep(delay);
+            }
+            catch (InterruptedException e)
+            {
+                throw new AssertionError(e);
+            }
             if (logger_.isDebugEnabled())
-                logger_.debug("... got load + schema info");
+                logger_.debug("... got ring + schema info");
             if (tokenMetadata_.isMember(FBUtilities.getBroadcastAddress()))
             {
                 String s = "This node is already a member of the token ring; bootstrap aborted. (If replacing a dead node, remove the old one from the ring first.)";
@@ -526,7 +538,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         if (!joined)
         {
             logger_.info("Joining ring by operator request");
-            joinTokenRing();
+            joinTokenRing(0);
         }
     }
 

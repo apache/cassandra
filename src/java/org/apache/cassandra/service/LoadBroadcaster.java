@@ -85,23 +85,5 @@ public class LoadBroadcaster implements IEndpointStateChangeSubscriber
         };
         StorageService.scheduledTasks.scheduleWithFixedDelay(runnable, 2 * Gossiper.intervalInMillis, BROADCAST_INTERVAL, TimeUnit.MILLISECONDS);
     }
-
-    /**
-     * Wait for at least BROADCAST_INTERVAL ms, to give all nodes enough time to
-     * report in.
-     */
-    public void waitForLoadInfo()
-    {
-        int duration = BROADCAST_INTERVAL + StorageService.RING_DELAY;
-        try
-        {
-            logger_.info("Sleeping {} ms to wait for load information...", duration);
-            Thread.sleep(duration);
-        }
-        catch (InterruptedException e)
-        {
-            throw new AssertionError(e);
-        }
-    }
 }
 

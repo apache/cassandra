@@ -42,7 +42,7 @@ public class StorageServiceServerTest
     {
         CleanupHelper.mkdirs();
         CleanupHelper.cleanup();
-        StorageService.instance.initServer();
+        StorageService.instance.initServer(0);
         for (String path : DatabaseDescriptor.getAllDataFileLocations())
         {
             // verify that storage directories are there.

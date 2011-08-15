@@ -46,7 +46,7 @@ public class BootStrapperTest extends CleanupHelper
     @Test
     public void testTokenRoundtrip() throws Exception
     {
-        StorageService.instance.initServer();
+        StorageService.instance.initServer(0);
         // fetch a bootstrap token from the local node
         assert BootStrapper.getBootstrapTokenFrom(FBUtilities.getBroadcastAddress()) != null;
     }
