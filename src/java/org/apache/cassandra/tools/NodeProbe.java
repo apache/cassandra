@@ -591,6 +591,11 @@ public class NodeProbe
     {
         return msProxy.getDroppedMessages();
     }
+
+    public void loadNewSSTables(String ksName, String cfName)
+    {
+        ssProxy.loadNewSSTables(ksName, cfName);
+    }
 }
 
 class ColumnFamilyStoreMBeanIterator implements Iterator<Map.Entry<String, ColumnFamilyStoreMBean>>

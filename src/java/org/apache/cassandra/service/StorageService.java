@@ -2615,4 +2615,12 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     {
         return AbstractCassandraDaemon.exceptions.get();
     }
+
+    /**
+     * #{@inheritDoc}
+     */
+    public void loadNewSSTables(String ksName, String cfName)
+    {
+        ColumnFamilyStore.loadNewSSTables(ksName, cfName);
+    }
 }

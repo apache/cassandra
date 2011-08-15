@@ -7,7 +7,8 @@
    in a commitlog segment (CASSANDRA-3021)
  * fix cassandra.bat when CASSANDRA_HOME contains spaces (CASSANDRA-2952)
  * fix to SSTableSimpleUnsortedWriter bufferSize calculation (CASSANDRA-3027)
-
+ * add a 'load new SSTables' functionality to JMX and corresponding "refresh"
+   command to the nodetool (CASSANDRA-2991)
 
 0.8.4
  * include files-to-be-streamed in StreamInSession.getSources (CASSANDRA-2972)

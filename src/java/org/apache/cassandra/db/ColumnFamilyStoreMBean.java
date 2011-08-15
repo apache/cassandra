@@ -234,4 +234,10 @@ public interface ColumnFamilyStoreMBean
 
     public int getKeyCacheSavePeriodInSeconds();
     public void setKeyCacheSavePeriodInSeconds(int kcspis);
+
+    /**
+     * Scan through Keyspace/ColumnFamily's data directory
+     * determine which SSTables should be loaded and load them
+     */
+    public void loadNewSSTables();
 }

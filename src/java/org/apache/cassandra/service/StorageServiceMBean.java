@@ -321,4 +321,12 @@ public interface StorageServiceMBean
     public void setCompactionThroughputMbPerSec(int value);
 
     public void bulkLoad(String directory);
+
+    /**
+     * Load new SSTables to the given keyspace/columnFamily
+     *
+     * @param ksName The parent keyspace name
+     * @param cfName The ColumnFamily name where SSTables belong
+     */
+    public void loadNewSSTables(String ksName, String cfName);
 }
