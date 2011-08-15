@@ -139,9 +139,9 @@ public class IncomingTcpConnection extends Thread
             input.readFully(body, offset, CHUNK_SIZE);
         input.readFully(body, bodySize - remainder, remainder);
         // earlier versions would send unnecessary bytes left over at the end of a buffer, too
-        int remaining = totalSize - OutboundTcpConnection.messageLength(header, id, body);
-        if (remaining > 0)
-            input.skip(remaining);
+        long remaining = totalSize - OutboundTcpConnection.messageLength(header, id, body);
+        while (remaining > 0)
+            remaining -= input.skip(remaining);
 
         // for non-streaming connections, continue to read the messages (and ignore them) until sender
         // starts sending correct-version messages (which it can do without reconnecting -- version is per-Message)
