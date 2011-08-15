@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.cli;
 
-import java.io.IOError;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetAddress;
@@ -58,7 +57,6 @@ import org.yaml.snakeyaml.Yaml;
 // Cli Client Side Library
 public class CliClient
 {
-
     /**
      * Available value conversion functions
      * Used by convertValueByFunction(Tree functionCall) method
@@ -163,6 +161,13 @@ public class CliClient
 
     private CliUserHelp getHelp()
     {
+        if (help == null)
+            help = loadHelp();
+        return help;
+    }
+
+    private CliUserHelp loadHelp()
+    {
         final InputStream is = CliClient.class.getClassLoader().getResourceAsStream("org/apache/cassandra/cli/CliHelp.yaml");
         assert is != null;
 
@@ -182,7 +187,7 @@ public class CliClient
 
     public void printBanner()
     {
-        sessionState.out.println(help.banner);
+        sessionState.out.println(getHelp().banner);
     }
 
     // Execute a CLI Statement 
@@ -315,13 +320,10 @@ public class CliClient
 
     private void executeHelp(Tree tree)
     {
-        if (help == null)
-            help = getHelp();
-
         if (tree.getChildCount() > 0)
         {
             String token = tree.getChild(0).getText();
-            for (CliCommandHelp ch : help.commands)
+            for (CliCommandHelp ch : getHelp().commands)
             {
                 if (token.equals(ch.name))
                 {
@@ -332,7 +334,7 @@ public class CliClient
         }
         else
         {
-            sessionState.out.println(help.help);
+            sessionState.out.println(getHelp().help);
         }
     }
 
