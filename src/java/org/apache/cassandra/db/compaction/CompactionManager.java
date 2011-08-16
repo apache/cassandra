@@ -569,6 +569,9 @@ public class CompactionManager implements CompactionManagerMBean
             while (nni.hasNext())
             {
                 AbstractCompactedRow row = nni.next();
+                if (row.isEmpty())
+                    continue;
+
                 long position = writer.append(row);
                 totalkeysWritten++;
 
@@ -862,8 +865,11 @@ public class CompactionManager implements CompactionManagerMBean
                     SSTableIdentityIterator row = (SSTableIdentityIterator) scanner.next();
                     if (Range.isTokenInRanges(row.getKey().token, ranges))
                     {
+                        AbstractCompactedRow compactedRow = controller.getCompactedRow(row);
+                        if (compactedRow.isEmpty())
+                            continue;
                         writer = maybeCreateWriter(cfs, compactionFileLocation, expectedBloomFilterSize, writer, Collections.singletonList(sstable));
-                        writer.append(controller.getCompactedRow(row));
+                        writer.append(compactedRow);
                         totalkeysWritten++;
                     }
                     else

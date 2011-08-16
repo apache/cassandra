@@ -9,6 +9,8 @@
  * fix to SSTableSimpleUnsortedWriter bufferSize calculation (CASSANDRA-3027)
  * add a 'load new SSTables' functionality to JMX and corresponding "refresh"
    command to the nodetool (CASSANDRA-2991)
+ * make cleanup and normal compaction able to skip empty rows
+   (rows containing nothing but expired tombstones) (CASSANDRA-3039)
 
 0.8.4
  * include files-to-be-streamed in StreamInSession.getSources (CASSANDRA-2972)
