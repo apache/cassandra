@@ -33,6 +33,7 @@ import org.apache.cassandra.db.Table;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.io.ICompactSerializer;
+import org.apache.cassandra.io.util.FastByteArrayOutputStream;
 import org.apache.cassandra.net.CompactEndpointSerializationHelper;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageProducer;
@@ -96,7 +97,7 @@ class StreamRequestMessage implements MessageProducer
     
     public Message getMessage(Integer version)
     {
-        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+    	FastByteArrayOutputStream bos = new FastByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(bos);
         try
         {

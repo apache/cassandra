@@ -49,6 +49,7 @@ import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.db.migration.*;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.dht.*;
+import org.apache.cassandra.io.util.FastByteArrayOutputStream;
 import org.apache.cassandra.locator.*;
 import org.apache.cassandra.scheduler.IRequestScheduler;
 import org.apache.cassandra.service.ClientState;
@@ -1158,7 +1159,7 @@ public class CassandraServer implements Cassandra.Iface
             switch (compression)
             {
                 case GZIP:
-                    ByteArrayOutputStream byteArray = new ByteArrayOutputStream();
+                	FastByteArrayOutputStream byteArray = new FastByteArrayOutputStream();
                     byte[] outBuffer = new byte[1024], inBuffer = new byte[1024];
                     
                     Inflater decompressor = new Inflater();

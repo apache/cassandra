@@ -25,6 +25,7 @@ import java.util.Arrays;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.io.ICompactSerializer2;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageProducer;
 import org.apache.cassandra.service.StorageService;
@@ -75,7 +76,7 @@ public class IndexScanCommand implements MessageProducer
     public static IndexScanCommand read(Message message) throws IOException
     {
         byte[] bytes = message.getMessageBody();
-        ByteArrayInputStream bis = new ByteArrayInputStream(bytes);
+        FastByteArrayInputStream bis = new FastByteArrayInputStream(bytes);
         return serializer.deserialize(new DataInputStream(bis));
     }
 

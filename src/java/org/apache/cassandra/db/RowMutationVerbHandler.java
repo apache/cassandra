@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.db;
 
-import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.net.InetAddress;
@@ -28,6 +27,7 @@ import java.nio.ByteBuffer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -52,7 +52,7 @@ public class RowMutationVerbHandler implements IVerbHandler
             if (hintedBytes != null)
             {
                 assert hintedBytes.length > 0;
-                DataInputStream dis = new DataInputStream(new ByteArrayInputStream(hintedBytes));
+                DataInputStream dis = new DataInputStream(new FastByteArrayInputStream(hintedBytes));
                 while (dis.available() > 0)
                 {
                     ByteBuffer addressBytes = ByteBufferUtil.readWithShortLength(dis);

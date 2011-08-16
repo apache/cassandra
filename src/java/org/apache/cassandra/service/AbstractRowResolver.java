@@ -21,7 +21,6 @@ package org.apache.cassandra.service;
  */
 
 
-import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.IOError;
 import java.io.IOException;
@@ -35,6 +34,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.db.Row;
+import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.utils.FBUtilities;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
@@ -58,7 +58,7 @@ public abstract class AbstractRowResolver implements IResponseResolver<Row>
     public void preprocess(Message message)
     {
         byte[] body = message.getMessageBody();
-        ByteArrayInputStream bufIn = new ByteArrayInputStream(body);
+        FastByteArrayInputStream bufIn = new FastByteArrayInputStream(body);
         try
         {
             ReadResponse result = ReadResponse.serializer().deserialize(new DataInputStream(bufIn), message.getVersion());

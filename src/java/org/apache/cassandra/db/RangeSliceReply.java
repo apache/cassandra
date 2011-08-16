@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.db;
 
-import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -28,6 +27,7 @@ import java.util.List;
 import org.apache.commons.lang.StringUtils;
 
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -62,7 +62,7 @@ public class RangeSliceReply
 
     public static RangeSliceReply read(byte[] body, int version) throws IOException
     {
-        ByteArrayInputStream bufIn = new ByteArrayInputStream(body);
+        FastByteArrayInputStream bufIn = new FastByteArrayInputStream(body);
         DataInputStream dis = new DataInputStream(bufIn);
         int rowCount = dis.readInt();
         List<Row> rows = new ArrayList<Row>(rowCount);

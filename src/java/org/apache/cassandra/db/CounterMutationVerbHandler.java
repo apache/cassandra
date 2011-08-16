@@ -29,6 +29,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.net.*;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.service.StorageProxy;
@@ -42,7 +43,7 @@ public class CounterMutationVerbHandler implements IVerbHandler
     public void doVerb(Message message, String id)
     {
         byte[] bytes = message.getMessageBody();
-        ByteArrayInputStream buffer = new ByteArrayInputStream(bytes);
+        FastByteArrayInputStream buffer = new FastByteArrayInputStream(bytes);
 
         try
         {

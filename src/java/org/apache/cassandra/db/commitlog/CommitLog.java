@@ -43,6 +43,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.DeletionService;
+import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.WrappedRunnable;
@@ -272,7 +273,7 @@ public class CommitLog implements CommitLogMBean
                     }
 
                     /* deserialize the commit log entry */
-                    ByteArrayInputStream bufIn = new ByteArrayInputStream(bytes, 0, serializedSize);
+                    FastByteArrayInputStream bufIn = new FastByteArrayInputStream(bytes, 0, serializedSize);
                     RowMutation rm = null;
                     try
                     {

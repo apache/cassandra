@@ -29,6 +29,8 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.io.ICompactSerializer;
+import org.apache.cassandra.io.util.FastByteArrayInputStream;
+import org.apache.cassandra.io.util.FastByteArrayOutputStream;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageProducer;
 import org.apache.cassandra.net.MessagingService;
@@ -272,7 +274,7 @@ public class RowMutation implements IMutation, MessageProducer
         byte[] preserializedBuffer = preserializedBuffers.get(version);
         if (preserializedBuffer == null)
         {
-            ByteArrayOutputStream bout = new ByteArrayOutputStream();
+            FastByteArrayOutputStream bout = new FastByteArrayOutputStream();
             DataOutputStream dout = new DataOutputStream(bout);
             RowMutation.serializer().serialize(this, dout, version);
             dout.close();
@@ -354,7 +356,7 @@ public class RowMutation implements IMutation, MessageProducer
 
     static RowMutation fromBytes(byte[] raw, int version) throws IOException
     {
-        RowMutation rm = serializer_.deserialize(new DataInputStream(new ByteArrayInputStream(raw)), version);
+        RowMutation rm = serializer_.deserialize(new DataInputStream(new FastByteArrayInputStream(raw)), version);
         boolean hasCounters = false;
         for (Map.Entry<Integer, ColumnFamily> entry : rm.modifications_.entrySet())
         {

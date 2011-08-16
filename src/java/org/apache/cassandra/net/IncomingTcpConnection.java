@@ -25,6 +25,7 @@ import java.io.*;
 import java.net.Socket;
 
 import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -72,7 +73,7 @@ public class IncomingTcpConnection extends Thread
                     int size = input.readInt();
                     byte[] headerBytes = new byte[size];
                     input.readFully(headerBytes);
-                    stream(StreamHeader.serializer().deserialize(new DataInputStream(new ByteArrayInputStream(headerBytes)), version), input);
+                    stream(StreamHeader.serializer().deserialize(new DataInputStream(new FastByteArrayInputStream(headerBytes)), version), input);
                 } 
                 else
                 {

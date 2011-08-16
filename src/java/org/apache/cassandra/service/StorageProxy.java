@@ -48,6 +48,7 @@ import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.io.util.FastByteArrayOutputStream;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.utils.*;
@@ -319,7 +320,7 @@ public class StorageProxy implements StorageProxyMBean
                     {
                         InetAddress destination = iter.next();
                         // group all nodes in this DC as forward headers on the primary message
-                        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                        FastByteArrayOutputStream bos = new FastByteArrayOutputStream();
                         DataOutputStream dos = new DataOutputStream(bos);
 
                         // append to older addresses
@@ -339,7 +340,7 @@ public class StorageProxy implements StorageProxyMBean
 
     private static void addHintHeader(Message message, InetAddress target) throws IOException
     {
-        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+    	FastByteArrayOutputStream bos = new FastByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(bos);
         byte[] previousHints = message.getHeader(RowMutation.HINT);
         if (previousHints != null)

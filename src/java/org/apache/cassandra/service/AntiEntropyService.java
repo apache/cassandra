@@ -46,6 +46,8 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.io.sstable.SSTableReader;
+import org.apache.cassandra.io.util.FastByteArrayInputStream;
+import org.apache.cassandra.io.util.FastByteArrayOutputStream;
 import org.apache.cassandra.net.CompactEndpointSerializationHelper;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
@@ -395,7 +397,7 @@ public class AntiEntropyService
         {
             try
             {
-                ByteArrayOutputStream bos = new ByteArrayOutputStream();
+            	FastByteArrayOutputStream bos = new FastByteArrayOutputStream();
                 DataOutputStream dos = new DataOutputStream(bos);
                 SERIALIZER.serialize(request, dos, version);
                 return new Message(FBUtilities.getBroadcastAddress(), StorageService.Verb.TREE_REQUEST, bos.toByteArray(), version);
@@ -437,7 +439,7 @@ public class AntiEntropyService
         { 
             byte[] bytes = message.getMessageBody();
             
-            DataInputStream buffer = new DataInputStream(new ByteArrayInputStream(bytes));
+            DataInputStream buffer = new DataInputStream(new FastByteArrayInputStream(bytes));
             try
             {
                 TreeRequest remotereq = this.deserialize(buffer, message.getVersion());
@@ -467,7 +469,7 @@ public class AntiEntropyService
         {
             try
             {
-                ByteArrayOutputStream bos = new ByteArrayOutputStream();
+            	FastByteArrayOutputStream bos = new FastByteArrayOutputStream();
                 DataOutputStream dos = new DataOutputStream(bos);
                 SERIALIZER.serialize(validator, dos, Gossiper.instance.getVersion(validator.request.endpoint));
                 return new Message(local, 
@@ -504,7 +506,7 @@ public class AntiEntropyService
         public void doVerb(Message message, String id)
         { 
             byte[] bytes = message.getMessageBody();
-            DataInputStream buffer = new DataInputStream(new ByteArrayInputStream(bytes));
+            DataInputStream buffer = new DataInputStream(new FastByteArrayInputStream(bytes));
 
             try
             {

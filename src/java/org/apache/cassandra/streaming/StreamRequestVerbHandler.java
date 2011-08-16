@@ -18,7 +18,6 @@
 
  package org.apache.cassandra.streaming;
 
- import java.io.ByteArrayInputStream;
  import java.io.DataInputStream;
  import java.io.IOError;
  import java.io.IOException;
@@ -26,8 +25,9 @@
  import org.slf4j.Logger;
  import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.io.util.FastByteArrayInputStream;
  import org.apache.cassandra.net.IVerbHandler;
- import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.Message;
 
  /**
  * This verb handler handles the StreamRequestMessage that is sent by
@@ -43,7 +43,7 @@ public class StreamRequestVerbHandler implements IVerbHandler
             logger.debug("Received a StreamRequestMessage from {}", message.getFrom());
 
         byte[] body = message.getMessageBody();
-        ByteArrayInputStream bufIn = new ByteArrayInputStream(body);
+        FastByteArrayInputStream bufIn = new FastByteArrayInputStream(body);
         try
         {
             StreamRequestMessage srm = StreamRequestMessage.serializer().deserialize(new DataInputStream(bufIn), message.getVersion());

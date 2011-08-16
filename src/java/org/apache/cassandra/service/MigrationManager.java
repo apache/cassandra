@@ -40,6 +40,8 @@ import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.gms.*;
+import org.apache.cassandra.io.util.FastByteArrayInputStream;
+import org.apache.cassandra.io.util.FastByteArrayOutputStream;
 import org.apache.cassandra.net.CachingMessageProducer;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageProducer;
@@ -195,7 +197,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
     // other half of transformation is in DefinitionsUpdateResponseVerbHandler.
     private static Message makeMigrationMessage(Collection<IColumn> migrations, int version) throws IOException
     {
-        ByteArrayOutputStream bout = new ByteArrayOutputStream();
+    	FastByteArrayOutputStream bout = new FastByteArrayOutputStream();
         DataOutputStream dout = new DataOutputStream(bout);
         dout.writeInt(migrations.size());
         // riddle me this: how do we know that these binary values (which contained serialized row mutations) are compatible
@@ -219,7 +221,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
     public static Collection<Column> makeColumns(Message msg) throws IOException
     {
         Collection<Column> cols = new ArrayList<Column>();
-        DataInputStream in = new DataInputStream(new ByteArrayInputStream(msg.getMessageBody()));
+        DataInputStream in = new DataInputStream(new FastByteArrayInputStream(msg.getMessageBody()));
         int count = in.readInt();
         for (int i = 0; i < count; i++)
         {

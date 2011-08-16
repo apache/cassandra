@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.db;
 
-import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.IOError;
 import java.io.IOException;
@@ -26,6 +25,7 @@ import java.io.IOException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -37,7 +37,7 @@ public class TruncateVerbHandler implements IVerbHandler
     public void doVerb(Message message, String id)
     {
         byte[] bytes = message.getMessageBody();
-        ByteArrayInputStream buffer = new ByteArrayInputStream(bytes);
+        FastByteArrayInputStream buffer = new FastByteArrayInputStream(bytes);
 
         try
         {

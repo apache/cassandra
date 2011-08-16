@@ -18,12 +18,12 @@
 
 package org.apache.cassandra.db;
 
-import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 
 import org.apache.cassandra.io.ICompactSerializer;
+import org.apache.cassandra.io.util.FastByteArrayOutputStream;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -49,7 +49,7 @@ public class TruncateResponse
     public static Message makeTruncateResponseMessage(Message original, TruncateResponse truncateResponseMessage)
             throws IOException
     {
-    	ByteArrayOutputStream bos = new ByteArrayOutputStream();
+    	FastByteArrayOutputStream bos = new FastByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(bos);
         TruncateResponse.serializer().serialize(truncateResponseMessage, dos, original.getVersion());
         return original.getReply(FBUtilities.getBroadcastAddress(), bos.toByteArray(), original.getVersion());

@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.db;
 
-import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.IOException;
 
@@ -26,6 +25,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -56,7 +56,7 @@ public class ReadVerbHandler implements IVerbHandler
 
         try
         {
-            ByteArrayInputStream in = new ByteArrayInputStream(message.getMessageBody());
+            FastByteArrayInputStream in = new FastByteArrayInputStream(message.getMessageBody());
             ReadCommand command = ReadCommand.serializer().deserialize(new DataInputStream(in), message.getVersion());
             Table table = Table.open(command.table);
             Row row = command.getRow(table);

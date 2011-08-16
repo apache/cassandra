@@ -18,13 +18,13 @@
 
 package org.apache.cassandra.db;
 
-import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.io.ICompactSerializer;
+import org.apache.cassandra.io.util.FastByteArrayOutputStream;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -46,7 +46,7 @@ public class WriteResponse
 
     public static Message makeWriteResponseMessage(Message original, WriteResponse writeResponseMessage) throws IOException
     {
-    	ByteArrayOutputStream bos = new ByteArrayOutputStream();
+    	FastByteArrayOutputStream bos = new FastByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream( bos );
         WriteResponse.serializer().serialize(writeResponseMessage, dos, original.getVersion());
         return original.getReply(FBUtilities.getBroadcastAddress(), bos.toByteArray(), original.getVersion());

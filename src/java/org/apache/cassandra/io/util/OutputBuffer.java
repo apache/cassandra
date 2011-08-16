@@ -18,14 +18,13 @@
 
 package org.apache.cassandra.io.util;
 
-import java.io.ByteArrayOutputStream;
 import java.io.DataInput;
 import java.io.IOException;
 
 /**
- * Extends ByteArrayOutputStream to minimize copies.
+ * Extends FastByteArrayOutputStream to minimize copies.
  */
-public final class OutputBuffer extends ByteArrayOutputStream
+public final class OutputBuffer extends FastByteArrayOutputStream
 {
     public OutputBuffer()
     {
