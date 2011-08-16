@@ -33,6 +33,8 @@
  * make CL > ONE reads wait for digest reconciliation before returning
    (CASSANDRA-2494)
  * fix missing logging for some exceptions (CASSANDRA-2061)
+ * refactor and optimize ColumnFamilyStore.files(...) and Descriptor.fromFilename(String)
+   and few other places responsible for work with SSTable files (CASSANDRA-3040)
 
 0.8.5
  * fix NPE when encryption_options is unspecified (CASSANDRA-3007)

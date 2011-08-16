@@ -20,7 +20,7 @@
 package org.apache.cassandra.io.sstable;
 
 import java.io.File;
-import java.io.FilenameFilter;
+import java.io.FileFilter;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
@@ -158,16 +158,23 @@ public abstract class SSTable
     static Set<Component> componentsFor(final Descriptor desc, final Descriptor.TempState matchState)
     {
         final Set<Component> components = new HashSet<Component>();
-        desc.directory.list(new FilenameFilter()
+
+        desc.directory.listFiles(new FileFilter()
         {
-            public boolean accept(File dir, String name)
+            public boolean accept(File file)
             {
-                Pair<Descriptor,Component> component = tryComponentFromFilename(dir, name);
+                if (file.isDirectory() || !file.getName().startsWith(desc.cfname))
+                    return false;
+
+                Pair<Descriptor, Component> component = tryComponentFromFilename(file.getParentFile(), file.getName());
+
                 if (component != null && component.left.equals(desc) && (matchState.isMatch(component.left)))
                     components.add(component.right);
+
                 return false;
             }
         });
+
         return components;
     }
 

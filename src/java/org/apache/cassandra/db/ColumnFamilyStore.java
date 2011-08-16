@@ -32,7 +32,6 @@ import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
 import com.google.common.collect.Iterables;
-import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -54,19 +53,13 @@ import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.filter.*;
-import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.BytesType;
-import org.apache.cassandra.db.marshal.LocalByPartionerType;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.IndexClause;
-import org.apache.cassandra.thrift.IndexExpression;
-import org.apache.cassandra.thrift.IndexOperator;
-import org.apache.cassandra.thrift.IndexType;
 import org.apache.cassandra.utils.*;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
@@ -335,10 +328,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         List<Integer> generations = new ArrayList<Integer>();
         for (String path : DatabaseDescriptor.getAllDataFileLocationsForTable(table.name))
         {
-            Iterable<Pair<Descriptor, Component>> pairs = files(new File(path));
+            Iterable<Pair<Descriptor, Component>> pairs = files(new File(path), columnFamily);
             File incrementalsPath = new File(path, "backups");
             if (incrementalsPath.exists())
-                pairs = Iterables.concat(pairs, files(incrementalsPath));
+                pairs = Iterables.concat(pairs, files(incrementalsPath, columnFamily));
 
             for (Pair<Descriptor, Component> pair : pairs)
             {
@@ -471,9 +464,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         final Map<Descriptor,Set<Component>> sstables = new HashMap<Descriptor,Set<Component>>();
         for (String directory : DatabaseDescriptor.getAllDataFileLocationsForTable(keyspace))
         {
-            for (Pair<Descriptor, Component> component : files(new File(directory)))
+            for (Pair<Descriptor, Component> component : files(new File(directory), columnFamily))
             {
-                if (component != null && component.left.cfname.equals(columnFamily))
+                if (component != null)
                 {
                     if ((includeCompacted || !new File(component.left.filenameFor(Component.COMPACTED_MARKER)).exists())
                      && (includeTemporary || !component.left.temporary))
@@ -494,15 +487,19 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return sstables;
     }
 
-    private static List<Pair<Descriptor, Component>> files(File path)
+    private static List<Pair<Descriptor, Component>> files(File path, final String columnFamilyName)
     {
         final List<Pair<Descriptor, Component>> sstables = new ArrayList<Pair<Descriptor, Component>>();
         // NB: we never "accept" a file in the FilenameFilter sense: they are added to the sstable map
-        path.list(new FilenameFilter()
+        path.listFiles(new FileFilter()
         {
-            public boolean accept(File dir, String name)
+            public boolean accept(File file)
             {
-                Pair<Descriptor, Component> pair = SSTable.tryComponentFromFilename(dir, name);
+                // we are only interested in the SSTable files that belong to the specific ColumnFamily
+                if (file.isDirectory() || !file.getName().startsWith(columnFamilyName))
+                    return false;
+
+                Pair<Descriptor, Component> pair = SSTable.tryComponentFromFilename(file.getParentFile(), file.getName());
 
                 if (pair != null)
                     sstables.add(pair);
@@ -510,6 +507,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 return false;
             }
         });
+
         return sstables;
     }
 

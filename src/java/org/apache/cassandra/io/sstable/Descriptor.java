@@ -139,18 +139,22 @@ public class Descriptor
 
     /**
      * @see #fromFilename(File directory, String name)
+     * @param filename The SSTable filename
+     * @return Descriptor of the SSTable initialized from filename
      */
     public static Descriptor fromFilename(String filename)
     {
-        int separatorPos = filename.lastIndexOf(File.separatorChar);
-        assert separatorPos != -1 : "Filename must include parent directory.";
-        File directory = new File(filename.substring(0, separatorPos));
-        String name = filename.substring(separatorPos+1, filename.length());
-        return fromFilename(directory, name).left;
+        File file = new File(filename);
+        assert file.getParentFile() != null : "Filename must include parent directory.";
+        return fromFilename(file.getParentFile(), file.getName()).left;
     }
 
     /**
      * Filename of the form "<ksname>/<cfname>-[tmp-][<version>-]<gen>-<component>"
+     *
+     * @param directory The directory of the SSTable files
+     * @param name The name of the SSTable file
+     *
      * @return A Descriptor for the SSTable, and the Component remainder.
      */
     public static Pair<Descriptor,String> fromFilename(File directory, String name)
@@ -160,7 +164,7 @@ public class Descriptor
 
         // tokenize the filename
         StringTokenizer st = new StringTokenizer(name, "-");
-        String nexttok = null;
+        String nexttok;
 
         // all filenames must start with a column family
         String cfname = st.nextToken();
@@ -199,8 +203,8 @@ public class Descriptor
      * @param directory a directory containing SSTables
      * @return the keyspace name
      */
-    public static String extractKeyspaceName(File directory) {
-
+    public static String extractKeyspaceName(File directory)
+    {
         if (isSnapshotInPath(directory))
         {
             // We need to move backwards. If this is a snapshot, first parent takes us to:
@@ -211,9 +215,11 @@ public class Descriptor
     }
 
     /**
+     * @param directory The directory to check
      * @return <code>TRUE</code> if this directory represents a snapshot directory. <code>FALSE</code> otherwise.
      */
-    private static boolean isSnapshotInPath(File directory) {
+    private static boolean isSnapshotInPath(File directory)
+    {
         File curDirectory = directory;
         while (curDirectory != null)
         {
@@ -227,6 +233,7 @@ public class Descriptor
     }
 
     /**
+     * @param temporary temporary flag
      * @return A clone of this descriptor with the given 'temporary' status.
      */
     public Descriptor asTemporary(boolean temporary)
@@ -235,6 +242,7 @@ public class Descriptor
     }
 
     /**
+     * @param ver SSTable version
      * @return True if the given version string is not empty, and
      * contains all lowercase letters, as defined by java.lang.Character.
      */
