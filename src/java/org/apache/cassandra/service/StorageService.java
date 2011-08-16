@@ -38,7 +38,7 @@ import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.concurrent.RetryingScheduledThreadPoolExecutor;
+import org.apache.cassandra.concurrent.DebuggableScheduledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.CFMetaData;
@@ -78,7 +78,7 @@ import org.apache.cassandra.utils.WrappedRunnable;
  */
 public class StorageService implements IEndpointStateChangeSubscriber, StorageServiceMBean
 {
-    private static Logger logger_ = LoggerFactory.getLogger(StorageService.class);     
+    private static Logger logger_ = LoggerFactory.getLogger(StorageService.class);
 
     public static final int RING_DELAY = 30 * 1000; // delay after which we assume ring has stablized
 
@@ -151,12 +151,12 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     /**
      * This pool is used for periodic short (sub-second) tasks.
      */
-     public static final RetryingScheduledThreadPoolExecutor scheduledTasks = new RetryingScheduledThreadPoolExecutor("ScheduledTasks");
+     public static final DebuggableScheduledThreadPoolExecutor scheduledTasks = new DebuggableScheduledThreadPoolExecutor("ScheduledTasks");
 
     /**
      * This pool is used by tasks that can have longer execution times, and usually are non periodic.
      */
-    public static final RetryingScheduledThreadPoolExecutor tasks = new RetryingScheduledThreadPoolExecutor("NonPeriodicTasks");
+    public static final DebuggableScheduledThreadPoolExecutor tasks = new DebuggableScheduledThreadPoolExecutor("NonPeriodicTasks");
 
 
     /* This abstraction maintains the token/endpoint metadata information */

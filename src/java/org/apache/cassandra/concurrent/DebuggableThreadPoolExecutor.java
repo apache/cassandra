@@ -111,12 +111,16 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor
 
     public static void logExceptionsAfterExecute(Runnable r, Throwable t)
     {
-        // exceptions wrapped by FutureTask
-        if (r instanceof FutureTask<?>)
+        // Check for exceptions wrapped by FutureTask.  We do this by calling get(), which will
+        // cause it to throw any saved exception.
+        //
+        // Complicating things, calling get() on a ScheduledFutureTask will block until the task
+        // is cancelled.  Hence, the extra isDone check beforehand.
+        if ((r instanceof Future<?>) && ((Future<?>) r).isDone())
         {
             try
             {
-                ((FutureTask<?>) r).get();
+                ((Future<?>) r).get();
             }
             catch (InterruptedException e)
             {
