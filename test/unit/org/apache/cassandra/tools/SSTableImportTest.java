@@ -20,6 +20,8 @@ package org.apache.cassandra.tools;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -44,17 +46,45 @@ import static org.junit.Assert.assertEquals;
 
 import org.apache.cassandra.Util;
 
-import org.apache.cassandra.utils.FBUtilities;
 import org.json.simple.parser.ParseException;
 import org.junit.Test;
 
 public class SSTableImportTest extends SchemaLoader
 {   
     @Test
-    public void testImportSimpleCf() throws IOException
+    public void testImportSimpleCf() throws IOException, URISyntaxException
     {
         // Import JSON to temp SSTable file
-        String jsonUrl = getClass().getClassLoader().getResource("SimpleCF.json").getPath();
+        String jsonUrl = resourcePath("SimpleCF.json");
+        File tempSS = tempSSTableFile("Keyspace1", "Standard1");
+        SSTableImport.importJson(jsonUrl, "Keyspace1", "Standard1", tempSS.getPath());
+
+        // Verify results
+        SSTableReader reader = SSTableReader.open(Descriptor.fromFilename(tempSS.getPath()));
+        QueryFilter qf = QueryFilter.getIdentityFilter(Util.dk("rowA"), new QueryPath("Standard1"));
+        IColumnIterator iter = qf.getSSTableColumnIterator(reader);
+        ColumnFamily cf = iter.getColumnFamily();
+        while (iter.hasNext()) cf.addColumn(iter.next());
+        assert cf.getColumn(ByteBufferUtil.bytes("colAA")).value().equals(hexToBytes("76616c4141"));
+        assert !(cf.getColumn(ByteBufferUtil.bytes("colAA")) instanceof DeletedColumn);
+        IColumn expCol = cf.getColumn(ByteBufferUtil.bytes("colAC"));
+        assert expCol.value().equals(hexToBytes("76616c4143"));
+        assert expCol instanceof ExpiringColumn;
+        assert ((ExpiringColumn)expCol).getTimeToLive() == 42 && expCol.getLocalDeletionTime() == 2000000000;
+    }
+
+    private String resourcePath(String name) throws URISyntaxException
+    {
+        // Naive resource.getPath fails on Windows in many cases, for example if there are spaces in the path
+        // which get encoded as %20 which Windows doesn't like. The trick is to create a URI first, which satisfies all platforms.
+        return new URI(getClass().getClassLoader().getResource(name).toString()).getPath();
+    }
+
+    @Test
+    public void testImportSimpleCfOldFormat() throws IOException, URISyntaxException
+    {
+        // Import JSON to temp SSTable file
+        String jsonUrl = resourcePath("SimpleCF.oldformat.json");
         File tempSS = tempSSTableFile("Keyspace1", "Standard1");
         SSTableImport.importJson(jsonUrl, "Keyspace1", "Standard1", tempSS.getPath());
 
@@ -73,31 +103,9 @@ public class SSTableImportTest extends SchemaLoader
     }
 
     @Test
-    public void testImportSimpleCfOldFormat() throws IOException
+    public void testImportSuperCf() throws IOException, ParseException, URISyntaxException
     {
-        // Import JSON to temp SSTable file
-        String jsonUrl = getClass().getClassLoader().getResource("SimpleCF.oldformat.json").getPath();
-        File tempSS = tempSSTableFile("Keyspace1", "Standard1");
-        SSTableImport.importJson(jsonUrl, "Keyspace1", "Standard1", tempSS.getPath());
-
-        // Verify results
-        SSTableReader reader = SSTableReader.open(Descriptor.fromFilename(tempSS.getPath()));
-        QueryFilter qf = QueryFilter.getIdentityFilter(Util.dk("rowA"), new QueryPath("Standard1"));
-        IColumnIterator iter = qf.getSSTableColumnIterator(reader);
-        ColumnFamily cf = iter.getColumnFamily();
-        while (iter.hasNext()) cf.addColumn(iter.next());
-        assert cf.getColumn(ByteBufferUtil.bytes("colAA")).value().equals(hexToBytes("76616c4141"));
-        assert !(cf.getColumn(ByteBufferUtil.bytes("colAA")) instanceof DeletedColumn);
-        IColumn expCol = cf.getColumn(ByteBufferUtil.bytes("colAC"));
-        assert expCol.value().equals(hexToBytes("76616c4143"));
-        assert expCol instanceof ExpiringColumn;
-        assert ((ExpiringColumn)expCol).getTimeToLive() == 42 && expCol.getLocalDeletionTime() == 2000000000;
-    }
-
-    @Test
-    public void testImportSuperCf() throws IOException, ParseException
-    {
-        String jsonUrl = getClass().getClassLoader().getResource("SuperCF.json").getPath();
+        String jsonUrl = resourcePath("SuperCF.json");
         File tempSS = tempSSTableFile("Keyspace1", "Super4");
         SSTableImport.importJson(jsonUrl, "Keyspace1", "Super4", tempSS.getPath());
         
@@ -113,9 +121,9 @@ public class SSTableImportTest extends SchemaLoader
     }
 
     @Test
-    public void testImportUnsortedMode() throws IOException
+    public void testImportUnsortedMode() throws IOException, URISyntaxException
     {
-        String jsonUrl = getClass().getClassLoader().getResource("UnsortedSuperCF.json").getPath();
+        String jsonUrl = resourcePath("UnsortedSuperCF.json");
         File tempSS = tempSSTableFile("Keyspace1", "Super4");
 
         ColumnFamily columnFamily = ColumnFamily.create("Keyspace1", "Super4");
@@ -127,10 +135,10 @@ public class SSTableImportTest extends SchemaLoader
     }
 
     @Test
-    public void testImportCounterCf() throws IOException
+    public void testImportCounterCf() throws IOException, URISyntaxException
     {
         // Import JSON to temp SSTable file
-        String jsonUrl = getClass().getClassLoader().getResource("CounterCF.json").getPath();
+        String jsonUrl = resourcePath("CounterCF.json");
         File tempSS = tempSSTableFile("Keyspace1", "Counter1");
         SSTableImport.importJson(jsonUrl, "Keyspace1", "Counter1", tempSS.getPath());
 
