@@ -48,7 +48,7 @@ import org.slf4j.LoggerFactory;
 public abstract class SecondaryIndex
 {
     
-    private static final Logger logger = LoggerFactory.getLogger(KeysIndex.class);
+    private static final Logger logger = LoggerFactory.getLogger(SecondaryIndex.class);
     
     /**
      * Base CF that has many indexes

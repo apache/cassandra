@@ -345,7 +345,7 @@ public class QueryProcessor
             Set<ByteBuffer> indexed = Table.open(keyspace).getColumnFamilyStore(select.getColumnFamily()).indexManager.getIndexedColumns();
             for (Relation relation : select.getColumnRelations())
             {
-                if ((relation.operator().equals(RelationType.EQ)) && indexed.contains(relation.getEntity().getByteBuffer(comparator)))
+                if ((relation.operator() == RelationType.EQ) && indexed.contains(relation.getEntity().getByteBuffer(comparator)))
                     return;
             }
             throw new InvalidRequestException("No indexed columns present in by-columns clause with \"equals\" operator");

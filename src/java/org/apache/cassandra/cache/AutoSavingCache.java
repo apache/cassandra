@@ -208,9 +208,9 @@ public abstract class AutoSavingCache<K, V> extends InstrumentingCache<K, V>
             estimatedTotalBytes = bytes;
             CompactionType type;
 
-            if (cacheType.equals(ColumnFamilyStore.CacheType.KEY_CACHE_TYPE)) 
+            if (cacheType == ColumnFamilyStore.CacheType.KEY_CACHE_TYPE) 
                 type = CompactionType.KEY_CACHE_SAVE;
-            else if (cacheType.equals(ColumnFamilyStore.CacheType.ROW_CACHE_TYPE))
+            else if (cacheType == ColumnFamilyStore.CacheType.ROW_CACHE_TYPE)
                 type = CompactionType.ROW_CACHE_SAVE;
             else
                 type = CompactionType.UNKNOWN;

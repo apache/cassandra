@@ -59,7 +59,7 @@ public class ColumnDefinition
         ColumnDefinition that = (ColumnDefinition) o;
         if (index_name != null ? !index_name.equals(that.index_name) : that.index_name != null)
             return false;
-        if (index_type != null ? !index_type.equals(that.index_type) : that.index_type != null)
+        if (index_type != that.index_type)
             return false;
         if (!name.equals(that.name))
             return false;

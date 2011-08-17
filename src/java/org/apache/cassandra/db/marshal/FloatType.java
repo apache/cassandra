@@ -82,17 +82,15 @@ public class FloatType extends AbstractType<Float>
       if (source.isEmpty())
           return ByteBufferUtil.EMPTY_BYTE_BUFFER;
       
-      Float f;
       try
       {
-          f = Float.parseFloat(source);
+          float f = Float.parseFloat(source);
+          return ByteBufferUtil.bytes(f);
       }
       catch (NumberFormatException e1)
       {
           throw new MarshalException(String.format("unable to coerce '%s' to a float", source), e1);
-      }
-          
-      return ByteBufferUtil.bytes(f);
+      }  
     }
 
     public void validate(ByteBuffer bytes) throws MarshalException

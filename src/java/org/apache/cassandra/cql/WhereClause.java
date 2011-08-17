@@ -69,17 +69,17 @@ public class WhereClause
     {
         if ((relation != null) && relation.isKey())
         {
-            if (relation.operator().equals(RelationType.EQ))
+            if (relation.operator() == RelationType.EQ)
                 keys.add(relation.getValue());
-            else if ((relation.operator().equals(RelationType.GT) || relation.operator().equals(RelationType.GTE)))
+            else if ((relation.operator() == RelationType.GT) || (relation.operator() == RelationType.GTE))
             {
                 startKey = relation.getValue();
-                includeStartKey = relation.operator().equals(RelationType.GTE);
+                includeStartKey = relation.operator() == RelationType.GTE;
             }
-            else if ((relation.operator().equals(RelationType.LT) || relation.operator().equals(RelationType.LTE)))
+            else if ((relation.operator() == RelationType.LT) || (relation.operator() == RelationType.LTE))
             {
                 finishKey = relation.getValue();
-                includeFinishKey = relation.operator().equals(RelationType.LTE);
+                includeFinishKey = relation.operator() == RelationType.LTE;
             }
             
         }

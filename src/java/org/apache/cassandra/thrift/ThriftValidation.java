@@ -526,7 +526,7 @@ public class ThriftValidation
                                                                 me.getMessage()));
             }
 
-            isIndexed |= expression.op.equals(IndexOperator.EQ) && indexedColumns.contains(expression.column_name);
+            isIndexed |= (expression.op == IndexOperator.EQ) && indexedColumns.contains(expression.column_name);
         }
 
         if (!isIndexed)

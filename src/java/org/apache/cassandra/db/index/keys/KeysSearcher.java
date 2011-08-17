@@ -69,7 +69,7 @@ public class KeysSearcher extends SecondaryIndexSearcher
                 continue;
             
             SecondaryIndex index = indexManager.getIndexForColumn(expression.column_name);
-            if (index == null || !expression.op.equals(IndexOperator.EQ))
+            if (index == null || (expression.op != IndexOperator.EQ))
                 continue;
             int columns = index.getUnderlyingCfs().getMeanColumns();
             if (columns < bestMeanCount)

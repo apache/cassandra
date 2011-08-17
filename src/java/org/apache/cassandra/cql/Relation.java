@@ -51,12 +51,12 @@ public class Relation
     
     public boolean isKey()
     {
-        return entityType.equals(EntityType.KEY);
+        return entityType == EntityType.KEY;
     }
     
     public boolean isColumn()
     {
-        return entityType.equals(EntityType.COLUMN);
+        return entityType == EntityType.COLUMN;
     }
     
     public RelationType operator()
@@ -74,6 +74,7 @@ public class Relation
         return value;
     }
     
+    @Override
     public String toString()
     {
         return String.format("Relation(%s, %s,nnn %s)", entity, relationType, value);
