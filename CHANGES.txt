@@ -45,6 +45,10 @@
    in a commitlog segment (CASSANDRA-3021)
  * fix cassandra.bat when CASSANDRA_HOME contains spaces (CASSANDRA-2952)
  * fix to SSTableSimpleUnsortedWriter bufferSize calculation (CASSANDRA-3027)
+ * make cleanup and normal compaction able to skip empty rows
+   (rows containing nothing but expired tombstones) (CASSANDRA-3039)
+ * work around native memory leak in com.sun.management.GarbageCollectorMXBean
+   (CASSANDRA-2868)
 
 
 0.8.4

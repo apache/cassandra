@@ -207,7 +207,6 @@ whereClause returns [WhereClause clause]
 insertStatement returns [UpdateStatement expr]
     : {
           Attributes attrs = new Attributes();
-          Map<Term, Term> columns = new HashMap<Term, Term>();
 
           List<Term> columnNames  = new ArrayList<Term>();
           List<Term> columnValues = new ArrayList<Term>();

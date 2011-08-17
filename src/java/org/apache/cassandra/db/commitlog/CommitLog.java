@@ -199,6 +199,7 @@ public class CommitLog implements CommitLogMBean
         }
         final ReplayPosition globalPosition = Ordering.from(ReplayPosition.comparator).min(cfPositions.values());
 
+        Checksum checksum = new CRC32();
         for (final File file : clogs)
         {
             final long segment = CommitLogSegment.idFromFilename(file.getName());
@@ -237,7 +238,6 @@ public class CommitLog implements CommitLogMBean
                         logger.debug("Reading mutation at " + reader.getFilePointer());
 
                     long claimedCRC32;
-                    Checksum checksum = new CRC32();
                     int serializedSize;
                     try
                     {
@@ -250,6 +250,7 @@ public class CommitLog implements CommitLogMBean
                         if (serializedSize < 10)
                             break;
                         long claimedSizeChecksum = reader.readLong();
+                        checksum.reset();
                         checksum.update(serializedSize);
                         if (checksum.getValue() != claimedSizeChecksum)
                             break; // entry wasn't synced correctly/fully.  that's ok.
