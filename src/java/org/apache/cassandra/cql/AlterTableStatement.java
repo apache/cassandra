@@ -65,10 +65,15 @@ public class AlterTableStatement
         switch (oType)
         {
             case ADD:
+                if (cfDef.key_alias != null && cfDef.key_alias.equals(columnName))
+                    throw new InvalidRequestException("Invalid column name: "
+                                                      + this.columnName
+                                                      + ", because it equals to key_alias.");
+
                 cfDef.column_metadata.add(new ColumnDefinition(columnName,
-                                                                       TypeParser.parse(validator),
-                                                                       null,
-                                                                       null).deflate());
+                                                               TypeParser.parse(validator),
+                                                               null,
+                                                               null).deflate());
                 break;
 
             case ALTER:

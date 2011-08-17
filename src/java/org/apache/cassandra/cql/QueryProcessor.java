@@ -845,8 +845,6 @@ public class QueryProcessor
             case ALTER_TABLE:
                 AlterTableStatement alterTable = (AlterTableStatement) statement.statement;
 
-                System.out.println(alterTable);
-
                 validateColumnFamily(keyspace, alterTable.columnFamily);
                 clientState.hasColumnFamilyAccess(alterTable.columnFamily, Permission.WRITE);
                 validateSchemaAgreement();

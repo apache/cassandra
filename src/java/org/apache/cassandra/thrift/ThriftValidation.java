@@ -553,22 +553,6 @@ public class ThriftValidation
                 }
             }
 
-            if (cf_def.key_alias != null)
-            {
-                if (!cf_def.key_alias.hasRemaining())
-                    throw new InvalidRequestException("key_alias may not be empty");
-                try
-                {
-                    // it's hard to use a key in a select statement if we can't type it.
-                    // for now let's keep it simple and require ascii.
-                    AsciiType.instance.validate(cf_def.key_alias);
-                }
-                catch (MarshalException e)
-                {
-                    throw new InvalidRequestException("Key aliases must be ascii");
-                }
-            }
-
             ColumnFamilyType cfType = ColumnFamilyType.create(cf_def.column_type);
             if (cfType == null)
                 throw new InvalidRequestException("invalid column type " + cf_def.column_type);
@@ -585,6 +569,18 @@ public class ThriftValidation
             AbstractType comparator = cfType == ColumnFamilyType.Standard
                                     ? TypeParser.parse(cf_def.comparator_type)
                                     : TypeParser.parse(cf_def.subcomparator_type);
+
+            if (cf_def.key_alias != null)
+            {
+                // check if any of the columns has name equal to the cf.key_alias
+                for (ColumnDef columnDef : cf_def.column_metadata)
+                {
+                    if (cf_def.key_alias.equals(columnDef.name))
+                        throw new InvalidRequestException("Invalid column name: "
+                                                          + AsciiType.instance.compose(cf_def.key_alias)
+                                                          + ", because it equals to the key_alias.");
+                }
+            }
 
             // initialize a set of names NOT in the CF under consideration
             Set<String> indexNames = new HashSet<String>();

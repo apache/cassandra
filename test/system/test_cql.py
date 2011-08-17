@@ -477,6 +477,9 @@ class TestCql(ThriftTester):
         # Missing primary key
         assert_raises(cql.ProgrammingError, cursor.execute, "CREATE COLUMNFAMILY NewCf2")
 
+        # column name should not match key alias
+        assert_raises(cql.ProgrammingError, cursor.execute, "CREATE COLUMNFAMILY NewCf2 (id 'utf8' primary key, id int)")
+
         # Too many primary keys
         assert_raises(cql.ProgrammingError,
                       cursor.execute,
@@ -1140,7 +1143,7 @@ class TestCql(ThriftTester):
         cursor.execute("USE AlterTableKS;")
 
         cursor.execute("""
-            CREATE COLUMNFAMILY NewCf1 (KEY varint PRIMARY KEY) WITH default_validation = ascii;
+            CREATE COLUMNFAMILY NewCf1 (id_key varint PRIMARY KEY) WITH default_validation = ascii;
         """)
 
         # TODO: temporary (until this can be done with CQL).
@@ -1204,6 +1207,12 @@ class TestCql(ThriftTester):
         assert_raises(cql.ProgrammingError,
                       cursor.execute,
                       "ALTER COLUMNFAMILY NewCf1 DROP name")
+
+        # should raise error when column name equals key alias
+        assert_raises(cql.ProgrammingError,
+                      cursor.execute,
+                      "ALTER COLUMNFAMILY NewCf1 ADD id_key utf8")
+
     
     def test_counter_column_support(self):
         "update statement should be able to work with counter columns"

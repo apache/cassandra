@@ -13,7 +13,8 @@
    (rows containing nothing but expired tombstones) (CASSANDRA-3039)
  * work around native memory leak in com.sun.management.GarbageCollectorMXBean
    (CASSANDRA-2868)
-
+ * validate that column names in column_metadata does not equal to key_alias
+   on create/update of the ColumnFamily and CQL 'ALTER' statement (CASSANDRA-3036)
 
 0.8.4
  * include files-to-be-streamed in StreamInSession.getSources (CASSANDRA-2972)
