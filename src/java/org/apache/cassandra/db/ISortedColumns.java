@@ -25,6 +25,7 @@ import java.util.SortedSet;
 
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.util.IIterableColumns;
+import org.apache.cassandra.utils.Allocator;
 
 /**
  * A sorted map of columns.
@@ -45,7 +46,7 @@ public interface ISortedColumns extends IIterableColumns
      * If a column with the same name is already present in the map, it will
      * be replaced by the newly added column.
      */
-    public void addColumn(IColumn column);
+    public void addColumn(IColumn column, Allocator allocator);
 
     /**
      * Adds all the columns of a given column map to this column map.
@@ -56,7 +57,7 @@ public interface ISortedColumns extends IIterableColumns
      *   </code>
      *  but is potentially faster.
      */
-    public void addAll(ISortedColumns cm);
+    public void addAll(ISortedColumns cm, Allocator allocator);
 
     /**
      * Replace oldColumn if present by newColumn.

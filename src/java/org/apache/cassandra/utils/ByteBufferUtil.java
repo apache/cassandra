@@ -169,11 +169,11 @@ public class ByteBufferUtil
 
         if (buffer.hasArray())
         {
-            int start = buffer.position();
-            if (buffer.arrayOffset() == 0 && start == 0 && length == buffer.array().length)
+            int boff = buffer.arrayOffset() + buffer.position();
+            if (boff == 0 && length == buffer.array().length)
                 return buffer.array();
             else
-                return Arrays.copyOfRange(buffer.array(), start + buffer.arrayOffset(), start + length + buffer.arrayOffset());
+                return Arrays.copyOfRange(buffer.array(), boff, boff + length);
         }
         // else, DirectByteBuffer.get() is the fastest route
         byte[] bytes = new byte[length];
@@ -297,9 +297,8 @@ public class ByteBufferUtil
                 throw new IndexOutOfBoundsException();
 
             for (int i = 0; i < length; i++)
-            {
+                // TODO: ByteBuffer.put is polymorphic, and might be slow here
                 dst.put(dstPos++, src.get(srcPos++));
-            }
         }
     }
 

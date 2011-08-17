@@ -110,8 +110,8 @@ public class TimeSortTest extends CleanupHelper
         columnNames.add(getBytes(10));
         columnNames.add(getBytes(0));
         cf = cfStore.getColumnFamily(QueryFilter.getNamesFilter(Util.dk("900"), new QueryPath("StandardLong1"), columnNames));
-        assert "c".equals(new String(cf.getColumn(getBytes(0)).value().array()));
-        assert "c".equals(new String(cf.getColumn(getBytes(10)).value().array()));
+        assert "c".equals(ByteBufferUtil.string(cf.getColumn(getBytes(0)).value()));
+        assert "c".equals(ByteBufferUtil.string(cf.getColumn(getBytes(10)).value()));
     }
 
     private void validateTimeSort(Table table) throws IOException

@@ -24,10 +24,12 @@ import java.nio.ByteBuffer;
 import java.util.Collection;
 
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.utils.Allocator;
 
 public interface IColumnContainer
 {
     public void addColumn(IColumn column);
+    public void addColumn(IColumn column, Allocator allocator);
     public void remove(ByteBuffer columnName);
 
     /**

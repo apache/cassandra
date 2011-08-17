@@ -43,6 +43,7 @@ import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.sstable.SSTableWriter;
+import org.apache.cassandra.utils.SlabAllocator;
 import org.apache.cassandra.utils.WrappedRunnable;
 import org.github.jamm.MemoryMeter;
 
@@ -54,7 +55,7 @@ public class Memtable
     private static final double MIN_SANE_LIVE_RATIO = 1.0;
     // max liveratio seen w/ 1-byte columns on a 64-bit jvm was 19. If it gets higher than 64 something is probably broken.
     private static final double MAX_SANE_LIVE_RATIO = 64.0;
-    private static final MemoryMeter meter = new MemoryMeter();
+    private static final MemoryMeter meter = new MemoryMeter().omitSharedBufferOverhead();
 
     // we're careful to only allow one count to run at a time because counting is slow
     // (can be minutes, for a large memtable and a busy server), so we could keep memtables
@@ -69,6 +70,8 @@ public class Memtable
         }
     };
 
+    volatile static Memtable activelyMeasuring;
+
     private volatile boolean isFrozen;
     private final AtomicLong currentThroughput = new AtomicLong(0);
     private final AtomicLong currentOperations = new AtomicLong(0);
@@ -78,7 +81,7 @@ public class Memtable
 
     private final long THRESHOLD;
     private final long THRESHOLD_COUNT;
-    volatile static Memtable activelyMeasuring;
+    private SlabAllocator allocator = new SlabAllocator();
 
     public Memtable(ColumnFamilyStore cfs)
     {
@@ -89,8 +92,9 @@ public class Memtable
 
     public long getLiveSize()
     {
-        // 25% fudge factor
-        return (long) (currentThroughput.get() * cfs.liveRatio * 1.25);
+        // 25% fudge factor on the base throughput * liveRatio calculation.  (Based on observed
+        // pre-slabbing behavior -- not sure what accounts for this. May have changed with introduction of slabbing.)
+        return (long) (currentThroughput.get() * cfs.liveRatio * 1.25) + allocator.size();
     }
 
     public long getSerializedSize()
@@ -192,11 +196,25 @@ public class Memtable
                                     ? cf.isMarkedForDelete() ? 1 : 0
                                     : cf.getColumnCount());
 
-        ColumnFamily oldCf = columnFamilies.putIfAbsent(key, cf);
-        if (oldCf == null)
-            return;
+        ColumnFamily clonedCf = columnFamilies.get(key);
+        // if the row doesn't exist yet in the memtable, clone cf to our allocator.
+        if (clonedCf == null)
+        {
+            clonedCf = cf.cloneMeShallow();
+            for (IColumn column : cf.getSortedColumns())
+                clonedCf.addColumn(column.localCopy(cfs, allocator));
+            clonedCf = columnFamilies.putIfAbsent(new DecoratedKey(key.token, allocator.clone(key.key)), clonedCf);
+            if (clonedCf == null)
+                return;
+            // else there was a race and the other thread won.  fall through to updating his CF object
+        }
 
-        oldCf.resolve(cf);
+        // we duplicate the funcationality of CF.resolve here to avoid having to either pass the Memtable in for
+        // the cloning operation, or cloning the CF container as well as the Columns.  fortunately, resolve
+        // is really quite simple:
+        clonedCf.delete(cf);
+        for (IColumn column : cf.getSortedColumns())
+            clonedCf.addColumn(column.localCopy(cfs, allocator), allocator);
     }
 
     // for debugging

@@ -164,7 +164,7 @@ public class CounterMutationTest extends CleanupHelper
         }
 
         // Check that if we merge old and clean on another node, we keep the right count
-        ByteBuffer onRemote = ctx.merge(ctx.clearAllDelta(state.context), ctx.clearAllDelta(cleaned));
+        ByteBuffer onRemote = ctx.merge(ctx.clearAllDelta(state.context), ctx.clearAllDelta(cleaned), HeapAllocator.instance);
         assert ctx.total(onRemote) == 11;
     }
 }

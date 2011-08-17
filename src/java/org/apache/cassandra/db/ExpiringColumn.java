@@ -26,7 +26,9 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.utils.Allocator;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.HeapAllocator;
 
 /**
  * Alternative to Column that have an expiring time.
@@ -117,7 +119,16 @@ public class ExpiringColumn extends Column
     @Override
     public IColumn localCopy(ColumnFamilyStore cfs)
     {
-        return new ExpiringColumn(cfs.internOrCopy(name), ByteBufferUtil.clone(value), timestamp, timeToLive, localExpirationTime);
+        return new ExpiringColumn(cfs.internOrCopy(name, HeapAllocator.instance), ByteBufferUtil.clone(value), timestamp, timeToLive, localExpirationTime);
+    }
+
+    @Override
+    public IColumn localCopy(ColumnFamilyStore cfs, Allocator allocator)
+    {
+        ByteBuffer clonedName = cfs.maybeIntern(name);
+        if (clonedName == null)
+            clonedName = allocator.clone(name);
+        return new ExpiringColumn(clonedName, allocator.clone(value), timestamp, timeToLive, localExpirationTime);
     }
     
     @Override

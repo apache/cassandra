@@ -110,10 +110,10 @@ public class ColumnFamilySerializer implements ICompactSerializer3<ColumnFamily>
 
     public ColumnFamily deserialize(DataInput dis) throws IOException
     {
-        return deserialize(dis, false, false, ThreadSafeSortedColumns.FACTORY);
+        return deserialize(dis, false, ThreadSafeSortedColumns.FACTORY);
     }
 
-    public ColumnFamily deserialize(DataInput dis, boolean intern, boolean fromRemote, ISortedColumns.Factory factory) throws IOException
+    public ColumnFamily deserialize(DataInput dis, boolean fromRemote, ISortedColumns.Factory factory) throws IOException
     {
         if (!dis.readBoolean())
             return null;
@@ -124,23 +124,22 @@ public class ColumnFamilySerializer implements ICompactSerializer3<ColumnFamily>
             throw new UnserializableColumnFamilyException("Couldn't find cfId=" + cfId, cfId);
         ColumnFamily cf = ColumnFamily.create(cfId, factory);
         deserializeFromSSTableNoColumns(cf, dis);
-        deserializeColumns(dis, cf, intern, fromRemote);
+        deserializeColumns(dis, cf, fromRemote);
         return cf;
     }
 
-    public void deserializeColumns(DataInput dis, ColumnFamily cf, boolean intern, boolean fromRemote) throws IOException
+    public void deserializeColumns(DataInput dis, ColumnFamily cf, boolean fromRemote) throws IOException
     {
-        int count = dis.readInt();
-        deserializeColumns(dis, cf, count, intern, fromRemote);
+        int size = dis.readInt();
+        deserializeColumns(dis, cf, size, fromRemote);
     }
 
     /* column count is already read from DataInput */
-    public void deserializeColumns(DataInput dis, ColumnFamily cf, int count, boolean intern, boolean fromRemote) throws IOException
+    public void deserializeColumns(DataInput dis, ColumnFamily cf, int size, boolean fromRemote) throws IOException
     {
-        ColumnFamilyStore interner = intern ? Table.open(CFMetaData.getCF(cf.id()).left).getColumnFamilyStore(cf.id()) : null;
-        for (int i = 0; i < count; ++i)
+        for (int i = 0; i < size; ++i)
         {
-            IColumn column = cf.getColumnSerializer().deserialize(dis, interner, fromRemote, (int) (System.currentTimeMillis() / 1000));
+            IColumn column = cf.getColumnSerializer().deserialize(dis, fromRemote, (int) (System.currentTimeMillis() / 1000));
             cf.addColumn(column);
         }
     }

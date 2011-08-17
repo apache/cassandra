@@ -25,9 +25,6 @@ import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.util.Collection;
 import java.util.Comparator;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.concurrent.ConcurrentSkipListMap;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -35,9 +32,10 @@ import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.io.IColumnSerializer;
 import org.apache.cassandra.io.util.ColumnSortedMap;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.utils.Allocator;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.HeapAllocator;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
-
 
 public class SuperColumn extends AbstractColumnContainer implements IColumn
 {
@@ -160,21 +158,21 @@ public class SuperColumn extends AbstractColumnContainer implements IColumn
     }
 
     @Override
-    public void addColumn(IColumn column)
+    public void addColumn(IColumn column, Allocator allocator)
     {
         assert column instanceof Column : "A super column can only contain simple columns";
-        super.addColumn((Column)column);
+        super.addColumn(column, allocator);
     }
 
     /*
      * Go through each sub column if it exists then as it to resolve itself
      * if the column does not exist then create it.
      */
-    void putColumn(SuperColumn column)
+    void putColumn(SuperColumn column, Allocator allocator)
     {
         for (IColumn subColumn : column.getSubColumns())
         {
-        	addColumn(subColumn);
+        	addColumn(subColumn, allocator);
         }
         delete(column);
     }
@@ -255,29 +253,33 @@ public class SuperColumn extends AbstractColumnContainer implements IColumn
         return mostRecentLiveChangeAt() > getMarkedForDeleteAt();
     }
 
-    public IColumn shallowCopy()
-    {
-        SuperColumn sc = new SuperColumn(ByteBufferUtil.clone(name()), this.getComparator());
-        // since deletion info is immutable, aliasing it is fine
-        sc.deletionInfo.set(deletionInfo.get());
-        return sc;
-    }
-    
     public IColumn localCopy(ColumnFamilyStore cfs)
+    {
+        return localCopy(cfs, HeapAllocator.instance);
+    }
+
+    public IColumn localCopy(ColumnFamilyStore cfs, Allocator allocator)
     {
         // we don't try to intern supercolumn names, because if we're using Cassandra correctly it's almost
         // certainly just going to pollute our interning map with unique, dynamic values
-        SuperColumn sc = (SuperColumn)shallowCopy();
+        SuperColumn sc = new SuperColumn(allocator.clone(name), this.getComparator());
+        // since deletion info is immutable, aliasing it is fine
+        sc.deletionInfo.set(deletionInfo.get());
 
         for(IColumn c : columns)
         {
-            sc.addColumn(c.localCopy(cfs));
+            sc.addColumn(c.localCopy(cfs, allocator));
         }
 
         return sc;
     }
 
     public IColumn reconcile(IColumn c)
+    {
+        return reconcile(null, null);
+    }
+
+    public IColumn reconcile(IColumn c, Allocator allocator)
     {
         throw new UnsupportedOperationException("This operation is unsupported on super columns.");
     }
@@ -335,20 +337,15 @@ class SuperColumnSerializer implements IColumnSerializer
 
     public IColumn deserialize(DataInput dis) throws IOException
     {
-        return deserialize(dis, null, false);
+        return deserialize(dis, false);
     }
 
-    public IColumn deserialize(DataInput dis, ColumnFamilyStore interner) throws IOException
+    public IColumn deserialize(DataInput dis, boolean fromRemote) throws IOException
     {
-        return deserialize(dis, interner, false);
+        return deserialize(dis, fromRemote, (int)(System.currentTimeMillis() / 1000));
     }
 
-    public IColumn deserialize(DataInput dis, ColumnFamilyStore interner, boolean fromRemote) throws IOException
-    {
-        return deserialize(dis, interner, fromRemote, (int)(System.currentTimeMillis() / 1000));
-    }
-
-    public IColumn deserialize(DataInput dis, ColumnFamilyStore interner, boolean fromRemote, int expireBefore) throws IOException
+    public IColumn deserialize(DataInput dis, boolean fromRemote, int expireBefore) throws IOException
     {
         ByteBuffer name = ByteBufferUtil.readWithShortLength(dis);
         int localDeleteTime = dis.readInt();
@@ -361,7 +358,7 @@ class SuperColumnSerializer implements IColumnSerializer
         /* read the number of columns */
         int size = dis.readInt();
         ColumnSerializer serializer = Column.serializer();
-        ColumnSortedMap preSortedMap = new ColumnSortedMap(comparator, serializer, dis, interner, size, fromRemote, expireBefore);
+        ColumnSortedMap preSortedMap = new ColumnSortedMap(comparator, serializer, dis, size, fromRemote, expireBefore);
         SuperColumn superColumn = new SuperColumn(name, ThreadSafeSortedColumns.factory().fromSorted(preSortedMap, false));
         if (localDeleteTime != Integer.MIN_VALUE && localDeleteTime <= 0)
         {

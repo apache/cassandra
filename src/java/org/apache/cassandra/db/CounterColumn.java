@@ -31,7 +31,9 @@ import org.apache.cassandra.db.context.IContext.ContextRelationship;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.utils.Allocator;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.HeapAllocator;
 import org.apache.cassandra.utils.NodeId;
 
 /**
@@ -47,12 +49,12 @@ public class CounterColumn extends Column
 
     public CounterColumn(ByteBuffer name, long value, long timestamp)
     {
-        this(name, contextManager.create(value), timestamp);
+        this(name, contextManager.create(value, HeapAllocator.instance), timestamp);
     }
 
     public CounterColumn(ByteBuffer name, long value, long timestamp, long timestampOfLastDelete)
     {
-        this(name, contextManager.create(value), timestamp, timestampOfLastDelete);
+        this(name, contextManager.create(value, HeapAllocator.instance), timestamp, timestampOfLastDelete);
     }
 
     public CounterColumn(ByteBuffer name, ByteBuffer value, long timestamp)
@@ -135,7 +137,7 @@ public class CounterColumn extends Column
     }
 
     @Override
-    public IColumn reconcile(IColumn column)
+    public IColumn reconcile(IColumn column, Allocator allocator)
     {
         assert (column instanceof CounterColumn) || (column instanceof DeletedColumn) : "Wrong class type.";
 
@@ -162,7 +164,7 @@ public class CounterColumn extends Column
         // live + live: merge clocks; update value
         return new CounterColumn(
             name(),
-            contextManager.merge(value(), column.value()),
+            contextManager.merge(value(), column.value(), allocator),
             Math.max(timestamp(), column.timestamp()),
             Math.max(timestampOfLastDelete(), ((CounterColumn)column).timestampOfLastDelete()));
     }
@@ -185,7 +187,13 @@ public class CounterColumn extends Column
     @Override
     public IColumn localCopy(ColumnFamilyStore cfs)
     {
-        return new CounterColumn(cfs.internOrCopy(name), ByteBufferUtil.clone(value), timestamp, timestampOfLastDelete);
+        return new CounterColumn(cfs.internOrCopy(name, HeapAllocator.instance), ByteBufferUtil.clone(value), timestamp, timestampOfLastDelete);
+    }
+
+    @Override
+    public IColumn localCopy(ColumnFamilyStore cfs, Allocator allocator)
+    {
+        return new CounterColumn(cfs.internOrCopy(name, allocator), allocator.clone(value), timestamp, timestampOfLastDelete);
     }
 
     @Override

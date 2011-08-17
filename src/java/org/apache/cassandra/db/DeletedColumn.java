@@ -22,7 +22,9 @@ import java.nio.ByteBuffer;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.marshal.MarshalException;
+import org.apache.cassandra.utils.Allocator;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.HeapAllocator;
 
 public class DeletedColumn extends Column
 {    
@@ -55,17 +57,23 @@ public class DeletedColumn extends Column
     }
 
     @Override
-    public IColumn reconcile(IColumn column)
+    public IColumn reconcile(IColumn column, Allocator allocator)
     {
         if (column instanceof DeletedColumn)
-            return super.reconcile(column);
-        return column.reconcile(this);
+            return super.reconcile(column, allocator);
+        return column.reconcile(this, allocator);
     }
     
     @Override
     public IColumn localCopy(ColumnFamilyStore cfs)
     {
-        return new DeletedColumn(cfs.internOrCopy(name), ByteBufferUtil.clone(value), timestamp);
+        return new DeletedColumn(cfs.internOrCopy(name, HeapAllocator.instance), ByteBufferUtil.clone(value), timestamp);
+    }
+
+    @Override
+    public IColumn localCopy(ColumnFamilyStore cfs, Allocator allocator)
+    {
+        return new DeletedColumn(cfs.internOrCopy(name, allocator), allocator.clone(value), timestamp);
     }
 
     @Override

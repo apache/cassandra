@@ -66,7 +66,7 @@ public class Row
         public Row deserialize(DataInputStream dis, int version, boolean fromRemote, ISortedColumns.Factory factory) throws IOException
         {
             return new Row(StorageService.getPartitioner().decorateKey(ByteBufferUtil.readWithShortLength(dis)),
-                           ColumnFamily.serializer().deserialize(dis, false, fromRemote, factory));
+                           ColumnFamily.serializer().deserialize(dis, fromRemote, factory));
         }
 
         public Row deserialize(DataInputStream dis, int version) throws IOException

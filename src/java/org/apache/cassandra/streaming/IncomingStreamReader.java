@@ -148,7 +148,7 @@ public class IncomingStreamReader
                         // restore ColumnFamily
                         cf = ColumnFamily.create(cfs.metadata);
                         ColumnFamily.serializer().deserializeFromSSTableNoColumns(cf, in);
-                        ColumnFamily.serializer().deserializeColumns(in, cf, true, true);
+                        ColumnFamily.serializer().deserializeColumns(in, cf, true);
 
                         // write key and cf
                         writer.append(key, cf);

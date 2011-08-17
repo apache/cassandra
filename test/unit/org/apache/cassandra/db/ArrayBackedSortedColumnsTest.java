@@ -1,21 +1,15 @@
 package org.apache.cassandra.db;
 
-import java.io.ByteArrayInputStream;
-import java.io.DataInputStream;
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import org.apache.cassandra.SchemaLoader;
 import org.junit.Test;
 
-import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.db.filter.QueryPath;
-import static org.apache.cassandra.Util.column;
 import static org.junit.Assert.*;
 
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.utils.HeapAllocator;
 
 public class ArrayBackedSortedColumnsTest
 {
@@ -32,7 +26,7 @@ public class ArrayBackedSortedColumnsTest
         int[] values = new int[]{ 1, 2, 2, 3 };
 
         for (int i = 0; i < values.length; ++i)
-            map.addColumn(new Column(ByteBufferUtil.bytes(values[reversed ? values.length - 1 - i : i])));
+            map.addColumn(new Column(ByteBufferUtil.bytes(values[reversed ? values.length - 1 - i : i])), HeapAllocator.instance);
 
         Iterator<IColumn> iter = map.iterator();
         assertEquals("1st column", 1, iter.next().name().getInt(0));
@@ -56,12 +50,12 @@ public class ArrayBackedSortedColumnsTest
         int[] values2 = new int[]{ 2, 4, 5, 6 };
 
         for (int i = 0; i < values1.length; ++i)
-            map.addColumn(new Column(ByteBufferUtil.bytes(values1[reversed ? values1.length - 1 - i : i])));
+            map.addColumn(new Column(ByteBufferUtil.bytes(values1[reversed ? values1.length - 1 - i : i])), HeapAllocator.instance);
 
         for (int i = 0; i < values2.length; ++i)
-            map2.addColumn(new Column(ByteBufferUtil.bytes(values2[reversed ? values2.length - 1 - i : i])));
+            map2.addColumn(new Column(ByteBufferUtil.bytes(values2[reversed ? values2.length - 1 - i : i])), HeapAllocator.instance);
 
-        map2.addAll(map);
+        map2.addAll(map, HeapAllocator.instance);
 
         Iterator<IColumn> iter = map2.iterator();
         assertEquals("1st column", 1, iter.next().name().getInt(0));
@@ -91,7 +85,7 @@ public class ArrayBackedSortedColumnsTest
         Collections.reverse(reverseSorted);
 
         for (int i = 0; i < values.length; ++i)
-            map.addColumn(new Column(ByteBufferUtil.bytes(values[reversed ? values.length - 1 - i : i])));
+            map.addColumn(new Column(ByteBufferUtil.bytes(values[reversed ? values.length - 1 - i : i])), HeapAllocator.instance);
 
         assertSame(sorted, map.getSortedColumns());
         assertSame(reverseSorted, map.getReverseSortedColumns());
@@ -113,7 +107,7 @@ public class ArrayBackedSortedColumnsTest
             names.add(ByteBufferUtil.bytes(v));
 
         for (int i = 0; i < values.length; ++i)
-            map.addColumn(new Column(ByteBufferUtil.bytes(values[reversed ? values.length - 1 - i : i])));
+            map.addColumn(new Column(ByteBufferUtil.bytes(values[reversed ? values.length - 1 - i : i])), HeapAllocator.instance);
 
         assertSame(names, map.getColumnNames());
     }

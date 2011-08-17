@@ -40,7 +40,9 @@ import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.io.util.FastByteArrayOutputStream;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.Allocator;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.HeapAllocator;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.thrift.ConsistencyLevel;
 
@@ -144,7 +146,7 @@ public class CounterMutation implements IMutation
                 localMutation.add(merger);
                 localMutation.apply();
 
-                cf.addAll(merger);
+                cf.addAll(merger, HeapAllocator.instance);
             }
         }
         return row;
@@ -216,8 +218,7 @@ public class CounterMutation implements IMutation
 
     public void apply() throws IOException
     {
-        // We need to transform all CounterUpdateColumn to CounterColumn and we need to deepCopy. Both are done 
-        // below since CUC.asCounterColumn() does a deep copy.
+        // transform all CounterUpdateColumn to CounterColumn: accomplished by localCopy
         RowMutation rm = new RowMutation(rowMutation.getTable(), ByteBufferUtil.clone(rowMutation.key()));
         Table table = Table.open(rm.getTable());
 
@@ -227,7 +228,7 @@ public class CounterMutation implements IMutation
             ColumnFamilyStore cfs = table.getColumnFamilyStore(cf.id());
             for (IColumn column : cf_)
             {
-                cf.addColumn(column.localCopy(cfs));
+                cf.addColumn(column.localCopy(cfs), HeapAllocator.instance);
             }
             rm.add(cf);
         }

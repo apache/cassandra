@@ -69,7 +69,7 @@ public class ColumnSerializer implements IColumnSerializer
 
     public Column deserialize(DataInput dis) throws IOException
     {
-        return deserialize(dis, null, false);
+        return deserialize(dis, false);
     }
 
     /*
@@ -77,18 +77,16 @@ public class ColumnSerializer implements IColumnSerializer
      * deserialize comes from a remote host. If it does, then we must clear
      * the delta.
      */
-    public Column deserialize(DataInput dis, ColumnFamilyStore interner, boolean fromRemote) throws IOException
+    public Column deserialize(DataInput dis, boolean fromRemote) throws IOException
     {
-        return deserialize(dis, interner, fromRemote, (int) (System.currentTimeMillis() / 1000));
+        return deserialize(dis, fromRemote, (int) (System.currentTimeMillis() / 1000));
     }
 
-    public Column deserialize(DataInput dis, ColumnFamilyStore interner, boolean fromRemote, int expireBefore) throws IOException
+    public Column deserialize(DataInput dis, boolean fromRemote, int expireBefore) throws IOException
     {
         ByteBuffer name = ByteBufferUtil.readWithShortLength(dis);
         if (name.remaining() <= 0)
             throw new CorruptColumnException("invalid column name length " + name.remaining());
-        if (interner != null)
-            name = interner.maybeIntern(name);
 
         int b = dis.readUnsignedByte();
         if ((b & COUNTER_MASK) != 0)

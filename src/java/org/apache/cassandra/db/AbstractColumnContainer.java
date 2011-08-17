@@ -35,7 +35,9 @@ import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.ICompactSerializer2;
 import org.apache.cassandra.io.util.IIterableColumns;
+import org.apache.cassandra.utils.Allocator;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.HeapAllocator;
 
 public abstract class AbstractColumnContainer implements IColumnContainer, IIterableColumns
 {
@@ -105,15 +107,20 @@ public abstract class AbstractColumnContainer implements IColumnContainer, IIter
     /**
      * We need to go through each column in the column container and resolve it before adding
      */
-    public void addAll(AbstractColumnContainer cc)
+    public void addAll(AbstractColumnContainer cc, Allocator allocator)
     {
-        columns.addAll(cc.columns);
+        columns.addAll(cc.columns, allocator);
         delete(cc);
     }
 
     public void addColumn(IColumn column)
     {
-        columns.addColumn(column);
+        addColumn(column, HeapAllocator.instance);
+    }
+
+    public void addColumn(IColumn column, Allocator allocator)
+    {
+        columns.addColumn(column, allocator);
     }
 
     public IColumn getColumn(ByteBuffer name)

@@ -36,6 +36,7 @@ import org.apache.cassandra.db.CounterColumn;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.utils.HeapAllocator;
 
 /**
  * PrecompactedRow merges its rows in its constructor in memory.
@@ -96,7 +97,7 @@ public class PrecompactedRow extends AbstractCompactedRow
             }
             else
             {
-                cf.addAll(thisCF);
+                cf.addAll(thisCF, HeapAllocator.instance);
             }
         }
         return cf;

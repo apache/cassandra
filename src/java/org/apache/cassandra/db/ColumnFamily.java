@@ -31,7 +31,9 @@ import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.io.IColumnSerializer;
+import org.apache.cassandra.utils.Allocator;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.HeapAllocator;
 
 public class ColumnFamily extends AbstractColumnContainer
 {
@@ -121,6 +123,10 @@ public class ColumnFamily extends AbstractColumnContainer
         return cfm;
     }
 
+    /**
+     * FIXME: shouldn't need to hold a reference to a serializer; worse, for super cfs,
+     * it will be a _unique_ serializer object per row
+     */
     public IColumnSerializer getColumnSerializer()
     {
         return cfm.getColumnSerializer();
@@ -302,10 +308,15 @@ public class ColumnFamily extends AbstractColumnContainer
 
     public void resolve(ColumnFamily cf)
     {
+        resolve(cf, HeapAllocator.instance);
+    }
+
+    public void resolve(ColumnFamily cf, Allocator allocator)
+    {
         // Row _does_ allow null CF objects :(  seems a necessary evil for efficiency
         if (cf == null)
             return;
-        addAll(cf);
+        addAll(cf, allocator);
     }
 
     public long serializedSize()

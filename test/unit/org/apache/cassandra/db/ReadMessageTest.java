@@ -95,7 +95,7 @@ public class ReadMessageTest extends SchemaLoader
         ReadCommand command = new SliceByNamesReadCommand("Keyspace1", dk.key, new QueryPath("Standard1"), Arrays.asList(ByteBufferUtil.bytes("Column1")));
         Row row = command.getRow(table);
         IColumn col = row.cf.getColumn(ByteBufferUtil.bytes("Column1"));
-        assert Arrays.equals(col.value().array(), "abcd".getBytes());  
+        assertEquals(col.value(), ByteBuffer.wrap("abcd".getBytes()));
     }
     
     @Test 

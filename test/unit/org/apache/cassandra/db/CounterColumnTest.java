@@ -40,6 +40,8 @@ import org.apache.cassandra.db.context.CounterContext;
 import static org.apache.cassandra.db.context.CounterContext.ContextState;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.utils.Allocator;
+import org.apache.cassandra.utils.HeapAllocator;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.NodeId;
@@ -205,6 +207,7 @@ public class CounterColumnTest extends SchemaLoader
     @Test
     public void testDiff() throws UnknownHostException
     {
+        Allocator allocator = HeapAllocator.instance;
         ContextState left;
         ContextState right;
 
@@ -226,7 +229,7 @@ public class CounterColumnTest extends SchemaLoader
         assert null     == rightCol.diff(leftCol);
 
         // equality: equal nodes, all counts same
-        left = ContextState.allocate(3, 0);
+        left = ContextState.allocate(3, 0, allocator);
         left.writeElement(NodeId.fromInt(3), 3L, 0L);
         left.writeElement(NodeId.fromInt(6), 2L, 0L);
         left.writeElement(NodeId.fromInt(9), 1L, 0L);
@@ -237,13 +240,13 @@ public class CounterColumnTest extends SchemaLoader
         assert null == leftCol.diff(rightCol);
 
         // greater than: left has superset of nodes (counts equal)
-        left = ContextState.allocate(4, 0);
+        left = ContextState.allocate(4, 0, allocator);
         left.writeElement(NodeId.fromInt(3), 3L, 0L);
         left.writeElement(NodeId.fromInt(6), 2L, 0L);
         left.writeElement(NodeId.fromInt(9), 1L, 0L);
         left.writeElement(NodeId.fromInt(12), 0L, 0L);
 
-        right = ContextState.allocate(3, 0);
+        right = ContextState.allocate(3, 0, allocator);
         right.writeElement(NodeId.fromInt(3), 3L, 0L);
         right.writeElement(NodeId.fromInt(6), 2L, 0L);
         right.writeElement(NodeId.fromInt(9), 1L, 0L);
@@ -256,12 +259,12 @@ public class CounterColumnTest extends SchemaLoader
         assert leftCol == rightCol.diff(leftCol);
 
         // disjoint: right and left have disjoint node sets
-        left = ContextState.allocate(3, 0);
+        left = ContextState.allocate(3, 0, allocator);
         left.writeElement(NodeId.fromInt(3), 1L, 0L);
         left.writeElement(NodeId.fromInt(4), 1L, 0L);
         left.writeElement(NodeId.fromInt(9), 1L, 0L);
 
-        right = ContextState.allocate(3, 0);
+        right = ContextState.allocate(3, 0, allocator);
         right.writeElement(NodeId.fromInt(3), 1L, 0L);
         right.writeElement(NodeId.fromInt(6), 1L, 0L);
         right.writeElement(NodeId.fromInt(9), 1L, 0L);
@@ -275,7 +278,8 @@ public class CounterColumnTest extends SchemaLoader
     @Test
     public void testSerializeDeserialize() throws IOException
     {
-        CounterContext.ContextState state = CounterContext.ContextState.allocate(4, 2);
+        Allocator allocator = HeapAllocator.instance;
+        CounterContext.ContextState state = CounterContext.ContextState.allocate(4, 2, allocator);
         state.writeElement(NodeId.fromInt(1), 4L, 4L);
         state.writeElement(NodeId.fromInt(2), 4L, 4L, true);
         state.writeElement(NodeId.fromInt(3), 4L, 4L);
@@ -291,7 +295,7 @@ public class CounterColumnTest extends SchemaLoader
         assert original.equals(deserialized);
 
         bufIn = new ByteArrayInputStream(serialized, 0, serialized.length);
-        CounterColumn deserializedOnRemote = (CounterColumn)Column.serializer().deserialize(new DataInputStream(bufIn), null, true);
+        CounterColumn deserializedOnRemote = (CounterColumn)Column.serializer().deserialize(new DataInputStream(bufIn), true);
         assert deserializedOnRemote.name().equals(original.name());
         assert deserializedOnRemote.total() == original.total();
         assert deserializedOnRemote.value().equals(cc.clearAllDelta(original.value()));
@@ -302,10 +306,11 @@ public class CounterColumnTest extends SchemaLoader
     @Test
     public void testUpdateDigest() throws Exception
     {
+        Allocator allocator = HeapAllocator.instance;
         MessageDigest digest1 = MessageDigest.getInstance("md5");
         MessageDigest digest2 = MessageDigest.getInstance("md5");
 
-        CounterContext.ContextState state = CounterContext.ContextState.allocate(4, 2);
+        CounterContext.ContextState state = CounterContext.ContextState.allocate(4, 2, allocator);
         state.writeElement(NodeId.fromInt(1), 4L, 4L);
         state.writeElement(NodeId.fromInt(2), 4L, 4L, true);
         state.writeElement(NodeId.fromInt(3), 4L, 4L);

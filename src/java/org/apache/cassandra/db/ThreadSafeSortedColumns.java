@@ -18,15 +18,14 @@
 package org.apache.cassandra.db;
 
 import java.nio.ByteBuffer;
-import java.util.Comparator;
 import java.util.Collection;
 import java.util.Iterator;
-import java.util.Map;
 import java.util.SortedMap;
 import java.util.SortedSet;
 import java.util.concurrent.ConcurrentSkipListMap;
 
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.utils.Allocator;
 
 public class ThreadSafeSortedColumns extends ConcurrentSkipListMap<ByteBuffer, IColumn> implements ISortedColumns
 {
@@ -72,7 +71,7 @@ public class ThreadSafeSortedColumns extends ConcurrentSkipListMap<ByteBuffer, I
      * If we find an old column that has the same name
      * the ask it to resolve itself else add the new column
     */
-    public void addColumn(IColumn column)
+    public void addColumn(IColumn column, Allocator allocator)
     {
         ByteBuffer name = column.name();
         IColumn oldColumn;
@@ -81,13 +80,13 @@ public class ThreadSafeSortedColumns extends ConcurrentSkipListMap<ByteBuffer, I
             if (oldColumn instanceof SuperColumn)
             {
                 assert column instanceof SuperColumn;
-                ((SuperColumn) oldColumn).putColumn((SuperColumn)column);
+                ((SuperColumn) oldColumn).putColumn((SuperColumn)column, allocator);
                 break;  // Delegated to SuperColumn
             }
             else
             {
                 // calculate reconciled col from old (existing) col and new col
-                IColumn reconciledColumn = column.reconcile(oldColumn);
+                IColumn reconciledColumn = column.reconcile(oldColumn, allocator);
                 if (replace(name, oldColumn, reconciledColumn))
                     break;
 
@@ -100,10 +99,10 @@ public class ThreadSafeSortedColumns extends ConcurrentSkipListMap<ByteBuffer, I
     /**
      * We need to go through each column in the column container and resolve it before adding
      */
-    public void addAll(ISortedColumns cm)
+    public void addAll(ISortedColumns cm, Allocator allocator)
     {
         for (IColumn column : cm.getSortedColumns())
-            addColumn(column);
+            addColumn(column, allocator);
     }
 
     public boolean replace(IColumn oldColumn, IColumn newColumn)

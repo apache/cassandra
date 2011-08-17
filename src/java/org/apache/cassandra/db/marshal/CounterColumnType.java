@@ -25,6 +25,7 @@ import java.nio.ByteBuffer;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.HeapAllocator;
 
 public class CounterColumnType extends AbstractCommutativeType
 {

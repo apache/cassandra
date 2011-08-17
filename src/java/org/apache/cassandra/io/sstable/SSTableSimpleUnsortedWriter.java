@@ -28,6 +28,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.HeapAllocator;
 
 /**
  * A SSTable writer that doesn't assume rows are in sorted order.
@@ -74,7 +75,7 @@ public class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
         // Note that if the row was existing already, our size estimation will be slightly off
         // since we'll be counting the key multiple times.
         if (previous != null)
-            columnFamily.addAll(previous);
+            columnFamily.addAll(previous, HeapAllocator.instance);
 
         if (currentSize > bufferSize)
             sync();

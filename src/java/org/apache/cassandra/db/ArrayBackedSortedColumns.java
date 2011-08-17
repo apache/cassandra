@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.utils.Allocator;
 
 /**
  * A ISortedColumns backed by an ArrayList.
@@ -100,7 +101,7 @@ public class ArrayBackedSortedColumns extends ArrayList<IColumn> implements ISor
      * without knowing about (we can revisit that decision later if we have
      * use cases where most insert are in sorted order but a few are not).
      */
-    public void addColumn(IColumn column)
+    public void addColumn(IColumn column, Allocator allocator)
     {
         if (isEmpty())
         {
@@ -122,13 +123,13 @@ public class ArrayBackedSortedColumns extends ArrayList<IColumn> implements ISor
         else if (c == 0)
         {
             // Resolve against last
-            resolveAgainst(size() - 1, column);
+            resolveAgainst(size() - 1, column, allocator);
         }
         else
         {
             int pos = binarySearch(column.name());
             if (pos >= 0)
-                resolveAgainst(pos, column);
+                resolveAgainst(pos, column, allocator);
             else
                 add(-pos-1, column);
         }
@@ -138,19 +139,19 @@ public class ArrayBackedSortedColumns extends ArrayList<IColumn> implements ISor
      * Resolve against element at position i.
      * Assume that i is a valid position.
      */
-    private void resolveAgainst(int i, IColumn column)
+    private void resolveAgainst(int i, IColumn column, Allocator allocator)
     {
         IColumn oldColumn = get(i);
         if (oldColumn instanceof SuperColumn)
         {
             // Delegated to SuperColumn
             assert column instanceof SuperColumn;
-            ((SuperColumn) oldColumn).putColumn((SuperColumn)column);
+            ((SuperColumn) oldColumn).putColumn((SuperColumn)column, allocator);
         }
         else
         {
             // calculate reconciled col from old (existing) col and new col
-            IColumn reconciledColumn = column.reconcile(oldColumn);
+            IColumn reconciledColumn = column.reconcile(oldColumn, allocator);
             set(i, reconciledColumn);
         }
     }
@@ -186,7 +187,7 @@ public class ArrayBackedSortedColumns extends ArrayList<IColumn> implements ISor
         return -mid - (result < 0 ? 1 : 2);
     }
 
-    public void addAll(ISortedColumns cm)
+    public void addAll(ISortedColumns cm, Allocator allocator)
     {
         if (cm.isEmpty())
             return;
@@ -214,7 +215,7 @@ public class ArrayBackedSortedColumns extends ArrayList<IColumn> implements ISor
             else // c == 0
             {
                 add(copy[idx]);
-                resolveAgainst(size() - 1, otherColumn);
+                resolveAgainst(size() - 1, otherColumn, allocator);
                 idx++;
                 otherColumn = other.hasNext() ? other.next() : null;
             }

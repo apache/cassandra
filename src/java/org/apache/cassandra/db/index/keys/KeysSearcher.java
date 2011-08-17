@@ -44,6 +44,8 @@ import org.apache.cassandra.thrift.IndexClause;
 import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.thrift.IndexOperator;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.HeapAllocator;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -248,7 +250,7 @@ public class KeysSearcher extends SecondaryIndexSearcher
                         assert !extraFilter.columns.isEmpty();
                         ColumnFamily cf = baseCfs.getColumnFamily(new QueryFilter(dk, path, extraFilter));
                         if (cf != null)
-                            data.addAll(cf);
+                            data.addAll(cf, HeapAllocator.instance);
                     }
 
                 }

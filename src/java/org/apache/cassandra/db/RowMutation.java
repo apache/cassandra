@@ -373,23 +373,6 @@ public class RowMutation implements IMutation, MessageProducer
         return rm;
     }
 
-    public RowMutation localCopy()
-    {
-        RowMutation rm = new RowMutation(table_, ByteBufferUtil.clone(key_));
-
-        Table table = Table.open(table_);
-        for (Map.Entry<Integer, ColumnFamily> entry : modifications_.entrySet())
-        {
-            ColumnFamily cf = entry.getValue().cloneMeShallow();
-            ColumnFamilyStore cfs = table.getColumnFamilyStore(cf.id());
-            for (IColumn col : entry.getValue())
-                cf.addColumn(col.localCopy(cfs));
-            rm.modifications_.put(entry.getKey(), cf);
-        }
-
-        return rm;
-    }
-
     public static class RowMutationSerializer implements ICompactSerializer<RowMutation>
     {
         public void serialize(RowMutation rm, DataOutputStream dos, int version) throws IOException
@@ -419,7 +402,7 @@ public class RowMutation implements IMutation, MessageProducer
             for (int i = 0; i < size; ++i)
             {
                 Integer cfid = Integer.valueOf(dis.readInt());
-                ColumnFamily cf = ColumnFamily.serializer().deserialize(dis, true, fromRemote, ThreadSafeSortedColumns.FACTORY);
+                ColumnFamily cf = ColumnFamily.serializer().deserialize(dis, fromRemote, ThreadSafeSortedColumns.FACTORY);
                 modifications.put(cfid, cf);
             }
             return new RowMutation(table, key, modifications);

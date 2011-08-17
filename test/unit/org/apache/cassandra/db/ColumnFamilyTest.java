@@ -31,6 +31,7 @@ import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.db.filter.QueryPath;
 import static org.apache.cassandra.Util.column;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.HeapAllocator;
 
 
 public class ColumnFamilyTest extends SchemaLoader
@@ -126,8 +127,8 @@ public class ColumnFamilyTest extends SchemaLoader
         cf_old.addColumn(QueryPath.column(ByteBufferUtil.bytes("col2")), val2, 1);
         cf_old.addColumn(QueryPath.column(ByteBufferUtil.bytes("col3")), val2, 2);
 
-        cf_result.addAll(cf_new);
-        cf_result.addAll(cf_old);
+        cf_result.addAll(cf_new, HeapAllocator.instance);
+        cf_result.addAll(cf_old, HeapAllocator.instance);
 
         assert 3 == cf_result.getColumnCount() : "Count is " + cf_new.getColumnCount();
         //addcolumns will only add if timestamp >= old timestamp
