@@ -20,11 +20,13 @@ package org.apache.cassandra.service;
  * 
  */
 
+import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
+import java.lang.management.MemoryMXBean;
 import java.lang.management.MemoryUsage;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
@@ -45,32 +47,22 @@ public class GCInspector
     public static final GCInspector instance = new GCInspector();
 
     private HashMap<String, Long> gctimes = new HashMap<String, Long>();
+    private HashMap<String, Long> gccounts = new HashMap<String, Long>();
 
-    List<Object> beans = new ArrayList<Object>(); // these are instances of com.sun.management.GarbageCollectorMXBean
+    List<GarbageCollectorMXBean> beans = new ArrayList<GarbageCollectorMXBean>();
+    MemoryMXBean membean = ManagementFactory.getMemoryMXBean();
+
     private volatile boolean cacheSizesReduced;
 
     public GCInspector()
     {
-        // we only want this class to do its thing on sun jdks, or when the sun classes are present.
-        Class gcBeanClass = null;
-        try
-        {
-            gcBeanClass = Class.forName("com.sun.management.GarbageCollectorMXBean");
-            Class.forName("com.sun.management.GcInfo");
-        }
-        catch (ClassNotFoundException ex)
-        {
-            // this happens when using a non-sun jdk.
-            logger.warn("Cannot load sun GC monitoring classes. GCInspector is disabled.");
-        }
-        
         MBeanServer server = ManagementFactory.getPlatformMBeanServer();
         try
         {
             ObjectName gcName = new ObjectName(ManagementFactory.GARBAGE_COLLECTOR_MXBEAN_DOMAIN_TYPE + ",*");
             for (ObjectName name : server.queryNames(gcName, null))
             {
-                Object gc = ManagementFactory.newPlatformMXBeanProxy(server, name.getCanonicalName(), gcBeanClass);
+                GarbageCollectorMXBean gc = ManagementFactory.newPlatformMXBeanProxy(server, name.getCanonicalName(), GarbageCollectorMXBean.class);
                 beans.add(gc);
             }
         }
@@ -97,43 +89,42 @@ public class GCInspector
 
     private void logGCResults()
     {
-        for (Object gc : beans)
+        for (GarbageCollectorMXBean gc : beans)
         {
-            SunGcWrapper gcw = new SunGcWrapper(gc);
-            if (gcw.isLastGcInfoNull())
+            Long previousTotal = gctimes.get(gc.getName());
+            Long total = gc.getCollectionTime();
+            if (previousTotal == null)
+                previousTotal = 0L;
+            if (previousTotal.equals(total))
                 continue;
+            gctimes.put(gc.getName(), total);
+            Long duration = total - previousTotal;
+            assert duration > 0;
 
-            Long previous = gctimes.get(gcw.getName());
-            if (previous != null && previous.longValue() == gcw.getCollectionTime().longValue())
-                continue;
-            gctimes.put(gcw.getName(), gcw.getCollectionTime());
+            Long previousCount = gccounts.get(gc.getName());
+            Long count = gc.getCollectionCount();
+            if (previousCount == null)
+                previousCount = 0L;
+            gccounts.put(gc.getName(), count);
+            assert count > previousCount;
 
-            long previousMemoryUsed = 0;
-            long memoryUsed = 0;
-            long memoryMax = 0;
-            for (Map.Entry<String, MemoryUsage> entry : gcw.getMemoryUsageBeforeGc().entrySet())
-            {
-                previousMemoryUsed += entry.getValue().getUsed();
-            }
-            for (Map.Entry<String, MemoryUsage> entry : gcw.getMemoryUsageAfterGc().entrySet())
-            {
-                MemoryUsage mu = entry.getValue();
-                memoryUsed += mu.getUsed();
-                memoryMax += mu.getMax();
-            }
+            MemoryUsage mu = membean.getHeapMemoryUsage();
+            long memoryUsed = mu.getUsed();
+            long memoryMax = mu.getMax();
 
-            String st = String.format("GC for %s: %s ms, %s reclaimed leaving %s used; max is %s",
-                                      gcw.getName(), gcw.getDuration(), previousMemoryUsed - memoryUsed, memoryUsed, memoryMax);
-            if (gcw.getDuration() > MIN_DURATION)
+            String st = String.format("GC for %s: %s ms for %s collections, %s used; max is %s",
+                                      gc.getName(), duration, count - previousCount, memoryUsed, memoryMax);
+            long durationPerCollection = duration / (count - previousCount);
+            if (durationPerCollection > MIN_DURATION)
                 logger.info(st);
             else if (logger.isDebugEnabled())
                 logger.debug(st);
 
-            if (gcw.getDuration() > MIN_DURATION_TPSTATS)
+            if (durationPerCollection > MIN_DURATION_TPSTATS)
                 StatusLogger.log();
 
             // if we just finished a full collection and we're still using a lot of memory, try to reduce the pressure
-            if (gcw.getName().equals("ConcurrentMarkSweep"))
+            if (gc.getName().equals("ConcurrentMarkSweep"))
             {
                 double usage = (double) memoryUsed / memoryMax;
 
@@ -150,84 +141,6 @@ public class GCInspector
                     StorageService.instance.flushLargestMemtables();
                 }
             }
-        }
-    }
-
-    // wrapper for sun class. this enables other jdks to compile this class.
-    private static final class SunGcWrapper
-    {
-        
-        private Map<String, MemoryUsage> usageBeforeGc = null;
-        private Map<String, MemoryUsage> usageAfterGc = null;
-        private String name;
-        private Long collectionTime;
-        private Long duration;
-        
-        SunGcWrapper(Object gcMxBean)
-        {
-            // if we've gotten this far, we've already verified that the right classes are in the CP. Now we just
-            // need to check for boneheadedness.
-            // grab everything we need here so that we don't have to deal with try/catch everywhere.
-            try
-            {
-                assert Class.forName("com.sun.management.GarbageCollectorMXBean").isAssignableFrom(gcMxBean.getClass());
-                Method getGcInfo = gcMxBean.getClass().getDeclaredMethod("getLastGcInfo");
-                Object lastGcInfo = getGcInfo.invoke(gcMxBean);
-                if (lastGcInfo != null)
-                {
-                    usageBeforeGc = (Map<String, MemoryUsage>)lastGcInfo.getClass().getDeclaredMethod("getMemoryUsageBeforeGc").invoke(lastGcInfo);
-                    usageAfterGc = (Map<String, MemoryUsage>)lastGcInfo.getClass().getDeclaredMethod("getMemoryUsageAfterGc").invoke(lastGcInfo);
-                    duration = (Long)lastGcInfo.getClass().getDeclaredMethod("getDuration").invoke(lastGcInfo);
-                    name = (String)gcMxBean.getClass().getDeclaredMethod("getName").invoke(gcMxBean);
-                    collectionTime = (Long)gcMxBean.getClass().getDeclaredMethod("getCollectionTime").invoke(gcMxBean);
-                }
-            }
-            catch (ClassNotFoundException e)
-            {
-                throw new RuntimeException(e);
-            }
-            catch (NoSuchMethodException e)
-            {
-                throw new RuntimeException(e);
-            }
-            catch (IllegalAccessException e)
-            {
-                throw new RuntimeException(e);
-            }
-            catch (InvocationTargetException e)
-            {
-                throw new RuntimeException(e);
-            }
-        }
-        
-        String getName()
-        {
-            return name;
-        }
-        
-        Long getCollectionTime()
-        {
-            return collectionTime;
-        }
-        
-        Long getDuration()
-        {
-            return duration;
-        }
-        
-        Map<String, MemoryUsage> getMemoryUsageAfterGc()
-        {
-            return usageAfterGc;
-        }
-        
-        Map<String, MemoryUsage> getMemoryUsageBeforeGc()
-        {
-            return usageBeforeGc;
-        }
-        
-        boolean isLastGcInfoNull()
-        {
-            return usageBeforeGc == null;
         }
     }
 }
