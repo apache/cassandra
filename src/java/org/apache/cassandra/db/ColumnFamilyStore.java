@@ -235,22 +235,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         List<SSTableReader> sstables = new ArrayList<SSTableReader>();
         for (Map.Entry<Descriptor,Set<Component>> sstableFiles : files(table.name, columnFamilyName, false, false).entrySet())
         {
-            SSTableReader sstable;
-            try
-            {
-                sstable = SSTableReader.open(sstableFiles.getKey(), sstableFiles.getValue(), savedKeys, data, metadata, this.partitioner);
-            }
-            catch (FileNotFoundException ex)
-            {
-                logger.error("Missing sstable component in " + sstableFiles + "; skipped because of " + ex.getMessage());
-                continue;
-            }
-            catch (IOException ex)
-            {
-                logger.error("Corrupt sstable " + sstableFiles + "; skipped", ex);
-                continue;
-            }
-            sstables.add(sstable);
+            SSTableReader reader = openSSTableReader(sstableFiles, savedKeys, data, metadata, partitioner);
+
+            if (reader != null) // if == null, logger errors where already fired
+                sstables.add(reader);
         }
         data.addSSTables(sstables);
 
@@ -509,6 +497,97 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         });
 
         return sstables;
+    }
+
+    /**
+     * See #{@code StorageService.loadNewSSTables(String, String)} for more info
+     *
+     * @param ksName The keyspace name
+     * @param cfName The columnFamily name
+     */
+    public static synchronized void loadNewSSTables(String ksName, String cfName)
+    {
+        /** ks/cf existence checks will be done by open and getCFS methods for us */
+        Table table = Table.open(ksName);
+        table.getColumnFamilyStore(cfName).loadNewSSTables();
+    }
+
+    /**
+     * #{@inheritDoc}
+     */
+    public synchronized void loadNewSSTables()
+    {
+        logger.info("Loading new SSTables for " + table.name + "/" + columnFamily + "...");
+
+        // current view over ColumnFamilyStore
+        DataTracker.View view = data.getView();
+        // descriptors of currently registered SSTables
+        Set<Descriptor> currentDescriptors = new HashSet<Descriptor>();
+        // going to hold new SSTable view of the CFS containing old and new SSTables
+        Set<SSTableReader> sstables = new HashSet<SSTableReader>();
+        Set<DecoratedKey> savedKeys = keyCache.readSaved();
+        // get the max generation number, to prevent generation conflicts
+        int generation = 0;
+
+        for (SSTableReader reader : view.sstables)
+        {
+            sstables.add(reader); // first of all, add old SSTables
+            currentDescriptors.add(reader.descriptor);
+
+            if (reader.descriptor.generation > generation)
+                generation = reader.descriptor.generation;
+        }
+
+        SSTableReader reader;
+        // set to true if we have at least one new SSTable to load
+        boolean atLeastOneNew = false;
+
+        for (Map.Entry<Descriptor, Set<Component>> rawSSTable : files(table.name, columnFamily, false, false).entrySet())
+        {
+            Descriptor descriptor = rawSSTable.getKey();
+
+            if (currentDescriptors.contains(descriptor))
+                continue; // old (initialized) SSTable found, skipping
+
+            if (!descriptor.cfname.equals(columnFamily))
+                continue;
+
+            if (descriptor.isFromTheFuture())
+                throw new RuntimeException(String.format("Can't open sstables from the future! Current version %s, found file: %s",
+                                                         Descriptor.CURRENT_VERSION,
+                                                         descriptor));
+
+            logger.info("Initializing new SSTable {}", rawSSTable);
+            reader = openSSTableReader(rawSSTable, savedKeys, data, metadata, partitioner);
+
+            if (reader == null)
+                continue; // something wrong with SSTable, skipping
+
+            sstables.add(reader);
+
+            if (descriptor.generation > generation)
+                generation = descriptor.generation;
+
+            if (!atLeastOneNew) // set flag only once
+                atLeastOneNew = true;
+        }
+
+        if (!atLeastOneNew)
+        {
+            logger.info("No new SSTables where found for " + table.name + "/" + columnFamily);
+            return;
+        }
+
+        logger.info("Loading new SSTable Set for " + table.name + "/" + columnFamily + ": " + sstables);
+        data.addSSTables(sstables); // this will call updateCacheSizes() for us
+
+        logger.info("Requesting a full secondary index re-build for " + table.name + "/" + columnFamily);
+        indexManager.buildSecondaryIndexes(sstables, indexManager.getIndexedColumns());
+
+        logger.info("Setting up new generation: " + generation);
+        fileIndexGenerator.set(generation);
+
+        logger.info("Done loading load new SSTables for " + table.name + "/" + columnFamily);
     }
 
     /**
@@ -1891,5 +1970,29 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public List<String> getBuiltIndexes()
     {
        return indexManager.getBuiltIndexes();
+    }
+
+    private static SSTableReader openSSTableReader(Map.Entry<Descriptor, Set<Component>> rawSSTable,
+                                                   Set<DecoratedKey> savedKeys,
+                                                   DataTracker tracker,
+                                                   CFMetaData metadata,
+                                                   IPartitioner partitioner)
+    {
+        SSTableReader reader = null;
+
+        try
+        {
+            reader = SSTableReader.open(rawSSTable.getKey(), rawSSTable.getValue(), savedKeys, tracker, metadata, partitioner);
+        }
+        catch (FileNotFoundException ex)
+        {
+            logger.error("Missing sstable component in " + rawSSTable + "; skipped because of " + ex.getMessage());
+        }
+        catch (IOException ex)
+        {
+            logger.error("Corrupt sstable " + rawSSTable + "; skipped", ex);
+        }
+
+        return reader;
     }
 }

@@ -2608,4 +2608,12 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     {
         SSTableDeletingTask.rescheduleFailedTasks();
     }
+
+    /**
+     * #{@inheritDoc}
+     */
+    public void loadNewSSTables(String ksName, String cfName)
+    {
+        ColumnFamilyStore.loadNewSSTables(ksName, cfName);
+    }
 }

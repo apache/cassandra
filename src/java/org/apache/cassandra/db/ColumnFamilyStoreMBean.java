@@ -234,4 +234,10 @@ public interface ColumnFamilyStoreMBean
 
     public int getRowCacheKeysToSave();
     public void setRowCacheKeysToSave(int keysToSave);
+
+    /**
+     * Scan through Keyspace/ColumnFamily's data directory
+     * determine which SSTables should be loaded and load them
+     */
+    public void loadNewSSTables();
 }

@@ -323,4 +323,12 @@ public interface StorageServiceMBean
     public void bulkLoad(String directory);
 
     public void rescheduleFailedDeletions();
+
+    /**
+     * Load new SSTables to the given keyspace/columnFamily
+     *
+     * @param ksName The parent keyspace name
+     * @param cfName The ColumnFamily name where SSTables belong
+     */
+    public void loadNewSSTables(String ksName, String cfName);
 }

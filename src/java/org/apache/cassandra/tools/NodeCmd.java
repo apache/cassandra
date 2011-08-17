@@ -79,7 +79,8 @@ public class NodeCmd
         DECOMMISSION, MOVE, REMOVETOKEN, REPAIR, CLEANUP, COMPACT, SCRUB,
         SETCACHECAPACITY, GETCOMPACTIONTHRESHOLD, SETCOMPACTIONTHRESHOLD, NETSTATS, CFHISTOGRAMS,
         COMPACTIONSTATS, DISABLEGOSSIP, ENABLEGOSSIP, INVALIDATEKEYCACHE, INVALIDATEROWCACHE,
-        DISABLETHRIFT, ENABLETHRIFT, STATUSTHRIFT, JOIN, SETCOMPACTIONTHROUGHPUT, GETENDPOINTS
+        DISABLETHRIFT, ENABLETHRIFT, STATUSTHRIFT, JOIN, SETCOMPACTIONTHROUGHPUT, GETENDPOINTS,
+        REFRESH
     }
 
     
@@ -125,6 +126,7 @@ public class NodeCmd
         addCmdHelp(header, "invalidaterowcache [keyspace] [cfnames]", "Invalidate the key cache of one or more column family");
         addCmdHelp(header, "getcompactionthreshold <keyspace> <cfname>", "Print min and max compaction thresholds for a given column family");
         addCmdHelp(header, "cfhistograms <keyspace> <cfname>", "Print statistic histograms for a given column family");
+        addCmdHelp(header, "refresh <keyspace> <cf-name>", "Load newly placed SSTables to the system without restart.");
 
         // Three args
         addCmdHelp(header, "getendpoints <keyspace> <cf> <key>", "Print the end points that owns the key");
@@ -697,6 +699,11 @@ public class NodeCmd
             case GETENDPOINTS :
                 if (arguments.length != 3) { badUse("getendpoints requires ks, cf and key args"); }
                 nodeCmd.printEndPoints(arguments[0], arguments[1], arguments[2], System.out);
+                break;
+
+            case REFRESH:
+                if (arguments.length != 2) { badUse("load_new_sstables requires ks and cf args"); }
+                probe.loadNewSSTables(arguments[0], arguments[1]);
                 break;
 
             default :
