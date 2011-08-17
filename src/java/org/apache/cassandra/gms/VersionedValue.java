@@ -160,7 +160,7 @@ public class VersionedValue implements Comparable<VersionedValue>
 
         public VersionedValue rpcaddress(InetAddress endpoint)
         {
-            return new VersionedValue(endpoint.toString());
+            return new VersionedValue(endpoint.getHostAddress());
         }
 
         public VersionedValue releaseVersion()
