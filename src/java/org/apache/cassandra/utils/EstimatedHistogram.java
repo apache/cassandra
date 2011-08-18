@@ -188,10 +188,18 @@ public class EstimatedHistogram
         return buckets.get(buckets.length() - 1) > 0;
     }
 
-    public boolean equals(EstimatedHistogram o)
+    @Override
+    public boolean equals(Object o)
     {
-        return Arrays.equals(getBucketOffsets(), o.getBucketOffsets()) &&
-               Arrays.equals(getBuckets(false), o.getBuckets(false));
+        if (this == o)
+            return true;
+        
+        if (!(o instanceof EstimatedHistogram))
+            return false;
+        
+        EstimatedHistogram that = (EstimatedHistogram) o;
+        return Arrays.equals(getBucketOffsets(), that.getBucketOffsets()) &&
+               Arrays.equals(getBuckets(false), that.getBuckets(false));
     }
 
     public static class EstimatedHistogramSerializer implements ICompactSerializer2<EstimatedHistogram>
