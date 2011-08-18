@@ -21,20 +21,22 @@ package org.apache.cassandra.auth;
  */
 
 
+import java.io.BufferedInputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Properties;
 
 import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.io.util.FileUtils;
 
 public class SimpleAuthority implements IAuthority
 {
     public final static String ACCESS_FILENAME_PROPERTY = "access.properties";
     // magical property for WRITE permissions to the keyspaces list
     public final static String KEYSPACES_WRITE_PROPERTY = "<modify-keyspaces>";
-    private Properties accessProperties = null;
 
     public EnumSet<Permission> authorize(AuthenticatedUser user, List<Object> resource)
     {
@@ -68,17 +70,13 @@ public class SimpleAuthority implements IAuthority
         }
         
         String accessFilename = System.getProperty(ACCESS_FILENAME_PROPERTY);
+        InputStream in=null;
         try
         {
-            // TODO: auto-reload when the file has been updated
-            if (accessProperties == null)   // Don't hit the disk on every invocation
-            {
-                FileInputStream in = new FileInputStream(accessFilename);
-                accessProperties = new Properties();
-                accessProperties.load(in);
-                in.close();
-            }
-            
+            in = new BufferedInputStream(new FileInputStream(accessFilename));
+            Properties accessProperties = new Properties();
+            accessProperties.load(in);
+
             // Special case access to the keyspace list
             if (keyspace == KEYSPACES_WRITE_PROPERTY)
             {
@@ -137,6 +135,10 @@ public class SimpleAuthority implements IAuthority
             throw new RuntimeException(String.format("Authorization table file '%s' could not be opened: %s",
                                                      accessFilename,
                                                      e.getMessage()));
+        }
+        finally
+        {
+            FileUtils.closeQuietly(in);
         }
 
         return authorized;
