@@ -163,6 +163,28 @@ public class CreateColumnFamilyStatement
             throw new InvalidRequestException("You must specify a PRIMARY KEY");
         else if (keyValidator.size() > 1)
             throw new InvalidRequestException("You may only specify one PRIMARY KEY");
+
+        AbstractType<?> comparator;
+
+        try
+        {
+            comparator = getComparator();
+        }
+        catch (ConfigurationException e)
+        {
+            throw new InvalidRequestException(e.toString());
+        }
+
+        for (Map.Entry<Term, String> column : columns.entrySet())
+        {
+            ByteBuffer name = column.getKey().getByteBuffer(comparator);
+
+            if (keyAlias != null && keyAlias.equals(name))
+                throw new InvalidRequestException("Invalid column name: "
+                                                  + column.getKey().getText()
+                                                  + ", because it equals to the key_alias.");
+
+        }
     }
     
     /** Map a column name to a validator for its value */
@@ -209,7 +231,7 @@ public class CreateColumnFamilyStatement
         {
             try
             {
-                ByteBuffer columnName = col.getKey().getByteBuffer(comparator);
+                ByteBuffer columnName = comparator.fromString(col.getKey().getText());
                 String validatorClassName = comparators.containsKey(col.getValue()) ? comparators.get(col.getValue()) : col.getValue();
                 AbstractType<?> validator = TypeParser.parse(validatorClassName);
                 columnDefs.put(columnName, new ColumnDefinition(columnName, validator, null, null));
@@ -224,7 +246,26 @@ public class CreateColumnFamilyStatement
         
         return columnDefs;
     }
-    
+
+    /* If not comparator/validator is not specified, default to text (BytesType is the wrong default for CQL
+     * since it uses hex terms).  If the value specified is not found in the comparators map, assume the user
+     * knows what they are doing (a custom comparator/validator for example), and pass it on as-is.
+     */
+
+    private AbstractType<?> getComparator() throws ConfigurationException
+    {
+        return TypeParser.parse((comparators.get(getPropertyString(KW_COMPARATOR, "text")) != null)
+                                  ? comparators.get(getPropertyString(KW_COMPARATOR, "text"))
+                                  : getPropertyString(KW_COMPARATOR, "text"));
+    }
+
+    private AbstractType<?> getValidator() throws ConfigurationException
+    {
+        return TypeParser.parse((comparators.get(getPropertyString(KW_DEFAULTVALIDATION, "text")) != null)
+                                  ? comparators.get(getPropertyString(KW_DEFAULTVALIDATION, "text"))
+                                  : getPropertyString(KW_DEFAULTVALIDATION, "text"));
+    }
+
     /**
      * Returns a CFMetaData instance based on the parameters parsed from this
      * <code>CREATE</code> statement, or defaults where applicable.
@@ -240,17 +281,7 @@ public class CreateColumnFamilyStatement
         CFMetaData newCFMD;
         try
         {
-            /* If not comparator/validator is not specified, default to text (BytesType is the wrong default for CQL
-             * since it uses hex terms).  If the value specified is not found in the comparators map, assume the user
-             * knows what they are doing (a custom comparator/validator for example), and pass it on as-is.
-             */
-            String comparatorString = (comparators.get(getPropertyString(KW_COMPARATOR, "text")) != null)
-                                      ? comparators.get(getPropertyString(KW_COMPARATOR, "text"))
-                                      : getPropertyString(KW_COMPARATOR, "text");
-            String validatorString = (comparators.get(getPropertyString(KW_DEFAULTVALIDATION, "text")) != null)
-                                     ? comparators.get(getPropertyString(KW_DEFAULTVALIDATION, "text"))
-                                     : getPropertyString(KW_DEFAULTVALIDATION, "text");
-            AbstractType<?> comparator = TypeParser.parse(comparatorString);
+            AbstractType<?> comparator = getComparator();
 
             newCFMD = new CFMetaData(keyspace,
                                      name,
@@ -264,7 +295,7 @@ public class CreateColumnFamilyStatement
                    .readRepairChance(getPropertyDouble(KW_READREPAIRCHANCE, CFMetaData.DEFAULT_READ_REPAIR_CHANCE))
                    .replicateOnWrite(getPropertyBoolean(KW_REPLICATEONWRITE, CFMetaData.DEFAULT_REPLICATE_ON_WRITE))
                    .gcGraceSeconds(getPropertyInt(KW_GCGRACESECONDS, CFMetaData.DEFAULT_GC_GRACE_SECONDS))
-                   .defaultValidator(TypeParser.parse(validatorString))
+                   .defaultValidator(getValidator())
                    .minCompactionThreshold(getPropertyInt(KW_MINCOMPACTIONTHRESHOLD, CFMetaData.DEFAULT_MIN_COMPACTION_THRESHOLD))
                    .maxCompactionThreshold(getPropertyInt(KW_MAXCOMPACTIONTHRESHOLD, CFMetaData.DEFAULT_MAX_COMPACTION_THRESHOLD))
                    .rowCacheSavePeriod(getPropertyInt(KW_ROWCACHESAVEPERIODSECS, CFMetaData.DEFAULT_ROW_CACHE_SAVE_PERIOD_IN_SECONDS))

@@ -680,13 +680,16 @@ public final class CFMetaData
 
     public AbstractType getValueValidator(ByteBuffer column)
     {
-        AbstractType validator = defaultValidator;
-        ColumnDefinition columnDefinition = column_metadata.get(column);
-        if (columnDefinition != null)
-            validator = columnDefinition.getValidator();
-        return validator;
+        return getValueValidator(column_metadata.get(column));
     }
-    
+
+    public AbstractType getValueValidator(ColumnDefinition columnDefinition)
+    {
+        return columnDefinition == null
+               ? defaultValidator
+               : columnDefinition.getValidator();
+    }
+
     /** applies implicit defaults to cf definition. useful in updates */
     public static void applyImplicitDefaults(org.apache.cassandra.thrift.CfDef cf_def) 
     {
