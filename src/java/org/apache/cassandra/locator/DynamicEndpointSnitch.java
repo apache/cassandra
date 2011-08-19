@@ -178,8 +178,20 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
     {
         Double scored1 = scores.get(a1);
         Double scored2 = scores.get(a2);
+        
+        if (scored1 == null)
+        {
+            scored1 = 0.0;
+            receiveTiming(a1, 0.0);
+        }
 
-        if (scored1 == null || scored2 == null || scored1.equals(scored2))
+        if (scored2 == null)
+        {
+            scored2 = 0.0;
+            receiveTiming(a2, 0.0);
+        }
+
+        if (scored1.equals(scored2))
             return subsnitch.compareEndpoints(target, a1, a2);
         if (scored1 < scored2)
             return -1;

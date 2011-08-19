@@ -47,17 +47,17 @@ public abstract class SecondaryIndexSearcher
         this.baseCfs = indexManager.baseCfs;
     }
     
-    public static boolean satisfies(ColumnFamily data, List<IndexExpression> expressions)
+    public static boolean satisfies(ColumnFamily data, IndexClause clause, IndexExpression first)
     {
         // We enforces even the primary clause because reads are not synchronized with writes and it is thus possible to have a race
-        // where the index returned a row which doesn't have the primary column when we actually read it
-        for (IndexExpression expression : expressions)
+        // where the index returned a row which doesn't have the primarycolumn when we actually read it
+        for (IndexExpression expression : clause.expressions)
         {
             // check column data vs expression
             IColumn column = data.getColumn(expression.column_name);
             if (column == null)
                 return false;
-            int v = data.getComparator().compare(column.value(), expression.value);
+            int v = data.metadata().getValueValidator(expression.column_name).compare(column.value(), expression.value);
             if (!satisfies(v, expression.op))
                 return false;
         }

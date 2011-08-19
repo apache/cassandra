@@ -39,7 +39,10 @@ public class CliTest extends CleanupHelper
     // please add new statements here so they could be auto-runned by this test.
     private String[] statements = {
         "use TestKeySpace;",
-        "create column family CF1 with comparator=UTF8Type and column_metadata=[{ column_name:world, validation_class:IntegerType, index_type:0, index_name:IdxName }, { column_name:world2, validation_class:LongType, index_type:KEYS, index_name:LongIdxName}];",
+        "create column family CF1 with comparator=UTF8Type and column_metadata=[{ column_name:world, validation_class:IntegerType, index_type:0, index_name:IdxName }, " +
+                                                                               "{ column_name:world2, validation_class:LongType, index_type:KEYS, index_name:LongIdxName}, " +
+                                                                               "{ column_name:617070, validation_class:UTF8Type, index_type:KEYS }, " +
+                                                                               "{ column_name:'-617071', validation_class:UTF8Type, index_type:KEYS }];",
         "assume CF1 keys as utf8;",
         "set CF1[hello][world] = 123848374878933948398384;",
         "set CF1[hello][test_quote] = 'value\\'';",
@@ -115,6 +118,8 @@ public class CliTest extends CleanupHelper
         "get Counter1['hello'];",
         "truncate CF1;",
         "drop index on CF1.world2;",
+        "drop index on CF1.617070;",
+        "drop index on CF1.'-617071';",
         "update keyspace TestKeySpace with placement_strategy='org.apache.cassandra.locator.LocalStrategy' and durable_writes = false;",
         "update keyspace TestKeySpace with strategy_options=[{DC1:3, DC2:4, DC5:1}];",
         "assume CF1 comparator as utf8;",

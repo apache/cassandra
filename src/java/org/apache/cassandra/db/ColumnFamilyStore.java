@@ -1397,13 +1397,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                         return rows;
 
                     // skip first one
-                    if(range instanceof Bounds || !first || !key.equals(startWith))
+                    if (range instanceof Bounds || !first || !key.equals(startWith))
                     {
                         // TODO this is necessary because when we collate supercolumns together, we don't check
                         // their subcolumns for relevance, so we need to do a second prune post facto here.
                         rows.add(current.cf != null && current.cf.isSuper()
-                                ? new Row(current.key, ColumnFamilyStore.removeDeleted(current.cf, gcBefore))
-                                : current);
+                                 ? new Row(current.key, ColumnFamilyStore.removeDeleted(current.cf, gcBefore))
+                                 : current);
                         if (logger.isDebugEnabled())
                             logger.debug("scanned " + key);
                     }

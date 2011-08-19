@@ -81,22 +81,6 @@ public class KeysSearcher extends SecondaryIndexSearcher
         return best;
     }
 
-    private static boolean satisfies(ColumnFamily data, IndexClause clause, IndexExpression first)
-    {
-        // We enforces even the primary clause because reads are not synchronized with writes and it is thus possible to have a race
-        // where the index returned a row which doesn't have the primarycolumn when we actually read it
-        for (IndexExpression expression : clause.expressions)
-        {
-            // check column data vs expression
-            IColumn column = data.getColumn(expression.column_name);
-            if (column == null)
-                return false;
-            int v = data.metadata().getValueValidator(expression.column_name).compare(column.value(), expression.value);
-            if (!satisfies(v, expression.op))
-                return false;
-        }
-        return true;
-    }
     private String expressionString(IndexExpression expr)
     {
         return String.format("'%s.%s %s %s'",
@@ -221,6 +205,7 @@ public class KeysSearcher extends SecondaryIndexSearcher
                 if (data == null)
                     data = ColumnFamily.create(baseCfs.metadata);
                 logger.debug("fetched data row {}", data);
+                NamesQueryFilter extraFilter = null;
                 if (dataFilter instanceof SliceQueryFilter && !isIdentityFilter((SliceQueryFilter)dataFilter))
                 {
                     // we might have gotten the expression columns in with the main data slice, but
@@ -241,7 +226,7 @@ public class KeysSearcher extends SecondaryIndexSearcher
                     {
                         // Note: for counters we must be careful to not add a column that was already there (to avoid overcount). That is
                         // why we do the dance of avoiding to query any column we already have (it's also more efficient anyway)
-                        NamesQueryFilter extraFilter = getExtraFilter(clause);
+                        extraFilter = getExtraFilter(clause);
                         for (IndexExpression expr : clause.expressions)
                         {
                             if (data.getColumn(expr.column_name) != null)
@@ -255,11 +240,11 @@ public class KeysSearcher extends SecondaryIndexSearcher
 
                 }
 
-                if (satisfies(data, clause, primary))
+                if (SecondaryIndexSearcher.satisfies(data, clause, primary))
                 {
                     logger.debug("row {} satisfies all clauses", data);
                     // cut the resultset back to what was requested, if necessary
-                    if (firstFilter != dataFilter)
+                    if (firstFilter != dataFilter || extraFilter != null)
                     {
                         ColumnFamily expandedData = data;
                         data = expandedData.cloneMeShallow();
