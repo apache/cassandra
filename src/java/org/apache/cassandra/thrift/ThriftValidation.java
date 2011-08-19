@@ -410,9 +410,11 @@ public class ThriftValidation
             throw new InvalidRequestException("Column value is required");
         if (!column.isSetTimestamp())
             throw new InvalidRequestException("Column timestamp is required");
+
+        ColumnDefinition columnDef = metadata.getColumnDefinition(column.name);
         try
         {
-            AbstractType validator = metadata.getValueValidator(column.name);
+            AbstractType validator = metadata.getValueValidator(columnDef);
             if (validator != null)
                 validator.validate(column.value);
         }
@@ -426,6 +428,14 @@ public class ThriftValidation
                                                             metadata.cfName,
                                                             (isSubColumn ? metadata.subcolumnComparator : metadata.comparator).getString(column.name)));
         }
+
+        // Indexed column values cannot be larger than 64K.  See CASSANDRA-3057 for more details
+        if (columnDef != null && columnDef.getIndexType() != null && column.value.remaining() > FBUtilities.MAX_UNSIGNED_SHORT)
+            throw new InvalidRequestException(String.format("Can't index column value of size %d for index %s in CF %s of KS %s",
+                                                            column.value.remaining(),
+                                                            columnDef.getIndexName(),
+                                                            metadata.cfName,
+                                                            metadata.ksName));
     }
 
     /**

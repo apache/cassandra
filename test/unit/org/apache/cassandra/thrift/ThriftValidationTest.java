@@ -21,6 +21,8 @@ package org.apache.cassandra.thrift;
  */
 
 
+import java.nio.ByteBuffer;
+
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.marshal.AsciiType;
@@ -29,6 +31,12 @@ import org.apache.cassandra.db.marshal.UTF8Type;
 import org.junit.Test;
 
 import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.marshal.AsciiType;
+import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.utils.FBUtilities;
 
 import java.util.concurrent.Callable;
 
@@ -44,6 +52,55 @@ public class ThriftValidationTest extends CleanupHelper
     public void testValidateCommutativeWithCounter() throws InvalidRequestException
     {
         ThriftValidation.validateColumnFamily("Keyspace1", "Counter1", true);
+    }
+
+    @Test
+    public void testColumnValueSizeForIndexedColumn() throws ConfigurationException, InvalidRequestException
+    {
+        CfDef cfDef = CFMetaData.convertToThrift(DatabaseDescriptor.getCFMetaData("Keyspace1", "Standard1"));
+        ByteBuffer columnName = AsciiType.instance.fromString("indexed");
+
+        // add an indexed column definition
+        cfDef.addToColumn_metadata(new ColumnDef(columnName, UTF8Type.class.getCanonicalName())
+                                                 .setIndex_type(IndexType.KEYS)
+                                                 .setIndex_name("indexed_col"));
+
+        CFMetaData metaData = CFMetaData.fromThrift(cfDef);
+
+        Column column = new Column(columnName)
+                            .setValue(new byte[FBUtilities.MAX_UNSIGNED_SHORT + 1])
+                            .setTimestamp(System.currentTimeMillis());
+
+        boolean gotException = false;
+
+        try
+        {
+            // this run should throw an exception
+            ThriftValidation.validateColumnData(metaData, column, false);
+        }
+        catch (InvalidRequestException e)
+        {
+            gotException = true;
+        }
+
+        assert gotException : "expected InvalidRequestException but not received.";
+
+        // change value to be less than unsigned short size
+        column.setValue(new byte[12]);
+
+        gotException = false; // reset flag
+
+        try
+        {
+            // this run should run clean
+            ThriftValidation.validateColumnData(metaData, column, false);
+        }
+        catch (InvalidRequestException e)
+        {
+            gotException = true;
+        }
+
+        assert !gotException : "got unexpected InvalidRequestException";
     }
 
     @Test
