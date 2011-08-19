@@ -29,6 +29,8 @@ import com.google.common.base.Objects;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.utils.Pair;
 
+import static org.apache.cassandra.io.sstable.Component.separator;
+
 /**
  * A SSTable is described by the keyspace and column family it contains data
  * for, a generation (where higher generations contain more recent data) and
@@ -119,11 +121,11 @@ public class Descriptor
     {
         StringBuilder buff = new StringBuilder();
         buff.append(directory).append(File.separatorChar);
-        buff.append(cfname).append("-");
+        buff.append(cfname).append(separator);
         if (temporary)
-            buff.append(SSTable.TEMPFILE_MARKER).append("-");
+            buff.append(SSTable.TEMPFILE_MARKER).append(separator);
         if (!LEGACY_VERSION.equals(version))
-            buff.append(version).append("-");
+            buff.append(version).append(separator);
         buff.append(generation);
         return buff.toString();
     }
@@ -134,7 +136,7 @@ public class Descriptor
      */
     public String filenameFor(String suffix)
     {
-        return baseFilename() + "-" + suffix;
+        return baseFilename() + separator + suffix;
     }
 
     /**
@@ -163,7 +165,7 @@ public class Descriptor
         String ksname = extractKeyspaceName(directory);
 
         // tokenize the filename
-        StringTokenizer st = new StringTokenizer(name, "-");
+        StringTokenizer st = new StringTokenizer(name, String.valueOf(separator));
         String nexttok;
 
         // all filenames must start with a column family

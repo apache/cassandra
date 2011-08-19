@@ -35,6 +35,8 @@ import org.apache.cassandra.utils.Pair;
  */
 public class Component
 {
+    public static final char separator = '-';
+
     final static EnumSet<Type> TYPES = EnumSet.allOf(Type.class);
     enum Type
     {
@@ -108,7 +110,7 @@ public class Component
             case STATS:
                 return type.repr;
             case BITMAP_INDEX:
-                return String.format("%d-%s", id, type.repr);
+                return String.format("%d%c%s", id, separator, type.repr);
         }
         throw new IllegalStateException();
     }
@@ -126,7 +128,7 @@ public class Component
         // parse the component suffix
         String repr = path.right;
         int id = -1;
-        int separatorPos = repr.indexOf('-');
+        int separatorPos = repr.indexOf(separator);
         if (separatorPos != -1)
         {
             id = Integer.parseInt(repr.substring(0, separatorPos));

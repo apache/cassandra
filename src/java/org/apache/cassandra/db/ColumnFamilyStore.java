@@ -478,13 +478,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private static List<Pair<Descriptor, Component>> files(File path, final String columnFamilyName)
     {
         final List<Pair<Descriptor, Component>> sstables = new ArrayList<Pair<Descriptor, Component>>();
+        final String sstableFilePrefix = columnFamilyName + Component.separator;
+
         // NB: we never "accept" a file in the FilenameFilter sense: they are added to the sstable map
         path.listFiles(new FileFilter()
         {
             public boolean accept(File file)
             {
                 // we are only interested in the SSTable files that belong to the specific ColumnFamily
-                if (file.isDirectory() || !file.getName().startsWith(columnFamilyName))
+                if (file.isDirectory() || !file.getName().startsWith(sstableFilePrefix))
                     return false;
 
                 Pair<Descriptor, Component> pair = SSTable.tryComponentFromFilename(file.getParentFile(), file.getName());

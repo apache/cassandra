@@ -158,12 +158,13 @@ public abstract class SSTable
     static Set<Component> componentsFor(final Descriptor desc, final Descriptor.TempState matchState)
     {
         final Set<Component> components = new HashSet<Component>();
+        final String sstableFilePrefix = desc.cfname + Component.separator;
 
         desc.directory.listFiles(new FileFilter()
         {
             public boolean accept(File file)
             {
-                if (file.isDirectory() || !file.getName().startsWith(desc.cfname))
+                if (file.isDirectory() || !file.getName().startsWith(sstableFilePrefix))
                     return false;
 
                 Pair<Descriptor, Component> component = tryComponentFromFilename(file.getParentFile(), file.getName());
