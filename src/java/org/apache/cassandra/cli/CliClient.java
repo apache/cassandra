@@ -1389,7 +1389,7 @@ public class CliClient
 
         // getColumnFamily will check if CF exists for us
         String columnFamily = CliCompiler.getColumnFamily(statement, keyspacesMap.get(keySpace).cf_defs);
-        String rawColumName = statement.getChild(1).getText();
+        String rawColumName = CliUtils.unescapeSQLString(statement.getChild(1).getText());
 
         CfDef cfDef = getCfDef(columnFamily);
 

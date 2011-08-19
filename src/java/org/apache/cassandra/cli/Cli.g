@@ -428,7 +428,7 @@ keyRangeExpr
     ;
 
 columnName
-	: Identifier
+	: (StringLiteral | Identifier | IntegerPositiveLiteral | IntegerNegativeLiteral)
 	;
 
 attr_name

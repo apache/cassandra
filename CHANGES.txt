@@ -17,7 +17,7 @@
    on create/update of the ColumnFamily and CQL 'ALTER' statement (CASSANDRA-3036)
  * return an InvalidRequestException if an indexed column is assigned
    a value larger than 64KB (CASSANDRA-3057)
-
+ * fix of numeric-only and string column names handling in CLI "drop index" (CASSANDRA-3054)
 
 0.8.4
  * include files-to-be-streamed in StreamInSession.getSources (CASSANDRA-2972)
