@@ -18,6 +18,11 @@
  * return an InvalidRequestException if an indexed column is assigned
    a value larger than 64KB (CASSANDRA-3057)
  * fix of numeric-only and string column names handling in CLI "drop index" (CASSANDRA-3054)
+ * prune index scan resultset back to original request for lazy
+   resultset expansion case (CASSANDRA-2964)
+ * (Hadoop) fail jobs when Cassandra node has failed but TaskTracker
+    has not (CASSANDRA-2388)
+
 
 0.8.4
  * include files-to-be-streamed in StreamInSession.getSources (CASSANDRA-2972)
@@ -66,6 +71,10 @@
  * add asynchronous and half-sync/half-async thrift servers (CASSANDRA-1405)
  * fix potential use of free'd native memory in SerializingCache 
    (CASSANDRA-2951)
+ * prune index scan resultset back to original request for lazy
+   resultset expansion case (CASSANDRA-2964)
+ * (Hadoop) fail jobs when Cassandra node has failed but TaskTracker
+    has not (CASSANDRA-2388)
 
 
 0.8.2

@@ -1628,6 +1628,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 if (data == null)
                     data = ColumnFamily.create(metadata);
                 logger.debug("fetched data row {}", data);
+                NamesQueryFilter extraFilter = null;
                 if (dataFilter instanceof SliceQueryFilter && !isIdentityFilter((SliceQueryFilter)dataFilter))
                 {
                     // we might have gotten the expression columns in with the main data slice, but
@@ -1646,9 +1647,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     }
                     if (needExtraFilter)
                     {
-                        // Note: for counters we must be carefull to not add a column that was already there (to avoid overcount). That is
+                        // Note: for counters we must be careful to not add a column that was already there (to avoid overcount). That is
                         // why we do the dance of avoiding to query any column we already have (it's also more efficient anyway)
-                        NamesQueryFilter extraFilter = getExtraFilter(clause);
+                        extraFilter = getExtraFilter(clause);
                         for (IndexExpression expr : clause.expressions)
                         {
                             if (data.getColumn(expr.column_name) != null)
@@ -1666,7 +1667,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 {
                     logger.debug("row {} satisfies all clauses", data);
                     // cut the resultset back to what was requested, if necessary
-                    if (firstFilter != dataFilter)
+                    if (firstFilter != dataFilter || extraFilter != null)
                     {
                         ColumnFamily expandedData = data;
                         data = expandedData.cloneMeShallow();
