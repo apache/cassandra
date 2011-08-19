@@ -3,6 +3,8 @@
  * log Java classpath on startup (CASSANDRA-2895)
  * prune index scan resultset back to original request for lazy
    resultset expansion case (CASSANDRA-2964)
+ * (Hadoop) fail jobs when Cassandra node has failed but TaskTracker
+    has not (CASSANDRA-2388)
 
 
 0.7.8
