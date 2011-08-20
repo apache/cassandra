@@ -89,6 +89,16 @@ else
     JAVA=java
 fi
 
+# If numactl is available, use it. For Cassandra, the priority is to
+# avoid disk I/O. Even for the purpose of CPU efficiency, we don't
+# really have CPU<->data affinity anyway.
+if which numactl >/dev/null 2>/dev/null
+then
+    NUMACTL="numactl --interleave=all"
+else
+    NUMACTL=""
+fi
+
 if [ -z "$CASSANDRA_CONF" -o -z "$CLASSPATH" ]; then
     echo "You must set the CASSANDRA_CONF and CLASSPATH vars" >&2
     exit 1
@@ -122,10 +132,10 @@ launch_service()
     # to close stdout/stderr, but it's up to us not to background.
     if [ "x$foreground" != "x" ]; then
         cassandra_parms="$cassandra_parms -Dcassandra-foreground=yes"
-        exec "$JAVA" $JVM_OPTS $cassandra_parms -cp "$CLASSPATH" $props "$class"
+        exec $NUMACTL "$JAVA" $JVM_OPTS $cassandra_parms -cp "$CLASSPATH" $props "$class"
     # Startup CassandraDaemon, background it, and write the pid.
     else
-        exec "$JAVA" $JVM_OPTS $cassandra_parms -cp "$CLASSPATH" $props "$class" <&- &
+        exec $NUMACTL "$JAVA" $JVM_OPTS $cassandra_parms -cp "$CLASSPATH" $props "$class" <&- &
         [ ! -z "$pidpath" ] && printf "%d" $! > "$pidpath"
     fi
 
