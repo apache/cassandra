@@ -27,9 +27,7 @@ import java.util.Set;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.db.context.CounterContext;
-import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.NodeId;
 import org.apache.cassandra.utils.Pair;
@@ -136,7 +134,7 @@ public abstract class AbstractSSTableSimpleWriter
      * @param value the column value
      * @param timestamp the column timestamp
      * @param ttl the column time to live in seconds
-     * @param expirationTimestamp the local expiration timestamp in milliseconds. This is the server time timestamp used for actually
+     * @param expirationTimestampMS the local expiration timestamp in milliseconds. This is the server time timestamp used for actually
      * expiring the column, and as a consequence should be synchronized with the cassandra servers time. If {@code timestamp} represents
      * the insertion time in microseconds (which is not required), this should be {@code (timestamp / 1000) + (ttl * 1000)}.
      */

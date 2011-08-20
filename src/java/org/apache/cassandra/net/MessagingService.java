@@ -48,7 +48,6 @@ import org.apache.cassandra.net.io.SerializerType;
 import org.apache.cassandra.net.sink.SinkManager;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.security.streaming.SSLFileStreamTask;
-import org.apache.cassandra.service.ReadCallback;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.FileStreamTask;
 import org.apache.cassandra.streaming.StreamHeader;
@@ -160,8 +159,8 @@ public final class MessagingService implements MessagingServiceMBean
 
     /**
      * Track latency information for the dynamic snitch
-     * @param cb: the callback associated with this message -- this lets us know if it's a message type we're interested in
-     * @param address: the host that replied to the message
+     * @param cb the callback associated with this message -- this lets us know if it's a message type we're interested in
+     * @param address the host that replied to the message
      * @param latency
      */
     public void maybeAddLatency(IMessageCallback cb, InetAddress address, double latency)

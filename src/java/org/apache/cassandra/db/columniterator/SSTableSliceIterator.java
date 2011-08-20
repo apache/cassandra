@@ -25,7 +25,6 @@ import java.io.IOError;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DecoratedKey;
@@ -69,7 +68,7 @@ public class SSTableSliceIterator implements IColumnIterator
 
     /**
      * An iterator for a slice within an SSTable
-     * @param metadata Metadata for the CFS we are reading from
+     * @param sstable Table for the CFS we are reading from
      * @param file Optional parameter that input is read from.  If null is passed, this class creates an appropriate one automatically.
      * If this class creates, it will close the underlying file when #close() is called.
      * If a caller passes a non-null argument, this class will NOT close the underlying file when the iterator is closed (i.e. the caller is responsible for closing the file)

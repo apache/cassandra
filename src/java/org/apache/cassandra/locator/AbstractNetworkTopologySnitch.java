@@ -64,7 +64,6 @@ public abstract class AbstractNetworkTopologySnitch extends AbstractEndpointSnit
      * Sorts the <tt>List</tt> of node addresses by proximity to the given address
      * @param address the address to sort the proximity by
      * @param addresses the nodes to sort
-     * @return the sorted <tt>List</tt>
      */
     public void sortByProximity(final InetAddress address, List<InetAddress> addresses)
     {

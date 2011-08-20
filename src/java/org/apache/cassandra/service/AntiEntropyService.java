@@ -376,8 +376,6 @@ public class AntiEntropyService
 
         /**
          * Called after the validation lifecycle to respond with the now valid tree. Runs in Stage.ANTIENTROPY.
-         *
-         * @return A meaningless object.
          */
         public void run()
         {

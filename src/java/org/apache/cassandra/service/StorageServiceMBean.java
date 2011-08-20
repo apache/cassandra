@@ -92,8 +92,8 @@ public interface StorageServiceMBean
     public String[] getAllDataFileLocations();
 
     /**
-     * Get the list of data file locations for a given keyspace
-     * @param keyspace the keyspace to get locatiosn for.
+     * Get the list of data file locations for a given table
+     * @param table the table to get locations for.
      * @return String array of all locations
      */
     public String[] getAllDataFileLocationsForTable(String table);

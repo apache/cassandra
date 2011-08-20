@@ -476,8 +476,6 @@ public class MerkleTree implements Serializable
     /**
      * Returns a lazy iterator of invalid TreeRanges that need to be filled
      * in order to make the given Range valid.
-     *
-     * @param range The range to find invalid subranges for.
      */
     public TreeRangeIterator invalids()
     {

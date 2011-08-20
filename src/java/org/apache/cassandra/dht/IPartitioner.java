@@ -27,7 +27,7 @@ import org.apache.cassandra.db.DecoratedKey;
 public interface IPartitioner<T extends Token>
 {
     /**
-     * @Deprecated: Used by SSTables before version 'e'.
+     * @deprecated Used by SSTables before version 'e'.
      *
      * Convert the on disk representation to a DecoratedKey object
      * @param key On disk representation 

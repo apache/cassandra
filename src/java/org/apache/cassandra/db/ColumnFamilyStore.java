@@ -343,7 +343,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     /**
      * Removes unnecessary files from the cf directory at startup: these include temp files, orphans, zero-length files
      * and compacted sstables. Files that cannot be recognized will be ignored.
-     * @return A list of Descriptors that were removed.
      */
     public static void scrubDataDirectories(String table, String columnFamily)
     {

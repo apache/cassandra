@@ -112,7 +112,7 @@ public class EstimatedHistogram
     }
 
     /**
-     * @param reset: zero out buckets afterwards if true
+     * @param reset zero out buckets afterwards if true
      * @return a long[] containing the current histogram buckets
      */
     public long[] getBuckets(boolean reset)

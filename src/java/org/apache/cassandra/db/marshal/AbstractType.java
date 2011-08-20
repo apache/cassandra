@@ -114,7 +114,7 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>
     /* validate that the byte array is a valid sequence for the type we are supposed to be comparing */
     public abstract void validate(ByteBuffer bytes) throws MarshalException;
 
-    /** @deprecated; use reverseComparator field instead */
+    /** @deprecated use reverseComparator field instead */
     public Comparator<ByteBuffer> getReverseComparator()
     {
         return reverseComparator;

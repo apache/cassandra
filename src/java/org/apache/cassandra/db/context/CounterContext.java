@@ -425,7 +425,7 @@ public class CounterContext implements IContext
      * Returns the aggregated count across all node ids.
      *
      * @param context a counter context
-     * @terurn the aggregated count represented by {@code context}
+     * @return the aggregated count represented by {@code context}
      */
     public long total(ByteBuffer context)
     {

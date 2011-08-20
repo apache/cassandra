@@ -55,8 +55,6 @@ public interface IContext
     /**
      * Return a context w/ an aggregated count for each node id.
      *
-     * @param allocator
-     *            An allocator for the merged value.
      * @param left
      *            context.
      * @param right
