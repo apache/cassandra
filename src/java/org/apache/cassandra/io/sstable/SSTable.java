@@ -22,9 +22,7 @@ package org.apache.cassandra.io.sstable;
 import java.io.File;
 import java.io.FileFilter;
 import java.io.IOException;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -59,6 +57,16 @@ public abstract class SSTable
     public static final String COMPONENT_STATS = Component.Type.STATS.repr;
 
     public static final String TEMPFILE_MARKER = "tmp";
+
+    public static final Comparator<SSTableReader> maxTimestampComparator = new Comparator<SSTableReader>()
+    {
+        public int compare(SSTableReader o1, SSTableReader o2)
+        {
+            long ts1 = o1.getMaxTimestamp();
+            long ts2 = o2.getMaxTimestamp();
+            return (ts1 > ts2 ? -1 : (ts1 == ts2 ? 0 : 1));
+        }
+    };
 
     public final Descriptor descriptor;
     protected final Set<Component> components;

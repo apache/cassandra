@@ -185,6 +185,7 @@ public class CompactionsTest extends CleanupHelper
                 store.forceBlockingFlush();
         }
         Collection<SSTableReader> toCompact = store.getSSTables();
+        assert toCompact.size() == 2;
 
         // Reinserting the same keys. We will compact only the previous sstable, but we need those new ones
         // to make sure we use EchoedRow, otherwise it won't be used because purge can be done.
@@ -200,12 +201,15 @@ public class CompactionsTest extends CleanupHelper
         for (SSTableReader sstable : store.getSSTables())
             if (!toCompact.contains(sstable))
                 tmpSSTable = sstable;
+        assert tmpSSTable != null;
 
         // Force compaction on first sstables. Since each row is in only one sstable, we will be using EchoedRow.
         Util.compact(store, toCompact, false);
+        assertEquals(2, store.getSSTables().size());
 
         // Now, we remove the sstable that was just created to force the use of EchoedRow (so that it doesn't hide the problem)
         store.markCompacted(Collections.singleton(tmpSSTable));
+        assertEquals(1, store.getSSTables().size());
 
         // Now assert we do have the 4 keys
         assertEquals(4, Util.getRangeSlice(store).size());

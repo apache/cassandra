@@ -104,7 +104,7 @@ public class SSTableSliceIterator implements IColumnIterator
 
     public boolean hasNext()
     {
-        return reader.hasNext();
+        return reader != null && reader.hasNext();
     }
 
     public IColumn next()

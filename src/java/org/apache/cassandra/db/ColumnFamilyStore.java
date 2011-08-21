@@ -1278,73 +1278,17 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     private ColumnFamily getTopLevelColumns(QueryFilter filter, int gcBefore, ISortedColumns.Factory factory)
     {
-        // we are querying top-level columns, do a merging fetch with indexes.
-        List<IColumnIterator> iterators = new ArrayList<IColumnIterator>();
-        final ColumnFamily returnCF = ColumnFamily.create(metadata, factory, filter.filter.isReversed());
         DataTracker.View currentView = markCurrentViewReferenced();
         try
         {
-            IColumnIterator iter;
-            int sstablesToIterate = 0;
-
-            /* add the current memtable */
-            iter = filter.getMemtableColumnIterator(currentView.memtable, getComparator());
-            if (iter != null)
-            {
-                returnCF.delete(iter.getColumnFamily());
-                iterators.add(iter);
-            }
-
-            /* add the memtables being flushed */
-            for (Memtable memtable : currentView.memtablesPendingFlush)
-            {
-                iter = filter.getMemtableColumnIterator(memtable, getComparator());
-                if (iter != null)
-                {
-                    returnCF.delete(iter.getColumnFamily());
-                    iterators.add(iter);
-                }
-            }
-
-            /* add the SSTables on disk */
-            for (SSTableReader sstable : currentView.sstables)
-            {
-                iter = filter.getSSTableColumnIterator(sstable);
-                if (iter.getColumnFamily() != null)
-                {
-                    returnCF.delete(iter.getColumnFamily());
-                    iterators.add(iter);
-                    sstablesToIterate++;
-                }
-            }
-
-            recentSSTablesPerRead.add(sstablesToIterate);
-            sstablesPerRead.add(sstablesToIterate);
-
-            // we need to distinguish between "there is no data at all for this row" (BF will let us rebuild that efficiently)
-            // and "there used to be data, but it's gone now" (we should cache the empty CF so we don't need to rebuild that slower)
-            if (iterators.size() == 0)
-                return null;
-
-            filter.collateColumns(returnCF, iterators, getComparator(), gcBefore);
-
-            // Caller is responsible for final removeDeletedCF.  This is important for cacheRow to work correctly:
-            return returnCF;
+            CollationController controller = new CollationController(currentView, factory, filter, metadata, gcBefore);
+            ColumnFamily columns = controller.getTopLevelColumns();
+            recentSSTablesPerRead.add(controller.getSstablesIterated());
+            sstablesPerRead.add(controller.getSstablesIterated());
+            return columns;
         }
         finally
         {
-            /* close all cursors */
-            for (IColumnIterator ci : iterators)
-            {
-                try
-                {
-                    ci.close();
-                }
-                catch (Throwable th)
-                {
-                    logger.error("error closing " + ci, th);
-                }
-            }
             SSTableReader.releaseReferences(currentView.sstables);
         }
     }

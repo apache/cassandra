@@ -35,6 +35,9 @@
  * fix missing logging for some exceptions (CASSANDRA-2061)
  * refactor and optimize ColumnFamilyStore.files(...) and Descriptor.fromFilename(String)
    and few other places responsible for work with SSTable files (CASSANDRA-3040)
+ * Stop reading from sstables once we know we have the most recent columns,
+   for query-by-name requests (CASSANDRA-2498)
+
 
 0.8.5
  * fix NPE when encryption_options is unspecified (CASSANDRA-3007)

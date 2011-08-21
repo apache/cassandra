@@ -53,6 +53,7 @@ import static org.apache.cassandra.Util.column;
 import static org.apache.cassandra.Util.getBytes;
 import static org.junit.Assert.assertNull;
 
+import org.junit.Assert;
 import org.junit.Test;
 
 public class ColumnFamilyStoreTest extends CleanupHelper
@@ -69,21 +70,48 @@ public class ColumnFamilyStoreTest extends CleanupHelper
     }
 
     @Test
+    // create two sstables, and verify that we only deserialize data from the most recent one
+    public void testTimeSortedQuery() throws IOException, ExecutionException, InterruptedException
+    {
+        Table table = Table.open("Keyspace1");
+        ColumnFamilyStore cfs = table.getColumnFamilyStore("Standard1");
+        cfs.truncate().get();
+
+        RowMutation rm;
+        rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes("key1"));
+        rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes("Column1")), ByteBufferUtil.bytes("asdf"), 0);
+        rm.apply();
+        cfs.forceBlockingFlush();
+
+        rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes("key1"));
+        rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes("Column1")), ByteBufferUtil.bytes("asdf"), 1);
+        rm.apply();
+        cfs.forceBlockingFlush();
+
+        cfs.getRecentSSTablesPerReadHistogram(); // resets counts
+        cfs.getColumnFamily(QueryFilter.getNamesFilter(Util.dk("key1"), new QueryPath("Standard1", null), ByteBufferUtil.bytes("Column1")));
+        assertEquals(1, cfs.getRecentSSTablesPerReadHistogram()[0]);
+    }
+
+    @Test
     public void testGetColumnWithWrongBF() throws IOException, ExecutionException, InterruptedException
     {
+        Table table = Table.open("Keyspace1");
+        ColumnFamilyStore cfs = table.getColumnFamilyStore("Standard1");
+        cfs.truncate().get();
+
         List<IMutation> rms = new LinkedList<IMutation>();
         RowMutation rm;
         rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes("key1"));
         rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes("Column1")), ByteBufferUtil.bytes("asdf"), 0);
         rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes("Column2")), ByteBufferUtil.bytes("asdf"), 0);
         rms.add(rm);
-        ColumnFamilyStore store = Util.writeColumnFamily(rms);
+        Util.writeColumnFamily(rms);
 
-        Table table = Table.open("Keyspace1");
         List<SSTableReader> ssTables = table.getAllSSTables();
         assertEquals(1, ssTables.size());
         ssTables.get(0).forceFilterFailures();
-        ColumnFamily cf = store.getColumnFamily(QueryFilter.getIdentityFilter(Util.dk("key2"), new QueryPath("Standard1", null, ByteBufferUtil.bytes("Column1"))));
+        ColumnFamily cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(Util.dk("key2"), new QueryPath("Standard1", null, ByteBufferUtil.bytes("Column1"))));
         assertNull(cf);
     }
 

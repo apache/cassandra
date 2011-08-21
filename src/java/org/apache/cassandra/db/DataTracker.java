@@ -27,6 +27,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.ImmutableSortedSet;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,6 +36,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.cache.AutoSavingCache;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.utils.Pair;
 
@@ -66,7 +69,7 @@ public class DataTracker
         return view.get().memtablesPendingFlush;
     }
 
-    public Set<SSTableReader> getSSTables()
+    public List<SSTableReader> getSSTables()
     {
         return view.get().sstables;
     }
@@ -242,7 +245,7 @@ public class DataTracker
     {
         view.set(new View(new Memtable(cfstore),
                           Collections.<Memtable>emptySet(),
-                          Collections.<SSTableReader>emptySet(),
+                          Collections.<SSTableReader>emptyList(),
                           Collections.<SSTableReader>emptySet()));
     }
 
@@ -461,10 +464,15 @@ public class DataTracker
     {
         public final Memtable memtable;
         public final Set<Memtable> memtablesPendingFlush;
-        public final Set<SSTableReader> sstables;
         public final Set<SSTableReader> compacting;
+        // We can't use a SortedSet here because "the ordering maintained by a sorted set (whether or not an
+        // explicit comparator is provided) must be <i>consistent with equals</i>."  In particular,
+        // ImmutableSortedSet will ignore any objects that compare equally with an existing Set member.
+        // Obviously, dropping sstables whose max column timestamp happens to be equal to another's
+        // is not acceptable for us.  So, we use a List instead.
+        public final List<SSTableReader> sstables;
 
-        View(Memtable memtable, Set<Memtable> pendingFlush, Set<SSTableReader> sstables, Set<SSTableReader> compacting)
+        View(Memtable memtable, Set<Memtable> pendingFlush, List<SSTableReader> sstables, Set<SSTableReader> compacting)
         {
             this.memtable = memtable;
             this.memtablesPendingFlush = pendingFlush;
@@ -486,15 +494,14 @@ public class DataTracker
         public View replaceFlushed(Memtable flushedMemtable, SSTableReader newSSTable)
         {
             Set<Memtable> newPending = ImmutableSet.copyOf(Sets.difference(memtablesPendingFlush, Collections.singleton(flushedMemtable)));
-            Set<SSTableReader> newSSTables = ImmutableSet.<SSTableReader>builder().addAll(sstables).add(newSSTable).build();
-            return new View(memtable, newPending, newSSTables, compacting);
+            List<SSTableReader> newSSTables = newSSTables(newSSTable);
+            return new View(memtable, newPending, Collections.unmodifiableList(newSSTables), compacting);
         }
 
         public View replace(Collection<SSTableReader> oldSSTables, Iterable<SSTableReader> replacements)
         {
-            Sets.SetView<SSTableReader> remaining = Sets.difference(sstables, ImmutableSet.copyOf(oldSSTables));
-            Set<SSTableReader> newSSTables = ImmutableSet.<SSTableReader>builder().addAll(remaining).addAll(replacements).build();
-            return new View(memtable, memtablesPendingFlush, newSSTables, compacting);
+            List<SSTableReader> newSSTables = newSSTables(oldSSTables, replacements);
+            return new View(memtable, memtablesPendingFlush, Collections.unmodifiableList(newSSTables), compacting);
         }
 
         public View markCompacting(Collection<SSTableReader> tomark)
@@ -507,6 +514,28 @@ public class DataTracker
         {
             Set<SSTableReader> compactingNew = ImmutableSet.copyOf(Sets.difference(compacting, ImmutableSet.copyOf(tounmark)));
             return new View(memtable, memtablesPendingFlush, sstables, compactingNew);
+        }
+
+        private List<SSTableReader> newSSTables(SSTableReader newSSTable)
+        {
+            // not performance-sensitive, don't obsess over doing a selection merge here
+            return newSSTables(Collections.<SSTableReader>emptyList(), Collections.singletonList(newSSTable));
+        }
+
+        private List<SSTableReader> newSSTables(Collection<SSTableReader> oldSSTables, Iterable<SSTableReader> replacements)
+        {
+            ImmutableSet<SSTableReader> oldSet = ImmutableSet.copyOf(oldSSTables);
+            int newSSTablesSize = sstables.size() - oldSSTables.size() + Iterables.size(replacements);
+            List<SSTableReader> newSSTables = new ArrayList<SSTableReader>(newSSTablesSize);
+            for (SSTableReader sstable : sstables)
+            {
+                if (!oldSet.contains(sstable))
+                    newSSTables.add(sstable);
+            }
+            Iterables.addAll(newSSTables, replacements);
+            assert newSSTables.size() == newSSTablesSize;
+            Collections.sort(newSSTables, SSTable.maxTimestampComparator);
+            return newSSTables;
         }
     }
 }

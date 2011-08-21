@@ -73,7 +73,13 @@ public interface IColumn
 
     /**
      * For a standard column, this is the same as timestamp().
-     * For a super column, this is max the column value timestamp of the sub columns.
+     * For a super column, this is the max column timestamp of the sub columns.
      */
     public long maxTimestamp();
+
+    /**
+     * For a standard column, this is the same as timestamp().
+     * For a super column, this is the min column timestamp of the sub columns.
+     */
+    public long minTimestamp();
 }
