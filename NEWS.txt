@@ -6,6 +6,10 @@ Upgrading
     - the BinaryMemtable bulk-load interface has been removed. Use the
       sstableloader tool instead.
 
+Features
+--------
+    - "cassandra.bat install" will install Cassandra as a Windows Service
+
 
 0.8.4
 =====

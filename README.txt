@@ -38,8 +38,10 @@ Now that we're ready, let's start it up!
 
   * bin/cassandra -f
 
-Running the startup script with the -f argument will cause Cassandra to
-remain in the foreground and log to standard out.
+(Running the startup script with the -f argument will cause Cassandra to
+remain in the foreground and log to standard out.  On windows, running
+it with the 'install' argument instead will install Cassandra as a
+Windows Service.)
 
 Now let's try to read and write some data using the command line client.
 
