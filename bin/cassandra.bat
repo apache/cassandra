@@ -14,16 +14,18 @@
 @REM  See the License for the specific language governing permissions and
 @REM  limitations under the License.
 
-@echo off
-if "%OS%" == "Windows_NT" setlocal
+set ARG=%1
+set INSTALL="INSTALL"
 
-if NOT DEFINED CASSANDRA_HOME set CASSANDRA_HOME=%~dp0..
+pushd %~dp0..
+if NOT DEFINED CASSANDRA_HOME set CASSANDRA_HOME=%CD%
+popd
+
 if NOT DEFINED CASSANDRA_MAIN set CASSANDRA_MAIN=org.apache.cassandra.thrift.CassandraDaemon
 if NOT DEFINED JAVA_HOME goto err
 
 REM ***** JAVA options *****
-set JAVA_OPTS=^
- -ea^
+set JAVA_OPTS=-ea^
  -javaagent:"%CASSANDRA_HOME%\lib\jamm-0.2.2.jar"^
  -Xms1G^
  -Xmx1G^
@@ -58,11 +60,44 @@ goto :eof
 REM Include the build\classes\main directory so it works in development
 set CASSANDRA_CLASSPATH=%CLASSPATH%;"%CASSANDRA_HOME%\build\classes\main";"%CASSANDRA_HOME%\build\classes\thrift"
 set CASSANDRA_PARAMS=-Dcassandra -Dcassandra-foreground=yes
+if /i "%ARG%" == "INSTALL" goto installService
 goto runDaemon
+
 
 :runDaemon
 echo Starting Cassandra Server
 "%JAVA_HOME%\bin\java" %JAVA_OPTS% %CASSANDRA_PARAMS% -cp %CASSANDRA_CLASSPATH% "%CASSANDRA_MAIN%"
+goto finally
+
+:installService
+set SERVICE_JVM="cassandra"
+rem location of Prunsrv
+set PATH_PRUNSRV=%CASSANDRA_HOME%\bin\daemon\
+set PR_LOGPATH=%PATH_PRUNSRV%
+
+rem fix up java ops replace ' -' with ' ;-'
+set JAVA_OPTS_DELM=%JAVA_OPTS: -=;-%
+
+rem Allow prunsrv to be overridden
+if "%PRUNSRV%" == "" set PRUNSRV=%PATH_PRUNSRV%prunsrv
+
+rem Install the service
+echo trying to delete service if it has been created already
+%PRUNSRV% //DS//%SERVICE_JVM%
+echo Installing %SERVICE_JVM%
+%PRUNSRV% //IS//%SERVICE_JVM%
+
+echo Setting the parameters for %SERVICE_JVM%
+rem set PR_CLASSPATH=%CASSANDRA_CLASSPATH%
+%PRUNSRV% //US//%SERVICE_JVM% ^
+ --Jvm=auto --StdOutput auto --StdError auto ^
+ --Classpath=%CASSANDRA_CLASSPATH% ^
+ --StartMode=jvm --StartClass=%CASSANDRA_MAIN% --StartMethod=main ^
+ --StopMode=jvm --StopClass=%CASSANDRA_MAIN%  --StopMethod=stop ^
+ ++JvmOptions=%JAVA_OPTS_DELM% ++JvmOptions=-DCassandra ^
+ --PidFile pid.txt
+ 
+echo Installation of %SERVICE_JVM% is complete
 goto finally
 
 :err

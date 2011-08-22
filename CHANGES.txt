@@ -38,6 +38,8 @@
  * Stop reading from sstables once we know we have the most recent columns,
    for query-by-name requests (CASSANDRA-2498)
  * Add query-by-column mode to stress.java (CASSANDRA-3064)
+ * Add "install" command to cassandra.bat (CASSANDRA-292)
+
 
 0.8.5
  * fix NPE when encryption_options is unspecified (CASSANDRA-3007)

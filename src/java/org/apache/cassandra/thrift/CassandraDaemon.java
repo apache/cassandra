@@ -53,6 +53,7 @@ import org.apache.thrift.transport.TTransportFactory;
 
 public class CassandraDaemon extends org.apache.cassandra.service.AbstractCassandraDaemon
 {
+    protected static CassandraDaemon instance;
     private static Logger logger = LoggerFactory.getLogger(CassandraDaemon.class);
     private final static String SYNC = "sync";
     private final static String ASYNC = "async";
@@ -86,9 +87,16 @@ public class CassandraDaemon extends org.apache.cassandra.service.AbstractCassan
         }
     }
 
+    public static void stop(String[] args)
+    {
+        instance.stopServer();
+        instance.deactivate();
+    }
+
     public static void main(String[] args)
     {
-        new CassandraDaemon().activate();
+        instance = new CassandraDaemon();
+        instance.activate();
     }
 
     /**
