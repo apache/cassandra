@@ -33,6 +33,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
+import com.google.common.collect.MapMaker;
 import org.apache.commons.collections.PredicateUtils;
 import org.apache.commons.collections.iterators.FilterIterator;
 import org.apache.commons.lang.StringUtils;
@@ -76,7 +77,7 @@ public class CompactionManager implements CompactionManagerMBean
     }
 
     private CompactionExecutor executor = new CompactionExecutor();
-    private Map<ColumnFamilyStore, Integer> estimatedCompactions = new NonBlockingHashMap<ColumnFamilyStore, Integer>();
+    private Map<ColumnFamilyStore, Integer> estimatedCompactions = new MapMaker().concurrencyLevel(1).weakKeys().makeMap();
 
     public Lock getCompactionLock()
     {

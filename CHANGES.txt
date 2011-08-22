@@ -5,6 +5,8 @@
    resultset expansion case (CASSANDRA-2964)
  * (Hadoop) fail jobs when Cassandra node has failed but TaskTracker
     has not (CASSANDRA-2388)
+ * avoid retaining references to dropped CFS objects in 
+   CompactionManager.estimatedCompactions (CASSANDRA-2708)
 
 
 0.7.8
