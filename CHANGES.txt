@@ -24,6 +24,8 @@
     has not (CASSANDRA-2388)
  * fix dynamic snitch ignoring nodes when read_repair_chance is zero
    (CASSANDRA-2662)
+ * avoid retaining references to dropped CFS objects in 
+   CompactionManager.estimatedCompactions (CASSANDRA-2708)
 
 
 0.8.4

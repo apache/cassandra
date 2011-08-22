@@ -31,6 +31,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
+import com.google.common.collect.MapMaker;
 import org.apache.commons.collections.PredicateUtils;
 import org.apache.commons.collections.iterators.CollatingIterator;
 import org.apache.commons.collections.iterators.FilterIterator;
@@ -86,7 +87,7 @@ public class CompactionManager implements CompactionManagerMBean
 
     private CompactionExecutor executor = new CompactionExecutor();
     private CompactionExecutor validationExecutor = new ValidationExecutor();
-    private Map<ColumnFamilyStore, Integer> estimatedCompactions = new NonBlockingHashMap<ColumnFamilyStore, Integer>();
+    private Map<ColumnFamilyStore, Integer> estimatedCompactions = new MapMaker().concurrencyLevel(1).weakKeys().makeMap();
 
     /**
      * @return A lock, for which acquisition means no compactions can run.
