@@ -739,11 +739,19 @@ public class NodeCmd
 
     private static void handleSnapshots(NodeCommand nc, String tag, String[] cmdArgs, NodeProbe probe) throws InterruptedException, IOException
     {
-        int length = cmdArgs.length > 1 ? cmdArgs.length - 1 : 0;
-        String[] keyspaces = new String[length];
-        for (int i = 0; i < keyspaces.length; i++)
-            keyspaces[i] = cmdArgs[i + 1];
-
+        String[] keyspaces = Arrays.copyOfRange(cmdArgs, 0, cmdArgs.length);
+        System.out.print("Requested snapshot for: ");        
+        if ( keyspaces.length > 0 ) 
+        {
+          for (int i = 0; i < keyspaces.length; i++) 
+              System.out.print(keyspaces[i] + " ");            
+        } 
+        else 
+        {
+            System.out.print("all keyspaces");
+        }
+        System.out.println();
+        
         switch (nc)
         {
             case SNAPSHOT :
