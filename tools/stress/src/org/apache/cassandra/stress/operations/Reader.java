@@ -37,16 +37,13 @@ public class Reader extends Operation
 
     public void run(Cassandra.Client client) throws IOException
     {
-        SliceRange sliceRange = new SliceRange();
-
-        // start/finish
-        sliceRange.setStart(new byte[] {}).setFinish(new byte[] {});
-
-        // reversed/count
-        sliceRange.setReversed(false).setCount(session.getColumnsPerKey());
-
         // initialize SlicePredicate with existing SliceRange
-        SlicePredicate predicate = new SlicePredicate().setSlice_range(sliceRange);
+        SlicePredicate predicate = new SlicePredicate();
+
+        if (session.columnNames == null)
+            predicate.setSlice_range(getSliceRange());
+        else // see CASSANDRA-3064 about why this is useful
+            predicate.setColumn_names(session.columnNames);
 
         if (session.getColumnFamilyType() == ColumnFamilyType.Super)
         {
@@ -150,4 +147,12 @@ public class Reader extends Operation
         session.latency.getAndAdd(System.currentTimeMillis() - start);
     }
 
+    private SliceRange getSliceRange()
+    {
+        return new SliceRange()
+                    .setStart(new byte[] {})
+                    .setFinish(new byte[] {})
+                    .setReversed(false)
+                    .setCount(session.getColumnsPerKey());
+    }
 }

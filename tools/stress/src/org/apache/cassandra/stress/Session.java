@@ -20,10 +20,14 @@ package org.apache.cassandra.stress;
 import java.io.*;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
+import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.commons.cli.*;
 
 import org.apache.cassandra.db.ColumnFamilyType;
@@ -40,6 +44,9 @@ public class Session implements Serializable
 {
     // command line options
     public static final Options availableOptions = new Options();
+
+    public static final String DEFAULT_COMPARATOR = "AsciiType";
+    public static final String DEFAULT_VALIDATOR  = "BytesType";
 
     public final AtomicInteger operations;
     public final AtomicInteger keys;
@@ -78,6 +85,7 @@ public class Session implements Serializable
         availableOptions.addOption("V",  "average-size-values",  false,  "Generate column values of average rather than specific size");
         availableOptions.addOption("T",  "send-to",              true,   "Send this as a request to the stress daemon at specified address.");
         availableOptions.addOption("I",  "compression",          false,  "Use sstable compression when creating schema");
+        availableOptions.addOption("Q",  "query-names",          true,   "Comma-separated list of column names to retrieve from each row.");
     }
 
     private int numKeys          = 1000 * 1000;
@@ -108,6 +116,9 @@ public class Session implements Serializable
     private ConsistencyLevel consistencyLevel = ConsistencyLevel.ONE;
     private String replicationStrategy = "org.apache.cassandra.locator.SimpleStrategy";
     private Map<String, String> replicationStrategyOptions = new HashMap<String, String>();
+
+    // if we know exactly column names that we want to read (set by -Q option)
+    public final List<ByteBuffer> columnNames;
 
     public final boolean averageSizeValues;
 
@@ -275,10 +286,29 @@ public class Session implements Serializable
             {
                 throw new RuntimeException(e);
             }
+
+            if (cmd.hasOption("Q"))
+            {
+                AbstractType comparator = TypeParser.parse(DEFAULT_COMPARATOR);
+
+                String[] names = StringUtils.split(cmd.getOptionValue("Q"), ",");
+                columnNames = new ArrayList<ByteBuffer>(names.length);
+
+                for (String columnName : names)
+                    columnNames.add(comparator.fromString(columnName));
+            }
+            else
+            {
+                columnNames = null;
+            }
         }
         catch (ParseException e)
         {
             throw new IllegalArgumentException(e.getMessage(), e);
+        }
+        catch (ConfigurationException e)
+        {
+            throw new IllegalStateException(e.getMessage(), e);
         }
 
         mean  = numDifferentKeys / 2;
@@ -417,8 +447,11 @@ public class Session implements Serializable
 
         // column family for standard columns
         CfDef standardCfDef = new CfDef("Keyspace1", "Standard1");
-        System.out.println("Compression = " + compression);
-        standardCfDef.setComparator_type("AsciiType").setDefault_validation_class("BytesType").setCompression(compression);
+
+        standardCfDef.setComparator_type(DEFAULT_COMPARATOR)
+                     .setDefault_validation_class(DEFAULT_VALIDATOR)
+                     .setCompression(compression);
+
         if (indexType != null)
         {
             ColumnDef standardColumn = new ColumnDef(ByteBufferUtil.bytes("C1"), "BytesType");
@@ -428,7 +461,10 @@ public class Session implements Serializable
 
         // column family with super columns
         CfDef superCfDef = new CfDef("Keyspace1", "Super1").setColumn_type("Super");
-        superCfDef.setComparator_type("AsciiType").setSubcomparator_type("AsciiType").setDefault_validation_class("BytesType").setCompression(compression);
+        superCfDef.setComparator_type(DEFAULT_COMPARATOR)
+                  .setSubcomparator_type(DEFAULT_COMPARATOR)
+                  .setDefault_validation_class(DEFAULT_VALIDATOR)
+                  .setCompression(compression);
 
         // column family for standard counters
         CfDef counterCfDef = new CfDef("Keyspace1", "Counter1").setDefault_validation_class("CounterColumnType").setReplicate_on_write(replicateOnWrite).setCompression(compression);
