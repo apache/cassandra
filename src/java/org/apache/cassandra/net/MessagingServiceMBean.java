@@ -59,4 +59,24 @@ public interface MessagingServiceMBean
      * dropped message counts since last called
      */
     public Map<String, Integer> getRecentlyDroppedMessages();
+
+    /**
+     * Total number of timeouts happened on this node
+     */
+    public long getTotalTimeouts();
+
+    /**
+     * Number of timeouts per host
+     */
+    public Map<String, Long> getTimeoutsPerHost();
+
+    /**
+     * Number of timeouts since last check.
+     */
+    public long getRecentTotalTimouts();
+
+    /**
+     * Number of timeouts since last check per host.
+     */
+    public Map<String, Long> getRecentTimeoutsPerHost();
 }

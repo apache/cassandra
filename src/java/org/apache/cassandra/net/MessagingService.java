@@ -29,6 +29,7 @@ import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
@@ -102,6 +103,10 @@ public final class MessagingService implements MessagingServiceMBean
     private final Map<StorageService.Verb, Integer> lastDropped = Collections.synchronizedMap(new EnumMap<StorageService.Verb, Integer>(StorageService.Verb.class));
     private final Map<StorageService.Verb, Integer> lastDroppedInternal = new EnumMap<StorageService.Verb, Integer>(StorageService.Verb.class);
 
+    private long totalTimeouts = 0;
+    private long recentTotalTimeouts = 0;
+    private final Map<String, AtomicLong> timeoutsPerHost = new HashMap<String, AtomicLong>();
+    private final Map<String, AtomicLong> recentTimeoutsPerHost = new HashMap<String, AtomicLong>();
     private final List<ILatencySubscriber> subscribers = new ArrayList<ILatencySubscriber>();
     private static final long DEFAULT_CALLBACK_TIMEOUT = (long) (1.1 * DatabaseDescriptor.getRpcTimeout());
 
@@ -141,6 +146,17 @@ public final class MessagingService implements MessagingServiceMBean
             {
                 Pair<InetAddress, IMessageCallback> expiredValue = pair.right;
                 maybeAddLatency(expiredValue.right, expiredValue.left, (double) DatabaseDescriptor.getRpcTimeout());
+                totalTimeouts++;
+                String ip = expiredValue.left.getHostAddress();
+                AtomicLong c = timeoutsPerHost.get(ip);
+                if (c == null)
+                    c = timeoutsPerHost.put(ip, new AtomicLong());
+                c.incrementAndGet();
+                // we only create AtomicLong instances here, so that the write
+                // access to the hashmap happens single-threadedly.
+                if (recentTimeoutsPerHost.get(ip) == null)
+                    recentTimeoutsPerHost.put(ip, new AtomicLong());
+
                 return null;
             }
         };
@@ -694,5 +710,40 @@ public final class MessagingService implements MessagingServiceMBean
             lastDropped.put(verb, dropped);
         }
         return map;
+    }
+
+    public long getTotalTimeouts()
+    {
+        return totalTimeouts;
+    }
+
+    public long getRecentTotalTimouts()
+    {
+        long recent = totalTimeouts - recentTotalTimeouts;
+        recentTotalTimeouts = totalTimeouts;
+        return recent;
+    }
+
+    public Map<String, Long> getTimeoutsPerHost()
+    {
+        Map<String, Long> result = new HashMap<String, Long>();
+        for (Map.Entry<String, AtomicLong> entry: timeoutsPerHost.entrySet())
+        {
+            result.put(entry.getKey(), entry.getValue().get());
+        }
+        return result;
+    }
+
+    public Map<String, Long> getRecentTimeoutsPerHost()
+    {
+        Map<String, Long> result = new HashMap<String, Long>();
+        for (Map.Entry<String, AtomicLong> entry: recentTimeoutsPerHost.entrySet())
+        {
+            String ip = entry.getKey();
+            AtomicLong recent = entry.getValue();
+            Long timeout = timeoutsPerHost.get(ip).get();
+            result.put(ip, timeout - recent.getAndSet(timeout));
+        }
+        return result;
     }
 }

@@ -26,6 +26,7 @@
    (CASSANDRA-2662)
  * avoid retaining references to dropped CFS objects in 
    CompactionManager.estimatedCompactions (CASSANDRA-2708)
+ * expose rpc timeouts per host in MessagingServiceMBean (CASSANDRA-2941)
 
 
 0.8.4
