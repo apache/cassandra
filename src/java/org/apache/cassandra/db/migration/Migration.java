@@ -28,12 +28,12 @@ import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.net.MessagingService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryFilter;
@@ -79,6 +79,9 @@ public abstract class Migration
     // the migration in column form, used when announcing to others
     private IColumn column;
 
+    // cast of the schema at the time when migration was initialized
+    protected final Schema schema = Schema.instance;
+
     /** Subclasses must have a matching constructor */
     protected Migration() { }
 
@@ -88,12 +91,12 @@ public abstract class Migration
         this.newVersion = newVersion;
         this.lastVersion = lastVersion;
     }
-    
+
     /** apply changes */
     public final void apply() throws IOException, ConfigurationException
     {
         // ensure migration is serial. don't apply unless the previous version matches.
-        if (!DatabaseDescriptor.getDefsVersion().equals(lastVersion))
+        if (!schema.getVersion().equals(lastVersion))
             throw new ConfigurationException("Previous version mismatch. cannot apply.");
         if (newVersion.timestamp() <= lastVersion.timestamp())
             throw new ConfigurationException("New version timestamp is not newer than the current version timestamp.");
@@ -199,15 +202,15 @@ public abstract class Migration
      * (containing the Avro Schema) and a column per keyspace. Each keyspace column contains a avro.KsDef object
      * encoded with the Avro schema.
      */
-    static RowMutation makeDefinitionMutation(KSMetaData add, KSMetaData remove, UUID versionId) throws IOException
+    final RowMutation makeDefinitionMutation(KSMetaData add, KSMetaData remove, UUID versionId) throws IOException
     {
         // collect all keyspaces, while removing 'remove' and adding 'add'
         List<KSMetaData> ksms = new ArrayList<KSMetaData>();
-        for (String tableName : DatabaseDescriptor.getNonSystemTables())
+        for (String tableName : schema.getNonSystemTables())
         {
             if (remove != null && remove.name.equals(tableName) || add != null && add.name.equals(tableName))
                 continue;
-            ksms.add(DatabaseDescriptor.getTableDefinition(tableName));
+            ksms.add(schema.getTableDefinition(tableName));
         }
         if (add != null)
             ksms.add(add);

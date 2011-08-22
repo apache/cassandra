@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.MarshalException;
@@ -464,7 +465,7 @@ public class SSTableImport
         }
 
         DatabaseDescriptor.loadSchemas();
-        if (DatabaseDescriptor.getNonSystemTables().size() < 1)
+        if (Schema.instance.getNonSystemTables().size() < 1)
         {
             String msg = "no non-system tables are defined";
             System.err.println(msg);

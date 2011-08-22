@@ -21,17 +21,16 @@ package org.apache.cassandra.locator;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 
+import org.apache.cassandra.config.Schema;
 import org.junit.Test;
 
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.dht.*;
@@ -81,7 +80,7 @@ public class SimpleStrategyTest extends CleanupHelper
     {
         TokenMetadata tmd;
         AbstractReplicationStrategy strategy;
-        for (String table : DatabaseDescriptor.getNonSystemTables())
+        for (String table : Schema.instance.getNonSystemTables())
         {
             tmd = new TokenMetadata();
             strategy = getStrategy(table, tmd);
@@ -136,7 +135,7 @@ public class SimpleStrategyTest extends CleanupHelper
         tmd.addBootstrapToken(bsToken, bootstrapEndpoint);
 
         AbstractReplicationStrategy strategy = null;
-        for (String table : DatabaseDescriptor.getNonSystemTables())
+        for (String table : Schema.instance.getNonSystemTables())
         {
             strategy = getStrategy(table, tmd);
 
@@ -178,7 +177,7 @@ public class SimpleStrategyTest extends CleanupHelper
 
     private AbstractReplicationStrategy getStrategy(String table, TokenMetadata tmd) throws ConfigurationException
     {
-        KSMetaData ksmd =  DatabaseDescriptor.getKSMetaData(table);
+        KSMetaData ksmd = Schema.instance.getKSMetaData(table);
         return AbstractReplicationStrategy.createReplicationStrategy(
                 table,
                 ksmd.strategyClass,

@@ -20,10 +20,7 @@
  */
 package org.apache.cassandra.cql;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.db.migration.avro.CfDef;
 import org.apache.cassandra.db.migration.avro.ColumnDef;
@@ -56,7 +53,7 @@ public class AlterTableStatement
 
     public CfDef getCfDef(String keyspace) throws ConfigurationException, InvalidRequestException
     {
-        CFMetaData meta = DatabaseDescriptor.getCFMetaData(keyspace, columnFamily);
+        CFMetaData meta = Schema.instance.getCFMetaData(keyspace, columnFamily);
 
         CfDef cfDef = CFMetaData.convertToAvro(meta);
 

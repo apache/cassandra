@@ -21,13 +21,9 @@
 package org.apache.cassandra.cql;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.Map;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.migration.avro.CfDef;
 import org.apache.cassandra.db.migration.avro.ColumnDef;
 import org.apache.cassandra.db.migration.UpdateColumnFamily;
@@ -47,7 +43,7 @@ public class DropIndexStatement
     {
         CfDef cfDef = null;
 
-        KSMetaData ksm = DatabaseDescriptor.getTableDefinition(keyspace);
+        KSMetaData ksm = Schema.instance.getTableDefinition(keyspace);
 
         for (Map.Entry<String, CFMetaData> cf : ksm.cfMetaData().entrySet())
         {

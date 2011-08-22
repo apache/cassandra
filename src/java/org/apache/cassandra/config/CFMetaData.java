@@ -20,10 +20,7 @@ package org.apache.cassandra.config;
 
 import java.nio.ByteBuffer;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicInteger;
 
-import com.google.common.collect.BiMap;
-import com.google.common.collect.HashBiMap;
 import org.apache.commons.lang.builder.EqualsBuilder;
 import org.apache.commons.lang.builder.HashCodeBuilder;
 import org.apache.commons.lang.builder.ToStringBuilder;
@@ -50,7 +47,6 @@ import org.apache.cassandra.io.SerDeUtils;
 import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.Pair;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -82,11 +78,6 @@ public final class CFMetaData
     public final static ByteBuffer DEFAULT_KEY_NAME = ByteBufferUtil.bytes("KEY");
     public final static boolean DEFAULT_COMPRESSION = false;
 
-    private static final int MIN_CF_ID = 1000;
-    private static final AtomicInteger idGen = new AtomicInteger(MIN_CF_ID);
-    
-    private static final BiMap<Pair<String, String>, Integer> cfIdMap = HashBiMap.create();
-    
     public static final CFMetaData StatusCf = newSystemMetadata(SystemTable.STATUS_CF, 0, "persistent metadata for the local node", BytesType.instance, null, DEFAULT_SYSTEM_MEMTABLE_THROUGHPUT_IN_MB);
     public static final CFMetaData HintsCf = newSystemMetadata(HintedHandOffManager.HINTS_CF, 1, "hinted handoff data", BytesType.instance, BytesType.instance, Math.min(256, Math.max(32, DEFAULT_MEMTABLE_THROUGHPUT_IN_MB / 2)));
     public static final CFMetaData MigrationsCf = newSystemMetadata(Migration.MIGRATIONS_CF, 2, "individual schema mutations", TimeUUIDType.instance, null, DEFAULT_SYSTEM_MEMTABLE_THROUGHPUT_IN_MB);
@@ -108,41 +99,6 @@ public final class CFMetaData
     public static double sizeMemtableOperations(int mem_throughput)
     {
         return 0.3 * mem_throughput / 64.0;
-    }
-
-    /**
-     * @return The (ksname,cfname) pair for the given id, or null if it has been dropped.
-     */
-    public static Pair<String,String> getCF(Integer cfId)
-    {
-        return cfIdMap.inverse().get(cfId);
-    }
-    
-    /**
-     * @return The id for the given (ksname,cfname) pair, or null if it has been dropped.
-     */
-    public static Integer getId(String ksName, String cfName)
-    {
-        return cfIdMap.get(new Pair<String, String>(ksName, cfName));
-    }
-    
-    // this gets called after initialization to make sure that id generation happens properly.
-    public static void fixMaxId()
-    {
-        // never set it to less than 1000. this ensures that we have enough system CFids for future use.
-        idGen.set(cfIdMap.size() == 0 ? MIN_CF_ID : Math.max(Collections.max(cfIdMap.values()) + 1, MIN_CF_ID));
-    }
-
-    /** adds this cfm to the map. */
-    public static void map(CFMetaData cfm) throws ConfigurationException
-    {
-        Pair<String, String> key = new Pair<String, String>(cfm.ksName, cfm.cfName);
-        if (cfIdMap.containsKey(key))
-            throw new ConfigurationException("Attempt to assign id to existing column family.");
-        else
-        {
-            cfIdMap.put(key, cfm.cfId);
-        }
     }
 
     //REQUIRED
@@ -203,7 +159,7 @@ public final class CFMetaData
 
     public CFMetaData(String keyspace, String name, ColumnFamilyType type, AbstractType comp, AbstractType subcc)
     {
-        this(keyspace, name, type, comp, subcc, nextId());
+        this(keyspace, name, type, comp, subcc, Schema.instance.nextCFId());
     }
 
     private CFMetaData(String keyspace, String name, ColumnFamilyType type, AbstractType comp, AbstractType subcc, int id)
@@ -334,12 +290,6 @@ public final class CFMetaData
                       .compactionStrategyClass(oldCFMD.compactionStrategyClass)
                       .compactionStrategyOptions(oldCFMD.compactionStrategyOptions)
                       .compression(oldCFMD.compression);
-    }
-
-    /** used for evicting cf data out of static tracking collections. */
-    public static void purge(CFMetaData cfm)
-    {
-        cfIdMap.remove(new Pair<String, String>(cfm.ksName, cfm.cfName));
     }
     
     /**
@@ -671,11 +621,6 @@ public final class CFMetaData
             .append(compactionStrategyClass)
             .append(compactionStrategyOptions)
             .toHashCode();
-    }
-
-    private static int nextId()
-    {
-        return idGen.getAndIncrement();
     }
 
     public AbstractType getValueValidator(ByteBuffer column)

@@ -35,6 +35,7 @@ import org.apache.cassandra.cache.AutoSavingCache;
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.index.SecondaryIndexBuilder;
 import org.apache.cassandra.dht.Range;
@@ -285,7 +286,7 @@ public class CompactionManager implements CompactionManagerMBean
 
     public void forceUserDefinedCompaction(String ksname, String dataFiles)
     {
-        if (!DatabaseDescriptor.getTables().contains(ksname))
+        if (!Schema.instance.getTables().contains(ksname))
             throw new IllegalArgumentException("Unknown keyspace " + ksname);
 
         File directory = new File(ksname);
@@ -435,7 +436,7 @@ public class CompactionManager implements CompactionManagerMBean
     /* Used in tests. */
     public void disableAutoCompaction()
     {
-        for (String ksname : DatabaseDescriptor.getNonSystemTables())
+        for (String ksname : Schema.instance.getNonSystemTables())
         {
             for (ColumnFamilyStore cfs : Table.open(ksname).getColumnFamilyStores())
                 cfs.disableAutoCompaction();
@@ -1021,7 +1022,7 @@ public class CompactionManager implements CompactionManagerMBean
     public int getPendingTasks()
     {
         int n = 0;
-        for (String tableName : DatabaseDescriptor.getTables())
+        for (String tableName : Schema.instance.getTables())
         {
             for (ColumnFamilyStore cfs : Table.open(tableName).getColumnFamilyStores())
             {

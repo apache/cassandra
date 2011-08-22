@@ -23,7 +23,7 @@ package org.apache.cassandra.db;
 
 import org.apache.cassandra.AbstractSerializationsTester;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.IPartitioner;
@@ -312,7 +312,7 @@ public class SerializationsTest extends AbstractSerializationsTester
         private static final ColumnFamily StandardCf = ColumnFamily.create(Statics.KS, "Standard1");
         private static final ColumnFamily SuperCf = ColumnFamily.create(Statics.KS, "Super1");
         
-        private static final SuperColumn SuperCol = new SuperColumn(Statics.SC, DatabaseDescriptor.getComparator(Statics.KS, "Super1"))
+        private static final SuperColumn SuperCol = new SuperColumn(Statics.SC, Schema.instance.getComparator(Statics.KS, "Super1"))
         {{
             addColumn(new Column(bb("aaaa")));
             addColumn(new Column(bb("bbbb"), bb("bbbbb-value")));
@@ -322,7 +322,7 @@ public class SerializationsTest extends AbstractSerializationsTester
             addColumn(new ExpiringColumn(bb("ffff"), bb("ffff-value"), 2000, 1000));
             addColumn(new ExpiringColumn(bb("gggg"), bb("gggg-value"), 2001, 1000, 2002));
         }};
-        
+
         private static final Row StandardRow = new Row(Util.dk("key0"), Statics.StandardCf);
         private static final Row SuperRow = new Row(Util.dk("key1"), Statics.SuperCf);
         private static final Row NullRow = new Row(Util.dk("key2"), null);

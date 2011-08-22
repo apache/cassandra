@@ -31,6 +31,7 @@ import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Multimap;
 
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.net.*;
 
 import org.apache.commons.lang.ArrayUtils;
@@ -802,7 +803,7 @@ public class StorageProxy implements StorageProxyMBean
      */
     public static Map<String, List<String>> describeSchemaVersions()
     {
-        final String myVersion = DatabaseDescriptor.getDefsVersion().toString();
+        final String myVersion = Schema.instance.getVersion().toString();
         final Map<InetAddress, UUID> versions = new ConcurrentHashMap<InetAddress, UUID>();
         final Set<InetAddress> liveHosts = Gossiper.instance.getLiveMembers();
         final CountDownLatch latch = new CountDownLatch(liveHosts.size());

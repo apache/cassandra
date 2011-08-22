@@ -25,7 +25,7 @@ import java.util.*;
 
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.CounterMutation;
 import org.apache.cassandra.db.IMutation;
 import org.apache.cassandra.db.RowMutation;
@@ -280,16 +280,16 @@ public class UpdateStatement extends AbstractModification
     
     public AbstractType<?> getKeyType(String keyspace)
     {
-        return DatabaseDescriptor.getCFMetaData(keyspace, columnFamily).getKeyValidator();
+        return Schema.instance.getCFMetaData(keyspace, columnFamily).getKeyValidator();
     }
     
     public AbstractType<?> getComparator(String keyspace)
     {
-        return DatabaseDescriptor.getComparator(keyspace, columnFamily);
+        return Schema.instance.getComparator(keyspace, columnFamily);
     }
     
     public AbstractType<?> getValueValidator(String keyspace, ByteBuffer column)
     {
-        return DatabaseDescriptor.getValueValidator(keyspace, columnFamily, column);
+        return Schema.instance.getValueValidator(keyspace, columnFamily, column);
     }
 }

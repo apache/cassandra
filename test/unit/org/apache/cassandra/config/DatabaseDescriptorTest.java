@@ -47,9 +47,9 @@ public class DatabaseDescriptorTest
     public void testCFMetaDataSerialization() throws IOException, ConfigurationException
     {
         // test serialization of all defined test CFs.
-        for (String table : DatabaseDescriptor.getNonSystemTables())
+        for (String table : Schema.instance.getNonSystemTables())
         {
-            for (CFMetaData cfm : DatabaseDescriptor.getTableMetaData(table).values())
+            for (CFMetaData cfm : Schema.instance.getTableMetaData(table).values())
             {
                 CFMetaData cfmDupe = CFMetaData.inflate(serDe(cfm.deflate(), new org.apache.cassandra.db.migration.avro.CfDef()));
                 assert cfmDupe != null;
@@ -61,7 +61,7 @@ public class DatabaseDescriptorTest
     @Test
     public void testKSMetaDataSerialization() throws IOException, ConfigurationException
     {
-        for (KSMetaData ksm : DatabaseDescriptor.tables.values())
+        for (KSMetaData ksm : Schema.instance.getTableDefinitions())
         {
             // Not testing round-trip on the KsDef via serDe() because maps
             //  cannot be compared in avro.
@@ -77,26 +77,26 @@ public class DatabaseDescriptorTest
     {
         CleanupHelper.cleanupAndLeaveDirs();
         DatabaseDescriptor.loadSchemas();
-        assert DatabaseDescriptor.getNonSystemTables().size() == 0;
+        assert Schema.instance.getNonSystemTables().size() == 0;
         
         // add a few.
         AddKeyspace ks0 = new AddKeyspace(new KSMetaData("ks0", SimpleStrategy.class, KSMetaData.optsWithRF(3)));
         ks0.apply();
         AddKeyspace ks1 = new AddKeyspace(new KSMetaData("ks1", SimpleStrategy.class, KSMetaData.optsWithRF(3)));
         ks1.apply();
-        
-        assert DatabaseDescriptor.getTableDefinition("ks0") != null;
-        assert DatabaseDescriptor.getTableDefinition("ks1") != null;
-        
-        DatabaseDescriptor.clearTableDefinition(DatabaseDescriptor.getTableDefinition("ks0"), new UUID(4096, 0));
-        DatabaseDescriptor.clearTableDefinition(DatabaseDescriptor.getTableDefinition("ks1"), new UUID(4096, 0));
-        
-        assert DatabaseDescriptor.getTableDefinition("ks0") == null;
-        assert DatabaseDescriptor.getTableDefinition("ks1") == null;
+
+        assert Schema.instance.getTableDefinition("ks0") != null;
+        assert Schema.instance.getTableDefinition("ks1") != null;
+
+        Schema.instance.clearTableDefinition(Schema.instance.getTableDefinition("ks0"), new UUID(4096, 0));
+        Schema.instance.clearTableDefinition(Schema.instance.getTableDefinition("ks1"), new UUID(4096, 0));
+
+        assert Schema.instance.getTableDefinition("ks0") == null;
+        assert Schema.instance.getTableDefinition("ks1") == null;
         
         DatabaseDescriptor.loadSchemas();
-        
-        assert DatabaseDescriptor.getTableDefinition("ks0") != null;
-        assert DatabaseDescriptor.getTableDefinition("ks1") != null;
+
+        assert Schema.instance.getTableDefinition("ks0") != null;
+        assert Schema.instance.getTableDefinition("ks1") != null;
     }
 }

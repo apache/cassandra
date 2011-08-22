@@ -20,20 +20,16 @@ package org.apache.cassandra.service;
 
 import java.io.File;
 import java.io.IOException;
-import java.lang.management.ManagementFactory;
 import java.net.InetAddress;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.UUID;
-import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import javax.management.MBeanServer;
-import javax.management.ObjectName;
-
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.log4j.PropertyConfigurator;
 import org.slf4j.Logger;
@@ -49,7 +45,6 @@ import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.utils.CLibrary;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Mx4jTool;
 
 /**
@@ -141,7 +136,7 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
         // check the system table to keep user from shooting self in foot by changing partitioner, cluster name, etc.
         // we do a one-off scrub of the system table first; we can't load the list of the rest of the tables,
         // until system table is opened.
-        for (CFMetaData cfm : DatabaseDescriptor.getTableMetaData(Table.SYSTEM_TABLE).values())
+        for (CFMetaData cfm : Schema.instance.getTableMetaData(Table.SYSTEM_TABLE).values())
             ColumnFamilyStore.scrubDataDirectories(Table.SYSTEM_TABLE, cfm.cfName);
         try
         {
@@ -165,16 +160,16 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
         }
         
         // clean up debris in the rest of the tables
-        for (String table : DatabaseDescriptor.getTables()) 
+        for (String table : Schema.instance.getTables())
         {
-            for (CFMetaData cfm : DatabaseDescriptor.getTableMetaData(table).values())
+            for (CFMetaData cfm : Schema.instance.getTableMetaData(table).values())
             {
                 ColumnFamilyStore.scrubDataDirectories(table, cfm.cfName);
             }
         }
 
         // initialize keyspaces
-        for (String table : DatabaseDescriptor.getTables())
+        for (String table : Schema.instance.getTables())
         {
             if (logger.isDebugEnabled())
                 logger.debug("opening keyspace " + table);
@@ -196,7 +191,7 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
         // check to see if CL.recovery modified the lastMigrationId. if it did, we need to re apply migrations. this isn't
         // the same as merely reloading the schema (which wouldn't perform file deletion after a DROP). The solution
         // is to read those migrations from disk and apply them.
-        UUID currentMigration = DatabaseDescriptor.getDefsVersion();
+        UUID currentMigration = Schema.instance.getVersion();
         UUID lastMigration = Migration.getLastMigrationId();
         if ((lastMigration != null) && (lastMigration.timestamp() > currentMigration.timestamp()))
         {

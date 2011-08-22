@@ -24,6 +24,7 @@ import java.net.UnknownHostException;
 import java.util.*;
 
 import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.config.Schema;
 import org.junit.Test;
 
 import static org.junit.Assert.*;
@@ -31,7 +32,6 @@ import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.gms.ApplicationState;
@@ -67,7 +67,7 @@ public class LeaveAndBootstrapTest extends CleanupHelper
         Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, RING_SIZE);
 
         Map<Token, List<InetAddress>> expectedEndpoints = new HashMap<Token, List<InetAddress>>();
-        for (String table : DatabaseDescriptor.getNonSystemTables())
+        for (String table : Schema.instance.getNonSystemTables())
         {
             for (Token token : keyTokens)
             {
@@ -88,7 +88,7 @@ public class LeaveAndBootstrapTest extends CleanupHelper
         assertTrue(tmd.isLeaving(hosts.get(LEAVING_NODE)));
 
         AbstractReplicationStrategy strategy;
-        for (String table : DatabaseDescriptor.getNonSystemTables())
+        for (String table : Schema.instance.getNonSystemTables())
         {
             strategy = getStrategy(table, tmd);
             for (Token token : keyTokens)
@@ -614,7 +614,7 @@ public class LeaveAndBootstrapTest extends CleanupHelper
 
     private AbstractReplicationStrategy getStrategy(String table, TokenMetadata tmd) throws ConfigurationException
     {
-        KSMetaData ksmd =  DatabaseDescriptor.getKSMetaData(table);
+        KSMetaData ksmd = Schema.instance.getKSMetaData(table);
         return AbstractReplicationStrategy.createReplicationStrategy(
                 table,
                 ksmd.strategyClass,

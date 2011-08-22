@@ -20,10 +20,7 @@ package org.apache.cassandra.db.migration;
 
 import java.io.IOException;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
@@ -38,9 +35,9 @@ public class AddKeyspace extends Migration
     
     public AddKeyspace(KSMetaData ksm) throws ConfigurationException, IOException
     {
-        super(UUIDGen.makeType1UUIDFromHost(FBUtilities.getBroadcastAddress()), DatabaseDescriptor.getDefsVersion());
+        super(UUIDGen.makeType1UUIDFromHost(FBUtilities.getBroadcastAddress()), Schema.instance.getVersion());
         
-        if (DatabaseDescriptor.getTableDefinition(ksm.name) != null)
+        if (schema.getTableDefinition(ksm.name) != null)
             throw new ConfigurationException("Keyspace already exists.");
         if (!Migration.isLegalName(ksm.name))
             throw new ConfigurationException("Invalid keyspace name: " + ksm.name);
@@ -58,7 +55,7 @@ public class AddKeyspace extends Migration
         {
             try
             {
-                CFMetaData.map(cfm);
+                schema.load(cfm);
             }
             catch (ConfigurationException ex)
             {
@@ -67,12 +64,12 @@ public class AddKeyspace extends Migration
                 throw new RuntimeException(ex);
             }
         }
-        DatabaseDescriptor.setTableDefinition(ksm, newVersion);
+        schema.setTableDefinition(ksm, newVersion);
         // these definitions could have come from somewhere else.
-        CFMetaData.fixMaxId();
+        schema.fixCFMaxId();
         if (!StorageService.instance.isClientMode())
         {
-            Table.open(ksm.name);
+            Table.open(ksm.name, schema);
         }
     }
     

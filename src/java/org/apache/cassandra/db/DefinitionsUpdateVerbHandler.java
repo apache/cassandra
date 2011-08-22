@@ -28,8 +28,8 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
@@ -52,7 +52,7 @@ public class DefinitionsUpdateVerbHandler implements IVerbHandler
             for (Column col : cols)
             {
                 final UUID version = UUIDGen.getUUID(col.name());
-                if (version.timestamp() > DatabaseDescriptor.getDefsVersion().timestamp())
+                if (version.timestamp() > Schema.instance.getVersion().timestamp())
                 {
                     final Migration m = Migration.deserialize(col.value(), message.getVersion());
                     assert m.getVersion().equals(version);
@@ -61,9 +61,9 @@ public class DefinitionsUpdateVerbHandler implements IVerbHandler
                         protected void runMayThrow() throws Exception
                         {
                             // check to make sure the current version is before this one.
-                            if (DatabaseDescriptor.getDefsVersion().timestamp() == version.timestamp())
+                            if (Schema.instance.getVersion().timestamp() == version.timestamp())
                                 logger.debug("Not appling (equal) " + version.toString());
-                            else if (DatabaseDescriptor.getDefsVersion().timestamp() > version.timestamp())
+                            else if (Schema.instance.getVersion().timestamp() > version.timestamp())
                                 logger.debug("Not applying (before)" + version.toString());
                             else
                             {

@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.util.Collection;
 
+import org.apache.cassandra.config.Schema;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -120,7 +121,7 @@ public class ColumnFamilySerializer implements ICompactSerializer3<ColumnFamily>
 
         // create a ColumnFamily based on the cf id
         int cfId = dis.readInt();
-        if (CFMetaData.getCF(cfId) == null)
+        if (Schema.instance.getCF(cfId) == null)
             throw new UnserializableColumnFamilyException("Couldn't find cfId=" + cfId, cfId);
         ColumnFamily cf = ColumnFamily.create(cfId, factory);
         deserializeFromSSTableNoColumns(cf, dis);

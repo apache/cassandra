@@ -22,11 +22,9 @@ import static org.apache.cassandra.db.DBConstants.*;
 
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
-import java.util.Map;
 
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.filter.IFilter;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.MarshalException;
@@ -48,17 +46,17 @@ public class ColumnFamily extends AbstractColumnContainer
 
     public static ColumnFamily create(Integer cfId)
     {
-        return create(DatabaseDescriptor.getCFMetaData(cfId));
+        return create(Schema.instance.getCFMetaData(cfId));
     }
 
     public static ColumnFamily create(Integer cfId, ISortedColumns.Factory factory)
     {
-        return create(DatabaseDescriptor.getCFMetaData(cfId), factory);
+        return create(Schema.instance.getCFMetaData(cfId), factory);
     }
 
     public static ColumnFamily create(String tableName, String cfName)
     {
-        return create(DatabaseDescriptor.getCFMetaData(tableName, cfName));
+        return create(Schema.instance.getCFMetaData(tableName, cfName));
     }
 
     public static ColumnFamily create(CFMetaData cfm)
@@ -295,8 +293,8 @@ public class ColumnFamily extends AbstractColumnContainer
     public static AbstractType getComparatorFor(String table, String columnFamilyName, ByteBuffer superColumnName)
     {
         return superColumnName == null
-               ? DatabaseDescriptor.getComparator(table, columnFamilyName)
-               : DatabaseDescriptor.getSubComparator(table, columnFamilyName);
+               ? Schema.instance.getComparator(table, columnFamilyName)
+               : Schema.instance.getSubComparator(table, columnFamilyName);
     }
 
     public static ColumnFamily diff(ColumnFamily cf1, ColumnFamily cf2)

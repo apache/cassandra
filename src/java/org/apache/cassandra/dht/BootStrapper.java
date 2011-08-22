@@ -29,6 +29,7 @@ package org.apache.cassandra.dht;
  import com.google.common.collect.ArrayListMultimap;
  import com.google.common.collect.HashMultimap;
  import com.google.common.collect.Multimap;
+ import org.apache.cassandra.config.Schema;
  import org.apache.cassandra.gms.Gossiper;
  import org.apache.commons.lang.ArrayUtils;
  import org.apache.commons.lang.StringUtils;
@@ -82,7 +83,7 @@ public class BootStrapper
         final Multimap<String, Map.Entry<InetAddress, Collection<Range>>> rangesToFetch = HashMultimap.create();
 
         int requests = 0;
-        for (String table : DatabaseDescriptor.getNonSystemTables())
+        for (String table : Schema.instance.getNonSystemTables())
         {
             Map<InetAddress, Collection<Range>> workMap = getWorkMap(getRangesWithSources(table)).asMap();
             for (Map.Entry<InetAddress, Collection<Range>> entry : workMap.entrySet())

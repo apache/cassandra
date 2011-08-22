@@ -37,11 +37,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.Config;
-import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
@@ -54,7 +50,6 @@ import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.NodeId;
-import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -97,9 +92,6 @@ public class Table
         }
     }
 
-    /** Table objects, one per keyspace.  only one instance should ever exist for any given keyspace. */
-    private static final Map<String, Table> instances = new NonBlockingHashMap<String, Table>();
-
     /* Table name. */
     public final String name;
     /* ColumnFamilyStore per column family */
@@ -109,19 +101,25 @@ public class Table
 
     public static Table open(String table)
     {
-        Table tableInstance = instances.get(table);
+        return open(table, Schema.instance);
+    }
+
+    public static Table open(String table, Schema schema)
+    {
+        Table tableInstance = schema.getTableInstance(table);
+
         if (tableInstance == null)
         {
             // instantiate the Table.  we could use putIfAbsent but it's important to making sure it is only done once
             // per keyspace, so we synchronize and re-check before doing it.
             synchronized (Table.class)
             {
-                tableInstance = instances.get(table);
+                tableInstance = schema.getTableInstance(table);
                 if (tableInstance == null)
                 {
                     // open and store the table
                     tableInstance = new Table(table);
-                    instances.put(table, tableInstance);
+                    schema.storeTableInstance(tableInstance);
 
                     //table has to be constructed and in the cache before cacheRow can be called
                     for (ColumnFamilyStore cfs : tableInstance.getColumnFamilyStores())
@@ -134,9 +132,14 @@ public class Table
 
     public static Table clear(String table) throws IOException
     {
+        return clear(table, Schema.instance);
+    }
+
+    public static Table clear(String table, Schema schema) throws IOException
+    {
         synchronized (Table.class)
         {
-            Table t = instances.remove(table);
+            Table t = schema.removeTableInstance(table);
             if (t != null)
             {
                 for (ColumnFamilyStore cfs : t.getColumnFamilyStores())
@@ -153,7 +156,7 @@ public class Table
 
     public ColumnFamilyStore getColumnFamilyStore(String cfName)
     {
-        Integer id = CFMetaData.getId(name, cfName);
+        Integer id = Schema.instance.getId(name, cfName);
         if (id == null)
             throw new IllegalArgumentException(String.format("Unknown table/cf pair (%s.%s)", name, cfName));
         return getColumnFamilyStore(id);
@@ -277,7 +280,7 @@ public class Table
     private Table(String table)
     {
         name = table;
-        KSMetaData ksm = DatabaseDescriptor.getKSMetaData(table);
+        KSMetaData ksm = Schema.instance.getKSMetaData(table);
         assert ksm != null : "Unknown keyspace " + table;
         try
         {
@@ -311,7 +314,7 @@ public class Table
             }
         }
 
-        for (CFMetaData cfm : new ArrayList<CFMetaData>(DatabaseDescriptor.getTableDefinition(table).cfMetaData().values()))
+        for (CFMetaData cfm : new ArrayList<CFMetaData>(Schema.instance.getTableDefinition(table).cfMetaData().values()))
         {
             logger.debug("Initializing {}.{}", name, cfm.cfName);
             initCf(cfm.cfId, cfm.cfName);
@@ -612,7 +615,7 @@ public class Table
                 return Table.open(tableName);
             }
         };
-        return Iterables.transform(DatabaseDescriptor.getTables(), transformer);
+        return Iterables.transform(Schema.instance.getTables(), transformer);
     }
 
     @Override

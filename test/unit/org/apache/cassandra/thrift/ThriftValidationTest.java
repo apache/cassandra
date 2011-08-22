@@ -23,8 +23,7 @@ package org.apache.cassandra.thrift;
 
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 
@@ -32,13 +31,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.marshal.AsciiType;
-import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.utils.FBUtilities;
-
-import java.util.concurrent.Callable;
 
 public class ThriftValidationTest extends CleanupHelper
 {
@@ -57,7 +50,7 @@ public class ThriftValidationTest extends CleanupHelper
     @Test
     public void testColumnValueSizeForIndexedColumn() throws ConfigurationException, InvalidRequestException
     {
-        CfDef cfDef = CFMetaData.convertToThrift(DatabaseDescriptor.getCFMetaData("Keyspace1", "Standard1"));
+        CfDef cfDef = CFMetaData.convertToThrift(Schema.instance.getCFMetaData("Keyspace1", "Standard1"));
         ByteBuffer columnName = AsciiType.instance.fromString("indexed");
 
         // add an indexed column definition
@@ -106,7 +99,7 @@ public class ThriftValidationTest extends CleanupHelper
     @Test
     public void testColumnNameEqualToKeyAlias()
     {
-        CFMetaData metaData = DatabaseDescriptor.getCFMetaData("Keyspace1", "Standard1");
+        CFMetaData metaData = Schema.instance.getCFMetaData("Keyspace1", "Standard1");
         CfDef newMetadata = CFMetaData.convertToThrift(metaData);
 
         boolean gotException = false;

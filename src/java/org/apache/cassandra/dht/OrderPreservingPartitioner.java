@@ -23,9 +23,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.util.*;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.service.StorageService;
@@ -189,9 +187,9 @@ public class OrderPreservingPartitioner implements IPartitioner<StringToken>
             lastToken = node;
         }
 
-        for (String ks : DatabaseDescriptor.getTables())
+        for (String ks : Schema.instance.getTables())
         {
-            for (CFMetaData cfmd : DatabaseDescriptor.getKSMetaData(ks).cfMetaData().values())
+            for (CFMetaData cfmd : Schema.instance.getKSMetaData(ks).cfMetaData().values())
             {
                 for (Range r : sortedRanges)
                 {

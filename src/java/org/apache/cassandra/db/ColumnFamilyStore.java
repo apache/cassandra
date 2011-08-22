@@ -43,10 +43,7 @@ import org.apache.cassandra.cache.ICache;
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.concurrent.StageManager;
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.columniterator.IColumnIterator;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
@@ -307,7 +304,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public static ColumnFamilyStore createColumnFamilyStore(Table table, String columnFamily)
     {
-        return createColumnFamilyStore(table, columnFamily, StorageService.getPartitioner(), DatabaseDescriptor.getCFMetaData(table.name, columnFamily));
+        return createColumnFamilyStore(table, columnFamily, StorageService.getPartitioner(), Schema.instance.getCFMetaData(table.name, columnFamily));
     }
 
     public static synchronized ColumnFamilyStore createColumnFamilyStore(Table table, String columnFamily, IPartitioner partitioner, CFMetaData metadata)
@@ -399,7 +396,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
         
         // also clean out any index leftovers.
-        CFMetaData cfm = DatabaseDescriptor.getCFMetaData(table, columnFamily);
+        CFMetaData cfm = Schema.instance.getCFMetaData(table, columnFamily);
         if (cfm != null) // secondary indexes aren't stored in DD.
         {
             for (ColumnDefinition def : cfm.getColumn_metadata().values())
@@ -712,8 +709,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public boolean isDropped()
     {
         return isIndex()
-               ? DatabaseDescriptor.getCFMetaData(table.name, getParentColumnfamily()) == null
-               : DatabaseDescriptor.getCFMetaData(metadata.cfId) == null;
+               ? Schema.instance.getCFMetaData(table.name, getParentColumnfamily()) == null
+               : Schema.instance.getCFMetaData(metadata.cfId) == null;
     }
 
     public Future<?> forceFlush()
@@ -1512,7 +1509,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public static Iterable<ColumnFamilyStore> all()
     {
-        Iterable<ColumnFamilyStore>[] stores = new Iterable[DatabaseDescriptor.getTables().size()];
+        Iterable<ColumnFamilyStore>[] stores = new Iterable[Schema.instance.getTables().size()];
         int i = 0;
         for (Table table : Table.all())
         {

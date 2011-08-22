@@ -30,6 +30,7 @@ import java.util.zip.Checksum;
 
 import com.google.common.collect.Ordering;
 
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.net.MessagingService;
@@ -39,7 +40,6 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.DeletionService;
@@ -307,7 +307,7 @@ public class CommitLog implements CommitLogMBean
                     {
                         public void runMayThrow() throws IOException
                         {
-                            if (DatabaseDescriptor.getKSMetaData(frm.getTable()) == null)
+                            if (Schema.instance.getKSMetaData(frm.getTable()) == null)
                                 return;
                             final Table table = Table.open(frm.getTable());
                             RowMutation newRm = new RowMutation(frm.getTable(), frm.key());
@@ -317,7 +317,7 @@ public class CommitLog implements CommitLogMBean
                             // thing based on the cfid instead.
                             for (ColumnFamily columnFamily : frm.getColumnFamilies())
                             {
-                                if (CFMetaData.getCF(columnFamily.id()) == null)
+                                if (Schema.instance.getCF(columnFamily.id()) == null)
                                     // null means the cf has been dropped
                                     continue;
 
@@ -571,7 +571,7 @@ public class CommitLog implements CommitLogMBean
             assert oldestSegment != null; // has to be at least the one we just added
             for (Integer dirtyCFId : oldestSegment.cfLastWrite.keySet())
             {
-                String keypace = CFMetaData.getCF(dirtyCFId).left;
+                String keypace = Schema.instance.getCF(dirtyCFId).left;
                 Table.open(keypace).getColumnFamilyStore(dirtyCFId).forceFlush();
             }
         }

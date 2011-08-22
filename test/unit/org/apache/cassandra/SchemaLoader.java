@@ -22,12 +22,10 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.commons.lang.NotImplementedException;
 
 import com.google.common.base.Charsets;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.ColumnFamilyType;
-import org.apache.cassandra.db.KeyspaceNotDefinedException;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.SimpleStrategy;
@@ -54,12 +52,7 @@ public class SchemaLoader
 
         try
         {
-            for (KSMetaData ksm : schemaDefinition())
-            {
-                for (CFMetaData cfm : ksm.cfMetaData().values())
-                    CFMetaData.map(cfm);
-                DatabaseDescriptor.setTableDefinition(ksm, DatabaseDescriptor.getDefsVersion());
-            }
+            Schema.instance.load(schemaDefinition(), Schema.instance.getVersion());
         }
         catch (ConfigurationException e)
         {

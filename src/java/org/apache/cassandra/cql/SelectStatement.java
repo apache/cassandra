@@ -25,7 +25,7 @@ import java.util.List;
 import java.util.Set;
 
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.thrift.ConsistencyLevel;
 
@@ -161,12 +161,12 @@ public class SelectStatement
 
     public AbstractType getComparator(String keyspace)
     {
-        return DatabaseDescriptor.getComparator(keyspace, columnFamily);
+        return Schema.instance.getComparator(keyspace, columnFamily);
     }
     
     public AbstractType getValueValidator(String keyspace, ByteBuffer column)
     {
-        return DatabaseDescriptor.getValueValidator(keyspace, columnFamily, column);
+        return Schema.instance.getValueValidator(keyspace, columnFamily, column);
     }
 
 }

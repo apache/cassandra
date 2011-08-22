@@ -25,6 +25,7 @@ import java.util.*;
 
 import com.google.common.collect.Sets;
 
+import org.apache.cassandra.config.Schema;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -56,7 +57,7 @@ public class SSTableWriter extends SSTable
     {
         this(filename,
              keyCount,
-             DatabaseDescriptor.getCFMetaData(Descriptor.fromFilename(filename)),
+             Schema.instance.getCFMetaData(Descriptor.fromFilename(filename)),
              StorageService.getPartitioner(),
              SSTableMetadata.createCollector());
     }

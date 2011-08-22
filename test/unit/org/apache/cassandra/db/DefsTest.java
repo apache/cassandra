@@ -29,11 +29,7 @@ import java.util.concurrent.ExecutionException;
 import org.apache.avro.util.Utf8;
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.BytesType;
@@ -170,10 +166,10 @@ public class DefsTest extends CleanupHelper
         List<KSMetaData> defs = new ArrayList<KSMetaData>(DefsTable.loadFromStorage(first));
 
         assert defs.size() > 0;
-        assert defs.size() == DatabaseDescriptor.getNonSystemTables().size();
+        assert defs.size() == Schema.instance.getNonSystemTables().size();
         for (KSMetaData loaded : defs)
         {
-            KSMetaData defined = DatabaseDescriptor.getTableDefinition(loaded.name);
+            KSMetaData defined = Schema.instance.getTableDefinition(loaded.name);
             assert defined.equals(loaded);
         }
     }
@@ -200,10 +196,10 @@ public class DefsTest extends CleanupHelper
     public void testMigrations() throws IOException, ConfigurationException
     {
         // do a save. make sure it doesn't mess with the defs version.
-        UUID prior = DatabaseDescriptor.getDefsVersion();
+        UUID prior = Schema.instance.getVersion();
         UUID ver0 = UUIDGen.makeType1UUIDFromHost(FBUtilities.getBroadcastAddress());
         DefsTable.dumpToStorage(ver0);
-        assert DatabaseDescriptor.getDefsVersion().equals(prior);
+        assert Schema.instance.getVersion().equals(prior);
 
         // add a cf.
         CFMetaData newCf1 = addTestCF("Keyspace1", "MigrationCf_1", "Migration CF");
@@ -211,19 +207,19 @@ public class DefsTest extends CleanupHelper
         Migration m1 = new AddColumnFamily(newCf1);
         m1.apply();
         UUID ver1 = m1.getVersion();
-        assert DatabaseDescriptor.getDefsVersion().equals(ver1);
+        assert Schema.instance.getVersion().equals(ver1);
         
         // rename it.
         Migration m2 = new RenameColumnFamily("Keyspace1", "MigrationCf_1", "MigrationCf_2");
         m2.apply();
         UUID ver2 = m2.getVersion();
-        assert DatabaseDescriptor.getDefsVersion().equals(ver2);
+        assert Schema.instance.getVersion().equals(ver2);
         
         // drop it.
         Migration m3 = new DropColumnFamily("Keyspace1", "MigrationCf_2");
         m3.apply();
         UUID ver3 = m3.getVersion();
-        assert DatabaseDescriptor.getDefsVersion().equals(ver3);
+        assert Schema.instance.getVersion().equals(ver3);
         
         // now lets load the older migrations to see if that code works.
         Collection<IColumn> serializedMigrations = Migration.getLocalMigrations(ver1, ver3);
@@ -255,15 +251,15 @@ public class DefsTest extends CleanupHelper
     {
         final String ks = "Keyspace1";
         final String cf = "BrandNewCfWithNull";
-        KSMetaData original = DatabaseDescriptor.getTableDefinition(ks);
+        KSMetaData original = Schema.instance.getTableDefinition(ks);
 
         CFMetaData newCf = addTestCF(original.name, cf, null);
 
-        assert !DatabaseDescriptor.getTableDefinition(ks).cfMetaData().containsKey(newCf.cfName);
+        assert !Schema.instance.getTableDefinition(ks).cfMetaData().containsKey(newCf.cfName);
         new AddColumnFamily(newCf).apply();
 
-        assert DatabaseDescriptor.getTableDefinition(ks).cfMetaData().containsKey(newCf.cfName);
-        assert DatabaseDescriptor.getTableDefinition(ks).cfMetaData().get(newCf.cfName).equals(newCf);  
+        assert Schema.instance.getTableDefinition(ks).cfMetaData().containsKey(newCf.cfName);
+        assert Schema.instance.getTableDefinition(ks).cfMetaData().get(newCf.cfName).equals(newCf);
     }
 
     @Test
@@ -271,15 +267,15 @@ public class DefsTest extends CleanupHelper
     {
         final String ks = "Keyspace1";
         final String cf = "BrandNewCf";
-        KSMetaData original = DatabaseDescriptor.getTableDefinition(ks);
+        KSMetaData original = Schema.instance.getTableDefinition(ks);
 
         CFMetaData newCf = addTestCF(original.name, cf, "A New Column Family");
 
-        assert !DatabaseDescriptor.getTableDefinition(ks).cfMetaData().containsKey(newCf.cfName);
+        assert !Schema.instance.getTableDefinition(ks).cfMetaData().containsKey(newCf.cfName);
         new AddColumnFamily(newCf).apply();
 
-        assert DatabaseDescriptor.getTableDefinition(ks).cfMetaData().containsKey(newCf.cfName);
-        assert DatabaseDescriptor.getTableDefinition(ks).cfMetaData().get(newCf.cfName).equals(newCf);
+        assert Schema.instance.getTableDefinition(ks).cfMetaData().containsKey(newCf.cfName);
+        assert Schema.instance.getTableDefinition(ks).cfMetaData().get(newCf.cfName).equals(newCf);
 
         // now read and write to it.
         DecoratedKey dk = Util.dk("key0");
@@ -301,7 +297,7 @@ public class DefsTest extends CleanupHelper
     {
         DecoratedKey dk = Util.dk("dropCf");
         // sanity
-        final KSMetaData ks = DatabaseDescriptor.getTableDefinition("Keyspace1");
+        final KSMetaData ks = Schema.instance.getTableDefinition("Keyspace1");
         assert ks != null;
         final CFMetaData cfm = ks.cfMetaData().get("Standard1");
         assert cfm != null;
@@ -318,8 +314,8 @@ public class DefsTest extends CleanupHelper
         assert DefsTable.getFiles(cfm.ksName, cfm.cfName).size() > 0;
         
         new DropColumnFamily(ks.name, cfm.cfName).apply();
-        
-        assert !DatabaseDescriptor.getTableDefinition(ks.name).cfMetaData().containsKey(cfm.cfName);
+
+        assert !Schema.instance.getTableDefinition(ks.name).cfMetaData().containsKey(cfm.cfName);
         
         // any write should fail.
         rm = new RowMutation(ks.name, dk.key);
@@ -347,7 +343,7 @@ public class DefsTest extends CleanupHelper
     public void renameCf() throws ConfigurationException, IOException, ExecutionException, InterruptedException
     {
         DecoratedKey dk = Util.dk("key0");
-        final KSMetaData ks = DatabaseDescriptor.getTableDefinition("Keyspace2");
+        final KSMetaData ks = Schema.instance.getTableDefinition("Keyspace2");
         assert ks != null;
         final CFMetaData oldCfm = ks.cfMetaData().get("Standard1");
         assert oldCfm != null;
@@ -365,9 +361,9 @@ public class DefsTest extends CleanupHelper
         
         final String cfName = "St4ndard1Replacement";
         new RenameColumnFamily(oldCfm.ksName, oldCfm.cfName, cfName).apply();
-        
-        assert !DatabaseDescriptor.getTableDefinition(ks.name).cfMetaData().containsKey(oldCfm.cfName);
-        assert DatabaseDescriptor.getTableDefinition(ks.name).cfMetaData().containsKey(cfName);
+
+        assert !Schema.instance.getTableDefinition(ks.name).cfMetaData().containsKey(oldCfm.cfName);
+        assert Schema.instance.getTableDefinition(ks.name).cfMetaData().containsKey(cfName);
         
         // verify that new files are there.
         assert DefsTable.getFiles(oldCfm.ksName, cfName).size() == fileCount;
@@ -398,9 +394,9 @@ public class DefsTest extends CleanupHelper
         KSMetaData newKs = new KSMetaData(newCf.ksName, SimpleStrategy.class, KSMetaData.optsWithRF(5), newCf);
         
         new AddKeyspace(newKs).apply();
-        
-        assert DatabaseDescriptor.getTableDefinition(newCf.ksName) != null;
-        assert DatabaseDescriptor.getTableDefinition(newCf.ksName) == newKs;
+
+        assert Schema.instance.getTableDefinition(newCf.ksName) != null;
+        assert Schema.instance.getTableDefinition(newCf.ksName) == newKs;
 
         // test reads and writes.
         RowMutation rm = new RowMutation(newCf.ksName, dk.key);
@@ -421,7 +417,7 @@ public class DefsTest extends CleanupHelper
     {
         DecoratedKey dk = Util.dk("dropKs");
         // sanity
-        final KSMetaData ks = DatabaseDescriptor.getTableDefinition("Keyspace1");
+        final KSMetaData ks = Schema.instance.getTableDefinition("Keyspace1");
         assert ks != null;
         final CFMetaData cfm = ks.cfMetaData().get("Standard2");
         assert cfm != null;
@@ -437,8 +433,8 @@ public class DefsTest extends CleanupHelper
         assert DefsTable.getFiles(cfm.ksName, cfm.cfName).size() > 0;
         
         new DropKeyspace(ks.name).apply();
-        
-        assert DatabaseDescriptor.getTableDefinition(ks.name) == null;
+
+        assert Schema.instance.getTableDefinition(ks.name) == null;
         
         // write should fail.
         rm = new RowMutation(ks.name, dk.key);
@@ -472,7 +468,7 @@ public class DefsTest extends CleanupHelper
     {
         DecoratedKey dk = Util.dk("dropKs");
         // sanity
-        final KSMetaData ks = DatabaseDescriptor.getTableDefinition("Keyspace3");
+        final KSMetaData ks = Schema.instance.getTableDefinition("Keyspace3");
         assert ks != null;
         final CFMetaData cfm = ks.cfMetaData().get("Standard1");
         assert cfm != null;
@@ -485,14 +481,14 @@ public class DefsTest extends CleanupHelper
 
         new DropKeyspace(ks.name).apply();
 
-        assert DatabaseDescriptor.getTableDefinition(ks.name) == null;
+        assert Schema.instance.getTableDefinition(ks.name) == null;
     }
 
     @Test
     public void renameKs() throws ConfigurationException, IOException, ExecutionException, InterruptedException
     {
         DecoratedKey dk = Util.dk("renameKs");
-        final KSMetaData oldKs = DatabaseDescriptor.getTableDefinition("Keyspace2");
+        final KSMetaData oldKs = Schema.instance.getTableDefinition("Keyspace2");
         assert oldKs != null;
         final String cfName = "Standard3";
         assert oldKs.cfMetaData().containsKey(cfName);
@@ -510,9 +506,9 @@ public class DefsTest extends CleanupHelper
         
         final String newKsName = "RenamedKeyspace2";
         new RenameKeyspace(oldKs.name, newKsName).apply();
-        KSMetaData newKs = DatabaseDescriptor.getTableDefinition(newKsName);
-        
-        assert DatabaseDescriptor.getTableDefinition(oldKs.name) == null;
+        KSMetaData newKs = Schema.instance.getTableDefinition(newKsName);
+
+        assert Schema.instance.getTableDefinition(oldKs.name) == null;
         assert newKs != null;
         assert newKs.name.equals(newKsName);
         assert newKs.cfMetaData().containsKey(cfName);
@@ -572,23 +568,23 @@ public class DefsTest extends CleanupHelper
     @Test
     public void createEmptyKsAddNewCf() throws ConfigurationException, IOException, ExecutionException, InterruptedException
     {
-        assert DatabaseDescriptor.getTableDefinition("EmptyKeyspace") == null;
+        assert Schema.instance.getTableDefinition("EmptyKeyspace") == null;
         
         KSMetaData newKs = new KSMetaData("EmptyKeyspace", SimpleStrategy.class, KSMetaData.optsWithRF(5));
 
         new AddKeyspace(newKs).apply();
-        assert DatabaseDescriptor.getTableDefinition("EmptyKeyspace") != null;
+        assert Schema.instance.getTableDefinition("EmptyKeyspace") != null;
 
         CFMetaData newCf = addTestCF("EmptyKeyspace", "AddedLater", "A new CF to add to an empty KS");
 
         //should not exist until apply
-        assert !DatabaseDescriptor.getTableDefinition(newKs.name).cfMetaData().containsKey(newCf.cfName);
+        assert !Schema.instance.getTableDefinition(newKs.name).cfMetaData().containsKey(newCf.cfName);
 
         //add the new CF to the empty space
         new AddColumnFamily(newCf).apply();
 
-        assert DatabaseDescriptor.getTableDefinition(newKs.name).cfMetaData().containsKey(newCf.cfName);
-        assert DatabaseDescriptor.getTableDefinition(newKs.name).cfMetaData().get(newCf.cfName).equals(newCf);
+        assert Schema.instance.getTableDefinition(newKs.name).cfMetaData().containsKey(newCf.cfName);
+        assert Schema.instance.getTableDefinition(newKs.name).cfMetaData().get(newCf.cfName).equals(newCf);
 
         // now read and write to it.
         DecoratedKey dk = Util.dk("key0");
@@ -613,9 +609,9 @@ public class DefsTest extends CleanupHelper
         KSMetaData oldKs = new KSMetaData(cf.ksName, SimpleStrategy.class, KSMetaData.optsWithRF(5), cf);
         
         new AddKeyspace(oldKs).apply();
-        
-        assert DatabaseDescriptor.getTableDefinition(cf.ksName) != null;
-        assert DatabaseDescriptor.getTableDefinition(cf.ksName) == oldKs;
+
+        assert Schema.instance.getTableDefinition(cf.ksName) != null;
+        assert Schema.instance.getTableDefinition(cf.ksName) == oldKs;
         
         // anything with cf defs should fail.
         CFMetaData cf2 = addTestCF(cf.ksName, "AddedStandard2", "A new cf for a new ks");
@@ -644,8 +640,8 @@ public class DefsTest extends CleanupHelper
         
         KSMetaData newKs = new KSMetaData(cf.ksName, OldNetworkTopologyStrategy.class, KSMetaData.optsWithRF(1));
         new UpdateKeyspace(newKs).apply();
-        
-        KSMetaData newFetchedKs = DatabaseDescriptor.getKSMetaData(newKs.name);
+
+        KSMetaData newFetchedKs = Schema.instance.getKSMetaData(newKs.name);
         assert newFetchedKs.strategyClass.equals(newKs.strategyClass);
         assert !newFetchedKs.strategyClass.equals(oldKs.strategyClass);
     }
@@ -657,10 +653,10 @@ public class DefsTest extends CleanupHelper
         CFMetaData cf = addTestCF("UpdatedCfKs", "Standard1added", "A new cf that will be updated");
         KSMetaData ksm = new KSMetaData(cf.ksName, SimpleStrategy.class, KSMetaData.optsWithRF(1), cf);
         new AddKeyspace(ksm).apply();
-        
-        assert DatabaseDescriptor.getTableDefinition(cf.ksName) != null;
-        assert DatabaseDescriptor.getTableDefinition(cf.ksName) == ksm;
-        assert DatabaseDescriptor.getCFMetaData(cf.ksName, cf.cfName) != null;
+
+        assert Schema.instance.getTableDefinition(cf.ksName) != null;
+        assert Schema.instance.getTableDefinition(cf.ksName) == ksm;
+        assert Schema.instance.getCFMetaData(cf.ksName, cf.cfName) != null;
         
         // updating certain fields should fail.
         org.apache.cassandra.db.migration.avro.CfDef cf_def = CFMetaData.convertToAvro(cf);
@@ -698,12 +694,12 @@ public class DefsTest extends CleanupHelper
         // can't test changing the reconciler because there is only one impl.
         
         // check the cumulative affect.
-        assert DatabaseDescriptor.getCFMetaData(cf.ksName, cf.cfName).getComment().equals(cf_def.comment);
-        assert DatabaseDescriptor.getCFMetaData(cf.ksName, cf.cfName).getRowCacheSize() == cf_def.row_cache_size;
-        assert DatabaseDescriptor.getCFMetaData(cf.ksName, cf.cfName).getKeyCacheSize() == cf_def.key_cache_size;
-        assert DatabaseDescriptor.getCFMetaData(cf.ksName, cf.cfName).getReadRepairChance() == cf_def.read_repair_chance;
-        assert DatabaseDescriptor.getCFMetaData(cf.ksName, cf.cfName).getGcGraceSeconds() == cf_def.gc_grace_seconds;
-        assert DatabaseDescriptor.getCFMetaData(cf.ksName, cf.cfName).getDefaultValidator() == UTF8Type.instance;
+        assert Schema.instance.getCFMetaData(cf.ksName, cf.cfName).getComment().equals(cf_def.comment);
+        assert Schema.instance.getCFMetaData(cf.ksName, cf.cfName).getRowCacheSize() == cf_def.row_cache_size;
+        assert Schema.instance.getCFMetaData(cf.ksName, cf.cfName).getKeyCacheSize() == cf_def.key_cache_size;
+        assert Schema.instance.getCFMetaData(cf.ksName, cf.cfName).getReadRepairChance() == cf_def.read_repair_chance;
+        assert Schema.instance.getCFMetaData(cf.ksName, cf.cfName).getGcGraceSeconds() == cf_def.gc_grace_seconds;
+        assert Schema.instance.getCFMetaData(cf.ksName, cf.cfName).getDefaultValidator() == UTF8Type.instance;
         
         // todo: we probably don't need to reset old values in the catches anymore.
         // make sure some invalid operations fail.

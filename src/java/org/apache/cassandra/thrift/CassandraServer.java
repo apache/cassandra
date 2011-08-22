@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.thrift;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.SocketAddress;
@@ -649,8 +648,8 @@ public class CassandraServer implements Cassandra.Iface
     public KsDef describe_keyspace(String table) throws NotFoundException, InvalidRequestException
     {
         state().hasKeyspaceListAccess(Permission.READ);
-        
-        KSMetaData ksm = DatabaseDescriptor.getTableDefinition(table);
+
+        KSMetaData ksm = Schema.instance.getTableDefinition(table);
         if (ksm == null)
             throw new NotFoundException();
 
@@ -754,8 +753,8 @@ public class CassandraServer implements Cassandra.Iface
     public List<KsDef> describe_keyspaces() throws TException, InvalidRequestException
     {
         state().hasKeyspaceListAccess(Permission.READ);
-        
-        Set<String> keyspaces = DatabaseDescriptor.getTables();
+
+        Set<String> keyspaces = Schema.instance.getTables();
         List<KsDef> ksset = new ArrayList<KsDef>();
         for (String ks : keyspaces)
         {
@@ -783,7 +782,7 @@ public class CassandraServer implements Cassandra.Iface
 
     public List<TokenRange> describe_ring(String keyspace)throws InvalidRequestException
     {
-        if (keyspace == null || !DatabaseDescriptor.getNonSystemTables().contains(keyspace))
+        if (keyspace == null || !Schema.instance.getNonSystemTables().contains(keyspace))
             throw new InvalidRequestException("There is no ring for the keyspace: " + keyspace);
         List<TokenRange> ranges = new ArrayList<TokenRange>();
         Token.TokenFactory tf = StorageService.getPartitioner().getTokenFactory();
@@ -882,7 +881,7 @@ public class CassandraServer implements Cassandra.Iface
         try
         {
             applyMigrationOnStage(new AddColumnFamily(CFMetaData.fromThrift(cf_def)));
-            return DatabaseDescriptor.getDefsVersion().toString();
+            return Schema.instance.getVersion().toString();
         }
         catch (ConfigurationException e)
         {
@@ -908,7 +907,7 @@ public class CassandraServer implements Cassandra.Iface
         try
         {
             applyMigrationOnStage(new DropColumnFamily(state().getKeyspace(), column_family));
-            return DatabaseDescriptor.getDefsVersion().toString();
+            return Schema.instance.getVersion().toString();
         }
         catch (ConfigurationException e)
         {
@@ -952,7 +951,7 @@ public class CassandraServer implements Cassandra.Iface
 
             ThriftValidation.validateKsDef(ks_def);
             applyMigrationOnStage(new AddKeyspace(KSMetaData.fromThrift(ks_def, cfDefs.toArray(new CFMetaData[cfDefs.size()]))));
-            return DatabaseDescriptor.getDefsVersion().toString();
+            return Schema.instance.getVersion().toString();
         }
         catch (ConfigurationException e)
         {
@@ -978,7 +977,7 @@ public class CassandraServer implements Cassandra.Iface
         try
         {
             applyMigrationOnStage(new DropKeyspace(keyspace));
-            return DatabaseDescriptor.getDefsVersion().toString();
+            return Schema.instance.getVersion().toString();
         }
         catch (ConfigurationException e)
         {
@@ -1010,7 +1009,7 @@ public class CassandraServer implements Cassandra.Iface
         {
             ThriftValidation.validateKsDef(ks_def);
             applyMigrationOnStage(new UpdateKeyspace(KSMetaData.fromThrift(ks_def)));
-            return DatabaseDescriptor.getDefsVersion().toString();
+            return Schema.instance.getVersion().toString();
         }
         catch (ConfigurationException e)
         {
@@ -1033,7 +1032,7 @@ public class CassandraServer implements Cassandra.Iface
         state().hasColumnFamilyListAccess(Permission.WRITE);
         if (cf_def.keyspace == null || cf_def.name == null)
             throw new InvalidRequestException("Keyspace and CF name must be set.");
-        CFMetaData oldCfm = DatabaseDescriptor.getCFMetaData(CFMetaData.getId(cf_def.keyspace, cf_def.name));
+        CFMetaData oldCfm = Schema.instance.getCFMetaData(cf_def.keyspace, cf_def.name);
         if (oldCfm == null)
             throw new InvalidRequestException("Could not find column family definition to modify.");
         CFMetaData.addDefaultIndexNames(cf_def);
@@ -1046,7 +1045,7 @@ public class CassandraServer implements Cassandra.Iface
             CFMetaData.applyImplicitDefaults(cf_def);
             UpdateColumnFamily update = new UpdateColumnFamily(CFMetaData.convertToAvro(cf_def));
             applyMigrationOnStage(update);
-            return DatabaseDescriptor.getDefsVersion().toString();
+            return Schema.instance.getVersion().toString();
         }
         catch (ConfigurationException e)
         {

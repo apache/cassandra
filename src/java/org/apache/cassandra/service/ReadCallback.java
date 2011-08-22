@@ -26,6 +26,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.apache.cassandra.config.Schema;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -97,7 +98,7 @@ public class ReadCallback<T> implements IAsyncCallback
             assert command instanceof ReadCommand : command;
             String table = ((RowDigestResolver) resolver).table;
             String columnFamily = ((ReadCommand) command).getColumnFamilyName();
-            CFMetaData cfmd = DatabaseDescriptor.getTableMetaData(table).get(columnFamily);
+            CFMetaData cfmd = Schema.instance.getTableMetaData(table).get(columnFamily);
             return cfmd.getReadRepairChance() > random.get().nextDouble();
         }
         // we don't read repair on range scans

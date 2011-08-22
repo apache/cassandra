@@ -26,6 +26,7 @@ import java.util.*;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.util.RandomAccessReader;
@@ -387,7 +388,7 @@ public class SSTableExport
         String ssTableFileName = new File(cmd.getArgs()[0]).getAbsolutePath();
 
         DatabaseDescriptor.loadSchemas();
-        if (DatabaseDescriptor.getNonSystemTables().size() < 1)
+        if (Schema.instance.getNonSystemTables().size() < 1)
         {
             String msg = "no non-system tables are defined";
             System.err.println(msg);

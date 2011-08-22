@@ -22,10 +22,10 @@ import java.io.*;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.apache.cassandra.config.Schema;
 import org.apache.commons.lang.StringUtils;
 
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.io.ICompactSerializer;
@@ -187,7 +187,7 @@ public class RowMutation implements IMutation, MessageProducer
      */
     public void add(QueryPath path, ByteBuffer value, long timestamp, int timeToLive)
     {
-        Integer id = CFMetaData.getId(table_, path.columnFamilyName);
+        Integer id = Schema.instance.getId(table_, path.columnFamilyName);
         ColumnFamily columnFamily = modifications_.get(id);
         if (columnFamily == null)
         {
@@ -199,7 +199,7 @@ public class RowMutation implements IMutation, MessageProducer
 
     public void addCounter(QueryPath path, long value)
     {
-        Integer id = CFMetaData.getId(table_, path.columnFamilyName);
+        Integer id = Schema.instance.getId(table_, path.columnFamilyName);
         ColumnFamily columnFamily = modifications_.get(id);
         if (columnFamily == null)
         {
@@ -216,7 +216,7 @@ public class RowMutation implements IMutation, MessageProducer
 
     public void delete(QueryPath path, long timestamp)
     {
-        Integer id = CFMetaData.getId(table_, path.columnFamilyName);
+        Integer id = Schema.instance.getId(table_, path.columnFamilyName);
 
         int localDeleteTime = (int) (System.currentTimeMillis() / 1000);
 
@@ -249,7 +249,7 @@ public class RowMutation implements IMutation, MessageProducer
      */
     public void apply() throws IOException
     {
-        KSMetaData ksm = DatabaseDescriptor.getTableDefinition(getTable());
+        KSMetaData ksm = Schema.instance.getTableDefinition(getTable());
         
         Table.open(table_).apply(this, ksm.isDurableWrites());
     }
@@ -300,7 +300,7 @@ public class RowMutation implements IMutation, MessageProducer
             List<String> cfnames = new ArrayList<String>();
             for (Integer cfid : modifications_.keySet())
             {
-                CFMetaData cfm = DatabaseDescriptor.getCFMetaData(cfid);
+                CFMetaData cfm = Schema.instance.getCFMetaData(cfid);
                 cfnames.add(cfm == null ? "-dropped-" : cfm.cfName);
             }
             buff.append(StringUtils.join(cfnames, ", "));
@@ -342,7 +342,7 @@ public class RowMutation implements IMutation, MessageProducer
         {
             for(ByteBuffer c : del.predicate.column_names)
             {
-                if (del.super_column == null && DatabaseDescriptor.getColumnFamilyType(table_, cfName) == ColumnFamilyType.Super)
+                if (del.super_column == null && Schema.instance.getColumnFamilyType(table_, cfName) == ColumnFamilyType.Super)
                     delete(new QueryPath(cfName, c), del.timestamp);
                 else
                     delete(new QueryPath(cfName, del.super_column, c), del.timestamp);

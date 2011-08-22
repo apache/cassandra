@@ -33,6 +33,7 @@ import javax.management.ObjectName;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
+import org.apache.cassandra.config.*;
 import org.apache.log4j.Level;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
@@ -41,10 +42,6 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.concurrent.DebuggableScheduledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.dht.*;
@@ -364,7 +361,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         {
             throw new IOError(ex);
         }
-        MigrationManager.passiveAnnounce(DatabaseDescriptor.getDefsVersion());
+        MigrationManager.passiveAnnounce(Schema.instance.getVersion());
     }
 
     public synchronized void initServer() throws IOException, ConfigurationException
@@ -418,7 +415,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                 List<Future<?>> flushes = new ArrayList<Future<?>>();
                 for (Table table : Table.all())
                 {
-                    KSMetaData ksm = DatabaseDescriptor.getKSMetaData(table.name);
+                    KSMetaData ksm = Schema.instance.getKSMetaData(table.name);
                     if (!ksm.isDurableWrites())
                     {
                         for (ColumnFamilyStore cfs : table.getColumnFamilyStores())
@@ -460,7 +457,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
         MessagingService.instance().listen(FBUtilities.getLocalAddress());
         LoadBroadcaster.instance.startBroadcasting();
-        MigrationManager.passiveAnnounce(DatabaseDescriptor.getDefsVersion());
+        MigrationManager.passiveAnnounce(Schema.instance.getVersion());
         Gossiper.instance.addLocalApplicationState(ApplicationState.RELEASE_VERSION, valueFactory.releaseVersion());
 
         HintedHandOffManager.instance.registerMBean();
@@ -493,7 +490,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             setMode("Joining: getting bootstrap token", true);
             token = BootStrapper.getBootstrapToken(tokenMetadata_, LoadBroadcaster.instance.getLoadInfo());
             // don't bootstrap if there are no tables defined.
-            if (DatabaseDescriptor.getNonSystemTables().size() > 0)
+            if (Schema.instance.getNonSystemTables().size() > 0)
             {
                 bootstrap(token);
                 assert !isBootstrapMode; // bootstrap will block until finished
@@ -598,7 +595,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         // some people just want to get a visual representation of things. Allow null and set it to the first
         // non-system table.
         if (keyspace == null)
-            keyspace = DatabaseDescriptor.getNonSystemTables().get(0);
+            keyspace = Schema.instance.getNonSystemTables().get(0);
 
         /* All the ranges for the tokens */
         Map<Range, List<String>> map = new HashMap<Range, List<String>>();
@@ -622,7 +619,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         // some people just want to get a visual representation of things. Allow null and set it to the first
         // non-system table.
         if (keyspace == null)
-            keyspace = DatabaseDescriptor.getNonSystemTables().get(0);
+            keyspace = Schema.instance.getNonSystemTables().get(0);
 
         Map<Range, List<String>> map = new HashMap<Range, List<String>>();
         for (Map.Entry<Range, Collection<InetAddress>> entry : tokenMetadata_.getPendingRanges(keyspace).entrySet())
@@ -992,7 +989,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      */
     private void calculatePendingRanges()
     {
-        for (String table : DatabaseDescriptor.getNonSystemTables())
+        for (String table : Schema.instance.getNonSystemTables())
             calculatePendingRanges(Table.open(table).getReplicationStrategy(), table);
     }
 
@@ -1153,7 +1150,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
         final InetAddress myAddress = FBUtilities.getBroadcastAddress();
 
-        for (String table : DatabaseDescriptor.getNonSystemTables())
+        for (String table : Schema.instance.getNonSystemTables())
         {
             Multimap<Range, InetAddress> changedRanges = getChangedRangesForLeaving(table, endpoint); 
             Set<Range> myNewRanges = new HashSet<Range>();
@@ -1268,7 +1265,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     public double getLoad()
     {
         double bytes = 0;
-        for (String tableName : DatabaseDescriptor.getTables())
+        for (String tableName : Schema.instance.getTables())
         {
             Table table = Table.open(tableName);
             for (ColumnFamilyStore cfs : table.getColumnFamilyStores())
@@ -1472,7 +1469,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
     private Table getValidTable(String tableName) throws IOException
     {
-        if (!DatabaseDescriptor.getTables().contains(tableName))
+        if (!Schema.instance.getTables().contains(tableName))
         {
             throw new IOException("Table " + tableName + "does not exist");
         }
@@ -1689,7 +1686,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      */
     public List<InetAddress> getNaturalEndpoints(String table, String cf, String key)
     {
-        CFMetaData cfMetaData = DatabaseDescriptor.getTableDefinition(table).cfMetaData().get(cf);
+        CFMetaData cfMetaData = Schema.instance.getTableDefinition(table).cfMetaData().get(cf);
         return getNaturalEndpoints(table, partitioner.getToken(cfMetaData.getKeyValidator().fromString(key)));
     }
 
@@ -1832,7 +1829,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             throw new UnsupportedOperationException("local node is not a member of the token ring yet");
         if (tokenMetadata_.cloneAfterAllLeft().sortedTokens().size() < 2)
             throw new UnsupportedOperationException("no other normal nodes in the ring; decommission would be pointless");
-        for (String table : DatabaseDescriptor.getNonSystemTables())
+        for (String table : Schema.instance.getNonSystemTables())
         {
             if (tokenMetadata_.getPendingRanges(table, FBUtilities.getBroadcastAddress()).size() > 0)
                 throw new UnsupportedOperationException("data is currently moving to this node; unable to leave the ring");
@@ -1880,7 +1877,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     {
         Map<String, Multimap<Range, InetAddress>> rangesToStream = new HashMap<String, Multimap<Range, InetAddress>>();
 
-        for (final String table : DatabaseDescriptor.getNonSystemTables())
+        for (final String table : Schema.instance.getNonSystemTables())
         {
             Multimap<Range, InetAddress> rangesMM = getChangedRangesForLeaving(table, FBUtilities.getBroadcastAddress());
 
@@ -1932,7 +1929,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
         // address of the current node
         InetAddress localAddress = FBUtilities.getBroadcastAddress();
-        List<String> tablesToProcess = DatabaseDescriptor.getNonSystemTables();
+        List<String> tablesToProcess = Schema.instance.getNonSystemTables();
 
         // checking if data is moving to this node
         for (String table : tablesToProcess)
@@ -2121,7 +2118,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             throw new UnsupportedOperationException("This node is already processing a removal. Wait for it to complete, or use 'removetoken force' if this has failed.");
 
         // Find the endpoints that are going to become responsible for data
-        for (String table : DatabaseDescriptor.getNonSystemTables())
+        for (String table : Schema.instance.getNonSystemTables())
         {
             // if the replication factor is 1 the data is lost so we shouldn't wait for confirmation
             if (Table.open(table).getReplicationStrategy().getReplicationFactor() == 1)
@@ -2253,7 +2250,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         // lets flush.
         setMode("Draining: flushing column families", false);
         List<ColumnFamilyStore> cfses = new ArrayList<ColumnFamilyStore>();
-        for (String tableName : DatabaseDescriptor.getNonSystemTables())
+        for (String tableName : Schema.instance.getNonSystemTables())
         {
             Table table = Table.open(tableName);
             cfses.addAll(table.getColumnFamilyStores());
@@ -2319,7 +2316,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
     public List<String> getKeyspaces()
     {
-        List<String> tableslist = new ArrayList<String>(DatabaseDescriptor.getTables());
+        List<String> tableslist = new ArrayList<String>(Schema.instance.getTables());
         return Collections.unmodifiableList(tableslist);
     }
 
@@ -2339,7 +2336,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
         // point snitch references to the new instance
         DatabaseDescriptor.setEndpointSnitch(newSnitch);
-        for (String ks : DatabaseDescriptor.getTables())
+        for (String ks : Schema.instance.getTables())
         {
             Table.open(ks).getReplicationStrategy().snitch = newSnitch;
         }
@@ -2578,7 +2575,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
             public boolean validateColumnFamily(String keyspace, String cfName)
             {
-                return DatabaseDescriptor.getCFMetaData(keyspace, cfName) != null;
+                return Schema.instance.getCFMetaData(keyspace, cfName) != null;
             }
         };
 

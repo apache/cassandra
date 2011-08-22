@@ -27,6 +27,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.google.common.base.Function;
 import com.google.common.collect.Collections2;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.io.compress.CompressedRandomAccessReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -105,7 +106,7 @@ public class SSTableReader extends SSTable
     public static SSTableReader open(Descriptor desc) throws IOException
     {
         Set<Component> components = componentsFor(desc, Descriptor.TempState.ANY);
-        return open(desc, components, DatabaseDescriptor.getCFMetaData(desc.ksname, desc.cfname), StorageService.getPartitioner());
+        return open(desc, components, Schema.instance.getCFMetaData(desc.ksname, desc.cfname), StorageService.getPartitioner());
     }
 
     public static SSTableReader open(Descriptor descriptor, Set<Component> components, CFMetaData metadata, IPartitioner partitioner) throws IOException

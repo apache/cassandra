@@ -2,10 +2,7 @@ package org.apache.cassandra.db.migration;
 
 import java.io.IOException;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
@@ -40,7 +37,7 @@ public class UpdateKeyspace extends Migration
     /** create migration based on thrift parameters */
     public UpdateKeyspace(KSMetaData ksm) throws ConfigurationException, IOException
     {
-        super(UUIDGen.makeType1UUIDFromHost(FBUtilities.getBroadcastAddress()), DatabaseDescriptor.getDefsVersion());
+        super(UUIDGen.makeType1UUIDFromHost(FBUtilities.getBroadcastAddress()), Schema.instance.getVersion());
         
         assert ksm != null;
         assert ksm.cfMetaData() != null;
@@ -48,7 +45,7 @@ public class UpdateKeyspace extends Migration
             throw new ConfigurationException("Updated keyspace must not contain any column families");
     
         // create the new ksm by merging the one passed in with the cf defs from the exisitng ksm.
-        oldKsm = DatabaseDescriptor.getKSMetaData(ksm.name);
+        oldKsm = schema.getKSMetaData(ksm.name);
         if (oldKsm == null)
             throw new ConfigurationException(ksm.name + " cannot be updated because it doesn't exist.");
 
@@ -58,10 +55,10 @@ public class UpdateKeyspace extends Migration
     
     void applyModels() throws IOException
     {
-        DatabaseDescriptor.clearTableDefinition(oldKsm, newVersion);
-        DatabaseDescriptor.setTableDefinition(newKsm, newVersion);
+        schema.clearTableDefinition(oldKsm, newVersion);
+        schema.setTableDefinition(newKsm, newVersion);
 
-        Table table = Table.open(newKsm.name);
+        Table table = Table.open(newKsm.name, schema);
         try
         {
             table.createReplicationStrategy(newKsm);

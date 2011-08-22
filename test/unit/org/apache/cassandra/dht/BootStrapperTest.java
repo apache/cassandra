@@ -26,7 +26,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import org.apache.cassandra.CleanupHelper;
-import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.Schema;
 import org.apache.commons.lang.StringUtils;
 import static org.junit.Assert.assertEquals;
 import org.junit.Test;
@@ -145,7 +145,7 @@ public class BootStrapperTest extends CleanupHelper
     public void testSourceTargetComputation() throws UnknownHostException
     {
         final int[] clusterSizes = new int[] { 1, 3, 5, 10, 100};
-        for (String table : DatabaseDescriptor.getNonSystemTables())
+        for (String table : Schema.instance.getNonSystemTables())
         {
             int replicationFactor = Table.open(table).getReplicationStrategy().getReplicationFactor();
             for (int clusterSize : clusterSizes)

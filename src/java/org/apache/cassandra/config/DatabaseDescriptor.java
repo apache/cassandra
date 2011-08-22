@@ -22,7 +22,6 @@ import java.io.*;
 import java.net.InetAddress;
 import java.net.URL;
 import java.net.UnknownHostException;
-import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.slf4j.Logger;
@@ -34,15 +33,10 @@ import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.auth.IAuthority;
 import org.apache.cassandra.config.Config.RequestSchedulerId;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.db.DefsTable;
 import org.apache.cassandra.db.Table;
-import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.gms.Gossiper;
-import org.apache.cassandra.gms.VersionedValue;
-import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.MmappedSegmentedFile;
 import org.apache.cassandra.locator.*;
@@ -50,7 +44,7 @@ import org.apache.cassandra.scheduler.IRequestScheduler;
 import org.apache.cassandra.scheduler.NoScheduler;
 import org.apache.cassandra.thrift.CassandraDaemon;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.Pair;
+
 import org.yaml.snakeyaml.Loader;
 import org.yaml.snakeyaml.TypeDescription;
 import org.yaml.snakeyaml.Yaml;
@@ -68,8 +62,6 @@ public class DatabaseDescriptor
     /* Current index into the above list of directories */
     private static int currentIndex = 0;
 
-    static Map<String, KSMetaData> tables = new HashMap<String, KSMetaData>();
-
     /* Hashing strategy Random or OPHF */
     private static IPartitioner partitioner;
 
@@ -85,9 +77,6 @@ public class DatabaseDescriptor
     private static IRequestScheduler requestScheduler;
     private static RequestSchedulerId requestSchedulerId;
     private static RequestSchedulerOptions requestSchedulerOptions;
-
-    public static final UUID INITIAL_VERSION = new UUID(4096, 0); // has type nibble set to 1, everything else to zero.
-    private static volatile UUID defsVersion = INITIAL_VERSION;
 
     /**
      * Inspect the classpath to find storage configuration file
@@ -414,13 +403,14 @@ public class DatabaseDescriptor
                                                    CFMetaData.SchemaCf,
                                                    CFMetaData.IndexCf,
                                                    CFMetaData.NodeIdCf);
-            CFMetaData.map(CFMetaData.StatusCf);
-            CFMetaData.map(CFMetaData.HintsCf);
-            CFMetaData.map(CFMetaData.MigrationsCf);
-            CFMetaData.map(CFMetaData.SchemaCf);
-            CFMetaData.map(CFMetaData.IndexCf);
-            CFMetaData.map(CFMetaData.NodeIdCf);
-            tables.put(Table.SYSTEM_TABLE, systemMeta);
+            Schema.instance.load(CFMetaData.StatusCf);
+            Schema.instance.load(CFMetaData.HintsCf);
+            Schema.instance.load(CFMetaData.MigrationsCf);
+            Schema.instance.load(CFMetaData.SchemaCf);
+            Schema.instance.load(CFMetaData.IndexCf);
+            Schema.instance.load(CFMetaData.NodeIdCf);
+
+            Schema.instance.addSystemTable(systemMeta);
             
             /* Load the seeds for node contact points */
             if (conf.seed_provider == null)
@@ -474,7 +464,7 @@ public class DatabaseDescriptor
             logger.info("Couldn't detect any schema definitions in local storage.");
             // peek around the data directories to see if anything is there.
             boolean hasExistingTables = false;
-            for (String dataDir : DatabaseDescriptor.getAllDataFileLocations())
+            for (String dataDir : getAllDataFileLocations())
             {
                 File dataPath = new File(dataDir);
                 if (dataPath.exists() && dataPath.isDirectory())
@@ -505,35 +495,21 @@ public class DatabaseDescriptor
         {
             logger.info("Loading schema version " + uuid.toString());
             Collection<KSMetaData> tableDefs = DefsTable.loadFromStorage(uuid);   
-            for (KSMetaData def : tableDefs)
-            {
-                if (!def.name.matches(Migration.NAME_VALIDATOR_REGEX))
-                    throw new RuntimeException("invalid keyspace name: " + def.name);
-                for (CFMetaData cfm : def.cfMetaData().values())
-                {
-                    if (!cfm.cfName.matches(Migration.NAME_VALIDATOR_REGEX))
-                        throw new RuntimeException("invalid column family name: " + cfm.cfName);
-                    try
-                    {
-                        CFMetaData.map(cfm);
-                    }
-                    catch (ConfigurationException ex)
-                    {
-                        throw new IOError(ex);
-                    }
-                }
-                DatabaseDescriptor.setTableDefinition(def, uuid);
-            }
-            
+
             // happens when someone manually deletes all tables and restarts.
             if (tableDefs.size() == 0)
             {
                 logger.warn("No schema definitions were found in local storage.");
-                // set defsVersion so that migrations leading up to emptiness aren't replayed.
-                defsVersion = uuid;
+                // set version so that migrations leading up to emptiness aren't replayed.
+                Schema.instance.setVersion(uuid);
+            }
+            else // if non-system tables where found, trying to load them
+            {
+                Schema.instance.load(tableDefs, uuid);
             }
         }
-        CFMetaData.fixMaxId();
+
+        Schema.instance.fixCFMaxId();
     }
 
     public static IAuthenticator getAuthenticator()
@@ -616,12 +592,6 @@ public class DatabaseDescriptor
         return requestSchedulerId;
     }
 
-    public static KSMetaData getKSMetaData(String table)
-    {
-        assert table != null;
-        return tables.get(table);
-    }
-    
     public static String getJobTrackerAddress()
     {
         return conf.job_tracker_host;
@@ -645,58 +615,6 @@ public class DatabaseDescriptor
     public static String getJobJarLocation()
     {
         return conf.job_jar_file_location;
-    }
-    
-    public static Map<String, CFMetaData> getTableMetaData(String tableName)
-    {
-        assert tableName != null;
-        KSMetaData ksm = tables.get(tableName);
-        assert ksm != null;
-        return ksm.cfMetaData();
-    }
-
-    /*
-     * Given a table name & column family name, get the column family
-     * meta data. If the table name or column family name is not valid
-     * this function returns null.
-     */
-    public static CFMetaData getCFMetaData(String tableName, String cfName)
-    {
-        assert tableName != null;
-        KSMetaData ksm = tables.get(tableName);
-        if (ksm == null)
-            return null;
-        return ksm.cfMetaData().get(cfName);
-    }
-    
-    public static CFMetaData getCFMetaData(Integer cfId)
-    {
-        Pair<String,String> cf = CFMetaData.getCF(cfId);
-        if (cf == null)
-            return null;
-        return getCFMetaData(cf.left, cf.right);
-    }
-
-    public static ColumnFamilyType getColumnFamilyType(String tableName, String cfName)
-    {
-        assert tableName != null && cfName != null;
-        CFMetaData cfMetaData = getCFMetaData(tableName, cfName);
-        
-        if (cfMetaData == null)
-            return null;
-        return cfMetaData.cfType;
-    }
-
-    public static Set<String> getTables()
-    {
-        return tables.keySet();
-    }
-
-    public static List<String> getNonSystemTables()
-    {
-        List<String> tableslist = new ArrayList<String>(tables.keySet());
-        tableslist.remove(Table.SYSTEM_TABLE);
-        return Collections.unmodifiableList(tableslist);
     }
 
     public static int getStoragePort()
@@ -847,46 +765,6 @@ public class DatabaseDescriptor
       }
         return dataFileDirectory;
     }
-    
-    public static AbstractType getComparator(String ksName, String cfName)
-    {
-        assert ksName != null;
-        CFMetaData cfmd = getCFMetaData(ksName, cfName);
-        if (cfmd == null)
-            throw new IllegalArgumentException("Unknown ColumnFamily " + cfName + " in keyspace " + ksName);
-        return cfmd.comparator;
-    }
-
-    public static AbstractType getSubComparator(String tableName, String cfName)
-    {
-        assert tableName != null;
-        return getCFMetaData(tableName, cfName).subcolumnComparator;
-    }
-
-    public static KSMetaData getTableDefinition(String table)
-    {
-        return tables.get(table);
-    }
-
-    // todo: this is wrong. the definitions need to be moved into their own class that can only be updated by the
-    // process of mutating an individual keyspace, rather than setting manually here.
-    public static void setTableDefinition(KSMetaData ksm, UUID newVersion)
-    {
-        if (ksm != null)
-            tables.put(ksm.name, ksm);
-        DatabaseDescriptor.defsVersion = newVersion;
-    }
-    
-    public static void clearTableDefinition(KSMetaData ksm, UUID newVersion)
-    {
-        tables.remove(ksm.name);
-        DatabaseDescriptor.defsVersion = newVersion;
-    }
-    
-    public static UUID getDefsVersion()
-    {
-        return defsVersion;
-    }
 
     public static InetAddress getListenAddress()
     {
@@ -995,16 +873,6 @@ public class DatabaseDescriptor
     public static int getMaxHintWindow()
     {
         return conf.max_hint_window_in_ms;
-    }
-
-    public static AbstractType getValueValidator(String keyspace, String cf, ByteBuffer column)
-    {
-        return getCFMetaData(keyspace, cf).getValueValidator(column);
-    }
-
-    public static CFMetaData getCFMetaData(Descriptor desc)
-    {
-        return getCFMetaData(desc.ksname, desc.cfname);
     }
 
     public static Integer getIndexInterval()

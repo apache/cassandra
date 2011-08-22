@@ -24,6 +24,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.ThreadPoolExecutor;
 
+import org.apache.cassandra.config.Schema;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -32,7 +33,6 @@ import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.PrecompactedRow;
 import org.apache.cassandra.dht.IPartitioner;
@@ -152,7 +152,7 @@ public abstract class AntiEntropyServiceTestAbstract extends CleanupHelper
 
         // add a row
         validator.add(new PrecompactedRow(new DecoratedKey(mid, ByteBufferUtil.bytes("inconceivable!")),
-                                          ColumnFamily.create(DatabaseDescriptor.getCFMetaData(tablename, cfname))));
+                                          ColumnFamily.create(Schema.instance.getCFMetaData(tablename, cfname))));
         validator.completeTree();
 
         // confirm that the tree was validated

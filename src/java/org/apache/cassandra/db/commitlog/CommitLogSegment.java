@@ -31,6 +31,7 @@ import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.cassandra.net.MessagingService;
 import org.slf4j.Logger;
@@ -107,7 +108,7 @@ public class CommitLogSegment
             {
                 // check for null cfm in case a cl write goes through after the cf is
                 // defined but before a new segment is created.
-                CFMetaData cfm = DatabaseDescriptor.getCFMetaData(columnFamily.id());
+                CFMetaData cfm = Schema.instance.getCFMetaData(columnFamily.id());
                 if (cfm == null)
                 {
                     logger.error("Attempted to write commit log entry for unrecognized column family: " + columnFamily.id());
@@ -211,7 +212,7 @@ public class CommitLogSegment
         StringBuilder sb = new StringBuilder();
         for (Integer cfId : cfLastWrite.keySet())
         {
-            CFMetaData m = DatabaseDescriptor.getCFMetaData(cfId);
+            CFMetaData m = Schema.instance.getCFMetaData(cfId);
             sb.append(m == null ? "<deleted>" : m.cfName).append(" (").append(cfId).append("), ");
         }
         return sb.toString();

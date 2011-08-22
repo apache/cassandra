@@ -23,12 +23,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.cassandra.config.*;
 import org.apache.commons.lang.StringUtils;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
@@ -46,14 +43,14 @@ public class RenameKeyspace extends Migration
     
     public RenameKeyspace(String oldName, String newName) throws ConfigurationException, IOException
     {
-        super(UUIDGen.makeType1UUIDFromHost(FBUtilities.getBroadcastAddress()), DatabaseDescriptor.getDefsVersion());
+        super(UUIDGen.makeType1UUIDFromHost(FBUtilities.getBroadcastAddress()), Schema.instance.getVersion());
         this.oldName = oldName;
         this.newName = newName;
         
-        KSMetaData oldKsm = DatabaseDescriptor.getTableDefinition(oldName);
+        KSMetaData oldKsm = schema.getTableDefinition(oldName);
         if (oldKsm == null)
             throw new ConfigurationException("Keyspace either does not exist or does not match the one currently defined.");
-        if (DatabaseDescriptor.getTableDefinition(newName) != null)
+        if (schema.getTableDefinition(newName) != null)
             throw new ConfigurationException("Keyspace already exists.");
         if (!Migration.isLegalName(newName))
             throw new ConfigurationException("Invalid keyspace name: " + newName);
@@ -64,7 +61,7 @@ public class RenameKeyspace extends Migration
         rm = makeDefinitionMutation(newKsm, oldKsm, newVersion);
     }
     
-    private static KSMetaData rename(KSMetaData ksm, String newName, boolean purgeOldCfs)
+    private KSMetaData rename(KSMetaData ksm, String newName, boolean purgeOldCfs)
     {
         // cfs will need to have their tablenames reset. CFMetaData are immutable, so new ones get created with the
         // same ids.
@@ -72,7 +69,7 @@ public class RenameKeyspace extends Migration
         for (CFMetaData oldCf : ksm.cfMetaData().values())
         {
             if (purgeOldCfs)
-                CFMetaData.purge(oldCf);
+                schema.purge(oldCf);
             newCfs.add(CFMetaData.renameTable(oldCf, newName));
         }
         return new KSMetaData(newName, ksm.strategyClass, ksm.strategyOptions, newCfs.toArray(new CFMetaData[newCfs.size()]));
@@ -83,15 +80,15 @@ public class RenameKeyspace extends Migration
         if (!StorageService.instance.isClientMode())
             renameKsStorageFiles(oldName, newName);
         
-        KSMetaData oldKsm = DatabaseDescriptor.getTableDefinition(oldName);
+        KSMetaData oldKsm = schema.getTableDefinition(oldName);
         for (CFMetaData cfm : oldKsm.cfMetaData().values())
-            CFMetaData.purge(cfm);
+            schema.purge(cfm);
         KSMetaData newKsm = rename(oldKsm, newName, true);
         for (CFMetaData cfm : newKsm.cfMetaData().values())
         {
             try
             {
-                CFMetaData.map(cfm);
+                schema.load(cfm);
             }
             catch (ConfigurationException ex)
             {
@@ -102,13 +99,13 @@ public class RenameKeyspace extends Migration
         }
         // ^^ at this point, the static methods in CFMetaData will start returning references to the new table, so
         // it helps if the node is reasonably quiescent with respect to this ks.
-        DatabaseDescriptor.clearTableDefinition(oldKsm, newVersion);
-        DatabaseDescriptor.setTableDefinition(newKsm, newVersion);
+        schema.clearTableDefinition(oldKsm, newVersion);
+        schema.setTableDefinition(newKsm, newVersion);
         
         if (!StorageService.instance.isClientMode())
         {
-            Table.clear(oldKsm.name);
-            Table.open(newName);
+            Table.clear(oldKsm.name, schema);
+            Table.open(newName, schema);
         }
     }
     

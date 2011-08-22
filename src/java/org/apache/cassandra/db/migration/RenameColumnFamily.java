@@ -4,10 +4,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
@@ -47,12 +44,12 @@ public class RenameColumnFamily extends Migration
     // be called during deserialization of this migration.
     public RenameColumnFamily(String tableName, String oldName, String newName) throws ConfigurationException, IOException
     {
-        super(UUIDGen.makeType1UUIDFromHost(FBUtilities.getBroadcastAddress()), DatabaseDescriptor.getDefsVersion());
+        super(UUIDGen.makeType1UUIDFromHost(FBUtilities.getBroadcastAddress()), Schema.instance.getVersion());
         this.tableName = tableName;
         this.oldName = oldName;
         this.newName = newName;
         
-        KSMetaData ksm = DatabaseDescriptor.getTableDefinition(tableName);
+        KSMetaData ksm = schema.getTableDefinition(tableName);
         if (ksm == null)
             throw new ConfigurationException("No such keyspace: " + tableName);
         if (!ksm.cfMetaData().containsKey(oldName))
@@ -66,7 +63,7 @@ public class RenameColumnFamily extends Migration
         
         // clone the ksm, replacing cfm with the new one.
         KSMetaData newKsm = makeNewKeyspaceDefinition(ksm);
-        rm = Migration.makeDefinitionMutation(newKsm, null, newVersion);
+        rm = makeDefinitionMutation(newKsm, null, newVersion);
     }
     
     private KSMetaData makeNewKeyspaceDefinition(KSMetaData ksm)
@@ -86,12 +83,12 @@ public class RenameColumnFamily extends Migration
         // attempting row mutations on oldcfName right now would be really bad.
         
         // reset defs.
-        KSMetaData oldKsm = DatabaseDescriptor.getTableDefinition(tableName);
-        CFMetaData.purge(oldKsm.cfMetaData().get(oldName));
-        KSMetaData ksm = makeNewKeyspaceDefinition(DatabaseDescriptor.getTableDefinition(tableName));
+        KSMetaData oldKsm = schema.getTableDefinition(tableName);
+        schema.purge(oldKsm.cfMetaData().get(oldName));
+        KSMetaData ksm = makeNewKeyspaceDefinition(schema.getTableDefinition(tableName));
         try 
         {
-            CFMetaData.map(ksm.cfMetaData().get(newName));
+            schema.load(ksm.cfMetaData().get(newName));
         }
         catch (ConfigurationException ex)
         {
@@ -99,11 +96,11 @@ public class RenameColumnFamily extends Migration
             // been checked in the constructor and shouldn't happen.
             throw new RuntimeException(ex);
         }
-        DatabaseDescriptor.setTableDefinition(ksm, newVersion);
+        schema.setTableDefinition(ksm, newVersion);
         
         if (!StorageService.instance.isClientMode())
         {
-            Table.open(ksm.name).renameCf(cfId, newName);
+            Table.open(ksm.name, schema).renameCf(cfId, newName);
         }
     }
     

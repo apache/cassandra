@@ -22,10 +22,9 @@ package org.apache.cassandra.db.migration;
 
 
 import org.apache.cassandra.AbstractSerializationsTester;
-import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.io.SerDeUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
@@ -35,8 +34,6 @@ import org.junit.Test;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.util.UUID;
 
@@ -49,9 +46,9 @@ public class SerializationsTest extends AbstractSerializationsTester
         for (int i = 0; i < ksCount; i++)
         {
             String tableName = "Keyspace" + (i + 1);
-            KSMetaData ksm = DatabaseDescriptor.getKSMetaData(tableName);
+            KSMetaData ksm = Schema.instance.getKSMetaData(tableName);
             UUID uuid = UUIDGen.makeType1UUIDFromHost(FBUtilities.getBroadcastAddress());
-            DatabaseDescriptor.clearTableDefinition(ksm, uuid);
+            Schema.instance.clearTableDefinition(ksm, uuid);
             Migration m = new AddKeyspace(ksm);
             ByteBuffer bytes = m.serialize();
             

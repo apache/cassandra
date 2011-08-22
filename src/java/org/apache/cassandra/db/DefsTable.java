@@ -47,14 +47,14 @@ public class DefsTable
         final ByteBuffer versionKey = Migration.toUTF8Bytes(version);
 
         // build a list of keyspaces
-        Collection<String> ksnames = DatabaseDescriptor.getNonSystemTables();
+        Collection<String> ksnames = org.apache.cassandra.config.Schema.instance.getNonSystemTables();
 
         // persist keyspaces under new version
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, versionKey);
         long now = System.currentTimeMillis();
         for (String ksname : ksnames)
         {
-            KSMetaData ksm = DatabaseDescriptor.getTableDefinition(ksname);
+            KSMetaData ksm = org.apache.cassandra.config.Schema.instance.getTableDefinition(ksname);
             rm.add(new QueryPath(Migration.SCHEMA_CF, null, ByteBufferUtil.bytes(ksm.name)), SerDeUtils.serialize(ksm.deflate()), now);
         }
         // add the schema

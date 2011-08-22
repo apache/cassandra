@@ -3,7 +3,7 @@ package org.apache.cassandra.db;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -34,7 +34,7 @@ public class SchemaCheckVerbHandler implements IVerbHandler
     public void doVerb(Message message, String id)
     {
         logger.debug("Received schema check request.");
-        Message response = message.getInternalReply(DatabaseDescriptor.getDefsVersion().toString().getBytes(), message.getVersion());
+        Message response = message.getInternalReply(Schema.instance.getVersion().toString().getBytes(), message.getVersion());
         MessagingService.instance().sendReply(response, id, message.getFrom());
     }
 }

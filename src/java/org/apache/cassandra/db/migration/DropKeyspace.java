@@ -20,13 +20,9 @@ package org.apache.cassandra.db.migration;
 
 import java.io.IOException;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.compaction.CompactionManager;
-import org.apache.cassandra.db.HintedHandOffManager;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
@@ -41,9 +37,9 @@ public class DropKeyspace extends Migration
     
     public DropKeyspace(String name) throws ConfigurationException, IOException
     {
-        super(UUIDGen.makeType1UUIDFromHost(FBUtilities.getBroadcastAddress()), DatabaseDescriptor.getDefsVersion());
+        super(UUIDGen.makeType1UUIDFromHost(FBUtilities.getBroadcastAddress()), Schema.instance.getVersion());
         this.name = name;
-        KSMetaData ksm = DatabaseDescriptor.getTableDefinition(name);
+        KSMetaData ksm = schema.getTableDefinition(name);
         if (ksm == null)
             throw new ConfigurationException("Keyspace does not exist.");
         rm = makeDefinitionMutation(null, ksm, newVersion);
@@ -55,20 +51,20 @@ public class DropKeyspace extends Migration
         CompactionManager.instance.getCompactionLock().lock();
         try
         {
-            KSMetaData ksm = DatabaseDescriptor.getTableDefinition(name);
+            KSMetaData ksm = schema.getTableDefinition(name);
 
             // remove all cfs from the table instance.
             for (CFMetaData cfm : ksm.cfMetaData().values())
             {
-                ColumnFamilyStore cfs = Table.open(ksm.name).getColumnFamilyStore(cfm.cfName);
-                CFMetaData.purge(cfm);
+                ColumnFamilyStore cfs = Table.open(ksm.name, schema).getColumnFamilyStore(cfm.cfName);
+                schema.purge(cfm);
                 if (!StorageService.instance.isClientMode())
                 {
                     cfs.snapshot(snapshotName);
                     cfs.flushLock.lock();
                     try
                     {
-                        Table.open(ksm.name).dropCf(cfm.cfId);
+                        Table.open(ksm.name, schema).dropCf(cfm.cfId);
                     }
                     finally
                     {
@@ -78,10 +74,10 @@ public class DropKeyspace extends Migration
             }
                             
             // remove the table from the static instances.
-            Table table = Table.clear(ksm.name);
+            Table table = Table.clear(ksm.name, schema);
             assert table != null;
             // reset defs.
-            DatabaseDescriptor.clearTableDefinition(ksm, newVersion);
+            schema.clearTableDefinition(ksm, newVersion);
         }
         finally
         {

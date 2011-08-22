@@ -40,9 +40,9 @@ public class AddColumnFamily extends Migration
     
     public AddColumnFamily(CFMetaData cfm) throws ConfigurationException, IOException
     {
-        super(UUIDGen.makeType1UUIDFromHost(FBUtilities.getBroadcastAddress()), DatabaseDescriptor.getDefsVersion());
+        super(UUIDGen.makeType1UUIDFromHost(FBUtilities.getBroadcastAddress()), Schema.instance.getVersion());
         this.cfm = cfm;
-        KSMetaData ksm = DatabaseDescriptor.getTableDefinition(cfm.ksName);
+        KSMetaData ksm = schema.getTableDefinition(cfm.ksName);
         
         if (ksm == null)
             throw new ConfigurationException("No such keyspace: " + cfm.ksName);
@@ -62,7 +62,7 @@ public class AddColumnFamily extends Migration
         // clone ksm but include the new cf def.
         KSMetaData newKsm = makeNewKeyspaceDefinition(ksm);
         
-        rm = Migration.makeDefinitionMutation(newKsm, null, newVersion);
+        rm = makeDefinitionMutation(newKsm, null, newVersion);
     }
     
     private KSMetaData makeNewKeyspaceDefinition(KSMetaData ksm)
@@ -75,22 +75,22 @@ public class AddColumnFamily extends Migration
     public void applyModels() throws IOException
     {
         // reinitialize the table.
-        KSMetaData ksm = DatabaseDescriptor.getTableDefinition(cfm.ksName);
+        KSMetaData ksm = schema.getTableDefinition(cfm.ksName);
         ksm = makeNewKeyspaceDefinition(ksm);
         try
         {
-            CFMetaData.map(cfm);
+            schema.load(cfm);
         }
         catch (ConfigurationException ex)
         {
             throw new IOException(ex);
         }
-        Table.open(cfm.ksName); // make sure it's init-ed w/ the old definitions first, since we're going to call initCf on the new one manually
-        DatabaseDescriptor.setTableDefinition(ksm, newVersion);
+        Table.open(cfm.ksName, schema); // make sure it's init-ed w/ the old definitions first, since we're going to call initCf on the new one manually
+        schema.setTableDefinition(ksm, newVersion);
         // these definitions could have come from somewhere else.
-        CFMetaData.fixMaxId();
+        schema.fixCFMaxId();
         if (!StorageService.instance.isClientMode())
-            Table.open(ksm.name).initCf(cfm.cfId, cfm.cfName);
+            Table.open(ksm.name, schema).initCf(cfm.cfId, cfm.cfName);
     }
 
     public void subdeflate(org.apache.cassandra.db.migration.avro.Migration mi)

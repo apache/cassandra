@@ -39,9 +39,9 @@ public class UpdateColumnFamily extends Migration
     /** assumes validation has already happened. That is, replacing oldCfm with newCfm is neither illegal or totally whackass. */
     public UpdateColumnFamily(org.apache.cassandra.db.migration.avro.CfDef cf_def) throws ConfigurationException, IOException
     {
-        super(UUIDGen.makeType1UUIDFromHost(FBUtilities.getBroadcastAddress()), DatabaseDescriptor.getDefsVersion());
+        super(UUIDGen.makeType1UUIDFromHost(FBUtilities.getBroadcastAddress()), Schema.instance.getVersion());
         
-        KSMetaData ksm = DatabaseDescriptor.getTableDefinition(cf_def.keyspace.toString());
+        KSMetaData ksm = schema.getTableDefinition(cf_def.keyspace.toString());
         if (ksm == null)
             throw new ConfigurationException("No such keyspace: " + cf_def.keyspace.toString());
         if (cf_def.column_metadata != null)
@@ -53,7 +53,7 @@ public class UpdateColumnFamily extends Migration
             }
         }
 
-        CFMetaData oldCfm = DatabaseDescriptor.getCFMetaData(CFMetaData.getId(cf_def.keyspace.toString(), cf_def.name.toString()));
+        CFMetaData oldCfm = schema.getCFMetaData(cf_def.keyspace.toString(), cf_def.name.toString());
         
         // create a copy of the old CF meta data. Apply new settings on top of it.
         this.metadata = CFMetaData.inflate(oldCfm.deflate());
@@ -62,26 +62,26 @@ public class UpdateColumnFamily extends Migration
         // create a copy of the old KS meta data. Use it to create a RowMutation that gets applied to schema and migrations.
         KSMetaData newKsMeta = KSMetaData.inflate(ksm.deflate());
         newKsMeta.cfMetaData().get(cf_def.name.toString()).apply(cf_def);
-        rm = Migration.makeDefinitionMutation(newKsMeta, null, newVersion);
+        rm = makeDefinitionMutation(newKsMeta, null, newVersion);
     }
 
     void applyModels() throws IOException
     {
-        logger.debug("Updating " + DatabaseDescriptor.getCFMetaData(metadata.cfId) + " to " + metadata);
+        logger.debug("Updating " + schema.getCFMetaData(metadata.cfId) + " to " + metadata);
         // apply the meta update.
         try 
         {
-            DatabaseDescriptor.getCFMetaData(metadata.cfId).apply(CFMetaData.convertToAvro(metadata));
+            schema.getCFMetaData(metadata.cfId).apply(CFMetaData.convertToAvro(metadata));
         } 
         catch (ConfigurationException ex) 
         {
             throw new IOException(ex);
         }
-        DatabaseDescriptor.setTableDefinition(null, newVersion);
+        schema.setTableDefinition(null, newVersion);
 
         if (!StorageService.instance.isClientMode())
         {
-            Table table = Table.open(metadata.ksName);
+            Table table = Table.open(metadata.ksName, schema);
             ColumnFamilyStore oldCfs = table.getColumnFamilyStore(metadata.cfName);
             oldCfs.reload();
         }

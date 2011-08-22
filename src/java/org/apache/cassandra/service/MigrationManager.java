@@ -28,13 +28,13 @@ import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.Iterables;
 import com.google.common.collect.MapMaker;
+import org.apache.cassandra.config.Schema;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
@@ -42,9 +42,7 @@ import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.gms.*;
 import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.io.util.FastByteArrayOutputStream;
-import org.apache.cassandra.net.CachingMessageProducer;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessageProducer;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -88,7 +86,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
      */
     public static void rectify(UUID theirVersion, InetAddress endpoint)
     {
-        UUID myVersion = DatabaseDescriptor.getDefsVersion();
+        UUID myVersion = Schema.instance.getVersion();
         if (theirVersion.timestamp() < myVersion.timestamp()
             && !StorageService.instance.isClientMode())
         {

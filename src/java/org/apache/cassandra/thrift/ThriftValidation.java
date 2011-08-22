@@ -82,7 +82,7 @@ public class ThriftValidation
 
     public static void validateTable(String tablename) throws KeyspaceNotDefinedException
     {
-        if (!DatabaseDescriptor.getTables().contains(tablename))
+        if (!Schema.instance.getTables().contains(tablename))
         {
             throw new KeyspaceNotDefinedException("Keyspace " + tablename + " does not exist");
         }
@@ -125,7 +125,7 @@ public class ThriftValidation
         if (cfName.isEmpty())
             throw new InvalidRequestException("non-empty columnfamily is required");
 
-        CFMetaData metadata = DatabaseDescriptor.getCFMetaData(tablename, cfName);
+        CFMetaData metadata = Schema.instance.getCFMetaData(tablename, cfName);
         if (metadata == null)
             throw new InvalidRequestException("unconfigured columnfamily " + cfName);
 
@@ -523,7 +523,7 @@ public class ThriftValidation
                                                                 me.getMessage()));
             }
 
-            AbstractType valueValidator = DatabaseDescriptor.getValueValidator(metadata.ksName, metadata.cfName, expression.column_name);
+            AbstractType valueValidator = Schema.instance.getValueValidator(metadata.ksName, metadata.cfName, expression.column_name);
             try
             {
                 valueValidator.validate(expression.value);

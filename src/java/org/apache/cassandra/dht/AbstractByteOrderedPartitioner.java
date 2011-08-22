@@ -20,19 +20,12 @@ package org.apache.cassandra.dht;
 
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
+import java.util.*;
 
-import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.config.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.commons.lang.ArrayUtils;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
@@ -197,9 +190,9 @@ public abstract class AbstractByteOrderedPartitioner implements IPartitioner<Byt
             lastToken = node;
         }
 
-        for (String ks : DatabaseDescriptor.getTables())
+        for (String ks : Schema.instance.getTables())
         {
-            for (CFMetaData cfmd : DatabaseDescriptor.getKSMetaData(ks).cfMetaData().values())
+            for (CFMetaData cfmd : Schema.instance.getKSMetaData(ks).cfMetaData().values())
             {
                 for (Range r : sortedRanges)
                 {

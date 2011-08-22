@@ -4,10 +4,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.Table;
@@ -44,18 +41,18 @@ public class DropColumnFamily extends Migration
     
     public DropColumnFamily(String tableName, String cfName) throws ConfigurationException, IOException
     {
-        super(UUIDGen.makeType1UUIDFromHost(FBUtilities.getBroadcastAddress()), DatabaseDescriptor.getDefsVersion());
+        super(UUIDGen.makeType1UUIDFromHost(FBUtilities.getBroadcastAddress()), Schema.instance.getVersion());
         this.tableName = tableName;
         this.cfName = cfName;
         
-        KSMetaData ksm = DatabaseDescriptor.getTableDefinition(tableName);
+        KSMetaData ksm = schema.getTableDefinition(tableName);
         if (ksm == null)
             throw new ConfigurationException("No such keyspace: " + tableName);
         else if (!ksm.cfMetaData().containsKey(cfName))
             throw new ConfigurationException("CF is not defined in that keyspace.");
         
         KSMetaData newKsm = makeNewKeyspaceDefinition(ksm);
-        rm = Migration.makeDefinitionMutation(newKsm, null, newVersion);
+        rm = makeDefinitionMutation(newKsm, null, newVersion);
     }
 
     private KSMetaData makeNewKeyspaceDefinition(KSMetaData ksm)
@@ -70,14 +67,14 @@ public class DropColumnFamily extends Migration
 
     public void applyModels() throws IOException
     {
-        ColumnFamilyStore cfs = Table.open(tableName).getColumnFamilyStore(cfName);
+        ColumnFamilyStore cfs = Table.open(tableName, schema).getColumnFamilyStore(cfName);
 
         // reinitialize the table.
-        KSMetaData existing = DatabaseDescriptor.getTableDefinition(tableName);
+        KSMetaData existing = schema.getTableDefinition(tableName);
         CFMetaData cfm = existing.cfMetaData().get(cfName);
         KSMetaData ksm = makeNewKeyspaceDefinition(existing);
-        CFMetaData.purge(cfm);
-        DatabaseDescriptor.setTableDefinition(ksm, newVersion);
+        schema.purge(cfm);
+        schema.setTableDefinition(ksm, newVersion);
 
         if (!StorageService.instance.isClientMode())
         {
@@ -87,7 +84,7 @@ public class DropColumnFamily extends Migration
             cfs.flushLock.lock();
             try
             {
-                Table.open(ksm.name).dropCf(cfm.cfId);
+                Table.open(ksm.name, schema).dropCf(cfm.cfId);
             }
             finally
             {

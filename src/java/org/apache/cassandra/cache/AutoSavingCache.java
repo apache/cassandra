@@ -27,6 +27,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.cassandra.config.Schema;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -68,7 +69,7 @@ public abstract class AutoSavingCache<K, V> extends InstrumentingCache<K, V>
 
     public int getAdjustedCacheSize(long expectedKeys)
     {
-        CFMetaData cfm = DatabaseDescriptor.getCFMetaData(tableName, cfName);
+        CFMetaData cfm = Schema.instance.getCFMetaData(tableName, cfName);
         return (int)Math.min(FBUtilities.absoluteFromFraction(getConfiguredCacheSize(cfm), expectedKeys), Integer.MAX_VALUE);
     }
 

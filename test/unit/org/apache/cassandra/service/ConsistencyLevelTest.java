@@ -26,12 +26,12 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.google.common.collect.HashMultimap;
+import org.apache.cassandra.config.Schema;
 import org.junit.Test;
 
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.Row;
 import org.apache.cassandra.dht.IPartitioner;
@@ -72,7 +72,7 @@ public class ConsistencyLevelTest extends CleanupHelper
 
         AbstractReplicationStrategy strategy;
 
-        for (final String table : DatabaseDescriptor.getNonSystemTables())
+        for (final String table : Schema.instance.getNonSystemTables())
         {
             strategy = getStrategy(table, tmd);
             StorageService.calculatePendingRanges(strategy, table);
@@ -178,7 +178,7 @@ public class ConsistencyLevelTest extends CleanupHelper
 
     private AbstractReplicationStrategy getStrategy(String table, TokenMetadata tmd) throws ConfigurationException
     {
-        KSMetaData ksmd =  DatabaseDescriptor.getKSMetaData(table);
+        KSMetaData ksmd = Schema.instance.getKSMetaData(table);
         return AbstractReplicationStrategy.createReplicationStrategy(
                 table,
                 ksmd.strategyClass,

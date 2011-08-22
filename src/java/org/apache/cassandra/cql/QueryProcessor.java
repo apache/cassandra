@@ -144,8 +144,7 @@ public class QueryProcessor
         List<org.apache.cassandra.db.Row> rows;
         IPartitioner<?> p = StorageService.getPartitioner();
 
-        AbstractType<?> keyType = DatabaseDescriptor.getCFMetaData(keyspace,
-                                                                   select.getColumnFamily()).getKeyValidator();
+        AbstractType<?> keyType = Schema.instance.getCFMetaData(keyspace, select.getColumnFamily()).getKeyValidator();
 
         ByteBuffer startKey = (select.getKeyStart() != null)
                                ? select.getKeyStart().getByteBuffer(keyType)
@@ -234,9 +233,8 @@ public class QueryProcessor
                                                 IndexOperator.valueOf(columnRelation.operator().toString()),
                                                 value));
         }
-        
-        AbstractType<?> keyType = DatabaseDescriptor.getCFMetaData(keyspace,
-                                                                   select.getColumnFamily()).getKeyValidator();
+
+        AbstractType<?> keyType = Schema.instance.getCFMetaData(keyspace, select.getColumnFamily()).getKeyValidator();
         ByteBuffer startKey = (!select.isKeyRange()) ? (new Term()).getByteBuffer() : select.getKeyStart().getByteBuffer(keyType);
         IndexClause thriftIndexClause = new IndexClause(expressions, startKey, select.getNumRecords());
         
@@ -719,8 +717,7 @@ public class QueryProcessor
                 CreateIndexStatement createIdx = (CreateIndexStatement)statement.statement;
                 clientState.hasColumnFamilyListAccess(Permission.WRITE);
                 validateSchemaAgreement();
-                CFMetaData oldCfm = DatabaseDescriptor.getCFMetaData(CFMetaData.getId(keyspace,
-                                                                                      createIdx.getColumnFamily()));
+                CFMetaData oldCfm = Schema.instance.getCFMetaData(keyspace, createIdx.getColumnFamily());
                 if (oldCfm == null)
                     throw new InvalidRequestException("No such column family: " + createIdx.getColumnFamily());
 
@@ -975,7 +972,7 @@ public class QueryProcessor
         outer:
         while (limit - System.currentTimeMillis() >= 0)
         {
-            String currentVersionId = DatabaseDescriptor.getDefsVersion().toString();
+            String currentVersionId = Schema.instance.getVersion().toString();
             for (String version : describeSchemaVersions().keySet())
             {
                 if (!version.equals(currentVersionId))
