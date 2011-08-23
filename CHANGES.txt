@@ -29,6 +29,7 @@
    CompactionManager.estimatedCompactions (CASSANDRA-2708)
  * expose rpc timeouts per host in MessagingServiceMBean (CASSANDRA-2941)
  * avoid including cwd in classpath for deb and rpm packages (CASSANDRA-2881)
+ * remove gossip state when a new IP takes over a token (CASSANDRA-3071)
 
 
 0.8.4
