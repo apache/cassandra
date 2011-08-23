@@ -7,6 +7,7 @@
     has not (CASSANDRA-2388)
  * avoid retaining references to dropped CFS objects in 
    CompactionManager.estimatedCompactions (CASSANDRA-2708)
+ * remove gossip state when a new IP takes over a token (CASSANDRA-3071)
 
 
 0.7.8
