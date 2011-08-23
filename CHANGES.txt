@@ -8,6 +8,8 @@
  * avoid retaining references to dropped CFS objects in 
    CompactionManager.estimatedCompactions (CASSANDRA-2708)
  * remove gossip state when a new IP takes over a token (CASSANDRA-3071)
+ * work around native memory leak in com.sun.management.GarbageCollectorMXBean
+    (CASSANDRA-2868)
 
 
 0.7.8
