@@ -9,6 +9,18 @@ Upgrading
 Features
 --------
     - "cassandra.bat install" will install Cassandra as a Windows Service
+    - SSTable compression can be enabled by setting options ???
+    - Compressed SSTable blocks are checksummed to protect against bitrot
+    - New LevelDB-inspired compaction algorithm can be enabled by setting
+      option ???
+    - Windows Service ("cassandra.bat install" to enable)
+
+Other
+-----
+    - Hinted Handoff is substantially more robust, with the result that
+      when HH is enabled, repair only needs to be run if a node crashes.
+    - Because of this, read repair is disabled now by default on newly
+      created ColumnFamilies.
 
 
 0.8.4
