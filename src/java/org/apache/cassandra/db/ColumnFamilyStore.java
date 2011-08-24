@@ -309,11 +309,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         assert info.getIndexType() != null;
 
         // create the index CFS
-        IPartitioner rowPartitioner = StorageService.getPartitioner();
-        AbstractType columnComparator = (rowPartitioner instanceof OrderPreservingPartitioner || rowPartitioner instanceof ByteOrderedPartitioner)
-                                        ? BytesType.instance
-                                        : new LocalByPartionerType(StorageService.getPartitioner());
-        final CFMetaData indexedCfMetadata = CFMetaData.newIndexMetadata(metadata, info, columnComparator);
+        final CFMetaData indexedCfMetadata = CFMetaData.newIndexMetadata(metadata, info, indexComparator());
         ColumnFamilyStore indexedCfs = ColumnFamilyStore.createColumnFamilyStore(table,
                                                                                  indexedCfMetadata.cfName,
                                                                                  new LocalPartitioner(metadata.getColumn_metadata().get(info.name).getValidator()),
@@ -354,6 +350,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         FutureTask<?> f = new FutureTask<Object>(runnable, null);
         new Thread(f, "Create index " + indexedCfMetadata.cfName).start();
         return f;
+    }
+
+    public static AbstractType indexComparator()
+    {
+        IPartitioner rowPartitioner = StorageService.getPartitioner();
+        return (rowPartitioner instanceof OrderPreservingPartitioner || rowPartitioner instanceof ByteOrderedPartitioner)
+                                        ? BytesType.instance
+                                        : new LocalByPartionerType(StorageService.getPartitioner());
     }
 
     public void buildSecondaryIndexes(Collection<SSTableReader> sstables, SortedSet<ByteBuffer> columns)
