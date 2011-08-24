@@ -1,0 +1,28 @@
+A Python driver for CQL that adheres to py-dbapi v2
+ (PEP249, Python Database API Specification v2.0:  http://www.python.org/dev/peps/pep-0249/).
+
+Standard use:
+ >> import cql
+ >> con = cql.connect(host, port, keyspace)
+ >> cursor = con.cursor()
+ >> cursor.execute("CQL QUERY", {kw=Foo, kw2=Bar, etc...})
+
+    - cursor.description  # None initially, list of N tuples that represent
+                              the N columns in a row after an execute. Only 
+                              contains type and name info, not values.
+    - cursor.rowcount     # -1 initially, N after an execute
+    - cursor.arraysize    # variable size of a fetchmany call
+    - cursor.fetchone()   # returns  a single row
+    - cursor.fetchmany()  # returns  self.arraysize # of rows
+    - cursor.fetchall()   # returns  all rows, don't do this.
+
+ >> cursor.execute("ANOTHER QUERY", **more_kwargs)
+ >> for row in cursor:  # Iteration is equivalent to lots of fetchone() calls
+ >>     doRowMagic(row)
+
+ >> cursor.close()
+ >> con.close()
+
+Query substitution:
+ - Use named parameters and a dictionary of names and values. 
+    e.g. execute("SELECT * FROM CF WHERE name=:name", name="Foo")

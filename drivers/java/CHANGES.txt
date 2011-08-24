@@ -1,0 +1,4 @@
+1.0.4
+ * improve JDBC spec compliance (CASSANDRA-2720, 2754, 3052)
+ * cooperate with other jdbc drivers (CASSANDRA-2842)
+ * fix unbox-to-NPE with null primitives (CASSANDRA-2956)
