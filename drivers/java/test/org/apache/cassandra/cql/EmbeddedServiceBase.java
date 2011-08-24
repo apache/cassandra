@@ -27,10 +27,7 @@ import java.net.UnknownHostException;
 
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.config.*;
 import org.apache.cassandra.service.EmbeddedCassandraService;
 import org.junit.BeforeClass;
 
@@ -39,10 +36,9 @@ import org.junit.BeforeClass;
  */
 public abstract class EmbeddedServiceBase
 {
-
     /** The embedded server cassandra. */
     private static EmbeddedCassandraService cassandra;
-    
+
     @BeforeClass 
     public static void cleanUpOldStuff() throws IOException
     {
@@ -77,9 +73,9 @@ public abstract class EmbeddedServiceBase
         {
             for (CFMetaData cfm : table.cfMetaData().values())
             {
-                CFMetaData.map(cfm);
+                Schema.instance.load(cfm);
             }
-            DatabaseDescriptor.setTableDefinition(table, DatabaseDescriptor.getDefsVersion());
+            Schema.instance.setTableDefinition(table, Schema.instance.getVersion());
         }
     }
     /**
