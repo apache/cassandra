@@ -282,6 +282,6 @@ public class SchemaLoader
     }
     private static CFMetaData jdbcCFMD(String ksName, String cfName, AbstractType comp)
     {
-        return new CFMetaData(ksName, cfName, ColumnFamilyType.Standard, comp, comp).defaultValidator(comp);
+        return new CFMetaData(ksName, cfName, ColumnFamilyType.Standard, comp, null).defaultValidator(comp);
     }
 }

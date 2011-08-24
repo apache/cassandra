@@ -51,7 +51,7 @@ public class DatabaseDescriptorTest
         {
             for (CFMetaData cfm : Schema.instance.getTableMetaData(table).values())
             {
-                CFMetaData cfmDupe = CFMetaData.inflate(serDe(cfm.deflate(), new org.apache.cassandra.db.migration.avro.CfDef()));
+                CFMetaData cfmDupe = CFMetaData.fromAvro(serDe(cfm.toAvro(), new org.apache.cassandra.db.migration.avro.CfDef()));
                 assert cfmDupe != null;
                 assert cfmDupe.equals(cfm);
             }
@@ -65,7 +65,7 @@ public class DatabaseDescriptorTest
         {
             // Not testing round-trip on the KsDef via serDe() because maps
             //  cannot be compared in avro.
-            KSMetaData ksmDupe = KSMetaData.inflate(ksm.deflate());
+            KSMetaData ksmDupe = KSMetaData.fromAvro(ksm.toAvro());
             assert ksmDupe != null;
             assert ksmDupe.equals(ksm);
         }

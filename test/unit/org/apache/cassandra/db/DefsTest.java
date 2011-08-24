@@ -119,7 +119,7 @@ public class DefsTest extends CleanupHelper
 
         // we'll be adding this one later. make sure it's not already there.
         assert cfm.getColumn_metadata().get(ByteBuffer.wrap(new byte[] { 5 })) == null;
-        org.apache.cassandra.db.migration.avro.CfDef cfDef = CFMetaData.convertToAvro(cfm);
+        org.apache.cassandra.db.migration.avro.CfDef cfDef = cfm.toAvro();
         
         // add one.
         org.apache.cassandra.db.migration.avro.ColumnDef addIndexDef = new org.apache.cassandra.db.migration.avro.ColumnDef();
@@ -131,10 +131,10 @@ public class DefsTest extends CleanupHelper
         
         // remove one.
         org.apache.cassandra.db.migration.avro.ColumnDef removeIndexDef = new org.apache.cassandra.db.migration.avro.ColumnDef();
-        removeIndexDef.index_name = "0";
+        removeIndexDef.index_name = new Utf8("0");
         removeIndexDef.index_type = org.apache.cassandra.db.migration.avro.IndexType.KEYS;
         removeIndexDef.name = ByteBuffer.wrap(new byte[] { 0 });
-        removeIndexDef.validation_class = BytesType.class.getName();
+        removeIndexDef.validation_class = new Utf8(BytesType.class.getName());
         assert cfDef.column_metadata.remove(removeIndexDef);
         
         cfm.apply(cfDef);
@@ -170,7 +170,7 @@ public class DefsTest extends CleanupHelper
         for (KSMetaData loaded : defs)
         {
             KSMetaData defined = Schema.instance.getTableDefinition(loaded.name);
-            assert defined.equals(loaded);
+            assert defined.equals(loaded) : String.format("%s != %s", loaded, defined);
         }
     }
     
@@ -659,7 +659,7 @@ public class DefsTest extends CleanupHelper
         assert Schema.instance.getCFMetaData(cf.ksName, cf.cfName) != null;
         
         // updating certain fields should fail.
-        org.apache.cassandra.db.migration.avro.CfDef cf_def = CFMetaData.convertToAvro(cf);
+        org.apache.cassandra.db.migration.avro.CfDef cf_def = cf.toAvro();
         cf_def.row_cache_size = 43.3;
         cf_def.column_metadata = new ArrayList<org.apache.cassandra.db.migration.avro.ColumnDef>();
         cf_def.default_validation_class ="BytesType";
@@ -803,7 +803,7 @@ public class DefsTest extends CleanupHelper
         ColumnDefinition cdOld = meta.getColumn_metadata().values().iterator().next();
         ColumnDefinition cdNew = new ColumnDefinition(cdOld.name, cdOld.getValidator(), null, null);
         meta.columnMetadata(Collections.singletonMap(cdOld.name, cdNew));
-        UpdateColumnFamily update = new UpdateColumnFamily(CFMetaData.convertToAvro(meta));
+        UpdateColumnFamily update = new UpdateColumnFamily(meta.toAvro());
         update.apply();
 
         // check

@@ -74,16 +74,16 @@ public class UpdateKeyspace extends Migration
     public void subdeflate(org.apache.cassandra.db.migration.avro.Migration mi)
     {
         org.apache.cassandra.db.migration.avro.UpdateKeyspace uks = new org.apache.cassandra.db.migration.avro.UpdateKeyspace();
-        uks.newKs = newKsm.deflate();
-        uks.oldKs = oldKsm.deflate();
+        uks.newKs = newKsm.toAvro();
+        uks.oldKs = oldKsm.toAvro();
         mi.migration = uks;
     }
 
     public void subinflate(org.apache.cassandra.db.migration.avro.Migration mi)
     {
         org.apache.cassandra.db.migration.avro.UpdateKeyspace uks = (org.apache.cassandra.db.migration.avro.UpdateKeyspace)mi.migration;
-        newKsm = KSMetaData.inflate(uks.newKs);
-        oldKsm = KSMetaData.inflate(uks.oldKs);
+        newKsm = KSMetaData.fromAvro(uks.newKs);
+        oldKsm = KSMetaData.fromAvro(uks.oldKs);
     }
 
     @Override

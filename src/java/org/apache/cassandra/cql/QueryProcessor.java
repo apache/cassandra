@@ -30,19 +30,16 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
 
-import com.google.common.base.Predicates;
-import com.google.common.collect.Maps;
-import org.apache.cassandra.db.CounterColumn;
-import org.apache.cassandra.db.context.CounterContext;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import org.antlr.runtime.*;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
-import org.apache.cassandra.config.*;
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.db.CounterColumn;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.MarshalException;
@@ -52,10 +49,17 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.thrift.Column;
 import org.apache.cassandra.thrift.*;
+import org.apache.cassandra.thrift.Column;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+
+import com.google.common.base.Predicates;
+import com.google.common.collect.Maps;
+import org.antlr.runtime.*;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static org.apache.cassandra.thrift.ThriftValidation.validateColumnFamily;
 
@@ -725,7 +729,7 @@ public class QueryProcessor
                 ByteBuffer columnName = createIdx.getColumnName().getByteBuffer();
                 // mutating oldCfm directly would be bad, but mutating a Thrift copy is fine.  This also
                 // sets us up to use validateCfDef to check for index name collisions.
-                CfDef cf_def = CFMetaData.convertToThrift(oldCfm);
+                CfDef cf_def = oldCfm.toThrift();
                 for (ColumnDef cd : cf_def.column_metadata)
                 {
                     if (cd.name.equals(columnName))
@@ -746,7 +750,16 @@ public class QueryProcessor
                 ThriftValidation.validateCfDef(cf_def, oldCfm);
                 try
                 {
-                    applyMigrationOnStage(new UpdateColumnFamily(CFMetaData.convertToAvro(cf_def)));
+                    org.apache.cassandra.db.migration.avro.CfDef result1;
+                    try
+                    {
+                        result1 = CFMetaData.fromThrift(cf_def).toAvro();
+                    }
+                    catch (Exception e)
+                    {
+                        throw new RuntimeException(e);
+                    }
+                    applyMigrationOnStage(new UpdateColumnFamily(result1));
                 }
                 catch (ConfigurationException e)
                 {

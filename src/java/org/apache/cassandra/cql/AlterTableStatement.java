@@ -55,7 +55,7 @@ public class AlterTableStatement
     {
         CFMetaData meta = Schema.instance.getCFMetaData(keyspace, columnFamily);
 
-        CfDef cfDef = CFMetaData.convertToAvro(meta);
+        CfDef cfDef = meta.toAvro();
 
         ByteBuffer columnName = meta.comparator.fromString(this.columnName);
 
@@ -70,7 +70,7 @@ public class AlterTableStatement
                 cfDef.column_metadata.add(new ColumnDefinition(columnName,
                                                                TypeParser.parse(validator),
                                                                null,
-                                                               null).deflate());
+                                                               null).toAvro());
                 break;
 
             case ALTER:
@@ -83,7 +83,7 @@ public class AlterTableStatement
 
                 column.setValidator(TypeParser.parse(validator));
 
-                cfDef.column_metadata.add(column.deflate());
+                cfDef.column_metadata.add(column.toAvro());
                 break;
 
             case DROP:

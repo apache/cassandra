@@ -33,8 +33,6 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class ColumnDefinition
 {
-    public final static String D_COLDEF_INDEXTYPE = "KEYS";
-    public final static String D_COLDEF_INDEXNAME = null;
     public final ByteBuffer name;
     private AbstractType validator;
     private IndexType index_type;
@@ -76,26 +74,26 @@ public class ColumnDefinition
         return result;
     }
 
-    public org.apache.cassandra.db.migration.avro.ColumnDef deflate()
+    public org.apache.cassandra.db.migration.avro.ColumnDef toAvro()
     {
         org.apache.cassandra.db.migration.avro.ColumnDef cd = new org.apache.cassandra.db.migration.avro.ColumnDef();
-        cd.name = name;
+        cd.name = ByteBufferUtil.clone(name);
         cd.validation_class = new Utf8(validator.toString());
-        cd.index_type = index_type == null ? null :
-            Enum.valueOf(org.apache.cassandra.db.migration.avro.IndexType.class, index_type.name());
+        cd.index_type = index_type == null
+                      ? null
+                      : org.apache.cassandra.db.migration.avro.IndexType.valueOf(index_type.name());
         cd.index_name = index_name == null ? null : new Utf8(index_name);
         return cd;
     }
 
-    public static ColumnDefinition inflate(org.apache.cassandra.db.migration.avro.ColumnDef cd)
+    public static ColumnDefinition fromAvro(org.apache.cassandra.db.migration.avro.ColumnDef cd)
     {
-        IndexType index_type = cd.index_type == null ? null :
-            Enum.valueOf(IndexType.class, cd.index_type.name());
+        IndexType index_type = cd.index_type == null ? null : Enum.valueOf(IndexType.class, cd.index_type.name());
         String index_name = cd.index_name == null ? null : cd.index_name.toString();
         try
         {
             AbstractType validatorType = TypeParser.parse(cd.validation_class);
-            return new ColumnDefinition(cd.name, validatorType, index_type, index_name);
+            return new ColumnDefinition(ByteBufferUtil.clone(cd.name), validatorType, index_type, index_name);
         }
         catch (ConfigurationException e)
         {
@@ -103,38 +101,24 @@ public class ColumnDefinition
         }
     }
 
-    public static ColumnDefinition fromColumnDef(ColumnDef thriftColumnDef) throws ConfigurationException
+    public static ColumnDefinition fromThrift(ColumnDef thriftColumnDef) throws ConfigurationException
     {
-        AbstractType validatorType = TypeParser.parse(thriftColumnDef.validation_class);
-        return new ColumnDefinition(ByteBufferUtil.clone(thriftColumnDef.name), validatorType, thriftColumnDef.index_type, thriftColumnDef.index_name);
-    }
-    
-    public static ColumnDefinition fromColumnDef(org.apache.cassandra.db.migration.avro.ColumnDef avroColumnDef) throws ConfigurationException
-    {
-        validateIndexType(avroColumnDef);
-        AbstractType validatorType = TypeParser.parse(avroColumnDef.validation_class);
-        return new ColumnDefinition(avroColumnDef.name,
-                validatorType,
-                IndexType.valueOf(avroColumnDef.index_type == null ? D_COLDEF_INDEXTYPE : avroColumnDef.index_type.name()),
-                avroColumnDef.index_name == null ? D_COLDEF_INDEXNAME : avroColumnDef.index_name.toString());
+        return new ColumnDefinition(ByteBufferUtil.clone(thriftColumnDef.name),
+                                    TypeParser.parse(thriftColumnDef.validation_class),
+                                    thriftColumnDef.index_type,
+                                    thriftColumnDef.index_name);
     }
 
-    public static Map<ByteBuffer, ColumnDefinition> fromColumnDef(List<ColumnDef> thriftDefs) throws ConfigurationException
+    public static Map<ByteBuffer, ColumnDefinition> fromThrift(List<ColumnDef> thriftDefs) throws ConfigurationException
     {
         if (thriftDefs == null)
             return new HashMap<ByteBuffer,ColumnDefinition>();
 
         Map<ByteBuffer, ColumnDefinition> cds = new TreeMap<ByteBuffer, ColumnDefinition>();
         for (ColumnDef thriftColumnDef : thriftDefs)
-            cds.put(ByteBufferUtil.clone(thriftColumnDef.name), fromColumnDef(thriftColumnDef));
+            cds.put(ByteBufferUtil.clone(thriftColumnDef.name), fromThrift(thriftColumnDef));
 
         return cds;
-    }
-    
-    public static void validateIndexType(org.apache.cassandra.db.migration.avro.ColumnDef avroColumnDef) throws ConfigurationException
-    {
-        if ((avroColumnDef.index_name != null) && (avroColumnDef.index_type == null))
-            throw new ConfigurationException("index_name cannot be set if index_type is not also set");
     }
 
     @Override
@@ -157,7 +141,6 @@ public class ColumnDefinition
     {
         index_name = s;
     }
-
 
     public IndexType getIndexType()
     {

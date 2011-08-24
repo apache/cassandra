@@ -96,7 +96,6 @@ public final class KSMetaData
         return other.name.equals(name)
                 && ObjectUtils.equals(other.strategyClass, strategyClass)
                 && ObjectUtils.equals(other.strategyOptions, strategyOptions)
-                && other.cfMetaData.size() == cfMetaData.size()
                 && other.cfMetaData.equals(cfMetaData)
                 && other.durable_writes == durable_writes;
     }
@@ -106,7 +105,7 @@ public final class KSMetaData
         return cfMetaData;
     }
         
-    public org.apache.cassandra.db.migration.avro.KsDef deflate()
+    public org.apache.cassandra.db.migration.avro.KsDef toAvro()
     {
         org.apache.cassandra.db.migration.avro.KsDef ks = new org.apache.cassandra.db.migration.avro.KsDef();
         ks.name = new Utf8(name);
@@ -121,7 +120,7 @@ public final class KSMetaData
         }
         ks.cf_defs = SerDeUtils.createArray(cfMetaData.size(), org.apache.cassandra.db.migration.avro.CfDef.SCHEMA$);
         for (CFMetaData cfm : cfMetaData.values())
-            ks.cf_defs.add(cfm.deflate());
+            ks.cf_defs.add(cfm.toAvro());
         
         ks.durable_writes = durable_writes;
         
@@ -142,7 +141,7 @@ public final class KSMetaData
         return sb.toString();
     }
 
-    public static KSMetaData inflate(org.apache.cassandra.db.migration.avro.KsDef ks)
+    public static KSMetaData fromAvro(org.apache.cassandra.db.migration.avro.KsDef ks)
     {
         Class<? extends AbstractReplicationStrategy> repStratClass;
         try
@@ -178,7 +177,7 @@ public final class KSMetaData
         CFMetaData[] cfMetaData = new CFMetaData[cfsz];
         Iterator<org.apache.cassandra.db.migration.avro.CfDef> cfiter = ks.cf_defs.iterator();
         for (int i = 0; i < cfsz; i++)
-            cfMetaData[i] = CFMetaData.inflate(cfiter.next());
+            cfMetaData[i] = CFMetaData.fromAvro(cfiter.next());
 
         return new KSMetaData(ks.name.toString(), repStratClass, strategyOptions, ks.durable_writes, cfMetaData);
     }
@@ -205,16 +204,16 @@ public final class KSMetaData
                               cfDefs);
     }
 
-    public static KsDef toThrift(KSMetaData ksm)
+    public KsDef toThrift()
     {
         List<CfDef> cfDefs = new ArrayList<CfDef>();
-        for (CFMetaData cfm : ksm.cfMetaData().values())
-            cfDefs.add(CFMetaData.convertToThrift(cfm));
-        KsDef ksdef = new KsDef(ksm.name, ksm.strategyClass.getName(), cfDefs);
-        ksdef.setStrategy_options(ksm.strategyOptions);
-        if (ksm.strategyOptions != null && ksm.strategyOptions.containsKey("replication_factor"))
-            ksdef.setReplication_factor(Integer.parseInt(ksm.strategyOptions.get("replication_factor")));
-        ksdef.setDurable_writes(ksm.durable_writes);
+        for (CFMetaData cfm : cfMetaData().values())
+            cfDefs.add(cfm.toThrift());
+        KsDef ksdef = new KsDef(name, strategyClass.getName(), cfDefs);
+        ksdef.setStrategy_options(strategyOptions);
+        if (strategyOptions != null && strategyOptions.containsKey("replication_factor"))
+            ksdef.setReplication_factor(Integer.parseInt(strategyOptions.get("replication_factor")));
+        ksdef.setDurable_writes(durable_writes);
 
         return ksdef;
     }

@@ -96,14 +96,14 @@ public class AddColumnFamily extends Migration
     public void subdeflate(org.apache.cassandra.db.migration.avro.Migration mi)
     {
         org.apache.cassandra.db.migration.avro.AddColumnFamily acf = new org.apache.cassandra.db.migration.avro.AddColumnFamily();
-        acf.cf = cfm.deflate();
+        acf.cf = cfm.toAvro();
         mi.migration = acf;
     }
 
     public void subinflate(org.apache.cassandra.db.migration.avro.Migration mi)
     {
         org.apache.cassandra.db.migration.avro.AddColumnFamily acf = (org.apache.cassandra.db.migration.avro.AddColumnFamily)mi.migration;
-        cfm = CFMetaData.inflate(acf.cf);
+        cfm = CFMetaData.fromAvro(acf.cf);
     }
 
     @Override

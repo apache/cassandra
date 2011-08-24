@@ -55,7 +55,7 @@ public class DefsTable
         for (String ksname : ksnames)
         {
             KSMetaData ksm = org.apache.cassandra.config.Schema.instance.getTableDefinition(ksname);
-            rm.add(new QueryPath(Migration.SCHEMA_CF, null, ByteBufferUtil.bytes(ksm.name)), SerDeUtils.serialize(ksm.deflate()), now);
+            rm.add(new QueryPath(Migration.SCHEMA_CF, null, ByteBufferUtil.bytes(ksm.name)), SerDeUtils.serialize(ksm.toAvro()), now);
         }
         // add the schema
         rm.add(new QueryPath(Migration.SCHEMA_CF,
@@ -96,7 +96,7 @@ public class DefsTable
             if (column.name().equals(DEFINITION_SCHEMA_COLUMN_NAME))
                 continue;
             org.apache.cassandra.db.migration.avro.KsDef ks = SerDeUtils.deserialize(schema, column.value(), new org.apache.cassandra.db.migration.avro.KsDef());
-            keyspaces.add(KSMetaData.inflate(ks));
+            keyspaces.add(KSMetaData.fromAvro(ks));
         }
         return keyspaces;
     }

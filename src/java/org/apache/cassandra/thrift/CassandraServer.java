@@ -653,7 +653,7 @@ public class CassandraServer implements Cassandra.Iface
         if (ksm == null)
             throw new NotFoundException();
 
-        return KSMetaData.toThrift(ksm);
+        return ksm.toThrift();
     }
 
     public List<KeySlice> get_range_slices(ColumnParent column_parent, SlicePredicate predicate, KeyRange range, ConsistencyLevel consistency_level)
@@ -1043,7 +1043,16 @@ public class CassandraServer implements Cassandra.Iface
         {
             // ideally, apply() would happen on the stage with the
             CFMetaData.applyImplicitDefaults(cf_def);
-            UpdateColumnFamily update = new UpdateColumnFamily(CFMetaData.convertToAvro(cf_def));
+            org.apache.cassandra.db.migration.avro.CfDef result;
+            try
+            {
+                result = CFMetaData.fromThrift(cf_def).toAvro();
+            }
+            catch (Exception e)
+            {
+                throw new RuntimeException(e);
+            }
+            UpdateColumnFamily update = new UpdateColumnFamily(result);
             applyMigrationOnStage(update);
             return Schema.instance.getVersion().toString();
         }

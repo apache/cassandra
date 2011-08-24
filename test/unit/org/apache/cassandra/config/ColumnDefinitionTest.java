@@ -49,7 +49,7 @@ public class ColumnDefinitionTest
 
     protected void testSerializeDeserialize(ColumnDefinition cd) throws Exception
     {
-        ColumnDefinition newCd = ColumnDefinition.inflate(cd.deflate());
+        ColumnDefinition newCd = ColumnDefinition.fromAvro(cd.toAvro());
         assert cd != newCd;
         assert cd.hashCode() == newCd.hashCode();
         assert cd.equals(newCd);

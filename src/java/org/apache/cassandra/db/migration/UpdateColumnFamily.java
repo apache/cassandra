@@ -56,11 +56,11 @@ public class UpdateColumnFamily extends Migration
         CFMetaData oldCfm = schema.getCFMetaData(cf_def.keyspace.toString(), cf_def.name.toString());
         
         // create a copy of the old CF meta data. Apply new settings on top of it.
-        this.metadata = CFMetaData.inflate(oldCfm.deflate());
+        this.metadata = CFMetaData.fromAvro(oldCfm.toAvro());
         this.metadata.apply(cf_def);
         
         // create a copy of the old KS meta data. Use it to create a RowMutation that gets applied to schema and migrations.
-        KSMetaData newKsMeta = KSMetaData.inflate(ksm.deflate());
+        KSMetaData newKsMeta = KSMetaData.fromAvro(ksm.toAvro());
         newKsMeta.cfMetaData().get(cf_def.name.toString()).apply(cf_def);
         rm = makeDefinitionMutation(newKsMeta, null, newVersion);
     }
@@ -71,8 +71,8 @@ public class UpdateColumnFamily extends Migration
         // apply the meta update.
         try 
         {
-            schema.getCFMetaData(metadata.cfId).apply(CFMetaData.convertToAvro(metadata));
-        } 
+            schema.getCFMetaData(metadata.cfId).apply(metadata.toAvro());
+        }
         catch (ConfigurationException ex) 
         {
             throw new IOException(ex);
@@ -90,14 +90,14 @@ public class UpdateColumnFamily extends Migration
     public void subdeflate(org.apache.cassandra.db.migration.avro.Migration mi)
     {
         org.apache.cassandra.db.migration.avro.UpdateColumnFamily update = new org.apache.cassandra.db.migration.avro.UpdateColumnFamily();
-        update.metadata = metadata.deflate();
+        update.metadata = metadata.toAvro();
         mi.migration = update;
     }
 
     public void subinflate(org.apache.cassandra.db.migration.avro.Migration mi)
     {
         org.apache.cassandra.db.migration.avro.UpdateColumnFamily update = (org.apache.cassandra.db.migration.avro.UpdateColumnFamily)mi.migration;
-        metadata = CFMetaData.inflate(update.metadata);
+        metadata = CFMetaData.fromAvro(update.metadata);
     }
 
     @Override

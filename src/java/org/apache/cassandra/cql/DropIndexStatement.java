@@ -21,8 +21,8 @@
 package org.apache.cassandra.cql;
 
 import java.io.IOException;
-import java.util.Map;
 
+import org.apache.avro.util.Utf8;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.migration.avro.CfDef;
 import org.apache.cassandra.db.migration.avro.ColumnDef;
@@ -31,11 +31,11 @@ import org.apache.cassandra.thrift.InvalidRequestException;
 
 public class DropIndexStatement
 {
-    public final String index;
+    public final CharSequence index;
 
     public DropIndexStatement(String indexName)
     {
-        index = indexName;
+        index = new Utf8(indexName);
     }
 
     public UpdateColumnFamily generateMutation(String keyspace)
@@ -45,12 +45,9 @@ public class DropIndexStatement
 
         KSMetaData ksm = Schema.instance.getTableDefinition(keyspace);
 
-        for (Map.Entry<String, CFMetaData> cf : ksm.cfMetaData().entrySet())
+        for (CFMetaData cfm : ksm.cfMetaData().values())
         {
-            CFMetaData cfm = cf.getValue();
-
-            cfDef = getUpdatedCFDef(CFMetaData.convertToAvro(cfm));
-
+            cfDef = getUpdatedCFDef(cfm.toAvro());
             if (cfDef != null)
                 break;
         }
@@ -63,20 +60,16 @@ public class DropIndexStatement
 
     private CfDef getUpdatedCFDef(CfDef cfDef) throws InvalidRequestException
     {
-
-        boolean foundColumn = false;
-
         for (ColumnDef column : cfDef.column_metadata)
         {
             if (column.index_type != null && column.index_name != null && column.index_name.equals(index))
             {
-                foundColumn = true;
-
                 column.index_name = null;
                 column.index_type = null;
+                return cfDef;
             }
         }
 
-        return (foundColumn) ? cfDef : null;
+        return null;
     }
 }

@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.config;
 
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
@@ -27,29 +29,18 @@ import org.apache.commons.lang.builder.ToStringBuilder;
 
 import org.apache.avro.util.Utf8;
 import org.apache.cassandra.cache.IRowCacheProvider;
-import org.apache.cassandra.db.marshal.*;
-import org.apache.cassandra.db.migration.avro.ColumnDef;
-import org.apache.cassandra.db.Column;
-import org.apache.cassandra.db.ColumnFamilyType;
-import org.apache.cassandra.db.HintedHandOffManager;
-import org.apache.cassandra.db.SuperColumn;
-import org.apache.cassandra.db.SystemTable;
-import org.apache.cassandra.db.Table;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.BytesType;
-import org.apache.cassandra.db.marshal.TimeUUIDType;
-import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.cassandra.db.migration.Migration;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
+import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.db.migration.Migration;
+import org.apache.cassandra.db.migration.avro.ColumnDef;
 import org.apache.cassandra.io.IColumnSerializer;
-import org.apache.cassandra.io.SerDeUtils;
 import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
-import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public final class CFMetaData
 {
@@ -58,6 +49,8 @@ public final class CFMetaData
     // This class can be tricky to modify.  Please read http://wiki.apache.org/cassandra/ConfigurationNotes
     // for how to do so safely.
     //
+
+    private static Logger logger = LoggerFactory.getLogger(CFMetaData.class);
 
     public final static double DEFAULT_ROW_CACHE_SIZE = 0.0;
     public final static double DEFAULT_KEY_CACHE_SIZE = 200000;
@@ -306,7 +299,8 @@ public final class CFMetaData
         return cfName + "." + (info.getIndexName() == null ? ByteBufferUtil.bytesToHex(info.name) : info.getIndexName());
     }
 
-    public org.apache.cassandra.db.migration.avro.CfDef deflate()
+    // converts CFM to avro CfDef
+    public org.apache.cassandra.db.migration.avro.CfDef toAvro()
     {
         org.apache.cassandra.db.migration.avro.CfDef cf = new org.apache.cassandra.db.migration.avro.CfDef();
         cf.id = cfId;
@@ -315,15 +309,19 @@ public final class CFMetaData
         cf.column_type = new Utf8(cfType.name());
         cf.comparator_type = new Utf8(comparator.toString());
         if (subcolumnComparator != null)
+        {
+            assert cfType == ColumnFamilyType.Super
+                   : String.format("%s CF %s should not have subcomparator %s defined", cfType, cfName, subcolumnComparator);
             cf.subcomparator_type = new Utf8(subcolumnComparator.toString());
-        cf.comment = new Utf8(comment);
+        }
+        cf.comment = new Utf8(enforceCommentNotNull(comment));
         cf.row_cache_size = rowCacheSize;
         cf.key_cache_size = keyCacheSize;
         cf.read_repair_chance = readRepairChance;
         cf.replicate_on_write = replicateOnWrite;
         cf.gc_grace_seconds = gcGraceSeconds;
-        cf.default_validation_class = new Utf8(defaultValidator.toString());
-        cf.key_validation_class = new Utf8(keyValidator.toString());
+        cf.default_validation_class = defaultValidator == null ? null : new Utf8(defaultValidator.toString());
+        cf.key_validation_class = new Utf8(keyValidator.getClass().getName());
         cf.min_compaction_threshold = minCompactionThreshold;
         cf.max_compaction_threshold = maxCompactionThreshold;
         cf.row_cache_save_period_in_seconds = rowCacheSavePeriodInSeconds;
@@ -334,10 +332,9 @@ public final class CFMetaData
         cf.merge_shards_chance = mergeShardsChance;
         cf.key_alias = keyAlias;
         cf.compression = compression;
-        cf.column_metadata = SerDeUtils.createArray(column_metadata.size(),
-                                                    org.apache.cassandra.db.migration.avro.ColumnDef.SCHEMA$);
+        cf.column_metadata = new ArrayList<ColumnDef>(column_metadata.size());
         for (ColumnDefinition cd : column_metadata.values())
-            cf.column_metadata.add(cd.deflate());
+            cf.column_metadata.add(cd.toAvro());
         cf.row_cache_provider = new Utf8(rowCacheProvider.getClass().getName());
         cf.compaction_strategy = new Utf8(compactionStrategyClass.getName());
         if (compactionStrategyOptions != null)
@@ -349,7 +346,7 @@ public final class CFMetaData
         return cf;
     }
 
-    public static CFMetaData inflate(org.apache.cassandra.db.migration.avro.CfDef cf)
+    public static CFMetaData fromAvro(org.apache.cassandra.db.migration.avro.CfDef cf)
     {
         AbstractType comparator;
         AbstractType subcolumnComparator = null;
@@ -371,7 +368,7 @@ public final class CFMetaData
         Map<ByteBuffer, ColumnDefinition> column_metadata = new TreeMap<ByteBuffer, ColumnDefinition>(BytesType.instance);
         for (ColumnDef aColumn_metadata : cf.column_metadata)
         {
-            ColumnDefinition cd = ColumnDefinition.inflate(aColumn_metadata);
+            ColumnDefinition cd = ColumnDefinition.fromAvro(aColumn_metadata);
             if (cd.getIndexType() != null && cd.getIndexName() == null)
                 cd.setIndexName(getDefaultIndexName(cf.name.toString(), comparator, cd.name));
             column_metadata.put(cd.name, cd);
@@ -663,7 +660,7 @@ public final class CFMetaData
         if (null == cf_def.compaction_strategy)
             cf_def.compaction_strategy = DEFAULT_COMPACTION_STRATEGY_CLASS;
         if (null == cf_def.compaction_strategy_options)
-            cf_def.compaction_strategy_options = Collections.<String, String>emptyMap();
+            cf_def.compaction_strategy_options = Collections.emptyMap();
         if (!cf_def.isSetCompression())
             cf_def.setCompression(CFMetaData.DEFAULT_COMPRESSION);
     }
@@ -682,7 +679,8 @@ public final class CFMetaData
                                             cf_def.name,
                                             cfType,
                                             TypeParser.parse(cf_def.comparator_type),
-                                            cf_def.subcomparator_type == null ? null : TypeParser.parse(cf_def.subcomparator_type));
+                                            cf_def.subcomparator_type == null ? null : TypeParser.parse(cf_def.subcomparator_type),
+                                            cf_def.isSetId() ? cf_def.id : Schema.instance.nextCFId());
 
         if (cf_def.isSetGc_grace_seconds()) { newCFMD.gcGraceSeconds(cf_def.gc_grace_seconds); }
         if (cf_def.isSetMin_compaction_threshold()) { newCFMD.minCompactionThreshold(cf_def.min_compaction_threshold); }
@@ -717,13 +715,14 @@ public final class CFMetaData
                       .replicateOnWrite(cf_def.replicate_on_write)
                       .defaultValidator(TypeParser.parse(cf_def.default_validation_class))
                       .keyValidator(TypeParser.parse(cf_def.key_validation_class))
-                      .columnMetadata(ColumnDefinition.fromColumnDef(cf_def.column_metadata))
+                      .columnMetadata(ColumnDefinition.fromThrift(cf_def.column_metadata))
                       .compression(cf_def.compression);
     }
 
-    // merges some final fields from this CFM with modifiable fields from CfDef into a new CFMetaData.
+    /** updates CFMetaData in-place to match cf_def */
     public void apply(org.apache.cassandra.db.migration.avro.CfDef cf_def) throws ConfigurationException
     {
+        logger.debug("applying {} to {}", cf_def, this);
         // validate
         if (!cf_def.keyspace.toString().equals(ksName))
             throw new ConfigurationException(String.format("Keyspace mismatch (found %s; expected %s)",
@@ -788,7 +787,9 @@ public final class CFMetaData
         
         // remove the ones leaving.
         for (ByteBuffer indexName : toRemove)
+        {
             column_metadata.remove(indexName);
+        }
         // update the ones staying
         for (org.apache.cassandra.db.migration.avro.ColumnDef def : cf_def.column_metadata)
         {
@@ -828,6 +829,8 @@ public final class CFMetaData
             for (Map.Entry<CharSequence, CharSequence> e : cf_def.compaction_strategy_options.entrySet())
                 compactionStrategyOptions.put(e.getKey().toString(), e.getValue().toString());
         }
+
+        logger.debug("application result is {}", this);
     }
     
     public AbstractCompactionStrategy createCompactionStrategyInstance(ColumnFamilyStore cfs)
@@ -861,37 +864,38 @@ public final class CFMetaData
     }
 
     // converts CFM to thrift CfDef
-    public static org.apache.cassandra.thrift.CfDef convertToThrift(CFMetaData cfm)
+    public org.apache.cassandra.thrift.CfDef toThrift()
     {
-        org.apache.cassandra.thrift.CfDef def = new org.apache.cassandra.thrift.CfDef(cfm.ksName, cfm.cfName);
-        def.setId(cfm.cfId);
-        def.setColumn_type(cfm.cfType.name());
-        def.setComparator_type(cfm.comparator.toString());
-        if (cfm.subcolumnComparator != null)
+        org.apache.cassandra.thrift.CfDef def = new org.apache.cassandra.thrift.CfDef(ksName, cfName);
+        def.setId(cfId);
+        def.setColumn_type(cfType.name());
+        def.setComparator_type(comparator.toString());
+        if (subcolumnComparator != null)
         {
-            def.setSubcomparator_type(cfm.subcolumnComparator.toString());
-            def.setColumn_type("Super");
+            assert cfType == ColumnFamilyType.Super
+                   : String.format("%s CF %s should not have subcomparator %s defined", cfType, cfName, subcolumnComparator);
+            def.setSubcomparator_type(subcolumnComparator.toString());
         }
-        def.setComment(enforceCommentNotNull(cfm.comment));
-        def.setRow_cache_size(cfm.rowCacheSize);
-        def.setKey_cache_size(cfm.keyCacheSize);
-        def.setRead_repair_chance(cfm.readRepairChance);
-        def.setReplicate_on_write(cfm.replicateOnWrite);
-        def.setGc_grace_seconds(cfm.gcGraceSeconds);
-        def.setDefault_validation_class(cfm.defaultValidator.toString());
-        def.setKey_validation_class(cfm.keyValidator.toString());
-        def.setMin_compaction_threshold(cfm.minCompactionThreshold);
-        def.setMax_compaction_threshold(cfm.maxCompactionThreshold);
-        def.setRow_cache_save_period_in_seconds(cfm.rowCacheSavePeriodInSeconds);
-        def.setKey_cache_save_period_in_seconds(cfm.keyCacheSavePeriodInSeconds);
-        def.setRow_cache_keys_to_save(cfm.rowCacheKeysToSave);
-        def.setMemtable_throughput_in_mb(cfm.memtableThroughputInMb);
-        def.setMemtable_operations_in_millions(cfm.memtableOperationsInMillions);
-        def.setMerge_shards_chance(cfm.mergeShardsChance);
-        def.setKey_alias(cfm.getKeyName());
-        def.setCompression(cfm.compression);
-        List<org.apache.cassandra.thrift.ColumnDef> column_meta = new ArrayList< org.apache.cassandra.thrift.ColumnDef>(cfm.column_metadata.size());
-        for (ColumnDefinition cd : cfm.column_metadata.values())
+        def.setComment(enforceCommentNotNull(comment));
+        def.setRow_cache_size(rowCacheSize);
+        def.setKey_cache_size(keyCacheSize);
+        def.setRead_repair_chance(readRepairChance);
+        def.setReplicate_on_write(replicateOnWrite);
+        def.setGc_grace_seconds(gcGraceSeconds);
+        def.setDefault_validation_class(defaultValidator.toString());
+        def.setKey_validation_class(keyValidator.toString());
+        def.setMin_compaction_threshold(minCompactionThreshold);
+        def.setMax_compaction_threshold(maxCompactionThreshold);
+        def.setRow_cache_save_period_in_seconds(rowCacheSavePeriodInSeconds);
+        def.setKey_cache_save_period_in_seconds(keyCacheSavePeriodInSeconds);
+        def.setRow_cache_keys_to_save(rowCacheKeysToSave);
+        def.setMemtable_throughput_in_mb(memtableThroughputInMb);
+        def.setMemtable_operations_in_millions(memtableOperationsInMillions);
+        def.setMerge_shards_chance(mergeShardsChance);
+        def.setKey_alias(getKeyName());
+        def.setCompression(compression);
+        List<org.apache.cassandra.thrift.ColumnDef> column_meta = new ArrayList<org.apache.cassandra.thrift.ColumnDef>(column_metadata.size());
+        for (ColumnDefinition cd : column_metadata.values())
         {
             org.apache.cassandra.thrift.ColumnDef tcd = new org.apache.cassandra.thrift.ColumnDef();
             tcd.setIndex_name(cd.getIndexName());
@@ -901,114 +905,9 @@ public final class CFMetaData
             column_meta.add(tcd);
         }
         def.setColumn_metadata(column_meta);
-        def.setCompaction_strategy(cfm.compactionStrategyClass.getName());
-        Map<String, String> compactionOptions = new HashMap<String, String>();
-        def.setCompaction_strategy_options(cfm.compactionStrategyOptions);
+        def.setCompaction_strategy(compactionStrategyClass.getName());
+        def.setCompaction_strategy_options(new HashMap<String, String>(compactionStrategyOptions));
         return def;
-    }
-    
-    // converts CFM to avro CfDef
-    public static org.apache.cassandra.db.migration.avro.CfDef convertToAvro(CFMetaData cfm)
-    {
-        org.apache.cassandra.db.migration.avro.CfDef def = new org.apache.cassandra.db.migration.avro.CfDef();
-        def.name = cfm.cfName;
-        def.keyspace = cfm.ksName;
-        def.id = cfm.cfId;
-        def.column_type = cfm.cfType.name();
-        def.comparator_type = cfm.comparator.toString();
-        if (cfm.subcolumnComparator != null)
-        {
-            def.subcomparator_type = cfm.subcolumnComparator.toString();
-            def.column_type = "Super";
-        }
-        def.comment = enforceCommentNotNull(cfm.comment);
-        def.row_cache_size = cfm.rowCacheSize;
-        def.key_cache_size = cfm.keyCacheSize;
-        def.read_repair_chance = cfm.readRepairChance;
-        def.replicate_on_write = cfm.replicateOnWrite;
-        def.gc_grace_seconds = cfm.gcGraceSeconds;
-        def.default_validation_class = cfm.defaultValidator == null ? null : cfm.defaultValidator.toString();
-        def.min_compaction_threshold = cfm.minCompactionThreshold;
-        def.max_compaction_threshold = cfm.maxCompactionThreshold;
-        def.row_cache_save_period_in_seconds = cfm.rowCacheSavePeriodInSeconds;
-        def.key_cache_save_period_in_seconds = cfm.keyCacheSavePeriodInSeconds;
-        def.row_cache_keys_to_save = cfm.rowCacheKeysToSave;
-        def.memtable_throughput_in_mb = cfm.memtableThroughputInMb;
-        def.memtable_operations_in_millions = cfm.memtableOperationsInMillions;
-        def.merge_shards_chance = cfm.mergeShardsChance;
-        def.key_validation_class = cfm.keyValidator.getClass().getName();
-        def.key_alias = cfm.keyAlias;
-        def.compression = cfm.compression;
-        List<org.apache.cassandra.db.migration.avro.ColumnDef> column_meta = new ArrayList<org.apache.cassandra.db.migration.avro.ColumnDef>(cfm.column_metadata.size());
-        for (ColumnDefinition cd : cfm.column_metadata.values())
-        {
-            org.apache.cassandra.db.migration.avro.ColumnDef tcd = new org.apache.cassandra.db.migration.avro.ColumnDef();
-            tcd.index_name = cd.getIndexName();
-            tcd.index_type = cd.getIndexType() == null ? null : org.apache.cassandra.db.migration.avro.IndexType.valueOf(cd.getIndexType().name());
-            tcd.name = ByteBufferUtil.clone(cd.name);
-            tcd.validation_class = cd.getValidator().toString();
-            column_meta.add(tcd);
-        }
-        def.column_metadata = column_meta; 
-        def.row_cache_provider = new Utf8(cfm.rowCacheProvider.getClass().getName());
-        def.compaction_strategy = new Utf8(cfm.compactionStrategyClass.getName());
-        def.compaction_strategy_options = new HashMap<CharSequence, CharSequence>();
-        for (Map.Entry<String, String> e : cfm.compactionStrategyOptions.entrySet())
-            def.compaction_strategy_options.put(new Utf8(e.getKey()), new Utf8(e.getValue()));
-        return def;
-    }
-    
-    public static org.apache.cassandra.db.migration.avro.CfDef convertToAvro(org.apache.cassandra.thrift.CfDef def)
-    {
-        org.apache.cassandra.db.migration.avro.CfDef newDef = new org.apache.cassandra.db.migration.avro.CfDef();
-        newDef.keyspace = def.getKeyspace();
-        newDef.name = def.getName();
-        newDef.column_type = def.getColumn_type();
-        newDef.comment = def.getComment();
-        newDef.comparator_type = def.getComparator_type();
-        newDef.default_validation_class = def.getDefault_validation_class();
-        newDef.key_validation_class = def.getKey_validation_class();
-        newDef.gc_grace_seconds = def.getGc_grace_seconds();
-        newDef.id = def.getId();
-        newDef.key_cache_save_period_in_seconds = def.getKey_cache_save_period_in_seconds();
-        newDef.key_cache_size = def.getKey_cache_size();
-        newDef.max_compaction_threshold = def.getMax_compaction_threshold();
-        newDef.memtable_operations_in_millions = def.getMemtable_operations_in_millions();
-        newDef.memtable_throughput_in_mb = def.getMemtable_throughput_in_mb();
-        newDef.min_compaction_threshold = def.getMin_compaction_threshold();
-        newDef.read_repair_chance = def.getRead_repair_chance();
-        newDef.replicate_on_write = def.isReplicate_on_write();
-        newDef.row_cache_save_period_in_seconds = def.getRow_cache_save_period_in_seconds();
-        newDef.row_cache_keys_to_save = def.getRow_cache_keys_to_save();
-        newDef.row_cache_size = def.getRow_cache_size();
-        newDef.subcomparator_type = def.getSubcomparator_type();
-        newDef.merge_shards_chance = def.getMerge_shards_chance();
-        newDef.key_alias = def.key_alias;
-        newDef.compression = def.compression;
-        List<org.apache.cassandra.db.migration.avro.ColumnDef> columnMeta = new ArrayList<org.apache.cassandra.db.migration.avro.ColumnDef>();
-        if (def.isSetColumn_metadata())
-        {
-            for (org.apache.cassandra.thrift.ColumnDef cdef : def.getColumn_metadata())
-            {
-                org.apache.cassandra.db.migration.avro.ColumnDef tdef = new org.apache.cassandra.db.migration.avro.ColumnDef();
-                tdef.name = ByteBufferUtil.clone(cdef.bufferForName());
-                tdef.validation_class = cdef.getValidation_class();
-                tdef.index_name = cdef.getIndex_name();
-                tdef.index_type = cdef.getIndex_type() == null ? null : org.apache.cassandra.db.migration.avro.IndexType.valueOf(cdef.getIndex_type().name());
-                columnMeta.add(tdef);
-            }
-        }
-        newDef.column_metadata = columnMeta;
-        if (def.isSetCompaction_strategy())
-            newDef.compaction_strategy = new Utf8(def.getCompaction_strategy());
-
-        if (def.isSetCompaction_strategy_options() && null != def.getCompaction_strategy_options())
-        {
-            newDef.compaction_strategy_options = new HashMap<CharSequence, CharSequence>();
-            for (Map.Entry<String, String> e : def.getCompaction_strategy_options().entrySet())
-                newDef.compaction_strategy_options.put(new Utf8(e.getKey()), new Utf8(e.getValue()));
-        }
-        return newDef;
     }
 
     public static void validateMinMaxCompactionThresholds(org.apache.cassandra.db.migration.avro.CfDef cf_def) throws ConfigurationException

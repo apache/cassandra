@@ -220,7 +220,7 @@ public abstract class Migration
         long now = System.currentTimeMillis();
         // add a column for each keyspace
         for (KSMetaData ksm : ksms)
-            rm.add(new QueryPath(SCHEMA_CF, null, ByteBufferUtil.bytes(ksm.name)), SerDeUtils.serialize(ksm.deflate()), now);
+            rm.add(new QueryPath(SCHEMA_CF, null, ByteBufferUtil.bytes(ksm.name)), SerDeUtils.serialize(ksm.toAvro()), now);
         // add the schema
         rm.add(new QueryPath(SCHEMA_CF,
                              null,

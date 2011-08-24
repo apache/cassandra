@@ -50,7 +50,7 @@ public class ThriftValidationTest extends CleanupHelper
     @Test
     public void testColumnValueSizeForIndexedColumn() throws ConfigurationException, InvalidRequestException
     {
-        CfDef cfDef = CFMetaData.convertToThrift(Schema.instance.getCFMetaData("Keyspace1", "Standard1"));
+        CfDef cfDef = Schema.instance.getCFMetaData("Keyspace1", "Standard1").toThrift();
         ByteBuffer columnName = AsciiType.instance.fromString("indexed");
 
         // add an indexed column definition
@@ -100,7 +100,7 @@ public class ThriftValidationTest extends CleanupHelper
     public void testColumnNameEqualToKeyAlias()
     {
         CFMetaData metaData = Schema.instance.getCFMetaData("Keyspace1", "Standard1");
-        CfDef newMetadata = CFMetaData.convertToThrift(metaData);
+        CfDef newMetadata = metaData.toThrift();
 
         boolean gotException = false;
 

@@ -76,14 +76,14 @@ public class AddKeyspace extends Migration
     public void subdeflate(org.apache.cassandra.db.migration.avro.Migration mi)
     {
         org.apache.cassandra.db.migration.avro.AddKeyspace aks = new org.apache.cassandra.db.migration.avro.AddKeyspace();
-        aks.ks = ksm.deflate();
+        aks.ks = ksm.toAvro();
         mi.migration = aks;
     }
 
     public void subinflate(org.apache.cassandra.db.migration.avro.Migration mi)
     {
         org.apache.cassandra.db.migration.avro.AddKeyspace aks = (org.apache.cassandra.db.migration.avro.AddKeyspace)mi.migration;
-        ksm = KSMetaData.inflate(aks.ks);
+        ksm = KSMetaData.fromAvro(aks.ks);
     }
 
     @Override
