@@ -62,20 +62,21 @@ public class KeysIndex extends SecondaryIndex
     public KeysIndex(ColumnFamilyStore baseCfs, ColumnDefinition cdef)
     {
         super(baseCfs, cdef);
-
         fullMemtables = new ConcurrentSkipListSet<Memtable>();
 
-        IPartitioner<?> rowPartitioner = StorageService.getPartitioner();
-        AbstractType<?> columnComparator = (rowPartitioner instanceof OrderPreservingPartitioner || rowPartitioner instanceof ByteOrderedPartitioner)
-                                            ? BytesType.instance
-                                            : new LocalByPartionerType(StorageService.getPartitioner());
-
-        final CFMetaData indexedCfMetadata = CFMetaData.newIndexMetadata(baseCfs.metadata, cdef, columnComparator);
-
+        CFMetaData indexedCfMetadata = CFMetaData.newIndexMetadata(baseCfs.metadata, cdef, indexComparator());
         indexedCfs = ColumnFamilyStore.createColumnFamilyStore(baseCfs.table,
                                                                indexedCfMetadata.cfName,
                                                                new LocalPartitioner(cdef.getValidator()),
                                                                indexedCfMetadata);
+    }
+
+    public static AbstractType indexComparator()
+    {
+        IPartitioner rowPartitioner = StorageService.getPartitioner();
+        return (rowPartitioner instanceof OrderPreservingPartitioner || rowPartitioner instanceof ByteOrderedPartitioner)
+                                        ? BytesType.instance
+                                        : new LocalByPartionerType(StorageService.getPartitioner());
     }
 
     public IndexType type()

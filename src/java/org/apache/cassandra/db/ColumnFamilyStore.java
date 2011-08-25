@@ -52,6 +52,8 @@ import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.db.marshal.LocalByPartionerType;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.util.FileUtils;
@@ -261,7 +263,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
     }
 
-   
     // called when dropping or renaming a CF. Performs mbean housekeeping and invalidates CFS to other operations.
     public void unregisterMBean()
     {

@@ -107,7 +107,6 @@ public class GCInspector
             if (previousCount == null)
                 previousCount = 0L;
             gccounts.put(gc.getName(), count);
-            assert count > previousCount;
 
             MemoryUsage mu = membean.getHeapMemoryUsage();
             long memoryUsed = mu.getUsed();

@@ -953,6 +953,16 @@ public final class CFMetaData
         return column_metadata.get(name);
     }
 
+    public ColumnDefinition getColumnDefinitionForIndex(String indexName)
+    {
+        for (ColumnDefinition def : column_metadata.values())
+        {
+            if (indexName.equals(def.getIndexName()))
+                return def;
+        }
+        return null;
+    }
+
     /**
      * Convert a null index_name to appropriate default name according to column status
      * @param cf_def Thrift ColumnFamily Definition
