@@ -136,6 +136,9 @@ public class SSTableWriter extends SSTable
     private void afterAppend(DecoratedKey decoratedKey, long dataPosition) throws IOException
     {
         lastWrittenKey = decoratedKey;
+        this.last = lastWrittenKey;
+        if(null == this.first)
+            this.first = lastWrittenKey;
 
         if (logger.isTraceEnabled())
             logger.trace("wrote " + decoratedKey + " at " + dataPosition);
@@ -248,6 +251,8 @@ public class SSTableWriter extends SSTable
                                                            iwriter.bf,
                                                            maxDataAge,
                                                            sstableMetadata);
+        sstable.first = this.first;
+        sstable.last = this.last;
         iwriter = null;
         dbuilder = null;
         return sstable;

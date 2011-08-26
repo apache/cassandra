@@ -44,6 +44,8 @@
    Thrift<->Avro conversion methods (CASSANDRA-3032)
  * Add timeouts to client request schedulers (CASSANDRA-3079)
  * Cli to use hashes rather than array of hashes for strategy options (CASSANDRA-3081)
+ * LeveledCompactionStrategy (CASSANDRA-1608)
+
 
 0.8.5
  * fix NPE when encryption_options is unspecified (CASSANDRA-3007)
