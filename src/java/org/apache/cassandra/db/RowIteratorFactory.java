@@ -89,6 +89,7 @@ public class RowIteratorFactory
             iterators.add(new ConvertToColumnIterator(filter, comparator, p, memtable.getEntryIterator(startWith)));
         }
 
+        // sstables
         for (SSTableReader sstable : sstables)
         {
             final SSTableScanner scanner = sstable.getScanner(RANGE_FILE_BUFFER_SIZE, filter);

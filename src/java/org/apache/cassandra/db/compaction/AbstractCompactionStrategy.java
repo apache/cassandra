@@ -50,16 +50,9 @@ public abstract class AbstractCompactionStrategy
 
     protected AbstractCompactionStrategy(ColumnFamilyStore cfs, Map<String, String> options)
     {
-        assert cfs != null;
         this.cfs = cfs;
         this.options = options;
     }
-
-    /**
-     * Releases any resources if this strategy is shutdown (when the CFS is reloaded after a schema change).
-     * Default is to do nothing.
-     */
-    public void shutdown() { }
 
     /**
      * @return a list of compaction tasks that should run in the background to get the sstable

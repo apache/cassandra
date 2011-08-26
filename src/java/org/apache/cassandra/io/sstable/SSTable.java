@@ -24,8 +24,6 @@ import java.io.FileFilter;
 import java.io.IOException;
 import java.util.*;
 
-import com.google.common.collect.Ordering;
-import org.apache.cassandra.db.DecoratedKey;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -76,9 +74,6 @@ public abstract class SSTable
     public final IPartitioner partitioner;
     public final boolean compression;
 
-    public DecoratedKey first;
-    public DecoratedKey last;
-
     protected SSTable(Descriptor descriptor, CFMetaData metadata, IPartitioner partitioner)
     {
         this(descriptor, new HashSet<Component>(), metadata, partitioner);
@@ -102,16 +97,6 @@ public abstract class SSTable
         this.metadata = metadata;
         this.partitioner = partitioner;
     }
-
-    public static final Comparator<SSTableReader> sstableComparator = new Comparator<SSTableReader>()
-    {
-        public int compare(SSTableReader o1, SSTableReader o2)
-        {
-            return o1.first.compareTo(o2.first);
-        }
-    };
-
-    public static final Ordering<SSTableReader> sstableOrdering = Ordering.from(sstableComparator);
 
     /**
      * We use a ReferenceQueue to manage deleting files that have been compacted
@@ -169,8 +154,7 @@ public abstract class SSTable
         }
         catch (Exception e)
         {
-            if (!"snapshots".equals(name) && !"backups".equals(name)
-                    && !name.contains(".json"))
+            if (!"snapshots".equals(name) && !"backups".equals(name))
                 logger.warn("Invalid file '{}' in data directory {}.", name, dir);
             return null;
         }

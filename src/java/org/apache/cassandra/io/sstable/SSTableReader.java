@@ -261,7 +261,6 @@ public class SSTableReader extends SSTable
 
         // we read the positions in a BRAF so we don't have to worry about an entry spanning a mmap boundary.
         RandomAccessReader input = RandomAccessReader.open(new File(descriptor.filenameFor(Component.PRIMARY_INDEX)), true);
-        DecoratedKey left = null, right = null;
         try
         {
             if (keyCache != null && keyCache.getCapacity() - keyCache.size() < keysToLoadInCache.size())
@@ -279,19 +278,10 @@ public class SSTableReader extends SSTable
                 if (indexPosition == indexSize)
                     break;
 
-                ByteBuffer key = null, skippedKey;
-                skippedKey = ByteBufferUtil.readWithShortLength(input);
-
                 boolean shouldAddEntry = indexSummary.shouldAddEntry();
-                if (shouldAddEntry || cacheLoading || recreatebloom)
-                {
-                    key = skippedKey;
-                }
-
-                if(null == left)
-                    left = decodeKey(partitioner, descriptor, skippedKey);
-                right = decodeKey(partitioner, descriptor, skippedKey);
-
+                ByteBuffer key = (shouldAddEntry || cacheLoading || recreatebloom)
+                             ? ByteBufferUtil.readWithShortLength(input)
+                             : ByteBufferUtil.skipShortLength(input);
                 long dataPosition = input.readLong();
                 if (key != null)
                 {
@@ -314,8 +304,6 @@ public class SSTableReader extends SSTable
         {
             FileUtils.closeQuietly(input);
         }
-        this.first = left;
-        this.last = right;
 
         // finalize the state of the reader
         ifile = ibuilder.complete(descriptor.filenameFor(Component.PRIMARY_INDEX));

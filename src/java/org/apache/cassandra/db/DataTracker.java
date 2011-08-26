@@ -20,37 +20,29 @@
 package org.apache.cassandra.db;
 
 import java.io.File;
+import java.io.IOError;
 import java.io.IOException;
 import java.util.*;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
-import com.google.common.collect.*;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.ImmutableSortedSet;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cache.AutoSavingCache;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.compaction.LeveledCompactionStrategy;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableReader;
-import org.apache.cassandra.notifications.INotification;
-import org.apache.cassandra.notifications.INotificationConsumer;
-import org.apache.cassandra.notifications.SSTableAddedNotification;
-import org.apache.cassandra.notifications.SSTableListChangedNotification;
-import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.IntervalTree.Interval;
-import org.apache.cassandra.utils.IntervalTree.IntervalTree;
 import org.apache.cassandra.utils.Pair;
-import org.apache.cassandra.utils.WrappedRunnable;
 
 public class DataTracker
 {
     private static final Logger logger = LoggerFactory.getLogger(DataTracker.class);
-
-    public static Collection<INotificationConsumer> subscribers = new CopyOnWriteArrayList<INotificationConsumer>();
 
     public final ColumnFamilyStore cfstore;
 
@@ -142,27 +134,26 @@ public class DataTracker
         addNewSSTablesSize(Arrays.asList(sstable));
         cfstore.updateCacheSizes();
 
-        notifyAdded(sstable);
         incrementallyBackup(sstable);
     }
 
-    public void incrementallyBackup(final SSTableReader sstable)
+    public void incrementallyBackup(SSTableReader sstable)
     {
-        if (!DatabaseDescriptor.incrementalBackupsEnabled())
-            return;
-
-        Runnable runnable = new WrappedRunnable()
+        if (DatabaseDescriptor.incrementalBackupsEnabled())
         {
-            protected void runMayThrow() throws Exception
+            File keyspaceDir = new File(sstable.getFilename()).getParentFile();
+            File backupsDir = new File(keyspaceDir, "backups");
+            try
             {
-                File keyspaceDir = new File(sstable.getFilename()).getParentFile();
-                File backupsDir = new File(keyspaceDir, "backups");
                 if (!backupsDir.exists() && !backupsDir.mkdirs())
                     throw new IOException("Unable to create " + backupsDir);
                 sstable.createLinks(backupsDir.getCanonicalPath());
             }
-        };
-        StorageService.tasks.execute(runnable);
+            catch (IOException e)
+            {
+                throw new IOError(e);
+            }
+        }
     }
 
     /**
@@ -242,7 +233,6 @@ public class DataTracker
     {
         addSSTables(Arrays.asList(sstable));
         incrementallyBackup(sstable);
-        notifyAdded(sstable);
     }
 
     public void removeAllSSTables()
@@ -256,8 +246,7 @@ public class DataTracker
         view.set(new View(new Memtable(cfstore),
                           Collections.<Memtable>emptySet(),
                           Collections.<SSTableReader>emptyList(),
-                          Collections.<SSTableReader>emptySet(),
-                          new IntervalTree()));
+                          Collections.<SSTableReader>emptySet()));
     }
 
     private void replace(Collection<SSTableReader> oldSSTables, Iterable<SSTableReader> replacements)
@@ -273,7 +262,6 @@ public class DataTracker
         addNewSSTablesSize(replacements);
         removeOldSSTablesSize(oldSSTables);
 
-        notifySSTablesChanged(replacements, oldSSTables);
         cfstore.updateCacheSizes();
     }
 
@@ -467,35 +455,6 @@ public class DataTracker
         return (double) falseCount / (trueCount + falseCount);
     }
 
-    public void notifySSTablesChanged(Iterable<SSTableReader> added, Iterable<SSTableReader> removed)
-    {
-        for (INotificationConsumer subscriber : subscribers)
-        {
-            INotification notification = new SSTableListChangedNotification(added, removed);
-            subscriber.handleNotification(notification, this);
-        }
-    }
-
-    public void notifyAdded(SSTableReader added)
-    {
-        for (INotificationConsumer subscriber : subscribers)
-        {
-            INotification notification = new SSTableAddedNotification(added);
-            subscriber.handleNotification(notification, this);
-        }
-    }
-
-    public static void subscribe(INotificationConsumer consumer)
-    {
-        subscribers.add(consumer);
-    }
-
-    public static void unsubscribe(INotificationConsumer consumer)
-    {
-        boolean found = subscribers.remove(consumer);
-        assert found : consumer + " not subscribed";
-    }
-
     /**
      * An immutable structure holding the current memtable, the memtables pending
      * flush, the sstables for a column family, and the sstables that are active
@@ -512,63 +471,49 @@ public class DataTracker
         // Obviously, dropping sstables whose max column timestamp happens to be equal to another's
         // is not acceptable for us.  So, we use a List instead.
         public final List<SSTableReader> sstables;
-        public final IntervalTree intervalTree;
 
-        View(Memtable memtable, Set<Memtable> pendingFlush, List<SSTableReader> sstables, Set<SSTableReader> compacting, IntervalTree intervalTree)
+        View(Memtable memtable, Set<Memtable> pendingFlush, List<SSTableReader> sstables, Set<SSTableReader> compacting)
         {
             this.memtable = memtable;
             this.memtablesPendingFlush = pendingFlush;
             this.sstables = sstables;
             this.compacting = compacting;
-            this.intervalTree = intervalTree;
-        }
-
-        private IntervalTree buildIntervalTree(List<SSTableReader> sstables)
-        {
-            List<SSTableReader> itsstList = ImmutableList.copyOf(Ordering.from(SSTable.sstableComparator).sortedCopy(sstables));
-            List<Interval> intervals = new ArrayList<Interval>(itsstList.size());
-            for (SSTableReader sstable : itsstList)
-                intervals.add(new Interval<SSTableReader>(sstable.first, sstable.last, sstable));
-            assert intervals.size() == sstables.size();
-            return new IntervalTree<SSTableReader>(intervals);
         }
 
         public View switchMemtable(Memtable newMemtable)
         {
             Set<Memtable> newPending = ImmutableSet.<Memtable>builder().addAll(memtablesPendingFlush).add(memtable).build();
-            return new View(newMemtable, newPending, sstables, compacting, intervalTree);
+            return new View(newMemtable, newPending, sstables, compacting);
         }
 
         public View renewMemtable(Memtable newMemtable)
         {
-            return new View(newMemtable, memtablesPendingFlush, sstables, compacting, intervalTree);
+            return new View(newMemtable, memtablesPendingFlush, sstables, compacting);
         }
 
         public View replaceFlushed(Memtable flushedMemtable, SSTableReader newSSTable)
         {
             Set<Memtable> newPending = ImmutableSet.copyOf(Sets.difference(memtablesPendingFlush, Collections.singleton(flushedMemtable)));
             List<SSTableReader> newSSTables = newSSTables(newSSTable);
-            IntervalTree intervalTree = buildIntervalTree(newSSTables);
-            return new View(memtable, newPending, Collections.unmodifiableList(newSSTables), compacting, intervalTree);
+            return new View(memtable, newPending, Collections.unmodifiableList(newSSTables), compacting);
         }
 
         public View replace(Collection<SSTableReader> oldSSTables, Iterable<SSTableReader> replacements)
         {
             List<SSTableReader> newSSTables = newSSTables(oldSSTables, replacements);
-            IntervalTree intervalTree = buildIntervalTree(newSSTables);
-            return new View(memtable, memtablesPendingFlush, Collections.unmodifiableList(newSSTables), compacting, intervalTree);
+            return new View(memtable, memtablesPendingFlush, Collections.unmodifiableList(newSSTables), compacting);
         }
 
         public View markCompacting(Collection<SSTableReader> tomark)
         {
             Set<SSTableReader> compactingNew = ImmutableSet.<SSTableReader>builder().addAll(compacting).addAll(tomark).build();
-            return new View(memtable, memtablesPendingFlush, sstables, compactingNew, intervalTree);
+            return new View(memtable, memtablesPendingFlush, sstables, compactingNew);
         }
 
         public View unmarkCompacting(Collection<SSTableReader> tounmark)
         {
             Set<SSTableReader> compactingNew = ImmutableSet.copyOf(Sets.difference(compacting, ImmutableSet.copyOf(tounmark)));
-            return new View(memtable, memtablesPendingFlush, sstables, compactingNew, intervalTree);
+            return new View(memtable, memtablesPendingFlush, sstables, compactingNew);
         }
 
         private List<SSTableReader> newSSTables(SSTableReader newSSTable)
@@ -589,6 +534,7 @@ public class DataTracker
             }
             Iterables.addAll(newSSTables, replacements);
             assert newSSTables.size() == newSSTablesSize;
+            Collections.sort(newSSTables, SSTable.maxTimestampComparator);
             return newSSTables;
         }
     }
