@@ -31,6 +31,10 @@
  * avoid including cwd in classpath for deb and rpm packages (CASSANDRA-2881)
  * remove gossip state when a new IP takes over a token (CASSANDRA-3071)
  * allow sstable2json to work on index sstable files (CASSANDRA-3059)
+ * remove gossip state when a new IP takes over a token (CASSANDRA-3071)
+ * work around native memory leak in com.sun.management.GarbageCollectorMXBean
+    (CASSANDRA-2868)
+ * fix UnavailableException with writes at CL.EACH_QUORM (CASSANDRA-3084)
 
 
 0.8.4
