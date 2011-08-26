@@ -23,16 +23,15 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import com.google.common.collect.Iterables;
-import org.apache.cassandra.io.sstable.SSTable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.columniterator.IColumnIterator;
 import org.apache.cassandra.db.columniterator.SimpleAbstractColumnIterator;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.marshal.CounterColumnType;
+import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.CloseableIterator;
@@ -42,26 +41,24 @@ public class CollationController
 {
     private static Logger logger = LoggerFactory.getLogger(CollationController.class);
 
-    private final DataTracker.View dataview;
+    private final ColumnFamilyStore cfs;
     private final ISortedColumns.Factory factory;
     private final QueryFilter filter;
     private final int gcBefore;
-    private final CFMetaData metadata;
 
     private int sstablesIterated = 0;
 
-    public CollationController(DataTracker.View dataview, ISortedColumns.Factory factory, QueryFilter filter, CFMetaData metadata, int gcBefore)
+    public CollationController(ColumnFamilyStore cfs, ISortedColumns.Factory factory, QueryFilter filter, int gcBefore)
     {
-        this.dataview = dataview;
+        this.cfs = cfs;
         this.factory = factory;
         this.filter = filter;
         this.gcBefore = gcBefore;
-        this.metadata = metadata;
     }
 
     public ColumnFamily getTopLevelColumns()
     {
-        return filter.filter instanceof NamesQueryFilter && metadata.getDefaultValidator() != CounterColumnType.instance
+        return filter.filter instanceof NamesQueryFilter && cfs.metadata.getDefaultValidator() != CounterColumnType.instance
                ? collectTimeOrderedData()
                : collectAllData();
     }
@@ -74,14 +71,18 @@ public class CollationController
     private ColumnFamily collectTimeOrderedData()
     {
         logger.debug("collectTimeOrderedData");
-        List<IColumnIterator> iterators = new ArrayList<IColumnIterator>();
-        final ColumnFamily container = ColumnFamily.create(metadata, factory, filter.filter.isReversed());
-        List<SSTableReader> sstables = null;
-        try
+
+        List<IColumnIterator> iterators;
+        ColumnFamily container;
+        while (true)
         {
+            DataTracker.View dataview = cfs.getDataTracker().getView();
+            iterators = new ArrayList<IColumnIterator>();
+            container = ColumnFamily.create(cfs.metadata, factory, filter.filter.isReversed());
+            List<SSTableReader> sstables;
             for (Memtable memtable : Iterables.concat(dataview.memtablesPendingFlush, Collections.singleton(dataview.memtable)))
             {
-                IColumnIterator iter = filter.getMemtableColumnIterator(memtable, metadata.comparator);
+                IColumnIterator iter = filter.getMemtableColumnIterator(memtable, cfs.metadata.comparator);
                 if (iter != null)
                 {
                     iterators.add(iter);
@@ -93,39 +94,47 @@ public class CollationController
 
             // avoid changing the filter columns of the original filter
             // (reduceNameFilter removes columns that are known to be irrelevant)
-            TreeSet<ByteBuffer> filterColumns = new TreeSet<ByteBuffer>(metadata.comparator);
+            TreeSet<ByteBuffer> filterColumns = new TreeSet<ByteBuffer>(cfs.metadata.comparator);
             filterColumns.addAll(((NamesQueryFilter) filter.filter).columns);
             QueryFilter reducedFilter = new QueryFilter(filter.key, filter.path, new NamesQueryFilter(filterColumns));
 
             /* add the SSTables on disk */
             sstables = dataview.intervalTree.search(new Interval(filter.key, filter.key));
             Collections.sort(sstables, SSTable.maxTimestampComparator);
-            SSTableReader.acquireReferences(sstables);
-            // read sorted sstables
-            for (SSTableReader sstable : sstables)
-            {
-                long currentMaxTs = sstable.getMaxTimestamp();
-                reduceNameFilter(reducedFilter, container, currentMaxTs);
-                if (((NamesQueryFilter) reducedFilter.filter).columns.isEmpty())
-                    break;
+            if (!SSTableReader.acquireReferences(sstables))
+                continue; // retry w/ new view
 
-                IColumnIterator iter = reducedFilter.getSSTableColumnIterator(sstable);
-                iterators.add(iter);
-                if (iter.getColumnFamily() != null)
+            try
+            {
+                // read sorted sstables
+                for (SSTableReader sstable : sstables)
                 {
-                    container.delete(iter.getColumnFamily());
-                    sstablesIterated++;
-                    while (iter.hasNext())
-                        container.addColumn(iter.next());
+                    long currentMaxTs = sstable.getMaxTimestamp();
+                    reduceNameFilter(reducedFilter, container, currentMaxTs);
+                    if (((NamesQueryFilter) reducedFilter.filter).columns.isEmpty())
+                        break;
+
+                    IColumnIterator iter = reducedFilter.getSSTableColumnIterator(sstable);
+                    iterators.add(iter);
+                    if (iter.getColumnFamily() != null)
+                    {
+                        container.delete(iter.getColumnFamily());
+                        sstablesIterated++;
+                        while (iter.hasNext())
+                            container.addColumn(iter.next());
+                    }
                 }
             }
+            finally
+            {
+                SSTableReader.releaseReferences(sstables);
+                for (IColumnIterator iter : iterators)
+                    FileUtils.closeQuietly(iter);
+            }
+
+            break; // sstable reference acquisition was successful
         }
-        finally
-        {
-            SSTableReader.releaseReferences(sstables);
-            for (IColumnIterator iter : iterators)
-                FileUtils.closeQuietly(iter);
-        }
+
 
         // we need to distinguish between "there is no data at all for this row" (BF will let us rebuild that efficiently)
         // and "there used to be data, but it's gone now" (we should cache the empty CF so we don't need to rebuild that slower)
@@ -133,9 +142,10 @@ public class CollationController
             return null;
 
         // do a final collate.  toCollate is boilerplate required to provide a CloseableIterator
+        final ColumnFamily c2 = container;
         CloseableIterator<IColumn> toCollate = new SimpleAbstractColumnIterator()
         {
-            final Iterator<IColumn> iter = container.iterator();
+            final Iterator<IColumn> iter = c2.iterator();
 
             protected IColumn computeNext()
             {
@@ -144,7 +154,7 @@ public class CollationController
 
             public ColumnFamily getColumnFamily()
             {
-                return container;
+                return c2;
             }
 
             public DecoratedKey getKey()
@@ -153,7 +163,7 @@ public class CollationController
             }
         };
         ColumnFamily returnCF = container.cloneMeShallow();
-        filter.collateColumns(returnCF, Collections.singletonList(toCollate), metadata.comparator, gcBefore);
+        filter.collateColumns(returnCF, Collections.singletonList(toCollate), cfs.metadata.comparator, gcBefore);
 
         // Caller is responsible for final removeDeletedCF.  This is important for cacheRow to work correctly:
         return returnCF;
@@ -187,14 +197,15 @@ public class CollationController
     {
         logger.debug("collectAllData");
         List<IColumnIterator> iterators = new ArrayList<IColumnIterator>();
-        ColumnFamily returnCF = ColumnFamily.create(metadata, factory, filter.filter.isReversed());
-        List<SSTableReader> sstables = null;
+        ColumnFamily returnCF = ColumnFamily.create(cfs.metadata, factory, filter.filter.isReversed());
+        List<SSTableReader> sstables;
 
-        try
+        while (true)
         {
+            DataTracker.View dataview = cfs.getDataTracker().getView();
             for (Memtable memtable : Iterables.concat(dataview.memtablesPendingFlush, Collections.singleton(dataview.memtable)))
             {
-                IColumnIterator iter = filter.getMemtableColumnIterator(memtable, metadata.comparator);
+                IColumnIterator iter = filter.getMemtableColumnIterator(memtable, cfs.metadata.comparator);
                 if (iter != null)
                 {
                     returnCF.delete(iter.getColumnFamily());
@@ -204,23 +215,30 @@ public class CollationController
 
             /* add the SSTables on disk */
             sstables = dataview.intervalTree.search(new Interval(filter.key, filter.key));
-            SSTableReader.acquireReferences(sstables);
-            for (SSTableReader sstable : sstables)
+            if (!SSTableReader.acquireReferences(sstables))
+                continue; // retry w/ new view
+
+            try
             {
-                IColumnIterator iter = filter.getSSTableColumnIterator(sstable);
-                iterators.add(iter);
-                if (iter.getColumnFamily() != null)
+                for (SSTableReader sstable : sstables)
                 {
-                    returnCF.delete(iter.getColumnFamily());
-                    sstablesIterated++;
+                    IColumnIterator iter = filter.getSSTableColumnIterator(sstable);
+                    iterators.add(iter);
+                    if (iter.getColumnFamily() != null)
+                    {
+                        returnCF.delete(iter.getColumnFamily());
+                        sstablesIterated++;
+                    }
                 }
             }
-        }
-        finally
-        {
-            SSTableReader.releaseReferences(sstables);
-            for (IColumnIterator iter : iterators)
-                FileUtils.closeQuietly(iter);
+            finally
+            {
+                SSTableReader.releaseReferences(sstables);
+                for (IColumnIterator iter : iterators)
+                    FileUtils.closeQuietly(iter);
+            }
+
+            break; // sstable reference acquisition was successful
         }
 
         // we need to distinguish between "there is no data at all for this row" (BF will let us rebuild that efficiently)
@@ -228,7 +246,7 @@ public class CollationController
         if (iterators.isEmpty())
             return null;
 
-        filter.collateColumns(returnCF, iterators, metadata.comparator, gcBefore);
+        filter.collateColumns(returnCF, iterators, cfs.metadata.comparator, gcBefore);
 
         // Caller is responsible for final removeDeletedCF.  This is important for cacheRow to work correctly:
         return returnCF;

@@ -298,16 +298,8 @@ public class DataTracker
             if (logger.isDebugEnabled())
                 logger.debug(String.format("removing %s from list of files tracked for %s.%s",
                             sstable.descriptor, cfstore.table.name, cfstore.getColumnFamilyName()));
-            // A reference must be acquire before any call to markCompacted, see SSTableReader for details
-            sstable.acquireReference();
-            try
-            {
-                sstable.markCompacted();
-            }
-            finally
-            {
-                sstable.releaseReference();
-            }
+            sstable.markCompacted();
+            sstable.releaseReference();
             liveSize.addAndGet(-sstable.bytesOnDisk());
         }
     }
@@ -511,9 +503,9 @@ public class DataTracker
         // Obviously, dropping sstables whose max column timestamp happens to be equal to another's
         // is not acceptable for us.  So, we use a List instead.
         public final List<SSTableReader> sstables;
-        public final IntervalTree intervalTree;
+        public final IntervalTree<SSTableReader> intervalTree;
 
-        View(Memtable memtable, Set<Memtable> pendingFlush, List<SSTableReader> sstables, Set<SSTableReader> compacting, IntervalTree intervalTree)
+        View(Memtable memtable, Set<Memtable> pendingFlush, List<SSTableReader> sstables, Set<SSTableReader> compacting, IntervalTree<SSTableReader> intervalTree)
         {
             this.memtable = memtable;
             this.memtablesPendingFlush = pendingFlush;

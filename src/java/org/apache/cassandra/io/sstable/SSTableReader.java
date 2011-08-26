@@ -81,7 +81,9 @@ public class SSTableReader extends SSTable
 
     private BloomFilterTracker bloomFilterTracker = new BloomFilterTracker();
 
-    private final AtomicInteger references = new AtomicInteger(0);
+    private final AtomicInteger references = new AtomicInteger(1);
+    // technically isCompacted is not necessary since it should never be unreferenced unless it is also compacted,
+    // but it seems like a good extra layer of protection against reference counting bugs to not delete data based on that alone
     private final AtomicBoolean isCompacted = new AtomicBoolean(false);
     private final SSTableDeletingTask deletingTask;
 
@@ -618,9 +620,16 @@ public class SSTableReader extends SSTable
         return dfile.length;
     }
 
-    public void acquireReference()
+    public boolean acquireReference()
     {
-        references.incrementAndGet();
+        while (true)
+        {
+            int n = references.get();
+            if (n <= 0)
+                return false;
+            if (references.compareAndSet(n, n + 1))
+                return true;
+        }
     }
 
     public void releaseReference()
@@ -831,13 +840,32 @@ public class SSTableReader extends SSTable
                 : RandomAccessReader.open(new File(getFilename()), bufferSize, skipIOCache);
     }
 
-    public static void acquireReferences(Iterable<SSTableReader> sstables)
+    /**
+     * @param sstables
+     * @return true if all desired references were acquired.  Otherwise, it will unreference any partial acquisition, and return false.
+     */
+    public static boolean acquireReferences(Iterable<SSTableReader> sstables)
     {
+        SSTableReader failed = null;
         for (SSTableReader sstable : sstables)
         {
-            if (sstable != null)
-                sstable.acquireReference();
+            if (!sstable.acquireReference())
+            {
+                failed = sstable;
+                break;
+            }
         }
+
+        if (failed == null)
+            return true;
+
+        for (SSTableReader sstable : sstables)
+        {
+            if (sstable == failed)
+                break;
+            sstable.releaseReference();
+        }
+        return false;
     }
 
     public static void releaseReferences(Iterable<SSTableReader> sstables)
@@ -846,10 +874,9 @@ public class SSTableReader extends SSTable
         {
             try
             {
-                if (sstable != null)
-                    sstable.releaseReference();
+                sstable.releaseReference();
             }
-            catch (Throwable ex)
+            catch (Exception ex)
             {
                 logger.error("Failed releasing reference on " + sstable, ex);
             }

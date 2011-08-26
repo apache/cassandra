@@ -234,7 +234,6 @@ public class SSTableUtils
             long start = System.currentTimeMillis();
             while (appender.append(writer)) { /* pass */ }
             SSTableReader reader = writer.closeAndOpenReader();
-            reader.acquireReference();
             // mark all components for removal
             if (cleanup)
                 for (Component component : reader.components)

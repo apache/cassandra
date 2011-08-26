@@ -888,21 +888,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public boolean isKeyInRemainingSSTables(DecoratedKey key, Set<? extends SSTable> sstablesToIgnore)
     {
-        DataTracker.View currentView = markCurrentViewReferenced();
-        try
+        // we don't need to acquire references here, since the bloom filter is safe to use even post-compaction
+        List<SSTableReader> filteredSSTables = data.getView().intervalTree.search(new Interval(key, key));
+        for (SSTableReader sstable : filteredSSTables)
         {
-            List<SSTableReader> filteredSSTables = currentView.intervalTree.search(new Interval(key, key));
-            for (SSTableReader sstable : filteredSSTables)
-            {
-                if (!sstablesToIgnore.contains(sstable) && sstable.getBloomFilter().isPresent(key.key))
-                    return true;
-            }
-            return false;
+            if (!sstablesToIgnore.contains(sstable) && sstable.getBloomFilter().isPresent(key.key))
+                return true;
         }
-        finally
-        {
-            SSTableReader.releaseReferences(currentView.sstables);
-        }
+        return false;
     }
 
     /*
@@ -1261,16 +1254,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         while (true)
         {
             DataTracker.View currentView = data.getView();
-            SSTableReader.acquireReferences(currentView.sstables);
-            if (currentView.sstables == data.getView().sstables) // reference equality is fine
-            {
+            if (SSTableReader.acquireReferences(currentView.sstables))
                 return currentView;
-            }
-            else
-            {
-                // the set of sstables has changed, let's release the acquired references and try again
-                SSTableReader.releaseReferences(currentView.sstables);
-            }
         }
     }
 
@@ -1287,19 +1272,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     private ColumnFamily getTopLevelColumns(QueryFilter filter, int gcBefore, ISortedColumns.Factory factory)
     {
-        DataTracker.View currentView = markCurrentViewReferenced();
-        try
-        {
-        CollationController controller = new CollationController(currentView, factory, filter, metadata, gcBefore);
+        CollationController controller = new CollationController(this, factory, filter, gcBefore);
         ColumnFamily columns = controller.getTopLevelColumns();
         recentSSTablesPerRead.add(controller.getSstablesIterated());
         sstablesPerRead.add(controller.getSstablesIterated());
         return columns;
-    }
-        finally
-        {
-            SSTableReader.releaseReferences(currentView.sstables);
-        }
     }
 
     /**

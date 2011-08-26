@@ -296,7 +296,8 @@ public class StreamingTransferTest extends CleanupHelper
         ranges.add(new Range(secondtolast.getKey().token, p.getMinimumToken()));
 
         // Acquiring references, transferSSTables needs it
-        SSTableReader.acquireReferences(ssTableReaders);
+        if (!SSTableReader.acquireReferences(ssTableReaders))
+            throw new AssertionError();
 
         StreamOutSession session = StreamOutSession.create(keyspace, LOCAL, null);
         StreamOut.transferSSTables(session, ssTableReaders, ranges, OperationType.BOOTSTRAP);

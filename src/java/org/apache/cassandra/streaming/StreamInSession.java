@@ -125,7 +125,6 @@ public class StreamInSession
     {
         if (files.isEmpty())
         {
-            // wait for bloom filters and row indexes to finish building
             HashMap <ColumnFamilyStore, List<SSTableReader>> cfstores = new HashMap<ColumnFamilyStore, List<SSTableReader>>();
             List<SSTableReader> referenced = new LinkedList<SSTableReader>();
             try

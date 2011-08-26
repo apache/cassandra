@@ -798,6 +798,8 @@ public class CompactionManager implements CompactionManagerMBean
             throw new AssertionError(e);
         }
 
+        // we don't mark validating sstables as compacting in DataTracker, so we have to mark them referenced
+        // instead so they won't be cleaned up if they do get compacted during the validation
         Collection<SSTableReader> sstables = cfs.markCurrentSSTablesReferenced();
         CompactionIterable ci = new ValidationCompactionIterable(cfs, sstables, validator.request.range);
         CloseableIterator<AbstractCompactedRow> iter = ci.iterator();
