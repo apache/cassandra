@@ -11,8 +11,10 @@ Features
     - "cassandra.bat install" will install Cassandra as a Windows Service
     - SSTable compression can be enabled by setting options ???
     - Compressed SSTable blocks are checksummed to protect against bitrot
-    - New LevelDB-inspired compaction algorithm can be enabled by setting
-      option ???
+    - New LevelDB-inspired compaction algorithm can be enabled by setting the 
+      Columnfamily compaction_strategy=LeveledCompactionStrategy option.  
+      Leveled compaction means you only need to keep a few MB of space free for 
+      compaction instead of (in the worst case) 50%.
     - Windows Service ("cassandra.bat install" to enable)
 
 Other
