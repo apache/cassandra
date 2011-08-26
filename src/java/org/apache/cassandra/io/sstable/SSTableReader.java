@@ -81,9 +81,8 @@ public class SSTableReader extends SSTable
 
     private BloomFilterTracker bloomFilterTracker = new BloomFilterTracker();
 
-    private final AtomicInteger holdReferences = new AtomicInteger(0);
+    private final AtomicInteger references = new AtomicInteger(0);
     private final AtomicBoolean isCompacted = new AtomicBoolean(false);
-    private final AtomicBoolean isScheduledForDeletion = new AtomicBoolean(false);
     private final SSTableDeletingTask deletingTask;
 
     private final SSTableMetadata sstableMetadata;
@@ -621,12 +620,12 @@ public class SSTableReader extends SSTable
 
     public void acquireReference()
     {
-        holdReferences.incrementAndGet();
+        references.incrementAndGet();
     }
 
     public void releaseReference()
     {
-        if (holdReferences.decrementAndGet() == 0 && isCompacted.get())
+        if (references.decrementAndGet() == 0 && isCompacted.get())
         {
             // Force finalizing mmapping if necessary
             ifile.cleanup();
@@ -634,7 +633,7 @@ public class SSTableReader extends SSTable
 
             deletingTask.schedule();
         }
-        assert holdReferences.get() >= 0 : "Reference counter " +  holdReferences.get() + " for " + dfile.path;
+        assert references.get() >= 0 : "Reference counter " +  references.get() + " for " + dfile.path;
     }
 
     /**
