@@ -388,11 +388,12 @@ keyValuePairExpr
             
 keyValuePair 
     : attr_name '=' attrValue 
-    	-> attr_name attrValue
+        -> attr_name attrValue
     ;
 
 attrValue
     : arrayConstruct
+    | hashConstruct
     | attrValueString
     | attrValueInt
     | attrValueDouble
@@ -410,8 +411,8 @@ hashConstruct
     ;
 
 hashElementPair
-    : rowKey ':' value
-        -> ^(PAIR rowKey value)
+    : rowKey ':' rowValue
+        -> ^(PAIR rowKey rowValue)
     ;
 
 columnFamilyExpr
@@ -428,70 +429,74 @@ keyRangeExpr
     ;
 
 columnName
-	: (StringLiteral | Identifier | IntegerPositiveLiteral | IntegerNegativeLiteral)
-	;
+    : (StringLiteral | Identifier | IntegerPositiveLiteral | IntegerNegativeLiteral)
+    ;
 
 attr_name
-	: Identifier
-	;
+    : Identifier
+    ;
 
 attrValueString
-	: (Identifier | StringLiteral)
-	;
+    : (Identifier | StringLiteral)
+    ;
       
 attrValueInt
-	: IntegerPositiveLiteral
+    : IntegerPositiveLiteral
   | IntegerNegativeLiteral
-	;
+    ;
 
 attrValueDouble
-	: DoubleLiteral
-	;
+    : DoubleLiteral
+    ;
   
 objectName
-	: Identifier
-	;
+    : Identifier
+    ;
 
 keyspace
-	: Identifier
-	;
+    : Identifier
+    ;
 
 replica_placement_strategy
-	: StringLiteral
-	;
+    : StringLiteral
+    ;
 
 keyspaceNewName
-	: Identifier
-	;
+    : Identifier
+    ;
 
 comparator
-	: StringLiteral
-	;
+    : StringLiteral
+    ;
       
-command	: Identifier
-	;
+command : Identifier
+    ;
 
 newColumnFamily
-	: Identifier
-	;
+    : Identifier
+    ;
 
 username: Identifier
-	;
+    ;
 
 password: StringLiteral
-	;
+    ;
 
 columnFamily
-	: Identifier
-	;
+    : Identifier
+    ;
 
-rowKey	
+rowKey  
     :  (Identifier | StringLiteral | IntegerPositiveLiteral | IntegerNegativeLiteral | functionCall)
-	;
+    ;
 
-value	
+rowValue  
+    :  (Identifier | StringLiteral | IntegerPositiveLiteral | IntegerNegativeLiteral | functionCall | hashConstruct)
+    ;
+
+value   
     : (Identifier | IntegerPositiveLiteral | IntegerNegativeLiteral | StringLiteral | functionCall)
-	;
+    ;
 
 functionCall 
     : functionName=Identifier '(' functionArgument? ')'
@@ -504,34 +509,34 @@ functionArgument
 
 startKey
     : (Identifier | StringLiteral)
-	;
+    ;
 
-endKey	
+endKey  
     : (Identifier | StringLiteral)
-	;
+    ;
 
 columnOrSuperColumn
-	: (Identifier | IntegerPositiveLiteral | IntegerNegativeLiteral | StringLiteral | functionCall)
-	;
+    : (Identifier | IntegerPositiveLiteral | IntegerNegativeLiteral | StringLiteral | functionCall)
+    ;
 
-host	
+host    
     : host_name
         -> ^(NODE_ID_LIST host_name)
-	;
+    ;
 
 host_name
-	: Identifier ('.' Identifier)*
-	;
-	
+    : Identifier ('.' Identifier)*
+    ;
+    
 ip_address
-	: IP_ADDRESS 
-	    -> ^(NODE_ID_LIST IP_ADDRESS)
-	;
+    : IP_ADDRESS 
+        -> ^(NODE_ID_LIST IP_ADDRESS)
+    ;
 
 
-port	
+port    
     : IntegerPositiveLiteral
-	;
+    ;
 
 incrementValue
     : IntegerPositiveLiteral
@@ -628,52 +633,52 @@ StringLiteral
     ;
 
 fragment SingleStringCharacter
-	: ~('\'' | '\\')
-	| '\\' EscapeSequence
-	;
+    : ~('\'' | '\\')
+    | '\\' EscapeSequence
+    ;
 
 fragment EscapeSequence
-	: CharacterEscapeSequence
-	| '0'
-	| HexEscapeSequence
-	| UnicodeEscapeSequence
-	;
+    : CharacterEscapeSequence
+    | '0'
+    | HexEscapeSequence
+    | UnicodeEscapeSequence
+    ;
 
 fragment CharacterEscapeSequence
-	: SingleEscapeCharacter
-	| NonEscapeCharacter
-	;
+    : SingleEscapeCharacter
+    | NonEscapeCharacter
+    ;
 
 fragment NonEscapeCharacter
-	: ~(EscapeCharacter)
-	;
+    : ~(EscapeCharacter)
+    ;
 
 fragment SingleEscapeCharacter
-	: '\'' | '"' | '\\' | 'b' | 'f' | 'n' | 'r' | 't' | 'v'
-	;
+    : '\'' | '"' | '\\' | 'b' | 'f' | 'n' | 'r' | 't' | 'v'
+    ;
 
 fragment EscapeCharacter
-	: SingleEscapeCharacter
-	| DecimalDigit
-	| 'x'
-	| 'u'
-	;
+    : SingleEscapeCharacter
+    | DecimalDigit
+    | 'x'
+    | 'u'
+    ;
 
 fragment HexEscapeSequence
-	: 'x' HexDigit HexDigit
-	;
+    : 'x' HexDigit HexDigit
+    ;
 
 fragment UnicodeEscapeSequence
-	: 'u' HexDigit HexDigit HexDigit HexDigit
-	;
+    : 'u' HexDigit HexDigit HexDigit HexDigit
+    ;
 
 fragment HexDigit
-	: DecimalDigit | ('a'..'f') | ('A'..'F')
-	;
+    : DecimalDigit | ('a'..'f') | ('A'..'F')
+    ;
 
 fragment DecimalDigit
-	: ('0'..'9')
-	;
+    : ('0'..'9')
+    ;
 
 //
 // syntactic elements

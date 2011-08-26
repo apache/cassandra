@@ -246,7 +246,7 @@ commands:
           specifies the replication factor for the cluster.
 
         - strategy_options: Optional additional options for placement_strategy.
-          Options have the form [{key:value}], see the information on each
+          Options have the form {key:value}, see the information on each
           strategy and the examples.
 
         - durable_writes: When set to false all RowMutations on keyspace will by-pass CommitLog.
@@ -255,13 +255,13 @@ commands:
         Examples:
         create keyspace Keyspace2
             with placement_strategy = 'org.apache.cassandra.locator.SimpleStrategy'
-            and strategy_options = [{replication_factor:4}];
+            and strategy_options = {replication_factor:4};
         create keyspace Keyspace3
             with placement_strategy = 'org.apache.cassandra.locator.NetworkTopologyStrategy'
-            and strategy_options=[{DC1:2, DC2:2}];
+            and strategy_options={DC1:2, DC2:2};
         create keyspace Keyspace4
             with placement_strategy = 'org.apache.cassandra.locator.OldNetworkTopologyStrategy'
-            and strategy_options = [{replication_factor:1}];
+            and strategy_options = {replication_factor:1};
     - name: NODE_UPDATE_KEYSPACE
       help: |
         update keyspace <keyspace>;
@@ -314,7 +314,7 @@ commands:
           specifies the replication factor for the cluster.
 
         - strategy_options: Optional additional options for placement_strategy.
-          Options have the form [{key:value}], see the information on each
+          Options have the form {key:value}, see the information on each
           strategy and the examples.
 
         - durable_writes: When set to false all RowMutations on keyspace will by-pass CommitLog.
@@ -323,13 +323,13 @@ commands:
         Examples:
         update keyspace Keyspace2
             with placement_strategy = 'org.apache.cassandra.locator.SimpleStrategy'
-            and strategy_options = [{replication_factor:4}];
+            and strategy_options = {replication_factor:4};
         update keyspace Keyspace3
             with placement_strategy = 'org.apache.cassandra.locator.NetworkTopologyStrategy'
-            and strategy_options=[{DC1:2, DC2:2}];
+            and strategy_options={DC1:2, DC2:2};
         update keyspace Keyspace4
             with placement_strategy = 'org.apache.cassandra.locator.OldNetworkTopologyStrategy'
-            and strategy_options = [{replication_factor:1}];
+            and strategy_options = {replication_factor:1};
     - name: NODE_ADD_COLUMN_FAMILY
       help: |
         create column family <name>;

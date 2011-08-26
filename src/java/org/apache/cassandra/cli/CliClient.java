@@ -2386,24 +2386,18 @@ public class CliClient
     {
         // this map will be returned
         Map<String, String> strategyOptions = new HashMap<String, String>();
-
-        // each child node is a ^(HASH ...)
-        for (int i = 0; i < options.getChildCount(); i++)
+               
+        // each child node is ^(PAIR $key $value)
+        for (int j = 0; j < options.getChildCount(); j++)
         {
-            Tree optionsHash = options.getChild(i);
-            
-            // each child node is ^(PAIR $key $value)
-            for (int j = 0; j < optionsHash.getChildCount(); j++)
-            {
-                Tree optionPair = optionsHash.getChild(j);
+            Tree optionPair = options.getChild(j);
 
-                // current $key
-                String key = CliUtils.unescapeSQLString(optionPair.getChild(0).getText());
-                // current $value
-                String val = CliUtils.unescapeSQLString(optionPair.getChild(1).getText());
+            // current $key
+            String key = CliUtils.unescapeSQLString(optionPair.getChild(0).getText());
+            // current $value
+            String val = CliUtils.unescapeSQLString(optionPair.getChild(1).getText());
 
-                strategyOptions.put(key, val);
-            }
+            strategyOptions.put(key, val);           
         }
 
         return strategyOptions;
