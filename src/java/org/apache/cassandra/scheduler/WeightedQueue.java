@@ -22,6 +22,8 @@ package org.apache.cassandra.scheduler;
  */
 
 import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.TimeUnit;
 import java.lang.management.ManagementFactory;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
@@ -56,9 +58,9 @@ class WeightedQueue implements WeightedQueueMBean
         }
     }
 
-    public void put(Thread t) throws InterruptedException
+    public void put(Thread t, long timeoutMS) throws InterruptedException, TimeoutException
     {
-        queue.put(new WeightedQueue.Entry(t));
+        queue.offer(new WeightedQueue.Entry(t), timeoutMS, TimeUnit.MILLISECONDS);
     }
 
     public Thread poll()

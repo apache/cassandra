@@ -122,9 +122,9 @@ public class CassandraServer implements Cassandra.Iface
         List<Row> rows;
         try
         {
+            schedule(DatabaseDescriptor.getRpcTimeout());
             try
             {
-                schedule();
                 rows = StorageProxy.read(commands, consistency_level);
             }
             finally
@@ -625,23 +625,23 @@ public class CassandraServer implements Cassandra.Iface
     private void doInsert(ConsistencyLevel consistency_level, List<? extends IMutation> mutations) throws UnavailableException, TimedOutException, InvalidRequestException
     {
         ThriftValidation.validateConsistencyLevel(state().getKeyspace(), consistency_level);
+        if (mutations.isEmpty())
+            return;
         try
         {
-            schedule();
-
+            schedule(DatabaseDescriptor.getRpcTimeout());
             try
             {
-                if (!mutations.isEmpty())
-                    StorageProxy.mutate(mutations, consistency_level);
+                StorageProxy.mutate(mutations, consistency_level);
             }
-            catch (TimeoutException e)
+            finally
             {
-                throw new TimedOutException();
+                release();
             }
         }
-        finally
+        catch (TimeoutException e)
         {
-            release();
+            throw new TimedOutException();
         }
     }
 
@@ -686,9 +686,9 @@ public class CassandraServer implements Cassandra.Iface
             {
                 bounds = new Bounds(p.getToken(range.start_key), p.getToken(range.end_key));
             }
+            schedule(DatabaseDescriptor.getRpcTimeout());
             try
             {
-                schedule();
                 rows = StorageProxy.getRangeSlice(new RangeSliceCommand(keyspace, column_parent, predicate, bounds, range.count), consistency_level);
             }
             finally
@@ -829,9 +829,9 @@ public class CassandraServer implements Cassandra.Iface
     /**
      * Schedule the current thread for access to the required services
      */
-    private void schedule()
+    private void schedule(long timeoutMS) throws TimeoutException
     {
-        requestScheduler.queue(Thread.currentThread(), state().getSchedulingValue());
+        requestScheduler.queue(Thread.currentThread(), state().getSchedulingValue(), timeoutMS);
     }
 
     /**
@@ -1085,8 +1085,15 @@ public class CassandraServer implements Cassandra.Iface
         state().hasColumnFamilyAccess(cfname, Permission.WRITE);
         try
         {
-            schedule();
-            StorageProxy.truncateBlocking(state().getKeyspace(), cfname);
+            schedule(DatabaseDescriptor.getRpcTimeout());
+            try
+            {
+                StorageProxy.truncateBlocking(state().getKeyspace(), cfname);
+            }
+            finally
+            {
+                release();
+            }
         }
         catch (TimeoutException e)
         {
@@ -1095,10 +1102,6 @@ public class CassandraServer implements Cassandra.Iface
         catch (IOException e)
         {
             throw (UnavailableException) new UnavailableException().initCause(e);
-        }
-        finally
-        {
-            release();
         }
     }
 

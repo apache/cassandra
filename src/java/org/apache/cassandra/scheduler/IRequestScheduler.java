@@ -20,6 +20,8 @@ package org.apache.cassandra.scheduler;
  * 
  */
 
+import java.util.concurrent.TimeoutException;
+
 /**
  * Implementors of IRequestScheduler must provide a constructor taking a RequestSchedulerOptions object.
  */
@@ -30,8 +32,9 @@ public interface IRequestScheduler
      * 
      * @param t Thread handing the request
      * @param id    Scheduling parameter, an id to distinguish profiles (users/keyspace)
+     * @param timeout   The max time in milliseconds to spend blocking for a slot
      */
-    public void queue(Thread t, String id);
+    public void queue(Thread t, String id, long timeoutMS) throws TimeoutException;
 
     /**
      * A convenience method for indicating when a particular request has completed

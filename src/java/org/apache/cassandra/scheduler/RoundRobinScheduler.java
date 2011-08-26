@@ -23,6 +23,7 @@ package org.apache.cassandra.scheduler;
 
 import java.util.Map;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeoutException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -78,14 +79,14 @@ public class RoundRobinScheduler implements IRequestScheduler
         logger.info("Started the RoundRobin Request Scheduler");
     }
 
-    public void queue(Thread t, String id)
+    public void queue(Thread t, String id, long timeoutMS) throws TimeoutException
     {
         WeightedQueue weightedQueue = getWeightedQueue(id);
 
         try
         {
             queueSize.release();
-            weightedQueue.put(t);
+            weightedQueue.put(t, timeoutMS);
         }
         catch (InterruptedException e)
         {

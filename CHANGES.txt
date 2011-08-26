@@ -42,6 +42,7 @@
  * Add "install" command to cassandra.bat (CASSANDRA-292)
  * clean up KSMetadata, CFMetadata from unnecessary
    Thrift<->Avro conversion methods (CASSANDRA-3032)
+ * Add timeouts to client request schedulers (CASSANDRA-3079)
 
 
 0.8.5
