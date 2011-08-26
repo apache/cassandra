@@ -19,6 +19,14 @@
  */
 package org.apache.cassandra.db;
 
+import java.nio.ByteBuffer;
+import java.util.*;
+
+import com.google.common.collect.Iterables;
+import org.apache.cassandra.io.sstable.SSTable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.columniterator.IColumnIterator;
 import org.apache.cassandra.db.columniterator.SimpleAbstractColumnIterator;
@@ -28,14 +36,7 @@ import org.apache.cassandra.db.marshal.CounterColumnType;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.CloseableIterator;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.nio.ByteBuffer;
-import java.util.*;
-
-import com.google.common.collect.Iterables;
+import org.apache.cassandra.utils.IntervalTree.Interval;
 
 public class CollationController
 {
@@ -75,7 +76,7 @@ public class CollationController
         logger.debug("collectTimeOrderedData");
         List<IColumnIterator> iterators = new ArrayList<IColumnIterator>();
         final ColumnFamily container = ColumnFamily.create(metadata, factory, filter.filter.isReversed());
-
+        List<SSTableReader> sstables = null;
         try
         {
             for (Memtable memtable : Iterables.concat(dataview.memtablesPendingFlush, Collections.singleton(dataview.memtable)))
@@ -96,8 +97,12 @@ public class CollationController
             filterColumns.addAll(((NamesQueryFilter) filter.filter).columns);
             QueryFilter reducedFilter = new QueryFilter(filter.key, filter.path, new NamesQueryFilter(filterColumns));
 
+            /* add the SSTables on disk */
+            sstables = dataview.intervalTree.search(new Interval(filter.key, filter.key));
+            Collections.sort(sstables, SSTable.maxTimestampComparator);
+            SSTableReader.acquireReferences(sstables);
             // read sorted sstables
-            for (SSTableReader sstable : dataview.sstables)
+            for (SSTableReader sstable : sstables)
             {
                 long currentMaxTs = sstable.getMaxTimestamp();
                 reduceNameFilter(reducedFilter, container, currentMaxTs);
@@ -117,6 +122,7 @@ public class CollationController
         }
         finally
         {
+            SSTableReader.releaseReferences(sstables);
             for (IColumnIterator iter : iterators)
                 FileUtils.closeQuietly(iter);
         }
@@ -182,6 +188,7 @@ public class CollationController
         logger.debug("collectAllData");
         List<IColumnIterator> iterators = new ArrayList<IColumnIterator>();
         ColumnFamily returnCF = ColumnFamily.create(metadata, factory, filter.filter.isReversed());
+        List<SSTableReader> sstables = null;
 
         try
         {
@@ -196,7 +203,9 @@ public class CollationController
             }
 
             /* add the SSTables on disk */
-            for (SSTableReader sstable : dataview.sstables)
+            sstables = dataview.intervalTree.search(new Interval(filter.key, filter.key));
+            SSTableReader.acquireReferences(sstables);
+            for (SSTableReader sstable : sstables)
             {
                 IColumnIterator iter = filter.getSSTableColumnIterator(sstable);
                 iterators.add(iter);
@@ -209,6 +218,7 @@ public class CollationController
         }
         finally
         {
+            SSTableReader.releaseReferences(sstables);
             for (IColumnIterator iter : iterators)
                 FileUtils.closeQuietly(iter);
         }

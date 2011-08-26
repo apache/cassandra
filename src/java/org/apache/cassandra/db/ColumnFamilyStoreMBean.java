@@ -240,4 +240,9 @@ public interface ColumnFamilyStoreMBean
      * determine which SSTables should be loaded and load them
      */
     public void loadNewSSTables();
+
+    /**
+     * @return the number of SSTables in L0.  Always return 0 if Leveled compaction is not enabled.
+     */
+    public int getUnleveledSSTables();
 }

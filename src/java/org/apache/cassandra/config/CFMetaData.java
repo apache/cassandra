@@ -67,7 +67,7 @@ public final class CFMetaData
     public final static double DEFAULT_MEMTABLE_OPERATIONS_IN_MILLIONS = sizeMemtableOperations(DEFAULT_MEMTABLE_THROUGHPUT_IN_MB);
     public final static double DEFAULT_MERGE_SHARDS_CHANCE = 0.1;
     public final static String DEFAULT_ROW_CACHE_PROVIDER = "org.apache.cassandra.cache.ConcurrentLinkedHashCacheProvider";
-    public final static String DEFAULT_COMPACTION_STRATEGY_CLASS = "org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy";
+    public final static String DEFAULT_COMPACTION_STRATEGY_CLASS = "SizeTieredCompactionStrategy";
     public final static ByteBuffer DEFAULT_KEY_NAME = ByteBufferUtil.bytes("KEY");
     public final static boolean DEFAULT_COMPRESSION = false;
 
@@ -214,11 +214,11 @@ public final class CFMetaData
 
         try
         {
-            compactionStrategyClass = (Class<? extends AbstractCompactionStrategy>)Class.forName(DEFAULT_COMPACTION_STRATEGY_CLASS);
+            compactionStrategyClass = createCompactionSrategy(DEFAULT_COMPACTION_STRATEGY_CLASS);
         }
-        catch (Exception e)
+        catch (ConfigurationException e)
         {
-            throw new RuntimeException("Could not create Compaction Strategy of type " + DEFAULT_COMPACTION_STRATEGY_CLASS, e);
+            throw new AssertionError(e);
         }
         compactionStrategyOptions = new HashMap<String, String>();
     }
@@ -409,11 +409,11 @@ public final class CFMetaData
         {
             try
             {
-                newCFMD.compactionStrategyClass((Class<? extends AbstractCompactionStrategy>)Class.forName(cf.compaction_strategy.toString()));
+                newCFMD.compactionStrategyClass = createCompactionSrategy(cf.compaction_strategy.toString());
             }
-            catch (Exception e)
+            catch (ConfigurationException e)
             {
-                throw new RuntimeException("Could not create Compaction Strategy of type " + cf.compaction_strategy.toString(), e);
+                throw new RuntimeException(e);
             }
         }
         if (cf.compaction_strategy_options != null)
@@ -695,16 +695,7 @@ public final class CFMetaData
         if (cf_def.isSetKey_alias()) { newCFMD.keyAlias(cf_def.key_alias); }
         if (cf_def.isSetKey_validation_class()) { newCFMD.keyValidator(TypeParser.parse(cf_def.key_validation_class)); }
         if (cf_def.isSetCompaction_strategy())
-        {
-            try
-            {
-               newCFMD.compactionStrategyClass((Class<? extends AbstractCompactionStrategy>)Class.forName(cf_def.compaction_strategy));
-            }
-            catch (Exception e)
-            {
-                throw new ConfigurationException("Unable to set Compaction Strategy Class of " + cf_def.compaction_strategy, e);
-            }
-        }
+            newCFMD.compactionStrategyClass = createCompactionSrategy(cf_def.compaction_strategy);
         if (cf_def.isSetCompaction_strategy_options())
             newCFMD.compactionStrategyOptions(new HashMap<String, String>(cf_def.compaction_strategy_options));
 
@@ -812,16 +803,7 @@ public final class CFMetaData
         }
 
         if (cf_def.compaction_strategy != null)
-        {
-            try
-            {
-                compactionStrategyClass = (Class<? extends AbstractCompactionStrategy>)Class.forName(cf_def.compaction_strategy.toString());
-            }
-            catch (Exception e)
-            {
-                throw new RuntimeException("Could not create Compaction Strategy of type " + cf_def.compaction_strategy.toString(), e);
-            }
-        }
+            compactionStrategyClass = createCompactionSrategy(cf_def.compaction_strategy.toString());
 
         if (null != cf_def.compaction_strategy_options)
         {
@@ -832,7 +814,20 @@ public final class CFMetaData
 
         logger.debug("application result is {}", this);
     }
-    
+
+    private static Class<? extends AbstractCompactionStrategy> createCompactionSrategy(String className) throws ConfigurationException
+    {
+        className = className.contains(".") ? className : "org.apache.cassandra.db.compaction." + className;
+        try
+        {
+            return (Class<? extends AbstractCompactionStrategy>) Class.forName(className);
+        }
+        catch (Exception e)
+        {
+            throw new ConfigurationException("Could not create Compaction Strategy of type " + className, e);
+        }
+    }
+
     public AbstractCompactionStrategy createCompactionStrategyInstance(ColumnFamilyStore cfs)
     {
         try

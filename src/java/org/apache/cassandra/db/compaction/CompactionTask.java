@@ -19,14 +19,8 @@
 package org.apache.cassandra.db.compaction;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Set;
 
 import com.google.common.base.Predicates;
 import com.google.common.collect.Iterators;
@@ -49,6 +43,7 @@ public class CompactionTask extends AbstractCompactionTask
     protected String compactionFileLocation;
     protected final int gcBefore;
     protected boolean isUserDefined;
+    protected static long totalBytesCompacted = 0;
 
     public CompactionTask(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, final int gcBefore)
     {
@@ -56,6 +51,11 @@ public class CompactionTask extends AbstractCompactionTask
         compactionFileLocation = null;
         this.gcBefore = gcBefore;
         this.isUserDefined = false;
+    }
+
+    public static synchronized long addToTotalBytesCompacted(long bytesCompacted)
+    {
+        return totalBytesCompacted += bytesCompacted;
     }
 
     /**
@@ -72,7 +72,7 @@ public class CompactionTask extends AbstractCompactionTask
         Set<SSTableReader> toCompact = new HashSet<SSTableReader>(sstables);
         if (!isUserDefined)
         {
-            if (toCompact.size() < 2)
+            if ( !allowSingletonCompaction() && toCompact.size() < 2)
             {
                 logger.info("Nothing to compact in " + cfs.getColumnFamilyName() + "." +
                             "Use forceUserDefinedCompaction if you wish to force compaction of single sstables " +
@@ -128,12 +128,17 @@ public class CompactionTask extends AbstractCompactionTask
         if (logger.isDebugEnabled())
             logger.debug("Expected bloom filter size : " + expectedBloomFilterSize);
 
-        SSTableWriter writer = null;
-        final SSTableReader ssTable;
         CompactionIterable ci = new CompactionIterable(type, toCompact, controller); // retain a handle so we can call close()
         CloseableIterator<AbstractCompactedRow> iter = ci.iterator();
         Iterator<AbstractCompactedRow> nni = Iterators.filter(iter, Predicates.notNull());
         Map<DecoratedKey, Long> cachedKeys = new HashMap<DecoratedKey, Long>();
+
+        // we can't preheat until the tracker has been set. This doesn't happen until we tell the cfs to
+        // replace the old entries.  Track entries to preheat here until then.
+        Map<SSTableReader, Map<DecoratedKey, Long>> cachedKeyMap =  new HashMap<SSTableReader, Map<DecoratedKey, Long>>();
+
+        Collection<SSTableReader> sstables = new ArrayList<SSTableReader>();
+        Collection<SSTableWriter> writers = new ArrayList<SSTableWriter>();
 
         if (collector != null)
             collector.beginCompaction(ci);
@@ -148,13 +153,14 @@ public class CompactionTask extends AbstractCompactionTask
                 return 0;
             }
 
-            writer = cfs.createCompactionWriter(expectedBloomFilterSize, compactionFileLocation, toCompact);
+            SSTableWriter writer = cfs.createCompactionWriter(expectedBloomFilterSize, compactionFileLocation, toCompact);
+            writers.add(writer);
             while (nni.hasNext())
             {
                 AbstractCompactedRow row = nni.next();
                 if (row.isEmpty())
                     continue;
-                
+
                 long position = writer.append(row);
                 totalkeysWritten++;
 
@@ -169,30 +175,68 @@ public class CompactionTask extends AbstractCompactionTask
                         }
                     }
                 }
+                if (!nni.hasNext() || newSSTableSegmentThresholdReached(writer, position))
+                {
+                    SSTableReader toIndex = writer.closeAndOpenReader(getMaxDataAge(toCompact));
+                    cachedKeyMap.put(toIndex, cachedKeys);
+                    sstables.add(toIndex);
+                    writer = cfs.createCompactionWriter(expectedBloomFilterSize, compactionFileLocation, toCompact);
+                    writers.add(writer);
+                    cachedKeys = new HashMap<DecoratedKey, Long>();
+                }
             }
-            ssTable = writer.closeAndOpenReader(getMaxDataAge(toCompact));
         }
         finally
         {
             iter.close();
             if (collector != null)
                 collector.finishCompaction(ci);
-            if (writer != null)
+            for (SSTableWriter writer : writers)
                 writer.cleanupIfNecessary();
         }
 
-        cfs.replaceCompactedSSTables(toCompact, Arrays.asList(ssTable));
-        for (Entry<DecoratedKey, Long> entry : cachedKeys.entrySet()) // empty if preheat is off
-            ssTable.cacheKey(entry.getKey(), entry.getValue());
+        cfs.replaceCompactedSSTables(toCompact, sstables);
+        // TODO: this doesn't belong here, it should be part of the reader to load when the tracker is wired up
+        for (Entry<SSTableReader, Map<DecoratedKey, Long>> ssTableReaderMapEntry : cachedKeyMap.entrySet())
+        {
+            SSTableReader key = ssTableReaderMapEntry.getKey();
+            for (Entry<DecoratedKey, Long> entry : ssTableReaderMapEntry.getValue().entrySet())
+               key.cacheKey(entry.getKey(), entry.getValue());
+        }
+
         CompactionManager.instance.submitBackground(cfs);
 
         long dTime = System.currentTimeMillis() - startTime;
         long startsize = SSTable.getTotalBytes(toCompact);
-        long endsize = ssTable.length();
+        long endsize = SSTable.getTotalBytes(sstables);
         double ratio = (double)endsize / (double)startsize;
-        logger.info(String.format("Compacted to %s.  %,d to %,d (~%d%% of original) bytes for %,d keys.  Time: %,dms.",
-                ssTable.getFilename(), startsize, endsize, (int) (ratio * 100), totalkeysWritten, dTime));
+
+        StringBuilder builder = new StringBuilder();
+        builder.append("[");
+        for (SSTableReader reader : sstables)
+            builder.append(reader.getFilename()).append(",");
+        builder.append("]");
+
+        double mbps = dTime > 0 ? (double)endsize/(1024*1024)/((double)dTime/1000) : 0;
+        logger.info(String.format("Compacted to %s.  %,d to %,d (~%d%% of original) bytes for %,d keys at %fMBPS.  Time: %,dms.",
+                                  builder.toString(), startsize, endsize, (int) (ratio * 100), totalkeysWritten, mbps, dTime));
+        logger.info(String.format("CF Total Bytes Compacted: %,d", CompactionTask.addToTotalBytesCompacted(endsize)));
         return toCompact.size();
+    }
+
+    //extensibility point for other strategies that may want to limit the upper bounds of the sstable segment size
+    protected boolean newSSTableSegmentThresholdReached(SSTableWriter writer, long position)
+    {
+        return false;
+    }
+
+    /**
+     * extend this if the overridden compaction strategy requires single files to be compacted to function properly
+     * @return boolean
+     */
+    protected boolean allowSingletonCompaction()
+    {
+        return false;
     }
 
     public static long getMaxDataAge(Collection<SSTableReader> sstables)

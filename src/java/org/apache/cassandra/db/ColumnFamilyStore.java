@@ -35,11 +35,7 @@ import com.google.common.collect.Iterables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.cache.AutoSavingCache;
-import org.apache.cassandra.cache.AutoSavingKeyCache;
-import org.apache.cassandra.cache.AutoSavingRowCache;
-import org.apache.cassandra.cache.ConcurrentLinkedHashCache;
-import org.apache.cassandra.cache.ICache;
+import org.apache.cassandra.cache.*;
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.concurrent.StageManager;
@@ -49,17 +45,20 @@ import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.db.compaction.CompactionManager;
-import org.apache.cassandra.db.filter.*;
+import org.apache.cassandra.db.compaction.LeveledCompactionStrategy;
+import org.apache.cassandra.db.filter.IFilter;
+import org.apache.cassandra.db.filter.QueryFilter;
+import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.BytesType;
-import org.apache.cassandra.db.marshal.LocalByPartionerType;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.IndexClause;
 import org.apache.cassandra.utils.*;
+import org.apache.cassandra.utils.IntervalTree.Interval;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 public class ColumnFamilyStore implements ColumnFamilyStoreMBean
@@ -137,7 +136,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private volatile DefaultDouble memops;
     private volatile DefaultInteger rowCacheSaveInSeconds;
     private volatile DefaultInteger keyCacheSaveInSeconds;
-    private volatile DefaultInteger rowCacheKeysToSave; 
+    private volatile DefaultInteger rowCacheKeysToSave;
 
     /** Lock to allow migrations to block all flushing, so we can be sure not to write orphaned data files */
     public final Lock flushLock = new ReentrantLock();
@@ -173,7 +172,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public void reload()
     {
         // metadata object has been mutated directly. make all the members jibe with new settings.
-        
+
         // only update these runtime-modifiable settings if they have not been modified.
         if (!minCompactionThreshold.isModified())
             for (ColumnFamilyStore cfs : concatWithIndexes())
@@ -194,11 +193,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         if (!rowCacheKeysToSave.isModified())
             rowCacheKeysToSave = new DefaultInteger(metadata.getRowCacheKeysToSave());
 
+        compactionStrategy.shutdown();
         compactionStrategy = metadata.createCompactionStrategyInstance(this);
 
         updateCacheSizes();
         scheduleCacheSaving(rowCacheSaveInSeconds.value(), keyCacheSaveInSeconds.value(), rowCacheKeysToSave.value());
-        
+
         indexManager.reload();
     }
 
@@ -206,11 +206,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         assert metadata != null : "null metadata for " + table + ":" + columnFamilyName;
         this.table = table;
-        columnFamily = columnFamilyName; 
+        columnFamily = columnFamilyName;
         this.metadata = metadata;
         this.minCompactionThreshold = new DefaultInteger(metadata.getMinCompactionThreshold());
         this.maxCompactionThreshold = new DefaultInteger(metadata.getMaxCompactionThreshold());
-        this.compactionStrategy = metadata.createCompactionStrategyInstance(this);
         this.memsize = new DefaultInteger(metadata.getMemtableThroughputInMb());
         this.memops = new DefaultDouble(metadata.getMemtableOperationsInMillions());
         this.rowCacheSaveInSeconds = new DefaultInteger(metadata.getRowCacheSavePeriodInSeconds());
@@ -240,6 +239,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 sstables.add(reader);
         }
         data.addSSTables(sstables);
+
+        // compaction strategy should be created after the CFS has been prepared
+        this.compactionStrategy = metadata.createCompactionStrategyInstance(this);
 
         // create the private ColumnFamilyStores for the secondary column indexes
         for (ColumnDefinition info : metadata.getColumn_metadata().values())
@@ -337,7 +339,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         return new ColumnFamilyStore(table, columnFamily, partitioner, value, metadata);
     }
-    
+
     /**
      * Removes unnecessary files from the cf directory at startup: these include temp files, orphans, zero-length files
      * and compacted sstables. Files that cannot be recognized will be ignored.
@@ -395,7 +397,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     if (!file.delete())
                         logger.warn("could not delete " + file.getAbsolutePath());
         }
-        
+
         // also clean out any index leftovers.
         CFMetaData cfm = Schema.instance.getCFMetaData(table, columnFamily);
         if (cfm != null) // secondary indexes aren't stored in DD.
@@ -886,12 +888,21 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public boolean isKeyInRemainingSSTables(DecoratedKey key, Set<? extends SSTable> sstablesToIgnore)
     {
-        for (SSTableReader sstable : data.getSSTables())
+        DataTracker.View currentView = markCurrentViewReferenced();
+        try
         {
-            if (!sstablesToIgnore.contains(sstable) && sstable.getBloomFilter().isPresent(key.key))
-                return true;
+            List<SSTableReader> filteredSSTables = currentView.intervalTree.search(new Interval(key, key));
+            for (SSTableReader sstable : filteredSSTables)
+            {
+                if (!sstablesToIgnore.contains(sstable) && sstable.getBloomFilter().isPresent(key.key))
+                    return true;
+            }
+            return false;
         }
-        return false;
+        finally
+        {
+            SSTableReader.releaseReferences(currentView.sstables);
+        }
     }
 
     /*
@@ -983,7 +994,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public void removeAllSSTables()
     {
         data.removeAllSSTables();
-        indexManager.removeAllIndexes();    
+        indexManager.removeAllIndexes();
     }
 
     public long getMemtableColumnsCount()
@@ -1177,7 +1188,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             ColumnFamily cached = cacheRow(filter.key);
             if (cached == null)
                 return null;
- 
+
             return filterColumnFamily(cached, filter, gcBefore);
         }
         finally
@@ -1219,7 +1230,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     // top-level columns
                     if (sliceFilter.count >= cached.getColumnCount())
                     {
-                        removeDeletedColumnsOnly(cached, gcBefore);                    
+                        removeDeletedColumnsOnly(cached, gcBefore);
                         return removeDeletedCF(cached, gcBefore);
                     }
                 }
@@ -1279,12 +1290,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         DataTracker.View currentView = markCurrentViewReferenced();
         try
         {
-            CollationController controller = new CollationController(currentView, factory, filter, metadata, gcBefore);
-            ColumnFamily columns = controller.getTopLevelColumns();
-            recentSSTablesPerRead.add(controller.getSstablesIterated());
-            sstablesPerRead.add(controller.getSstablesIterated());
-            return columns;
-        }
+        CollationController controller = new CollationController(currentView, factory, filter, metadata, gcBefore);
+        ColumnFamily columns = controller.getTopLevelColumns();
+        recentSSTablesPerRead.add(controller.getSstablesIterated());
+        sstablesPerRead.add(controller.getSstablesIterated());
+        return columns;
+    }
         finally
         {
             SSTableReader.releaseReferences(currentView.sstables);
@@ -1293,7 +1304,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     /**
       * Fetch a range of rows and columns from memtables/sstables.
-      * 
+      *
       * @param superColumn optional SuperColumn to slice subcolumns of; null to slice top-level columns
       * @param range Either a Bounds, which includes start key, or a Range, which does not.
       * @param maxResults Maximum rows to return
@@ -1321,6 +1332,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             memtables.addAll(currentView.memtablesPendingFlush);
             // It is fine to aliases the View.sstables since it's an unmodifiable collection
             Collection<SSTableReader> sstables = currentView.sstables;
+
+            Comparable startWithComp = startWith;
+            Comparable stopAtComp = stopAt;
+            if (startWith.token.equals(partitioner.getMinimumToken()))
+                startWithComp = currentView.intervalTree.min;
+            if (stopAt.token.equals(partitioner.getMinimumToken()))
+                stopAtComp = currentView.intervalTree.max;
+            sstables = currentView.intervalTree.search(new Interval(startWithComp, stopAtComp));
 
             CloseableIterator<Row> iterator = RowIteratorFactory.getIterator(memtables, sstables, startWith, stopAt, filter, getComparator(), this);
             List<Row> rows = new ArrayList<Row>();
@@ -1373,12 +1392,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             SSTableReader.releaseReferences(currentView.sstables);
         }
     }
-    
+
     public List<Row> search(IndexClause clause, AbstractBounds range, IFilter dataFilter)
     {
         return indexManager.search(clause, range, dataFilter);
     }
-  
+
     public AbstractType getComparator()
     {
         return metadata.comparator;
@@ -1421,8 +1440,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     /**
      * Take a snap shot of this columnfamily store.
-     * 
-     * @param snapshotName the name of the associated with the snapshot 
+     *
+     * @param snapshotName the name of the associated with the snapshot
      */
     public void snapshot(String snapshotName)
     {
@@ -1677,7 +1696,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return data.getRecentBloomFilterFalseRatio();
     }
 
-   
+
 
     @Override
     public String toString()
@@ -1715,7 +1734,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         return minCompactionThreshold.value();
     }
-    
+
     public void setMinimumCompactionThreshold(int minCompactionThreshold)
     {
         if ((minCompactionThreshold > this.maxCompactionThreshold.value()) && this.maxCompactionThreshold.value() != 0)
@@ -1937,5 +1956,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
 
         return reader;
+    }
+
+    public int getUnleveledSSTables()
+    {
+        return this.compactionStrategy instanceof LeveledCompactionStrategy
+               ? ((LeveledCompactionStrategy) this.compactionStrategy).getLevelSize(0)
+               : 0;
     }
 }
