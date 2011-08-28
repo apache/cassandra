@@ -382,8 +382,8 @@ useKeyspace
 
 
 keyValuePairExpr
-    : objectName ( (AND | WITH) keyValuePair )* 
-        -> ^(NODE_NEW_KEYSPACE_ACCESS objectName ( keyValuePair )* )
+    : entityName ( (AND | WITH) keyValuePair )*
+        -> ^(NODE_NEW_KEYSPACE_ACCESS entityName ( keyValuePair )* )
     ;
             
 keyValuePair 
@@ -423,12 +423,12 @@ columnFamilyExpr
     ;
 
 keyRangeExpr
-    :    '[' ( startKey? ':' endKey? )? ']'
-      -> ^(NODE_KEY_RANGE startKey? endKey?)
+    :    '[' ( startKey=entityName? ':' endKey=entityName? )? ']'
+      -> ^(NODE_KEY_RANGE $startKey? $endKey?)
     ;
 
 columnName
-	: (StringLiteral | Identifier | IntegerPositiveLiteral | IntegerNegativeLiteral)
+	: entityName
 	;
 
 attr_name
@@ -448,12 +448,8 @@ attrValueDouble
 	: DoubleLiteral
 	;
   
-objectName
-	: Identifier
-	;
-
 keyspace
-	: Identifier
+	: entityName
 	;
 
 replica_placement_strategy
@@ -461,7 +457,7 @@ replica_placement_strategy
 	;
 
 keyspaceNewName
-	: Identifier
+	: entityName
 	;
 
 comparator
@@ -472,7 +468,7 @@ command	: Identifier
 	;
 
 newColumnFamily
-	: Identifier
+	: entityName
 	;
 
 username: Identifier
@@ -482,8 +478,12 @@ password: StringLiteral
 	;
 
 columnFamily
-	: Identifier
-	;
+  : entityName
+  ;
+
+entityName
+  : (Identifier | StringLiteral | IntegerPositiveLiteral | IntegerNegativeLiteral)
+  ;
 
 rowKey	
     :  (Identifier | StringLiteral | IntegerPositiveLiteral | IntegerNegativeLiteral | functionCall)
@@ -501,14 +501,6 @@ functionCall
 functionArgument 
     : Identifier | StringLiteral | IntegerPositiveLiteral | IntegerNegativeLiteral
     ;
-
-startKey
-    : (Identifier | StringLiteral)
-	;
-
-endKey	
-    : (Identifier | StringLiteral)
-	;
 
 columnOrSuperColumn
 	: (Identifier | IntegerPositiveLiteral | IntegerNegativeLiteral | StringLiteral | functionCall)
