@@ -56,17 +56,19 @@ import org.apache.cassandra.utils.Mx4jTool;
  */
 public abstract class AbstractCassandraDaemon implements CassandraDaemon
 {
-    //Initialize logging in such a way that it checks for config changes every 10 seconds.
-    static
+    /**
+     * Initialize logging in such a way that it checks for config changes every 10 seconds.
+     */
+    public static void initLog4j()
     {
         String config = System.getProperty("log4j.configuration", "log4j-server.properties");
         URL configLocation = null;
-        try 
+        try
         {
             // try loading from a physical location first.
             configLocation = new URL(config);
         }
-        catch (MalformedURLException ex) 
+        catch (MalformedURLException ex)
         {
             // then try loading from the classpath.
             configLocation = AbstractCassandraDaemon.class.getClassLoader().getResource(config);

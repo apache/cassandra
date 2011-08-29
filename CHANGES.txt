@@ -81,6 +81,7 @@
  * remove gossip state when a new IP takes over a token (CASSANDRA-3071)
  * allow sstable2json to work on index sstable files (CASSANDRA-3059)
  * always hint counters (CASSANDRA-3099)
+ * fix log4j initialization in EmbeddedCassandraService (CASSANDRA-2857)
 
 
 0.8.4

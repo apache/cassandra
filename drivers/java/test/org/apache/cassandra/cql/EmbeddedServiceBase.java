@@ -28,6 +28,7 @@ import java.net.UnknownHostException;
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.*;
+import org.apache.cassandra.service.AbstractCassandraDaemon;
 import org.apache.cassandra.service.EmbeddedCassandraService;
 import org.junit.BeforeClass;
 
@@ -39,7 +40,12 @@ public abstract class EmbeddedServiceBase
     /** The embedded server cassandra. */
     private static EmbeddedCassandraService cassandra;
 
-    @BeforeClass 
+    static
+    {
+        AbstractCassandraDaemon.initLog4j();
+    }
+
+    @BeforeClass
     public static void cleanUpOldStuff() throws IOException
     {
         CleanupHelper.cleanupAndLeaveDirs();
