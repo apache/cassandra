@@ -20,12 +20,14 @@ package org.apache.cassandra.io.util;
 
 import java.io.*;
 import java.text.DecimalFormat;
-import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.WrappedRunnable;
 
 
 public class FileUtils
@@ -165,6 +167,18 @@ public class FileUtils
         {
             file.delete();
         }
+    }
+
+    public static void deleteAsync(final String file)
+    {
+        Runnable runnable = new WrappedRunnable()
+        {
+            protected void runMayThrow() throws IOException
+            {
+                deleteWithConfirm(new File(file));
+            }
+        };
+        StorageService.tasks.execute(runnable);
     }
 
     public static String stringifyFileSize(double value)

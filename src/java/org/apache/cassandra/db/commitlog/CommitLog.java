@@ -42,7 +42,6 @@ import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.io.DeletionService;
 import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -486,7 +485,7 @@ public class CommitLog implements CommitLogMBean
         {
             logger.info("Discarding obsolete commit log:" + segment);
             segment.close();
-            DeletionService.executeDelete(segment.getPath());
+            FileUtils.deleteAsync(segment.getPath());
             // usually this will be the first (remaining) segment, but not always, if segment A contains
             // writes to a CF that is unflushed but is followed by segment B whose CFs are all flushed.
             iter.remove();

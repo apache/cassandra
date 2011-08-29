@@ -46,7 +46,6 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.gms.*;
-import org.apache.cassandra.io.DeletionService;
 import org.apache.cassandra.io.sstable.SSTableDeletingTask;
 import org.apache.cassandra.io.sstable.SSTableLoader;
 import org.apache.cassandra.io.util.FileUtils;
@@ -427,6 +426,11 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                     }
                 }
                 FBUtilities.waitOnFutures(flushes);
+
+                // wait for miscellaneous tasks like sstable and commitlog segment deletion
+                tasks.shutdown();
+                if (!tasks.awaitTermination(1, TimeUnit.MINUTES))
+                    logger_.warn("Miscellaneous task executor still busy after one minute; proceeding with shutdown");
             }
         });
         Runtime.getRuntime().addShutdownHook(drainOnShutdown);
@@ -2270,8 +2274,10 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
         CommitLog.instance.shutdownBlocking();
 
-        // want to make sure that any segments deleted as a result of flushing are gone.
-        DeletionService.waitFor();
+        // wait for miscellaneous tasks like sstable and commitlog segment deletion
+        tasks.shutdown();
+        if (!tasks.awaitTermination(1, TimeUnit.MINUTES))
+            logger_.warn("Miscellaneous task executor still busy after one minute; proceeding with shutdown");
 
         setMode("Node is drained", true);
     }
