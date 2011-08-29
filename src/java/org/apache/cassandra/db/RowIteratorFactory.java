@@ -61,14 +61,13 @@ public class RowIteratorFactory
      * @param comparator
      * @return A row iterator following all the given restrictions
      */
-    public static CloseableIterator<Row> getIterator(final Collection<Memtable> memtables,
+    public static CloseableIterator<Row> getIterator(final Iterable<Memtable> memtables,
                                           final Collection<SSTableReader> sstables,
                                           final DecoratedKey startWith,
                                           final DecoratedKey stopAt,
                                           final QueryFilter filter,
                                           final AbstractType comparator,
-                                          final ColumnFamilyStore cfs
-    )
+                                          final ColumnFamilyStore cfs)
     {
         // fetch data from current memtable, historical memtables, and SSTables in the correct order.
         final List<CloseableIterator<IColumnIterator>> iterators = new ArrayList<CloseableIterator<IColumnIterator>>();

@@ -1270,6 +1270,48 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return markCurrentViewReferenced().sstables;
     }
 
+    /**
+     * @return a ViewFragment containing the sstables and memtables that may need to be merged
+     * for the given @param key, according to the interval tree
+     */
+    public ViewFragment markReferenced(DecoratedKey key)
+    {
+        assert !key.isEmpty();
+        DataTracker.View view;
+        List<SSTableReader> sstables;
+        while (true)
+        {
+            view = data.getView();
+            sstables = view.intervalTree.search(new Interval(key, key));
+            if (SSTableReader.acquireReferences(sstables))
+                break;
+            // retry w/ new view
+        }
+        return new ViewFragment(sstables, Iterables.concat(Collections.singleton(view.memtable), view.memtablesPendingFlush));
+    }
+
+    /**
+     * @return a ViewFragment containing the sstables and memtables that may need to be merged
+     * for rows between @param startWith and @param stopAt, inclusive, according to the interval tree
+     */
+    public ViewFragment markReferenced(DecoratedKey startWith, DecoratedKey stopAt)
+    {
+        DataTracker.View view;
+        List<SSTableReader> sstables;
+        while (true)
+        {
+            view = data.getView();
+            // startAt == minimum is ok, but stopAt == minimum is confusing because all IntervalTree deals with
+            // is Comparable, so it won't know to special-case that.
+            Comparable stopInTree = stopAt.isEmpty() ? view.intervalTree.max : stopAt;
+            sstables = view.intervalTree.search(new Interval(startWith, stopInTree));
+            if (SSTableReader.acquireReferences(sstables))
+                break;
+            // retry w/ new view
+        }
+        return new ViewFragment(sstables, Iterables.concat(Collections.singleton(view.memtable), view.memtablesPendingFlush));
+    }
+
     private ColumnFamily getTopLevelColumns(QueryFilter filter, int gcBefore, ISortedColumns.Factory factory)
     {
         CollationController controller = new CollationController(this, factory, filter, gcBefore);
@@ -1301,25 +1343,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         QueryFilter filter = new QueryFilter(null, new QueryPath(columnFamily, superColumn, null), columnFilter);
         int gcBefore = (int)(System.currentTimeMillis() / 1000) - metadata.getGcGraceSeconds();
 
-        DataTracker.View currentView = markCurrentViewReferenced();
+        List<Row> rows;
+        ViewFragment view = markReferenced(startWith, stopAt);
         try
         {
-            Collection<Memtable> memtables = new ArrayList<Memtable>();
-            memtables.add(currentView.memtable);
-            memtables.addAll(currentView.memtablesPendingFlush);
-            // It is fine to aliases the View.sstables since it's an unmodifiable collection
-            Collection<SSTableReader> sstables = currentView.sstables;
-
-            Comparable startWithComp = startWith;
-            Comparable stopAtComp = stopAt;
-            if (startWith.token.equals(partitioner.getMinimumToken()))
-                startWithComp = currentView.intervalTree.min;
-            if (stopAt.token.equals(partitioner.getMinimumToken()))
-                stopAtComp = currentView.intervalTree.max;
-            sstables = currentView.intervalTree.search(new Interval(startWithComp, stopAtComp));
-
-            CloseableIterator<Row> iterator = RowIteratorFactory.getIterator(memtables, sstables, startWith, stopAt, filter, getComparator(), this);
-            List<Row> rows = new ArrayList<Row>();
+            CloseableIterator<Row> iterator = RowIteratorFactory.getIterator(view.memtables, view.sstables, startWith, stopAt, filter, getComparator(), this);
+            rows = new ArrayList<Row>();
 
             try
             {
@@ -1361,13 +1390,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     throw new IOError(e);
                 }
             }
-
-            return rows;
         }
         finally
         {
-            SSTableReader.releaseReferences(currentView.sstables);
+            // separate finally block to release references in case getIterator() throws
+            SSTableReader.releaseReferences(view.sstables);
         }
+
+        return rows;
     }
 
     public List<Row> search(IndexClause clause, AbstractBounds range, IFilter dataFilter)
@@ -1940,5 +1970,17 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return this.compactionStrategy instanceof LeveledCompactionStrategy
                ? ((LeveledCompactionStrategy) this.compactionStrategy).getLevelSize(0)
                : 0;
+    }
+
+    public static class ViewFragment
+    {
+        public final List<SSTableReader> sstables;
+        public final Iterable<Memtable> memtables;
+
+        public ViewFragment(List<SSTableReader> sstables, Iterable<Memtable> memtables)
+        {
+            this.sstables = sstables;
+            this.memtables = memtables;
+        }
     }
 }
