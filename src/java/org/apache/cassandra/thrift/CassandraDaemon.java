@@ -26,6 +26,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.cassandra.service.AbstractCassandraDaemon;
 import org.apache.thrift.server.TNonblockingServer;
 import org.apache.thrift.server.TThreadPoolServer;
 import org.slf4j.Logger;
@@ -53,6 +54,11 @@ import org.apache.thrift.transport.TTransportFactory;
 
 public class CassandraDaemon extends org.apache.cassandra.service.AbstractCassandraDaemon
 {
+    static
+    {
+        AbstractCassandraDaemon.initLog4j();
+    }
+
     private static Logger logger = LoggerFactory.getLogger(CassandraDaemon.class);
     private final static String SYNC = "sync";
     private final static String ASYNC = "async";
