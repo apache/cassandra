@@ -170,7 +170,7 @@ public class CliTest extends CleanupHelper
         "help help",
         "help connect",
         "help use",
-        "help describe KEYSPACE",
+        "help describe",
         "HELP exit",
         "help QUIT",
         "help show cluster name",

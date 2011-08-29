@@ -35,7 +35,7 @@ tokens {
     // various top-level CLI statements.
     //
     NODE_CONNECT;
-    NODE_DESCRIBE_TABLE;
+    NODE_DESCRIBE;
     NODE_DESCRIBE_CLUSTER;
     NODE_USE_TABLE;
     NODE_EXIT;
@@ -180,8 +180,8 @@ helpStatement
         -> ^(NODE_HELP NODE_CONNECT)
     | HELP USE 
         -> ^(NODE_HELP NODE_USE_TABLE)
-    | HELP DESCRIBE KEYSPACE 
-        -> ^(NODE_HELP NODE_DESCRIBE_TABLE)
+    | HELP DESCRIBE
+        -> ^(NODE_HELP NODE_DESCRIBE)
     | HELP DESCRIBE 'CLUSTER'
         -> ^(NODE_HELP NODE_DESCRIBE_CLUSTER)
     | HELP EXIT 
@@ -366,8 +366,8 @@ showSchema
     ;
 
 describeTable
-    : DESCRIBE KEYSPACE (keyspace)?
-        -> ^(NODE_DESCRIBE_TABLE (keyspace)?)
+    : DESCRIBE (keyspace)?
+        -> ^(NODE_DESCRIBE (keyspace)?)
     ;
     
 describeCluster

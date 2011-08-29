@@ -250,8 +250,8 @@ public class CliClient
                 case CliParser.NODE_SHOW_SCHEMA:
                     executeShowSchema(tree);
                     break;
-                case CliParser.NODE_DESCRIBE_TABLE:
-                    executeDescribeKeySpace(tree);
+                case CliParser.NODE_DESCRIBE:
+                    executeDescribe(tree);
                     break;
                 case CliParser.NODE_DESCRIBE_CLUSTER:
                     executeDescribeCluster();
@@ -1857,92 +1857,10 @@ public class CliClient
 
             sessionState.out.println("  Column Families:");
 
-            boolean isSuper;
-
             Collections.sort(ks_def.cf_defs, new CfDefNamesComparator());
+
             for (CfDef cf_def : ks_def.cf_defs)
-            {
-                // fetching bean for current column family store
-                ColumnFamilyStoreMBean cfMBean = (probe == null) ? null : probe.getCfsProxy(ks_def.getName(), cf_def.getName());
-
-                isSuper = cf_def.column_type.equals("Super");
-                sessionState.out.printf("    ColumnFamily: %s%s%n", cf_def.name, isSuper ? " (Super)" : "");
-
-                if (cf_def.comment != null && !cf_def.comment.isEmpty())
-                {
-                    sessionState.out.printf("    \"%s\"%n", cf_def.comment);
-                }
-                if (cf_def.key_validation_class != null)
-                    sessionState.out.printf("      Key Validation Class: %s%n", cf_def.key_validation_class);
-                if (cf_def.default_validation_class != null)
-                    sessionState.out.printf("      Default column value validator: %s%n", cf_def.default_validation_class);
-                sessionState.out.printf("      Columns sorted by: %s%s%n", cf_def.comparator_type, cf_def.column_type.equals("Super") ? "/" + cf_def.subcomparator_type : "");
-                sessionState.out.printf("      Row cache size / save period in seconds / keys to save : %s/%s/%s%n",
-                                        cf_def.row_cache_size, cf_def.row_cache_save_period_in_seconds,
-                                        cf_def.row_cache_keys_to_save == Integer.MAX_VALUE ? "all" : cf_def.row_cache_keys_to_save);
-                sessionState.out.printf("      Key cache size / save period in seconds: %s/%s%n", cf_def.key_cache_size, cf_def.key_cache_save_period_in_seconds);
-                sessionState.out.printf("      Memtable thresholds: %s/%s (millions of ops/MB)%n",
-                                cf_def.memtable_operations_in_millions, cf_def.memtable_throughput_in_mb);
-                sessionState.out.printf("      GC grace seconds: %s%n", cf_def.gc_grace_seconds);
-                sessionState.out.printf("      Compaction min/max thresholds: %s/%s%n", cf_def.min_compaction_threshold, cf_def.max_compaction_threshold);
-                sessionState.out.printf("      Read repair chance: %s%n", cf_def.read_repair_chance);
-                sessionState.out.printf("      Replicate on write: %s%n", cf_def.replicate_on_write);
-                sessionState.out.printf("      Compression enabled: %s%n", cf_def.compression);
-
-                // if we have connection to the cfMBean established
-                if (cfMBean != null)
-                {
-                    sessionState.out.printf("      Built indexes: %s%n", cfMBean.getBuiltIndexes());
-                }
-
-                if (cf_def.getColumn_metadataSize() != 0)
-                {
-                    String leftSpace = "      ";
-                    String columnLeftSpace = leftSpace + "    ";
-
-                    String compareWith = isSuper ? cf_def.subcomparator_type
-                                                                                      : cf_def.comparator_type;
-                    AbstractType columnNameValidator = getFormatType(compareWith);
-
-                    sessionState.out.println(leftSpace + "Column Metadata:");
-                    for (ColumnDef columnDef : cf_def.getColumn_metadata())
-                    {
-                        String columnName = columnNameValidator.getString(columnDef.name);
-                        if (columnNameValidator instanceof BytesType)
-                        {
-                            try
-                            {
-                                String columnString = UTF8Type.instance.getString(columnDef.name);
-                                columnName = columnString + " (" + columnName + ")";
-                            }
-                            catch (MarshalException e)
-                            {
-                                // guess it wasn't a utf8 column name after all
-                            }
-                        }
-
-                        sessionState.out.println(leftSpace + "  Column Name: " + columnName);
-                        sessionState.out.println(columnLeftSpace + "Validation Class: " + columnDef.getValidation_class());
-
-                        if (columnDef.isSetIndex_name())
-                        {
-                            sessionState.out.println(columnLeftSpace + "Index Name: " + columnDef.getIndex_name());
-                        }
-
-                        if (columnDef.isSetIndex_type())
-                        {
-                            sessionState.out.println(columnLeftSpace + "Index Type: " + columnDef.getIndex_type().name());
-                        }
-                    }
-                }
-                sessionState.out.printf("      Compaction Strategy: %s%n", cf_def.compaction_strategy);
-                if (!cf_def.compaction_strategy_options.isEmpty())
-                {
-                    sessionState.out.println("      Compaction Strategy Options:");
-                    for (Map.Entry<String, String> e : cf_def.compaction_strategy_options.entrySet())
-                        sessionState.out.printf("        %s: %s%n", e.getKey(), e.getValue());
-                }
-            }
+                describeColumnFamily(ks_def, cf_def, probe);
 
             // compaction manager information
             if (compactionManagerMBean != null)
@@ -1977,34 +1895,151 @@ public class CliClient
         }
     }
 
-    // DESCRIBE KEYSPACE (<keyspace_name>)?
-    private void executeDescribeKeySpace(Tree statement) throws TException, InvalidRequestException
+    private void describeColumnFamily(KsDef ks_def, CfDef cf_def, NodeProbe probe) throws TException
+    {
+        // fetching bean for current column family store
+        ColumnFamilyStoreMBean cfMBean = (probe == null) ? null : probe.getCfsProxy(ks_def.getName(), cf_def.getName());
+
+        boolean isSuper = cf_def.column_type.equals("Super");
+        sessionState.out.printf("    ColumnFamily: %s%s%n", cf_def.name, isSuper ? " (Super)" : "");
+
+        if (cf_def.comment != null && !cf_def.comment.isEmpty())
+            sessionState.out.printf("    \"%s\"%n", cf_def.comment);
+
+        if (cf_def.key_validation_class != null)
+            sessionState.out.printf("      Key Validation Class: %s%n", cf_def.key_validation_class);
+
+        if (cf_def.default_validation_class != null)
+            sessionState.out.printf("      Default column value validator: %s%n", cf_def.default_validation_class);
+
+        sessionState.out.printf("      Columns sorted by: %s%s%n", cf_def.comparator_type, cf_def.column_type.equals("Super") ? "/" + cf_def.subcomparator_type : "");
+        sessionState.out.printf("      Row cache size / save period in seconds / keys to save : %s/%s/%s%n",
+                cf_def.row_cache_size, cf_def.row_cache_save_period_in_seconds,
+                cf_def.row_cache_keys_to_save == Integer.MAX_VALUE ? "all" : cf_def.row_cache_keys_to_save);
+        sessionState.out.printf("      Key cache size / save period in seconds: %s/%s%n", cf_def.key_cache_size, cf_def.key_cache_save_period_in_seconds);
+        sessionState.out.printf("      Memtable thresholds: %s/%s (millions of ops/MB)%n",
+                cf_def.memtable_operations_in_millions, cf_def.memtable_throughput_in_mb);
+        sessionState.out.printf("      GC grace seconds: %s%n", cf_def.gc_grace_seconds);
+        sessionState.out.printf("      Compaction min/max thresholds: %s/%s%n", cf_def.min_compaction_threshold, cf_def.max_compaction_threshold);
+        sessionState.out.printf("      Read repair chance: %s%n", cf_def.read_repair_chance);
+        sessionState.out.printf("      Replicate on write: %s%n", cf_def.replicate_on_write);
+        sessionState.out.printf("      Compression enabled: %s%n", cf_def.compression);
+
+        // if we have connection to the cfMBean established
+        if (cfMBean != null)
+            sessionState.out.printf("      Built indexes: %s%n", cfMBean.getBuiltIndexes());
+
+        if (cf_def.getColumn_metadataSize() != 0)
+        {
+            String leftSpace = "      ";
+            String columnLeftSpace = leftSpace + "    ";
+
+            String compareWith = isSuper ? cf_def.subcomparator_type
+                    : cf_def.comparator_type;
+            AbstractType columnNameValidator = getFormatType(compareWith);
+
+            sessionState.out.println(leftSpace + "Column Metadata:");
+            for (ColumnDef columnDef : cf_def.getColumn_metadata())
+            {
+                String columnName = columnNameValidator.getString(columnDef.name);
+                if (columnNameValidator instanceof BytesType)
+                {
+                    try
+                    {
+                        String columnString = UTF8Type.instance.getString(columnDef.name);
+                        columnName = columnString + " (" + columnName + ")";
+                    }
+                    catch (MarshalException e)
+                    {
+                        // guess it wasn't a utf8 column name after all
+                    }
+                }
+
+                sessionState.out.println(leftSpace + "  Column Name: " + columnName);
+                sessionState.out.println(columnLeftSpace + "Validation Class: " + columnDef.getValidation_class());
+
+                if (columnDef.isSetIndex_name())
+                    sessionState.out.println(columnLeftSpace + "Index Name: " + columnDef.getIndex_name());
+
+                if (columnDef.isSetIndex_type())
+                    sessionState.out.println(columnLeftSpace + "Index Type: " + columnDef.getIndex_type().name());
+            }
+        }
+
+        sessionState.out.printf("      Compaction Strategy: %s%n", cf_def.compaction_strategy);
+
+        if (!cf_def.compaction_strategy_options.isEmpty())
+        {
+            sessionState.out.println("      Compaction Strategy Options:");
+            for (Map.Entry<String, String> e : cf_def.compaction_strategy_options.entrySet())
+                sessionState.out.printf("        %s: %s%n", e.getKey(), e.getValue());
+        }
+    }
+
+    // DESCRIBE KEYSPACE (<keyspace> | <column_family>)?
+    private void executeDescribe(Tree statement) throws TException, InvalidRequestException
     {
         if (!CliMain.isConnected())
             return;
 
+        int argCount = statement.getChildCount();
 
-        String keySpaceName;
+        KsDef currentKeySpace = keyspacesMap.get(keySpace);
 
-        // Get keyspace name
-        if (statement.getChildCount() == 0)
-        {
-            // trying to use current keyspace if keyspace name was not given
-            keySpaceName = keySpace;
-        }
-        else
-        {
-            // we have keyspace name as an argument
-            keySpaceName = CliCompiler.getKeySpace(statement, thriftClient.describe_keyspaces());
-        }
+        if (argCount > 1) // in case somebody changes Cli grammar
+            throw new RuntimeException("`describe` command take maximum one argument. See `help describe;`");
 
-        if (keySpaceName == null)
+        if (argCount == 0)
         {
-            sessionState.out.println("Keyspace argument required if you are not authorized in any keyspace.");
-            return;
+            if (currentKeySpace != null)
+            {
+                describeKeySpace(currentKeySpace.name, null);
+                return;
+            }
+
+            sessionState.out.println("Authenticate to a Keyspace, before using `describe` or `describe <column_family>`");
         }
-        
-        describeKeySpace(keySpaceName, null);
+        else if (argCount == 1)
+        {
+            // name of the keyspace or ColumnFamily
+            String entityName = statement.getChild(0).getText();
+
+            KsDef inputKsDef = CliUtils.getKeySpaceDef(entityName, thriftClient.describe_keyspaces());
+
+            if (inputKsDef == null && currentKeySpace == null)
+                throw new RuntimeException(String.format("Keyspace with name '%s' wasn't found, " +
+                                                         "to lookup ColumnFamily with that name, please, authorize to one " +
+                                                         "of the keyspaces first.", entityName));
+
+            CfDef inputCfDef = (inputKsDef == null)
+                    ? getCfDef(currentKeySpace, entityName)
+                    : null;  // no need to lookup CfDef if we know that it was keyspace
+
+            if (inputKsDef != null)
+            {
+                describeKeySpace(inputKsDef.name, inputKsDef);
+            }
+            else if (inputCfDef != null)
+            {
+                NodeProbe probe = sessionState.getNodeProbe();
+
+                try
+                {
+                    describeColumnFamily(currentKeySpace, inputCfDef, probe);
+
+                    if (probe != null)
+                        probe.close();
+                }
+                catch (IOException e)
+                {
+                    sessionState.out.println("Error while closing JMX connection: " + e.getMessage());
+                }
+            }
+            else
+            {
+                sessionState.out.println("Sorry, no Keyspace nor ColumnFamily was found with name: " + entityName);
+            }
+        }
     }
 
     // ^(NODE_DESCRIBE_CLUSTER) or describe: schema_versions, partitioner, snitch

@@ -1,6 +1,7 @@
 package org.apache.cassandra.cli;
 
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
 
 import org.apache.cassandra.thrift.CfDef;
@@ -95,5 +96,26 @@ public class CliUtils
         }
 
         return names;
+    }
+
+    /**
+     * Parse the statement from cli and return KsDef
+     *
+     * @param keyspaceName - name of the keyspace to lookup
+     * @param keyspaces - List of known keyspaces
+     *
+     * @return metadata about keyspace or null
+     */
+    public static KsDef getKeySpaceDef(String keyspaceName, List<KsDef> keyspaces)
+    {
+        keyspaceName = keyspaceName.toUpperCase();
+
+        for (KsDef ksDef : keyspaces)
+        {
+            if (ksDef.name.toUpperCase().equals(keyspaceName))
+                return ksDef;
+        }
+
+        return null;
     }
 }

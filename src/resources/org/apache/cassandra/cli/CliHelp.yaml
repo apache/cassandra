@@ -41,7 +41,7 @@ help: |
     del                     Delete a column, super column or row.
     decr                    Decrements a counter column.
     describe cluster        Describe the cluster configuration.
-    describe keyspace       Describe a keyspace and it's column families.
+    describe                Describe a keyspace and it's column families or column family in current keyspace.
     drop column family      Remove a column family and it's data.
     drop keyspace           Remove a keyspace and it's data.
     drop index              Remove an existing index from specific column.
@@ -115,21 +115,24 @@ commands:
         Examples:
         use Keyspace1;
         use Keyspace1 user 'badpasswd';
-    - name: NODE_DESCRIBE_TABLE
+    - name: NODE_DESCRIBE
       help: |
-        describe keyspace;
-        describe keyspace <keyspace>;
+        describe;
+        describe <keyspace>;
+        describe <column_family>;
 
-        Describes the settings for the current or named keyspace, and the settings
-        for all column families in the keyspace.
+        Describes the settings for the current or named keyspace, or the settings
+        of the column family in the current authenticated keyspace.
 
         Optional Parameters:
         - keyspace: Name of the keyspace to describe.
+        - column_family: Name of the column family to describe.
 
         Examples:
-        describe keyspace;
-        describe keyspace Keyspace1;
-    - name: NODE_DESCRIBE_CLUSTER
+        describe; - Describes current authenticated keyspace
+        describe <keyspace>; - Describe this keyspace
+        describe <column_family>; - Describe the colum family in the current authenticated keyspace
+    - name:
       help: |
         describe cluster;
 
