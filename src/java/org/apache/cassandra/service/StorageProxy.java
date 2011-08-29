@@ -446,7 +446,8 @@ public class StorageProxy implements StorageProxyMBean
                 responseHandler.response(null);
 
                 // then send to replicas, if any
-                hintedEndpoints.removeAll(FBUtilities.getLocalAddress());
+                InetAddress local = FBUtilities.getLocalAddress();
+                hintedEndpoints.remove(local, local);
                 if (cm.shouldReplicateOnWrite() && !hintedEndpoints.isEmpty())
                 {
                     // We do the replication on another stage because it involves a read (see CM.makeReplicationMutation)
