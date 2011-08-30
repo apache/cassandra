@@ -44,6 +44,7 @@
  * fix ring cache compatibility when mixing pre-0.8.4 nodes with post-
    in the same cluster (CASSANDRA-3023)
  * Add validation that Keyspace names are case-insensitively unique (CASSANDRA-3066)
+ * catch invalid key_validation_class before instantiating UpdateColumnFamily (CASSANDRA-3102)
 
 0.8.4
  * include files-to-be-streamed in StreamInSession.getSources (CASSANDRA-2972)

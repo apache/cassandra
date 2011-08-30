@@ -567,6 +567,7 @@ public class ThriftValidation
             if (cfType == null)
                 throw new InvalidRequestException("invalid column type " + cf_def.column_type);
 
+            TypeParser.parse(cf_def.key_validation_class);
             TypeParser.parse(cf_def.comparator_type);
             TypeParser.parse(cf_def.subcomparator_type);
             TypeParser.parse(cf_def.default_validation_class);
