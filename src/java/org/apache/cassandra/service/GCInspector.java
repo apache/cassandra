@@ -103,6 +103,8 @@ public class GCInspector
 
             Long previousCount = gccounts.get(gc.getName());
             Long count = gc.getCollectionCount();
+            if (count == 0)
+                continue;
             if (previousCount == null)
                 previousCount = 0L;
             gccounts.put(gc.getName(), count);
