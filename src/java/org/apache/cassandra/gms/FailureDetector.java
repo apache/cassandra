@@ -21,6 +21,7 @@ package org.apache.cassandra.gms;
 import java.io.*;
 import java.lang.management.ManagementFactory;
 import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.*;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
@@ -41,6 +42,7 @@ import org.apache.cassandra.utils.FBUtilities;
  */
 public class FailureDetector implements IFailureDetector, FailureDetectorMBean
 {
+    public static final String MBEAN_NAME = "org.apache.cassandra.net:type=FailureDetector";
     public static final IFailureDetector instance = new FailureDetector();
     private static Logger logger_ = LoggerFactory.getLogger(FailureDetector.class);
     private static final int sampleSize_ = 1000;
@@ -56,7 +58,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
         try
         {
             MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
-            mbs.registerMBean(this, new ObjectName("org.apache.cassandra.net:type=FailureDetector"));
+            mbs.registerMBean(this, new ObjectName(MBEAN_NAME));
         }
         catch (Exception e)
         {
@@ -70,10 +72,36 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
         for (Map.Entry<InetAddress, EndpointState> entry : Gossiper.instance.endpointStateMap.entrySet())
         {
             sb.append(entry.getKey()).append("\n");
-            for (Map.Entry<ApplicationState, VersionedValue> state : entry.getValue().applicationState.entrySet())
-                sb.append("  ").append(state.getKey()).append(":").append(state.getValue().value).append("\n");
+            appendEndpointState(sb, entry.getValue());
         }
         return sb.toString();
+    }
+
+    public Map<String, String> getSimpleStates()
+    {
+        Map<String, String> nodesStatus = new HashMap<String, String>(Gossiper.instance.endpointStateMap.size());
+        for (Map.Entry<InetAddress, EndpointState> entry : Gossiper.instance.endpointStateMap.entrySet())
+        {
+            if (entry.getValue().isAlive())
+                nodesStatus.put(entry.getKey().toString(), "UP");
+            else
+                nodesStatus.put(entry.getKey().toString(), "DOWN");
+        }
+        return nodesStatus;
+    }
+
+    public String getEndpointState(String address) throws UnknownHostException
+    {
+        StringBuilder sb = new StringBuilder();
+        EndpointState endpointState = Gossiper.instance.getEndpointStateForEndpoint(InetAddress.getByName(address));
+        appendEndpointState(sb, endpointState);
+        return sb.toString();
+    }
+
+    private void appendEndpointState(StringBuilder sb, EndpointState endpointState)
+    {
+        for (Map.Entry<ApplicationState, VersionedValue> state : endpointState.applicationState.entrySet())
+            sb.append("  ").append(state.getKey()).append(":").append(state.getValue().value).append("\n");
     }
 
     /**

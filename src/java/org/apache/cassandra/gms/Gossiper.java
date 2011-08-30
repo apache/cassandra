@@ -21,10 +21,15 @@ package org.apache.cassandra.gms;
 import java.io.DataOutputStream;
 import java.io.IOError;
 import java.io.IOException;
+import java.lang.management.ManagementFactory;
 import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.*;
+
+import javax.management.MBeanServer;
+import javax.management.ObjectName;
 
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.db.SystemTable;
@@ -54,8 +59,10 @@ import org.apache.cassandra.service.StorageService;
  * of the three above mentioned messages updates the Failure Detector with the liveness information.
  */
 
-public class Gossiper implements IFailureDetectionEventListener
+public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 {
+    private static final String MBEAN_NAME = "org.apache.cassandra.net:type=Gossiper";
+
     private static final DebuggableScheduledThreadPoolExecutor executor = new DebuggableScheduledThreadPoolExecutor("GossipTasks");
 
     static final ApplicationState[] STATES = ApplicationState.values();
@@ -172,6 +179,17 @@ public class Gossiper implements IFailureDetectionEventListener
         FatClientTimeout = (long)(QUARANTINE_DELAY / 2);
         /* register with the Failure Detector for receiving Failure detector events */
         FailureDetector.instance.registerFailureDetectionEventListener(this);
+
+        // Register this instance with JMX
+        try
+        {
+            MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
+            mbs.registerMBean(this, new ObjectName(MBEAN_NAME));
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
     /**
@@ -1010,4 +1028,20 @@ public class Gossiper implements IFailureDetectionEventListener
             endpointStateMap.put(addr, localState);
         }
     }
+
+    public int getVersion(String address) throws UnknownHostException
+    {
+        return getVersion(InetAddress.getByName(address));
+    }
+
+    public long getEndpointDowntime(String address) throws UnknownHostException
+    {
+        return getEndpointDowntime(InetAddress.getByName(address));
+    }
+
+    public int getCurrentGenerationNumber(String address) throws UnknownHostException
+    {
+        return getCurrentGenerationNumber(InetAddress.getByName(address));
+    }
+
 }

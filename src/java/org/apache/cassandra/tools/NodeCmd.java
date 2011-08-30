@@ -80,7 +80,7 @@ public class NodeCmd
         SETCACHECAPACITY, GETCOMPACTIONTHRESHOLD, SETCOMPACTIONTHRESHOLD, NETSTATS, CFHISTOGRAMS,
         COMPACTIONSTATS, DISABLEGOSSIP, ENABLEGOSSIP, INVALIDATEKEYCACHE, INVALIDATEROWCACHE,
         DISABLETHRIFT, ENABLETHRIFT, STATUSTHRIFT, JOIN, SETCOMPACTIONTHROUGHPUT, GETENDPOINTS,
-        REFRESH
+        REFRESH, GOSSIPINFO
     }
 
     
@@ -107,6 +107,7 @@ public class NodeCmd
         addCmdHelp(header, "disablethrift", "Disable thrift server");
         addCmdHelp(header, "enablethrift", "Reenable thrift server");
         addCmdHelp(header, "statusthrift", "Status of thrift server");
+        addCmdHelp(header, "gossipinfo", "Shows the gossip information for the cluster");
 
         // One arg
         addCmdHelp(header, "netstats [host]", "Print network information on provided host (connecting node by default)");
@@ -706,12 +707,18 @@ public class NodeCmd
                 probe.loadNewSSTables(arguments[0], arguments[1]);
                 break;
 
+            case GOSSIPINFO : nodeCmd.printGossipInfo(System.out); break;
+
             default :
                 throw new RuntimeException("Unreachable code.");
 
         }
 
         System.exit(0);
+    }
+
+    private void printGossipInfo(PrintStream out) {
+        out.println(probe.getGossipInfo());
     }
 
     private static void badUse(String useStr)

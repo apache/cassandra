@@ -47,6 +47,7 @@
  * LeveledCompactionStrategy (CASSANDRA-1608, 3085)
  * Improvements of the CLI `describe` command (CASSANDRA-2630)
  * reduce window where dropped CF sstables may not be deleted (CASSANDRA-2942)
+ * Expose gossip/FD info to JMX (CASSANDRA-2806)
 
 
 0.8.5

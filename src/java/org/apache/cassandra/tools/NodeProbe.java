@@ -47,6 +47,8 @@ import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.CompactionManagerMBean;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.gms.FailureDetector;
+import org.apache.cassandra.gms.FailureDetectorMBean;
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.MessagingServiceMBean;
@@ -76,6 +78,7 @@ public class NodeProbe
     private RuntimeMXBean runtimeProxy;
     private StreamingServiceMBean streamProxy;
     public MessagingServiceMBean msProxy;
+    private FailureDetectorMBean fdProxy;
 
     /**
      * Creates a NodeProbe using the specified JMX host, port, username, and password.
@@ -150,6 +153,8 @@ public class NodeProbe
             streamProxy = JMX.newMBeanProxy(mbeanServerConn, name, StreamingServiceMBean.class);
             name = new ObjectName(CompactionManager.MBEAN_OBJECT_NAME);
             compactionProxy = JMX.newMBeanProxy(mbeanServerConn, name, CompactionManagerMBean.class);
+            name = new ObjectName(FailureDetector.MBEAN_NAME);
+            fdProxy = JMX.newMBeanProxy(mbeanServerConn, name, FailureDetectorMBean.class);
         } catch (MalformedObjectNameException e)
         {
             throw new RuntimeException(
@@ -595,6 +600,11 @@ public class NodeProbe
     public void loadNewSSTables(String ksName, String cfName)
     {
         ssProxy.loadNewSSTables(ksName, cfName);
+    }
+
+    public String getGossipInfo()
+    {
+        return fdProxy.getAllEndpointStates();
     }
 }
 
