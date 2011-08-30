@@ -713,4 +713,16 @@ public class ThriftValidation
         if (cf_def.isSetMemtable_operations_in_millions())
             DatabaseDescriptor.validateMemtableOperations(cf_def.memtable_operations_in_millions);
     }
+
+    public static void validateKeyspaceNotYetExisting(String newKsName) throws InvalidRequestException
+    {
+        // keyspace names must be unique case-insensitively because the keyspace name becomes the directory
+        // where we store CF sstables.  Names that differ only in case would thus cause problems on
+        // case-insensitive filesystems (NTFS, most installations of HFS+).
+        for (String ksName : DatabaseDescriptor.getTables())
+        {
+            if (ksName.equalsIgnoreCase(newKsName))
+                throw new InvalidRequestException("Keyspace names must be case-insensitively unique");
+        }
+    }
 }
