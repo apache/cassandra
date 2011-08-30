@@ -357,6 +357,7 @@ struct AuthenticationRequest {
 
 enum IndexType {
     KEYS,
+    CUSTOM
 }
 
 /* describes a column in a column family. */
@@ -364,7 +365,8 @@ struct ColumnDef {
     1: required binary name,
     2: required string validation_class,
     3: optional IndexType index_type,
-    4: optional string index_name
+    4: optional string index_name,
+    5: optional map<string,string> index_options
 }
 
 

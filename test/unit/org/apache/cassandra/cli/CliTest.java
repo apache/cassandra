@@ -42,6 +42,7 @@ public class CliTest extends CleanupHelper
         "create column family CF1 with comparator=UTF8Type and column_metadata=[{ column_name:world, validation_class:IntegerType, index_type:0, index_name:IdxName }, " +
                                                                                "{ column_name:world2, validation_class:LongType, index_type:KEYS, index_name:LongIdxName}, " +
                                                                                "{ column_name:617070, validation_class:UTF8Type, index_type:KEYS }, " +
+                                                                               "{ column_name:28292, validation_class:UTF8Type, index_type:CUSTOM, index_options:{class_name:'org.apache.cassandra.db.index.keys.KeysIndex', foo:bar}}," +
                                                                                "{ column_name:'-617071', validation_class:UTF8Type, index_type:KEYS }];",
         "assume CF1 keys as utf8;",
         "set CF1[hello][world] = 123848374878933948398384;",

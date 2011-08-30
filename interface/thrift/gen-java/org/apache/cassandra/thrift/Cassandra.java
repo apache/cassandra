@@ -4387,22 +4387,6 @@ public class Cassandra {
       }
     }
 
-    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-      try {
-        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
-    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-      try {
-        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
   }
 
   public static class login_result implements org.apache.thrift.TBase<login_result, login_result._Fields>, java.io.Serializable, Cloneable   {
@@ -4785,22 +4769,6 @@ public class Cassandra {
       // check for required fields
     }
 
-    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-      try {
-        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
-    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-      try {
-        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
   }
 
   public static class set_keyspace_args implements org.apache.thrift.TBase<set_keyspace_args, set_keyspace_args._Fields>, java.io.Serializable, Cloneable   {
@@ -5092,22 +5060,6 @@ public class Cassandra {
       }
     }
 
-    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-      try {
-        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
-    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-      try {
-        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
   }
 
   public static class set_keyspace_result implements org.apache.thrift.TBase<set_keyspace_result, set_keyspace_result._Fields>, java.io.Serializable, Cloneable   {
@@ -5394,22 +5346,6 @@ public class Cassandra {
 
     public void validate() throws org.apache.thrift.TException {
       // check for required fields
-    }
-
-    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-      try {
-        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
-    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-      try {
-        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
     }
 
   }
@@ -5925,22 +5861,6 @@ public class Cassandra {
       }
       if (consistency_level == null) {
         throw new org.apache.thrift.protocol.TProtocolException("Required field 'consistency_level' was not present! Struct: " + toString());
-      }
-    }
-
-    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-      try {
-        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
-    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-      try {
-        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
       }
     }
 
@@ -6608,22 +6528,6 @@ public class Cassandra {
       // check for required fields
     }
 
-    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-      try {
-        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
-    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-      try {
-        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
   }
 
   public static class get_slice_args implements org.apache.thrift.TBase<get_slice_args, get_slice_args._Fields>, java.io.Serializable, Cloneable   {
@@ -7238,22 +7142,6 @@ public class Cassandra {
       }
     }
 
-    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-      try {
-        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
-    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-      try {
-        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
   }
 
   public static class get_slice_result implements org.apache.thrift.TBase<get_slice_result, get_slice_result._Fields>, java.io.Serializable, Cloneable   {
@@ -7736,14 +7624,14 @@ public class Cassandra {
           case 0: // SUCCESS
             if (field.type == org.apache.thrift.protocol.TType.LIST) {
               {
-                org.apache.thrift.protocol.TList _list55 = iprot.readListBegin();
-                this.success = new ArrayList<ColumnOrSuperColumn>(_list55.size);
-                for (int _i56 = 0; _i56 < _list55.size; ++_i56)
+                org.apache.thrift.protocol.TList _list60 = iprot.readListBegin();
+                this.success = new ArrayList<ColumnOrSuperColumn>(_list60.size);
+                for (int _i61 = 0; _i61 < _list60.size; ++_i61)
                 {
-                  ColumnOrSuperColumn _elem57;
-                  _elem57 = new ColumnOrSuperColumn();
-                  _elem57.read(iprot);
-                  this.success.add(_elem57);
+                  ColumnOrSuperColumn _elem62;
+                  _elem62 = new ColumnOrSuperColumn();
+                  _elem62.read(iprot);
+                  this.success.add(_elem62);
                 }
                 iprot.readListEnd();
               }
@@ -7793,9 +7681,9 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, this.success.size()));
-          for (ColumnOrSuperColumn _iter58 : this.success)
+          for (ColumnOrSuperColumn _iter63 : this.success)
           {
-            _iter58.write(oprot);
+            _iter63.write(oprot);
           }
           oprot.writeListEnd();
         }
@@ -7859,22 +7747,6 @@ public class Cassandra {
 
     public void validate() throws org.apache.thrift.TException {
       // check for required fields
-    }
-
-    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-      try {
-        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
-    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-      try {
-        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
     }
 
   }
@@ -8491,22 +8363,6 @@ public class Cassandra {
       }
     }
 
-    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-      try {
-        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
-    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-      try {
-        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
   }
 
   public static class get_count_result implements org.apache.thrift.TBase<get_count_result, get_count_result._Fields>, java.io.Serializable, Cloneable   {
@@ -9076,22 +8932,6 @@ public class Cassandra {
       // check for required fields
     }
 
-    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-      try {
-        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
-    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-      try {
-        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
   }
 
   public static class multiget_slice_args implements org.apache.thrift.TBase<multiget_slice_args, multiget_slice_args._Fields>, java.io.Serializable, Cloneable   {
@@ -9595,13 +9435,13 @@ public class Cassandra {
           case 1: // KEYS
             if (field.type == org.apache.thrift.protocol.TType.LIST) {
               {
-                org.apache.thrift.protocol.TList _list59 = iprot.readListBegin();
-                this.keys = new ArrayList<ByteBuffer>(_list59.size);
-                for (int _i60 = 0; _i60 < _list59.size; ++_i60)
+                org.apache.thrift.protocol.TList _list64 = iprot.readListBegin();
+                this.keys = new ArrayList<ByteBuffer>(_list64.size);
+                for (int _i65 = 0; _i65 < _list64.size; ++_i65)
                 {
-                  ByteBuffer _elem61;
-                  _elem61 = iprot.readBinary();
-                  this.keys.add(_elem61);
+                  ByteBuffer _elem66;
+                  _elem66 = iprot.readBinary();
+                  this.keys.add(_elem66);
                 }
                 iprot.readListEnd();
               }
@@ -9651,9 +9491,9 @@ public class Cassandra {
         oprot.writeFieldBegin(KEYS_FIELD_DESC);
         {
           oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRING, this.keys.size()));
-          for (ByteBuffer _iter62 : this.keys)
+          for (ByteBuffer _iter67 : this.keys)
           {
-            oprot.writeBinary(_iter62);
+            oprot.writeBinary(_iter67);
           }
           oprot.writeListEnd();
         }
@@ -9731,22 +9571,6 @@ public class Cassandra {
       }
       if (consistency_level == null) {
         throw new org.apache.thrift.protocol.TProtocolException("Required field 'consistency_level' was not present! Struct: " + toString());
-      }
-    }
-
-    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-      try {
-        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
-    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-      try {
-        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
       }
     }
 
@@ -10242,26 +10066,26 @@ public class Cassandra {
           case 0: // SUCCESS
             if (field.type == org.apache.thrift.protocol.TType.MAP) {
               {
-                org.apache.thrift.protocol.TMap _map63 = iprot.readMapBegin();
-                this.success = new HashMap<ByteBuffer,List<ColumnOrSuperColumn>>(2*_map63.size);
-                for (int _i64 = 0; _i64 < _map63.size; ++_i64)
+                org.apache.thrift.protocol.TMap _map68 = iprot.readMapBegin();
+                this.success = new HashMap<ByteBuffer,List<ColumnOrSuperColumn>>(2*_map68.size);
+                for (int _i69 = 0; _i69 < _map68.size; ++_i69)
                 {
-                  ByteBuffer _key65;
-                  List<ColumnOrSuperColumn> _val66;
-                  _key65 = iprot.readBinary();
+                  ByteBuffer _key70;
+                  List<ColumnOrSuperColumn> _val71;
+                  _key70 = iprot.readBinary();
                   {
-                    org.apache.thrift.protocol.TList _list67 = iprot.readListBegin();
-                    _val66 = new ArrayList<ColumnOrSuperColumn>(_list67.size);
-                    for (int _i68 = 0; _i68 < _list67.size; ++_i68)
+                    org.apache.thrift.protocol.TList _list72 = iprot.readListBegin();
+                    _val71 = new ArrayList<ColumnOrSuperColumn>(_list72.size);
+                    for (int _i73 = 0; _i73 < _list72.size; ++_i73)
                     {
-                      ColumnOrSuperColumn _elem69;
-                      _elem69 = new ColumnOrSuperColumn();
-                      _elem69.read(iprot);
-                      _val66.add(_elem69);
+                      ColumnOrSuperColumn _elem74;
+                      _elem74 = new ColumnOrSuperColumn();
+                      _elem74.read(iprot);
+                      _val71.add(_elem74);
                     }
                     iprot.readListEnd();
                   }
-                  this.success.put(_key65, _val66);
+                  this.success.put(_key70, _val71);
                 }
                 iprot.readMapEnd();
               }
@@ -10311,14 +10135,14 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeMapBegin(new org.apache.thrift.protocol.TMap(org.apache.thrift.protocol.TType.STRING, org.apache.thrift.protocol.TType.LIST, this.success.size()));
-          for (Map.Entry<ByteBuffer, List<ColumnOrSuperColumn>> _iter70 : this.success.entrySet())
+          for (Map.Entry<ByteBuffer, List<ColumnOrSuperColumn>> _iter75 : this.success.entrySet())
           {
-            oprot.writeBinary(_iter70.getKey());
+            oprot.writeBinary(_iter75.getKey());
             {
-              oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, _iter70.getValue().size()));
-              for (ColumnOrSuperColumn _iter71 : _iter70.getValue())
+              oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, _iter75.getValue().size()));
+              for (ColumnOrSuperColumn _iter76 : _iter75.getValue())
               {
-                _iter71.write(oprot);
+                _iter76.write(oprot);
               }
               oprot.writeListEnd();
             }
@@ -10385,22 +10209,6 @@ public class Cassandra {
 
     public void validate() throws org.apache.thrift.TException {
       // check for required fields
-    }
-
-    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-      try {
-        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
-    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-      try {
-        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
     }
 
   }
@@ -10906,13 +10714,13 @@ public class Cassandra {
           case 1: // KEYS
             if (field.type == org.apache.thrift.protocol.TType.LIST) {
               {
-                org.apache.thrift.protocol.TList _list72 = iprot.readListBegin();
-                this.keys = new ArrayList<ByteBuffer>(_list72.size);
-                for (int _i73 = 0; _i73 < _list72.size; ++_i73)
+                org.apache.thrift.protocol.TList _list77 = iprot.readListBegin();
+                this.keys = new ArrayList<ByteBuffer>(_list77.size);
+                for (int _i78 = 0; _i78 < _list77.size; ++_i78)
                 {
-                  ByteBuffer _elem74;
-                  _elem74 = iprot.readBinary();
-                  this.keys.add(_elem74);
+                  ByteBuffer _elem79;
+                  _elem79 = iprot.readBinary();
+                  this.keys.add(_elem79);
                 }
                 iprot.readListEnd();
               }
@@ -10962,9 +10770,9 @@ public class Cassandra {
         oprot.writeFieldBegin(KEYS_FIELD_DESC);
         {
           oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRING, this.keys.size()));
-          for (ByteBuffer _iter75 : this.keys)
+          for (ByteBuffer _iter80 : this.keys)
           {
-            oprot.writeBinary(_iter75);
+            oprot.writeBinary(_iter80);
           }
           oprot.writeListEnd();
         }
@@ -11042,22 +10850,6 @@ public class Cassandra {
       }
       if (consistency_level == null) {
         throw new org.apache.thrift.protocol.TProtocolException("Required field 'consistency_level' was not present! Struct: " + toString());
-      }
-    }
-
-    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-      try {
-        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
-    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-      try {
-        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
       }
     }
 
@@ -11549,15 +11341,15 @@ public class Cassandra {
           case 0: // SUCCESS
             if (field.type == org.apache.thrift.protocol.TType.MAP) {
               {
-                org.apache.thrift.protocol.TMap _map76 = iprot.readMapBegin();
-                this.success = new HashMap<ByteBuffer,Integer>(2*_map76.size);
-                for (int _i77 = 0; _i77 < _map76.size; ++_i77)
+                org.apache.thrift.protocol.TMap _map81 = iprot.readMapBegin();
+                this.success = new HashMap<ByteBuffer,Integer>(2*_map81.size);
+                for (int _i82 = 0; _i82 < _map81.size; ++_i82)
                 {
-                  ByteBuffer _key78;
-                  int _val79;
-                  _key78 = iprot.readBinary();
-                  _val79 = iprot.readI32();
-                  this.success.put(_key78, _val79);
+                  ByteBuffer _key83;
+                  int _val84;
+                  _key83 = iprot.readBinary();
+                  _val84 = iprot.readI32();
+                  this.success.put(_key83, _val84);
                 }
                 iprot.readMapEnd();
               }
@@ -11607,10 +11399,10 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeMapBegin(new org.apache.thrift.protocol.TMap(org.apache.thrift.protocol.TType.STRING, org.apache.thrift.protocol.TType.I32, this.success.size()));
-          for (Map.Entry<ByteBuffer, Integer> _iter80 : this.success.entrySet())
+          for (Map.Entry<ByteBuffer, Integer> _iter85 : this.success.entrySet())
           {
-            oprot.writeBinary(_iter80.getKey());
-            oprot.writeI32(_iter80.getValue());
+            oprot.writeBinary(_iter85.getKey());
+            oprot.writeI32(_iter85.getValue());
           }
           oprot.writeMapEnd();
         }
@@ -11674,22 +11466,6 @@ public class Cassandra {
 
     public void validate() throws org.apache.thrift.TException {
       // check for required fields
-    }
-
-    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-      try {
-        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
-    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-      try {
-        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
     }
 
   }
@@ -12296,22 +12072,6 @@ public class Cassandra {
       }
     }
 
-    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-      try {
-        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
-    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-      try {
-        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
   }
 
   public static class get_range_slices_result implements org.apache.thrift.TBase<get_range_slices_result, get_range_slices_result._Fields>, java.io.Serializable, Cloneable   {
@@ -12794,14 +12554,14 @@ public class Cassandra {
           case 0: // SUCCESS
             if (field.type == org.apache.thrift.protocol.TType.LIST) {
               {
-                org.apache.thrift.protocol.TList _list81 = iprot.readListBegin();
-                this.success = new ArrayList<KeySlice>(_list81.size);
-                for (int _i82 = 0; _i82 < _list81.size; ++_i82)
+                org.apache.thrift.protocol.TList _list86 = iprot.readListBegin();
+                this.success = new ArrayList<KeySlice>(_list86.size);
+                for (int _i87 = 0; _i87 < _list86.size; ++_i87)
                 {
-                  KeySlice _elem83;
-                  _elem83 = new KeySlice();
-                  _elem83.read(iprot);
-                  this.success.add(_elem83);
+                  KeySlice _elem88;
+                  _elem88 = new KeySlice();
+                  _elem88.read(iprot);
+                  this.success.add(_elem88);
                 }
                 iprot.readListEnd();
               }
@@ -12851,9 +12611,9 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, this.success.size()));
-          for (KeySlice _iter84 : this.success)
+          for (KeySlice _iter89 : this.success)
           {
-            _iter84.write(oprot);
+            _iter89.write(oprot);
           }
           oprot.writeListEnd();
         }
@@ -12917,22 +12677,6 @@ public class Cassandra {
 
     public void validate() throws org.apache.thrift.TException {
       // check for required fields
-    }
-
-    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-      try {
-        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
-    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-      try {
-        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
     }
 
   }
@@ -13539,22 +13283,6 @@ public class Cassandra {
       }
     }
 
-    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-      try {
-        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
-    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-      try {
-        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
   }
 
   public static class get_indexed_slices_result implements org.apache.thrift.TBase<get_indexed_slices_result, get_indexed_slices_result._Fields>, java.io.Serializable, Cloneable   {
@@ -14037,14 +13765,14 @@ public class Cassandra {
           case 0: // SUCCESS
             if (field.type == org.apache.thrift.protocol.TType.LIST) {
               {
-                org.apache.thrift.protocol.TList _list85 = iprot.readListBegin();
-                this.success = new ArrayList<KeySlice>(_list85.size);
-                for (int _i86 = 0; _i86 < _list85.size; ++_i86)
+                org.apache.thrift.protocol.TList _list90 = iprot.readListBegin();
+                this.success = new ArrayList<KeySlice>(_list90.size);
+                for (int _i91 = 0; _i91 < _list90.size; ++_i91)
                 {
-                  KeySlice _elem87;
-                  _elem87 = new KeySlice();
-                  _elem87.read(iprot);
-                  this.success.add(_elem87);
+                  KeySlice _elem92;
+                  _elem92 = new KeySlice();
+                  _elem92.read(iprot);
+                  this.success.add(_elem92);
                 }
                 iprot.readListEnd();
               }
@@ -14094,9 +13822,9 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, this.success.size()));
-          for (KeySlice _iter88 : this.success)
+          for (KeySlice _iter93 : this.success)
           {
-            _iter88.write(oprot);
+            _iter93.write(oprot);
           }
           oprot.writeListEnd();
         }
@@ -14160,22 +13888,6 @@ public class Cassandra {
 
     public void validate() throws org.apache.thrift.TException {
       // check for required fields
-    }
-
-    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-      try {
-        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
-    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-      try {
-        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
     }
 
   }
@@ -14792,22 +14504,6 @@ public class Cassandra {
       }
     }
 
-    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-      try {
-        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
-    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-      try {
-        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
   }
 
   public static class insert_result implements org.apache.thrift.TBase<insert_result, insert_result._Fields>, java.io.Serializable, Cloneable   {
@@ -15282,22 +14978,6 @@ public class Cassandra {
 
     public void validate() throws org.apache.thrift.TException {
       // check for required fields
-    }
-
-    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-      try {
-        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
-    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-      try {
-        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
     }
 
   }
@@ -15914,22 +15594,6 @@ public class Cassandra {
       }
     }
 
-    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-      try {
-        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
-    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-      try {
-        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
   }
 
   public static class add_result implements org.apache.thrift.TBase<add_result, add_result._Fields>, java.io.Serializable, Cloneable   {
@@ -16404,22 +16068,6 @@ public class Cassandra {
 
     public void validate() throws org.apache.thrift.TException {
       // check for required fields
-    }
-
-    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-      try {
-        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
-    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-      try {
-        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
     }
 
   }
@@ -17031,22 +16679,6 @@ public class Cassandra {
       // alas, we cannot check 'timestamp' because it's a primitive and you chose the non-beans generator.
     }
 
-    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-      try {
-        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
-    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-      try {
-        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
   }
 
   public static class remove_result implements org.apache.thrift.TBase<remove_result, remove_result._Fields>, java.io.Serializable, Cloneable   {
@@ -17521,22 +17153,6 @@ public class Cassandra {
 
     public void validate() throws org.apache.thrift.TException {
       // check for required fields
-    }
-
-    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-      try {
-        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
-    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-      try {
-        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
     }
 
   }
@@ -18055,22 +17671,6 @@ public class Cassandra {
       }
     }
 
-    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-      try {
-        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
-    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-      try {
-        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
   }
 
   public static class remove_counter_result implements org.apache.thrift.TBase<remove_counter_result, remove_counter_result._Fields>, java.io.Serializable, Cloneable   {
@@ -18547,22 +18147,6 @@ public class Cassandra {
       // check for required fields
     }
 
-    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-      try {
-        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
-    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-      try {
-        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
   }
 
   public static class batch_mutate_args implements org.apache.thrift.TBase<batch_mutate_args, batch_mutate_args._Fields>, java.io.Serializable, Cloneable   {
@@ -18939,38 +18523,38 @@ public class Cassandra {
           case 1: // MUTATION_MAP
             if (field.type == org.apache.thrift.protocol.TType.MAP) {
               {
-                org.apache.thrift.protocol.TMap _map89 = iprot.readMapBegin();
-                this.mutation_map = new HashMap<ByteBuffer,Map<String,List<Mutation>>>(2*_map89.size);
-                for (int _i90 = 0; _i90 < _map89.size; ++_i90)
+                org.apache.thrift.protocol.TMap _map94 = iprot.readMapBegin();
+                this.mutation_map = new HashMap<ByteBuffer,Map<String,List<Mutation>>>(2*_map94.size);
+                for (int _i95 = 0; _i95 < _map94.size; ++_i95)
                 {
-                  ByteBuffer _key91;
-                  Map<String,List<Mutation>> _val92;
-                  _key91 = iprot.readBinary();
+                  ByteBuffer _key96;
+                  Map<String,List<Mutation>> _val97;
+                  _key96 = iprot.readBinary();
                   {
-                    org.apache.thrift.protocol.TMap _map93 = iprot.readMapBegin();
-                    _val92 = new HashMap<String,List<Mutation>>(2*_map93.size);
-                    for (int _i94 = 0; _i94 < _map93.size; ++_i94)
+                    org.apache.thrift.protocol.TMap _map98 = iprot.readMapBegin();
+                    _val97 = new HashMap<String,List<Mutation>>(2*_map98.size);
+                    for (int _i99 = 0; _i99 < _map98.size; ++_i99)
                     {
-                      String _key95;
-                      List<Mutation> _val96;
-                      _key95 = iprot.readString();
+                      String _key100;
+                      List<Mutation> _val101;
+                      _key100 = iprot.readString();
                       {
-                        org.apache.thrift.protocol.TList _list97 = iprot.readListBegin();
-                        _val96 = new ArrayList<Mutation>(_list97.size);
-                        for (int _i98 = 0; _i98 < _list97.size; ++_i98)
+                        org.apache.thrift.protocol.TList _list102 = iprot.readListBegin();
+                        _val101 = new ArrayList<Mutation>(_list102.size);
+                        for (int _i103 = 0; _i103 < _list102.size; ++_i103)
                         {
-                          Mutation _elem99;
-                          _elem99 = new Mutation();
-                          _elem99.read(iprot);
-                          _val96.add(_elem99);
+                          Mutation _elem104;
+                          _elem104 = new Mutation();
+                          _elem104.read(iprot);
+                          _val101.add(_elem104);
                         }
                         iprot.readListEnd();
                       }
-                      _val92.put(_key95, _val96);
+                      _val97.put(_key100, _val101);
                     }
                     iprot.readMapEnd();
                   }
-                  this.mutation_map.put(_key91, _val92);
+                  this.mutation_map.put(_key96, _val97);
                 }
                 iprot.readMapEnd();
               }
@@ -19004,19 +18588,19 @@ public class Cassandra {
         oprot.writeFieldBegin(MUTATION_MAP_FIELD_DESC);
         {
           oprot.writeMapBegin(new org.apache.thrift.protocol.TMap(org.apache.thrift.protocol.TType.STRING, org.apache.thrift.protocol.TType.MAP, this.mutation_map.size()));
-          for (Map.Entry<ByteBuffer, Map<String,List<Mutation>>> _iter100 : this.mutation_map.entrySet())
+          for (Map.Entry<ByteBuffer, Map<String,List<Mutation>>> _iter105 : this.mutation_map.entrySet())
           {
-            oprot.writeBinary(_iter100.getKey());
+            oprot.writeBinary(_iter105.getKey());
             {
-              oprot.writeMapBegin(new org.apache.thrift.protocol.TMap(org.apache.thrift.protocol.TType.STRING, org.apache.thrift.protocol.TType.LIST, _iter100.getValue().size()));
-              for (Map.Entry<String, List<Mutation>> _iter101 : _iter100.getValue().entrySet())
+              oprot.writeMapBegin(new org.apache.thrift.protocol.TMap(org.apache.thrift.protocol.TType.STRING, org.apache.thrift.protocol.TType.LIST, _iter105.getValue().size()));
+              for (Map.Entry<String, List<Mutation>> _iter106 : _iter105.getValue().entrySet())
               {
-                oprot.writeString(_iter101.getKey());
+                oprot.writeString(_iter106.getKey());
                 {
-                  oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, _iter101.getValue().size()));
-                  for (Mutation _iter102 : _iter101.getValue())
+                  oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, _iter106.getValue().size()));
+                  for (Mutation _iter107 : _iter106.getValue())
                   {
-                    _iter102.write(oprot);
+                    _iter107.write(oprot);
                   }
                   oprot.writeListEnd();
                 }
@@ -19068,22 +18652,6 @@ public class Cassandra {
       }
       if (consistency_level == null) {
         throw new org.apache.thrift.protocol.TProtocolException("Required field 'consistency_level' was not present! Struct: " + toString());
-      }
-    }
-
-    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-      try {
-        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
-    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-      try {
-        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
       }
     }
 
@@ -19563,22 +19131,6 @@ public class Cassandra {
       // check for required fields
     }
 
-    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-      try {
-        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
-    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-      try {
-        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
   }
 
   public static class truncate_args implements org.apache.thrift.TBase<truncate_args, truncate_args._Fields>, java.io.Serializable, Cloneable   {
@@ -19867,22 +19419,6 @@ public class Cassandra {
       // check for required fields
       if (cfname == null) {
         throw new org.apache.thrift.protocol.TProtocolException("Required field 'cfname' was not present! Struct: " + toString());
-      }
-    }
-
-    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-      try {
-        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
-    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-      try {
-        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
       }
     }
 
@@ -20268,22 +19804,6 @@ public class Cassandra {
       // check for required fields
     }
 
-    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-      try {
-        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
-    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-      try {
-        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
   }
 
   public static class describe_schema_versions_args implements org.apache.thrift.TBase<describe_schema_versions_args, describe_schema_versions_args._Fields>, java.io.Serializable, Cloneable   {
@@ -20470,22 +19990,6 @@ public class Cassandra {
 
     public void validate() throws org.apache.thrift.TException {
       // check for required fields
-    }
-
-    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-      try {
-        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
-    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-      try {
-        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
     }
 
   }
@@ -20831,25 +20335,25 @@ public class Cassandra {
           case 0: // SUCCESS
             if (field.type == org.apache.thrift.protocol.TType.MAP) {
               {
-                org.apache.thrift.protocol.TMap _map103 = iprot.readMapBegin();
-                this.success = new HashMap<String,List<String>>(2*_map103.size);
-                for (int _i104 = 0; _i104 < _map103.size; ++_i104)
+                org.apache.thrift.protocol.TMap _map108 = iprot.readMapBegin();
+                this.success = new HashMap<String,List<String>>(2*_map108.size);
+                for (int _i109 = 0; _i109 < _map108.size; ++_i109)
                 {
-                  String _key105;
-                  List<String> _val106;
-                  _key105 = iprot.readString();
+                  String _key110;
+                  List<String> _val111;
+                  _key110 = iprot.readString();
                   {
-                    org.apache.thrift.protocol.TList _list107 = iprot.readListBegin();
-                    _val106 = new ArrayList<String>(_list107.size);
-                    for (int _i108 = 0; _i108 < _list107.size; ++_i108)
+                    org.apache.thrift.protocol.TList _list112 = iprot.readListBegin();
+                    _val111 = new ArrayList<String>(_list112.size);
+                    for (int _i113 = 0; _i113 < _list112.size; ++_i113)
                     {
-                      String _elem109;
-                      _elem109 = iprot.readString();
-                      _val106.add(_elem109);
+                      String _elem114;
+                      _elem114 = iprot.readString();
+                      _val111.add(_elem114);
                     }
                     iprot.readListEnd();
                   }
-                  this.success.put(_key105, _val106);
+                  this.success.put(_key110, _val111);
                 }
                 iprot.readMapEnd();
               }
@@ -20883,14 +20387,14 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeMapBegin(new org.apache.thrift.protocol.TMap(org.apache.thrift.protocol.TType.STRING, org.apache.thrift.protocol.TType.LIST, this.success.size()));
-          for (Map.Entry<String, List<String>> _iter110 : this.success.entrySet())
+          for (Map.Entry<String, List<String>> _iter115 : this.success.entrySet())
           {
-            oprot.writeString(_iter110.getKey());
+            oprot.writeString(_iter115.getKey());
             {
-              oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRING, _iter110.getValue().size()));
-              for (String _iter111 : _iter110.getValue())
+              oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRING, _iter115.getValue().size()));
+              for (String _iter116 : _iter115.getValue())
               {
-                oprot.writeString(_iter111);
+                oprot.writeString(_iter116);
               }
               oprot.writeListEnd();
             }
@@ -20933,22 +20437,6 @@ public class Cassandra {
 
     public void validate() throws org.apache.thrift.TException {
       // check for required fields
-    }
-
-    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-      try {
-        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
-    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-      try {
-        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
     }
 
   }
@@ -21137,22 +20625,6 @@ public class Cassandra {
 
     public void validate() throws org.apache.thrift.TException {
       // check for required fields
-    }
-
-    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-      try {
-        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
-    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-      try {
-        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
     }
 
   }
@@ -21489,14 +20961,14 @@ public class Cassandra {
           case 0: // SUCCESS
             if (field.type == org.apache.thrift.protocol.TType.LIST) {
               {
-                org.apache.thrift.protocol.TList _list112 = iprot.readListBegin();
-                this.success = new ArrayList<KsDef>(_list112.size);
-                for (int _i113 = 0; _i113 < _list112.size; ++_i113)
+                org.apache.thrift.protocol.TList _list117 = iprot.readListBegin();
+                this.success = new ArrayList<KsDef>(_list117.size);
+                for (int _i118 = 0; _i118 < _list117.size; ++_i118)
                 {
-                  KsDef _elem114;
-                  _elem114 = new KsDef();
-                  _elem114.read(iprot);
-                  this.success.add(_elem114);
+                  KsDef _elem119;
+                  _elem119 = new KsDef();
+                  _elem119.read(iprot);
+                  this.success.add(_elem119);
                 }
                 iprot.readListEnd();
               }
@@ -21530,9 +21002,9 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, this.success.size()));
-          for (KsDef _iter115 : this.success)
+          for (KsDef _iter120 : this.success)
           {
-            _iter115.write(oprot);
+            _iter120.write(oprot);
           }
           oprot.writeListEnd();
         }
@@ -21572,22 +21044,6 @@ public class Cassandra {
 
     public void validate() throws org.apache.thrift.TException {
       // check for required fields
-    }
-
-    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-      try {
-        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
-    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-      try {
-        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
     }
 
   }
@@ -21776,22 +21232,6 @@ public class Cassandra {
 
     public void validate() throws org.apache.thrift.TException {
       // check for required fields
-    }
-
-    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-      try {
-        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
-    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-      try {
-        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
     }
 
   }
@@ -22081,22 +21521,6 @@ public class Cassandra {
       // check for required fields
     }
 
-    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-      try {
-        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
-    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-      try {
-        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
   }
 
   public static class describe_version_args implements org.apache.thrift.TBase<describe_version_args, describe_version_args._Fields>, java.io.Serializable, Cloneable   {
@@ -22283,22 +21707,6 @@ public class Cassandra {
 
     public void validate() throws org.apache.thrift.TException {
       // check for required fields
-    }
-
-    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-      try {
-        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
-    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-      try {
-        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
     }
 
   }
@@ -22586,22 +21994,6 @@ public class Cassandra {
 
     public void validate() throws org.apache.thrift.TException {
       // check for required fields
-    }
-
-    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-      try {
-        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
-    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-      try {
-        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
     }
 
   }
@@ -22892,22 +22284,6 @@ public class Cassandra {
       // check for required fields
       if (keyspace == null) {
         throw new org.apache.thrift.protocol.TProtocolException("Required field 'keyspace' was not present! Struct: " + toString());
-      }
-    }
-
-    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-      try {
-        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
-    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-      try {
-        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
       }
     }
 
@@ -23245,14 +22621,14 @@ public class Cassandra {
           case 0: // SUCCESS
             if (field.type == org.apache.thrift.protocol.TType.LIST) {
               {
-                org.apache.thrift.protocol.TList _list116 = iprot.readListBegin();
-                this.success = new ArrayList<TokenRange>(_list116.size);
-                for (int _i117 = 0; _i117 < _list116.size; ++_i117)
+                org.apache.thrift.protocol.TList _list121 = iprot.readListBegin();
+                this.success = new ArrayList<TokenRange>(_list121.size);
+                for (int _i122 = 0; _i122 < _list121.size; ++_i122)
                 {
-                  TokenRange _elem118;
-                  _elem118 = new TokenRange();
-                  _elem118.read(iprot);
-                  this.success.add(_elem118);
+                  TokenRange _elem123;
+                  _elem123 = new TokenRange();
+                  _elem123.read(iprot);
+                  this.success.add(_elem123);
                 }
                 iprot.readListEnd();
               }
@@ -23286,9 +22662,9 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, this.success.size()));
-          for (TokenRange _iter119 : this.success)
+          for (TokenRange _iter124 : this.success)
           {
-            _iter119.write(oprot);
+            _iter124.write(oprot);
           }
           oprot.writeListEnd();
         }
@@ -23328,22 +22704,6 @@ public class Cassandra {
 
     public void validate() throws org.apache.thrift.TException {
       // check for required fields
-    }
-
-    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-      try {
-        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
-    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-      try {
-        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
     }
 
   }
@@ -23532,22 +22892,6 @@ public class Cassandra {
 
     public void validate() throws org.apache.thrift.TException {
       // check for required fields
-    }
-
-    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-      try {
-        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
-    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-      try {
-        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
     }
 
   }
@@ -23837,22 +23181,6 @@ public class Cassandra {
       // check for required fields
     }
 
-    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-      try {
-        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
-    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-      try {
-        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
   }
 
   public static class describe_snitch_args implements org.apache.thrift.TBase<describe_snitch_args, describe_snitch_args._Fields>, java.io.Serializable, Cloneable   {
@@ -24039,22 +23367,6 @@ public class Cassandra {
 
     public void validate() throws org.apache.thrift.TException {
       // check for required fields
-    }
-
-    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-      try {
-        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
-    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-      try {
-        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
     }
 
   }
@@ -24342,22 +23654,6 @@ public class Cassandra {
 
     public void validate() throws org.apache.thrift.TException {
       // check for required fields
-    }
-
-    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-      try {
-        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
-    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-      try {
-        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
     }
 
   }
@@ -24648,22 +23944,6 @@ public class Cassandra {
       // check for required fields
       if (keyspace == null) {
         throw new org.apache.thrift.protocol.TProtocolException("Required field 'keyspace' was not present! Struct: " + toString());
-      }
-    }
-
-    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-      try {
-        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
-    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-      try {
-        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
       }
     }
 
@@ -25141,22 +24421,6 @@ public class Cassandra {
 
     public void validate() throws org.apache.thrift.TException {
       // check for required fields
-    }
-
-    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-      try {
-        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
-    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-      try {
-        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
     }
 
   }
@@ -25740,24 +25004,6 @@ public class Cassandra {
       // alas, we cannot check 'keys_per_split' because it's a primitive and you chose the non-beans generator.
     }
 
-    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-      try {
-        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
-    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-      try {
-        // it doesn't seem like you should have to do this, but java serialization is wacky, and doesn't call the default constructor.
-        __isset_bit_vector = new BitSet(1);
-        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
   }
 
   public static class describe_splits_result implements org.apache.thrift.TBase<describe_splits_result, describe_splits_result._Fields>, java.io.Serializable, Cloneable   {
@@ -26092,13 +25338,13 @@ public class Cassandra {
           case 0: // SUCCESS
             if (field.type == org.apache.thrift.protocol.TType.LIST) {
               {
-                org.apache.thrift.protocol.TList _list120 = iprot.readListBegin();
-                this.success = new ArrayList<String>(_list120.size);
-                for (int _i121 = 0; _i121 < _list120.size; ++_i121)
+                org.apache.thrift.protocol.TList _list125 = iprot.readListBegin();
+                this.success = new ArrayList<String>(_list125.size);
+                for (int _i126 = 0; _i126 < _list125.size; ++_i126)
                 {
-                  String _elem122;
-                  _elem122 = iprot.readString();
-                  this.success.add(_elem122);
+                  String _elem127;
+                  _elem127 = iprot.readString();
+                  this.success.add(_elem127);
                 }
                 iprot.readListEnd();
               }
@@ -26132,9 +25378,9 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRING, this.success.size()));
-          for (String _iter123 : this.success)
+          for (String _iter128 : this.success)
           {
-            oprot.writeString(_iter123);
+            oprot.writeString(_iter128);
           }
           oprot.writeListEnd();
         }
@@ -26174,22 +25420,6 @@ public class Cassandra {
 
     public void validate() throws org.apache.thrift.TException {
       // check for required fields
-    }
-
-    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-      try {
-        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
-    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-      try {
-        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
     }
 
   }
@@ -26481,22 +25711,6 @@ public class Cassandra {
       // check for required fields
       if (cf_def == null) {
         throw new org.apache.thrift.protocol.TProtocolException("Required field 'cf_def' was not present! Struct: " + toString());
-      }
-    }
-
-    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-      try {
-        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
-    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-      try {
-        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
       }
     }
 
@@ -26975,22 +26189,6 @@ public class Cassandra {
       // check for required fields
     }
 
-    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-      try {
-        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
-    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-      try {
-        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
   }
 
   public static class system_drop_column_family_args implements org.apache.thrift.TBase<system_drop_column_family_args, system_drop_column_family_args._Fields>, java.io.Serializable, Cloneable   {
@@ -27279,22 +26477,6 @@ public class Cassandra {
       // check for required fields
       if (column_family == null) {
         throw new org.apache.thrift.protocol.TProtocolException("Required field 'column_family' was not present! Struct: " + toString());
-      }
-    }
-
-    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-      try {
-        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
-    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-      try {
-        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
       }
     }
 
@@ -27773,22 +26955,6 @@ public class Cassandra {
       // check for required fields
     }
 
-    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-      try {
-        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
-    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-      try {
-        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
   }
 
   public static class system_add_keyspace_args implements org.apache.thrift.TBase<system_add_keyspace_args, system_add_keyspace_args._Fields>, java.io.Serializable, Cloneable   {
@@ -28078,22 +27244,6 @@ public class Cassandra {
       // check for required fields
       if (ks_def == null) {
         throw new org.apache.thrift.protocol.TProtocolException("Required field 'ks_def' was not present! Struct: " + toString());
-      }
-    }
-
-    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-      try {
-        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
-    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-      try {
-        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
       }
     }
 
@@ -28572,22 +27722,6 @@ public class Cassandra {
       // check for required fields
     }
 
-    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-      try {
-        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
-    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-      try {
-        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
   }
 
   public static class system_drop_keyspace_args implements org.apache.thrift.TBase<system_drop_keyspace_args, system_drop_keyspace_args._Fields>, java.io.Serializable, Cloneable   {
@@ -28876,22 +28010,6 @@ public class Cassandra {
       // check for required fields
       if (keyspace == null) {
         throw new org.apache.thrift.protocol.TProtocolException("Required field 'keyspace' was not present! Struct: " + toString());
-      }
-    }
-
-    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-      try {
-        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
-    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-      try {
-        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
       }
     }
 
@@ -29370,22 +28488,6 @@ public class Cassandra {
       // check for required fields
     }
 
-    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-      try {
-        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
-    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-      try {
-        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
   }
 
   public static class system_update_keyspace_args implements org.apache.thrift.TBase<system_update_keyspace_args, system_update_keyspace_args._Fields>, java.io.Serializable, Cloneable   {
@@ -29675,22 +28777,6 @@ public class Cassandra {
       // check for required fields
       if (ks_def == null) {
         throw new org.apache.thrift.protocol.TProtocolException("Required field 'ks_def' was not present! Struct: " + toString());
-      }
-    }
-
-    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-      try {
-        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
-    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-      try {
-        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
       }
     }
 
@@ -30169,22 +29255,6 @@ public class Cassandra {
       // check for required fields
     }
 
-    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-      try {
-        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
-    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-      try {
-        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
   }
 
   public static class system_update_column_family_args implements org.apache.thrift.TBase<system_update_column_family_args, system_update_column_family_args._Fields>, java.io.Serializable, Cloneable   {
@@ -30474,22 +29544,6 @@ public class Cassandra {
       // check for required fields
       if (cf_def == null) {
         throw new org.apache.thrift.protocol.TProtocolException("Required field 'cf_def' was not present! Struct: " + toString());
-      }
-    }
-
-    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-      try {
-        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
-    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-      try {
-        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
       }
     }
 
@@ -30968,22 +30022,6 @@ public class Cassandra {
       // check for required fields
     }
 
-    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-      try {
-        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
-    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-      try {
-        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
   }
 
   public static class execute_cql_query_args implements org.apache.thrift.TBase<execute_cql_query_args, execute_cql_query_args._Fields>, java.io.Serializable, Cloneable   {
@@ -31396,22 +30434,6 @@ public class Cassandra {
       }
       if (compression == null) {
         throw new org.apache.thrift.protocol.TProtocolException("Required field 'compression' was not present! Struct: " + toString());
-      }
-    }
-
-    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-      try {
-        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
-    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-      try {
-        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
       }
     }
 
@@ -32077,22 +31099,6 @@ public class Cassandra {
 
     public void validate() throws org.apache.thrift.TException {
       // check for required fields
-    }
-
-    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-      try {
-        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
-    }
-
-    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-      try {
-        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-      } catch (org.apache.thrift.TException te) {
-        throw new java.io.IOException(te);
-      }
     }
 
   }

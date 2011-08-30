@@ -32,7 +32,8 @@ import java.util.HashMap;
 import org.apache.thrift.TEnum;
 
 public enum IndexType implements org.apache.thrift.TEnum {
-  KEYS(0);
+  KEYS(0),
+  CUSTOM(1);
 
   private final int value;
 
@@ -55,6 +56,8 @@ public enum IndexType implements org.apache.thrift.TEnum {
     switch (value) {
       case 0:
         return KEYS;
+      case 1:
+        return CUSTOM;
       default:
         return null;
     }

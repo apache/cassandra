@@ -456,7 +456,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
 
         ColumnFamilyStore cfs = table.getColumnFamilyStore("Indexed2");
         ColumnDefinition old = cfs.metadata.getColumn_metadata().get(ByteBufferUtil.bytes("birthdate"));
-        ColumnDefinition cd = new ColumnDefinition(old.name, old.getValidator(), IndexType.KEYS, "birthdate_index");
+        ColumnDefinition cd = new ColumnDefinition(old.name, old.getValidator(), IndexType.KEYS, null, "birthdate_index");
         Future<?> future = cfs.indexManager.addIndexedColumn(cd);
         future.get();
         // we had a bug (CASSANDRA-2244) where index would get created but not flushed -- check for that

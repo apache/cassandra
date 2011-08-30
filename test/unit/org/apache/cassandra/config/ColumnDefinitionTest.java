@@ -36,10 +36,12 @@ public class ColumnDefinitionTest
         ColumnDefinition cd0 = new ColumnDefinition(ByteBufferUtil.bytes("TestColumnDefinitionName0"),
                                                     BytesType.instance,
                                                     IndexType.KEYS,
+                                                    null,
                                                     "random index name 0");
 
         ColumnDefinition cd1 = new ColumnDefinition(ByteBufferUtil.bytes("TestColumnDefinition1"),
                                                     LongType.instance,
+                                                    null,
                                                     null,
                                                     null);
 

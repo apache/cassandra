@@ -788,7 +788,8 @@ public final class CFMetaData
             if (oldDef == null)
                 continue;
             oldDef.setValidator(TypeParser.parse(def.validation_class));
-            oldDef.setIndexType(def.index_type == null ? null : org.apache.cassandra.thrift.IndexType.valueOf(def.index_type.name()));
+            oldDef.setIndexType(def.index_type == null ? null : org.apache.cassandra.thrift.IndexType.valueOf(def.index_type.name()),
+                                ColumnDefinition.getStringMap(def.index_options));
             oldDef.setIndexName(def.index_name == null ? null : def.index_name.toString());
         }
         // add the new ones coming in.
@@ -798,6 +799,7 @@ public final class CFMetaData
             ColumnDefinition cd = new ColumnDefinition(def.name, 
                                                        dValidClass,
                                                        def.index_type == null ? null : org.apache.cassandra.thrift.IndexType.valueOf(def.index_type.toString()), 
+                                                       ColumnDefinition.getStringMap(def.index_options),
                                                        def.index_name == null ? null : def.index_name.toString());
             column_metadata.put(cd.name, cd);
         }
@@ -895,6 +897,7 @@ public final class CFMetaData
             org.apache.cassandra.thrift.ColumnDef tcd = new org.apache.cassandra.thrift.ColumnDef();
             tcd.setIndex_name(cd.getIndexName());
             tcd.setIndex_type(cd.getIndexType());
+            tcd.setIndex_options(cd.getIndexOptions());
             tcd.setName(cd.name);
             tcd.setValidation_class(cd.getValidator().toString());
             column_meta.add(tcd);

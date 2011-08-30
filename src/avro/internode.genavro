@@ -18,6 +18,9 @@
 
 /**
  * Cassandra internal/internode communication protocol
+ *
+ * NOTE: in order to maintain backwards compatibility you *must*
+ *       only append new fields *and* they must have a default value.
  */
 @namespace("org.apache.cassandra")
 
@@ -25,7 +28,8 @@ protocol InterNode {
     @aliases(["org.apache.cassandra.config.avro.IndexType"])
     @namespace("org.apache.cassandra.db.migration.avro")
     enum IndexType {
-        KEYS
+        KEYS,
+        CUSTOM
     }
 
     @aliases(["org.apache.cassandra.config.avro.ColumnDef"])
@@ -35,6 +39,7 @@ protocol InterNode {
         string validation_class;
         union { IndexType, null } index_type;
         union { string, null } index_name;
+        union { null, map<string> } index_options = null;
     }
 
     @aliases(["org.apache.cassandra.config.avro.CfDef"])

@@ -93,7 +93,7 @@ public class DefsTest extends CleanupHelper
         for (int i = 0; i < 5; i++) 
         {
             ByteBuffer name = ByteBuffer.wrap(new byte[] { (byte)i });
-            indexes.put(name, new ColumnDefinition(name, BytesType.instance, IndexType.KEYS, Integer.toString(i)));
+            indexes.put(name, new ColumnDefinition(name, BytesType.instance, IndexType.KEYS, null, Integer.toString(i)));
         }
         CFMetaData cfm = new CFMetaData("Keyspace1",
                                         "TestApplyCFM_CF",
@@ -801,7 +801,7 @@ public class DefsTest extends CleanupHelper
         // drop the index
         CFMetaData meta = CFMetaData.rename(cfs.metadata, cfs.metadata.cfName); // abusing rename to clone
         ColumnDefinition cdOld = meta.getColumn_metadata().values().iterator().next();
-        ColumnDefinition cdNew = new ColumnDefinition(cdOld.name, cdOld.getValidator(), null, null);
+        ColumnDefinition cdNew = new ColumnDefinition(cdOld.name, cdOld.getValidator(), null, null, null);
         meta.columnMetadata(Collections.singletonMap(cdOld.name, cdNew));
         UpdateColumnFamily update = new UpdateColumnFamily(meta.toAvro());
         update.apply();

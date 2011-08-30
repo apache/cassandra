@@ -1689,8 +1689,17 @@ public class CliClient
         {
             sb.append("," + NEWLINE);
             sb.append(TAB + TAB + "index_name : '" + CliUtils.escapeSQLString(colDef.index_name) + "'," + NEWLINE);
-            sb.append(TAB + TAB + "index_type : " + CliUtils.escapeSQLString(Integer.toString(colDef.index_type.getValue())));
+            sb.append(TAB + TAB + "index_type : " + CliUtils.escapeSQLString(Integer.toString(colDef.index_type.getValue())) + "," + NEWLINE);
 
+            if (colDef.index_options != null)
+            {
+                sb.append(TAB + TAB + "index_options : {"+NEWLINE);        
+                for (Map.Entry<String, String> entry : colDef.index_options.entrySet())
+                {
+                    sb.append(TAB + TAB + TAB + CliUtils.escapeSQLString(entry.getKey()) + ": '" + CliUtils.escapeSQLString(entry.getValue()) + "'," + NEWLINE);
+                }
+                sb.append("}");
+            }
         }
         sb.append("}");
     }
@@ -2186,6 +2195,10 @@ public class CliClient
                 else if (metaKey.equals("index_type"))
                 {
                     columnDefinition.setIndex_type(getIndexTypeFromString(metaVal));
+                }
+                else if (metaKey.equals("index_options"))
+                {
+                    columnDefinition.setIndex_options(getStrategyOptionsFromTree(metaPair.getChild(1)));
                 }
                 else if (metaKey.equals("index_name"))
                 {

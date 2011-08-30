@@ -27,6 +27,7 @@ import java.util.concurrent.ExecutionException;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -56,18 +57,22 @@ import org.slf4j.LoggerFactory;
 public class KeysIndex extends SecondaryIndex
 {
     private static final Logger logger = LoggerFactory.getLogger(KeysIndex.class);
-    private final ColumnFamilyStore indexedCfs;
+    private ColumnFamilyStore indexedCfs;
     private final ConcurrentSkipListSet<Memtable> fullMemtables;
 
-    public KeysIndex(ColumnFamilyStore baseCfs, ColumnDefinition cdef)
+    public KeysIndex() 
     {
-        super(baseCfs, cdef);
         fullMemtables = new ConcurrentSkipListSet<Memtable>();
-
-        CFMetaData indexedCfMetadata = CFMetaData.newIndexMetadata(baseCfs.metadata, cdef, indexComparator());
+    }
+    
+    public void init()
+    {
+        assert baseCfs != null && columnDef != null;
+        
+        CFMetaData indexedCfMetadata = CFMetaData.newIndexMetadata(baseCfs.metadata, columnDef, indexComparator());
         indexedCfs = ColumnFamilyStore.createColumnFamilyStore(baseCfs.table,
                                                                indexedCfMetadata.cfName,
-                                                               new LocalPartitioner(cdef.getValidator()),
+                                                               new LocalPartitioner(columnDef.getValidator()),
                                                                indexedCfMetadata);
     }
 
@@ -77,11 +82,6 @@ public class KeysIndex extends SecondaryIndex
         return (rowPartitioner instanceof OrderPreservingPartitioner || rowPartitioner instanceof ByteOrderedPartitioner)
                                         ? BytesType.instance
                                         : new LocalByPartionerType(StorageService.getPartitioner());
-    }
-
-    public IndexType type()
-    {
-        return IndexType.KEYS;
     }
 
     @Override
@@ -192,5 +192,11 @@ public class KeysIndex extends SecondaryIndex
     public void renameIndex(String newCfName) throws IOException
     {
         indexedCfs.renameSSTables(indexedCfs.columnFamily.replace(baseCfs.columnFamily, newCfName));       
+    }
+
+    @Override
+    public void validateOptions() throws ConfigurationException
+    {
+        // no options used
     }
 }

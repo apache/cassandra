@@ -49,6 +49,7 @@ public class ColumnDef implements org.apache.thrift.TBase<ColumnDef, ColumnDef._
   private static final org.apache.thrift.protocol.TField VALIDATION_CLASS_FIELD_DESC = new org.apache.thrift.protocol.TField("validation_class", org.apache.thrift.protocol.TType.STRING, (short)2);
   private static final org.apache.thrift.protocol.TField INDEX_TYPE_FIELD_DESC = new org.apache.thrift.protocol.TField("index_type", org.apache.thrift.protocol.TType.I32, (short)3);
   private static final org.apache.thrift.protocol.TField INDEX_NAME_FIELD_DESC = new org.apache.thrift.protocol.TField("index_name", org.apache.thrift.protocol.TType.STRING, (short)4);
+  private static final org.apache.thrift.protocol.TField INDEX_OPTIONS_FIELD_DESC = new org.apache.thrift.protocol.TField("index_options", org.apache.thrift.protocol.TType.MAP, (short)5);
 
   public ByteBuffer name;
   public String validation_class;
@@ -58,6 +59,7 @@ public class ColumnDef implements org.apache.thrift.TBase<ColumnDef, ColumnDef._
    */
   public IndexType index_type;
   public String index_name;
+  public Map<String,String> index_options;
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
   public enum _Fields implements org.apache.thrift.TFieldIdEnum {
@@ -68,7 +70,8 @@ public class ColumnDef implements org.apache.thrift.TBase<ColumnDef, ColumnDef._
      * @see IndexType
      */
     INDEX_TYPE((short)3, "index_type"),
-    INDEX_NAME((short)4, "index_name");
+    INDEX_NAME((short)4, "index_name"),
+    INDEX_OPTIONS((short)5, "index_options");
 
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -91,6 +94,8 @@ public class ColumnDef implements org.apache.thrift.TBase<ColumnDef, ColumnDef._
           return INDEX_TYPE;
         case 4: // INDEX_NAME
           return INDEX_NAME;
+        case 5: // INDEX_OPTIONS
+          return INDEX_OPTIONS;
         default:
           return null;
       }
@@ -143,6 +148,10 @@ public class ColumnDef implements org.apache.thrift.TBase<ColumnDef, ColumnDef._
         new org.apache.thrift.meta_data.EnumMetaData(org.apache.thrift.protocol.TType.ENUM, IndexType.class)));
     tmpMap.put(_Fields.INDEX_NAME, new org.apache.thrift.meta_data.FieldMetaData("index_name", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
         new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
+    tmpMap.put(_Fields.INDEX_OPTIONS, new org.apache.thrift.meta_data.FieldMetaData("index_options", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.MapMetaData(org.apache.thrift.protocol.TType.MAP, 
+            new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING), 
+            new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING))));
     metaDataMap = Collections.unmodifiableMap(tmpMap);
     org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(ColumnDef.class, metaDataMap);
   }
@@ -176,6 +185,21 @@ public class ColumnDef implements org.apache.thrift.TBase<ColumnDef, ColumnDef._
     if (other.isSetIndex_name()) {
       this.index_name = other.index_name;
     }
+    if (other.isSetIndex_options()) {
+      Map<String,String> __this__index_options = new HashMap<String,String>();
+      for (Map.Entry<String, String> other_element : other.index_options.entrySet()) {
+
+        String other_element_key = other_element.getKey();
+        String other_element_value = other_element.getValue();
+
+        String __this__index_options_copy_key = other_element_key;
+
+        String __this__index_options_copy_value = other_element_value;
+
+        __this__index_options.put(__this__index_options_copy_key, __this__index_options_copy_value);
+      }
+      this.index_options = __this__index_options;
+    }
   }
 
   public ColumnDef deepCopy() {
@@ -188,6 +212,7 @@ public class ColumnDef implements org.apache.thrift.TBase<ColumnDef, ColumnDef._
     this.validation_class = null;
     this.index_type = null;
     this.index_name = null;
+    this.index_options = null;
   }
 
   public byte[] getName() {
@@ -304,6 +329,41 @@ public class ColumnDef implements org.apache.thrift.TBase<ColumnDef, ColumnDef._
     }
   }
 
+  public int getIndex_optionsSize() {
+    return (this.index_options == null) ? 0 : this.index_options.size();
+  }
+
+  public void putToIndex_options(String key, String val) {
+    if (this.index_options == null) {
+      this.index_options = new HashMap<String,String>();
+    }
+    this.index_options.put(key, val);
+  }
+
+  public Map<String,String> getIndex_options() {
+    return this.index_options;
+  }
+
+  public ColumnDef setIndex_options(Map<String,String> index_options) {
+    this.index_options = index_options;
+    return this;
+  }
+
+  public void unsetIndex_options() {
+    this.index_options = null;
+  }
+
+  /** Returns true if field index_options is set (has been assigned a value) and false otherwise */
+  public boolean isSetIndex_options() {
+    return this.index_options != null;
+  }
+
+  public void setIndex_optionsIsSet(boolean value) {
+    if (!value) {
+      this.index_options = null;
+    }
+  }
+
   public void setFieldValue(_Fields field, Object value) {
     switch (field) {
     case NAME:
@@ -338,6 +398,14 @@ public class ColumnDef implements org.apache.thrift.TBase<ColumnDef, ColumnDef._
       }
       break;
 
+    case INDEX_OPTIONS:
+      if (value == null) {
+        unsetIndex_options();
+      } else {
+        setIndex_options((Map<String,String>)value);
+      }
+      break;
+
     }
   }
 
@@ -354,6 +422,9 @@ public class ColumnDef implements org.apache.thrift.TBase<ColumnDef, ColumnDef._
 
     case INDEX_NAME:
       return getIndex_name();
+
+    case INDEX_OPTIONS:
+      return getIndex_options();
 
     }
     throw new IllegalStateException();
@@ -374,6 +445,8 @@ public class ColumnDef implements org.apache.thrift.TBase<ColumnDef, ColumnDef._
       return isSetIndex_type();
     case INDEX_NAME:
       return isSetIndex_name();
+    case INDEX_OPTIONS:
+      return isSetIndex_options();
     }
     throw new IllegalStateException();
   }
@@ -427,6 +500,15 @@ public class ColumnDef implements org.apache.thrift.TBase<ColumnDef, ColumnDef._
         return false;
     }
 
+    boolean this_present_index_options = true && this.isSetIndex_options();
+    boolean that_present_index_options = true && that.isSetIndex_options();
+    if (this_present_index_options || that_present_index_options) {
+      if (!(this_present_index_options && that_present_index_options))
+        return false;
+      if (!this.index_options.equals(that.index_options))
+        return false;
+    }
+
     return true;
   }
 
@@ -453,6 +535,11 @@ public class ColumnDef implements org.apache.thrift.TBase<ColumnDef, ColumnDef._
     builder.append(present_index_name);
     if (present_index_name)
       builder.append(index_name);
+
+    boolean present_index_options = true && (isSetIndex_options());
+    builder.append(present_index_options);
+    if (present_index_options)
+      builder.append(index_options);
 
     return builder.toHashCode();
   }
@@ -505,6 +592,16 @@ public class ColumnDef implements org.apache.thrift.TBase<ColumnDef, ColumnDef._
         return lastComparison;
       }
     }
+    lastComparison = Boolean.valueOf(isSetIndex_options()).compareTo(typedOther.isSetIndex_options());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    if (isSetIndex_options()) {
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.index_options, typedOther.index_options);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
     return 0;
   }
 
@@ -550,6 +647,25 @@ public class ColumnDef implements org.apache.thrift.TBase<ColumnDef, ColumnDef._
             org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
+        case 5: // INDEX_OPTIONS
+          if (field.type == org.apache.thrift.protocol.TType.MAP) {
+            {
+              org.apache.thrift.protocol.TMap _map29 = iprot.readMapBegin();
+              this.index_options = new HashMap<String,String>(2*_map29.size);
+              for (int _i30 = 0; _i30 < _map29.size; ++_i30)
+              {
+                String _key31;
+                String _val32;
+                _key31 = iprot.readString();
+                _val32 = iprot.readString();
+                this.index_options.put(_key31, _val32);
+              }
+              iprot.readMapEnd();
+            }
+          } else { 
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
         default:
           org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
       }
@@ -586,6 +702,21 @@ public class ColumnDef implements org.apache.thrift.TBase<ColumnDef, ColumnDef._
       if (isSetIndex_name()) {
         oprot.writeFieldBegin(INDEX_NAME_FIELD_DESC);
         oprot.writeString(this.index_name);
+        oprot.writeFieldEnd();
+      }
+    }
+    if (this.index_options != null) {
+      if (isSetIndex_options()) {
+        oprot.writeFieldBegin(INDEX_OPTIONS_FIELD_DESC);
+        {
+          oprot.writeMapBegin(new org.apache.thrift.protocol.TMap(org.apache.thrift.protocol.TType.STRING, org.apache.thrift.protocol.TType.STRING, this.index_options.size()));
+          for (Map.Entry<String, String> _iter33 : this.index_options.entrySet())
+          {
+            oprot.writeString(_iter33.getKey());
+            oprot.writeString(_iter33.getValue());
+          }
+          oprot.writeMapEnd();
+        }
         oprot.writeFieldEnd();
       }
     }
@@ -633,6 +764,16 @@ public class ColumnDef implements org.apache.thrift.TBase<ColumnDef, ColumnDef._
       }
       first = false;
     }
+    if (isSetIndex_options()) {
+      if (!first) sb.append(", ");
+      sb.append("index_options:");
+      if (this.index_options == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.index_options);
+      }
+      first = false;
+    }
     sb.append(")");
     return sb.toString();
   }
@@ -644,22 +785,6 @@ public class ColumnDef implements org.apache.thrift.TBase<ColumnDef, ColumnDef._
     }
     if (validation_class == null) {
       throw new org.apache.thrift.protocol.TProtocolException("Required field 'validation_class' was not present! Struct: " + toString());
-    }
-  }
-
-  private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-    try {
-      write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-    } catch (org.apache.thrift.TException te) {
-      throw new java.io.IOException(te);
-    }
-  }
-
-  private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-    try {
-      read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-    } catch (org.apache.thrift.TException te) {
-      throw new java.io.IOException(te);
     }
   }
 

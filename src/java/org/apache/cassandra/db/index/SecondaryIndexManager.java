@@ -18,6 +18,7 @@
 package org.apache.cassandra.db.index;
 
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ConcurrentNavigableMap;
@@ -26,6 +27,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.filter.IFilter;
@@ -49,7 +51,7 @@ import org.slf4j.LoggerFactory;
 public class SecondaryIndexManager
 {
     private static final Logger logger = LoggerFactory.getLogger(SecondaryIndexManager.class);
-    
+
     /**
      * Organized the indexes by column name
      */
@@ -156,15 +158,14 @@ public class SecondaryIndexManager
         assert cdef.getIndexType() != null;
         logger.info("Creating new index : {}",cdef);
         
-        SecondaryIndex index = null;
-        switch (cdef.getIndexType())
+        SecondaryIndex index;
+        try
         {
-        case KEYS:
-            index = new KeysIndex(baseCfs, cdef);
-            break;
-        default:
-            throw new RuntimeException("Unknown index type: " + cdef.getIndexName());
-        }
+            index = SecondaryIndex.createInstance(baseCfs, cdef, true);
+        } catch (ConfigurationException e)
+        {
+            throw new RuntimeException(e);
+        }               
 
         // link in indexedColumns. this means that writes will add new data to
         // the index immediately,
@@ -372,7 +373,7 @@ public class SecondaryIndexManager
     {
         List<SecondaryIndexSearcher> indexSearchers = new ArrayList<SecondaryIndexSearcher>();
         
-        Map<IndexType, Set<ByteBuffer>> groupByIndexType = new HashMap<IndexType, Set<ByteBuffer>>();
+        Map<String, Set<ByteBuffer>> groupByIndexType = new HashMap<String, Set<ByteBuffer>>();
  
         
         //Group columns by type
@@ -383,19 +384,19 @@ public class SecondaryIndexManager
             if(index == null)
                 continue;
             
-            Set<ByteBuffer> columns = groupByIndexType.get(index.type());
+            Set<ByteBuffer> columns = groupByIndexType.get(index.getClass().getCanonicalName());
             
             if (columns == null)
             {
                 columns = new HashSet<ByteBuffer>();
-                groupByIndexType.put(index.type(), columns);
+                groupByIndexType.put(index.getClass().getCanonicalName(), columns);
             }
             
             columns.add(ix.column_name);        
         }
         
         //create searcher per type
-        for (Map.Entry<IndexType, Set<ByteBuffer>> entry : groupByIndexType.entrySet())
+        for (Map.Entry<String, Set<ByteBuffer>> entry : groupByIndexType.entrySet())
         {
             indexSearchers.add( getIndexForColumn(entry.getValue().iterator().next()).createSecondaryIndexSearcher(entry.getValue()) );
         }
@@ -426,5 +427,6 @@ public class SecondaryIndexManager
         
         return indexSearchers.get(0).search(clause, range, dataFilter);
     }
+        
     
 }

@@ -33,17 +33,20 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class ColumnDefinition
 {
+    
     public final ByteBuffer name;
     private AbstractType validator;
     private IndexType index_type;
+    private Map<String,String> index_options;
     private String index_name;
-
-    public ColumnDefinition(ByteBuffer name, AbstractType validator, IndexType index_type, String index_name)
+    
+    public ColumnDefinition(ByteBuffer name, AbstractType validator, IndexType index_type, Map<String, String> index_options, String index_name) throws ConfigurationException
     {
         this.name = name;
-        this.index_type = index_type;
         this.index_name = index_name;
         this.validator = validator;
+    
+        this.setIndexType(index_type, index_options);
     }
 
     @Override
@@ -59,6 +62,8 @@ public class ColumnDefinition
             return false;
         if (index_type != that.index_type)
             return false;
+        if (index_options != null ? !index_options.equals(that.index_options) : that.index_options != null)
+            return false;
         if (!name.equals(that.name))
             return false;
         return !(validator != null ? !validator.equals(that.validator) : that.validator != null);
@@ -70,6 +75,7 @@ public class ColumnDefinition
         int result = name != null ? name.hashCode() : 0;
         result = 31 * result + (validator != null ? validator.hashCode() : 0);
         result = 31 * result + (index_type != null ? index_type.hashCode() : 0);
+        result = 31 * result + (index_options != null ? index_options.hashCode() : 0);
         result = 31 * result + (index_name != null ? index_name.hashCode() : 0);
         return result;
     }
@@ -83,6 +89,7 @@ public class ColumnDefinition
                       ? null
                       : org.apache.cassandra.db.migration.avro.IndexType.valueOf(index_type.name());
         cd.index_name = index_name == null ? null : new Utf8(index_name);
+        cd.index_options = getCharSequenceMap(index_options);
         return cd;
     }
 
@@ -93,7 +100,7 @@ public class ColumnDefinition
         try
         {
             AbstractType validatorType = TypeParser.parse(cd.validation_class);
-            return new ColumnDefinition(ByteBufferUtil.clone(cd.name), validatorType, index_type, index_name);
+            return new ColumnDefinition(ByteBufferUtil.clone(cd.name), validatorType, index_type, getStringMap(cd.index_options), index_name);
         }
         catch (ConfigurationException e)
         {
@@ -106,6 +113,7 @@ public class ColumnDefinition
         return new ColumnDefinition(ByteBufferUtil.clone(thriftColumnDef.name),
                                     TypeParser.parse(thriftColumnDef.validation_class),
                                     thriftColumnDef.index_type,
+                                    thriftColumnDef.index_options,
                                     thriftColumnDef.index_name);
     }
 
@@ -142,16 +150,22 @@ public class ColumnDefinition
         index_name = s;
     }
 
+    public void setIndexType(IndexType index_type, Map<String,String> index_options) throws ConfigurationException
+    {
+        this.index_type = index_type;
+        this.index_options = index_options;         
+    }
+
     public IndexType getIndexType()
     {
         return index_type;
     }
-
-    public void setIndexType(IndexType index_type)
+    
+    public Map<String,String> getIndexOptions()
     {
-        this.index_type = index_type;
+        return index_options;
     }
-
+    
     public AbstractType getValidator()
     {
         return validator;
@@ -160,5 +174,32 @@ public class ColumnDefinition
     public void setValidator(AbstractType validator)
     {
         this.validator = validator;
+    }
+    
+    public static Map<String,String> getStringMap(Map<CharSequence, CharSequence> charMap)
+    {
+        if (charMap == null)
+            return null;
+        
+        Map<String,String> stringMap = new HashMap<String, String>();
+            
+        for (Map.Entry<CharSequence, CharSequence> entry : charMap.entrySet())        
+            stringMap.put(entry.getKey().toString(), entry.getValue().toString());
+            
+            
+        return stringMap;
+    }
+    
+    private static Map<CharSequence, CharSequence> getCharSequenceMap(Map<String,String> stringMap)
+    {
+        if (stringMap == null)
+            return null;
+        
+        Map<CharSequence, CharSequence> charMap = new HashMap<CharSequence, CharSequence>();
+        
+        for (Map.Entry<String, String> entry : stringMap.entrySet())
+            charMap.put(new Utf8(entry.getKey()), new Utf8(entry.getValue()));
+        
+        return charMap;
     }
 }

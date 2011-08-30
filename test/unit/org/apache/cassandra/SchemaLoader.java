@@ -98,11 +98,13 @@ public class SchemaLoader
             IntegerType.instance.fromString("42"),
             UTF8Type.instance,
             null,
+            null,
             "Column42"));
         Map<ByteBuffer, ColumnDefinition> utf8Column = new HashMap<ByteBuffer, ColumnDefinition>();
         utf8Column.put(UTF8Type.instance.fromString("fortytwo"), new ColumnDefinition(
             UTF8Type.instance.fromString("fortytwo"),
             IntegerType.instance,
+            null,
             null,
             "Column42"));
 
@@ -270,14 +272,14 @@ public class SchemaLoader
     {
         return new CFMetaData(ksName, cfName, ColumnFamilyType.Super, BytesType.instance, subcc).keyCacheSize(0);
     }
-    private static CFMetaData indexCFMD(String ksName, String cfName, final Boolean withIdxType)
+    private static CFMetaData indexCFMD(String ksName, String cfName, final Boolean withIdxType) throws ConfigurationException
     {
         return standardCFMD(ksName, cfName)
                 .columnMetadata(new HashMap<ByteBuffer, ColumnDefinition>()
                     {{
                         ByteBuffer cName = ByteBuffer.wrap("birthdate".getBytes(Charsets.UTF_8));
                         IndexType keys = withIdxType ? IndexType.KEYS : null;
-                        put(cName, new ColumnDefinition(cName, LongType.instance, keys, ByteBufferUtil.bytesToHex(cName)));
+                        put(cName, new ColumnDefinition(cName, LongType.instance, keys, null, ByteBufferUtil.bytesToHex(cName)));
                     }});
     }
     private static CFMetaData jdbcCFMD(String ksName, String cfName, AbstractType comp)

@@ -234,7 +234,7 @@ public class CreateColumnFamilyStatement
                 ByteBuffer columnName = comparator.fromString(col.getKey().getText());
                 String validatorClassName = comparators.containsKey(col.getValue()) ? comparators.get(col.getValue()) : col.getValue();
                 AbstractType<?> validator = TypeParser.parse(validatorClassName);
-                columnDefs.put(columnName, new ColumnDefinition(columnName, validator, null, null));
+                columnDefs.put(columnName, new ColumnDefinition(columnName, validator, null, null, null));
             }
             catch (ConfigurationException e)
             {

@@ -70,6 +70,7 @@ public class AlterTableStatement
                 cfDef.column_metadata.add(new ColumnDefinition(columnName,
                                                                TypeParser.parse(validator),
                                                                null,
+                                                               null,
                                                                null).toAvro());
                 break;
 

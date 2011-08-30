@@ -2351,14 +2351,14 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
         case 13: // COLUMN_METADATA
           if (field.type == org.apache.thrift.protocol.TType.LIST) {
             {
-              org.apache.thrift.protocol.TList _list29 = iprot.readListBegin();
-              this.column_metadata = new ArrayList<ColumnDef>(_list29.size);
-              for (int _i30 = 0; _i30 < _list29.size; ++_i30)
+              org.apache.thrift.protocol.TList _list34 = iprot.readListBegin();
+              this.column_metadata = new ArrayList<ColumnDef>(_list34.size);
+              for (int _i35 = 0; _i35 < _list34.size; ++_i35)
               {
-                ColumnDef _elem31;
-                _elem31 = new ColumnDef();
-                _elem31.read(iprot);
-                this.column_metadata.add(_elem31);
+                ColumnDef _elem36;
+                _elem36 = new ColumnDef();
+                _elem36.read(iprot);
+                this.column_metadata.add(_elem36);
               }
               iprot.readListEnd();
             }
@@ -2484,15 +2484,15 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
         case 30: // COMPACTION_STRATEGY_OPTIONS
           if (field.type == org.apache.thrift.protocol.TType.MAP) {
             {
-              org.apache.thrift.protocol.TMap _map32 = iprot.readMapBegin();
-              this.compaction_strategy_options = new HashMap<String,String>(2*_map32.size);
-              for (int _i33 = 0; _i33 < _map32.size; ++_i33)
+              org.apache.thrift.protocol.TMap _map37 = iprot.readMapBegin();
+              this.compaction_strategy_options = new HashMap<String,String>(2*_map37.size);
+              for (int _i38 = 0; _i38 < _map37.size; ++_i38)
               {
-                String _key34;
-                String _val35;
-                _key34 = iprot.readString();
-                _val35 = iprot.readString();
-                this.compaction_strategy_options.put(_key34, _val35);
+                String _key39;
+                String _val40;
+                _key39 = iprot.readString();
+                _val40 = iprot.readString();
+                this.compaction_strategy_options.put(_key39, _val40);
               }
               iprot.readMapEnd();
             }
@@ -2589,9 +2589,9 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
         oprot.writeFieldBegin(COLUMN_METADATA_FIELD_DESC);
         {
           oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, this.column_metadata.size()));
-          for (ColumnDef _iter36 : this.column_metadata)
+          for (ColumnDef _iter41 : this.column_metadata)
           {
-            _iter36.write(oprot);
+            _iter41.write(oprot);
           }
           oprot.writeListEnd();
         }
@@ -2688,10 +2688,10 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
         oprot.writeFieldBegin(COMPACTION_STRATEGY_OPTIONS_FIELD_DESC);
         {
           oprot.writeMapBegin(new org.apache.thrift.protocol.TMap(org.apache.thrift.protocol.TType.STRING, org.apache.thrift.protocol.TType.STRING, this.compaction_strategy_options.size()));
-          for (Map.Entry<String, String> _iter37 : this.compaction_strategy_options.entrySet())
+          for (Map.Entry<String, String> _iter42 : this.compaction_strategy_options.entrySet())
           {
-            oprot.writeString(_iter37.getKey());
-            oprot.writeString(_iter37.getValue());
+            oprot.writeString(_iter42.getKey());
+            oprot.writeString(_iter42.getValue());
           }
           oprot.writeMapEnd();
         }
@@ -2943,24 +2943,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     }
     if (name == null) {
       throw new org.apache.thrift.protocol.TProtocolException("Required field 'name' was not present! Struct: " + toString());
-    }
-  }
-
-  private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
-    try {
-      write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
-    } catch (org.apache.thrift.TException te) {
-      throw new java.io.IOException(te);
-    }
-  }
-
-  private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
-    try {
-      // it doesn't seem like you should have to do this, but java serialization is wacky, and doesn't call the default constructor.
-      __isset_bit_vector = new BitSet(1);
-      read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
-    } catch (org.apache.thrift.TException te) {
-      throw new java.io.IOException(te);
     }
   }
 

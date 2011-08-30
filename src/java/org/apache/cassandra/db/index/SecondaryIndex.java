@@ -28,14 +28,11 @@ import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
 
 import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.IColumn;
-import org.apache.cassandra.db.SystemTable;
+import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.index.keys.KeysIndex;
 import org.apache.cassandra.io.sstable.ReducingKeyIterator;
-import org.apache.cassandra.thrift.IndexType;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,27 +47,29 @@ public abstract class SecondaryIndex
     
     private static final Logger logger = LoggerFactory.getLogger(SecondaryIndex.class);
     
+    public static final String CUSTOM_INDEX_OPTION_NAME = "class_name";
+
     /**
      * Base CF that has many indexes
      */
-    protected final ColumnFamilyStore baseCfs;
+    protected ColumnFamilyStore baseCfs;
+    
     
     /**
      * The column definition which this index is responsible for
      */
-    protected final ColumnDefinition columnDef;
-
-    
-    public SecondaryIndex(ColumnFamilyStore baseCfs, ColumnDefinition columnDef)
-    {
-        this.baseCfs = baseCfs;
-        this.columnDef = columnDef;
-    }
+    protected ColumnDefinition columnDef;
     
     /**
-     * @return The type of index.
+     * Perform any initialization work
      */
-    public abstract IndexType type();
+    public abstract void init();
+    
+    /**
+     * Validates the index_options passed in the ColumnDef
+     * @throws ConfigurationException
+     */
+    public abstract void validateOptions() throws ConfigurationException;
 
     
     /**
@@ -114,8 +113,7 @@ public abstract class SecondaryIndex
      * @param rowKey the row identifier that was completed
      */
     public abstract void commitRow(ByteBuffer rowKey);
-    
-    
+      
     /**
      * Called at query time
      * Creates a implementation specific searcher instance for this index type
@@ -238,6 +236,71 @@ public abstract class SecondaryIndex
        
         new Thread(f, "Creating index: " + columnDef.getIndexName()).start();
         return f;
-    }    
-     
+    }
+    
+    public ColumnFamilyStore getBaseCfs()
+    {
+        return baseCfs;
+    }
+
+    private void setBaseCfs(ColumnFamilyStore baseCfs)
+    {
+        this.baseCfs = baseCfs;
+    }
+
+    public ColumnDefinition getColumnDef()
+    {
+        return columnDef;
+    }
+
+    private void setColumnDef(ColumnDefinition columnDef)
+    {
+        this.columnDef = columnDef;
+    }
+    
+    /**
+     * This is the primary way to create a secondary index instance for a CF column.
+     * It will validate the index_options before initializing.
+     * 
+     * @param baseCfs the source of data for the Index
+     * @param cdef the meta information about this column (index_type, index_options, name, etc...)
+     * @param init specify if this index should be initialized after allocated
+     * @return The secondary index instance for this column
+     * @throws ConfigurationException
+     */
+    public static SecondaryIndex createInstance(ColumnFamilyStore baseCfs, ColumnDefinition cdef, boolean init) throws ConfigurationException
+    {
+        SecondaryIndex index = null;
+        
+        switch (cdef.getIndexType())
+        {
+        case KEYS: 
+            index = new KeysIndex();
+            break;
+        case CUSTOM:           
+            assert cdef.getIndexOptions() != null;
+            String class_name = cdef.getIndexOptions().get(CUSTOM_INDEX_OPTION_NAME);
+            assert class_name != null;
+            try
+            {
+                index = (SecondaryIndex) Class.forName(class_name).newInstance();
+            } 
+            catch (Exception e)
+            {
+                throw new RuntimeException(e);
+            }            
+            break;
+            default:
+                throw new RuntimeException("Unknown index type: " + cdef.getIndexName());
+        };
+        
+        index.setColumnDef(cdef);
+        index.validateOptions();
+        index.setBaseCfs(baseCfs);
+        
+        if (init)
+            index.init();
+        
+        return index;
+    }
 }

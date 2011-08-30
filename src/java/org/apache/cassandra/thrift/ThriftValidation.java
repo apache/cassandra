@@ -23,26 +23,21 @@ package org.apache.cassandra.thrift;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.AsciiType;
-import org.apache.cassandra.db.marshal.MarshalException;
-import org.apache.cassandra.db.marshal.TypeParser;
+import org.apache.cassandra.db.index.SecondaryIndex;
+import org.apache.cassandra.db.index.SecondaryIndexManager;
+import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.locator.AbstractReplicationStrategy;
-import org.apache.cassandra.locator.IEndpointSnitch;
-import org.apache.cassandra.locator.NetworkTopologyStrategy;
-import org.apache.cassandra.locator.TokenMetadata;
+import org.apache.cassandra.locator.*;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * This has a lot of building blocks for CassandraServer to call to make sure it has valid input
@@ -639,6 +634,18 @@ public class ThriftValidation
                         if (!oldCd.getIndexName().equals(c.index_name))
                             throw new InvalidRequestException("Cannot modify index name");
                     }
+                    
+                    if (c.index_type == IndexType.CUSTOM)
+                    {
+                        if (c.index_options == null || !c.index_options.containsKey(SecondaryIndex.CUSTOM_INDEX_OPTION_NAME))
+                            throw new InvalidRequestException("Required index option missing: " + SecondaryIndex.CUSTOM_INDEX_OPTION_NAME);                    
+                    }
+                    
+                    // Create the index type and validate the options
+                    ColumnDefinition cdef = ColumnDefinition.fromThrift(c);
+                   
+                    // This method validates the column metadata but does not intialize the index
+                    SecondaryIndex.createInstance(null, cdef, false);
                 }
             }
             validateMinMaxCompactionThresholds(cf_def);

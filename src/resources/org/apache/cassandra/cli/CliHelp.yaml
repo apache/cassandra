@@ -378,8 +378,14 @@ commands:
             - index_type: The type of index to be created.
 
               Suported values are:
-                - 0: for a KEYS based index
-
+                - KEYS: a ColumnFamily backed index
+                - CUSTOM: a user supplied index implementaion. You must supply a
+                  'class_name' field in the index_options with the full classname 
+                  of the implementation.
+            
+            - index_options: Optional additional options for index_type.
+              Options have the form {key:value}.
+                   
         - column_type: Type of columns this column family holds, valid values are
           Standard and Super. Default is Standard.
 
@@ -621,7 +627,13 @@ commands:
             - index_type: The type of index to be created.
 
               Suported values are:
-                - 0: for a KEYS based index
+                - KEYS: a ColumnFamily backed index
+                - CUSTOM: a user supplied index implementaion. You must supply a
+                  'class_name' field in the index_options with the full classname 
+                  of the implementation.
+            
+            - index_options: Optional additional options for index_type.
+              Options have the form {key:value}.
 
         - column_type: Type of columns this column family holds, valid values are
           Standard and Super. Default is Standard.
