@@ -19,20 +19,14 @@
 package org.apache.cassandra.io.compress;
 
 import java.io.*;
-import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
-import java.nio.channels.WritableByteChannel;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
-import org.apache.cassandra.streaming.FileStreamTask;
-import org.apache.cassandra.streaming.PendingFile;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.Pair;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,56 +35,6 @@ import org.xerial.snappy.Snappy;
 public class CompressedRandomAccessReader extends RandomAccessReader
 {
     private static final Logger logger = LoggerFactory.getLogger(CompressedRandomAccessReader.class);
-
-    /**
-     * Transfer sections of the file to the given target channel
-     * This method streams decompressed data so receiving party responsible for compression
-     *
-     * @param file The compressed file to transfer
-     * @param target Channel to transfer data into
-     *
-     * @throws IOException on any I/O error.
-     */
-    public static void transfer(PendingFile file, WritableByteChannel target) throws IOException
-    {
-        RandomAccessReader compressedFile = CompressedRandomAccessReader.open(file.getFilename(), true);
-
-        try
-        {
-            for (Pair<Long, Long> section : file.sections)
-            {
-                long length = section.right - section.left;
-
-                compressedFile.seek(section.left);
-
-                while (length > 0)
-                {
-                    int toRead = (length > FileStreamTask.CHUNK_SIZE) ? FileStreamTask.CHUNK_SIZE : (int) length;
-
-                    ByteBuffer buffer = compressedFile.readBytes(toRead);
-
-                    long bytesTransferred = 0;
-
-                    while (bytesTransferred < toRead)
-                    {
-                        // we don't need to re-read a buffer, it will write starting from buffer.position()
-                        long lastWrite = target.write(buffer);
-                        bytesTransferred += lastWrite;
-                        file.progress += lastWrite;
-                    }
-
-                    length -= bytesTransferred;
-
-                    if (logger.isDebugEnabled())
-                        logger.debug("Bytes transferred " + bytesTransferred + "/" + file.size);
-                }
-            }
-        }
-        finally
-        {
-            FileUtils.closeQuietly(compressedFile);
-        }
-    }
 
     /**
      * Get metadata about given compressed file including uncompressed data length, chunk size

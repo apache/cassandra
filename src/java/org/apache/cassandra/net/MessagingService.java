@@ -48,7 +48,6 @@ import org.apache.cassandra.locator.ILatencySubscriber;
 import org.apache.cassandra.net.io.SerializerType;
 import org.apache.cassandra.net.sink.SinkManager;
 import org.apache.cassandra.security.SSLFactory;
-import org.apache.cassandra.security.streaming.SSLFileStreamTask;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.FileStreamTask;
 import org.apache.cassandra.streaming.StreamHeader;
@@ -417,11 +416,7 @@ public final class MessagingService implements MessagingServiceMBean
     public void stream(StreamHeader header, InetAddress to)
     {
         /* Streaming asynchronously on streamExector_ threads. */
-        EncryptionOptions encryption = DatabaseDescriptor.getEncryptionOptions();
-        if (encryption != null && encryption.internode_encryption == EncryptionOptions.InternodeEncryption.all)
-            streamExecutor_.execute(new SSLFileStreamTask(header, to));
-        else
-            streamExecutor_.execute(new FileStreamTask(header, to));
+        streamExecutor_.execute(new FileStreamTask(header, to, DatabaseDescriptor.getEncryptionOptions()));
     }
 
     public void register(ILatencySubscriber subcriber)

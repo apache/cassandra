@@ -18,31 +18,33 @@
 
 package org.apache.cassandra.streaming;
 
+import java.io.DataOutputStream;
 import java.io.File;
 import java.io.IOException;
-import java.io.RandomAccessFile;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.Socket;
 import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
-import java.nio.channels.SocketChannel;
 
+import org.apache.cassandra.config.EncryptionOptions;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.compress.CompressedRandomAccessReader;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.io.util.RandomAccessReader;
+import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.WrappedRunnable;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class FileStreamTask extends WrappedRunnable
 {
-    private static Logger logger = LoggerFactory.getLogger( FileStreamTask.class );
+    private static Logger logger = LoggerFactory.getLogger(FileStreamTask.class);
     
     // 10MB chunks
     public static final int CHUNK_SIZE = 10*1024*1024;
@@ -51,12 +53,21 @@ public class FileStreamTask extends WrappedRunnable
 
     protected final StreamHeader header;
     protected final InetAddress to;
-    private SocketChannel channel;
-    
-    public FileStreamTask(StreamHeader header, InetAddress to)
+
+    // communication socket
+    private Socket socket;
+    // socket's output stream
+    private DataOutputStream output;
+    // system encryption options if any
+    private final EncryptionOptions encryptionOptions;
+    // allocate buffer to use for transfers only once
+    private final byte[] transferBuffer = new byte[CHUNK_SIZE];
+
+    public FileStreamTask(StreamHeader header, InetAddress to, EncryptionOptions encryptionOptions)
     {
         this.header = header;
         this.to = to;
+        this.encryptionOptions = encryptionOptions;
     }
     
     public void runMayThrow() throws IOException
@@ -84,55 +95,78 @@ public class FileStreamTask extends WrappedRunnable
             logger.debug("Done streaming " + header.file);
     }
 
+    /**
+     * Stream file by it's sections specified by this.header
+     * @throws IOException on any I/O error
+     */
     private void stream() throws IOException
     {
-        ByteBuffer buffer = MessagingService.instance().constructStreamHeader(header, false, Gossiper.instance.getVersion(to));
-        writeHeader(buffer);
+        ByteBuffer HeaderBuffer = MessagingService.instance().constructStreamHeader(header, false, Gossiper.instance.getVersion(to));
+        // write header
+        output.write(ByteBufferUtil.getArray(HeaderBuffer));
 
         if (header.file == null)
             return;
 
-        if (header.file.sstable.compression)
-        {
-            CompressedRandomAccessReader.transfer(header.file, channel);
-            return;
-        }
+        RandomAccessReader file = (header.file.sstable.compression) // try to skip kernel page cache if possible
+                                    ? CompressedRandomAccessReader.open(header.file.getFilename(), true)
+                                    : RandomAccessReader.open(new File(header.file.getFilename()), CHUNK_SIZE, true);
 
-        RandomAccessFile raf = new RandomAccessFile(new File(header.file.getFilename()), "r");
         try
         {
-            FileChannel fc = raf.getChannel();
-            // stream sections of the file as returned by PendingFile.currentSection
+            // stream each of the required sections of the file
             for (Pair<Long, Long> section : header.file.sections)
             {
+                // seek to the beginning of the section
+                file.seek(section.left);
+
+                // length of the section to stream
                 long length = section.right - section.left;
+                // tracks write progress
                 long bytesTransferred = 0;
+
                 while (bytesTransferred < length)
                 {
-                    long lastWrite = write(fc, section, length, bytesTransferred);
+                    long lastWrite = write(file, length, bytesTransferred);
                     bytesTransferred += lastWrite;
+                    // store streaming progress
                     header.file.progress += lastWrite;
                 }
+
+                // make sure that current section is send
+                output.flush();
+
                 if (logger.isDebugEnabled())
                     logger.debug("Bytes transferred " + bytesTransferred + "/" + header.file.size);
             }
         }
         finally
         {
-            FileUtils.closeQuietly(raf);
+            // no matter what happens close file
+            FileUtils.closeQuietly(file);
         }
     }
 
-    protected long write(FileChannel fc, Pair<Long, Long> section, long length, long bytesTransferred) throws IOException
+    /**
+     * Sequentially read bytes from the file and write them to the output stream
+     *
+     * @param reader The file reader to read from
+     * @param length The full length that should be transferred
+     * @param bytesTransferred Number of bytes remaining to transfer
+     *
+     * @return Number of bytes transferred
+     *
+     * @throws IOException on any I/O error
+     */
+    protected long write(RandomAccessReader reader, long length, long bytesTransferred) throws IOException
     {
-        long toTransfer = Math.min(CHUNK_SIZE, length - bytesTransferred);
-        return fc.transferTo(section.left + bytesTransferred, toTransfer, channel);
-    }
+        int toTransfer = (int) Math.min(CHUNK_SIZE, length - bytesTransferred);
 
-    protected void writeHeader(ByteBuffer buffer) throws IOException
-    {
-        channel.write(buffer);
-        assert buffer.remaining() == 0;
+        reader.readFully(transferBuffer, 0, toTransfer);
+
+        output.write(transferBuffer, 0, toTransfer);
+
+        return toTransfer;
     }
 
     /**
@@ -172,18 +206,22 @@ public class FileStreamTask extends WrappedRunnable
 
     protected void bind() throws IOException
     {
-        channel = SocketChannel.open();
+        socket = (encryptionOptions != null && encryptionOptions.internode_encryption == EncryptionOptions.InternodeEncryption.all)
+                    ? SSLFactory.getSocket(encryptionOptions)
+                    : new Socket();
+
         // force local binding on correctly specified interface.
-        channel.socket().bind(new InetSocketAddress(FBUtilities.getLocalAddress(), 0));
+        socket.bind(new InetSocketAddress(FBUtilities.getLocalAddress(), 0));
     }
 
     protected void connect() throws IOException
     {
-        channel.connect(new InetSocketAddress(to, DatabaseDescriptor.getStoragePort()));
+        socket.connect(new InetSocketAddress(to, DatabaseDescriptor.getStoragePort()));
+        output = new DataOutputStream(socket.getOutputStream());
     }
 
     protected void close() throws IOException
     {
-        channel.close();
+        socket.close();
     }
 }

@@ -48,7 +48,7 @@
  * Improvements of the CLI `describe` command (CASSANDRA-2630)
  * reduce window where dropped CF sstables may not be deleted (CASSANDRA-2942)
  * Expose gossip/FD info to JMX (CASSANDRA-2806)
-
+ * Fix streaming over SSL when compressed SSTable involved (CASSANDRA-3051)
 
 0.8.5
  * fix NPE when encryption_options is unspecified (CASSANDRA-3007)
