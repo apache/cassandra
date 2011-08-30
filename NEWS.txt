@@ -107,6 +107,10 @@ Upgrading
     - The loadbalance command has been removed from nodetool.  For similar
       behavior, decommission then rebootstrap with empty initial_token.
     - Thrift unframed mode has been removed.
+    - The addition of key_validation_class means the cli will assume keys
+      are bytes, instead of strings, in the absence of other information.
+      See http://wiki.apache.org/cassandra/FAQ#cli_keys for more details.
+
 
 Features
 --------
