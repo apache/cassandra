@@ -19,12 +19,10 @@
 package org.apache.cassandra.dht;
 
 import java.nio.ByteBuffer;
-import java.util.Arrays;
-import java.util.List;
+import java.util.HashSet;
 import java.util.Set;
 
 import org.apache.commons.lang.StringUtils;
-
 import org.junit.Test;
 
 public class RangeTest
@@ -313,5 +311,152 @@ public class RangeTest
         assert Range.compare(t4, t5) == -1;
         assert Range.compare(t5, t4) == 1;
         assert Range.compare(t1, t4) == 0;
+    }
+
+    private Range makeRange(String token1, String token2)
+    {
+        return new Range(new BigIntegerToken(token1), new BigIntegerToken(token2));
+    }
+
+    private Set<Range> makeRanges(String[][] tokenPairs)
+    {
+        Set<Range> ranges = new HashSet<Range>();
+        for (int i = 0; i < tokenPairs.length; ++i)
+            ranges.add(makeRange(tokenPairs[i][0], tokenPairs[i][1]));
+        return ranges;
+    }
+
+    private void checkDifference(Range oldRange, String[][] newTokens, String[][] expected)
+    {
+        Set<Range> ranges = makeRanges(newTokens);
+        for (Range newRange : ranges)
+        {
+            Set<Range> diff = oldRange.differenceToFetch(newRange);
+            assert diff.equals(makeRanges(expected)) : "\n" +
+                                                       "Old range: " + oldRange.toString() + "\n" +
+                                                       "New range: " + newRange.toString() + "\n" +
+                                                       "Difference: (result) " + diff.toString() + " != " + makeRanges(expected) + " (expected)";
+        }
+    }
+
+    @Test
+    public void testDifferenceToFetchNoWrap()
+    {
+        Range oldRange = makeRange("10", "40");
+
+        // New range is entirely contained
+        String[][] newTokens1 = { { "20", "30" }, { "10", "20" }, { "10", "40" }, { "20", "40" } };
+        String[][] expected1 = { };
+        checkDifference(oldRange, newTokens1, expected1);
+
+        // Right half of the new range is needed
+        String[][] newTokens2 = { { "10", "50" }, { "20", "50" }, { "40", "50" } };
+        String[][] expected2 = { { "40", "50" } };
+        checkDifference(oldRange, newTokens2, expected2);
+
+        // Left half of the new range is needed
+        String[][] newTokens3 = { { "0", "10" }, { "0", "20" }, { "0", "40" } };
+        String[][] expected3 = { { "0", "10" } };
+        checkDifference(oldRange, newTokens3, expected3);
+
+        // Parts on both ends of the new range are needed
+        String[][] newTokens4 = { { "0", "50" } };
+        String[][] expected4 = { { "0", "10" }, { "40", "50" } };
+        checkDifference(oldRange, newTokens4, expected4);
+    }
+
+    @Test
+    public void testDifferenceToFetchBothWrap()
+    {
+        Range oldRange = makeRange("1010", "40");
+
+        // New range is entirely contained
+        String[][] newTokens1 = { { "1020", "30" }, { "1010", "20" }, { "1010", "40" }, { "1020", "40" } };
+        String[][] expected1 = { };
+        checkDifference(oldRange, newTokens1, expected1);
+
+        // Right half of the new range is needed
+        String[][] newTokens2 = { { "1010", "50" }, { "1020", "50" }, { "1040", "50" } };
+        String[][] expected2 = { { "40", "50" } };
+        checkDifference(oldRange, newTokens2, expected2);
+
+        // Left half of the new range is needed
+        String[][] newTokens3 = { { "1000", "10" }, { "1000", "20" }, { "1000", "40" } };
+        String[][] expected3 = { { "1000", "1010" } };
+        checkDifference(oldRange, newTokens3, expected3);
+
+        // Parts on both ends of the new range are needed
+        String[][] newTokens4 = { { "1000", "50" } };
+        String[][] expected4 = { { "1000", "1010" }, { "40", "50" } };
+        checkDifference(oldRange, newTokens4, expected4);
+    }
+
+    @Test
+    public void testDifferenceToFetchOldWraps()
+    {
+        Range oldRange = makeRange("1010", "40");
+
+        // New range is entirely contained
+        String[][] newTokens1 = { { "0", "30" }, { "0", "40" }, { "10", "40" } };
+        String[][] expected1 = { };
+        checkDifference(oldRange, newTokens1, expected1);
+
+        // Right half of the new range is needed
+        String[][] newTokens2 = { { "0", "50" }, { "10", "50" }, { "40", "50" } };
+        String[][] expected2 = { { "40", "50" } };
+        checkDifference(oldRange, newTokens2, expected2);
+
+        // Whole range is needed
+        String[][] newTokens3 = { { "50", "90" } };
+        String[][] expected3 = { { "50", "90" } };
+        checkDifference(oldRange, newTokens3, expected3);
+
+        // Both ends of the new range overlaps the old range
+        String[][] newTokens4 = { { "10", "1010" }, { "40", "1010" }, { "10", "1030" }, { "40", "1030" } };
+        String[][] expected4 = { { "40", "1010" } };
+        checkDifference(oldRange, newTokens4, expected4);
+
+        // Only RHS of the new range overlaps the old range
+        String[][] newTokens5 = { { "60", "1010" }, { "60", "1030" } };
+        String[][] expected5 = { { "60", "1010" } };
+        checkDifference(oldRange, newTokens5, expected5);
+    }
+
+    @Test
+    public void testDifferenceToFetchNewWraps()
+    {
+        Range oldRange = makeRange("0", "40");
+
+        // Only the LHS of the new range is needed
+        String[][] newTokens1 = { { "1010", "0" }, { "1010", "10" }, { "1010", "40" } };
+        String[][] expected1 = { { "1010", "0" } };
+        checkDifference(oldRange, newTokens1, expected1);
+
+        // Both ends of the new range are needed
+        String[][] newTokens2 = { { "1010", "50" } };
+        String[][] expected2 = { { "1010", "0" }, { "40", "50" } };
+        checkDifference(oldRange, newTokens2, expected2);
+
+        oldRange = makeRange("20", "40");
+
+        // Whole new range is needed
+        String[][] newTokens3 = { { "1010", "0" } };
+        String[][] expected3 = { { "1010", "0" } };
+        checkDifference(oldRange, newTokens3, expected3);
+
+        // Whole new range is needed (matching endpoints)
+        String[][] newTokens4 = { { "1010", "20" } };
+        String[][] expected4 = { { "1010", "20" } };
+        checkDifference(oldRange, newTokens4, expected4);
+
+        // Only RHS of new range is needed
+        String[][] newTokens5 = { { "30", "0" }, { "40", "0" } };
+        String[][] expected5 = { { "40", "0" } };
+        checkDifference(oldRange, newTokens5, expected5);
+
+        // Only RHS of new range is needed (matching endpoints)
+        String[][] newTokens6 = { { "30", "20" }, { "40", "20" } };
+        String[][] expected6 = { { "40", "20" } };
+        checkDifference(oldRange, newTokens6, expected6);
     }
 }

@@ -96,7 +96,7 @@ public class CliCompiler
 
     public static String getColumnFamily(Tree astNode, List<CfDef> cfDefs)
     {
-        return getColumnFamily(astNode.getChild(0).getText(), cfDefs);
+        return getColumnFamily(CliUtils.unescapeSQLString(astNode.getChild(0).getText()), cfDefs);
     }
 
     public static String getColumnFamily(String cfName, List<CfDef> cfDefs)

@@ -106,13 +106,20 @@ class BloomCalculations {
      * A wrapper class that holds two key parameters for a Bloom Filter: the
      * number of hash functions used, and the number of buckets per element used.
      */
-    public static class BloomSpecification {
+    public static class BloomSpecification
+    {
         final int K; // number of hash functions.
         final int bucketsPerElement;
 
-        public BloomSpecification(int k, int bucketsPerElement) {
+        public BloomSpecification(int k, int bucketsPerElement)
+        {
             K = k;
             this.bucketsPerElement = bucketsPerElement;
+        }
+
+        public String toString()
+        {
+            return String.format("BloomSpecification(K=%d, bucketsPerElement=%d)", K, bucketsPerElement);
         }
     }
 
