@@ -255,10 +255,7 @@ incremental_backups: false
 snapshot_before_compaction: false
 
 # change this to increase the compaction thread's priority.  In java, 1 is the
-# lowest priority and that is our default.
-#
-# Under Linux, this cannot be higher than 5 ("normal" thread priority) without
-# running as root.
+# lowest priority and that is our default.  The highest allowed is 5.
 # compaction_thread_priority: 1
 
 # Add column indexes to a row after its contents reach this size.
