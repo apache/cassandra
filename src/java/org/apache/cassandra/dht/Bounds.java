@@ -47,7 +47,7 @@ public class Bounds extends AbstractBounds
 
     public AbstractBounds createFrom(Token token)
     {
-        return new Bounds(left, token);
+        return new Bounds(left, token, partitioner);
     }
 
     public List<AbstractBounds> unwrap()

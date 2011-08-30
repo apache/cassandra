@@ -146,7 +146,8 @@ public class Range extends AbstractBounds implements Comparable<Range>, Serializ
             if (!(left.compareTo(that.right) < 0 && that.left.compareTo(right) < 0))
                 return Collections.emptySet();
             return rangeSet(new Range((Token)ObjectUtils.max(this.left, that.left),
-                                      (Token)ObjectUtils.min(this.right, that.right)));
+                                      (Token)ObjectUtils.min(this.right, that.right),
+                                      partitioner));
         }
         if (thiswraps && thatwraps)
         {
@@ -174,8 +175,8 @@ public class Range extends AbstractBounds implements Comparable<Range>, Serializ
     {
         Set<Range> intersection = new HashSet<Range>(2);
         if (that.right.compareTo(first.left) > 0)
-            intersection.add(new Range(first.left, that.right));
-        intersection.add(new Range(that.left, first.right));
+            intersection.add(new Range(first.left, that.right, first.partitioner));
+        intersection.add(new Range(that.left, first.right, first.partitioner));
         return Collections.unmodifiableSet(intersection);
     }
 
@@ -183,10 +184,10 @@ public class Range extends AbstractBounds implements Comparable<Range>, Serializ
     {
         Set<Range> intersection = new HashSet<Range>(2);
         if (other.contains(wrapping.right))
-            intersection.add(new Range(other.left, wrapping.right));
+            intersection.add(new Range(other.left, wrapping.right, wrapping.partitioner));
         // need the extra compareto here because ranges are asymmetrical; wrapping.left _is not_ contained by the wrapping range
         if (other.contains(wrapping.left) && wrapping.left.compareTo(other.right) < 0)
-            intersection.add(new Range(wrapping.left, other.right));
+            intersection.add(new Range(wrapping.left, other.right, wrapping.partitioner));
         return Collections.unmodifiableSet(intersection);
     }
 
@@ -194,7 +195,7 @@ public class Range extends AbstractBounds implements Comparable<Range>, Serializ
     {
         if (token.equals(left))
             return null;
-        return new Range(left, token);
+        return new Range(left, token, partitioner);
     }
 
     public List<AbstractBounds> unwrap()
@@ -202,8 +203,8 @@ public class Range extends AbstractBounds implements Comparable<Range>, Serializ
         if (!isWrapAround() || right.equals(partitioner.getMinimumToken()))
             return (List)Arrays.asList(this);
         List<AbstractBounds> unwrapped = new ArrayList<AbstractBounds>(2);
-        unwrapped.add(new Range(left, partitioner.getMinimumToken()));
-        unwrapped.add(new Range(partitioner.getMinimumToken(), right));
+        unwrapped.add(new Range(left, partitioner.getMinimumToken(), partitioner));
+        unwrapped.add(new Range(partitioner.getMinimumToken(), right, partitioner));
         return unwrapped;
     }
 
@@ -272,9 +273,9 @@ public class Range extends AbstractBounds implements Comparable<Range>, Serializ
         ArrayList<Range> difference = new ArrayList<Range>();
 
         if (!left.equals(contained.left))
-            difference.add(new Range(left, contained.left));
+            difference.add(new Range(left, contained.left, partitioner));
         if (!right.equals(contained.right))
-            difference.add(new Range(contained.right, right));
+            difference.add(new Range(contained.right, right, partitioner));
         return difference;
     }
 
