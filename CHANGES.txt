@@ -40,6 +40,9 @@
  * always hint counters (CASSANDRA-3099)
  * fix log4j initialization in EmbeddedCassandraService (CASSANDRA-2857)
  * fix corner cases in Range.differenceToFetch (CASSANDRA-3084)
+ * fix ip address String representation in the ring cache (CASSANDRA-3044)
+ * fix ring cache compatibility when mixing pre-0.8.4 nodes with post-
+   in the same cluster (CASSANDRA-3023)
 
 
 0.8.4
