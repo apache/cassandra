@@ -261,6 +261,24 @@ public class Range extends AbstractBounds implements Comparable<Range>, Serializ
     }
 
     /**
+     * Subtracts a portion of this range.
+     * @param contained The range to subtract from this. It must be totally
+     * contained by this range.
+     * @return An ArrayList of the Ranges left after subtracting contained
+     * from this.
+     */
+    private ArrayList<Range> subtractContained(Range contained)
+    {
+        ArrayList<Range> difference = new ArrayList<Range>();
+
+        if (!left.equals(contained.left))
+            difference.add(new Range(left, contained.left));
+        if (!right.equals(contained.right))
+            difference.add(new Range(contained.right, right));
+        return difference;
+    }
+
+    /**
      * Calculate set of the difference ranges of given two ranges
      * (as current (A, B] and rhs is (C, D])
      * which node will need to fetch when moving to a given new token
@@ -270,33 +288,35 @@ public class Range extends AbstractBounds implements Comparable<Range>, Serializ
      */
     public Set<Range> differenceToFetch(Range rhs)
     {
-        Set<Range> difference = new HashSet<Range>();
-
-        int comparisonAC = Range.compare(left, rhs.left);
-
-        if (comparisonAC == 0) // (A, B] & (A, C]
+        Set<Range> result;
+        Set<Range> intersectionSet = this.intersectionWith(rhs);
+        if (intersectionSet.isEmpty())
         {
-            if (Range.compare(right, rhs.right) < 0) // B < C
+            result = new HashSet<Range>();
+            result.add(rhs);
+        }
+        else
+        {
+            Range[] intersections = new Range[intersectionSet.size()];
+            intersectionSet.toArray(intersections);
+            if (intersections.length == 1)
             {
-                difference.add(new Range(right, rhs.right));
+                result = new HashSet<Range>(rhs.subtractContained(intersections[0]));
+            }
+            else
+            {
+                // intersections.length must be 2
+                Range first = intersections[0];
+                Range second = intersections[1];
+                ArrayList<Range> temp = rhs.subtractContained(first);
+
+                // Because there are two intersections, subtracting only one of them
+                // will yield a single Range.
+                Range single = temp.get(0);
+                result = new HashSet<Range>(single.subtractContained(second));
             }
         }
-        else if (comparisonAC > 0) // (A, B] & (C, D]  where C < A (A > C)
-        {
-            difference.add(new Range(rhs.left, left)); // first interval will be (C, A]
-
-            if (Range.compare(rhs.right, right) > 0) // D > B
-            {
-                difference.add(new Range(rhs.right, right)); // (D, B]
-            }
-        }
-        else // (A, B] & (C, D] where C > A (mean that comparisonAC < 0)
-        {
-            Token newLeft = (Range.compare(rhs.left, right) > 0) ? rhs.left : right; // C > B ? (C, D] : (B, D]
-            difference.add(new Range(newLeft, rhs.right));
-        }
-
-        return difference;
+        return result;
     }
 
     public static boolean isTokenInRanges(Token token, Iterable<Range> ranges)

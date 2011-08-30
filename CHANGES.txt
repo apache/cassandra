@@ -39,6 +39,7 @@
    and string representations in CLI (CASSANDRA-3075)
  * always hint counters (CASSANDRA-3099)
  * fix log4j initialization in EmbeddedCassandraService (CASSANDRA-2857)
+ * fix corner cases in Range.differenceToFetch (CASSANDRA-3084)
 
 
 0.8.4
