@@ -35,6 +35,8 @@ import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.db.migration.avro.ColumnDef;
 import org.apache.cassandra.io.IColumnSerializer;
+import org.apache.cassandra.io.compress.CompressionParameters;
+import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -69,7 +71,6 @@ public final class CFMetaData
     public final static String DEFAULT_ROW_CACHE_PROVIDER = "org.apache.cassandra.cache.ConcurrentLinkedHashCacheProvider";
     public final static String DEFAULT_COMPACTION_STRATEGY_CLASS = "SizeTieredCompactionStrategy";
     public final static ByteBuffer DEFAULT_KEY_NAME = ByteBufferUtil.bytes("KEY");
-    public final static boolean DEFAULT_COMPRESSION = false;
 
     public static final CFMetaData StatusCf = newSystemMetadata(SystemTable.STATUS_CF, 0, "persistent metadata for the local node", BytesType.instance, null, DEFAULT_SYSTEM_MEMTABLE_THROUGHPUT_IN_MB);
     public static final CFMetaData HintsCf = newSystemMetadata(HintedHandOffManager.HINTS_CF, 1, "hinted handoff data", BytesType.instance, BytesType.instance, Math.min(256, Math.max(32, DEFAULT_MEMTABLE_THROUGHPUT_IN_MB / 2)));
@@ -121,11 +122,12 @@ public final class CFMetaData
     private double mergeShardsChance;                 // default 0.1, chance [0.0, 1.0] of merging old shards during replication
     private IRowCacheProvider rowCacheProvider;
     private ByteBuffer keyAlias;                      // default NULL
-    private boolean compression;
 
     private Map<ByteBuffer, ColumnDefinition> column_metadata;
     public Class<? extends AbstractCompactionStrategy> compactionStrategyClass;
     public Map<String, String> compactionStrategyOptions;
+
+    private CompressionParameters compressionParameters;
 
     public CFMetaData comment(String prop) { comment = enforceCommentNotNull(prop); return this;}
     public CFMetaData rowCacheSize(double prop) {rowCacheSize = prop; return this;}
@@ -144,11 +146,11 @@ public final class CFMetaData
     public CFMetaData memOps(double prop) {memtableOperationsInMillions = prop; return this;}
     public CFMetaData mergeShardsChance(double prop) {mergeShardsChance = prop; return this;}
     public CFMetaData keyAlias(ByteBuffer prop) {keyAlias = prop; return this;}
-    public CFMetaData compression(boolean prop) {compression = prop; return this; }
     public CFMetaData columnMetadata(Map<ByteBuffer,ColumnDefinition> prop) {column_metadata = prop; return this;}
     public CFMetaData rowCacheProvider(IRowCacheProvider prop) { rowCacheProvider = prop; return this;}
     public CFMetaData compactionStrategyClass(Class<? extends AbstractCompactionStrategy> prop) {compactionStrategyClass = prop; return this;}
     public CFMetaData compactionStrategyOptions(Map<String, String> prop) {compactionStrategyOptions = prop; return this;}
+    public CFMetaData compressionParameters(CompressionParameters prop) {compressionParameters = prop; return this;}
 
     public CFMetaData(String keyspace, String name, ColumnFamilyType type, AbstractType comp, AbstractType subcc)
     {
@@ -195,7 +197,6 @@ public final class CFMetaData
         memtableThroughputInMb       = DEFAULT_MEMTABLE_THROUGHPUT_IN_MB;
         memtableOperationsInMillions = DEFAULT_MEMTABLE_OPERATIONS_IN_MILLIONS;
         mergeShardsChance            = DEFAULT_MERGE_SHARDS_CHANCE;
-        compression                  = DEFAULT_COMPRESSION;
         try
         {
             rowCacheProvider             = FBUtilities.newCacheProvider(DEFAULT_ROW_CACHE_PROVIDER);
@@ -221,6 +222,8 @@ public final class CFMetaData
             throw new AssertionError(e);
         }
         compactionStrategyOptions = new HashMap<String, String>();
+
+        compressionParameters = new CompressionParameters(null);
     }
 
     private static CFMetaData newSystemMetadata(String cfName, int cfId, String comment, AbstractType comparator, AbstractType subcc, int memtableThroughPutInMB)
@@ -282,7 +285,7 @@ public final class CFMetaData
                       .columnMetadata(oldCFMD.column_metadata)
                       .compactionStrategyClass(oldCFMD.compactionStrategyClass)
                       .compactionStrategyOptions(oldCFMD.compactionStrategyOptions)
-                      .compression(oldCFMD.compression);
+                      .compressionParameters(oldCFMD.compressionParameters);
     }
     
     /**
@@ -331,7 +334,6 @@ public final class CFMetaData
         cf.memtable_operations_in_millions = memtableOperationsInMillions;
         cf.merge_shards_chance = mergeShardsChance;
         cf.key_alias = keyAlias;
-        cf.compression = compression;
         cf.column_metadata = new ArrayList<ColumnDef>(column_metadata.size());
         for (ColumnDefinition cd : column_metadata.values())
             cf.column_metadata.add(cd.toAvro());
@@ -342,6 +344,16 @@ public final class CFMetaData
             cf.compaction_strategy_options = new HashMap<CharSequence, CharSequence>();
             for (Map.Entry<String, String> e : compactionStrategyOptions.entrySet())
                 cf.compaction_strategy_options.put(new Utf8(e.getKey()), new Utf8(e.getValue()));
+        }
+        if (compressionParameters.compressorClass != null)
+        {
+            cf.compression = new Utf8(compressionParameters.compressorClass.getName());
+            if (compressionParameters.compressionOptions != null)
+            {
+                cf.compression_options = new HashMap<CharSequence, CharSequence>();
+                for (Map.Entry<String, String> e : compressionParameters.compressionOptions.entrySet())
+                    cf.compression_options.put(new Utf8(e.getKey()), new Utf8(e.getValue()));
+            }
         }
         return cf;
     }
@@ -422,6 +434,16 @@ public final class CFMetaData
                 newCFMD.compactionStrategyOptions.put(e.getKey().toString(), e.getValue().toString());
         }
 
+        CompressionParameters cp;
+        try
+        {
+            cp = new CompressionParameters(cf.compression, cf.compression_options);
+        }
+        catch (ConfigurationException e)
+        {
+            throw new RuntimeException(e);
+        }
+
         return newCFMD.comment(cf.comment.toString())
                       .rowCacheSize(cf.row_cache_size)
                       .keyCacheSize(cf.key_cache_size)
@@ -431,7 +453,7 @@ public final class CFMetaData
                       .defaultValidator(validator)
                       .keyValidator(keyValidator)
                       .columnMetadata(column_metadata)
-                      .compression(cf.compression);
+                      .compressionParameters(cp);
     }
     
     public String getComment()
@@ -524,14 +546,9 @@ public final class CFMetaData
         return keyAlias == null ? DEFAULT_KEY_NAME : keyAlias;
     }
 
-    public boolean useCompression()
+    public CompressionParameters compressionParameters()
     {
-        return compression;
-    }
-
-    public void useCompression(boolean flag)
-    {
-        compression = flag;
+        return compressionParameters;
     }
 
     public Map<ByteBuffer, ColumnDefinition> getColumn_metadata()
@@ -581,9 +598,9 @@ public final class CFMetaData
             .append(memtableOperationsInMillions, rhs.memtableOperationsInMillions)
             .append(mergeShardsChance, rhs.mergeShardsChance)
             .append(keyAlias, rhs.keyAlias)
-            .append(compression, rhs.compression)
             .append(compactionStrategyClass, rhs.compactionStrategyClass)
             .append(compactionStrategyOptions, rhs.compactionStrategyOptions)
+            .append(compressionParameters, rhs.compressionParameters)
             .isEquals();
     }
 
@@ -614,9 +631,9 @@ public final class CFMetaData
             .append(memtableOperationsInMillions)
             .append(mergeShardsChance)
             .append(keyAlias)
-            .append(compression)
             .append(compactionStrategyClass)
             .append(compactionStrategyOptions)
+            .append(compressionParameters)
             .toHashCode();
     }
 
@@ -661,8 +678,6 @@ public final class CFMetaData
             cf_def.compaction_strategy = DEFAULT_COMPACTION_STRATEGY_CLASS;
         if (null == cf_def.compaction_strategy_options)
             cf_def.compaction_strategy_options = Collections.emptyMap();
-        if (!cf_def.isSetCompression())
-            cf_def.setCompression(CFMetaData.DEFAULT_COMPRESSION);
     }
 
     public static CFMetaData fromThrift(org.apache.cassandra.thrift.CfDef cf_def) throws InvalidRequestException, ConfigurationException
@@ -699,6 +714,8 @@ public final class CFMetaData
         if (cf_def.isSetCompaction_strategy_options())
             newCFMD.compactionStrategyOptions(new HashMap<String, String>(cf_def.compaction_strategy_options));
 
+        CompressionParameters cp = new CompressionParameters(cf_def.compression, cf_def.compression_options);
+
         return newCFMD.comment(cf_def.comment)
                       .rowCacheSize(cf_def.row_cache_size)
                       .keyCacheSize(cf_def.key_cache_size)
@@ -707,7 +724,7 @@ public final class CFMetaData
                       .defaultValidator(TypeParser.parse(cf_def.default_validation_class))
                       .keyValidator(TypeParser.parse(cf_def.key_validation_class))
                       .columnMetadata(ColumnDefinition.fromThrift(cf_def.column_metadata))
-                      .compression(cf_def.compression);
+                      .compressionParameters(cp);
     }
 
     /** updates CFMetaData in-place to match cf_def */
@@ -760,7 +777,6 @@ public final class CFMetaData
         if (cf_def.row_cache_provider != null)
             rowCacheProvider = FBUtilities.newCacheProvider(cf_def.row_cache_provider.toString());
         keyAlias = cf_def.key_alias;
-        compression = cf_def.compression;
 
         // adjust column definitions. figure out who is coming and going.
         Set<ByteBuffer> toRemove = new HashSet<ByteBuffer>();
@@ -813,6 +829,8 @@ public final class CFMetaData
             for (Map.Entry<CharSequence, CharSequence> e : cf_def.compaction_strategy_options.entrySet())
                 compactionStrategyOptions.put(e.getKey().toString(), e.getValue().toString());
         }
+
+        compressionParameters = new CompressionParameters(cf_def.compression, cf_def.compression_options);
 
         logger.debug("application result is {}", this);
     }
@@ -890,7 +908,6 @@ public final class CFMetaData
         def.setMemtable_operations_in_millions(memtableOperationsInMillions);
         def.setMerge_shards_chance(mergeShardsChance);
         def.setKey_alias(getKeyName());
-        def.setCompression(compression);
         List<org.apache.cassandra.thrift.ColumnDef> column_meta = new ArrayList<org.apache.cassandra.thrift.ColumnDef>(column_metadata.size());
         for (ColumnDefinition cd : column_metadata.values())
         {
@@ -905,6 +922,11 @@ public final class CFMetaData
         def.setColumn_metadata(column_meta);
         def.setCompaction_strategy(compactionStrategyClass.getName());
         def.setCompaction_strategy_options(new HashMap<String, String>(compactionStrategyOptions));
+        if (compressionParameters.compressorClass != null)
+        {
+            def.setCompression(compressionParameters.compressorClass.getName());
+            def.setCompression_options(compressionParameters.compressionOptions);
+        }
         return def;
     }
 
@@ -1026,10 +1048,11 @@ public final class CFMetaData
             .append("memtableOperationsInMillions", memtableOperationsInMillions)
             .append("mergeShardsChance", mergeShardsChance)
             .append("keyAlias", keyAlias)
-            .append("compression", compression)
             .append("column_metadata", column_metadata)
             .append("compactionStrategyClass", compactionStrategyClass)
             .append("compactionStrategyOptions", compactionStrategyOptions)
+            .append("compressorClass", compressionParameters.compressorClass)
+            .append("compressionOptions", compressionParameters.compressionOptions)
             .toString();
     }
 }

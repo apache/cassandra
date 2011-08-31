@@ -72,7 +72,8 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
   private static final org.apache.thrift.protocol.TField COMPACTION_STRATEGY_FIELD_DESC = new org.apache.thrift.protocol.TField("compaction_strategy", org.apache.thrift.protocol.TType.STRING, (short)29);
   private static final org.apache.thrift.protocol.TField COMPACTION_STRATEGY_OPTIONS_FIELD_DESC = new org.apache.thrift.protocol.TField("compaction_strategy_options", org.apache.thrift.protocol.TType.MAP, (short)30);
   private static final org.apache.thrift.protocol.TField ROW_CACHE_KEYS_TO_SAVE_FIELD_DESC = new org.apache.thrift.protocol.TField("row_cache_keys_to_save", org.apache.thrift.protocol.TType.I32, (short)31);
-  private static final org.apache.thrift.protocol.TField COMPRESSION_FIELD_DESC = new org.apache.thrift.protocol.TField("compression", org.apache.thrift.protocol.TType.BOOL, (short)32);
+  private static final org.apache.thrift.protocol.TField COMPRESSION_FIELD_DESC = new org.apache.thrift.protocol.TField("compression", org.apache.thrift.protocol.TType.STRING, (short)32);
+  private static final org.apache.thrift.protocol.TField COMPRESSION_OPTIONS_FIELD_DESC = new org.apache.thrift.protocol.TField("compression_options", org.apache.thrift.protocol.TType.MAP, (short)33);
 
   public String keyspace;
   public String name;
@@ -101,7 +102,8 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
   public String compaction_strategy;
   public Map<String,String> compaction_strategy_options;
   public int row_cache_keys_to_save;
-  public boolean compression;
+  public String compression;
+  public Map<String,String> compression_options;
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
   public enum _Fields implements org.apache.thrift.TFieldIdEnum {
@@ -132,7 +134,8 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     COMPACTION_STRATEGY((short)29, "compaction_strategy"),
     COMPACTION_STRATEGY_OPTIONS((short)30, "compaction_strategy_options"),
     ROW_CACHE_KEYS_TO_SAVE((short)31, "row_cache_keys_to_save"),
-    COMPRESSION((short)32, "compression");
+    COMPRESSION((short)32, "compression"),
+    COMPRESSION_OPTIONS((short)33, "compression_options");
 
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -203,6 +206,8 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
           return ROW_CACHE_KEYS_TO_SAVE;
         case 32: // COMPRESSION
           return COMPRESSION;
+        case 33: // COMPRESSION_OPTIONS
+          return COMPRESSION_OPTIONS;
         default:
           return null;
       }
@@ -257,8 +262,7 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
   private static final int __REPLICATE_ON_WRITE_ISSET_ID = 11;
   private static final int __MERGE_SHARDS_CHANCE_ISSET_ID = 12;
   private static final int __ROW_CACHE_KEYS_TO_SAVE_ISSET_ID = 13;
-  private static final int __COMPRESSION_ISSET_ID = 14;
-  private BitSet __isset_bit_vector = new BitSet(15);
+  private BitSet __isset_bit_vector = new BitSet(14);
 
   public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
   static {
@@ -321,7 +325,11 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     tmpMap.put(_Fields.ROW_CACHE_KEYS_TO_SAVE, new org.apache.thrift.meta_data.FieldMetaData("row_cache_keys_to_save", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
         new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32)));
     tmpMap.put(_Fields.COMPRESSION, new org.apache.thrift.meta_data.FieldMetaData("compression", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
-        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.BOOL)));
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
+    tmpMap.put(_Fields.COMPRESSION_OPTIONS, new org.apache.thrift.meta_data.FieldMetaData("compression_options", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.MapMetaData(org.apache.thrift.protocol.TType.MAP, 
+            new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING), 
+            new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING))));
     metaDataMap = Collections.unmodifiableMap(tmpMap);
     org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(CfDef.class, metaDataMap);
   }
@@ -426,7 +434,24 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       this.compaction_strategy_options = __this__compaction_strategy_options;
     }
     this.row_cache_keys_to_save = other.row_cache_keys_to_save;
-    this.compression = other.compression;
+    if (other.isSetCompression()) {
+      this.compression = other.compression;
+    }
+    if (other.isSetCompression_options()) {
+      Map<String,String> __this__compression_options = new HashMap<String,String>();
+      for (Map.Entry<String, String> other_element : other.compression_options.entrySet()) {
+
+        String other_element_key = other_element.getKey();
+        String other_element_value = other_element.getValue();
+
+        String __this__compression_options_copy_key = other_element_key;
+
+        String __this__compression_options_copy_value = other_element_value;
+
+        __this__compression_options.put(__this__compression_options_copy_key, __this__compression_options_copy_value);
+      }
+      this.compression_options = __this__compression_options;
+    }
   }
 
   public CfDef deepCopy() {
@@ -479,8 +504,8 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     this.compaction_strategy_options = null;
     setRow_cache_keys_to_saveIsSet(false);
     this.row_cache_keys_to_save = 0;
-    setCompressionIsSet(false);
-    this.compression = false;
+    this.compression = null;
+    this.compression_options = null;
   }
 
   public String getKeyspace() {
@@ -1153,27 +1178,63 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     __isset_bit_vector.set(__ROW_CACHE_KEYS_TO_SAVE_ISSET_ID, value);
   }
 
-  public boolean isCompression() {
+  public String getCompression() {
     return this.compression;
   }
 
-  public CfDef setCompression(boolean compression) {
+  public CfDef setCompression(String compression) {
     this.compression = compression;
-    setCompressionIsSet(true);
     return this;
   }
 
   public void unsetCompression() {
-    __isset_bit_vector.clear(__COMPRESSION_ISSET_ID);
+    this.compression = null;
   }
 
   /** Returns true if field compression is set (has been assigned a value) and false otherwise */
   public boolean isSetCompression() {
-    return __isset_bit_vector.get(__COMPRESSION_ISSET_ID);
+    return this.compression != null;
   }
 
   public void setCompressionIsSet(boolean value) {
-    __isset_bit_vector.set(__COMPRESSION_ISSET_ID, value);
+    if (!value) {
+      this.compression = null;
+    }
+  }
+
+  public int getCompression_optionsSize() {
+    return (this.compression_options == null) ? 0 : this.compression_options.size();
+  }
+
+  public void putToCompression_options(String key, String val) {
+    if (this.compression_options == null) {
+      this.compression_options = new HashMap<String,String>();
+    }
+    this.compression_options.put(key, val);
+  }
+
+  public Map<String,String> getCompression_options() {
+    return this.compression_options;
+  }
+
+  public CfDef setCompression_options(Map<String,String> compression_options) {
+    this.compression_options = compression_options;
+    return this;
+  }
+
+  public void unsetCompression_options() {
+    this.compression_options = null;
+  }
+
+  /** Returns true if field compression_options is set (has been assigned a value) and false otherwise */
+  public boolean isSetCompression_options() {
+    return this.compression_options != null;
+  }
+
+  public void setCompression_optionsIsSet(boolean value) {
+    if (!value) {
+      this.compression_options = null;
+    }
   }
 
   public void setFieldValue(_Fields field, Object value) {
@@ -1398,7 +1459,15 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       if (value == null) {
         unsetCompression();
       } else {
-        setCompression((Boolean)value);
+        setCompression((String)value);
+      }
+      break;
+
+    case COMPRESSION_OPTIONS:
+      if (value == null) {
+        unsetCompression_options();
+      } else {
+        setCompression_options((Map<String,String>)value);
       }
       break;
 
@@ -1489,7 +1558,10 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       return new Integer(getRow_cache_keys_to_save());
 
     case COMPRESSION:
-      return new Boolean(isCompression());
+      return getCompression();
+
+    case COMPRESSION_OPTIONS:
+      return getCompression_options();
 
     }
     throw new IllegalStateException();
@@ -1558,6 +1630,8 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       return isSetRow_cache_keys_to_save();
     case COMPRESSION:
       return isSetCompression();
+    case COMPRESSION_OPTIONS:
+      return isSetCompression_options();
     }
     throw new IllegalStateException();
   }
@@ -1823,7 +1897,16 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     if (this_present_compression || that_present_compression) {
       if (!(this_present_compression && that_present_compression))
         return false;
-      if (this.compression != that.compression)
+      if (!this.compression.equals(that.compression))
+        return false;
+    }
+
+    boolean this_present_compression_options = true && this.isSetCompression_options();
+    boolean that_present_compression_options = true && that.isSetCompression_options();
+    if (this_present_compression_options || that_present_compression_options) {
+      if (!(this_present_compression_options && that_present_compression_options))
+        return false;
+      if (!this.compression_options.equals(that.compression_options))
         return false;
     }
 
@@ -1973,6 +2056,11 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     builder.append(present_compression);
     if (present_compression)
       builder.append(compression);
+
+    boolean present_compression_options = true && (isSetCompression_options());
+    builder.append(present_compression_options);
+    if (present_compression_options)
+      builder.append(compression_options);
 
     return builder.toHashCode();
   }
@@ -2265,6 +2353,16 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
         return lastComparison;
       }
     }
+    lastComparison = Boolean.valueOf(isSetCompression_options()).compareTo(typedOther.isSetCompression_options());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    if (isSetCompression_options()) {
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.compression_options, typedOther.compression_options);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
     return 0;
   }
 
@@ -2509,9 +2607,27 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
           }
           break;
         case 32: // COMPRESSION
-          if (field.type == org.apache.thrift.protocol.TType.BOOL) {
-            this.compression = iprot.readBool();
-            setCompressionIsSet(true);
+          if (field.type == org.apache.thrift.protocol.TType.STRING) {
+            this.compression = iprot.readString();
+          } else { 
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
+        case 33: // COMPRESSION_OPTIONS
+          if (field.type == org.apache.thrift.protocol.TType.MAP) {
+            {
+              org.apache.thrift.protocol.TMap _map41 = iprot.readMapBegin();
+              this.compression_options = new HashMap<String,String>(2*_map41.size);
+              for (int _i42 = 0; _i42 < _map41.size; ++_i42)
+              {
+                String _key43;
+                String _val44;
+                _key43 = iprot.readString();
+                _val44 = iprot.readString();
+                this.compression_options.put(_key43, _val44);
+              }
+              iprot.readMapEnd();
+            }
           } else { 
             org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
@@ -2589,9 +2705,9 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
         oprot.writeFieldBegin(COLUMN_METADATA_FIELD_DESC);
         {
           oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, this.column_metadata.size()));
-          for (ColumnDef _iter41 : this.column_metadata)
+          for (ColumnDef _iter45 : this.column_metadata)
           {
-            _iter41.write(oprot);
+            _iter45.write(oprot);
           }
           oprot.writeListEnd();
         }
@@ -2688,10 +2804,10 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
         oprot.writeFieldBegin(COMPACTION_STRATEGY_OPTIONS_FIELD_DESC);
         {
           oprot.writeMapBegin(new org.apache.thrift.protocol.TMap(org.apache.thrift.protocol.TType.STRING, org.apache.thrift.protocol.TType.STRING, this.compaction_strategy_options.size()));
-          for (Map.Entry<String, String> _iter42 : this.compaction_strategy_options.entrySet())
+          for (Map.Entry<String, String> _iter46 : this.compaction_strategy_options.entrySet())
           {
-            oprot.writeString(_iter42.getKey());
-            oprot.writeString(_iter42.getValue());
+            oprot.writeString(_iter46.getKey());
+            oprot.writeString(_iter46.getValue());
           }
           oprot.writeMapEnd();
         }
@@ -2703,10 +2819,27 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       oprot.writeI32(this.row_cache_keys_to_save);
       oprot.writeFieldEnd();
     }
-    if (isSetCompression()) {
-      oprot.writeFieldBegin(COMPRESSION_FIELD_DESC);
-      oprot.writeBool(this.compression);
-      oprot.writeFieldEnd();
+    if (this.compression != null) {
+      if (isSetCompression()) {
+        oprot.writeFieldBegin(COMPRESSION_FIELD_DESC);
+        oprot.writeString(this.compression);
+        oprot.writeFieldEnd();
+      }
+    }
+    if (this.compression_options != null) {
+      if (isSetCompression_options()) {
+        oprot.writeFieldBegin(COMPRESSION_OPTIONS_FIELD_DESC);
+        {
+          oprot.writeMapBegin(new org.apache.thrift.protocol.TMap(org.apache.thrift.protocol.TType.STRING, org.apache.thrift.protocol.TType.STRING, this.compression_options.size()));
+          for (Map.Entry<String, String> _iter47 : this.compression_options.entrySet())
+          {
+            oprot.writeString(_iter47.getKey());
+            oprot.writeString(_iter47.getValue());
+          }
+          oprot.writeMapEnd();
+        }
+        oprot.writeFieldEnd();
+      }
     }
     oprot.writeFieldStop();
     oprot.writeStructEnd();
@@ -2929,7 +3062,21 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     if (isSetCompression()) {
       if (!first) sb.append(", ");
       sb.append("compression:");
-      sb.append(this.compression);
+      if (this.compression == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.compression);
+      }
+      first = false;
+    }
+    if (isSetCompression_options()) {
+      if (!first) sb.append(", ");
+      sb.append("compression_options:");
+      if (this.compression_options == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.compression_options);
+      }
       first = false;
     }
     sb.append(")");
@@ -2943,6 +3090,24 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     }
     if (name == null) {
       throw new org.apache.thrift.protocol.TProtocolException("Required field 'name' was not present! Struct: " + toString());
+    }
+  }
+
+  private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
+    try {
+      write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
+    } catch (org.apache.thrift.TException te) {
+      throw new java.io.IOException(te);
+    }
+  }
+
+  private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
+    try {
+      // it doesn't seem like you should have to do this, but java serialization is wacky, and doesn't call the default constructor.
+      __isset_bit_vector = new BitSet(1);
+      read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
+    } catch (org.apache.thrift.TException te) {
+      throw new java.io.IOException(te);
     }
   }
 

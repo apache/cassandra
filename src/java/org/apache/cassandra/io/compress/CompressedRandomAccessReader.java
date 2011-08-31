@@ -30,7 +30,6 @@ import org.apache.cassandra.utils.FBUtilities;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.xerial.snappy.Snappy;
 
 public class CompressedRandomAccessReader extends RandomAccessReader
 {
@@ -75,7 +74,7 @@ public class CompressedRandomAccessReader extends RandomAccessReader
 
     private final CompressionMetadata metadata;
     // used by reBuffer() to escape creating lots of temporary buffers
-    private final byte[] compressed;
+    private byte[] compressed;
 
     // re-use single crc object
     private final Checksum checksum = new CRC32();
@@ -88,9 +87,9 @@ public class CompressedRandomAccessReader extends RandomAccessReader
 
     public CompressedRandomAccessReader(String dataFilePath, CompressionMetadata metadata, boolean skipIOCache) throws IOException
     {
-        super(new File(dataFilePath), metadata.chunkLength, skipIOCache);
+        super(new File(dataFilePath), metadata.chunkLength(), skipIOCache);
         this.metadata = metadata;
-        compressed = new byte[Snappy.maxCompressedLength(metadata.chunkLength)];
+        compressed = new byte[metadata.compressor().initialCompressedBufferLength(metadata.chunkLength())];
         // can't use super.read(...) methods
         // that is why we are allocating special InputStream to read data from disk
         // from already open file descriptor
@@ -109,10 +108,13 @@ public class CompressedRandomAccessReader extends RandomAccessReader
         if (channel.position() != chunk.offset)
             channel.position(chunk.offset);
 
+        if (compressed.length < chunk.length)
+            compressed = new byte[chunk.length];
+
         if (source.read(compressed, 0, chunk.length) != chunk.length)
             throw new IOException(String.format("(%s) failed to read %d bytes from offset %d.", getPath(), chunk.length, chunk.offset));
 
-        validBufferBytes = Snappy.rawUncompress(compressed, 0, chunk.length, buffer, 0);
+        validBufferBytes = metadata.compressor().uncompress(compressed, 0, chunk.length, buffer, 0);
 
         checksum.update(buffer, 0, validBufferBytes);
 
@@ -149,6 +151,6 @@ public class CompressedRandomAccessReader extends RandomAccessReader
     @Override
     public String toString()
     {
-        return String.format("%s - chunk length %d, data length %d.", getPath(), metadata.chunkLength, metadata.dataLength);
+        return String.format("%s - chunk length %d, data length %d.", getPath(), metadata.chunkLength(), metadata.dataLength);
     }
 }

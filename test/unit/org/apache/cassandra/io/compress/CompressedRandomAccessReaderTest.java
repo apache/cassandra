@@ -37,7 +37,7 @@ public class CompressedRandomAccessReaderTest
     {
         // test reset in current buffer or previous one
         testResetAndTruncate(false, 10);
-        testResetAndTruncate(false, CompressedSequentialWriter.CHUNK_LENGTH);
+        testResetAndTruncate(false, CompressionParameters.DEFAULT_CHUNK_LENGTH);
     }
 
     @Test
@@ -45,7 +45,7 @@ public class CompressedRandomAccessReaderTest
     {
         // test reset in current buffer or previous one
         testResetAndTruncate(true, 10);
-        testResetAndTruncate(true, CompressedSequentialWriter.CHUNK_LENGTH);
+        testResetAndTruncate(true, CompressionParameters.DEFAULT_CHUNK_LENGTH);
     }
 
     private void testResetAndTruncate(boolean compressed, int junkSize) throws IOException
@@ -56,8 +56,8 @@ public class CompressedRandomAccessReaderTest
         try
         {
             SequentialWriter writer = compressed
-                ? new CompressedSequentialWriter(f, filename + ".metadata", false)
-                : new SequentialWriter(f, CompressedSequentialWriter.CHUNK_LENGTH, false);
+                ? new CompressedSequentialWriter(f, filename + ".metadata", false, new CompressionParameters(SnappyCompressor.instance))
+                : new SequentialWriter(f, CompressionParameters.DEFAULT_CHUNK_LENGTH, false);
 
             writer.write("The quick ".getBytes());
             FileMark mark = writer.mark();
@@ -76,7 +76,7 @@ public class CompressedRandomAccessReaderTest
             assert f.exists();
             RandomAccessReader reader = compressed
                 ? new CompressedRandomAccessReader(filename, new CompressionMetadata(filename + ".metadata", f.length()), false)
-                : new RandomAccessReader(f, CompressedSequentialWriter.CHUNK_LENGTH, false);
+                : new RandomAccessReader(f, CompressionParameters.DEFAULT_CHUNK_LENGTH, false);
             String expected = "The quick brown fox jumps over the lazy dog";
             assert reader.length() == expected.length();
             byte[] b = new byte[expected.length()];
@@ -105,7 +105,7 @@ public class CompressedRandomAccessReaderTest
         File metadata = new File(file.getPath() + ".meta");
         metadata.deleteOnExit();
 
-        SequentialWriter writer = new CompressedSequentialWriter(file, metadata.getPath(), false);
+        SequentialWriter writer = new CompressedSequentialWriter(file, metadata.getPath(), false, new CompressionParameters(SnappyCompressor.instance));
 
         writer.write(CONTENT.getBytes());
         writer.close();

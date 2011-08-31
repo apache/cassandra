@@ -53,7 +53,7 @@
  * remove compaction_thread_priority setting (CASSANDRA-3104)
  * generate hints for replicas that timeout, not just replicas that are known
    to be down before starting (CASSANDRA-2034)
-
+ * Make the compression algorithm and chunk length configurable (CASSANDRA-3001)
 
 0.8.5
  * fix NPE when encryption_options is unspecified (CASSANDRA-3007)

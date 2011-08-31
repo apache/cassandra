@@ -26,15 +26,11 @@ import java.util.zip.Checksum;
 import org.apache.cassandra.io.util.FileMark;
 import org.apache.cassandra.io.util.SequentialWriter;
 
-import org.xerial.snappy.Snappy;
-
 public class CompressedSequentialWriter extends SequentialWriter
 {
-    public static final int CHUNK_LENGTH = 65536;
-
-    public static SequentialWriter open(String dataFilePath, String indexFilePath, boolean skipIOCache) throws IOException
+    public static SequentialWriter open(String dataFilePath, String indexFilePath, boolean skipIOCache, CompressionParameters parameters) throws IOException
     {
-        return new CompressedSequentialWriter(new File(dataFilePath), indexFilePath, skipIOCache);
+        return new CompressedSequentialWriter(new File(dataFilePath), indexFilePath, skipIOCache, parameters);
     }
 
     // holds offset in the file where current chunk should be written
@@ -43,25 +39,27 @@ public class CompressedSequentialWriter extends SequentialWriter
 
     // index file writer (random I/O)
     private final CompressionMetadata.Writer metadataWriter;
+    private final ICompressor compressor;
 
     // used to store compressed data
-    private final byte[] compressed;
+    private final ICompressor.WrappedArray compressed;
 
     // holds a number of already written chunks
     private int chunkCount = 0;
 
     private final Checksum checksum = new CRC32();
 
-    public CompressedSequentialWriter(File file, String indexFilePath, boolean skipIOCache) throws IOException
+    public CompressedSequentialWriter(File file, String indexFilePath, boolean skipIOCache, CompressionParameters parameters) throws IOException
     {
-        super(file, CHUNK_LENGTH, skipIOCache);
+        super(file, parameters.chunkLength, skipIOCache);
+        this.compressor = parameters.compressor;
 
         // buffer for compression should be the same size as buffer itself
-        compressed = new byte[Snappy.maxCompressedLength(buffer.length)];
+        compressed = new ICompressor.WrappedArray(new byte[compressor.initialCompressedBufferLength(buffer.length)]);
 
         /* Index File (-CompressionInfo.db component) and it's header */
         metadataWriter = new CompressionMetadata.Writer(indexFilePath);
-        metadataWriter.writeHeader(Snappy.class.getSimpleName(), CHUNK_LENGTH);
+        metadataWriter.writeHeader(parameters);
     }
 
     @Override
@@ -82,7 +80,7 @@ public class CompressedSequentialWriter extends SequentialWriter
         seekToChunkStart();
 
         // compressing data with buffer re-use
-        int compressedLength = Snappy.rawCompress(buffer, 0, validBufferBytes, compressed, 0);
+        int compressedLength = compressor.compress(buffer, 0, validBufferBytes, compressed, 0);
 
         // update checksum
         checksum.update(buffer, 0, validBufferBytes);
@@ -91,10 +89,10 @@ public class CompressedSequentialWriter extends SequentialWriter
         metadataWriter.writeLong(chunkOffset);
         chunkCount++;
 
-        assert compressedLength <= compressed.length;
+        assert compressedLength <= compressed.buffer.length;
 
         // write data itself
-        out.write(compressed, 0, compressedLength);
+        out.write(compressed.buffer, 0, compressedLength);
         // write corresponding checksum
         out.writeInt((int) checksum.getValue());
 
@@ -137,12 +135,14 @@ public class CompressedSequentialWriter extends SequentialWriter
 
         // compressed chunk size (- 4 bytes reserved for checksum)
         int chunkSize = (int) (metadataWriter.chunkOffsetBy(realMark.nextChunkIndex) - chunkOffset - 4);
+        if (compressed.buffer.length < chunkSize)
+            compressed.buffer = new byte[chunkSize];
 
         out.seek(chunkOffset);
-        out.readFully(compressed, 0, chunkSize);
+        out.readFully(compressed.buffer, 0, chunkSize);
 
         // decompress data chunk and store its length
-        int validBytes = Snappy.rawUncompress(compressed, 0, chunkSize, buffer, 0);
+        int validBytes = compressor.uncompress(compressed.buffer, 0, chunkSize, buffer, 0);
 
         checksum.update(buffer, 0, validBytes);
 

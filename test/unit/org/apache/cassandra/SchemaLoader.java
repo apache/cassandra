@@ -27,6 +27,8 @@ import com.google.common.base.Charsets;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.io.compress.CompressionParameters;
+import org.apache.cassandra.io.compress.SnappyCompressor;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.thrift.IndexType;
@@ -259,7 +261,7 @@ public class SchemaLoader
         {
             for (CFMetaData cfm : ksm.cfMetaData().values())
             {
-                cfm.compression(true);
+                cfm.compressionParameters(new CompressionParameters(SnappyCompressor.instance));
             }
         }
     }

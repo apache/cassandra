@@ -65,7 +65,7 @@ public class SSTableWriter extends SSTable
     private static Set<Component> components(CFMetaData metadata)
     {
         Set<Component> components = new HashSet<Component>(Arrays.asList(Component.DATA, Component.FILTER, Component.PRIMARY_INDEX, Component.STATS));
-        if (metadata.useCompression())
+        if (metadata.compressionParameters().compressor != null)
             components.add(Component.COMPRESSION_INFO);
         return components;
     }
@@ -87,7 +87,8 @@ public class SSTableWriter extends SSTable
             dbuilder = SegmentedFile.getCompressedBuilder();
             dataFile = CompressedSequentialWriter.open(getFilename(),
                                                        descriptor.filenameFor(Component.COMPRESSION_INFO),
-                                                       true);
+                                                       true,
+                                                       metadata.compressionParameters());
         }
         else
         {

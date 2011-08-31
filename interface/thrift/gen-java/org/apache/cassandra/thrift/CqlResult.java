@@ -469,14 +469,14 @@ public class CqlResult implements org.apache.thrift.TBase<CqlResult, CqlResult._
         case 2: // ROWS
           if (field.type == org.apache.thrift.protocol.TType.LIST) {
             {
-              org.apache.thrift.protocol.TList _list56 = iprot.readListBegin();
-              this.rows = new ArrayList<CqlRow>(_list56.size);
-              for (int _i57 = 0; _i57 < _list56.size; ++_i57)
+              org.apache.thrift.protocol.TList _list61 = iprot.readListBegin();
+              this.rows = new ArrayList<CqlRow>(_list61.size);
+              for (int _i62 = 0; _i62 < _list61.size; ++_i62)
               {
-                CqlRow _elem58;
-                _elem58 = new CqlRow();
-                _elem58.read(iprot);
-                this.rows.add(_elem58);
+                CqlRow _elem63;
+                _elem63 = new CqlRow();
+                _elem63.read(iprot);
+                this.rows.add(_elem63);
               }
               iprot.readListEnd();
             }
@@ -517,9 +517,9 @@ public class CqlResult implements org.apache.thrift.TBase<CqlResult, CqlResult._
         oprot.writeFieldBegin(ROWS_FIELD_DESC);
         {
           oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, this.rows.size()));
-          for (CqlRow _iter59 : this.rows)
+          for (CqlRow _iter64 : this.rows)
           {
-            _iter59.write(oprot);
+            _iter64.write(oprot);
           }
           oprot.writeListEnd();
         }
@@ -571,6 +571,24 @@ public class CqlResult implements org.apache.thrift.TBase<CqlResult, CqlResult._
     // check for required fields
     if (type == null) {
       throw new org.apache.thrift.protocol.TProtocolException("Required field 'type' was not present! Struct: " + toString());
+    }
+  }
+
+  private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
+    try {
+      write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
+    } catch (org.apache.thrift.TException te) {
+      throw new java.io.IOException(te);
+    }
+  }
+
+  private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
+    try {
+      // it doesn't seem like you should have to do this, but java serialization is wacky, and doesn't call the default constructor.
+      __isset_bit_vector = new BitSet(1);
+      read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
+    } catch (org.apache.thrift.TException te) {
+      throw new java.io.IOException(te);
     }
   }
 

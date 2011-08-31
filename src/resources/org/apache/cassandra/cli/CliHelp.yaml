@@ -555,10 +555,25 @@ commands:
 
         SerializingCacheProvider serialises the contents of the row and
         stores the data off the JVM Heap. This may reduce the GC pressure.
-        NOTE: Thsi provider requires JNA.jar to be in the class path to
+        NOTE: This provider requires JNA.jar to be in the class path to
         enable native methods.
 
-        - compression: Use compression for SSTable data files. Accepts the values true and false.
+        - compression: Use compression for SSTable data files.
+
+        Supported values are:
+            - null: to disable compression
+            - SnappyCompressor: compression based on the Snappy algorithm
+            - DeflateCompressor: compression based on the deflate algorithm
+            (through Java native support)
+
+        It is also valid to specify the fully-qualified class name to a class
+        that implements org.apache.cassandra.io.ICompressor.
+
+        - compression_options: Optional additional options for compression.
+          Options have the form [{key:value}], and may depends on the
+          compression algorithm used. One generic option is chunk_length_kb
+          that allows to specify the size of the chunk used by compression
+          (default to 64, must be a power of 2).
 
         Examples:
         create column family Super4

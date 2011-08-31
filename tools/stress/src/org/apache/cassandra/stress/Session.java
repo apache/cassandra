@@ -84,7 +84,7 @@ public class Session implements Serializable
         availableOptions.addOption("W",  "no-replicate-on-write",false,  "Set replicate_on_write to false for counters. Only counter add with CL=ONE will work");
         availableOptions.addOption("V",  "average-size-values",  false,  "Generate column values of average rather than specific size");
         availableOptions.addOption("T",  "send-to",              true,   "Send this as a request to the stress daemon at specified address.");
-        availableOptions.addOption("I",  "compression",          false,  "Use sstable compression when creating schema");
+        availableOptions.addOption("I",  "compression",          true,   "Specify the compression to use for sstable, default:no compression");
         availableOptions.addOption("Q",  "query-names",          true,   "Comma-separated list of column names to retrieve from each row.");
     }
 
@@ -101,7 +101,7 @@ public class Session implements Serializable
     private int retryTimes       = 10;
     private int port             = 9160;
     private int superColumns     = 1;
-    private boolean compression  = false;
+    private String compression   = null;
 
     private int progressInterval  = 10;
     private int keysPerCall       = 1000;
@@ -272,7 +272,7 @@ public class Session implements Serializable
                 replicateOnWrite = false;
 
             if (cmd.hasOption("I"))
-                compression = true;
+                compression = cmd.getOptionValue("I");
 
             averageSizeValues = cmd.hasOption("V");
 

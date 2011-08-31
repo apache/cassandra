@@ -19,7 +19,10 @@
 package org.apache.cassandra.io.compress;
 
 import java.io.*;
+import java.util.HashMap;
+import java.util.Map;
 
+import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.io.util.FileUtils;
 
 /**
@@ -27,13 +30,11 @@ import org.apache.cassandra.io.util.FileUtils;
  */
 public class CompressionMetadata
 {
-
-    public final int chunkLength;
     public final long dataLength;
     public final long compressedFileLength;
     public final long[] chunkOffsets;
     public final String indexFilePath;
-    public final String algorithm;
+    public final CompressionParameters parameters;
 
     public CompressionMetadata(String indexFilePath, long compressedLength) throws IOException
     {
@@ -41,13 +42,40 @@ public class CompressionMetadata
 
         DataInputStream stream = new DataInputStream(new FileInputStream(indexFilePath));
 
-        algorithm = stream.readUTF();
-        chunkLength = stream.readInt();
+        String compressorName = stream.readUTF();
+        int optionCount = stream.readInt();
+        Map<String, String> options = new HashMap<String, String>();
+        for (int i = 0; i < optionCount; ++i)
+        {
+            String key = stream.readUTF();
+            String value = stream.readUTF();
+            options.put(key, value);
+        }
+        int chunkLength = stream.readInt();
+        try
+        {
+            parameters = new CompressionParameters(compressorName, options, chunkLength);
+        }
+        catch (ConfigurationException e)
+        {
+            throw new RuntimeException("Cannot create CompressionParameters for stored parameters", e);
+        }
+
         dataLength = stream.readLong();
         compressedFileLength = compressedLength;
         chunkOffsets = readChunkOffsets(stream);
 
         FileUtils.closeQuietly(stream);
+    }
+
+    public ICompressor compressor()
+    {
+        return parameters.compressor;
+    }
+
+    public int chunkLength()
+    {
+        return parameters.chunkLength;
     }
 
     /**
@@ -92,7 +120,7 @@ public class CompressionMetadata
     public Chunk chunkFor(long position) throws IOException
     {
         // position of the chunk
-        int idx = (int) (position / chunkLength);
+        int idx = (int) (position / parameters.chunkLength);
 
         if (idx >= chunkOffsets.length)
             throw new EOFException();
@@ -115,13 +143,19 @@ public class CompressionMetadata
             super(path, "rw");
         }
 
-        public void writeHeader(String algorithm, int chunkLength) throws IOException
+        public void writeHeader(CompressionParameters parameters) throws IOException
         {
             // algorithm
-            writeUTF(algorithm);
+            writeUTF(parameters.compressorClass.getSimpleName());
+            writeInt(parameters.compressionOptions.size());
+            for (Map.Entry<String, String> entry : parameters.compressionOptions.entrySet())
+            {
+                writeUTF(entry.getKey());
+                writeUTF(entry.getValue());
+            }
 
             // store the length of the chunk
-            writeInt(chunkLength);
+            writeInt(parameters.chunkLength);
             // store position and reserve a place for uncompressed data length and chunks count
             dataLengthOffset = getFilePointer();
             writeLong(-1);
