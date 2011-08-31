@@ -725,7 +725,7 @@ public class ThriftValidation
         // keyspace names must be unique case-insensitively because the keyspace name becomes the directory
         // where we store CF sstables.  Names that differ only in case would thus cause problems on
         // case-insensitive filesystems (NTFS, most installations of HFS+).
-        for (String ksName : DatabaseDescriptor.getTables())
+        for (String ksName : Schema.instance.getTables())
         {
             if (ksName.equalsIgnoreCase(newKsName))
                 throw new InvalidRequestException("Keyspace names must be case-insensitively unique");
