@@ -30,10 +30,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import com.google.common.collect.Multimap;
-
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Table;
+import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.net.Message;
@@ -57,10 +56,10 @@ public class DatacenterSyncWriteResponseHandler extends AbstractWriteResponseHan
 	private final NetworkTopologyStrategy strategy;
     private HashMap<String, AtomicInteger> responses = new HashMap<String, AtomicInteger>();
 
-    protected DatacenterSyncWriteResponseHandler(Collection<InetAddress> writeEndpoints, Multimap<InetAddress, InetAddress> hintedEndpoints, ConsistencyLevel consistencyLevel, String table)
+    protected DatacenterSyncWriteResponseHandler(Collection<InetAddress> writeEndpoints, ConsistencyLevel consistencyLevel, String table)
     {
         // Response is been managed by the map so make it 1 for the superclass.
-        super(writeEndpoints, hintedEndpoints, consistencyLevel);
+        super(writeEndpoints, consistencyLevel);
         assert consistencyLevel == ConsistencyLevel.EACH_QUORUM;
 
         strategy = (NetworkTopologyStrategy) Table.open(table).getReplicationStrategy();
@@ -72,9 +71,9 @@ public class DatacenterSyncWriteResponseHandler extends AbstractWriteResponseHan
         }
     }
 
-    public static IWriteResponseHandler create(Collection<InetAddress> writeEndpoints, Multimap<InetAddress, InetAddress> hintedEndpoints, ConsistencyLevel consistencyLevel, String table)
+    public static IWriteResponseHandler create(Collection<InetAddress> writeEndpoints, ConsistencyLevel consistencyLevel, String table)
     {
-        return new DatacenterSyncWriteResponseHandler(writeEndpoints, hintedEndpoints, consistencyLevel, table);
+        return new DatacenterSyncWriteResponseHandler(writeEndpoints, consistencyLevel, table);
     }
 
     public void response(Message message)
@@ -96,13 +95,14 @@ public class DatacenterSyncWriteResponseHandler extends AbstractWriteResponseHan
     }
 
     public void assureSufficientLiveNodes() throws UnavailableException
-    {   
-		Map<String, AtomicInteger> dcEndpoints = new HashMap<String, AtomicInteger>();
+    {
+        Map<String, AtomicInteger> dcEndpoints = new HashMap<String, AtomicInteger>();
         for (String dc: strategy.getDatacenters())
             dcEndpoints.put(dc, new AtomicInteger());
-        for (InetAddress destination : hintedEndpoints.keySet())
+
+        for (InetAddress destination : writeEndpoints)
         {
-            if (writeEndpoints.contains(destination))
+            if (FailureDetector.instance.isAlive(destination))
             {
                 // figure out the destination dc
                 String destinationDC = snitch.getDatacenter(destination);

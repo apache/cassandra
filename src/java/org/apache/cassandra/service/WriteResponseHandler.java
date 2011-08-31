@@ -23,15 +23,15 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import com.google.common.collect.ImmutableMultimap;
-import com.google.common.collect.Multimap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.Table;
+import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.thrift.UnavailableException;
+import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * Handles blocking writes for ONE, ANY, TWO, THREE, QUORUM, and ALL consistency levels.
@@ -42,23 +42,21 @@ public class WriteResponseHandler extends AbstractWriteResponseHandler
 
     protected final AtomicInteger responses;
 
-    protected WriteResponseHandler(Collection<InetAddress> writeEndpoints, Multimap<InetAddress, InetAddress> hintedEndpoints, ConsistencyLevel consistencyLevel, String table)
+    protected WriteResponseHandler(Collection<InetAddress> writeEndpoints, ConsistencyLevel consistencyLevel, String table)
     {
-        super(writeEndpoints, hintedEndpoints, consistencyLevel);
+        super(writeEndpoints, consistencyLevel);
         responses = new AtomicInteger(determineBlockFor(table));
     }
 
     protected WriteResponseHandler(InetAddress endpoint)
     {
-        super(Arrays.asList(endpoint),
-              ImmutableMultimap.<InetAddress, InetAddress>builder().put(endpoint, endpoint).build(),
-              ConsistencyLevel.ALL);
+        super(Arrays.asList(endpoint), ConsistencyLevel.ALL);
         responses = new AtomicInteger(1);
     }
 
-    public static IWriteResponseHandler create(Collection<InetAddress> writeEndpoints, Multimap<InetAddress, InetAddress> hintedEndpoints, ConsistencyLevel consistencyLevel, String table)
+    public static IWriteResponseHandler create(Collection<InetAddress> writeEndpoints, ConsistencyLevel consistencyLevel, String table)
     {
-        return new WriteResponseHandler(writeEndpoints, hintedEndpoints, consistencyLevel, table);
+        return new WriteResponseHandler(writeEndpoints, consistencyLevel, table);
     }
 
     public static IWriteResponseHandler create(InetAddress endpoint)
@@ -97,17 +95,19 @@ public class WriteResponseHandler extends AbstractWriteResponseHandler
     {
         if (consistencyLevel == ConsistencyLevel.ANY)
         {
-            // ensure there are blockFor distinct living nodes (hints are ok).
-            if (hintedEndpoints.keySet().size() < responses.get())
+            // Ensure there are blockFor distinct living nodes (hints (local) are ok).
+            // Thus we include the local node (coordinator) as a valid replica if it is there already.
+            int effectiveEndpoints = writeEndpoints.contains(FBUtilities.getBroadcastAddress()) ? writeEndpoints.size() : writeEndpoints.size() + 1;
+            if (effectiveEndpoints < responses.get())
                 throw new UnavailableException();
             return;
         }
 
         // count destinations that are part of the desired target set
         int liveNodes = 0;
-        for (InetAddress destination : hintedEndpoints.keySet())
+        for (InetAddress destination : writeEndpoints)
         {
-            if (writeEndpoints.contains(destination))
+            if (FailureDetector.instance.isAlive(destination))
                 liveNodes++;
         }
         if (liveNodes < responses.get())

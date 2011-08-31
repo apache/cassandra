@@ -405,12 +405,16 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             public void runMayThrow() throws ExecutionException, InterruptedException, IOException
             {
                 ThreadPoolExecutor mutationStage = StageManager.getStage(Stage.MUTATION);
-                if (!mutationStage.isShutdown())
-                {
-                    mutationStage.shutdown();
-                    mutationStage.awaitTermination(1, TimeUnit.SECONDS);
-                    CommitLog.instance.shutdownBlocking();
-                }
+                if (mutationStage.isShutdown())
+                    return; // drained already
+
+                Gossiper.instance.stop();
+                MessagingService.instance().shutdown();
+
+                mutationStage.shutdown();
+                mutationStage.awaitTermination(3600, TimeUnit.SECONDS);
+
+                StorageProxy.instance.verifyNoHintsInProgress();
 
                 List<Future<?>> flushes = new ArrayList<Future<?>>();
                 for (Table table : Table.all())
@@ -428,6 +432,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                 }
                 FBUtilities.waitOnFutures(flushes);
 
+                CommitLog.instance.shutdownBlocking();
+                
                 // wait for miscellaneous tasks like sstable and commitlog segment deletion
                 tasks.shutdown();
                 if (!tasks.awaitTermination(1, TimeUnit.MINUTES))
@@ -2257,14 +2263,15 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         Gossiper.instance.stop();
         setMode("Draining: shutting down MessageService", false);
         MessagingService.instance().shutdown();
-        setMode("Draining: emptying MessageService pools", false);
-        MessagingService.instance().waitFor();
+        setMode("Draining: waiting for streaming", false);
+        MessagingService.instance().waitForStreaming();
 
         setMode("Draining: clearing mutation stage", false);
         mutationStage.shutdown();
         mutationStage.awaitTermination(3600, TimeUnit.SECONDS);
 
-        // lets flush.
+        StorageProxy.instance.verifyNoHintsInProgress();
+
         setMode("Draining: flushing column families", false);
         List<ColumnFamilyStore> cfses = new ArrayList<ColumnFamilyStore>();
         for (String tableName : Schema.instance.getNonSystemTables())

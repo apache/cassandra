@@ -27,10 +27,9 @@ package org.apache.cassandra.service;
 import java.net.InetAddress;
 import java.util.Collection;
 
-import com.google.common.collect.Multimap;
-
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Table;
+import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.net.Message;
@@ -51,15 +50,15 @@ public class DatacenterWriteResponseHandler extends WriteResponseHandler
         localdc = snitch.getDatacenter(FBUtilities.getBroadcastAddress());
     }
 
-    protected DatacenterWriteResponseHandler(Collection<InetAddress> writeEndpoints, Multimap<InetAddress, InetAddress> hintedEndpoints, ConsistencyLevel consistencyLevel, String table)
+    protected DatacenterWriteResponseHandler(Collection<InetAddress> writeEndpoints, ConsistencyLevel consistencyLevel, String table)
     {
-        super(writeEndpoints, hintedEndpoints, consistencyLevel, table);
+        super(writeEndpoints, consistencyLevel, table);
         assert consistencyLevel == ConsistencyLevel.LOCAL_QUORUM;
     }
 
-    public static IWriteResponseHandler create(Collection<InetAddress> writeEndpoints, Multimap<InetAddress, InetAddress> hintedEndpoints, ConsistencyLevel consistencyLevel, String table)
+    public static IWriteResponseHandler create(Collection<InetAddress> writeEndpoints, ConsistencyLevel consistencyLevel, String table)
     {
-        return new DatacenterWriteResponseHandler(writeEndpoints, hintedEndpoints, consistencyLevel, table);
+        return new DatacenterWriteResponseHandler(writeEndpoints, consistencyLevel, table);
     }
 
     @Override
@@ -84,9 +83,9 @@ public class DatacenterWriteResponseHandler extends WriteResponseHandler
     public void assureSufficientLiveNodes() throws UnavailableException
     {
         int liveNodes = 0;
-        for (InetAddress destination : hintedEndpoints.keySet())
+        for (InetAddress destination : writeEndpoints)
         {
-            if (localdc.equals(snitch.getDatacenter(destination)) && writeEndpoints.contains(destination))
+            if (localdc.equals(snitch.getDatacenter(destination)) && FailureDetector.instance.isAlive(destination))
                 liveNodes++;
         }
 
@@ -95,4 +94,5 @@ public class DatacenterWriteResponseHandler extends WriteResponseHandler
             throw new UnavailableException();
         }
     }
+
 }

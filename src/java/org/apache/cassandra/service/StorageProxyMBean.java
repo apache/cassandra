@@ -38,8 +38,12 @@ public interface StorageProxyMBean
     public long[] getTotalWriteLatencyHistogramMicros();
     public long[] getRecentWriteLatencyHistogramMicros();
 
+    public long getTotalHints();
     public boolean getHintedHandoffEnabled();
     public void setHintedHandoffEnabled(boolean b);
     public int getMaxHintWindow();
     public void setMaxHintWindow(int ms);
+    public int getMaxHintsInProgress();
+    public void setMaxHintsInProgress(int qs);
+    public int getHintsInProgress();
 }

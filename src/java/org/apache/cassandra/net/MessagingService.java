@@ -27,6 +27,7 @@ import java.nio.channels.AsynchronousCloseException;
 import java.nio.channels.ServerSocketChannel;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -38,21 +39,25 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
+import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
+import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.locator.ILatencySubscriber;
 import org.apache.cassandra.net.io.SerializerType;
 import org.apache.cassandra.net.sink.SinkManager;
 import org.apache.cassandra.security.SSLFactory;
+import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.FileStreamTask;
 import org.apache.cassandra.streaming.StreamHeader;
 import org.apache.cassandra.utils.*;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
+
 
 public final class MessagingService implements MessagingServiceMBean
 {
@@ -68,7 +73,7 @@ public final class MessagingService implements MessagingServiceMBean
     static final int PROTOCOL_MAGIC = 0xCA552DFA;
 
     /* This records all the results mapped by message Id */
-    private final ExpiringMap<String, Pair<InetAddress, IMessageCallback>> callbacks;
+    private final ExpiringMap<String, CallbackInfo> callbacks;
 
     /* Lookup table for registering message handlers based on the verb. */
     private final Map<StorageService.Verb, IVerbHandler> verbHandlers_;
@@ -107,7 +112,7 @@ public final class MessagingService implements MessagingServiceMBean
     private final Map<String, AtomicLong> timeoutsPerHost = new HashMap<String, AtomicLong>();
     private final Map<String, AtomicLong> recentTimeoutsPerHost = new HashMap<String, AtomicLong>();
     private final List<ILatencySubscriber> subscribers = new ArrayList<ILatencySubscriber>();
-    private static final long DEFAULT_CALLBACK_TIMEOUT = (long) (1.1 * DatabaseDescriptor.getRpcTimeout());
+    private static final long DEFAULT_CALLBACK_TIMEOUT = DatabaseDescriptor.getRpcTimeout();
 
     private static class MSHandle
     {
@@ -139,14 +144,14 @@ public final class MessagingService implements MessagingServiceMBean
         };
         StorageService.scheduledTasks.scheduleWithFixedDelay(logDropped, LOG_DROPPED_INTERVAL_IN_MS, LOG_DROPPED_INTERVAL_IN_MS, TimeUnit.MILLISECONDS);
 
-        Function<Pair<String, Pair<InetAddress, IMessageCallback>>, ?> timeoutReporter = new Function<Pair<String, Pair<InetAddress, IMessageCallback>>, Object>()
+        Function<Pair<String, CallbackInfo>, ?> timeoutReporter = new Function<Pair<String, CallbackInfo>, Object>()
         {
-            public Object apply(Pair<String, Pair<InetAddress, IMessageCallback>> pair)
+            public Object apply(Pair<String, CallbackInfo> pair)
             {
-                Pair<InetAddress, IMessageCallback> expiredValue = pair.right;
-                maybeAddLatency(expiredValue.right, expiredValue.left, (double) DatabaseDescriptor.getRpcTimeout());
+                CallbackInfo expiredCallbackInfo = pair.right;
+                maybeAddLatency(expiredCallbackInfo.callback, expiredCallbackInfo.target, (double) DatabaseDescriptor.getRpcTimeout());
                 totalTimeouts++;
-                String ip = expiredValue.left.getHostAddress();
+                String ip = expiredCallbackInfo.target.getHostAddress();
                 AtomicLong c = timeoutsPerHost.get(ip);
                 if (c == null)
                     c = timeoutsPerHost.put(ip, new AtomicLong());
@@ -156,10 +161,18 @@ public final class MessagingService implements MessagingServiceMBean
                 if (recentTimeoutsPerHost.get(ip) == null)
                     recentTimeoutsPerHost.put(ip, new AtomicLong());
 
+                if (expiredCallbackInfo.shouldHint())
+                {
+                    // Trigger hints for expired mutation message.
+                    assert expiredCallbackInfo.message != null;
+                    scheduleMutationHint(expiredCallbackInfo.message, expiredCallbackInfo.target);
+                }
+
                 return null;
             }
         };
-        callbacks = new ExpiringMap<String, Pair<InetAddress, IMessageCallback>>(DEFAULT_CALLBACK_TIMEOUT, timeoutReporter);
+
+        callbacks = new ExpiringMap<String, CallbackInfo>(DEFAULT_CALLBACK_TIMEOUT, timeoutReporter);
 
         MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
         try
@@ -170,6 +183,21 @@ public final class MessagingService implements MessagingServiceMBean
         {
             throw new RuntimeException(e);
         }
+    }
+
+
+    private Future<?> scheduleMutationHint(Message mutationMessage, InetAddress mutationTarget)
+    {
+        try
+        {
+            RowMutation rm = RowMutation.fromBytes(mutationMessage.getMessageBody(), mutationMessage.getVersion());
+            return StorageProxy.scheduleLocalHint(rm, mutationTarget, null, null);
+        }
+        catch (IOException e)
+        {
+            logger_.error("Unable to deserialize mutation when writting hint for: " + mutationTarget);
+        }
+        return null;
     }
 
     /**
@@ -292,17 +320,19 @@ public final class MessagingService implements MessagingServiceMBean
         return verbHandlers_.get(type);
     }
 
-    private void addCallback(IMessageCallback cb, String messageId, InetAddress to)
+    private void addCallback(IMessageCallback cb, String messageId, Message message, InetAddress to, long timeout)
     {
-        addCallback(cb, messageId, to, DEFAULT_CALLBACK_TIMEOUT);
-    }
+        CallbackInfo previous;
 
-    private void addCallback(IMessageCallback cb, String messageId, InetAddress to, long timeout)
-    {
-        Pair<InetAddress, IMessageCallback> previous = callbacks.put(messageId, new Pair<InetAddress, IMessageCallback>(to, cb), timeout);
+        // If HH is enabled and this is a mutation message => store the message to track for potential hints.
+        if (DatabaseDescriptor.hintedHandoffEnabled() && message.getVerb() == StorageService.Verb.MUTATION)
+            previous = callbacks.put(messageId, new CallbackInfo(to, cb, message), timeout);
+        else
+            previous = callbacks.put(messageId, new CallbackInfo(to, cb), timeout);
+
         assert previous == null;
     }
-    
+
     private static AtomicInteger idGen = new AtomicInteger(0);
     // TODO make these integers to avoid unnecessary int -> string -> int conversions
     private static String nextId()
@@ -321,6 +351,8 @@ public final class MessagingService implements MessagingServiceMBean
     /**
      * Send a message to a given endpoint. This method specifies a callback
      * which is invoked with the actual response.
+     * Also holds the message (only mutation messages) to determine if it
+     * needs to trigger a hint (uses StorageProxy for that).
      * @param message message to be sent.
      * @param to endpoint to which the message needs to be sent
      * @param cb callback interface which is used to pass the responses or
@@ -332,7 +364,7 @@ public final class MessagingService implements MessagingServiceMBean
     public String sendRR(Message message, InetAddress to, IMessageCallback cb, long timeout)
     {
         String id = nextId();
-        addCallback(cb, id, to, timeout);
+        addCallback(cb, id, message, to, timeout);
         sendOneWay(message, id, to);
         return id;
     }
@@ -424,16 +456,21 @@ public final class MessagingService implements MessagingServiceMBean
         subscribers.add(subcriber);
     }
 
-    /** blocks until the processing pools are empty and done. */
-    public void waitFor() throws InterruptedException
+    public void waitForStreaming() throws InterruptedException
     {
-        while (!streamExecutor_.isTerminated())
-            streamExecutor_.awaitTermination(5, TimeUnit.SECONDS);
+        streamExecutor_.awaitTermination(24, TimeUnit.HOURS);
+    }
+
+    public void clearCallbacksUnsafe()
+    {
+        callbacks.clear();
     }
 
     public void shutdown()
     {
         logger_.info("Shutting down MessageService...");
+        // We may need to schedule hints on the mutation stage, so it's erroneous to shut down the mutation stage first
+        assert !StageManager.getStage(Stage.MUTATION).isShutdown();
 
         try
         {
@@ -444,10 +481,10 @@ public final class MessagingService implements MessagingServiceMBean
             throw new IOError(e);
         }
 
-        streamExecutor_.shutdownNow();
-        callbacks.shutdown();
+        streamExecutor_.shutdown();
 
-        logger_.info("Shutdown complete (no further commands will be processed)");
+        logger_.info("Waiting for in-progress requests to complete");
+        callbacks.shutdown();
     }
 
     public void receive(Message message, String id)
@@ -466,7 +503,7 @@ public final class MessagingService implements MessagingServiceMBean
         stage.execute(runnable);
     }
 
-    public Pair<InetAddress, IMessageCallback> removeRegisteredCallback(String messageId)
+    public CallbackInfo removeRegisteredCallback(String messageId)
     {
         return callbacks.remove(messageId);
     }
@@ -695,4 +732,5 @@ public final class MessagingService implements MessagingServiceMBean
         }
         return result;
     }
+
 }

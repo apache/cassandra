@@ -44,7 +44,6 @@ import org.apache.cassandra.utils.UUIDGen;
 public class RowMutation implements IMutation, MessageProducer
 {
     private static RowMutationSerializer serializer_ = new RowMutationSerializer();
-    public static final String HINT = "HINT";
     public static final String FORWARD_HEADER = "FORWARD";
 
     public static RowMutationSerializer serializer()
@@ -354,7 +353,7 @@ public class RowMutation implements IMutation, MessageProducer
         }
     }
 
-    static RowMutation fromBytes(byte[] raw, int version) throws IOException
+    public static RowMutation fromBytes(byte[] raw, int version) throws IOException
     {
         RowMutation rm = serializer_.deserialize(new DataInputStream(new FastByteArrayInputStream(raw)), version);
         boolean hasCounters = false;

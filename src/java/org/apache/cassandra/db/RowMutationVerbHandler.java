@@ -47,22 +47,6 @@ public class RowMutationVerbHandler implements IVerbHandler
             if (logger_.isDebugEnabled())
               logger_.debug("Applying " + rm);
 
-            /* Check if there were any hints in this message */
-            byte[] hintedBytes = message.getHeader(RowMutation.HINT);
-            if (hintedBytes != null)
-            {
-                assert hintedBytes.length > 0;
-                DataInputStream dis = new DataInputStream(new FastByteArrayInputStream(hintedBytes));
-                while (dis.available() > 0)
-                {
-                    ByteBuffer addressBytes = ByteBufferUtil.readWithShortLength(dis);
-                    if (logger_.isDebugEnabled())
-                        logger_.debug("Adding hint for " + InetAddress.getByName(ByteBufferUtil.string(addressBytes)));
-                    RowMutation hintedMutation = RowMutation.hintFor(rm, addressBytes);
-                    hintedMutation.apply();
-                }
-            }
-        
             // Check if there were any forwarding headers in this message
             byte[] forwardBytes = message.getHeader(RowMutation.FORWARD_HEADER);
             if (forwardBytes != null)

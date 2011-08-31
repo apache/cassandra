@@ -51,6 +51,8 @@
  * Fix streaming over SSL when compressed SSTable involved (CASSANDRA-3051)
  * Add support for pluggable secondary index implementations (CASSANDRA-3078)
  * remove compaction_thread_priority setting (CASSANDRA-3104)
+ * generate hints for replicas that timeout, not just replicas that are known
+   to be down before starting (CASSANDRA-2034)
 
 
 0.8.5

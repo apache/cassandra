@@ -18,12 +18,15 @@
 
 package org.apache.cassandra.service;
 
-import java.io.*;
+import java.io.DataOutputStream;
+import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
@@ -33,12 +36,12 @@ import com.google.common.collect.Multimap;
 
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.net.*;
-
 import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.concurrent.CreationTimeAwareFuture;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -48,16 +51,18 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.util.FastByteArrayOutputStream;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.TokenMetadata;
-import org.apache.cassandra.utils.*;
-import org.apache.cassandra.thrift.ConsistencyLevel;
-import org.apache.cassandra.thrift.IndexClause;
-import org.apache.cassandra.thrift.InvalidRequestException;
-import org.apache.cassandra.thrift.SlicePredicate;
-import org.apache.cassandra.thrift.UnavailableException;
+import org.apache.cassandra.net.*;
+import org.apache.cassandra.thrift.*;
+import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.LatencyTracker;
+import org.apache.cassandra.utils.Pair;
+
 
 public class StorageProxy implements StorageProxyMBean
 {
@@ -67,8 +72,7 @@ public class StorageProxy implements StorageProxyMBean
     private static final LatencyTracker readStats = new LatencyTracker();
     private static final LatencyTracker rangeStats = new LatencyTracker();
     private static final LatencyTracker writeStats = new LatencyTracker();
-    private static boolean hintedHandoffEnabled = DatabaseDescriptor.hintedHandoffEnabled();
-    private static int maxHintWindow = DatabaseDescriptor.getMaxHintWindow();
+
     public static final String UNREACHABLE = "UNREACHABLE";
 
     private static final WritePerformer standardWritePerformer;
@@ -76,6 +80,12 @@ public class StorageProxy implements StorageProxyMBean
     private static final WritePerformer counterWriteOnCoordinatorPerformer;
 
     public static final StorageProxy instance = new StorageProxy();
+
+    private static volatile boolean hintedHandoffEnabled = DatabaseDescriptor.hintedHandoffEnabled();
+    private static volatile int maxHintWindow = DatabaseDescriptor.getMaxHintWindow();
+    private static volatile int maxHintsInProgress = 1024 * Runtime.getRuntime().availableProcessors();
+    private static final AtomicInteger hintsInProgress = new AtomicInteger();
+    private static final AtomicLong totalHints = new AtomicLong();
 
     private StorageProxy() {}
 
@@ -93,10 +103,15 @@ public class StorageProxy implements StorageProxyMBean
 
         standardWritePerformer = new WritePerformer()
         {
-            public void apply(IMutation mutation, Multimap<InetAddress, InetAddress> hintedEndpoints, IWriteResponseHandler responseHandler, String localDataCenter, ConsistencyLevel consistency_level) throws IOException
+            public void apply(IMutation mutation,
+                              Collection<InetAddress> targets,
+                              IWriteResponseHandler responseHandler,
+                              String localDataCenter,
+                              ConsistencyLevel consistency_level)
+            throws IOException, TimeoutException
             {
                 assert mutation instanceof RowMutation;
-                sendToHintedEndpoints((RowMutation) mutation, hintedEndpoints, responseHandler, localDataCenter, consistency_level);
+                sendToHintedEndpoints((RowMutation) mutation, targets, responseHandler, localDataCenter, consistency_level);
             }
         };
 
@@ -108,24 +123,34 @@ public class StorageProxy implements StorageProxyMBean
          */
         counterWritePerformer = new WritePerformer()
         {
-            public void apply(IMutation mutation, Multimap<InetAddress, InetAddress> hintedEndpoints, IWriteResponseHandler responseHandler, String localDataCenter, ConsistencyLevel consistency_level) throws IOException
+            public void apply(IMutation mutation,
+                              Collection<InetAddress> targets,
+                              IWriteResponseHandler responseHandler,
+                              String localDataCenter,
+                              ConsistencyLevel consistency_level) 
+            throws IOException
             {
                 if (logger.isDebugEnabled())
                     logger.debug("insert writing local & replicate " + mutation.toString(true));
 
-                Runnable runnable = counterWriteTask(mutation, hintedEndpoints, responseHandler, localDataCenter, consistency_level);
+                Runnable runnable = counterWriteTask(mutation, targets, responseHandler, localDataCenter, consistency_level);
                 runnable.run();
             }
         };
 
         counterWriteOnCoordinatorPerformer = new WritePerformer()
         {
-            public void apply(IMutation mutation, Multimap<InetAddress, InetAddress> hintedEndpoints, IWriteResponseHandler responseHandler, String localDataCenter, ConsistencyLevel consistency_level) throws IOException
+            public void apply(IMutation mutation,
+                              Collection<InetAddress> targets,
+                              IWriteResponseHandler responseHandler,
+                              String localDataCenter,
+                              ConsistencyLevel consistency_level)
+            throws IOException
             {
                 if (logger.isDebugEnabled())
                     logger.debug("insert writing local & replicate " + mutation.toString(true));
 
-                Runnable runnable = counterWriteTask(mutation, hintedEndpoints, responseHandler, localDataCenter, consistency_level);
+                Runnable runnable = counterWriteTask(mutation, targets, responseHandler, localDataCenter, consistency_level);
                 StageManager.getStage(Stage.MUTATION).execute(runnable);
             }
         };
@@ -139,7 +164,7 @@ public class StorageProxy implements StorageProxyMBean
      *
      * @param mutations the mutations to be applied across the replicas
      * @param consistency_level the consistency level for the operation
-    */
+     */
     public static void mutate(List<? extends IMutation> mutations, ConsistencyLevel consistency_level) throws UnavailableException, TimeoutException
     {
         final String localDataCenter = DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getBroadcastAddress());
@@ -162,11 +187,13 @@ public class StorageProxy implements StorageProxyMBean
                     responseHandlers.add(performWrite(mutation, consistency_level, localDataCenter, standardWritePerformer));
                 }
             }
-            // wait for writes.  throws timeoutexception if necessary
+
+            // wait for writes.  throws TimeoutException if necessary
             for (IWriteResponseHandler responseHandler : responseHandlers)
             {
                 responseHandler.get();
             }
+
         }
         catch (TimeoutException ex)
         {
@@ -202,20 +229,23 @@ public class StorageProxy implements StorageProxyMBean
      * given the list of write endpoints (either standardWritePerformer for
      * standard writes or counterWritePerformer for counter writes).
      */
-    public static IWriteResponseHandler performWrite(IMutation mutation, ConsistencyLevel consistency_level, String localDataCenter, WritePerformer performer) throws UnavailableException, TimeoutException, IOException
+    public static IWriteResponseHandler performWrite(IMutation mutation,
+                                                     ConsistencyLevel consistency_level,
+                                                     String localDataCenter,
+                                                     WritePerformer performer)
+    throws UnavailableException, TimeoutException, IOException
     {
         String table = mutation.getTable();
         AbstractReplicationStrategy rs = Table.open(table).getReplicationStrategy();
 
         Collection<InetAddress> writeEndpoints = getWriteEndpoints(table, mutation.key());
-        Multimap<InetAddress, InetAddress> hintedEndpoints = rs.getHintedEndpoints(writeEndpoints);
 
-        IWriteResponseHandler responseHandler = rs.getWriteResponseHandler(writeEndpoints, hintedEndpoints, consistency_level);
+        IWriteResponseHandler responseHandler = rs.getWriteResponseHandler(writeEndpoints, consistency_level);
 
         // exit early if we can't fulfill the CL at this time
         responseHandler.assureSufficientLiveNodes();
 
-        performer.apply(mutation, hintedEndpoints, responseHandler, localDataCenter, consistency_level);
+        performer.apply(mutation, writeEndpoints, responseHandler, localDataCenter, consistency_level);
         return responseHandler;
     }
 
@@ -226,23 +256,37 @@ public class StorageProxy implements StorageProxyMBean
         return ss.getTokenMetadata().getWriteEndpoints(StorageService.getPartitioner().getToken(key), table, naturalEndpoints);
     }
 
-    private static void sendToHintedEndpoints(final RowMutation rm, Multimap<InetAddress, InetAddress> hintedEndpoints, IWriteResponseHandler responseHandler, String localDataCenter, ConsistencyLevel consistency_level)
-    throws IOException
+    /**
+     * Send the mutations to the right targets, write it locally if it corresponds or writes a hint when the node
+     * is not available.
+     *
+     * Note about hints:
+     *
+     * | Hinted Handoff | Consist. Level |
+     * | on             |       >=1      | --> wait for hints. We DO NOT notify the handler with handler.response() for hints; 
+     * | on             |       ANY      | --> wait for hints. Responses count towards consistency.
+     * | off            |       >=1      | --> DO NOT fire hints. And DO NOT wait for them to complete.
+     * | off            |       ANY      | --> DO NOT fire hints. And DO NOT wait for them to complete.
+     *
+     * @throws TimeoutException if the hints cannot be written/enqueued 
+     */
+    private static void sendToHintedEndpoints(final RowMutation rm, 
+                                              Collection<InetAddress> targets,
+                                              IWriteResponseHandler responseHandler,
+                                              String localDataCenter,
+                                              ConsistencyLevel consistency_level)
+    throws IOException, TimeoutException
     {
         // Multimap that holds onto all the messages and addresses meant for a specific datacenter
-        Map<String, Multimap<Message, InetAddress>> dcMessages = new HashMap<String, Multimap<Message, InetAddress>>(hintedEndpoints.size());
+        Map<String, Multimap<Message, InetAddress>> dcMessages = new HashMap<String, Multimap<Message, InetAddress>>(targets.size());
         MessageProducer producer = new CachingMessageProducer(rm);
 
-        for (Map.Entry<InetAddress, Collection<InetAddress>> entry : hintedEndpoints.asMap().entrySet())
+        for (InetAddress destination : targets)
         {
-            InetAddress destination = entry.getKey();
-            Collection<InetAddress> targets = entry.getValue();
-
-            String dc = DatabaseDescriptor.getEndpointSnitch().getDatacenter(destination);
-
-            if (targets.size() == 1 && targets.iterator().next().equals(destination))
+            if (FailureDetector.instance.isAlive(destination))
             {
-                // unhinted writes
+                String dc = DatabaseDescriptor.getEndpointSnitch().getDatacenter(destination);
+
                 if (destination.equals(FBUtilities.getBroadcastAddress()))
                 {
                     insertLocal(rm, responseHandler);
@@ -265,26 +309,65 @@ public class StorageProxy implements StorageProxyMBean
             }
             else
             {
-                // hinted messages are unique, so there is no point to adding a hop by forwarding via another node.
-                // thus, we use sendRR/sendOneWay directly here.
-                Message hintedMessage = rm.getMessage(Gossiper.instance.getVersion(destination));
-                for (InetAddress target : targets)
-                {
-                    if (!target.equals(destination))
-                    {
-                        addHintHeader(hintedMessage, target);
-                        if (logger.isDebugEnabled())
-                            logger.debug("insert writing key " + ByteBufferUtil.bytesToHex(rm.key()) + " to " + destination + " for " + target);
-                    }
-                }
-                // non-destination hints are part of the callback and count towards consistency only under CL.ANY
-                if (targets.contains(destination) || consistency_level == ConsistencyLevel.ANY)
-                    MessagingService.instance().sendRR(hintedMessage, destination, responseHandler);
-                else
-                    MessagingService.instance().sendOneWay(hintedMessage, destination);
+                if (!shouldHint(destination))
+                    continue;
+
+                // Avoid OOMing from hints waiting to be written.  (Unlike ordinary mutations, hint
+                // not eligible to drop if we fall behind.)
+                if (hintsInProgress.get() > maxHintsInProgress)
+                    throw new TimeoutException();
+
+                // Schedule a local hint and let the handler know it needs to wait for the hint to complete too
+                Future<Void> hintfuture = scheduleLocalHint(rm, destination, responseHandler, consistency_level);
+                responseHandler.addFutureForHint(new CreationTimeAwareFuture<Void>(hintfuture));
             }
         }
+
         sendMessages(localDataCenter, dcMessages, responseHandler);
+    }
+
+    public static Future<Void> scheduleLocalHint(final RowMutation mutation,
+                                                 final InetAddress target,
+                                                 final IWriteResponseHandler responseHandler,
+                                                 final ConsistencyLevel consistencyLevel)
+    throws IOException
+    {
+        // Hint of itself doesn't make sense.
+        assert !target.equals(FBUtilities.getBroadcastAddress()) : target;
+        hintsInProgress.incrementAndGet();
+
+        Runnable runnable = new Runnable()
+        {
+
+            public void run()
+            {
+                if (logger.isDebugEnabled())
+                    logger.debug("Adding hint for " + target);
+
+                try
+                {
+                    RowMutation hintedMutation = RowMutation.hintFor(mutation, ByteBufferUtil.bytes(target.getHostAddress()));
+                    hintedMutation.apply();
+
+                    totalHints.incrementAndGet();
+
+                    // Notify the handler only for CL == ANY
+                    if (responseHandler != null && consistencyLevel == ConsistencyLevel.ANY)
+                        responseHandler.response(null);
+                }
+                catch (IOException e)
+                {
+                    throw new RuntimeException(e);
+                }
+                finally
+                {
+                    // Decrement the current hint in the execution after the task is done.
+                    hintsInProgress.decrementAndGet();
+                }
+            }
+        };
+
+        return (Future<Void>) StageManager.getStage(Stage.MUTATION).submit(runnable);
     }
 
     /**
@@ -339,19 +422,6 @@ public class StorageProxy implements StorageProxyMBean
         }
     }
 
-    private static void addHintHeader(Message message, InetAddress target) throws IOException
-    {
-    	FastByteArrayOutputStream bos = new FastByteArrayOutputStream();
-        DataOutputStream dos = new DataOutputStream(bos);
-        byte[] previousHints = message.getHeader(RowMutation.HINT);
-        if (previousHints != null)
-        {
-            dos.write(previousHints);
-        }
-        ByteBufferUtil.writeWithShortLength(ByteBufferUtil.bytes(target.getHostAddress()), dos);
-        message.setHeader(RowMutation.HINT, bos.toByteArray());
-    }
-
     private static void insertLocal(final RowMutation rm, final IWriteResponseHandler responseHandler)
     {
         if (logger.isDebugEnabled())
@@ -395,8 +465,8 @@ public class StorageProxy implements StorageProxyMBean
             String table = cm.getTable();
             AbstractReplicationStrategy rs = Table.open(table).getReplicationStrategy();
             Collection<InetAddress> writeEndpoints = getWriteEndpoints(table, cm.key());
-            Multimap<InetAddress, InetAddress> hintedEndpoints = rs.getHintedEndpoints(writeEndpoints);
-            rs.getWriteResponseHandler(writeEndpoints, hintedEndpoints, cm.consistency()).assureSufficientLiveNodes();
+
+            rs.getWriteResponseHandler(writeEndpoints, cm.consistency()).assureSufficientLiveNodes();
 
             // Forward the actual update to the chosen leader replica
             IWriteResponseHandler responseHandler = WriteResponseHandler.create(endpoint);
@@ -432,7 +502,11 @@ public class StorageProxy implements StorageProxyMBean
         return performWrite(cm, cm.consistency(), localDataCenter, counterWriteOnCoordinatorPerformer);
     }
 
-    private static Runnable counterWriteTask(final IMutation mutation, final Multimap<InetAddress, InetAddress> hintedEndpoints, final IWriteResponseHandler responseHandler, final String localDataCenter, final ConsistencyLevel consistency_level)
+    private static Runnable counterWriteTask(final IMutation mutation, 
+                                             final Collection<InetAddress> targets,
+                                             final IWriteResponseHandler responseHandler,
+                                             final String localDataCenter,
+                                             final ConsistencyLevel consistency_level)
     {
         return new DroppableRunnable(StorageService.Verb.MUTATION)
         {
@@ -446,18 +520,17 @@ public class StorageProxy implements StorageProxyMBean
                 responseHandler.response(null);
 
                 // then send to replicas, if any
-                InetAddress local = FBUtilities.getBroadcastAddress();
-                hintedEndpoints.remove(local, local);
-                if (cm.shouldReplicateOnWrite() && !hintedEndpoints.isEmpty())
+                targets.remove(FBUtilities.getBroadcastAddress());
+                if (cm.shouldReplicateOnWrite() && !targets.isEmpty())
                 {
                     // We do the replication on another stage because it involves a read (see CM.makeReplicationMutation)
                     // and we want to avoid blocking too much the MUTATION stage
                     StageManager.getStage(Stage.REPLICATE_ON_WRITE).execute(new DroppableRunnable(StorageService.Verb.READ)
                     {
-                        public void runMayThrow() throws IOException
+                        public void runMayThrow() throws IOException, TimeoutException
                         {
                             // send mutation to other replica
-                            sendToHintedEndpoints(cm.makeReplicationMutation(), hintedEndpoints, responseHandler, localDataCenter, consistency_level);
+                            sendToHintedEndpoints(cm.makeReplicationMutation(), targets, responseHandler, localDataCenter, consistency_level);
                         }
                     });
                 }
@@ -1067,11 +1140,6 @@ public class StorageProxy implements StorageProxyMBean
         hintedHandoffEnabled = b;
     }
 
-    public static boolean isHintedHandoffEnabled()
-    {
-        return hintedHandoffEnabled;
-    }
-
     public int getMaxHintWindow()
     {
         return maxHintWindow;
@@ -1084,7 +1152,13 @@ public class StorageProxy implements StorageProxyMBean
 
     public static boolean shouldHint(InetAddress ep)
     {
-        return Gossiper.instance.getEndpointDowntime(ep) <= maxHintWindow;
+        if (!hintedHandoffEnabled)
+            return false;
+        
+        boolean hintWindowExpired = Gossiper.instance.getEndpointDowntime(ep) > maxHintWindow;
+        if (hintWindowExpired)
+            logger.debug("not hinting {} which has been down {}ms", ep, Gossiper.instance.getEndpointDowntime(ep));
+        return !hintWindowExpired;
     }
 
     /**
@@ -1136,7 +1210,7 @@ public class StorageProxy implements StorageProxyMBean
 
     private interface WritePerformer
     {
-        public void apply(IMutation mutation, Multimap<InetAddress, InetAddress> hintedEndpoints, IWriteResponseHandler responseHandler, String localDataCenter, ConsistencyLevel consistency_level) throws IOException;
+        public void apply(IMutation mutation, Collection<InetAddress> targets, IWriteResponseHandler responseHandler, String localDataCenter, ConsistencyLevel consistency_level) throws IOException, TimeoutException;
     }
 
     private static abstract class DroppableRunnable implements Runnable
@@ -1168,5 +1242,31 @@ public class StorageProxy implements StorageProxyMBean
         }
 
         abstract protected void runMayThrow() throws Exception;
+    }
+
+    public long getTotalHints()
+    {
+        return totalHints.get();
+    }
+
+    public int getMaxHintsInProgress()
+    {
+        return maxHintsInProgress;
+    }
+
+    public void setMaxHintsInProgress(int qs)
+    {
+        maxHintsInProgress = qs;
+    }
+
+    public int getHintsInProgress()
+    {
+        return hintsInProgress.get();
+    }
+
+    public void verifyNoHintsInProgress()
+    {
+        if (getHintsInProgress() > 0)
+            logger.warn("Some hints were not written before shutdown.  This is not supposed to happen.  You should (a) run repair, and (b) file a bug report");
     }
 }

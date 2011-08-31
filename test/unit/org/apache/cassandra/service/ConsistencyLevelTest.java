@@ -25,7 +25,6 @@ import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.google.common.collect.HashMultimap;
 import org.apache.cassandra.config.Schema;
 import org.junit.Test;
 
@@ -63,12 +62,10 @@ public class ConsistencyLevelTest extends CleanupHelper
 
         ArrayList<Token> endpointTokens = new ArrayList<Token>();
         ArrayList<Token> keyTokens = new ArrayList<Token>();
+        List<InetAddress> hostsInUse = new ArrayList<InetAddress>();
         List<InetAddress> hosts = new ArrayList<InetAddress>();
 
         Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, RING_SIZE);
-
-        HashMultimap<InetAddress, InetAddress> hintedNodes = HashMultimap.create();
-
 
         AbstractReplicationStrategy strategy;
 
@@ -88,14 +85,19 @@ public class ConsistencyLevelTest extends CleanupHelper
 
                 for (int i = 0; i < replicationFactor; i++)
                 {
-                    hintedNodes.clear();
-
-                    for (int j = 0; j < i; j++)
+                    hostsInUse.clear();
+                    for (int j = 0 ; j < i ; j++)
                     {
-                        hintedNodes.put(hosts.get(j), hosts.get(j));
+                        hostsInUse.add(hosts.get(j));
                     }
 
-                    IWriteResponseHandler writeHandler = strategy.getWriteResponseHandler(hosts, hintedNodes, c);
+                    if (hostsInUse.isEmpty())
+                    {
+                        // We skip this case as it means RF = 0 in this simulation.
+                        continue;
+                    }
+
+                    IWriteResponseHandler writeHandler = strategy.getWriteResponseHandler(hostsInUse, c);
 
                     IReadCommand command = new IReadCommand()
                     {
@@ -105,7 +107,7 @@ public class ConsistencyLevelTest extends CleanupHelper
                         }
                     };
                     RowRepairResolver resolver = new RowRepairResolver(table, ByteBufferUtil.bytes("foo"));
-                    ReadCallback<Row> readHandler = StorageProxy.getReadCallback(resolver, command, c, new ArrayList<InetAddress>(hintedNodes.keySet()));
+                    ReadCallback<Row> readHandler = StorageProxy.getReadCallback(resolver, command, c, hostsInUse);
 
                     boolean isWriteUnavailable = false;
                     boolean isReadUnavailable = false;
@@ -128,41 +130,42 @@ public class ConsistencyLevelTest extends CleanupHelper
                     }
 
                     //these should always match (in this kind of test)
-                    assertTrue(isWriteUnavailable == isReadUnavailable);
+                    assertTrue(String.format("Node Alive: %d - CL: %s - isWriteUnavailable: %b - isReadUnavailable: %b", hostsInUse.size(), c, isWriteUnavailable, isReadUnavailable),
+                               isWriteUnavailable == isReadUnavailable);
 
                     switch (c)
                     {
                         case ALL:
                             if (isWriteUnavailable)
-                                assertTrue(hintedNodes.size() < replicationFactor);
+                                assertTrue(hostsInUse.size() < replicationFactor);
                             else
-                                assertTrue(hintedNodes.size() >= replicationFactor);
+                                assertTrue(hostsInUse.size() >= replicationFactor);
 
                             break;
                         case ONE:
                         case ANY:
                             if (isWriteUnavailable)
-                                assertTrue(hintedNodes.size() == 0);
+                                assertTrue(hostsInUse.size() == 0);
                             else
-                                assertTrue(hintedNodes.size() > 0);
+                                assertTrue(hostsInUse.size() > 0);
                             break;
                         case TWO:
                             if (isWriteUnavailable)
-                                assertTrue(hintedNodes.size() < 2);
+                                assertTrue(hostsInUse.size() < 2);
                             else
-                                assertTrue(hintedNodes.size() >= 2);
+                                assertTrue(hostsInUse.size() >= 2);
                             break;
                         case THREE:
                             if (isWriteUnavailable)
-                                assertTrue(hintedNodes.size() < 3);
+                                assertTrue(hostsInUse.size() < 3);
                             else
-                                assertTrue(hintedNodes.size() >= 3);
+                                assertTrue(hostsInUse.size() >= 3);
                             break;
                         case QUORUM:
                             if (isWriteUnavailable)
-                                assertTrue(hintedNodes.size() < (replicationFactor / 2 + 1));
+                                assertTrue(hostsInUse.size() < (replicationFactor / 2 + 1));
                             else
-                                assertTrue(hintedNodes.size() >= (replicationFactor / 2 + 1));
+                                assertTrue(hostsInUse.size() >= (replicationFactor / 2 + 1));
                             break;
                         default:
                             fail("Unhandled CL: " + c);

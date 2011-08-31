@@ -26,8 +26,6 @@ import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 public class ExpiringMap<K, V>
 {
-    private final Function<Pair<K,V>, ?> postExpireHook;
-
     private static class CacheableObject<T>
     {
         private final T value;
@@ -53,24 +51,6 @@ public class ExpiringMap<K, V>
         }
     }
 
-    private class CacheMonitor extends TimerTask
-    {
-
-        public void run()
-        {
-            long start = System.currentTimeMillis();
-            for (Map.Entry<K, CacheableObject<V>> entry : cache.entrySet())
-            {
-                if (entry.getValue().isReadyToDie(start))
-                {
-                    cache.remove(entry.getKey());
-                    if (postExpireHook != null)
-                        postExpireHook.apply(new Pair<K, V>(entry.getKey(), entry.getValue().getValue()));
-                }
-            }
-        }
-    }
-
     private final NonBlockingHashMap<K, CacheableObject<V>> cache = new NonBlockingHashMap<K, CacheableObject<V>>();
     private final Timer timer;
     private static int counter = 0;
@@ -85,9 +65,8 @@ public class ExpiringMap<K, V>
      *
      * @param expiration the TTL for objects in the cache in milliseconds
      */
-    public ExpiringMap(long expiration, Function<Pair<K,V>, ?> postExpireHook)
+    public ExpiringMap(long expiration, final Function<Pair<K,V>, ?> postExpireHook)
     {
-        this.postExpireHook = postExpireHook;
         this.expiration = expiration;
 
         if (expiration <= 0)
@@ -96,12 +75,44 @@ public class ExpiringMap<K, V>
         }
 
         timer = new Timer("EXPIRING-MAP-TIMER-" + (++counter), true);
-        timer.schedule(new CacheMonitor(), expiration / 2, expiration / 2);
+        TimerTask task = new TimerTask()
+        {
+            public void run()
+            {
+                long start = System.currentTimeMillis();
+                for (Map.Entry<K, CacheableObject<V>> entry : cache.entrySet())
+                {
+                    if (entry.getValue().isReadyToDie(start))
+                    {
+                        cache.remove(entry.getKey());
+                        if (postExpireHook != null)
+                            postExpireHook.apply(new Pair<K, V>(entry.getKey(), entry.getValue().getValue()));
+                    }
+                }
+            }
+        };
+        timer.schedule(task, expiration / 2, expiration / 2);
     }
 
     public void shutdown()
     {
+        while (!cache.isEmpty())
+        {
+            try
+            {
+                Thread.sleep(100);
+            }
+            catch (InterruptedException e)
+            {
+                throw new AssertionError(e);
+            }
+        }
         timer.cancel();
+    }
+
+    public void clear()
+    {
+        cache.clear();
     }
 
     public V put(K key, V value)

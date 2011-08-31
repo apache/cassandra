@@ -25,15 +25,16 @@ import java.util.*;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
-import org.apache.cassandra.gms.Gossiper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.gms.FailureDetector;
-import org.apache.cassandra.service.*;
+import org.apache.cassandra.service.DatacenterSyncWriteResponseHandler;
+import org.apache.cassandra.service.DatacenterWriteResponseHandler;
+import org.apache.cassandra.service.IWriteResponseHandler;
+import org.apache.cassandra.service.WriteResponseHandler;
 import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.utils.FBUtilities;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
@@ -113,20 +114,18 @@ public abstract class AbstractReplicationStrategy
      */
     public abstract List<InetAddress> calculateNaturalEndpoints(Token searchToken, TokenMetadata tokenMetadata);
 
-    public IWriteResponseHandler getWriteResponseHandler(Collection<InetAddress> writeEndpoints,
-                                                         Multimap<InetAddress, InetAddress> hintedEndpoints,
-                                                         ConsistencyLevel consistency_level)
+    public IWriteResponseHandler getWriteResponseHandler(Collection<InetAddress> writeEndpoints, ConsistencyLevel consistency_level)
     {
         if (consistency_level == ConsistencyLevel.LOCAL_QUORUM)
         {
             // block for in this context will be localnodes block.
-            return DatacenterWriteResponseHandler.create(writeEndpoints, hintedEndpoints, consistency_level, table);
+            return DatacenterWriteResponseHandler.create(writeEndpoints, consistency_level, table);
         }
         else if (consistency_level == ConsistencyLevel.EACH_QUORUM)
         {
-            return DatacenterSyncWriteResponseHandler.create(writeEndpoints, hintedEndpoints, consistency_level, table);
+            return DatacenterSyncWriteResponseHandler.create(writeEndpoints, consistency_level, table);
         }
-        return WriteResponseHandler.create(writeEndpoints, hintedEndpoints, consistency_level, table);
+        return WriteResponseHandler.create(writeEndpoints, consistency_level, table);
     }
 
     /**
@@ -136,49 +135,6 @@ public abstract class AbstractReplicationStrategy
      * @return the replication factor
      */
     public abstract int getReplicationFactor();
-
-    /**
-     * returns <tt>Multimap</tt> of {live destination: ultimate targets}, where if target is not the same
-     * as the destination, it is a "hinted" write, and will need to be sent to
-     * the ultimate target when it becomes alive again.
-     */
-    public Multimap<InetAddress, InetAddress> getHintedEndpoints(Collection<InetAddress> targets)
-    {
-        Multimap<InetAddress, InetAddress> map = HashMultimap.create(targets.size(), 1);
-
-        // first, add the live endpoints
-        for (InetAddress ep : targets)
-        {
-            if (FailureDetector.instance.isAlive(ep))
-                map.put(ep, ep);
-        }
-
-        // if everything was alive or we're not doing HH on this keyspace, stop with just the live nodes
-        if (map.size() == targets.size() || !StorageProxy.isHintedHandoffEnabled())
-            return map;
-
-        // Assign dead endpoints to be hinted to the local node.
-        //
-        // we do a 2nd pass on targets instead of using temporary storage,
-        // to optimize for the common case (everything was alive).
-        InetAddress localAddress = FBUtilities.getBroadcastAddress();
-        for (InetAddress ep : targets)
-        {
-            if (map.containsKey(ep))
-                continue;
-            if (!StorageProxy.shouldHint(ep))
-            {
-                if (logger.isDebugEnabled())
-                    logger.debug("not hinting " + ep + " which has been down " + Gossiper.instance.getEndpointDowntime(ep) + "ms");
-                continue;
-            }
-
-            // We always store the hint on the coordinator node.
-            map.put(localAddress, ep);
-        }
-
-        return map;
-    }
 
     /*
      * NOTE: this is pretty inefficient. also the inverse (getRangeAddresses) below.
