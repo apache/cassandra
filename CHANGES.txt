@@ -46,6 +46,8 @@
  * Add validation that Keyspace names are case-insensitively unique (CASSANDRA-3066)
  * catch invalid key_validation_class before instantiating UpdateColumnFamily (CASSANDRA-3102)
  * make Range and Bounds objects client-safe (CASSANDRA-3108)
+ * make repair report failure when a node participating dies (instead of
+   hanging forever) (CASSANDRA-2433)
 
 
 0.8.4

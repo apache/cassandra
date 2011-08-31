@@ -20,9 +20,7 @@ package org.apache.cassandra.service;
 
 import java.net.InetAddress;
 import java.util.*;
-import java.util.concurrent.Callable;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.*;
 
 import org.junit.After;
 import org.junit.Before;
@@ -47,6 +45,7 @@ import org.apache.cassandra.utils.MerkleTree;
 import static org.apache.cassandra.service.AntiEntropyService.*;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public abstract class AntiEntropyServiceTestAbstract extends CleanupHelper
@@ -162,18 +161,21 @@ public abstract class AntiEntropyServiceTestAbstract extends CleanupHelper
     @Test
     public void testManualRepair() throws Throwable
     {
-        AntiEntropyService.RepairSession sess = AntiEntropyService.instance.getRepairSession(local_range, tablename, cfname);
-        sess.start();
+        RepairFuture sess = AntiEntropyService.instance.submitRepairSession(local_range, tablename, cfname);
 
         // ensure that the session doesn't end without a response from REMOTE
-        sess.join(500);
-        assert sess.isAlive();
+        try
+        {
+            sess.get(500, TimeUnit.MILLISECONDS);
+            fail("Repair session should not end without response from REMOTE");
+        }
+        catch (TimeoutException e) {}
 
         // deliver a fake response from REMOTE
-        sess.completed(REMOTE, request.cf.right);
+        sess.session.completed(REMOTE, request.cf.right);
 
         // block until the repair has completed
-        sess.join();
+        sess.get();
     }
 
     @Test
@@ -218,8 +220,8 @@ public abstract class AntiEntropyServiceTestAbstract extends CleanupHelper
     public void testDifferencer() throws Throwable
     {
         // this next part does some housekeeping so that cleanup in the differencer doesn't error out.
-        AntiEntropyService.RepairSession sess = AntiEntropyService.instance.getArtificialRepairSession(request, tablename, cfname);
-        
+        AntiEntropyService.RepairFuture sess = AntiEntropyService.instance.submitArtificialRepairSession(request, tablename, cfname);
+
         // generate a tree
         Validator validator = new Validator(request);
         validator.prepare(store);
@@ -242,7 +244,7 @@ public abstract class AntiEntropyServiceTestAbstract extends CleanupHelper
         interesting.add(changed);
 
         // difference the trees
-        AntiEntropyService.RepairSession.Differencer diff = sess.new Differencer(cfname, request.endpoint, ltree, rtree);
+        AntiEntropyService.RepairSession.Differencer diff = sess.session.new Differencer(cfname, request.endpoint, ltree, rtree);
         diff.run();
         
         // ensure that the changed range was recorded

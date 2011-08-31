@@ -47,4 +47,12 @@ public interface IEndpointStateChangeSubscriber
     public void onDead(InetAddress endpoint, EndpointState state);
 
     public void onRemove(InetAddress endpoint);
+
+    /**
+     * Called whenever a node is restarted.
+     * Note that there is no guarantee when that happens that the node was
+     * previously marked down. It will have only if {@code state.isAlive() == false}
+     * as {@code state} is from before the restarted node is marked up.
+     */
+    public void onRestart(InetAddress endpoint, EndpointState state);
 }

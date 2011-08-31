@@ -1277,6 +1277,13 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         MessagingService.instance().convict(endpoint);
     }
 
+    public void onRestart(InetAddress endpoint, EndpointState state)
+    {
+        // If we have restarted before the node was even marked down, we need to reset the connection pool
+        if (state.isAlive())
+            onDead(endpoint, state);
+    }
+
     /** raw load value */
     public double getLoad()
     {
@@ -1575,44 +1582,43 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         {
             return;
         }
-        
-        List<AntiEntropyService.RepairSession> sessions = new ArrayList<AntiEntropyService.RepairSession>();
+        List<AntiEntropyService.RepairFuture> futures = new ArrayList<AntiEntropyService.RepairFuture>();
         for (Range range : getLocalRanges(tableName))
         {
-            AntiEntropyService.RepairSession session = forceTableRepair(range, tableName, columnFamilies);
-            sessions.add(session);
+            AntiEntropyService.RepairFuture future = forceTableRepair(range, tableName, columnFamilies);
+            futures.add(future);
             // wait for a session to be done with its differencing before starting the next one
             try
             {
-                session.differencingDone.await();
+                future.session.differencingDone.await();
             }
             catch (InterruptedException e)
             {
-                logger_.error("Interrupted while waiting for the differencing of repair session " + session + " to be done. Repair may be imprecise.", e);
+                logger_.error("Interrupted while waiting for the differencing of repair session " + future.session + " to be done. Repair may be imprecise.", e);
             }
         }
 
         boolean failedSession = false;
 
         // block until all repair sessions have completed
-        for (AntiEntropyService.RepairSession sess : sessions)
+        for (AntiEntropyService.RepairFuture future : futures)
         {
             try
             {
-                sess.join();
+                future.get();
             }
-            catch (InterruptedException e)
+            catch (Exception e)
             {
-                logger_.error("Repair session " + sess + " failed.", e);
+                logger_.error("Repair session " + future.session + " failed.", e);
                 failedSession = true;
             }
         }
 
         if (failedSession)
-            throw new IOException("Some Repair session(s) failed.");
+            throw new IOException("Some repair session(s) failed (see log for details).");
     }
 
-    public AntiEntropyService.RepairSession forceTableRepair(final Range range, final String tableName, final String... columnFamilies) throws IOException
+    public AntiEntropyService.RepairFuture forceTableRepair(final Range range, final String tableName, final String... columnFamilies) throws IOException
     {
         ArrayList<String> names = new ArrayList<String>();
         for (ColumnFamilyStore cfStore : getValidColumnFamilies(tableName, columnFamilies))
@@ -1620,9 +1626,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             names.add(cfStore.getColumnFamilyName());
         }
 
-        AntiEntropyService.RepairSession sess = AntiEntropyService.instance.getRepairSession(range, tableName, names.toArray(new String[names.size()]));
-        sess.start();
-        return sess;
+        return AntiEntropyService.instance.submitRepairSession(range, tableName, names.toArray(new String[names.size()]));
     }
 
     /* End of MBean interface methods */

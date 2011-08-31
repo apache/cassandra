@@ -23,27 +23,26 @@ import java.net.InetAddress;
 import java.security.MessageDigest;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Condition;
 
 import com.google.common.base.Objects;
 
-import org.apache.cassandra.db.compaction.AbstractCompactedRow;
-import org.apache.cassandra.gms.Gossiper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.concurrent.Stage;
-import org.apache.cassandra.concurrent.StageManager;
+import org.apache.cassandra.concurrent.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.compaction.AbstractCompactedRow;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.gms.FailureDetector;
+import org.apache.cassandra.gms.*;
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.net.CompactEndpointSerializationHelper;
@@ -95,19 +94,19 @@ public class AntiEntropyService
     // singleton enforcement
     public static final AntiEntropyService instance = new AntiEntropyService();
 
-    // timeout for outstanding requests (48 hours)
-    public final static long REQUEST_TIMEOUT = 48*60*60*1000;
+    private static final ThreadPoolExecutor executor;
+    static
+    {
+        executor = new JMXConfigurableThreadPoolExecutor(4,
+                                                         60,
+                                                         TimeUnit.SECONDS,
+                                                         new LinkedBlockingQueue<Runnable>(),
+                                                         new NamedThreadFactory("AntiEntropySessions"),
+                                                         "internal");
+    }
 
     /**
-     * Map of outstanding sessions to requests. Once both trees reach the rendezvous, the local node
-     * will queue a Differencer to compare them.
-     *
-     * This map is only accessed from Stage.ANTIENTROPY, so it is not synchronized.
-     */
-    private final ExpiringMap<String, Map<TreeRequest, TreePair>> requests;
-
-    /**
-     * A map of repair session ids to a Queue of TreeRequests that have been performed since the session was started.
+     * A map of active session.
      */
     private final ConcurrentMap<String, RepairSession> sessions;
 
@@ -116,22 +115,24 @@ public class AntiEntropyService
      */
     protected AntiEntropyService()
     {
-        requests = new ExpiringMap<String, Map<TreeRequest, TreePair>>(REQUEST_TIMEOUT);
         sessions = new ConcurrentHashMap<String, RepairSession>();
     }
 
     /**
      * Requests repairs for the given table and column families, and blocks until all repairs have been completed.
-     * TODO: Should add retries: if nodes go offline before they respond to the requests, this could block forever.
      */
-    public RepairSession getRepairSession(Range range, String tablename, String... cfnames)
+    public RepairFuture submitRepairSession(Range range, String tablename, String... cfnames)
     {
-        return new RepairSession(range, tablename, cfnames);
+        RepairFuture futureTask = new RepairSession(range, tablename, cfnames).getFuture();
+        executor.execute(futureTask);
+        return futureTask;
     }
 
-    RepairSession getArtificialRepairSession(TreeRequest req, String tablename, String... cfnames)
+    RepairFuture submitArtificialRepairSession(TreeRequest req, String tablename, String... cfnames)
     {
-        return new RepairSession(req, tablename, cfnames);
+        RepairFuture futureTask = new RepairSession(req, tablename, cfnames).getFuture();
+        executor.execute(futureTask);
+        return futureTask;
     }
 
     /**
@@ -591,24 +592,25 @@ public class AntiEntropyService
      * Triggers repairs with all neighbors for the given table, cfs and range.
      * Typical lifecycle is: start() then join(). Executed in client threads.
      */
-    class RepairSession extends Thread
+    class RepairSession extends WrappedRunnable implements IEndpointStateChangeSubscriber, IFailureDetectionEventListener
     {
+        private final String sessionName;
         private final String tablename;
         private final String[] cfnames;
-        private final ConcurrentHashMap<TreeRequest,Object> requests = new ConcurrentHashMap<TreeRequest,Object>();
         private final Range range;
+        private volatile Exception exception;
+        private final AtomicBoolean isFailed = new AtomicBoolean(false);
+
         private final Set<InetAddress> endpoints;
-
-        private CountDownLatch completedLatch;
         final Queue<RepairJob> jobs = new ConcurrentLinkedQueue<RepairJob>();
+        final Map<String, RepairJob> activeJobs = new ConcurrentHashMap<String, RepairJob>();
 
+        private final SimpleCondition completed = new SimpleCondition();
         public final Condition differencingDone = new SimpleCondition();
 
         public RepairSession(TreeRequest req, String tablename, String... cfnames)
         {
             this(req.sessionid, req.range, tablename, cfnames);
-            requests.put(req, this);
-            completedLatch = new CountDownLatch(cfnames.length);
             AntiEntropyService.instance.sessions.put(getName(), this);
         }
 
@@ -619,7 +621,7 @@ public class AntiEntropyService
 
         private RepairSession(String id, Range range, String tablename, String[] cfnames)
         {
-            super(id);
+            this.sessionName = id;
             this.tablename = tablename;
             this.cfnames = cfnames;
             assert cfnames.length > 0 : "Repairing no column families seems pointless, doesn't it";
@@ -627,8 +629,18 @@ public class AntiEntropyService
             this.endpoints = AntiEntropyService.getNeighbors(tablename, range);
         }
 
-        @Override
-        public void run()
+        public String getName()
+        {
+            return sessionName;
+        }
+
+        RepairFuture getFuture()
+        {
+            return new RepairFuture(this);
+        }
+
+        // we don't care about the return value but care about it throwing exception
+        public void runMayThrow() throws Exception
         {
             if (endpoints.isEmpty())
             {
@@ -649,20 +661,25 @@ public class AntiEntropyService
             }
 
             AntiEntropyService.instance.sessions.put(getName(), this);
+            Gossiper.instance.register(this);
+            FailureDetector.instance.registerFailureDetectionEventListener(this);
             try
             {
                 // Create and queue a RepairJob for each column family
                 for (String cfname : cfnames)
-                    jobs.offer(new RepairJob(cfname));
-
-                // We'll repair once by endpoints and column family
-                completedLatch = new CountDownLatch(endpoints.size() * cfnames.length);
+                {
+                    RepairJob job = new RepairJob(cfname);
+                    jobs.offer(job);
+                    activeJobs.put(cfname, job);
+                }
 
                 jobs.peek().sendTreeRequests();
 
                 // block whatever thread started this session until all requests have been returned:
                 // if this thread dies, the session will still complete in the background
-                completedLatch.await();
+                completed.await();
+                if (exception != null)
+                    throw exception;
             }
             catch (InterruptedException e)
             {
@@ -670,6 +687,8 @@ public class AntiEntropyService
             }
             finally
             {
+                FailureDetector.instance.unregisterFailureDetectionEventListener(this);
+                Gossiper.instance.unregister(this);
                 AntiEntropyService.instance.sessions.remove(getName());
             }
         }
@@ -677,20 +696,69 @@ public class AntiEntropyService
         void completed(InetAddress remote, String cfname)
         {
             logger.debug("Repair completed for {} on {}", remote, cfname);
-            completedLatch.countDown();
+            RepairJob job = activeJobs.get(cfname);
+            if (job.completedSynchronizationJob(remote))
+            {
+                activeJobs.remove(cfname);
+                if (activeJobs.isEmpty())
+                    completed.signalAll();
+            }
+        }
+
+        void failedNode(InetAddress remote)
+        {
+            String errorMsg = String.format("Problem during repair session %s, endpoint %s died", sessionName, remote);
+            logger.error(errorMsg);
+            exception = new IOException(errorMsg);
+            // If a node failed, we stop everything (though there could still be some activity in the background)
+            jobs.clear();
+            activeJobs.clear();
+            differencingDone.signalAll();
+            completed.signalAll();
+        }
+
+        public void onJoin(InetAddress endpoint, EndpointState epState) {}
+        public void onChange(InetAddress endpoint, ApplicationState state, VersionedValue value) {}
+        public void onAlive(InetAddress endpoint, EndpointState state) {}
+        public void onDead(InetAddress endpoint, EndpointState state) {}
+
+        public void onRemove(InetAddress endpoint)
+        {
+            convict(endpoint, Double.MAX_VALUE);
+        }
+
+        public void onRestart(InetAddress endpoint, EndpointState epState)
+        {
+            convict(endpoint, Double.MAX_VALUE);
+        }
+
+        public void convict(InetAddress endpoint, double phi)
+        {
+            if (!endpoints.contains(endpoint))
+                return;
+
+            // We want a higher confidence in the failure detection than usual because failing a repair wrongly has a high cost.
+            if (phi < 2 * DatabaseDescriptor.getPhiConvictThreshold())
+                return;
+
+            // Though unlikely, it is possible to arrive here multiple time and we
+            // want to avoid print an error message twice
+            if (!isFailed.compareAndSet(false, true))
+                return;
+
+            failedNode(endpoint);
         }
 
         class RepairJob
         {
             private final String cfname;
-            private final AtomicInteger remaining;
-            private final Map<InetAddress, MerkleTree> trees;
+            private final Set<InetAddress> requestedEndpoints = new HashSet<InetAddress>();
+            private final Map<InetAddress, MerkleTree> trees = new HashMap<InetAddress, MerkleTree>();
+            private final Set<InetAddress> syncJobs = new HashSet<InetAddress>();
 
             public RepairJob(String cfname)
             {
                 this.cfname = cfname;
-                this.remaining = new AtomicInteger(endpoints.size() + 1); // all neighbor + local host
-                this.trees = new ConcurrentHashMap<InetAddress, MerkleTree>();
             }
 
             /**
@@ -698,22 +766,24 @@ public class AntiEntropyService
              */
             public void sendTreeRequests()
             {
-                // send requests to remote nodes and record them
-                for (InetAddress endpoint : endpoints)
-                    requests.put(AntiEntropyService.instance.request(getName(), endpoint, range, tablename, cfname), RepairSession.this);
-                // send but don't record an outstanding request to the local node
-                AntiEntropyService.instance.request(getName(), FBUtilities.getLocalAddress(), range, tablename, cfname);
+                requestedEndpoints.addAll(endpoints);
+                requestedEndpoints.add(FBUtilities.getLocalAddress());
+
+                // send requests to all nodes
+                for (InetAddress endpoint : requestedEndpoints)
+                    AntiEntropyService.instance.request(getName(), endpoint, range, tablename, cfname);
             }
 
             /**
              * Add a new received tree and return the number of remaining tree to
              * be received for the job to be complete.
              */
-            public int addTree(TreeRequest request, MerkleTree tree)
+            public synchronized int addTree(TreeRequest request, MerkleTree tree)
             {
                 assert request.cf.right.equals(cfname);
                 trees.put(request.endpoint, tree);
-                return remaining.decrementAndGet();
+                requestedEndpoints.remove(request.endpoint);
+                return requestedEndpoints.size();
             }
 
             /**
@@ -722,7 +792,7 @@ public class AntiEntropyService
              */
             public void submitDifferencers()
             {
-                assert remaining.get() == 0;
+                assert requestedEndpoints.size() == 0;
 
                 // Right now, we only difference local host against each other. CASSANDRA-2610 will fix that.
                 // In the meantime ugly special casing will work good enough.
@@ -734,9 +804,17 @@ public class AntiEntropyService
                         continue;
 
                     Differencer differencer = new Differencer(cfname, entry.getKey(), entry.getValue(), localTree);
+                    syncJobs.add(entry.getKey());
                     logger.debug("Queueing comparison " + differencer);
                     StageManager.getStage(Stage.ANTI_ENTROPY).execute(differencer);
                 }
+                trees.clear(); // allows gc to do its thing
+            }
+
+            synchronized boolean completedSynchronizationJob(InetAddress remote)
+            {
+                syncJobs.remove(remote);
+                return syncJobs.isEmpty();
             }
         }
 
@@ -842,11 +920,21 @@ public class AntiEntropyService
                         return;
 
                     // all calls finished successfully
-                    //
                     completed(remote, cfname);
-                    logger.info(String.format("Finished streaming repair with %s for %s: %d oustanding to complete session", remote, range, completedLatch.getCount()));
+                    logger.info(String.format("Finished streaming repair with %s for %s", remote, range));
                 }
             }
+        }
+    }
+
+    public static class RepairFuture extends FutureTask
+    {
+        public final RepairSession session;
+
+        RepairFuture(RepairSession session)
+        {
+            super(session, null);
+            this.session = session;
         }
     }
 }

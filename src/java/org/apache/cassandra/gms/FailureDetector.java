@@ -152,7 +152,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
         {     
             for ( IFailureDetectionEventListener listener : fdEvntListeners_ )
             {
-                listener.convict(ep);
+                listener.convict(ep, phi);
             }
         }        
     }
