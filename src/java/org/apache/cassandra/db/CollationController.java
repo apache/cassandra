@@ -116,6 +116,38 @@ public class CollationController
                         container.addColumn(iter.next());
                 }
             }
+
+            // we need to distinguish between "there is no data at all for this row" (BF will let us rebuild that efficiently)
+            // and "there used to be data, but it's gone now" (we should cache the empty CF so we don't need to rebuild that slower)
+            if (iterators.isEmpty())
+                return null;
+
+            // do a final collate.  toCollate is boilerplate required to provide a CloseableIterator
+            final ColumnFamily c2 = container;
+            CloseableIterator<IColumn> toCollate = new SimpleAbstractColumnIterator()
+            {
+                final Iterator<IColumn> iter = c2.iterator();
+
+                protected IColumn computeNext()
+                {
+                    return iter.hasNext() ? iter.next() : endOfData();
+                }
+
+                public ColumnFamily getColumnFamily()
+                {
+                    return c2;
+                }
+
+                public DecoratedKey getKey()
+                {
+                    return filter.key;
+                }
+            };
+            ColumnFamily returnCF = container.cloneMeShallow();
+            filter.collateColumns(returnCF, Collections.singletonList(toCollate), cfs.metadata.comparator, gcBefore);
+
+            // Caller is responsible for final removeDeletedCF.  This is important for cacheRow to work correctly:
+            return returnCF;
         }
         finally
         {
@@ -123,38 +155,6 @@ public class CollationController
             for (IColumnIterator iter : iterators)
                 FileUtils.closeQuietly(iter);
         }
-
-        // we need to distinguish between "there is no data at all for this row" (BF will let us rebuild that efficiently)
-        // and "there used to be data, but it's gone now" (we should cache the empty CF so we don't need to rebuild that slower)
-        if (iterators.isEmpty())
-            return null;
-
-        // do a final collate.  toCollate is boilerplate required to provide a CloseableIterator
-        final ColumnFamily c2 = container;
-        CloseableIterator<IColumn> toCollate = new SimpleAbstractColumnIterator()
-        {
-            final Iterator<IColumn> iter = c2.iterator();
-
-            protected IColumn computeNext()
-            {
-                return iter.hasNext() ? iter.next() : endOfData();
-            }
-
-            public ColumnFamily getColumnFamily()
-            {
-                return c2;
-            }
-
-            public DecoratedKey getKey()
-            {
-                return filter.key;
-            }
-        };
-        ColumnFamily returnCF = container.cloneMeShallow();
-        filter.collateColumns(returnCF, Collections.singletonList(toCollate), cfs.metadata.comparator, gcBefore);
-
-        // Caller is responsible for final removeDeletedCF.  This is important for cacheRow to work correctly:
-        return returnCF;
     }
 
     /**
@@ -210,6 +210,16 @@ public class CollationController
                     sstablesIterated++;
                 }
             }
+
+            // we need to distinguish between "there is no data at all for this row" (BF will let us rebuild that efficiently)
+            // and "there used to be data, but it's gone now" (we should cache the empty CF so we don't need to rebuild that slower)
+            if (iterators.isEmpty())
+                return null;
+
+            filter.collateColumns(returnCF, iterators, cfs.metadata.comparator, gcBefore);
+
+            // Caller is responsible for final removeDeletedCF.  This is important for cacheRow to work correctly:
+            return returnCF;
         }
         finally
         {
@@ -217,16 +227,6 @@ public class CollationController
             for (IColumnIterator iter : iterators)
                 FileUtils.closeQuietly(iter);
         }
-
-        // we need to distinguish between "there is no data at all for this row" (BF will let us rebuild that efficiently)
-        // and "there used to be data, but it's gone now" (we should cache the empty CF so we don't need to rebuild that slower)
-        if (iterators.isEmpty())
-            return null;
-
-        filter.collateColumns(returnCF, iterators, cfs.metadata.comparator, gcBefore);
-
-        // Caller is responsible for final removeDeletedCF.  This is important for cacheRow to work correctly:
-        return returnCF;
     }
 
     public int getSstablesIterated()
