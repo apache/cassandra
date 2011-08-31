@@ -49,7 +49,7 @@
  * make repair report failure when a node participating dies (instead of
    hanging forever) (CASSANDRA-2433)
  * fix handling of the empty byte buffer by ReversedType (CASSANDRA-3111)
-
+ * optionally skip log4j configuration (CASSANDRA-3061)
 
 0.8.4
  * include files-to-be-streamed in StreamInSession.getSources (CASSANDRA-2972)
