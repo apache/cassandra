@@ -293,12 +293,6 @@ public class DatabaseDescriptor
                 throw new ConfigurationException("thrift_max_message_length_in_mb must be greater than thrift_framed_transport_size_in_mb when using TFramedTransport");
             }
 
-            /* compaction thread priority */
-            if (conf.compaction_thread_priority < Thread.MIN_PRIORITY || conf.compaction_thread_priority > Thread.NORM_PRIORITY)
-            {
-                throw new ConfigurationException("compaction_thread_priority must be between 1 and 5");
-            }
-            
             /* end point snitch */
             if (conf.endpoint_snitch == null)
             {
@@ -848,11 +842,6 @@ public class DatabaseDescriptor
     public static int getSlicedReadBufferSizeInKB()
     {
         return conf.sliced_buffer_size_in_kb;
-    }
-
-    public static int getCompactionThreadPriority()
-    {
-        return conf.compaction_thread_priority;
     }
 
     public static boolean isSnapshotBeforeCompaction()

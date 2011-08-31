@@ -957,12 +957,7 @@ public class CompactionManager implements CompactionManagerMBean
 
         protected CompactionExecutor(int minThreads, int maxThreads, String name, BlockingQueue<Runnable> queue)
         {
-            super(minThreads,
-                  maxThreads,
-                  60,
-                  TimeUnit.SECONDS,
-                  queue,
-                  new NamedThreadFactory(name, DatabaseDescriptor.getCompactionThreadPriority()));
+            super(minThreads, maxThreads, 60, TimeUnit.SECONDS, queue, new NamedThreadFactory(name));
         }
 
         private CompactionExecutor(int threadCount, String name)

@@ -89,7 +89,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
 
     private final NonBlockingHashSet<InetAddress> queuedDeliveries = new NonBlockingHashSet<InetAddress>();
 
-    private final ExecutorService executor_ = new JMXEnabledThreadPoolExecutor("HintedHandoff", DatabaseDescriptor.getCompactionThreadPriority());
+    private final ExecutorService executor_ = new JMXEnabledThreadPoolExecutor("HintedHandoff");
 
     public HintedHandOffManager()
     {

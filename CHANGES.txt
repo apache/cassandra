@@ -44,13 +44,14 @@
    Thrift<->Avro conversion methods (CASSANDRA-3032)
  * Add timeouts to client request schedulers (CASSANDRA-3079)
  * Cli to use hashes rather than array of hashes for strategy options (CASSANDRA-3081)
- * LeveledCompactionStrategy (CASSANDRA-1608, 3085)
+ * LeveledCompactionStrategy (CASSANDRA-1608, 3085, 3110)
  * Improvements of the CLI `describe` command (CASSANDRA-2630)
  * reduce window where dropped CF sstables may not be deleted (CASSANDRA-2942)
  * Expose gossip/FD info to JMX (CASSANDRA-2806)
  * Fix streaming over SSL when compressed SSTable involved (CASSANDRA-3051)
  * Add support for pluggable secondary index implementations (CASSANDRA-3078)
- * Fix closing sstable iterators before using them (CASSANDRA-3110)
+ * remove compaction_thread_priority setting (CASSANDRA-3104)
+
 
 0.8.5
  * fix NPE when encryption_options is unspecified (CASSANDRA-3007)

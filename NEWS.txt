@@ -5,6 +5,9 @@ Upgrading
 ---------
     - the BinaryMemtable bulk-load interface has been removed. Use the
       sstableloader tool instead.
+    - the compaction_thread_priority setting has been removed from 
+      cassandra.yaml (use compaction_throughput_mb_per_sec to throttle
+      compaction instead)
 
 Features
 --------
