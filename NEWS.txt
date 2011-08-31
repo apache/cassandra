@@ -12,7 +12,13 @@ Upgrading
 Features
 --------
     - "cassandra.bat install" will install Cassandra as a Windows Service
-    - SSTable compression can be enabled by setting options ???
+    - SSTable compression can be enabled by setting "compressionParameters"
+      attribute on CFMetaData (set "compressionParameters" to null to disable compression).
+      SnappyCompressor and DeflateCompressor are currently
+      available as "compression class" and "chunk_length_kb" as compression
+      option. Stress tool supports -I option to provide compressor and
+      CLI `{create/update} column family` commands support "compression"
+      and "compression_options" parameters.
     - Compressed SSTable blocks are checksummed to protect against bitrot
     - New LevelDB-inspired compaction algorithm can be enabled by setting the 
       Columnfamily compaction_strategy=LeveledCompactionStrategy option.  
