@@ -48,6 +48,7 @@
  * make Range and Bounds objects client-safe (CASSANDRA-3108)
  * make repair report failure when a node participating dies (instead of
    hanging forever) (CASSANDRA-2433)
+ * fix handling of the empty byte buffer by ReversedType (CASSANDRA-3111)
 
 
 0.8.4
