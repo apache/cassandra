@@ -27,6 +27,7 @@ import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.*;
+import javax.lang.model.type.TypeKind;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
@@ -2107,6 +2108,11 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      */
     public void removeToken(String tokenString)
     {
+        removeToken(tokenString, RING_DELAY);
+    }
+
+    public void removeToken(String tokenString, int delay)
+    {
         InetAddress myAddress = FBUtilities.getBroadcastAddress();
         Token localToken = tokenMetadata_.getToken(myAddress);
         Token token = partitioner.getTokenFactory().fromString(tokenString);
@@ -2153,7 +2159,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         calculatePendingRanges();
         // the gossiper will handle spoofing this node's state to REMOVING_TOKEN for us
         // we add our own token so other nodes to let us know when they're done
-        Gossiper.instance.advertiseRemoving(endpoint, token, localToken);
+        Gossiper.instance.advertiseRemoving(endpoint, token, localToken, delay);
 
         // kick off streaming commands
         restoreReplicaCount(endpoint, myAddress);
