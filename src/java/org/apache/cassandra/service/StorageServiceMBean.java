@@ -34,7 +34,7 @@ import org.apache.cassandra.thrift.UnavailableException;
 
 
 public interface StorageServiceMBean
-{    
+{
     /**
      * Retrieve the list of live nodes in the cluster, where "liveness" is
      * determined by the failure detector of the node being queried.
@@ -111,6 +111,14 @@ public interface StorageServiceMBean
     public String getSavedCachesLocation();
 
     /**
+     * Retrieve a map of range to end points that describe the ring topology
+     * of a Cassandra cluster.
+     *
+     * @return mapping of ranges to end points
+     */
+    public Map<Range, List<String>> getRangeToEndpointMap(String keyspace);
+
+    /**
      * Retrieve a map of range to rpc addresses that describe the ring topology
      * of a Cassandra cluster.
      *
@@ -150,7 +158,7 @@ public interface StorageServiceMBean
      * @return generation number
      */
     public int getCurrentGenerationNumber();
-    
+
     /**
      * This method returns the N endpoints that are responsible for storing the
      * specified key i.e for replication.
