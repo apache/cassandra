@@ -216,7 +216,8 @@ public abstract class AutoSavingCache<K, V> extends InstrumentingCache<K, V>
             else
                 type = CompactionType.UNKNOWN;
 
-            info = new CompactionInfo(ksname,
+            info = new CompactionInfo(this.hashCode(),
+                                      ksname,
                                       cfname,
                                       type,
                                       0,

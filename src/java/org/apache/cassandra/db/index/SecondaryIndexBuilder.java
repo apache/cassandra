@@ -48,7 +48,8 @@ public class SecondaryIndexBuilder implements  CompactionInfo.Holder
 
     public CompactionInfo getCompactionInfo()
     {
-        return new CompactionInfo(cfs.table.name,
+        return new CompactionInfo(this.hashCode(),
+                                  cfs.table.name,
                                   cfs.columnFamily,
                                   CompactionType.INDEX_BUILD,
                                   iter.getBytesRead(),

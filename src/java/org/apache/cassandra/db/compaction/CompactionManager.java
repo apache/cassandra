@@ -1094,7 +1094,8 @@ public class CompactionManager implements CompactionManagerMBean
         {
             try
             {
-                return new CompactionInfo(sstable.descriptor.ksname,
+                return new CompactionInfo(this.hashCode(),
+                                          sstable.descriptor.ksname,
                                           sstable.descriptor.cfname,
                                           CompactionType.CLEANUP,
                                           scanner.getFilePointer(),
@@ -1121,7 +1122,8 @@ public class CompactionManager implements CompactionManagerMBean
         {
             try
             {
-                return new CompactionInfo(sstable.descriptor.ksname,
+                return new CompactionInfo(this.hashCode(),
+                                          sstable.descriptor.ksname,
                                           sstable.descriptor.cfname,
                                           CompactionType.SCRUB,
                                           dataFile.getFilePointer(),

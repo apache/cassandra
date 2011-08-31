@@ -88,7 +88,8 @@ implements Iterable<AbstractCompactedRow>, CompactionInfo.Holder
 
     public CompactionInfo getCompactionInfo()
     {
-        return new CompactionInfo(controller.getKeyspace(),
+        return new CompactionInfo(this.hashCode(),
+                                  controller.getKeyspace(),
                                   controller.getColumnFamily(),
                                   type,
                                   bytesRead,
