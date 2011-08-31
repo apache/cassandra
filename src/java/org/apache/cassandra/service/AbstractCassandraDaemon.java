@@ -61,40 +61,43 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
      */
     public static void initLog4j()
     {
-        String config = System.getProperty("log4j.configuration", "log4j-server.properties");
-        URL configLocation = null;
-        try
+        if (System.getProperty("log4j.defaultInitOverride","false").equalsIgnoreCase("true"))
         {
-            // try loading from a physical location first.
-            configLocation = new URL(config);
-        }
-        catch (MalformedURLException ex)
-        {
-            // then try loading from the classpath.
-            configLocation = AbstractCassandraDaemon.class.getClassLoader().getResource(config);
-        }
+            String config = System.getProperty("log4j.configuration", "log4j-server.properties");
+            URL configLocation = null;
+            try
+            {
+                // try loading from a physical location first.
+                configLocation = new URL(config);
+            }
+            catch (MalformedURLException ex)
+            {
+                // then try loading from the classpath.
+                configLocation = AbstractCassandraDaemon.class.getClassLoader().getResource(config);
+            }
         
-        if (configLocation == null)
-            throw new RuntimeException("Couldn't figure out log4j configuration: "+config);
+            if (configLocation == null)
+                throw new RuntimeException("Couldn't figure out log4j configuration: "+config);
 
-        // Now convert URL to a filename
-        String configFileName = null;
-        try
-        {
-            // first try URL.getFile() which works for opaque URLs (file:foo) and paths without spaces
-            configFileName = configLocation.getFile();
-            File configFile = new File(configFileName);
-            // then try alternative approach which works for all hierarchical URLs with or without spaces
-            if (!configFile.exists())
-                configFileName = new File(configLocation.toURI()).getCanonicalPath();
-        }
-        catch (Exception e)
-        {
-            throw new RuntimeException("Couldn't convert log4j configuration location to a valid file", e);
-        }
+            // Now convert URL to a filename
+            String configFileName = null;
+            try
+            {
+                // first try URL.getFile() which works for opaque URLs (file:foo) and paths without spaces
+                configFileName = configLocation.getFile();
+                File configFile = new File(configFileName);
+                // then try alternative approach which works for all hierarchical URLs with or without spaces
+                if (!configFile.exists())
+                    configFileName = new File(configLocation.toURI()).getCanonicalPath();
+            }
+            catch (Exception e)
+            {
+                throw new RuntimeException("Couldn't convert log4j configuration location to a valid file", e);
+            }
 
-        PropertyConfigurator.configureAndWatch(configFileName, 10000);
-        org.apache.log4j.Logger.getLogger(AbstractCassandraDaemon.class).info("Logging initialized");
+            PropertyConfigurator.configureAndWatch(configFileName, 10000);
+            org.apache.log4j.Logger.getLogger(AbstractCassandraDaemon.class).info("Logging initialized");
+        }
     }
 
     private static Logger logger = LoggerFactory.getLogger(AbstractCassandraDaemon.class);

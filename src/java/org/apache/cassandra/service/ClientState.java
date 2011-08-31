@@ -30,6 +30,7 @@ import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.auth.Resources;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.Table;
 import org.apache.cassandra.thrift.AuthenticationException;
 import org.apache.cassandra.thrift.InvalidRequestException;
 
@@ -111,7 +112,7 @@ public class ClientState
     /**
      * Confirms that the client thread has the given Permission for the Keyspace list.
      */
-    public void hasKeyspaceListAccess(Permission perm) throws InvalidRequestException
+    public void hasKeyspaceSchemaAccess(Permission perm) throws InvalidRequestException
     {
         validateLogin();
         
@@ -125,13 +126,13 @@ public class ClientState
      * Confirms that the client thread has the given Permission for the ColumnFamily list of
      * the current keyspace.
      */
-    public void hasColumnFamilyListAccess(Permission perm) throws InvalidRequestException
+    public void hasColumnFamilySchemaAccess(Permission perm) throws InvalidRequestException
     {
         validateLogin();
         validateKeyspace();
 
         // hardcode disallowing messing with system keyspace
-        if (keyspace.equalsIgnoreCase("system"))
+        if (keyspace.equalsIgnoreCase(Table.SYSTEM_TABLE) && perm == Permission.WRITE)
             throw new InvalidRequestException("system keyspace is not user-modifiable");
 
         resourceClear();

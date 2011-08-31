@@ -647,7 +647,7 @@ public class CassandraServer implements Cassandra.Iface
 
     public KsDef describe_keyspace(String table) throws NotFoundException, InvalidRequestException
     {
-        state().hasKeyspaceListAccess(Permission.READ);
+        state().hasKeyspaceSchemaAccess(Permission.READ);
 
         KSMetaData ksm = Schema.instance.getTableDefinition(table);
         if (ksm == null)
@@ -752,7 +752,7 @@ public class CassandraServer implements Cassandra.Iface
 
     public List<KsDef> describe_keyspaces() throws TException, InvalidRequestException
     {
-        state().hasKeyspaceListAccess(Permission.READ);
+        state().hasKeyspaceSchemaAccess(Permission.READ);
 
         Set<String> keyspaces = Schema.instance.getTables();
         List<KsDef> ksset = new ArrayList<KsDef>();
@@ -873,7 +873,7 @@ public class CassandraServer implements Cassandra.Iface
     throws InvalidRequestException, SchemaDisagreementException, TException
     {
         logger.debug("add_column_family");
-        state().hasColumnFamilyListAccess(Permission.WRITE);
+        state().hasColumnFamilySchemaAccess(Permission.WRITE);
         CFMetaData.addDefaultIndexNames(cf_def);
         ThriftValidation.validateCfDef(cf_def, null);
         validateSchemaAgreement();
@@ -901,7 +901,7 @@ public class CassandraServer implements Cassandra.Iface
     throws InvalidRequestException, SchemaDisagreementException, TException
     {
         logger.debug("drop_column_family");
-        state().hasColumnFamilyListAccess(Permission.WRITE);
+        state().hasColumnFamilySchemaAccess(Permission.WRITE);
         validateSchemaAgreement();
         
         try
@@ -927,9 +927,10 @@ public class CassandraServer implements Cassandra.Iface
     throws InvalidRequestException, SchemaDisagreementException, TException
     {
         logger.debug("add_keyspace");
-        state().hasKeyspaceListAccess(Permission.WRITE);
+        state().hasKeyspaceSchemaAccess(Permission.WRITE);
         validateSchemaAgreement();
-        
+        ThriftValidation.validateKeyspaceNotYetExisting(ks_def.name);
+
         // generate a meaningful error if the user setup keyspace and/or column definition incorrectly
         for (CfDef cf : ks_def.cf_defs) 
         {
@@ -971,7 +972,7 @@ public class CassandraServer implements Cassandra.Iface
     throws InvalidRequestException, SchemaDisagreementException, TException
     {
         logger.debug("drop_keyspace");
-        state().hasKeyspaceListAccess(Permission.WRITE);
+        state().hasKeyspaceSchemaAccess(Permission.WRITE);
         validateSchemaAgreement();
         
         try
@@ -999,7 +1000,7 @@ public class CassandraServer implements Cassandra.Iface
     throws InvalidRequestException, SchemaDisagreementException, TException
     {
         logger.debug("update_keyspace");
-        state().hasKeyspaceListAccess(Permission.WRITE);
+        state().hasKeyspaceSchemaAccess(Permission.WRITE);
         ThriftValidation.validateTable(ks_def.name);
         if (ks_def.getCf_defs() != null && ks_def.getCf_defs().size() > 0)
             throw new InvalidRequestException("Keyspace update must not contain any column family definitions.");
@@ -1029,7 +1030,7 @@ public class CassandraServer implements Cassandra.Iface
     throws InvalidRequestException, SchemaDisagreementException, TException
     {
         logger.debug("update_column_family");
-        state().hasColumnFamilyListAccess(Permission.WRITE);
+        state().hasColumnFamilySchemaAccess(Permission.WRITE);
         if (cf_def.keyspace == null || cf_def.name == null)
             throw new InvalidRequestException("Keyspace and CF name must be set.");
         CFMetaData oldCfm = Schema.instance.getCFMetaData(cf_def.keyspace, cf_def.name);

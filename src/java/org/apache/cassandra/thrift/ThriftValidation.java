@@ -562,6 +562,7 @@ public class ThriftValidation
             if (cfType == null)
                 throw new InvalidRequestException("invalid column type " + cf_def.column_type);
 
+            TypeParser.parse(cf_def.key_validation_class);
             TypeParser.parse(cf_def.comparator_type);
             TypeParser.parse(cf_def.subcomparator_type);
             TypeParser.parse(cf_def.default_validation_class);
@@ -717,5 +718,17 @@ public class ThriftValidation
             DatabaseDescriptor.validateMemtableThroughput(cf_def.memtable_throughput_in_mb);
         if (cf_def.isSetMemtable_operations_in_millions())
             DatabaseDescriptor.validateMemtableOperations(cf_def.memtable_operations_in_millions);
+    }
+
+    public static void validateKeyspaceNotYetExisting(String newKsName) throws InvalidRequestException
+    {
+        // keyspace names must be unique case-insensitively because the keyspace name becomes the directory
+        // where we store CF sstables.  Names that differ only in case would thus cause problems on
+        // case-insensitive filesystems (NTFS, most installations of HFS+).
+        for (String ksName : DatabaseDescriptor.getTables())
+        {
+            if (ksName.equalsIgnoreCase(newKsName))
+                throw new InvalidRequestException("Keyspace names must be case-insensitively unique");
+        }
     }
 }

@@ -664,7 +664,7 @@ public class QueryProcessor
             case CREATE_KEYSPACE:
                 CreateKeyspaceStatement create = (CreateKeyspaceStatement)statement.statement;
                 create.validate();
-                clientState.hasKeyspaceListAccess(Permission.WRITE);
+                clientState.hasKeyspaceSchemaAccess(Permission.WRITE);
                 validateSchemaAgreement();
                 
                 try
@@ -674,6 +674,7 @@ public class QueryProcessor
                                           Collections.<CfDef>emptyList())
                                 .setStrategy_options(create.getStrategyOptions());
                     ThriftValidation.validateKsDef(ksd);
+                    ThriftValidation.validateKeyspaceNotYetExisting(create.getName());
                     applyMigrationOnStage(new AddKeyspace(KSMetaData.fromThrift(ksd)));
                 }
                 catch (ConfigurationException e)
@@ -694,7 +695,7 @@ public class QueryProcessor
                
             case CREATE_COLUMNFAMILY:
                 CreateColumnFamilyStatement createCf = (CreateColumnFamilyStatement)statement.statement;
-                clientState.hasColumnFamilyListAccess(Permission.WRITE);
+                clientState.hasColumnFamilySchemaAccess(Permission.WRITE);
                 validateSchemaAgreement();
                 
                 try
@@ -719,7 +720,7 @@ public class QueryProcessor
                 
             case CREATE_INDEX:
                 CreateIndexStatement createIdx = (CreateIndexStatement)statement.statement;
-                clientState.hasColumnFamilyListAccess(Permission.WRITE);
+                clientState.hasColumnFamilySchemaAccess(Permission.WRITE);
                 validateSchemaAgreement();
                 CFMetaData oldCfm = Schema.instance.getCFMetaData(keyspace, createIdx.getColumnFamily());
                 if (oldCfm == null)
@@ -779,7 +780,7 @@ public class QueryProcessor
 
             case DROP_INDEX:
                 DropIndexStatement dropIdx = (DropIndexStatement)statement.statement;
-                clientState.hasColumnFamilyListAccess(Permission.WRITE);
+                clientState.hasColumnFamilySchemaAccess(Permission.WRITE);
                 validateSchemaAgreement();
 
                 try
@@ -804,7 +805,7 @@ public class QueryProcessor
 
             case DROP_KEYSPACE:
                 String deleteKeyspace = (String)statement.statement;
-                clientState.hasKeyspaceListAccess(Permission.WRITE);
+                clientState.hasKeyspaceSchemaAccess(Permission.WRITE);
                 validateSchemaAgreement();
                 
                 try
@@ -829,7 +830,7 @@ public class QueryProcessor
             
             case DROP_COLUMNFAMILY:
                 String deleteColumnFamily = (String)statement.statement;
-                clientState.hasColumnFamilyListAccess(Permission.WRITE);
+                clientState.hasColumnFamilySchemaAccess(Permission.WRITE);
                 validateSchemaAgreement();
                     
                 try
