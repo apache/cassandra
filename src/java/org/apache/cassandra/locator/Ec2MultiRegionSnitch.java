@@ -73,6 +73,12 @@ public class Ec2MultiRegionSnitch extends Ec2Snitch implements IEndpointStateCha
     }
 
     @Override
+    public void onRestart(InetAddress endpoint, EndpointState state)
+    {
+        // do nothing
+    }
+
+    @Override
     public void onRemove(InetAddress endpoint)
     {
         // do nothing.

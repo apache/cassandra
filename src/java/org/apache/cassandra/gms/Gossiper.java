@@ -262,7 +262,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
      *
      * param @ endpoint end point that is convicted.
     */
-    public void convict(InetAddress endpoint)
+    public void convict(InetAddress endpoint, double phi)
     {
         EndpointState epState = endpointStateMap.get(endpoint);
         if (epState.isAlive())
@@ -735,12 +735,11 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         if (logger.isTraceEnabled())
             logger.trace("Adding endpoint state for " + ep);
         endpointStateMap.put(ep, epState);
-        if (epState.isAlive())
-        {
-            // the node restarted before we ever marked it down, so we'll report it as dead briefly so maintenance like resetting the connection pool can occur 
-            for (IEndpointStateChangeSubscriber subscriber : subscribers)
-                subscriber.onDead(ep, epState);
-        }
+
+        // the node restarted: it is up to the subscriber to take whatever action is necessary
+        for (IEndpointStateChangeSubscriber subscriber : subscribers)
+            subscriber.onRestart(ep, epState);
+
         if (epState.getApplicationState(ApplicationState.STATUS) != null && !isDeadState(epState.getApplicationState(ApplicationState.STATUS).value))
             markAlive(ep, epState);
         else
