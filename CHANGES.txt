@@ -1,7 +1,3 @@
-0.7.10
- * fix UnavailableException with writes at CL.EACH_QUORM (CASSANDRA-3084)
-
-
 0.7.9
  * don't include tmp files as sstable when create cfs (CASSANDRA-2929)
  * log Java classpath on startup (CASSANDRA-2895)
@@ -14,6 +10,7 @@
  * remove gossip state when a new IP takes over a token (CASSANDRA-3071)
  * work around native memory leak in com.sun.management.GarbageCollectorMXBean
    (CASSANDRA-2868, 3076)
+ * fix UnavailableException with writes at CL.EACH_QUORM (CASSANDRA-3084)
 
 
 0.7.8
