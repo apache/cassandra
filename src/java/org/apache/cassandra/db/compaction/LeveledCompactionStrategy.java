@@ -5,6 +5,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
@@ -12,7 +13,6 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.DebuggableScheduledThreadPoolExecutor;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.DataTracker;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.notifications.INotification;
 import org.apache.cassandra.notifications.INotificationConsumer;
@@ -27,6 +27,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
     private LeveledManifest manifest;
     private final String SSTABLE_SIZE_OPTION = "sstable_size_in_mb";
     private final int maxSSTableSize;
+    private final AtomicReference<LeveledCompactionTask> task = new AtomicReference<LeveledCompactionTask>();
 
     public class ScheduledBackgroundCompaction implements Runnable
     {
@@ -90,14 +91,21 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
         return manifest.getLevelSize(i);
     }
 
-    public synchronized List<AbstractCompactionTask> getBackgroundTasks(int gcBefore)
+    public List<AbstractCompactionTask> getBackgroundTasks(int gcBefore)
     {
+        LeveledCompactionTask currentTask = task.get();
+        if (currentTask != null && !currentTask.isDone())
+            return Collections.emptyList();
+
         Collection<SSTableReader> sstables = manifest.getCompactionCandidates();
         logger.debug("CompactionManager candidates are {}", StringUtils.join(sstables, ","));
         if (sstables.isEmpty())
             return Collections.emptyList();
-        LeveledCompactionTask task = new LeveledCompactionTask(cfs, sstables, gcBefore, this.maxSSTableSize);
-        return Collections.<AbstractCompactionTask>singletonList(task);
+
+        LeveledCompactionTask newTask = new LeveledCompactionTask(cfs, sstables, gcBefore, this.maxSSTableSize);
+        return task.compareAndSet(currentTask, newTask)
+               ? Collections.<AbstractCompactionTask>singletonList(newTask)
+               : Collections.<AbstractCompactionTask>emptyList();
     }
 
     public List<AbstractCompactionTask> getMaximalTasks(int gcBefore)

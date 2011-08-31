@@ -66,7 +66,17 @@ public class CompactionManager implements CompactionManagerMBean
     public static final String MBEAN_OBJECT_NAME = "org.apache.cassandra.db:type=CompactionManager";
     private static final Logger logger = LoggerFactory.getLogger(CompactionManager.class);
     public static final CompactionManager instance;
-    // acquire as read to perform a compaction, and as write to prevent compactions
+
+    /**
+     * compactionLock has two purposes:
+     * - Compaction acquires its readLock so that multiple compactions can happen simultaneously,
+     *   but the KS/CF migtations acquire its writeLock, so they can be sure no new SSTables will
+     *   be created for a dropped CF posthumously.  (Thus, compaction checks CFS.isValid while the
+     *   lock is acquired.)
+     * - "Special" compactions will acquire writelock instead of readlock to make sure that all
+     *   other compaction activity is quiesced and they can grab ALL the sstables to do something.
+     *   TODO this is too big a hammer -- we should only care about quiescing all for the given CFS.
+     */
     private final ReentrantReadWriteLock compactionLock = new ReentrantReadWriteLock();
 
     static
@@ -143,7 +153,6 @@ public class CompactionManager implements CompactionManagerMBean
         {
             public Object call() throws IOException
             {
-                // acquire the write lock to schedule all sstables
                 compactionLock.writeLock().lock();
                 try 
                 {
