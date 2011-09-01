@@ -771,7 +771,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      */
     private void handleStateBootstrap(InetAddress endpoint, String[] pieces)
     {
-        assert pieces.length == 2;
+        assert pieces.length >= 2;
         Token token = getPartitioner().getTokenFactory().fromString(pieces[1]);
 
         if (logger_.isDebugEnabled())
@@ -858,7 +858,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      */
     private void handleStateLeaving(InetAddress endpoint, String[] pieces)
     {
-        assert pieces.length == 2;
+        assert pieces.length >= 2;
         String moveValue = pieces[1];
         Token token = getPartitioner().getTokenFactory().fromString(moveValue);
 
@@ -893,7 +893,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      */
     private void handleStateLeft(InetAddress endpoint, String[] pieces)
     {
-        assert pieces.length == 2;
+        assert pieces.length >= 2;
         Token token = getPartitioner().getTokenFactory().fromString(pieces[1]);
 
         if (logger_.isDebugEnabled())
@@ -910,7 +910,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      */
     private void handleStateMoving(InetAddress endpoint, String[] pieces)
     {
-        assert pieces.length == 2;
+        assert pieces.length >= 2;
         Token token = getPartitioner().getTokenFactory().fromString(pieces[1]);
 
         if (logger_.isDebugEnabled())
