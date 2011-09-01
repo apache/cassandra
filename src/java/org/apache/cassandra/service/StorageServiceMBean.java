@@ -318,6 +318,7 @@ public interface StorageServiceMBean
 
     public int getExceptionCount();
 
+    public int getCompactionThroughputMbPerSec();
     public void setCompactionThroughputMbPerSec(int value);
 
     public void bulkLoad(String directory);

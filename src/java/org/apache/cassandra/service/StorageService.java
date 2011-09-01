@@ -536,6 +536,11 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         return joined;
     }
 
+    public int getCompactionThroughputMbPerSec()
+    {
+        return DatabaseDescriptor.getCompactionThroughputMbPerSec();
+    }
+
     public void setCompactionThroughputMbPerSec(int value) {
         DatabaseDescriptor.setCompactionThroughputMbPerSec(value);
     }
