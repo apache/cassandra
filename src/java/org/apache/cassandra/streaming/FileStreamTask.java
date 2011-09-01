@@ -37,6 +37,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.Throttle;
 import org.apache.cassandra.utils.WrappedRunnable;
 
 import org.slf4j.Logger;
@@ -62,12 +63,28 @@ public class FileStreamTask extends WrappedRunnable
     private final EncryptionOptions encryptionOptions;
     // allocate buffer to use for transfers only once
     private final byte[] transferBuffer = new byte[CHUNK_SIZE];
+    // outbound global throughput limiter
+    private final Throttle throttle;
 
     public FileStreamTask(StreamHeader header, InetAddress to, EncryptionOptions encryptionOptions)
     {
         this.header = header;
         this.to = to;
         this.encryptionOptions = encryptionOptions;
+        this.throttle = new Throttle(toString(), new Throttle.ThroughputFunction()
+        {
+            /** @return Instantaneous throughput target in bytes per millisecond. */
+            public int targetThroughput()
+            {
+                if (DatabaseDescriptor.getStreamThroughputOutboundMegabitsPerSec() < 1)
+                    // throttling disabled
+                    return 0;
+                // total throughput
+                int totalBytesPerMS = DatabaseDescriptor.getStreamThroughputOutboundMegabitsPerSec() * 1024 * 1024 / 8 / 1000;
+                // per stream throughput (target bytes per MS)
+                return totalBytesPerMS / Math.max(1, MessagingService.instance().getActiveStreamsOutbound());
+            }
+        });
     }
     
     public void runMayThrow() throws IOException
@@ -163,8 +180,8 @@ public class FileStreamTask extends WrappedRunnable
         int toTransfer = (int) Math.min(CHUNK_SIZE, length - bytesTransferred);
 
         reader.readFully(transferBuffer, 0, toTransfer);
-
         output.write(transferBuffer, 0, toTransfer);
+        throttle.throttleDelta(toTransfer);
 
         return toTransfer;
     }
@@ -223,5 +240,10 @@ public class FileStreamTask extends WrappedRunnable
     protected void close() throws IOException
     {
         socket.close();
+    }
+
+    public String toString()
+    {
+        return String.format("FileStreamTask(session=%s, to=%s)", header.sessionId, to);
     }
 }

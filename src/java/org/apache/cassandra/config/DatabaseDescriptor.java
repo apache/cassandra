@@ -357,6 +357,9 @@ public class DatabaseDescriptor
             if (conf.compaction_throughput_mb_per_sec == null)
                 conf.compaction_throughput_mb_per_sec = 16;
 
+            if (conf.stream_throughput_outbound_megabits_per_sec == null)
+                conf.stream_throughput_outbound_megabits_per_sec = 400;
+
             if (!CassandraDaemon.rpc_server_types.contains(conf.rpc_server_type.toLowerCase()))
                 throw new ConfigurationException("Unknown rpc_server_type: " + conf.rpc_server_type);
             
@@ -674,6 +677,16 @@ public class DatabaseDescriptor
     public static void setCompactionThroughputMbPerSec(int value)
     {
         conf.compaction_throughput_mb_per_sec = value;
+    }
+
+    public static int getStreamThroughputOutboundMegabitsPerSec()
+    {
+        return conf.stream_throughput_outbound_megabits_per_sec;
+    }
+
+    public static void setStreamThroughputOutboundMegabitsPerSec(int value)
+    {
+        conf.stream_throughput_outbound_megabits_per_sec = value;
     }
 
     public static String[] getAllDataFileLocations()
