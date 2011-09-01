@@ -150,7 +150,10 @@ public final class MessagingService implements MessagingServiceMBean
                 String ip = expiredValue.left.getHostAddress();
                 AtomicLong c = timeoutsPerHost.get(ip);
                 if (c == null)
-                    c = timeoutsPerHost.put(ip, new AtomicLong());
+                {
+                    c = new AtomicLong();
+                    timeoutsPerHost.put(ip, c);
+                }
                 c.incrementAndGet();
                 // we only create AtomicLong instances here, so that the write
                 // access to the hashmap happens single-threadedly.
