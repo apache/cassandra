@@ -43,7 +43,6 @@ public class RoundRobinScheduler implements IRequestScheduler
 
     //Map of queue id to weighted queue
     private final NonBlockingHashMap<String, WeightedQueue> queues;
-    private static boolean started = false;
 
     private final Semaphore taskCount;
 
@@ -56,12 +55,12 @@ public class RoundRobinScheduler implements IRequestScheduler
 
     public RoundRobinScheduler(RequestSchedulerOptions options)
     {
-        assert !started;
-
         defaultWeight = options.default_weight;
         weights = options.weights;
 
-        taskCount = new Semaphore(options.throttle_limit);
+        // the task count is acquired for the first time _after_ releasing a thread, so we pre-decrement
+        taskCount = new Semaphore(options.throttle_limit - 1);
+
         queues = new NonBlockingHashMap<String, WeightedQueue>();
         Runnable runnable = new Runnable()
         {
@@ -75,7 +74,6 @@ public class RoundRobinScheduler implements IRequestScheduler
         };
         Thread scheduler = new Thread(runnable, "REQUEST-SCHEDULER");
         scheduler.start();
-        started = true;
         logger.info("Started the RoundRobin Request Scheduler");
     }
 
@@ -86,7 +84,21 @@ public class RoundRobinScheduler implements IRequestScheduler
         try
         {
             queueSize.release();
-            weightedQueue.put(t, timeoutMS);
+            try
+            {
+                weightedQueue.put(t, timeoutMS);
+                // the scheduler will release us when a slot is available
+            }
+            catch (TimeoutException e)
+            {
+                queueSize.acquireUninterruptibly();
+                throw e;
+            }
+            catch (InterruptedException e)
+            {
+                queueSize.acquireUninterruptibly();
+                throw e;
+            }
         }
         catch (InterruptedException e)
         {

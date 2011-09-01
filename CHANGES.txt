@@ -42,7 +42,7 @@
  * Add "install" command to cassandra.bat (CASSANDRA-292)
  * clean up KSMetadata, CFMetadata from unnecessary
    Thrift<->Avro conversion methods (CASSANDRA-3032)
- * Add timeouts to client request schedulers (CASSANDRA-3079)
+ * Add timeouts to client request schedulers (CASSANDRA-3079, 3096)
  * Cli to use hashes rather than array of hashes for strategy options (CASSANDRA-3081)
  * LeveledCompactionStrategy (CASSANDRA-1608, 3085, 3110, 3087)
  * Improvements of the CLI `describe` command (CASSANDRA-2630)
