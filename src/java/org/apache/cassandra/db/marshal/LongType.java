@@ -105,44 +105,4 @@ public class LongType extends AbstractType<Long>
         if (bytes.remaining() != 8 && bytes.remaining() != 0)
             throw new MarshalException(String.format("Expected 8 or 0 byte long (%d)", bytes.remaining()));
     }
-
-    public Class<Long> getType()
-    {
-        return Long.class;
-    }
-
-    public boolean isSigned()
-    {
-        return true;
-    }
-
-    public boolean isCaseSensitive()
-    {
-        return false;
-    }
-
-    public boolean isCurrency()
-    {
-        return false;
-    }
-
-    public int getPrecision(Long obj)
-    {
-        return obj.toString().length();
-    }
-
-    public int getScale(Long obj)
-    {
-        return 0;
-    }
-
-    public int getJdbcType()
-    {
-        return Types.INTEGER;
-    }
-
-    public boolean needsQuotes()
-    {
-        return false;
-    }
 }

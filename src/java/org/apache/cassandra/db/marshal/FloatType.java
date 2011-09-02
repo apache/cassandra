@@ -98,45 +98,4 @@ public class FloatType extends AbstractType<Float>
         if (bytes.remaining() != 4 && bytes.remaining() != 0)
             throw new MarshalException(String.format("Expected 4 or 0 byte value for a float (%d)", bytes.remaining()));
     }
-
-    public Class<Float> getType()
-    {
-        return Float.class;
-    }
-
-    public boolean isSigned()
-    {
-      return true;
-    }
-
-    public boolean isCaseSensitive()
-    {
-      return false;
-    }
-
-    public boolean isCurrency()
-    {
-      return false;
-    }
-
-    public int getPrecision(Float obj) // see: http://teaching.idallen.org/dat2343/09f/notes/10FloatingPoint.htm
-    {
-      return 7;
-    }
-
-    public int getScale(Float obj) // see: http://teaching.idallen.org/dat2343/09f/notes/10FloatingPoint.htm
-    {
-      return 40;
-    }
-
-    public int getJdbcType()
-    {
-      return Types.FLOAT;
-    }
-
-    public boolean needsQuotes()
-    {
-      return false;
-    }
-    
 }

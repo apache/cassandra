@@ -72,44 +72,4 @@ public class LocalByPartionerType<T extends Token> extends AbstractType<ByteBuff
     {
         throw new IllegalStateException("You shouldn't be validating this.");
     }
-
-    public Class<ByteBuffer> getType()
-    {
-        return ByteBuffer.class;
-    }
-
-    public boolean isSigned()
-    {
-        throw new UnsupportedOperationException();
-    }
-
-    public boolean isCaseSensitive()
-    {
-        throw new UnsupportedOperationException();
-    }
-
-    public boolean isCurrency()
-    {
-        throw new UnsupportedOperationException();
-    }
-
-    public int getPrecision(ByteBuffer obj)
-    {
-        throw new UnsupportedOperationException();
-    }
-
-    public int getScale(ByteBuffer obj)
-    {
-        throw new UnsupportedOperationException();
-    }
-
-    public int getJdbcType()
-    {
-        throw new UnsupportedOperationException();
-    }
-
-    public boolean needsQuotes()
-    {
-        throw new UnsupportedOperationException();
-    }
 }

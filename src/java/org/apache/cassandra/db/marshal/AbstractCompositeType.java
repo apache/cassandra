@@ -229,53 +229,9 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
         return value;
     }
 
-    public Class<ByteBuffer> getType()
-    {
-        return ByteBuffer.class;
-    }
-
     public String toString(ByteBuffer value)
     {
         return getString(value);
-    }
-
-    /*
-     * JDBC metadata. For now we don't allow the use of compositeType with
-     * JDBC. We'll have to figure out what is the best solution here.
-     */
-    public boolean isSigned()
-    {
-        throw new UnsupportedOperationException("Not support for JDBC yet");
-    }
-
-    public boolean isCaseSensitive()
-    {
-        throw new UnsupportedOperationException("Not support for JDBC yet");
-    }
-
-    public boolean isCurrency()
-    {
-        throw new UnsupportedOperationException("Not support for JDBC yet");
-    }
-
-    public int getPrecision(ByteBuffer obj)
-    {
-        throw new UnsupportedOperationException("Not support for JDBC yet");
-    }
-
-    public int getScale(ByteBuffer obj)
-    {
-        throw new UnsupportedOperationException("Not support for JDBC yet");
-    }
-
-    public int getJdbcType()
-    {
-        throw new UnsupportedOperationException("Not support for JDBC yet");
-    }
-
-    public boolean needsQuotes()
-    {
-        throw new UnsupportedOperationException("Not support for JDBC yet");
     }
 
     abstract protected AbstractType getNextComparator(int i, ByteBuffer bb);

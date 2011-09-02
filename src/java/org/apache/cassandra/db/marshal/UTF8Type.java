@@ -192,44 +192,4 @@ public class UTF8Type extends AbstractType<String>
             return state == State.START;
         }
     }
-
-    public Class<String> getType()
-    {
-        return String.class;
-    }
-
-    public boolean isSigned()
-    {
-        return false;
-    }
-
-    public boolean isCaseSensitive()
-    {
-        return true;
-    }
-
-    public boolean isCurrency()
-    {
-        return false;
-    }
-
-    public int getPrecision(String obj)
-    {
-        return -1;
-    }
-
-    public int getScale(String obj)
-    {
-        return -1;
-    }
-
-    public int getJdbcType()
-    {
-        return Types.VARCHAR;
-    }
-
-    public boolean needsQuotes()
-    {
-        return true;
-    }
 }

@@ -31,7 +31,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 import org.apache.commons.lang.time.DateUtils;
 
-public class TimeUUIDType extends AbstractUUIDType
+public class TimeUUIDType extends AbstractType<UUID>
 {
     public static final TimeUUIDType instance = new TimeUUIDType();
 
@@ -199,10 +199,5 @@ public class TimeUUIDType extends AbstractUUIDType
             if ((slice.get() & 0xf0) != 0x10)
                 throw new MarshalException("Invalid version for TimeUUID type.");
         }
-    }
-
-    public Class<UUID> getType()
-    {
-        return UUID.class;
     }
 }

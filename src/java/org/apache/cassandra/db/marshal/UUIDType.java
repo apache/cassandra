@@ -40,7 +40,7 @@ import org.apache.commons.lang.time.DateUtils;
  * 
  * @see "com.fasterxml.uuid.UUIDComparator"
  */
-public class UUIDType extends AbstractUUIDType
+public class UUIDType extends AbstractType<UUID>
 {
     public static final UUIDType instance = new UUIDType();
 
@@ -168,11 +168,6 @@ public class UUIDType extends AbstractUUIDType
     public String toString(UUID uuid)
     {
         return uuid.toString();
-    }
-
-    public Class<UUID> getType()
-    {
-        return UUID.class;
     }
 
     public void validate(ByteBuffer bytes)

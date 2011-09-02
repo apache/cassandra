@@ -27,7 +27,7 @@ import java.util.UUID;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.UUIDGen;
 
-public class LexicalUUIDType extends AbstractUUIDType
+public class LexicalUUIDType extends AbstractType<UUID>
 {
     public static final LexicalUUIDType instance = new LexicalUUIDType();
 
@@ -96,10 +96,5 @@ public class LexicalUUIDType extends AbstractUUIDType
         if (bytes.remaining() != 16 && bytes.remaining() != 0)
             throw new MarshalException(String.format("LexicalUUID should be 16 or 0 bytes (%d)", bytes.remaining()));
         // not sure what the version should be for this.
-    }
-
-    public Class<UUID> getType()
-    {
-        return UUID.class;
     }
 }

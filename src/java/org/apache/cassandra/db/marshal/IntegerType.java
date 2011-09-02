@@ -164,44 +164,4 @@ public final class IntegerType extends AbstractType<BigInteger>
     {
         // no invalid integers.
     }
-
-    public Class<BigInteger> getType()
-    {
-        return BigInteger.class;
-    }
-
-    public boolean isSigned()
-    {
-        return true;
-    }
-
-    public boolean isCaseSensitive()
-    {
-        return false;
-    }
-
-    public boolean isCurrency()
-    {
-        return false;
-    }
-
-    public int getPrecision(BigInteger obj)
-    {
-        return obj.toString().length();
-    }
-
-    public int getScale(BigInteger obj)
-    {
-        return 0;
-    }
-
-    public int getJdbcType()
-    {
-        return Types.BIGINT;
-    }
-
-    public boolean needsQuotes()
-    {
-        return false;
-    }
 }

@@ -99,45 +99,4 @@ public class DoubleType extends AbstractType<Double>
         if (bytes.remaining() != 8 && bytes.remaining() != 0)
             throw new MarshalException(String.format("Expected 8 or 0 byte value for a double (%d)", bytes.remaining()));
     }
-
-    public Class<Double> getType()
-    {
-        return Double.class;
-    }
-    
-    public boolean isSigned()
-    {
-      return true;
-    }
-
-    public boolean isCaseSensitive()
-    {
-      return false;
-    }
-
-    public boolean isCurrency()
-    {
-      return false;
-    }
-
-    public int getPrecision(Double obj) // see: http://teaching.idallen.org/dat2343/09f/notes/10FloatingPoint.htm
-    {
-      return 15;
-    }
-
-    public int getScale(Double obj) // see: http://teaching.idallen.org/dat2343/09f/notes/10FloatingPoint.htm
-    {
-      return 300;
-    }
-
-    public int getJdbcType()
-    {
-      return Types.DOUBLE;
-    }
-
-    public boolean needsQuotes()
-    {
-      return false;
-    }
-    
 }

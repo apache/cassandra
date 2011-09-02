@@ -92,45 +92,4 @@ public class BooleanType extends AbstractType<Boolean>
       if (bytes.remaining() != 1 && bytes.remaining() != 0)
           throw new MarshalException(String.format("Expected 1 or 0 byte value (%d)", bytes.remaining()));
   }
-
-  public Class<Boolean> getType()
-  {
-      return Boolean.class;
-  }
-
-  public boolean isSigned()
-  {
-    return false;
-  }
-
-  public boolean isCaseSensitive()
-  {
-    return false;
-  }
-
-  public boolean isCurrency()
-  {
-    return false;
-  }
-
-  public int getPrecision(Boolean obj)
-  {
-    return -1;
-  }
-
-  public int getScale(Boolean obj)
-  {
-    return -1;
-  }
-
-  public int getJdbcType()
-  {
-    return Types.BOOLEAN;
-  }
-
-  public boolean needsQuotes()
-  {
-    return false;
-  }
-
 }

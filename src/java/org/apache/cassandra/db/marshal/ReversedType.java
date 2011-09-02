@@ -97,49 +97,9 @@ public class ReversedType<T> extends AbstractType<T>
         return baseType.decompose(value);
     }
 
-    public Class<T> getType()
-    {
-        return baseType.getType();
-    }
-
     public String toString(T t)
     {
         return baseType.toString(t);
-    }
-
-    public boolean isSigned()
-    {
-        return baseType.isSigned();
-    }
-
-    public boolean isCaseSensitive()
-    {
-        return baseType.isCaseSensitive();
-    }
-
-    public boolean isCurrency()
-    {
-        return baseType.isCurrency();
-    }
-
-    public int getPrecision(T obj)
-    {
-        return baseType.getPrecision(obj);
-    }
-
-    public int getScale(T obj)
-    {
-        return baseType.getScale(obj);
-    }
-
-    public int getJdbcType()
-    {
-        return baseType.getJdbcType();
-    }
-
-    public boolean needsQuotes()
-    {
-        return baseType.needsQuotes();
     }
 
     @Override

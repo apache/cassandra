@@ -135,44 +135,4 @@ public class DateType extends AbstractType<Date>
         if (bytes.remaining() != 8 && bytes.remaining() != 0)
             throw new MarshalException(String.format("Expected 8 or 0 byte long for date (%d)", bytes.remaining()));
     }
-
-    public Class<Date> getType()
-    {
-        return Date.class;
-    }
-
-    public boolean isSigned()
-    {
-      return false;
-    }
-
-    public boolean isCaseSensitive()
-    {
-      return false;
-    }
-
-    public boolean isCurrency()
-    {
-      return false;
-    }
-
-    public int getPrecision(Date obj)
-    {
-      return -1;
-    }
-
-    public int getScale(Date obj)
-    {
-      return -1;
-    }
-
-    public int getJdbcType()
-    {
-      return Types.DATE;
-    }
-
-    public boolean needsQuotes()
-    {
-      return false;
-    }
 }

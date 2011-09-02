@@ -146,21 +146,6 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>
     {
         return false;
     }
-    
-    /** returns the class this AbstractType represents. */
-    public abstract Class<T> getType();
-
-    //
-    // JDBC metadata
-    //
-
-    public abstract boolean isSigned();
-    public abstract boolean isCaseSensitive();
-    public abstract boolean isCurrency();
-    public abstract int getPrecision(T obj);
-    public abstract int getScale(T obj);
-    public abstract int getJdbcType();
-    public abstract boolean needsQuotes();
 
     public static AbstractType parseDefaultParameters(AbstractType baseType, TypeParser parser) throws ConfigurationException
     {
