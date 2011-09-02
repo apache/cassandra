@@ -115,7 +115,8 @@ public class StreamingRepairTask implements Runnable
         try
         {
             logger.info(String.format("[streaming task #%s] Performing streaming repair of %d ranges with %s", id, ranges.size(), dst));
-            Collection<SSTableReader> sstables = cfstore.getSSTables();
+            // We acquire references for transferSSTables
+            Collection<SSTableReader> sstables = cfstore.markCurrentSSTablesReferenced();
             // send ranges to the remote node
             StreamOutSession outsession = StreamOutSession.create(tableName, dst, callback);
             StreamOut.transferSSTables(outsession, sstables, ranges, OperationType.AES);
