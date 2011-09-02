@@ -76,4 +76,9 @@ public class SSTableSimpleWriter extends AbstractSSTableSimpleWriter
     {
         writer.append(key, columnFamily);
     }
+
+    protected ColumnFamily getColumnFamily()
+    {
+        return ColumnFamily.create(metadata);
+    }
 }

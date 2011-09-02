@@ -52,6 +52,7 @@
  * optionally skip log4j configuration (CASSANDRA-3061)
  * bundle sstableloader with the debian package (CASSANDRA-3113)
  * don't try to build secondary indexes when there is none (CASSANDRA-3123)
+ * improve SSTableSimpleUnsortedWriter speed for large rows (CASSANDRA-3122)
 
 
 0.8.4

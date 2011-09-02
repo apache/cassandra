@@ -94,7 +94,7 @@ public abstract class AbstractSSTableSimpleWriter
             writeRow(currentKey, columnFamily);
 
         currentKey = StorageService.getPartitioner().decorateKey(key);
-        columnFamily = ColumnFamily.create(metadata);
+        columnFamily = getColumnFamily();
     }
 
     /**
@@ -163,4 +163,6 @@ public abstract class AbstractSSTableSimpleWriter
     public abstract void close() throws IOException;
 
     protected abstract void writeRow(DecoratedKey key, ColumnFamily columnFamily) throws IOException;
+
+    protected abstract ColumnFamily getColumnFamily();
 }
