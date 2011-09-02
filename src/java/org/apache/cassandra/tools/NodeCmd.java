@@ -51,6 +51,7 @@ public class NodeCmd
     private static final Pair<String, String> USERNAME_OPT = new Pair<String, String>("u",  "username");
     private static final Pair<String, String> PASSWORD_OPT = new Pair<String, String>("pw", "password");
     private static final Pair<String, String> TAG_OPT = new Pair<String, String>("t", "tag");
+    private static final Pair<String, String> PRIMARY_RANGE_OPT = new Pair<String, String>("pr", "partitioner-range");
     private static final int DEFAULT_PORT = 7199;
 
     private static ToolOptions options = null;
@@ -66,6 +67,7 @@ public class NodeCmd
         options.addOption(USERNAME_OPT, true, "remote jmx agent username");
         options.addOption(PASSWORD_OPT, true, "remote jmx agent password");
         options.addOption(TAG_OPT,      true, "optional name to give a snapshot");
+        options.addOption(PRIMARY_RANGE_OPT, false, "only repair the first range returned by the partitioner for the node");
     }
     
     public NodeCmd(NodeProbe probe)
@@ -119,7 +121,7 @@ public class NodeCmd
         addCmdHelp(header, "snapshot [keyspaces...] -t [snapshotName]", "Take a snapshot of the specified keyspaces using optional name snapshotName");
         addCmdHelp(header, "clearsnapshot [keyspaces...] -t [snapshotName]", "Remove snapshots for the specified keyspaces. Either remove all snapshots or remove the snapshots with the given name.");
         addCmdHelp(header, "flush [keyspace] [cfnames]", "Flush one or more column family");
-        addCmdHelp(header, "repair [keyspace] [cfnames]", "Repair one or more column family");
+        addCmdHelp(header, "repair [keyspace] [cfnames]", "Repair one or more column family (use -rp to repair only the first range returned by the partitioner)");
         addCmdHelp(header, "cleanup [keyspace] [cfnames]", "Run cleanup on one or more column family");
         addCmdHelp(header, "compact [keyspace] [cfnames]", "Force a (major) compaction on one or more column family");
         addCmdHelp(header, "scrub [keyspace] [cfnames]", "Scrub (rebuild sstables for) one or more column family");
@@ -669,7 +671,7 @@ public class NodeCmd
             case SCRUB   :
             case INVALIDATEKEYCACHE :
             case INVALIDATEROWCACHE :
-                optionalKSandCFs(command, arguments, probe);
+                optionalKSandCFs(command, cmd, arguments, probe);
                 break;
 
             case GETCOMPACTIONTHRESHOLD :
@@ -773,7 +775,7 @@ public class NodeCmd
         }
     }
 
-    private static void optionalKSandCFs(NodeCommand nc, String[] cmdArgs, NodeProbe probe) throws InterruptedException, IOException
+    private static void optionalKSandCFs(NodeCommand nc, ToolCommandLine cmd, String[] cmdArgs, NodeProbe probe) throws InterruptedException, IOException
     {
         // if there is one additional arg, it's the keyspace; more are columnfamilies
         List<String> keyspaces = cmdArgs.length == 0 ? probe.getKeyspaces() : Arrays.asList(cmdArgs[0]);
@@ -792,7 +794,12 @@ public class NodeCmd
             String[] columnFamilies = cmdArgs.length <= 1 ? new String[0] : Arrays.copyOfRange(cmdArgs, 1, cmdArgs.length);
             switch (nc)
             {
-                case REPAIR  : probe.forceTableRepair(keyspace, columnFamilies); break;
+                case REPAIR  :
+                    if (cmd.hasOption(PRIMARY_RANGE_OPT.left))
+                        probe.forceTableRepairPrimaryRange(keyspace, columnFamilies);
+                    else
+                        probe.forceTableRepair(keyspace, columnFamilies);
+                    break;
                 case INVALIDATEKEYCACHE : probe.invalidateKeyCaches(keyspace, columnFamilies); break;
                 case INVALIDATEROWCACHE : probe.invalidateRowCaches(keyspace, columnFamilies); break;
                 case FLUSH   :

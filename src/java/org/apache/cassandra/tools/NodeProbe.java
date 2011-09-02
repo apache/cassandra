@@ -197,6 +197,11 @@ public class NodeProbe
         ssProxy.forceTableRepair(tableName, columnFamilies);
     }
 
+    public void forceTableRepairPrimaryRange(String tableName, String... columnFamilies) throws IOException
+    {
+        ssProxy.forceTableRepairPrimaryRange(tableName, columnFamilies);
+    }
+
     public void invalidateKeyCaches(String tableName, String... columnFamilies) throws IOException
     {
         ssProxy.invalidateKeyCaches(tableName, columnFamilies);

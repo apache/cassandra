@@ -1602,9 +1602,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     public void forceTableRepair(final String tableName, final String... columnFamilies) throws IOException
     {
         if (Table.SYSTEM_TABLE.equals(tableName))
-        {
             return;
-        }
+
         List<AntiEntropyService.RepairFuture> futures = new ArrayList<AntiEntropyService.RepairFuture>();
         for (Range range : getLocalRanges(tableName))
         {
@@ -1632,13 +1631,30 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             }
             catch (Exception e)
             {
-                logger_.error("Repair session " + future.session + " failed.", e);
+                logger_.error("Repair session " + future.session.getName() + " failed.", e);
                 failedSession = true;
             }
         }
 
         if (failedSession)
             throw new IOException("Some repair session(s) failed (see log for details).");
+    }
+
+    public void forceTableRepairPrimaryRange(final String tableName, final String... columnFamilies) throws IOException
+    {
+        if (Table.SYSTEM_TABLE.equals(tableName))
+            return;
+
+        AntiEntropyService.RepairFuture future = forceTableRepair(getLocalPrimaryRange(), tableName, columnFamilies);
+        try
+        {
+            future.get();
+        }
+        catch (Exception e)
+        {
+            logger_.error("Repair session " + future.session.getName() + " failed.", e);
+            throw new IOException("Some repair session(s) failed (see log for details).");
+        }
     }
 
     public AntiEntropyService.RepairFuture forceTableRepair(final Range range, final String tableName, final String... columnFamilies) throws IOException

@@ -38,6 +38,10 @@ Other
       when HH is enabled, repair only needs to be run if a node crashes.
     - Because of this, read repair is disabled now by default on newly
       created ColumnFamilies.
+    - It is now possible to repair only the first range returned by the
+      partitioner for a node with `nodetool repair -pr`. It makes it
+      easier/possible to repair a full cluster without any work duplication by
+      running this command on every node of the cluster.
 
 
 0.8.5
