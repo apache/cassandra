@@ -23,6 +23,7 @@ package org.apache.cassandra.db.marshal;
 import java.nio.ByteBuffer;
 import java.sql.Types;
 
+import org.apache.cassandra.cql.term.BooleanTerm;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class BooleanType extends AbstractType<Boolean>
@@ -33,8 +34,7 @@ public class BooleanType extends AbstractType<Boolean>
 
   public Boolean compose(ByteBuffer bytes)
   {
-      byte value = bytes.get(bytes.position());
-      return Boolean.valueOf(value ==0 ? false:true);
+      return BooleanTerm.instance.compose(bytes);
   }
 
   public ByteBuffer decompose(Boolean value)
@@ -56,22 +56,19 @@ public class BooleanType extends AbstractType<Boolean>
 
   public String getString(ByteBuffer bytes)
   {
-      if (bytes.remaining() == 0)
+      try
       {
-          return Boolean.FALSE.toString();
+          return BooleanTerm.instance.getString(bytes);
       }
-      if (bytes.remaining() != 1)
+      catch (org.apache.cassandra.cql.term.MarshalException e)
       {
-          throw new MarshalException("A boolean is stored in exactly 1 byte: "+bytes.remaining());
+          throw new MarshalException(e.getMessage());
       }
-      byte value = bytes.get(bytes.position());
-      
-      return value ==0 ? Boolean.FALSE.toString(): Boolean.TRUE.toString();
   }
 
   public String toString(Boolean b)
   {
-      return b.toString();
+      return BooleanTerm.instance.toString(b);
   }
 
   public ByteBuffer fromString(String source) throws MarshalException

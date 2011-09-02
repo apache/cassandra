@@ -24,6 +24,7 @@ package org.apache.cassandra.db.marshal;
 import java.nio.ByteBuffer;
 import java.sql.Types;
 
+import org.apache.cassandra.cql.term.LongTerm;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class LongType extends AbstractType<Long>
@@ -34,7 +35,7 @@ public class LongType extends AbstractType<Long>
 
     public Long compose(ByteBuffer bytes)
     {
-        return ByteBufferUtil.toLong(bytes);
+        return LongTerm.instance.compose(bytes);
     }
 
     public ByteBuffer decompose(Long value)
@@ -63,21 +64,19 @@ public class LongType extends AbstractType<Long>
 
     public String getString(ByteBuffer bytes)
     {
-        if (bytes.remaining() == 0)
+        try
         {
-            return "";
+            return LongTerm.instance.getString(bytes);
         }
-        if (bytes.remaining() != 8)
+        catch (org.apache.cassandra.cql.term.MarshalException e)
         {
-            throw new MarshalException("A long is exactly 8 bytes: "+bytes.remaining());
+            throw new MarshalException(e.getMessage());
         }
-        
-        return String.valueOf(bytes.getLong(bytes.position()));
     }
 
     public String toString(Long l)
     {
-        return l.toString();
+        return LongTerm.instance.toString(l);
     }
 
     public ByteBuffer fromString(String source) throws MarshalException

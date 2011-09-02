@@ -23,6 +23,7 @@ package org.apache.cassandra.db.marshal;
 import java.nio.ByteBuffer;
 import java.sql.Types;
 
+import org.apache.cassandra.cql.term.DoubleTerm;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class DoubleType extends AbstractType<Double>
@@ -33,7 +34,7 @@ public class DoubleType extends AbstractType<Double>
 
     public Double compose(ByteBuffer bytes)
     {
-      return ByteBufferUtil.toDouble(bytes);
+        return DoubleTerm.instance.compose(bytes);
     }
     
     public ByteBuffer decompose(Double value)
@@ -57,22 +58,20 @@ public class DoubleType extends AbstractType<Double>
     }
 
     public String getString(ByteBuffer bytes)
-    {
-        if (bytes.remaining() == 0)
+    {   
+        try
         {
-            return "";
+            return DoubleTerm.instance.getString(bytes);
         }
-        if (bytes.remaining() != 8)
+        catch (org.apache.cassandra.cql.term.MarshalException e)
         {
-            throw new MarshalException("A double is exactly 8 bytes : "+bytes.remaining());
+            throw new MarshalException(e.getMessage());
         }
-        
-        return compose(bytes).toString();
     }
 
     public String toString(Double d)
     {
-        return d.toString();
+        return DoubleTerm.instance.toString(d);
     }
 
     public ByteBuffer fromString(String source) throws MarshalException

@@ -19,14 +19,14 @@ package org.apache.cassandra.db.marshal;
  * under the License.
  * 
  */
-import static org.apache.cassandra.db.marshal.TimeUUIDType.iso8601Patterns;
+import static org.apache.cassandra.cql.term.DateTerm.iso8601Patterns;
 
 import java.nio.ByteBuffer;
-import java.sql.Types;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
+import org.apache.cassandra.cql.term.DateTerm;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.commons.lang.time.DateUtils;
 
@@ -42,7 +42,7 @@ public class DateType extends AbstractType<Date>
 
     public Date compose(ByteBuffer bytes)
     {
-        return new Date(ByteBufferUtil.toLong(bytes));
+        return DateTerm.instance.compose(bytes);
     }
     
     public ByteBuffer decompose(Date value)
@@ -68,23 +68,19 @@ public class DateType extends AbstractType<Date>
 
     public String getString(ByteBuffer bytes)
     {
-        if (bytes.remaining() == 0)
+        try
         {
-            return "";
+            return DateTerm.instance.getString(bytes);
         }
-        if (bytes.remaining() != 8)
+        catch (org.apache.cassandra.cql.term.MarshalException e)
         {
-            throw new MarshalException("A date is exactly 8 bytes (stored as a long): "+bytes.remaining());
+            throw new MarshalException(e.getMessage());
         }
-        
-        // uses ISO-8601 formatted string
-        return FORMATTER.format(new Date(bytes.getLong(bytes.position())));
     }
 
     public String toString(Date d)
     {
-      // uses ISO-8601 formatted string
-      return FORMATTER.format(d);
+        return DateTerm.instance.toString(d);
     }
 
     public ByteBuffer fromString(String source) throws MarshalException

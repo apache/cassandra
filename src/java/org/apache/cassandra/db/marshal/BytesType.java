@@ -24,6 +24,7 @@ package org.apache.cassandra.db.marshal;
 import java.nio.ByteBuffer;
 import java.sql.Types;
 
+import org.apache.cassandra.cql.term.BytesTerm;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -35,7 +36,7 @@ public class BytesType extends AbstractType<ByteBuffer>
 
     public ByteBuffer compose(ByteBuffer bytes)
     {
-        return bytes.duplicate();
+        return BytesTerm.instance.compose(bytes);
     }
 
     public ByteBuffer decompose(ByteBuffer value)
@@ -60,12 +61,12 @@ public class BytesType extends AbstractType<ByteBuffer>
 
     public String getString(ByteBuffer bytes)
     {
-        return ByteBufferUtil.bytesToHex(bytes);
+        return BytesTerm.instance.getString(bytes);
     }
 
     public String toString(ByteBuffer byteBuffer)
     {
-        return getString(byteBuffer);
+        return BytesTerm.instance.toString(byteBuffer);
     }
 
     public ByteBuffer fromString(String source)

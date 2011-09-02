@@ -21,10 +21,10 @@ package org.apache.cassandra.db.marshal;
  */
 
 import java.nio.ByteBuffer;
-import java.nio.charset.CharacterCodingException;
-import java.sql.Types;
 
 import com.google.common.base.Charsets;
+
+import org.apache.cassandra.cql.term.UTF8Term;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class UTF8Type extends AbstractType<String>
@@ -35,7 +35,7 @@ public class UTF8Type extends AbstractType<String>
 
     public String compose(ByteBuffer bytes)
     {
-        return getString(bytes);
+        return UTF8Term.instance.compose(bytes);
     }
 
     public ByteBuffer decompose(String value)
@@ -52,17 +52,17 @@ public class UTF8Type extends AbstractType<String>
     {
         try
         {
-            return ByteBufferUtil.string(bytes);
+            return UTF8Term.instance.getString(bytes);
         }
-        catch (CharacterCodingException e)
+        catch (org.apache.cassandra.cql.term.MarshalException e)
         {
-            throw new MarshalException("invalid UTF8 bytes " + ByteBufferUtil.bytesToHex(bytes));
+            throw new MarshalException(e.getMessage());
         }
     }
 
     public String toString(String s)
     {
-        return s;
+        return UTF8Term.instance.toString(s);
     }
 
     public ByteBuffer fromString(String source)

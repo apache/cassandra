@@ -30,7 +30,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class DateTerm extends AbstractTerm<Date>
 {
-    static final String[] iso8601Patterns = new String[] {
+    public static final String[] iso8601Patterns = new String[] {
         "yyyy-MM-dd HH:mm",
         "yyyy-MM-dd HH:mm:ss",
         "yyyy-MM-dd HH:mmZ",

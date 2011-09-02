@@ -27,6 +27,7 @@ import java.sql.Types;
 
 import com.google.common.base.Charsets;
 
+import org.apache.cassandra.cql.term.AsciiTerm;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class AsciiType extends AbstractType<String>
@@ -39,17 +40,17 @@ public class AsciiType extends AbstractType<String>
     {
         try
         {
-            return ByteBufferUtil.string(bytes, Charsets.US_ASCII);
+            return AsciiTerm.instance.getString(bytes);
         }
-        catch (CharacterCodingException e)
+        catch (org.apache.cassandra.cql.term.MarshalException e)
         {
-            throw new MarshalException("Invalid ascii bytes " + ByteBufferUtil.bytesToHex(bytes));
+            throw new MarshalException(e.getMessage());
         }
     }
 
     public String toString(String s)
     {
-        return s;
+        return AsciiTerm.instance.toString(s);
     }
 
     public int compare(ByteBuffer o1, ByteBuffer o2)
@@ -59,7 +60,7 @@ public class AsciiType extends AbstractType<String>
 
     public String compose(ByteBuffer bytes)
     {
-        return getString(bytes);
+        return AsciiTerm.instance.getString(bytes);
     }
 
     public ByteBuffer decompose(String value)

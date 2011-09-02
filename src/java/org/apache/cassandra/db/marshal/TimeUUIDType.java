@@ -26,34 +26,25 @@ import java.text.ParseException;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
+import org.apache.cassandra.cql.term.TimeUUIDTerm;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 import org.apache.commons.lang.time.DateUtils;
+
+import static org.apache.cassandra.cql.term.DateTerm.iso8601Patterns;
 
 public class TimeUUIDType extends AbstractType<UUID>
 {
     public static final TimeUUIDType instance = new TimeUUIDType();
 
     static final Pattern regexPattern = Pattern.compile("[A-Fa-f0-9]{8}\\-[A-Fa-f0-9]{4}\\-[A-Fa-f0-9]{4}\\-[A-Fa-f0-9]{4}\\-[A-Fa-f0-9]{12}");
-    static final String[] iso8601Patterns = new String[] {
-        "yyyy-MM-dd HH:mm",
-        "yyyy-MM-dd HH:mm:ss",
-        "yyyy-MM-dd HH:mmZ",
-        "yyyy-MM-dd HH:mm:ssZ",
-        "yyyy-MM-dd'T'HH:mm",
-        "yyyy-MM-dd'T'HH:mmZ",
-        "yyyy-MM-dd'T'HH:mm:ss",
-        "yyyy-MM-dd'T'HH:mm:ssZ",
-        "yyyy-MM-dd",
-        "yyyy-MM-ddZ"
-    };
 
     TimeUUIDType() {} // singleton
 
     public UUID compose(ByteBuffer bytes)
     {
-        return UUIDGen.getUUID(bytes);
+        return TimeUUIDTerm.instance.compose(bytes);
     }
 
     public ByteBuffer decompose(UUID value)
@@ -108,25 +99,19 @@ public class TimeUUIDType extends AbstractType<UUID>
 
     public String getString(ByteBuffer bytes)
     {
-        if (bytes.remaining() == 0)
+        try
         {
-            return "";
+            return TimeUUIDTerm.instance.getString(bytes);
         }
-        if (bytes.remaining() != 16)
+        catch (org.apache.cassandra.cql.term.MarshalException e)
         {
-            throw new MarshalException("UUIDs must be exactly 16 bytes");
+            throw new MarshalException(e.getMessage());
         }
-        UUID uuid = UUIDGen.getUUID(bytes);
-        if (uuid.version() != 1)
-        {
-            throw new MarshalException("TimeUUID only makes sense with version 1 UUIDs");
-        }
-        return uuid.toString();
     }
 
     public String toString(UUID uuid)
     {
-        return uuid.toString();
+        return TimeUUIDTerm.instance.toString(uuid);
     }
 
     public ByteBuffer fromString(String source) throws MarshalException

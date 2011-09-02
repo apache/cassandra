@@ -25,10 +25,13 @@ import java.nio.ByteBuffer;
 import java.text.ParseException;
 import java.util.UUID;
 
+import org.apache.cassandra.cql.term.UUIDTerm;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 import org.apache.commons.lang.time.DateUtils;
+
+import static org.apache.cassandra.cql.term.DateTerm.iso8601Patterns;
 
 /**
  * Compares UUIDs using the following criteria:<br>
@@ -159,15 +162,12 @@ public class UUIDType extends AbstractType<UUID>
     public UUID compose(ByteBuffer bytes)
     {
 
-        bytes = bytes.slice();
-        if (bytes.remaining() < 16)
-            return new UUID(0, 0);
-        return new UUID(bytes.getLong(), bytes.getLong());
+        return UUIDTerm.instance.compose(bytes);
     }
 
     public String toString(UUID uuid)
     {
-        return uuid.toString();
+        return UUIDTerm.instance.toString(uuid);
     }
 
     public void validate(ByteBuffer bytes)
@@ -180,16 +180,14 @@ public class UUIDType extends AbstractType<UUID>
 
     public String getString(ByteBuffer bytes)
     {
-        if (bytes.remaining() == 0)
+        try
         {
-            return "";
+            return UUIDTerm.instance.getString(bytes);
         }
-        if (bytes.remaining() != 16)
+        catch (org.apache.cassandra.cql.term.MarshalException e)
         {
-            throw new MarshalException("UUIDs must be exactly 16 bytes");
+            throw new MarshalException(e.getMessage());
         }
-        UUID uuid = compose(bytes);
-        return uuid.toString();
     }
 
     public ByteBuffer decompose(UUID value)
@@ -241,7 +239,7 @@ public class UUIDType extends AbstractType<UUID>
         {
             try
             {
-                long timestamp = DateUtils.parseDate(source, TimeUUIDType.iso8601Patterns).getTime();
+                long timestamp = DateUtils.parseDate(source, iso8601Patterns).getTime();
                 idBytes = ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes(timestamp));
             }
             catch (ParseException e1)

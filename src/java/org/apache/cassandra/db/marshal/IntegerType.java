@@ -23,6 +23,7 @@ import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.sql.Types;
 
+import org.apache.cassandra.cql.term.IntegerTerm;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public final class IntegerType extends AbstractType<BigInteger>
@@ -59,7 +60,7 @@ public final class IntegerType extends AbstractType<BigInteger>
 
     public BigInteger compose(ByteBuffer bytes)
     {
-        return new BigInteger(ByteBufferUtil.getArray(bytes));
+        return IntegerTerm.instance.compose(bytes);
     }
 
     public ByteBuffer decompose(BigInteger value)
@@ -127,17 +128,12 @@ public final class IntegerType extends AbstractType<BigInteger>
 
     public String getString(ByteBuffer bytes)
     {
-        if (bytes == null)
-            return "null";
-        if (bytes.remaining() == 0)
-            return "empty";
-
-        return new java.math.BigInteger(ByteBufferUtil.getArray(bytes)).toString(10);
+        return IntegerTerm.instance.getString(bytes);
     }
     
     public String toString(BigInteger bi)
     {
-        return bi.toString();
+        return IntegerTerm.instance.toString(bi);
     }
 
     public ByteBuffer fromString(String source) throws MarshalException
