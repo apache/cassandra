@@ -343,7 +343,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 {
                     throw new AssertionError(e);
                 }
-                buildSecondaryIndexes(getSSTables(), FBUtilities.singleton(info.name));
+                maybeBuildSecondaryIndexes(getSSTables(), FBUtilities.singleton(info.name));
                 SystemTable.setIndexBuilt(table.name, indexedCfMetadata.cfName);
             }
         };
@@ -360,8 +360,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                                         : new LocalByPartionerType(StorageService.getPartitioner());
     }
 
-    public void buildSecondaryIndexes(Collection<SSTableReader> sstables, SortedSet<ByteBuffer> columns)
+    /**
+     * Build secondary indexes for the provided {@code columns}.
+     * This does nothing if {@code columns} is empty.
+     */
+    public void maybeBuildSecondaryIndexes(Collection<SSTableReader> sstables, SortedSet<ByteBuffer> columns)
     {
+        if (columns.isEmpty())
+            return;
+
         logger.info(String.format("Submitting index build of %s for data in %s",
                                   metadata.comparator.getString(columns), StringUtils.join(sstables, ", ")));
         Table.IndexBuilder builder = table.createIndexBuilder(this, columns, new ReducingKeyIterator(sstables));
@@ -542,7 +549,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         data.addSSTables(sstables); // this will call updateCacheSizes() for us
 
         logger.info("Requesting a full secondary index re-build for " + table.name + "/" + columnFamily);
-        buildSecondaryIndexes(sstables, getIndexedColumns());
+        maybeBuildSecondaryIndexes(sstables, getIndexedColumns());
 
         logger.info("Setting up new generation: " + generation);
         fileIndexGenerator.set(generation);

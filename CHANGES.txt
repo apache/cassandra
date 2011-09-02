@@ -51,6 +51,8 @@
  * fix handling of the empty byte buffer by ReversedType (CASSANDRA-3111)
  * optionally skip log4j configuration (CASSANDRA-3061)
  * bundle sstableloader with the debian package (CASSANDRA-3113)
+ * don't try to build secondary indexes when there is none (CASSANDRA-3123)
+
 
 0.8.4
  * include files-to-be-streamed in StreamInSession.getSources (CASSANDRA-2972)

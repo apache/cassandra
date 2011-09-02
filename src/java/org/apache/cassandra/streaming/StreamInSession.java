@@ -158,8 +158,8 @@ public class StreamInSession
             // build secondary indexes
             for (Map.Entry<ColumnFamilyStore, List<SSTableReader>> entry : cfstores.entrySet())
             {
-                if (entry.getKey() != null && !entry.getKey().getIndexedColumns().isEmpty())
-                    entry.getKey().buildSecondaryIndexes(entry.getValue(), entry.getKey().getIndexedColumns());
+                if (entry.getKey() != null)
+                    entry.getKey().maybeBuildSecondaryIndexes(entry.getValue(), entry.getKey().getIndexedColumns());
             }
 
             // send reply to source that we're done
