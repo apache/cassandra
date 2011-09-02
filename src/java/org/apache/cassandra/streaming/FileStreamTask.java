@@ -18,9 +18,9 @@
 
 package org.apache.cassandra.streaming;
 
-import java.io.DataOutputStream;
 import java.io.File;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
@@ -40,6 +40,8 @@ import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.Throttle;
 import org.apache.cassandra.utils.WrappedRunnable;
 
+import com.ning.compress.lzf.LZFOutputStream;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -58,7 +60,7 @@ public class FileStreamTask extends WrappedRunnable
     // communication socket
     private Socket socket;
     // socket's output stream
-    private DataOutputStream output;
+    private OutputStream output;
     // system encryption options if any
     private final EncryptionOptions encryptionOptions;
     // allocate buffer to use for transfers only once
@@ -119,7 +121,7 @@ public class FileStreamTask extends WrappedRunnable
     private void stream() throws IOException
     {
         ByteBuffer HeaderBuffer = MessagingService.instance().constructStreamHeader(header, false, Gossiper.instance.getVersion(to));
-        // write header
+        // write header (this should not be compressed for compatibility with other messages)
         output.write(ByteBufferUtil.getArray(HeaderBuffer));
 
         if (header.file == null)
@@ -128,6 +130,9 @@ public class FileStreamTask extends WrappedRunnable
         RandomAccessReader file = (header.file.sstable.compression) // try to skip kernel page cache if possible
                                     ? CompressedRandomAccessReader.open(header.file.getFilename(), true)
                                     : RandomAccessReader.open(new File(header.file.getFilename()), CHUNK_SIZE, true);
+
+        // setting up data compression stream
+        output = new LZFOutputStream(output);
 
         try
         {
@@ -234,12 +239,12 @@ public class FileStreamTask extends WrappedRunnable
     protected void connect() throws IOException
     {
         socket.connect(new InetSocketAddress(to, DatabaseDescriptor.getStoragePort()));
-        output = new DataOutputStream(socket.getOutputStream());
+        output = socket.getOutputStream();
     }
 
     protected void close() throws IOException
     {
-        socket.close();
+        output.close();
     }
 
     public String toString()

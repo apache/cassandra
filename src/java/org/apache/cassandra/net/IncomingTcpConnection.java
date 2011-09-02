@@ -22,6 +22,7 @@ package org.apache.cassandra.net;
 
 
 import java.io.*;
+import java.net.InetSocketAddress;
 import java.net.Socket;
 
 import org.apache.cassandra.gms.Gossiper;
@@ -78,7 +79,7 @@ public class IncomingTcpConnection extends Thread
                 else
                 {
                     // streaming connections are per-session and have a fixed version.  we can't do anything with a new-version stream connection, so drop it.
-                    logger.error("Received untranslated stream from newer protcol version. Terminating connection!");
+                    logger.error("Received untranslated stream from newer protocol version. Terminating connection!");
                 }
                 // We are done with this connection....
                 return;

@@ -23,9 +23,6 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.util.Collections;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -40,6 +37,11 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.BytesReadTracker;
 import org.apache.cassandra.utils.Pair;
+
+import com.ning.compress.lzf.LZFInputStream;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class IncomingStreamReader
 {
@@ -79,7 +81,7 @@ public class IncomingStreamReader
             assert remoteFile.estimatedKeys > 0;
             SSTableReader reader = null;
             logger.debug("Estimated keys {}", remoteFile.estimatedKeys);
-            DataInputStream dis = new DataInputStream(socket.getInputStream());
+            DataInputStream dis = new DataInputStream(new LZFInputStream(socket.getInputStream()));
             try
             {
                 reader = streamIn(dis, localFile, remoteFile);
