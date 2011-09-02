@@ -30,7 +30,7 @@ import java.sql.*;
 import java.sql.Date;
 import java.util.*;
 
-import org.apache.cassandra.db.marshal.CounterColumnType;
+import org.apache.cassandra.cql.term.CounterColumnTerm;
 import org.apache.cassandra.thrift.Column;
 import org.apache.cassandra.thrift.CqlResult;
 import org.apache.cassandra.thrift.CqlRow;
@@ -999,7 +999,7 @@ public class CResultSet extends AbstractResultSet implements CassandraResultSet
         public boolean isAutoIncrement(int column) throws SQLException
         {
             checkIndex(column);
-            return values.get(column - 1).getValueType() instanceof CounterColumnType; // todo: check Value is correct.
+            return values.get(column - 1).getValueType() instanceof CounterColumnTerm; // todo: check Value is correct.
         }
 
         public boolean isCaseSensitive(int column) throws SQLException

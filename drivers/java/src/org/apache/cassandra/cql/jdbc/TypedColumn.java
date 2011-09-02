@@ -21,7 +21,7 @@ package org.apache.cassandra.cql.jdbc;
  */
 
 
-import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.cql.term.AbstractTerm;
 import org.apache.cassandra.thrift.Column;
 
 
@@ -34,9 +34,9 @@ public class TypedColumn
     // (a good example is byte buffers).
     private final Object value;
     private final String nameString;
-    private final AbstractType<?> nameType, valueType;
+    private final AbstractTerm<?> nameType, valueType;
 
-    public TypedColumn(Column column, AbstractType<?> comparator, AbstractType<?> validator)
+    public TypedColumn(Column column, AbstractTerm<?> comparator, AbstractTerm<?> validator)
     {
         rawColumn = column;
         this.value = column.value == null ? null : validator.compose(column.value);
@@ -65,12 +65,12 @@ public class TypedColumn
         return valueType.getString(rawColumn.value);
     }
     
-    public AbstractType getNameType()
+    public AbstractTerm getNameType()
     {
         return nameType;
     }
 
-    public AbstractType getValueType()
+    public AbstractTerm getValueType()
     {
         return valueType;
     }
