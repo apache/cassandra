@@ -106,6 +106,7 @@
  * catch invalid key_validation_class before instantiating UpdateColumnFamily (CASSANDRA-3102)
  * make Range and Bounds objects client-safe (CASSANDRA-3108)
  * optionally skip log4j configuration (CASSANDRA-3061)
+ * bundle sstableloader with the debian package (CASSANDRA-3113)
 
 0.8.4
  * include files-to-be-streamed in StreamInSession.getSources (CASSANDRA-2972)

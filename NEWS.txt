@@ -40,6 +40,14 @@ Other
       created ColumnFamilies.
 
 
+0.8.5
+=====
+
+Other
+-----
+    - The sstableloader is now bundled with the debian package
+
+
 0.8.4
 =====
 
