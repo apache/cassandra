@@ -30,6 +30,8 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.HeapAllocator;
 
+import org.apache.cassandra.utils.ByteBufferUtil;
+
 /**
  * A SSTable writer that doesn't assume rows are in sorted order.
  * This writer buffers rows in memory and then write them all in sorted order.
@@ -69,16 +71,28 @@ public class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
 
     protected void writeRow(DecoratedKey key, ColumnFamily columnFamily) throws IOException
     {
-        ColumnFamily previous = keys.put(key, columnFamily);
         currentSize += key.key.remaining() + columnFamily.serializedSize() * 1.2;
-
-        // Note that if the row was existing already, our size estimation will be slightly off
-        // since we'll be counting the key multiple times.
-        if (previous != null)
-            columnFamily.addAll(previous, HeapAllocator.instance);
 
         if (currentSize > bufferSize)
             sync();
+    }
+
+    protected ColumnFamily getColumnFamily()
+    {
+        ColumnFamily previous = keys.get(currentKey);
+        // If the CF already exist in memory, we'll just continue adding to it
+        if (previous == null)
+        {
+            previous = ColumnFamily.create(metadata);
+            keys.put(currentKey, previous);
+        }
+        else
+        {
+            // We will reuse a CF that we have counted already. But because it will be easier to add the full size
+            // of the CF in the next writeRow call than to find out the delta, we just remove the size until that next call
+            currentSize -= currentKey.key.remaining() + previous.serializedSize() * 1.2;
+        }
+        return previous;
     }
 
     public void close() throws IOException
