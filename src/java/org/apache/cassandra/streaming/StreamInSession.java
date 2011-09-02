@@ -148,7 +148,7 @@ public class StreamInSession
                 for (Map.Entry<ColumnFamilyStore, List<SSTableReader>> entry : cfstores.entrySet())
                 {
                     if (entry.getKey() != null)
-                        entry.getKey().indexManager.buildSecondaryIndexes(entry.getValue(), entry.getKey().indexManager.getIndexedColumns());
+                        entry.getKey().indexManager.maybeBuildSecondaryIndexes(entry.getValue(), entry.getKey().indexManager.getIndexedColumns());
                 }
             }
             finally

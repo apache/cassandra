@@ -583,7 +583,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         data.addSSTables(sstables); // this will call updateCacheSizes() for us
 
         logger.info("Requesting a full secondary index re-build for " + table.name + "/" + columnFamily);
-        indexManager.buildSecondaryIndexes(sstables, indexManager.getIndexedColumns());
+        indexManager.maybeBuildSecondaryIndexes(sstables, indexManager.getIndexedColumns());
 
         logger.info("Setting up new generation: " + generation);
         fileIndexGenerator.set(generation);

@@ -92,12 +92,16 @@ public class SecondaryIndexManager
     
     
     /**
-     * Does a full rebuild of the indexes specified by columns from the sstables
+     * Does a full rebuild of the indexes specified by columns from the sstables.
+     * Does nothing if columns is empty.
      * @param sstables the data to build from
      * @param columns the list of columns to index
      */
-    public void buildSecondaryIndexes(Collection<SSTableReader> sstables, SortedSet<ByteBuffer> columns)
+    public void maybeBuildSecondaryIndexes(Collection<SSTableReader> sstables, SortedSet<ByteBuffer> columns)
     {
+        if (columns.isEmpty())
+            return;
+
         logger.info(String.format("Submitting index build of %s for data in %s",
                                   baseCfs.metadata.comparator.getString(columns), StringUtils.join(sstables, ", ")));
 
