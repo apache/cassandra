@@ -503,6 +503,16 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
         <dependency groupId="org.slf4j" artifactId="slf4j-api"/>
         <dependency groupId="org.apache.thrift" artifactId="libthrift"/>
       </artifact:pom>
+      <artifact:pom id="cookie-pom"
+                    artifactId="cassandra-cookie"
+                    url="http://cassandra.apache.org"
+                    name="Apache Cassandra">
+        <parent groupId="org.apache.cassandra"
+                artifactId="cassandra-parent"
+                version="${version}"/>
+        <scm connection="${scm.connection}" developerConnection="${scm.developerConnection}" url="${scm.url}"/>
+	<dependency groupId="com.google.guava" artifactId="guava"/>
+      </artifact:pom>
       <artifact:pom id="cql-pom"
                     artifactId="cassandra-cql"
                     url="http://cassandra.apache.org"
@@ -707,7 +717,9 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
     <!--
         The jar target makes cassandra.jar output.
     -->
-    <target name="jar" depends="maven-declare-dependencies,build" description="Assemble Cassandra JAR files">
+    <target name="jar"
+            depends="maven-declare-dependencies,build, build-test"
+            description="Assemble Cassandra JAR files">
       <mkdir dir="${build.classes.main}/META-INF" />
       <mkdir dir="${build.classes.thrift}/META-INF" />
       <copy file="LICENSE.txt"
@@ -747,7 +759,26 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
                      value="org.apache.cassandra.infrastructure.continuations.CAgent"/>
           <attribute name="Class-Path"
                      value="${ant.project.name}-thrift-${version}.jar" />
+          <attribute name="Class-Path"
+                     value="${ant.project.name}-cookie-${version}.jar" />
         <!-- </section> -->
+        </manifest>
+      </jar>
+
+      <!-- Cookie Jar -->
+      <!-- TODO: write maven pom here -->
+      <artifact:writepom pomRefId="cookie-pom"
+              file="${build.dir}/${ant.project.name}-cookie-${version}.pom"/>
+      <jar jarfile="${build.dir}/${ant.project.name}-cookie-${version}.jar">
+        <fileset dir="${build.classes.main}">
+          <include name="org/apache/cassandra/cql/term/*" />
+          <include name="org/apache/cassandra/utils/ByteBufferUtil*.class" />
+          <include name="org/apache/cassandra/utils/UUIDGen*.class" />
+        </fileset>
+        <manifest>
+          <attribute name="Implementation-Title" value="Cassandra"/>
+          <attribute name="Implementation-Version" value="${version}"/>
+          <attribute name="Implementation-Vendor" value="Apache"/>
         </manifest>
       </jar>
 
