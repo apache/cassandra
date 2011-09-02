@@ -20,7 +20,9 @@ package org.apache.cassandra.utils;
  * 
  */
 
-
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
@@ -66,6 +68,19 @@ public class UUIDGen
     public static UUID getUUID(ByteBuffer raw)
     {
         return new UUID(raw.getLong(raw.position()), raw.getLong(raw.position() + 8));
+    }
+
+    /** reads a uuid from an input stream. */
+    public static UUID read(DataInputStream dis) throws IOException
+    {
+        return new UUID(dis.readLong(), dis.readLong());
+    }
+
+    /** writes a uuid to an output stream. */
+    public static void write(UUID uuid, DataOutputStream dos) throws IOException
+    {
+        dos.writeLong(uuid.getMostSignificantBits());
+        dos.writeLong(uuid.getLeastSignificantBits());
     }
 
     /** decomposes a uuid into raw bytes. */

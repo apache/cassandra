@@ -55,6 +55,7 @@
    to be down before starting (CASSANDRA-2034)
  * Make the compression algorithm and chunk length configurable (CASSANDRA-3001)
  * Add throttling for internode streaming (CASSANDRA-3080)
+ * make the repair of a range repair all replica (CASSANDRA-2610)
 
 0.8.5
  * fix NPE when encryption_options is unspecified (CASSANDRA-3007)

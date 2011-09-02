@@ -73,6 +73,7 @@ public class CompactSerializerTest extends CleanupHelper
         expectedClassNames.add("InnerSerializer");
         expectedClassNames.add("LeafSerializer");
         expectedClassNames.add("MerkleTreeSerializer");
+        expectedClassNames.add("StreamingRepairTaskSerializer");
         
         discoveredClassNames = new ArrayList<String>();
         String cp = System.getProperty("java.class.path");

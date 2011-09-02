@@ -63,9 +63,11 @@ public final class MessagingService implements MessagingServiceMBean
 {
     public static final String MBEAN_NAME = "org.apache.cassandra.net:type=MessagingService";
 
+    // 8 bits version, so don't waste versions
     public static final int VERSION_07 = 1;
     public static final int VERSION_080 = 2;
-    public static final int version_ = 3; // 8 bits, so don't waste versions
+    public static final int VERSION_10 = 3;
+    public static final int version_ = VERSION_10;
 
     static SerializerType serializerType_ = SerializerType.BINARY;
 

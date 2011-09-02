@@ -103,8 +103,10 @@ public abstract class AntiEntropyServiceTestAbstract extends CleanupHelper
 
         local_range = StorageService.instance.getLocalPrimaryRange();
 
-        // random session id for each test
-        request = new TreeRequest(UUID.randomUUID().toString(), LOCAL, local_range, new CFPair(tablename, cfname));
+        // (we use REMOTE instead of LOCAL so that the reponses for the validator.complete() get lost)
+        request = new TreeRequest(UUID.randomUUID().toString(), REMOTE, local_range, new CFPair(tablename, cfname));
+        // Set a fake session corresponding to this fake request
+        AntiEntropyService.instance.submitArtificialRepairSession(request, tablename, cfname);
     }
 
     @After
@@ -156,26 +158,6 @@ public abstract class AntiEntropyServiceTestAbstract extends CleanupHelper
 
         // confirm that the tree was validated
         assert null != validator.tree.hash(local_range);
-    }
-
-    @Test
-    public void testManualRepair() throws Throwable
-    {
-        RepairFuture sess = AntiEntropyService.instance.submitRepairSession(local_range, tablename, cfname);
-
-        // ensure that the session doesn't end without a response from REMOTE
-        try
-        {
-            sess.get(500, TimeUnit.MILLISECONDS);
-            fail("Repair session should not end without response from REMOTE");
-        }
-        catch (TimeoutException e) {}
-
-        // deliver a fake response from REMOTE
-        sess.session.completed(REMOTE, request.cf.right);
-
-        // block until the repair has completed
-        sess.get();
     }
 
     @Test
@@ -244,7 +226,10 @@ public abstract class AntiEntropyServiceTestAbstract extends CleanupHelper
         interesting.add(changed);
 
         // difference the trees
-        AntiEntropyService.RepairSession.Differencer diff = sess.session.new Differencer(cfname, request.endpoint, ltree, rtree);
+        // note: we reuse the same endpoint which is bogus in theory but fine here
+        AntiEntropyService.TreeResponse r1 = new AntiEntropyService.TreeResponse(REMOTE, ltree);
+        AntiEntropyService.TreeResponse r2 = new AntiEntropyService.TreeResponse(REMOTE, rtree);
+        AntiEntropyService.RepairSession.Differencer diff = sess.session.new Differencer(cfname, r1, r2);
         diff.run();
         
         // ensure that the changed range was recorded

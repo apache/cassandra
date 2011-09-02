@@ -24,7 +24,6 @@ import java.security.MessageDigest;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Condition;
 
 import com.google.common.base.Objects;
@@ -44,17 +43,13 @@ import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.gms.*;
 import org.apache.cassandra.io.ICompactSerializer;
-import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.io.util.FastByteArrayOutputStream;
 import org.apache.cassandra.net.CompactEndpointSerializationHelper;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.streaming.OperationType;
-import org.apache.cassandra.streaming.StreamIn;
-import org.apache.cassandra.streaming.StreamOut;
-import org.apache.cassandra.streaming.StreamOutSession;
+import org.apache.cassandra.streaming.*;
 import org.apache.cassandra.utils.*;
 
 /**
@@ -130,6 +125,8 @@ public class AntiEntropyService
         return futureTask;
     }
 
+    // for testing only. Create a session corresponding to a fake request and
+    // add it to the sessions (avoid NPE in tests)
     RepairFuture submitArtificialRepairSession(TreeRequest req, String tablename, String... cfnames)
     {
         RepairFuture futureTask = new RepairSession(req, tablename, cfnames).getFuture();
@@ -170,6 +167,8 @@ public class AntiEntropyService
     {
         RepairSession session = sessions.get(request.sessionid);
         assert session != null;
+
+        logger.info(String.format("[repair #%s] Received merkle tree for %s from %s", session.getName(), request.cf.right, request.endpoint));
 
         RepairSession.RepairJob job = session.jobs.peek();
         assert job != null : "A repair should have at least some jobs scheduled";
@@ -214,12 +213,13 @@ public class AntiEntropyService
         try
         {
             Message message = TreeResponseVerbHandler.makeVerb(local, validator);
-            logger.info("Sending AEService tree for " + validator.request);
+            if (!validator.request.endpoint.equals(FBUtilities.getBroadcastAddress()))
+                logger.info(String.format("[repair #%s] Sending completed merkle tree to %s for %s", validator.request.sessionid, validator.request.endpoint, validator.request.cf));
             ms.sendOneWay(message, validator.request.endpoint);
         }
         catch (Exception e)
         {
-            logger.error("Could not send valid tree for request " + validator.request, e);
+            logger.error(String.format("[repair #%s] Error sending completed merkle tree to %s for %s ", validator.request.sessionid, validator.request.endpoint, validator.request.cf), e);
         }
     }
 
@@ -534,17 +534,6 @@ public class AntiEntropyService
     }
 
     /**
-     * A tuple of a local and remote tree.
-     */
-    static class TreePair extends Pair<MerkleTree,MerkleTree>
-    {
-        public TreePair(MerkleTree local, MerkleTree remote)
-        {
-            super(local, remote);
-        }
-    }
-
-    /**
      * A tuple of table, cf, address and range that represents a location we have an outstanding TreeRequest for.
      */
     public static class TreeRequest
@@ -613,7 +602,7 @@ public class AntiEntropyService
 
         public RepairSession(Range range, String tablename, String... cfnames)
         {
-            this("manual-repair-" + UUID.randomUUID(), range, tablename, cfnames);
+            this(UUIDGen.makeType1UUIDFromHost(FBUtilities.getBroadcastAddress()).toString(), range, tablename, cfnames);
         }
 
         private RepairSession(String id, Range range, String tablename, String[] cfnames)
@@ -636,13 +625,24 @@ public class AntiEntropyService
             return new RepairFuture(this);
         }
 
+        private String repairedNodes()
+        {
+            StringBuilder sb = new StringBuilder();
+            sb.append(FBUtilities.getBroadcastAddress());
+            for (InetAddress ep : endpoints)
+                sb.append(", ").append(ep);
+            return sb.toString();
+        }
+
         // we don't care about the return value but care about it throwing exception
         public void runMayThrow() throws Exception
         {
+            logger.info(String.format("[repair #%s] new session: will sync %s on range %s for %s.%s", getName(), repairedNodes(), range, tablename, Arrays.toString(cfnames)));
+
             if (endpoints.isEmpty())
             {
                 differencingDone.signalAll();
-                logger.info("No neighbors to repair with for " + tablename + " on " + range + ": " + getName() + " completed.");
+                logger.info("[repair #%s] No neighbors to repair with on range %s: session completed", getName(), range);
                 return;
             }
 
@@ -652,7 +652,7 @@ public class AntiEntropyService
                 if (!FailureDetector.instance.isAlive(endpoint))
                 {
                     differencingDone.signalAll();
-                    logger.info("Could not proceed on repair because a neighbor (" + endpoint + ") is dead: " + getName() + " failed.");
+                    logger.info("[repair #%s] Could not proceed on repair because a neighbor (%s) is dead: session failed", getName(), endpoint);
                     return;
                 }
             }
@@ -675,8 +675,15 @@ public class AntiEntropyService
                 // block whatever thread started this session until all requests have been returned:
                 // if this thread dies, the session will still complete in the background
                 completed.await();
-                if (exception != null)
+                if (exception == null)
+                {
+                    logger.info(String.format("[repair #%s] session completed successfully", getName()));
+                }
+                else
+                {
+                    logger.error(String.format("[repair #%s] session completed with the following error", getName()), exception);
                     throw exception;
+                }
             }
             catch (InterruptedException e)
             {
@@ -690,13 +697,19 @@ public class AntiEntropyService
             }
         }
 
-        void completed(InetAddress remote, String cfname)
+        void completed(Differencer differencer)
         {
-            logger.debug("Repair completed for {} on {}", remote, cfname);
-            RepairJob job = activeJobs.get(cfname);
-            if (job.completedSynchronizationJob(remote))
+            logger.debug(String.format("[repair #%s] Repair completed between %s and %s on %s",
+                                       getName(),
+                                       differencer.r1.endpoint,
+                                       differencer.r2.endpoint,
+                                       differencer.cfname));
+            RepairJob job = activeJobs.get(differencer.cfname);
+            if (job.completedSynchronization(differencer))
             {
-                activeJobs.remove(cfname);
+                activeJobs.remove(differencer.cfname);
+                String remaining = activeJobs.size() == 0 ? "" : String.format(" (%d remaining column family to sync for this session)", activeJobs.size());
+                logger.info(String.format("[repair #%s] %s is fully synced%s", getName(), differencer.cfname, remaining));
                 if (activeJobs.isEmpty())
                     completed.signalAll();
             }
@@ -704,8 +717,7 @@ public class AntiEntropyService
 
         void failedNode(InetAddress remote)
         {
-            String errorMsg = String.format("Problem during repair session %s, endpoint %s died", sessionName, remote);
-            logger.error(errorMsg);
+            String errorMsg = String.format("Endpoint %s died", remote);
             exception = new IOException(errorMsg);
             // If a node failed, we stop everything (though there could still be some activity in the background)
             jobs.clear();
@@ -749,9 +761,13 @@ public class AntiEntropyService
         class RepairJob
         {
             private final String cfname;
-            private final Set<InetAddress> requestedEndpoints = new HashSet<InetAddress>();
-            private final Map<InetAddress, MerkleTree> trees = new HashMap<InetAddress, MerkleTree>();
-            private final Set<InetAddress> syncJobs = new HashSet<InetAddress>();
+            // first we send tree requests.  this tracks the endpoints remaining to hear from
+            private final Set<InetAddress> remainingEndpoints = new HashSet<InetAddress>();
+            // tree responses are then tracked here
+            private final List<TreeResponse> trees = new ArrayList<TreeResponse>(endpoints.size() + 1);
+            // once all responses are received, each tree is compared with each other, and differencer tasks
+            // are submitted.  the job is done when all differencers are complete.
+            private final Set<Differencer> remainingDifferencers = new HashSet<Differencer>();
 
             public RepairJob(String cfname)
             {
@@ -763,24 +779,28 @@ public class AntiEntropyService
              */
             public void sendTreeRequests()
             {
-                requestedEndpoints.addAll(endpoints);
-                requestedEndpoints.add(FBUtilities.getBroadcastAddress());
+                remainingEndpoints.addAll(endpoints);
+                remainingEndpoints.add(FBUtilities.getBroadcastAddress());
 
                 // send requests to all nodes
-                for (InetAddress endpoint : requestedEndpoints)
+                for (InetAddress endpoint : remainingEndpoints)
                     AntiEntropyService.instance.request(getName(), endpoint, range, tablename, cfname);
+
+                logger.info(String.format("[repair #%s] requests for merkle tree sent for %s (to %s)", getName(), cfname, remainingEndpoints));
             }
 
             /**
              * Add a new received tree and return the number of remaining tree to
              * be received for the job to be complete.
+             *
+             * Callers may assume exactly one addTree call will result in zero remaining endpoints.
              */
             public synchronized int addTree(TreeRequest request, MerkleTree tree)
             {
                 assert request.cf.right.equals(cfname);
-                trees.put(request.endpoint, tree);
-                requestedEndpoints.remove(request.endpoint);
-                return requestedEndpoints.size();
+                trees.add(new TreeResponse(request.endpoint, tree));
+                remainingEndpoints.remove(request.endpoint);
+                return remainingEndpoints.size();
             }
 
             /**
@@ -789,30 +809,31 @@ public class AntiEntropyService
              */
             public void submitDifferencers()
             {
-                assert requestedEndpoints.size() == 0;
+                assert remainingEndpoints.isEmpty();
 
-                // Right now, we only difference local host against each other. CASSANDRA-2610 will fix that.
-                // In the meantime ugly special casing will work good enough.
-                MerkleTree localTree =
-                trees.get(FBUtilities.getBroadcastAddress());
-                assert localTree != null;
-                for (Map.Entry<InetAddress, MerkleTree> entry : trees.entrySet())
+                // We need to difference all trees one against another
+                for (int i = 0; i < trees.size() - 1; ++i)
                 {
-                    if (entry.getKey().equals(FBUtilities.getBroadcastAddress()))
-                        continue;
-
-                    Differencer differencer = new Differencer(cfname, entry.getKey(), entry.getValue(), localTree);
-                    syncJobs.add(entry.getKey());
-                    logger.debug("Queueing comparison " + differencer);
-                    StageManager.getStage(Stage.ANTI_ENTROPY).execute(differencer);
+                    TreeResponse r1 = trees.get(i);
+                    for (int j = i + 1; j < trees.size(); ++j)
+                    {
+                        TreeResponse r2 = trees.get(j);
+                        Differencer differencer = new Differencer(cfname, r1, r2);
+                        logger.debug("Queueing comparison {}", differencer);
+                        remainingDifferencers.add(differencer);
+                        StageManager.getStage(Stage.ANTI_ENTROPY).execute(differencer);
+                    }
                 }
                 trees.clear(); // allows gc to do its thing
             }
 
-            synchronized boolean completedSynchronizationJob(InetAddress remote)
+            /**
+             * @return true if the @param differencer was the last remaining
+             */
+            synchronized boolean completedSynchronization(Differencer differencer)
             {
-                syncJobs.remove(remote);
-                return syncJobs.isEmpty();
+                remainingDifferencers.remove(differencer);
+                return remainingDifferencers.isEmpty();
             }
         }
 
@@ -822,17 +843,15 @@ public class AntiEntropyService
         class Differencer implements Runnable
         {
             public final String cfname;
-            public final InetAddress remote;
-            public final MerkleTree ltree;
-            public final MerkleTree rtree;
+            public final TreeResponse r1;
+            public final TreeResponse r2;
             public List<Range> differences;
 
-            Differencer(String cfname, InetAddress remote, MerkleTree ltree, MerkleTree rtree)
+            Differencer(String cfname, TreeResponse r1, TreeResponse r2)
             {
                 this.cfname = cfname;
-                this.remote = remote;
-                this.ltree = ltree;
-                this.rtree = rtree;
+                this.r1 = r1;
+                this.r2 = r2;
                 this.differences = new ArrayList<Range>();
             }
 
@@ -841,88 +860,65 @@ public class AntiEntropyService
              */
             public void run()
             {
-                InetAddress local = FBUtilities.getBroadcastAddress();
-
                 // restore partitioners (in case we were serialized)
-                if (ltree.partitioner() == null)
-                    ltree.partitioner(StorageService.getPartitioner());
-                if (rtree.partitioner() == null)
-                    rtree.partitioner(StorageService.getPartitioner());
+                if (r1.tree.partitioner() == null)
+                    r1.tree.partitioner(StorageService.getPartitioner());
+                if (r2.tree.partitioner() == null)
+                    r2.tree.partitioner(StorageService.getPartitioner());
 
                 // compare trees, and collect differences
-                differences.addAll(MerkleTree.difference(ltree, rtree));
+                differences.addAll(MerkleTree.difference(r1.tree, r2.tree));
 
                 // choose a repair method based on the significance of the difference
-                String format = "Endpoints " + local + " and " + remote + " %s for " + cfname + " on " + range;
+                String format = String.format("[repair #%s] Endpoints %s and %s %%s for %s", getName(), r1.endpoint, r2.endpoint, cfname);
                 if (differences.isEmpty())
                 {
                     logger.info(String.format(format, "are consistent"));
-                    completed(remote, cfname);
+                    completed(this);
                     return;
                 }
 
                 // non-0 difference: perform streaming repair
                 logger.info(String.format(format, "have " + differences.size() + " range(s) out of sync"));
-                try
-                {
-                    performStreamingRepair();
-                }
-                catch(IOException e)
-                {
-                    throw new RuntimeException(e);
-                }
+                performStreamingRepair();
             }
 
             /**
              * Starts sending/receiving our list of differences to/from the remote endpoint: creates a callback
              * that will be called out of band once the streams complete.
              */
-            void performStreamingRepair() throws IOException
+            void performStreamingRepair()
             {
-                logger.info("Performing streaming repair of " + differences.size() + " ranges with " + remote + " for " + range);
-                ColumnFamilyStore cfstore = Table.open(tablename).getColumnFamilyStore(cfname);
-                try
+                Runnable callback = new Runnable()
                 {
-                    // We acquire references for transferSSTables
-                    Collection<SSTableReader> sstables = cfstore.markCurrentSSTablesReferenced();
-                    Callback callback = new Callback();
-                    // send ranges to the remote node
-                    StreamOutSession outsession = StreamOutSession.create(tablename, remote, callback);
-                    StreamOut.transferSSTables(outsession, sstables, differences, OperationType.AES);
-                    // request ranges from the remote node
-                    StreamIn.requestRanges(remote, tablename, differences, callback, OperationType.AES);
-                }
-                catch(Exception e)
-                {
-                    throw new IOException("Streaming repair failed.", e);
-                }
+                    public void run()
+                    {
+                        completed(Differencer.this);
+                    }
+                };
+                StreamingRepairTask task = StreamingRepairTask.create(r1.endpoint, r2.endpoint, tablename, cfname, differences, callback);
+
+                // Pre 1.0, nodes don't know how to handle forwarded streaming task so don't bother
+                if (task.isLocalTask() || Gossiper.instance.getVersion(task.dst) >= MessagingService.VERSION_10)
+                    task.run();
             }
 
             public String toString()
             {
-                return "#<Differencer " + remote + "/" + range + ">";
+                return "#<Differencer " + r1.endpoint + "<->" + r2.endpoint + "/" + range + ">";
             }
+        }
+    }
 
-            /**
-             * When a repair is necessary, this callback is created to wait for the inbound
-             * and outbound streams to complete.
-             */
-            class Callback extends WrappedRunnable
-            {
-                // we expect one callback for the receive, and one for the send
-                private final AtomicInteger outstanding = new AtomicInteger(2);
+    static class TreeResponse
+    {
+        public final InetAddress endpoint;
+        public final MerkleTree tree;
 
-                protected void runMayThrow() throws Exception
-                {
-                    if (outstanding.decrementAndGet() > 0)
-                        // waiting on more calls
-                        return;
-
-                    // all calls finished successfully
-                    completed(remote, cfname);
-                    logger.info(String.format("Finished streaming repair with %s for %s", remote, range));
-                }
-            }
+        TreeResponse(InetAddress endpoint, MerkleTree tree)
+        {
+            this.endpoint = endpoint;
+            this.tree = tree;
         }
     }
 
