@@ -33,7 +33,7 @@ import java.sql.Savepoint;
 import java.sql.Struct;
 import java.util.Map;
 
-public class AbstractCassandraConnection
+abstract class AbstractCassandraConnection
 {
     protected static final String NOT_SUPPORTED = "the Cassandra implementation does not support this method";
 

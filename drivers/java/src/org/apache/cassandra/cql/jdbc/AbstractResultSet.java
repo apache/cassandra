@@ -26,7 +26,7 @@ import java.sql.*;
 import java.util.Map;
 
 /** a class to hold all the unimplemented crap */
-class AbstractResultSet
+abstract class AbstractResultSet
 {
     protected static final String NOT_SUPPORTED = "the Cassandra implementation does not support this method";
 

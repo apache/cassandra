@@ -32,7 +32,7 @@ import java.sql.SQLFeatureNotSupportedException;
 import org.apache.cassandra.db.DBConstants;
 import org.apache.cassandra.utils.FBUtilities;
 
-public class CassandraDatabaseMetaData implements DatabaseMetaData
+class CassandraDatabaseMetaData implements DatabaseMetaData
 {
     private CassandraConnection connection;
     

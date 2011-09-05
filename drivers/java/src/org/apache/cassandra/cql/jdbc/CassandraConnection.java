@@ -409,7 +409,7 @@ class CassandraConnection extends AbstractCassandraConnection implements Connect
      * @throws SchemaDisagreementException when the client side and server side are at different versions of schema (Thrift)
      * @throws TException                  when there is a error in Thrift processing
      */
-    public CqlResult execute(String queryStr, Compression compression) throws InvalidRequestException, UnavailableException, TimedOutException, SchemaDisagreementException, TException
+    protected CqlResult execute(String queryStr, Compression compression) throws InvalidRequestException, UnavailableException, TimedOutException, SchemaDisagreementException, TException
     {
         currentKeyspace = determineCurrentKeyspace(queryStr, currentKeyspace);
 
@@ -436,7 +436,7 @@ class CassandraConnection extends AbstractCassandraConnection implements Connect
      * @throws SchemaDisagreementException when the client side and server side are at different versions of schema (Thrift)
      * @throws TException                  when there is a error in Thrift processing
      */
-    public CqlResult execute(String queryStr) throws InvalidRequestException, UnavailableException, TimedOutException, SchemaDisagreementException, TException
+    protected CqlResult execute(String queryStr) throws InvalidRequestException, UnavailableException, TimedOutException, SchemaDisagreementException, TException
     {
         return execute(queryStr, defaultCompression);
     }
@@ -444,7 +444,7 @@ class CassandraConnection extends AbstractCassandraConnection implements Connect
     /**
      * Shutdown the remote connection
      */
-    public void disconnect()
+    protected void disconnect()
     {
         transport.close();
     }
@@ -452,7 +452,7 @@ class CassandraConnection extends AbstractCassandraConnection implements Connect
     /**
      * Connection state.
      */
-    public boolean isConnected()
+    protected boolean isConnected()
     {
         return transport.isOpen();
     }

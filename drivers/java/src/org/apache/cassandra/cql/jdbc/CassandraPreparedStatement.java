@@ -60,7 +60,7 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class CassandraPreparedStatement extends CassandraStatement implements PreparedStatement
+class CassandraPreparedStatement extends CassandraStatement implements PreparedStatement
 {
     //    private static final Pattern Parameterizable = Pattern.compile("(SELECT|DELETE|UPDATE)\\s+.*", Pattern.CASE_INSENSITIVE);
     private static final Pattern Select = Pattern.compile("SELECT[\\s+FIRST\\s+\\d+]?[\\s+REVERSED]?\\s+(.*)WHERE\\s+(.*)", Pattern.CASE_INSENSITIVE);
@@ -551,6 +551,5 @@ public class CassandraPreparedStatement extends CassandraStatement implements Pr
                 throw new SQLException("No parameter bound to " + (index - 1));
             return p;
         }
-
     }
 }

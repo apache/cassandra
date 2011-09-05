@@ -76,14 +76,14 @@ class ColumnDecoder
                 metadata.put(String.format("%s.%s", ks.getName(), cf.getName()), new CFamMeta(cf));
     }
 
-    AbstractTerm<?> getComparator(String keyspace, String columnFamily)
+    protected AbstractTerm<?> getComparator(String keyspace, String columnFamily)
     {
         CFamMeta cf = metadata.get(String.format("%s.%s", keyspace, columnFamily));
         AbstractTerm<?> type = (cf != null) ? TypesMap.getTermForComparator(cf.comparator) : null;
         return (type == null) ? null : type;
     }
 
-    AbstractTerm<?> getNameType(String keyspace, String columnFamily, ByteBuffer name)
+    private AbstractTerm<?> getNameType(String keyspace, String columnFamily, ByteBuffer name)
     {
         CFamMeta cf = metadata.get(String.format("%s.%s", keyspace, columnFamily));
         try
@@ -98,7 +98,7 @@ class ColumnDecoder
         return TypesMap.getTermForComparator(cf.comparator);
     }
 
-    AbstractTerm<?> getValueType(String keyspace, String columnFamily, ByteBuffer name)
+    private AbstractTerm<?> getValueType(String keyspace, String columnFamily, ByteBuffer name)
     {
         CFamMeta cf = metadata.get(String.format("%s.%s", keyspace, columnFamily));
         if (cf == null)

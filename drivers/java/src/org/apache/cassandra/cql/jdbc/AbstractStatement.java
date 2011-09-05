@@ -24,7 +24,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 
-public class AbstractStatement
+abstract class AbstractStatement
 {
     protected static final String NOT_SUPPORTED = "the Cassandra implementation does not support this method";
 

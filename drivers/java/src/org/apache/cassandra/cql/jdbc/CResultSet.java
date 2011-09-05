@@ -36,7 +36,7 @@ import org.apache.cassandra.thrift.CqlResult;
 import org.apache.cassandra.thrift.CqlRow;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-public class CResultSet extends AbstractResultSet implements CassandraResultSet
+class CResultSet extends AbstractResultSet implements CassandraResultSet
 {
     public static final int DEFAULT_TYPE = ResultSet.TYPE_FORWARD_ONLY;
     public static final int DEFAULT_CONCURRENCY = ResultSet.CONCUR_READ_ONLY;
