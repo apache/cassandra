@@ -1,3 +1,8 @@
+0.8.6
+ * avoid trying to watch cassandra-topology.properties when loaded from jar
+   (CASSANDRA-3138)
+
+
 0.8.5
  * fix NPE when encryption_options is unspecified (CASSANDRA-3007)
  * include column name in validation failure exceptions (CASSANDRA-2849)
