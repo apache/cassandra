@@ -1,7 +1,8 @@
 0.8.6
  * avoid trying to watch cassandra-topology.properties when loaded from jar
    (CASSANDRA-3138)
-
+ * prevent users from creating keyspaces with LocalStrategy replication
+   (CASSANDRA-3139)
 
 0.8.5
  * fix NPE when encryption_options is unspecified (CASSANDRA-3007)

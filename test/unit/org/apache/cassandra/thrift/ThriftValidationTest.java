@@ -28,17 +28,13 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 
-import org.junit.Test;
-
+import org.apache.cassandra.locator.LocalStrategy;
+import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.CleanupHelper;
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.marshal.AsciiType;
-import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.utils.FBUtilities;
 
-import java.util.concurrent.Callable;
+import org.junit.Test;
 
 public class ThriftValidationTest extends CleanupHelper
 {
@@ -143,5 +139,57 @@ public class ThriftValidationTest extends CleanupHelper
         }
 
         assert gotException : "expected InvalidRequestException but not received.";
+    }
+
+    @Test
+    public void testValidateKsDef()
+    {
+        KsDef ks_def = new KsDef()
+                            .setName("keyspaceValid")
+                            .setStrategy_class(LocalStrategy.class.getSimpleName());
+
+
+        boolean gotException = false;
+
+        try
+        {
+            ThriftValidation.validateKsDef(ks_def);
+        }
+        catch (ConfigurationException e)
+        {
+            gotException = true;
+        }
+
+        assert gotException : "expected ConfigurationException but not received.";
+
+        ks_def.setStrategy_class(LocalStrategy.class.getName());
+
+        gotException = false;
+
+        try
+        {
+            ThriftValidation.validateKsDef(ks_def);
+        }
+        catch (ConfigurationException e)
+        {
+            gotException = true;
+        }
+
+        assert gotException : "expected ConfigurationException but not received.";
+
+        ks_def.setStrategy_class(NetworkTopologyStrategy.class.getName());
+
+        gotException = false;
+
+        try
+        {
+            ThriftValidation.validateKsDef(ks_def);
+        }
+        catch (ConfigurationException e)
+        {
+            gotException = true;
+        }
+
+        assert !gotException : "got unexpected ConfigurationException";
     }
 }
