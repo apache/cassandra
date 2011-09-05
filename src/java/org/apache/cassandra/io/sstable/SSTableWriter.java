@@ -36,7 +36,6 @@ import org.apache.cassandra.db.compaction.*;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.compress.CompressedSequentialWriter;
 import org.apache.cassandra.io.util.*;
-import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.BloomFilter;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -192,6 +191,71 @@ public class SSTableWriter extends SSTable
         dataFile.stream.writeLong(value.remaining());
         ByteBufferUtil.write(value, dataFile.stream);
         afterAppend(decoratedKey, currentPosition);
+    }
+
+    public long appendFromStream(DecoratedKey key, CFMetaData metadata, long dataSize, DataInput in) throws IOException
+    {
+        long currentPosition = beforeAppend(key);
+        ByteBufferUtil.writeWithShortLength(key.key, dataFile.stream);
+        long dataStart = dataFile.getFilePointer();
+
+        // write row size
+        dataFile.stream.writeLong(dataSize);
+
+        // write BF
+        int bfSize = in.readInt();
+        dataFile.stream.writeInt(bfSize);
+        for (int i = 0; i < bfSize; i++)
+            dataFile.stream.writeByte(in.readByte());
+
+        // write index
+        int indexSize = in.readInt();
+        dataFile.stream.writeInt(indexSize);
+        for (int i = 0; i < indexSize; i++)
+            dataFile.stream.writeByte(in.readByte());
+
+        // cf data
+        dataFile.stream.writeInt(in.readInt());
+        dataFile.stream.writeLong(in.readLong());
+
+        // column size
+        int columnCount = in.readInt();
+        dataFile.stream.writeInt(columnCount);
+
+        // deserialize each column to obtain maxTimestamp and immediately serialize it.
+        long maxTimestamp = Long.MIN_VALUE;
+        ColumnFamily cf = ColumnFamily.create(metadata, ArrayBackedSortedColumns.FACTORY);
+        for (int i = 0; i < columnCount; i++)
+        {
+            // deserialize column with fromRemote false, in order to keep size of streamed column
+            IColumn column = cf.getColumnSerializer().deserialize(in, false, Integer.MIN_VALUE);
+            if (column instanceof CounterColumn)
+            {
+                column = ((CounterColumn) column).markDeltaToBeCleared();
+            }
+            else if (column instanceof SuperColumn)
+            {
+                SuperColumn sc = (SuperColumn) column;
+                for (IColumn subColumn : sc.getSubColumns())
+                {
+                    if (subColumn instanceof CounterColumn)
+                    {
+                        IColumn marked = ((CounterColumn) subColumn).markDeltaToBeCleared();
+                        sc.replace(subColumn, marked);
+                    }
+                }
+            }
+            maxTimestamp = Math.max(maxTimestamp, column.maxTimestamp());
+            cf.getColumnSerializer().serialize(column, dataFile.stream);
+        }
+
+        assert dataSize == dataFile.getFilePointer() - (dataStart + 8)
+                : "incorrect row data size " + dataSize + " written to " + dataFile.getPath() + "; correct is " + (dataFile.getFilePointer() - (dataStart + 8));
+        sstableMetadataCollector.updateMaxTimestamp(maxTimestamp);
+        sstableMetadataCollector.addRowSize(dataFile.getFilePointer() - currentPosition);
+        sstableMetadataCollector.addColumnCount(columnCount);
+        afterAppend(key, currentPosition);
+        return currentPosition;
     }
 
     public void updateMaxTimestamp(long timestamp)

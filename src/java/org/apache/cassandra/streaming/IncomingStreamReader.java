@@ -122,64 +122,27 @@ public class IncomingStreamReader
                     in.reset(0);
                     key = SSTableReader.decodeKey(StorageService.getPartitioner(), localFile.desc, ByteBufferUtil.readWithShortLength(in));
                     long dataSize = SSTableReader.readRowSize(in, localFile.desc);
-                    ColumnFamily cf = null;
-                    if (cfs.metadata.getDefaultValidator().isCommutative())
+
+                    ColumnFamily cached = cfs.getRawCachedRow(key);
+                    if (cached != null && remoteFile.type == OperationType.AES && dataSize <= DatabaseDescriptor.getInMemoryCompactionLimit())
                     {
-                        // take care of counter column family
+                        // need to update row cache
                         if (controller == null)
                             controller = new CompactionController(cfs, Collections.<SSTableReader>emptyList(), Integer.MAX_VALUE, true);
                         SSTableIdentityIterator iter = new SSTableIdentityIterator(cfs.metadata, in, key, 0, dataSize, true);
-                        AbstractCompactedRow row = controller.getCompactedRow(iter);
+                        PrecompactedRow row = new PrecompactedRow(controller, Collections.singletonList(iter));
                         writer.append(row);
                         // row append does not update the max timestamp on its own
                         writer.updateMaxTimestamp(row.maxTimestamp());
 
-                        if (row instanceof PrecompactedRow)
-                        {
-                            // we do not purge so we should not get a null here
-                            cf = ((PrecompactedRow)row).getFullColumnFamily();
-                        }
+                        // update cache
+                        ColumnFamily cf = row.getFullColumnFamily();
+                        cfs.updateRowCache(key, cf);
                     }
                     else
                     {
-                        // skip BloomFilter
-                        IndexHelper.skipBloomFilter(in);
-                        // skip Index
-                        IndexHelper.skipIndex(in);
-
-                        // restore ColumnFamily
-                        cf = ColumnFamily.create(cfs.metadata);
-                        ColumnFamily.serializer().deserializeFromSSTableNoColumns(cf, in);
-                        ColumnFamily.serializer().deserializeColumns(in, cf, true);
-
-                        // write key and cf
-                        writer.append(key, cf);
-                    }
-
-                    // update cache
-                    ColumnFamily cached = cfs.getRawCachedRow(key);
-                    if (cached != null)
-                    {
-                        switch (remoteFile.type)
-                        {
-                            case AES:
-                                if (dataSize > DatabaseDescriptor.getInMemoryCompactionLimit())
-                                {
-                                    // We have a key in cache for a very big row, that is fishy. We don't fail here however because that would prevent the sstable
-                                    // from being build (and there is no real point anyway), so we just invalidate the row for correction and log a warning.
-                                    logger.warn("Found a cached row over the in memory compaction limit during post-streaming rebuilt; it is highly recommended to avoid huge row on column family with row cache enabled.");
-                                    cfs.invalidateCachedRow(key);
-                                }
-                                else
-                                {
-                                    assert cf != null;
-                                    cfs.updateRowCache(key, cf);
-                                }
-                                break;
-                            default:
-                                cfs.invalidateCachedRow(key);
-                                break;
-                        }
+                        writer.appendFromStream(key, cfs.metadata, dataSize, in);
+                        cfs.invalidateCachedRow(key);
                     }
 
                     bytesRead += in.getBytesRead();

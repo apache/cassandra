@@ -21,7 +21,6 @@ package org.apache.cassandra.db;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
-import java.util.Map;
 
 import org.apache.log4j.Logger;
 
@@ -70,7 +69,9 @@ public class CounterColumn extends Column
 
     public static CounterColumn create(ByteBuffer name, ByteBuffer value, long timestamp, long timestampOfLastDelete, boolean fromRemote)
     {
-        if (fromRemote)
+        // #elt being negative means we have to clean delta
+        short count = value.getShort(value.position());
+        if (fromRemote || count < 0)
             value = CounterContext.instance().clearAllDelta(value);
         return new CounterColumn(name, value, timestamp, timestampOfLastDelete);
     }
@@ -285,4 +286,8 @@ public class CounterColumn extends Column
         }
     }
 
+    public IColumn markDeltaToBeCleared()
+    {
+        return new CounterColumn(name, contextManager.markDeltaToBeCleared(value), timestamp, timestampOfLastDelete);
+    }
 }

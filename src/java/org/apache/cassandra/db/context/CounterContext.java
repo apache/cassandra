@@ -130,7 +130,7 @@ public class CounterContext implements IContext
 
     private static int headerLength(ByteBuffer context)
     {
-        return HEADER_SIZE_LENGTH + context.getShort(context.position()) * HEADER_ELT_LENGTH;
+        return HEADER_SIZE_LENGTH + Math.abs(context.getShort(context.position())) * HEADER_ELT_LENGTH;
     }
 
     private static int compareId(ByteBuffer bb1, int pos1, ByteBuffer bb2, int pos2)
@@ -439,6 +439,28 @@ public class CounterContext implements IContext
         }
 
         return total;
+    }
+
+    /**
+     * Mark context to delete delta afterward.
+     * Marking is done by multiply #elt by -1 to preserve header length
+     * and #elt count in order to clear all delta later.
+     *
+     * @param context a counter context
+     * @return context that marked to delete delta
+     */
+    public ByteBuffer markDeltaToBeCleared(ByteBuffer context)
+    {
+        int headerLength = headerLength(context);
+        if (headerLength == 0)
+            return context;
+
+        ByteBuffer marked = context.duplicate();
+        short count = context.getShort(context.position());
+        // negate #elt to mark as deleted, without changing its size.
+        if (count > 0)
+            marked.putShort(marked.position(), (short) (count * -1));
+        return marked;
     }
 
     /**

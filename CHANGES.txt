@@ -12,7 +12,7 @@
  * don't bother persisting columns shadowed by a row tombstone (CASSANDRA-2589)
  * reset CF and SC deletion times after gc_grace (CASSANDRA-2317)
  * optimize away seek when compacting wide rows (CASSANDRA-2879)
- * single-pass streaming (CASSANDRA-2677)
+ * single-pass streaming (CASSANDRA-2677, 3003)
  * use reference counting for deleting sstables instead of relying on GC
    (CASSANDRA-2521)
  * store hints as serialized mutations instead of pointers to data row
