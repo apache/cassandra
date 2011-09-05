@@ -1,9 +1,17 @@
 0.8.5
 =====
 
+Features
+--------
+    - SSTables copied to a data directory can be loaded by a live node through
+      nodetool refresh (may be handy to load snapshots).
+    - The configured compaction throughput is exposed through JMX.
+
 Other
 -----
-    - The sstableloader is now bundled with the debian package
+    - The sstableloader is now bundled with the debian package.
+    - Repair detects when a participating node is dead and fails instead of
+      hanging forever.
 
 
 0.8.4

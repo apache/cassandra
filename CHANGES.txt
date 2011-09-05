@@ -53,6 +53,10 @@
  * bundle sstableloader with the debian package (CASSANDRA-3113)
  * don't try to build secondary indexes when there is none (CASSANDRA-3123)
  * improve SSTableSimpleUnsortedWriter speed for large rows (CASSANDRA-3122)
+ * handle keyspace arguments correctly in nodetool snapshot (CASSANDRA-3038)
+ * Fix SSTableImportTest on windows (CASSANDRA-3043)
+ * expose compactionThroughputMbPerSec through JMX (CASSANDRA-3117)
+ * log keyspace and CF of large rows being compacted
 
 
 0.8.4
