@@ -82,7 +82,7 @@ public class SSTableWriterTest extends CleanupHelper {
         assert sstr != null;
         ColumnFamilyStore cfs = Table.open("Keyspace1").getColumnFamilyStore("Indexed1");
         cfs.addSSTable(sstr);
-        cfs.buildSecondaryIndexes(cfs.getSSTables(), cfs.getIndexedColumns());
+        cfs.maybeBuildSecondaryIndexes(cfs.getSSTables(), cfs.getIndexedColumns());
         
         IndexExpression expr = new IndexExpression(ByteBufferUtil.bytes("birthdate"), IndexOperator.EQ, ByteBufferUtil.bytes(1L));
         IndexClause clause = new IndexClause(Arrays.asList(expr), ByteBufferUtil.EMPTY_BYTE_BUFFER, 100);
