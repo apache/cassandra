@@ -24,7 +24,7 @@ package org.apache.cassandra.db.marshal;
 import java.nio.ByteBuffer;
 import java.util.UUID;
 
-import org.apache.cassandra.cql.jdbc.LexicalUUIDTerm;
+import org.apache.cassandra.cql.jdbc.JdbcLexicalUUID;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.UUIDGen;
 
@@ -36,7 +36,7 @@ public class LexicalUUIDType extends AbstractType<UUID>
 
     public UUID compose(ByteBuffer bytes)
     {
-        return LexicalUUIDTerm.instance.compose(bytes);
+        return JdbcLexicalUUID.instance.compose(bytes);
     }
 
     public ByteBuffer decompose(UUID value)
@@ -62,7 +62,7 @@ public class LexicalUUIDType extends AbstractType<UUID>
     {
         try
         {
-            return LexicalUUIDTerm.instance.getString(bytes);
+            return JdbcLexicalUUID.instance.getString(bytes);
         }
         catch (org.apache.cassandra.cql.jdbc.MarshalException e)
         {

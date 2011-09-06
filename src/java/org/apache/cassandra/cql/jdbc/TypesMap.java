@@ -17,7 +17,7 @@ public class TypesMap
         map.put("org.apache.cassandra.db.marshal.DoubleType", JdbcDouble.instance);
         map.put("org.apache.cassandra.db.marshal.FloatType", JdbcFloat.instance);
         map.put("org.apache.cassandra.db.marshal.IntegerType", JdbcInteger.instance);
-        map.put("org.apache.cassandra.db.marshal.LexicalUUIDType", LexicalUUIDTerm.instance);
+        map.put("org.apache.cassandra.db.marshal.LexicalUUIDType", JdbcLexicalUUID.instance);
         map.put("org.apache.cassandra.db.marshal.LongType", LongTerm.instance);
         map.put("org.apache.cassandra.db.marshal.TimeUUIDType", JdbcTimeUUID.instance);
         map.put("org.apache.cassandra.db.marshal.UTF8Type", JdbcUTF8.instance);

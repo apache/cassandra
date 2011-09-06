@@ -26,11 +26,11 @@ import java.util.UUID;
 
 import org.apache.cassandra.utils.UUIDGen;
 
-public class LexicalUUIDTerm extends JdbcLong
+public class JdbcLexicalUUID extends JdbcLong
 {
-    public static final LexicalUUIDTerm instance = new LexicalUUIDTerm();
+    public static final JdbcLexicalUUID instance = new JdbcLexicalUUID();
     
-    public LexicalUUIDTerm() {}
+    public JdbcLexicalUUID() {}
     
     public String getString(ByteBuffer bytes)
     {
@@ -49,5 +49,4 @@ public class LexicalUUIDTerm extends JdbcLong
     {
         return UUIDGen.getUUID(bytes);
     }
-
 }

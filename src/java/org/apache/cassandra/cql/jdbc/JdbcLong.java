@@ -21,30 +21,29 @@ package org.apache.cassandra.cql.jdbc;
  */
 
 
-import java.nio.ByteBuffer;
 import java.sql.Types;
+import java.util.UUID;
 
-import org.apache.cassandra.utils.ByteBufferUtil;
-
-public class LongTerm extends AbstractJdbcType<Long>
+public abstract class JdbcLong extends AbstractJdbcType<UUID>
 {
-    public static final LongTerm instance = new LongTerm();
-    
-    LongTerm() {}
+    public String toString(UUID obj)
+    {
+        return obj.toString();
+    }
     
     public boolean isCaseSensitive()
     {
         return false;
     }
 
-    public int getScale(Long obj)
+    public int getScale(UUID obj)
     {
-        return 0;
+        return -1;
     }
 
-    public int getPrecision(Long obj)
+    public int getPrecision(UUID obj)
     {
-        return obj.toString().length();
+        return -1;
     }
 
     public boolean isCurrency()
@@ -54,12 +53,7 @@ public class LongTerm extends AbstractJdbcType<Long>
 
     public boolean isSigned()
     {
-        return true;
-    }
-
-    public String toString(Long obj)
-    {
-        return obj.toString();
+        return false;
     }
 
     public boolean needsQuotes()
@@ -67,32 +61,13 @@ public class LongTerm extends AbstractJdbcType<Long>
         return false;
     }
 
-    public String getString(ByteBuffer bytes)
+    public Class<UUID> getType()
     {
-        if (bytes.remaining() == 0)
-        {
-            return "";
-        }
-        if (bytes.remaining() != 8)
-        {
-            throw new MarshalException("A long is exactly 8 bytes: "+bytes.remaining());
-        }
-        
-        return String.valueOf(bytes.getLong(bytes.position()));
-    }
-
-    public Class<Long> getType()
-    {
-        return Long.class;
+        return UUID.class;
     }
 
     public int getJdbcType()
     {
-        return Types.INTEGER;
-    }
-
-    public Long compose(ByteBuffer bytes)
-    {
-        return ByteBufferUtil.toLong(bytes);
+        return Types.OTHER;
     }
 }
