@@ -51,8 +51,8 @@ public class CompressedSequentialWriter extends SequentialWriter
 
     public CompressedSequentialWriter(File file, String indexFilePath, boolean skipIOCache, CompressionParameters parameters) throws IOException
     {
-        super(file, parameters.chunkLength, skipIOCache);
-        this.compressor = parameters.compressor;
+        super(file, parameters.chunkLength(), skipIOCache);
+        this.compressor = parameters.sstableCompressor;
 
         // buffer for compression should be the same size as buffer itself
         compressed = new ICompressor.WrappedArray(new byte[compressor.initialCompressedBufferLength(buffer.length)]);

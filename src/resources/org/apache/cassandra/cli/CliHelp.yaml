@@ -569,11 +569,14 @@ commands:
         It is also valid to specify the fully-qualified class name to a class
         that implements org.apache.cassandra.io.ICompressor.
 
-        - compression_options: Optional additional options for compression.
-          Options have the form [{key:value}], and may depends on the
-          compression algorithm used. One generic option is chunk_length_kb
-          that allows to specify the size of the chunk used by compression
-          (default to 64, must be a power of 2).
+        - compression_options: Options related to compression.
+          Options have the form [{key:value}]. The main recognized option are:
+          - sstable_compression: the algorithm to use to compress sstables for
+          this column family. If none is provided, compression will not be
+          enabled. Supported values are SnappyCompressor, DeflateCompressor or
+          any custom compressor.
+          - chunk_length_kb: specify the size of the chunk used by sstable
+          compression (default to 64, must be a power of 2).
 
         Examples:
         create column family Super4

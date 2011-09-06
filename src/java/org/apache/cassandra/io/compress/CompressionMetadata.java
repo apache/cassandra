@@ -54,7 +54,7 @@ public class CompressionMetadata
         int chunkLength = stream.readInt();
         try
         {
-            parameters = new CompressionParameters(compressorName, options, chunkLength);
+            parameters = new CompressionParameters(compressorName, chunkLength, options);
         }
         catch (ConfigurationException e)
         {
@@ -70,12 +70,12 @@ public class CompressionMetadata
 
     public ICompressor compressor()
     {
-        return parameters.compressor;
+        return parameters.sstableCompressor;
     }
 
     public int chunkLength()
     {
-        return parameters.chunkLength;
+        return parameters.chunkLength();
     }
 
     /**
@@ -120,7 +120,7 @@ public class CompressionMetadata
     public Chunk chunkFor(long position) throws IOException
     {
         // position of the chunk
-        int idx = (int) (position / parameters.chunkLength);
+        int idx = (int) (position / parameters.chunkLength());
 
         if (idx >= chunkOffsets.length)
             throw new EOFException();
@@ -146,16 +146,16 @@ public class CompressionMetadata
         public void writeHeader(CompressionParameters parameters) throws IOException
         {
             // algorithm
-            writeUTF(parameters.compressorClass.getSimpleName());
-            writeInt(parameters.compressionOptions.size());
-            for (Map.Entry<String, String> entry : parameters.compressionOptions.entrySet())
+            writeUTF(parameters.sstableCompressor.getClass().getSimpleName());
+            writeInt(parameters.otherOptions.size());
+            for (Map.Entry<String, String> entry : parameters.otherOptions.entrySet())
             {
                 writeUTF(entry.getKey());
                 writeUTF(entry.getValue());
             }
 
             // store the length of the chunk
-            writeInt(parameters.chunkLength);
+            writeInt(parameters.chunkLength());
             // store position and reserve a place for uncompressed data length and chunks count
             dataLengthOffset = getFilePointer();
             writeLong(-1);

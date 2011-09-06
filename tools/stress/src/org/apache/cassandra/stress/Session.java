@@ -447,10 +447,13 @@ public class Session implements Serializable
 
         // column family for standard columns
         CfDef standardCfDef = new CfDef("Keyspace1", "Standard1");
+        Map<String, String> compressionOptions = new HashMap<String, String>();
+        if (compression != null)
+            compressionOptions.put("sstable_compression", compression);
 
         standardCfDef.setComparator_type(DEFAULT_COMPARATOR)
                      .setDefault_validation_class(DEFAULT_VALIDATOR)
-                     .setCompression(compression);
+                     .setCompression_options(compressionOptions);
 
         if (indexType != null)
         {
@@ -464,13 +467,13 @@ public class Session implements Serializable
         superCfDef.setComparator_type(DEFAULT_COMPARATOR)
                   .setSubcomparator_type(DEFAULT_COMPARATOR)
                   .setDefault_validation_class(DEFAULT_VALIDATOR)
-                  .setCompression(compression);
+                  .setCompression_options(compressionOptions);
 
         // column family for standard counters
-        CfDef counterCfDef = new CfDef("Keyspace1", "Counter1").setDefault_validation_class("CounterColumnType").setReplicate_on_write(replicateOnWrite).setCompression(compression);
+        CfDef counterCfDef = new CfDef("Keyspace1", "Counter1").setDefault_validation_class("CounterColumnType").setReplicate_on_write(replicateOnWrite).setCompression_options(compressionOptions);
 
         // column family with counter super columns
-        CfDef counterSuperCfDef = new CfDef("Keyspace1", "SuperCounter1").setDefault_validation_class("CounterColumnType").setReplicate_on_write(replicateOnWrite).setColumn_type("Super").setCompression(compression);
+        CfDef counterSuperCfDef = new CfDef("Keyspace1", "SuperCounter1").setDefault_validation_class("CounterColumnType").setReplicate_on_write(replicateOnWrite).setColumn_type("Super").setCompression_options(compressionOptions);
 
         keyspace.setName("Keyspace1");
         keyspace.setStrategy_class(replicationStrategy);

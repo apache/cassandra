@@ -137,7 +137,6 @@ public class CliClient
         KEY_VALIDATION_CLASS,
         COMPACTION_STRATEGY,
         COMPACTION_STRATEGY_OPTIONS,
-        COMPRESSION,
         COMPRESSION_OPTIONS,
     }
 
@@ -1255,9 +1254,6 @@ public class CliClient
             case COMPACTION_STRATEGY_OPTIONS:
                 cfDef.setCompaction_strategy_options(getStrategyOptionsFromTree(statement.getChild(i+1)));
                 break;
-            case COMPRESSION:
-                cfDef.setCompression(mValue.toLowerCase().equals("null") ? null : CliUtils.unescapeSQLString(mValue));
-                break;
             case COMPRESSION_OPTIONS:
                 cfDef.setCompression_options(getStrategyOptionsFromTree(statement.getChild(i+1)));
                 break;
@@ -1936,7 +1932,6 @@ public class CliClient
         sessionState.out.printf("      Compaction min/max thresholds: %s/%s%n", cf_def.min_compaction_threshold, cf_def.max_compaction_threshold);
         sessionState.out.printf("      Read repair chance: %s%n", cf_def.read_repair_chance);
         sessionState.out.printf("      Replicate on write: %s%n", cf_def.replicate_on_write);
-        sessionState.out.printf("      Compression: %s%n", cf_def.compression);
 
         // if we have connection to the cfMBean established
         if (cfMBean != null)
@@ -1985,6 +1980,13 @@ public class CliClient
         {
             sessionState.out.println("      Compaction Strategy Options:");
             for (Map.Entry<String, String> e : cf_def.compaction_strategy_options.entrySet())
+                sessionState.out.printf("        %s: %s%n", e.getKey(), e.getValue());
+        }
+
+        if (cf_def.compression_options != null && !cf_def.compression_options.isEmpty())
+        {
+            sessionState.out.println("      Compression Options:");
+            for (Map.Entry<String, String> e : cf_def.compression_options.entrySet())
                 sessionState.out.printf("        %s: %s%n", e.getKey(), e.getValue());
         }
     }

@@ -72,7 +72,6 @@ protocol InterNode {
         union { null, bytes } key_alias = null;
         union { null, string } compaction_strategy = null;
         union { null, map<string> } compaction_strategy_options = null;
-        union { null, string } compression = null;
         union { null, map<string> } compression_options = null;
     }
 

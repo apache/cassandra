@@ -25,7 +25,7 @@
    (CASSANDRA-2953)
  * add paging to get_count (CASSANDRA-2894)
  * fix "short reads" in [multi]get (CASSANDRA-2643)
- * add optional compression for sstables (CASSANDRA-47)
+ * add optional compression for sstables (CASSANDRA-47, 3001, 3128)
  * add scheduler JMX metrics (CASSANDRA-2962)
  * add block level checksum for compressed data (CASSANDRA-1717)
  * make column family backed column map pluggable and introduce unsynchronized
@@ -53,7 +53,6 @@
  * remove compaction_thread_priority setting (CASSANDRA-3104)
  * generate hints for replicas that timeout, not just replicas that are known
    to be down before starting (CASSANDRA-2034)
- * Make the compression algorithm and chunk length configurable (CASSANDRA-3001)
  * Add throttling for internode streaming (CASSANDRA-3080)
  * make the repair of a range repair all replica (CASSANDRA-2610)
  * expose the ability to repair the first range (as returned by the

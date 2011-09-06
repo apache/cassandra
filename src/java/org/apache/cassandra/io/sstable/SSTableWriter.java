@@ -64,7 +64,7 @@ public class SSTableWriter extends SSTable
     private static Set<Component> components(CFMetaData metadata)
     {
         Set<Component> components = new HashSet<Component>(Arrays.asList(Component.DATA, Component.FILTER, Component.PRIMARY_INDEX, Component.STATS));
-        if (metadata.compressionParameters().compressor != null)
+        if (metadata.compressionParameters().sstableCompressor != null)
             components.add(Component.COMPRESSION_INFO);
         return components;
     }

@@ -24,6 +24,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.apache.avro.util.Utf8;
 import org.apache.commons.lang.builder.EqualsBuilder;
 import org.apache.commons.lang.builder.HashCodeBuilder;
 
@@ -32,44 +33,54 @@ import org.apache.cassandra.config.ConfigurationException;
 public class CompressionParameters
 {
     public final static int DEFAULT_CHUNK_LENGTH = 65536;
-    public static final String CHUNK_LENGTH_PARAMETER = "chunk_length_kb";
 
-    public final Class<? extends ICompressor> compressorClass;
-    public final Map<String, String> compressionOptions;
+    public static final String SSTABLE_COMPRESSION = "sstable_compression";
+    public static final String CHUNK_LENGTH = "chunk_length_kb";
 
-    public final transient ICompressor compressor;
-    public final transient int chunkLength;
+    public final ICompressor sstableCompressor;
+    private final Integer chunkLength;
+    public final Map<String, String> otherOptions; // Unrecognized options, can be use by the compressor
 
-    public CompressionParameters(CharSequence compressorClassName, Map<? extends CharSequence, ? extends CharSequence> options) throws ConfigurationException
+    public static CompressionParameters create(Map<? extends CharSequence, ? extends CharSequence> opts) throws ConfigurationException
     {
-        this(compressorClassName, copyOptions(options), -1);
+        Map<String, String> options = copyOptions(opts);
+        String sstableCompressionClass = options.get(SSTABLE_COMPRESSION);
+        String chunkLength = options.get(CHUNK_LENGTH);
+        options.remove(SSTABLE_COMPRESSION);
+        options.remove(CHUNK_LENGTH);
+        CompressionParameters cp = new CompressionParameters(sstableCompressionClass, parseChunkLength(chunkLength), options);
+        cp.validateChunkLength();
+        return cp;
     }
 
-    public CompressionParameters(CharSequence compressorClassName, Map<String, String> options, int chunkLength) throws ConfigurationException
+    public CompressionParameters(String sstableCompressorClass, Integer chunkLength, Map<String, String> otherOptions) throws ConfigurationException
     {
-        this(createCompressor(parseCompressorClass(compressorClassName), options), options, chunkLength < 0 ? getChunkLength(options) : chunkLength);
-        validateChunkLength();
+        this(createCompressor(parseCompressorClass(sstableCompressorClass), otherOptions), chunkLength, otherOptions);
     }
 
-    public CompressionParameters(ICompressor compressor)
+    public CompressionParameters(ICompressor sstableCompressor)
     {
-        this(compressor, null, DEFAULT_CHUNK_LENGTH);
+        this(sstableCompressor, null, Collections.<String, String>emptyMap());
     }
 
-    public CompressionParameters(ICompressor compressor, Map<String, String> compressionOptions, int chunkLength)
+    public CompressionParameters(ICompressor sstableCompressor, Integer chunkLength, Map<String, String> otherOptions)
     {
-        this.compressorClass = compressor == null ? null : compressor.getClass();
-        this.compressionOptions = compressor == null ? null : (compressionOptions == null ? Collections.<String, String>emptyMap() : compressionOptions);
+        this.sstableCompressor = sstableCompressor;
         this.chunkLength = chunkLength;
-        this.compressor = compressor;
+        this.otherOptions = otherOptions;
     }
 
-    private static Class<? extends ICompressor> parseCompressorClass(CharSequence cc) throws ConfigurationException
+    public int chunkLength()
     {
-        if (cc == null)
+        return chunkLength == null ? DEFAULT_CHUNK_LENGTH : chunkLength;
+    }
+
+
+    private static Class<? extends ICompressor> parseCompressorClass(String className) throws ConfigurationException
+    {
+        if (className == null)
             return null;
 
-        String className = cc.toString();
         className = className.contains(".") ? className : "org.apache.cassandra.io.compress." + className;
         try
         {
@@ -77,7 +88,7 @@ public class CompressionParameters
         }
         catch (Exception e)
         {
-            throw new ConfigurationException("Could not create Compression for type " + cc.toString(), e);
+            throw new ConfigurationException("Could not create Compression for type " + className, e);
         }
     }
 
@@ -126,21 +137,19 @@ public class CompressionParameters
         return compressionOptions;
     }
 
-    private static int getChunkLength(Map<String, String> options) throws ConfigurationException
+    private static Integer parseChunkLength(String chLength) throws ConfigurationException
     {
-        int chunkLength = DEFAULT_CHUNK_LENGTH;
-        if (options != null && options.containsKey(CHUNK_LENGTH_PARAMETER))
+        if (chLength == null)
+            return null;
+
+        try
         {
-            try
-            {
-                chunkLength = Integer.parseInt(options.get(CHUNK_LENGTH_PARAMETER));
-            }
-            catch (NumberFormatException e)
-            {
-                throw new ConfigurationException("Invalid value for " + CHUNK_LENGTH_PARAMETER, e);
-            }
+            return Integer.parseInt(chLength);
         }
-        return chunkLength;
+        catch (NumberFormatException e)
+        {
+            throw new ConfigurationException("Invalid value for " + CHUNK_LENGTH, e);
+        }
     }
 
     // chunkLength must be a power of 2 because we assume so when
@@ -148,8 +157,11 @@ public class CompressionParameters
     // CompressedRandomAccessReader.decompresseChunk())
     private void validateChunkLength() throws ConfigurationException
     {
+        if (chunkLength == null)
+            return; // chunk length not set, this is fine, default will be used
+
         if (chunkLength <= 0)
-            throw new ConfigurationException("Invalid negative or null " + CHUNK_LENGTH_PARAMETER);
+            throw new ConfigurationException("Invalid negative or null " + CHUNK_LENGTH);
 
         int c = chunkLength;
         boolean found = false;
@@ -158,12 +170,39 @@ public class CompressionParameters
             if ((c & 0x01) != 0)
             {
                 if (found)
-                    throw new ConfigurationException(CHUNK_LENGTH_PARAMETER + " must be a power of 2");
+                    throw new ConfigurationException(CHUNK_LENGTH + " must be a power of 2");
                 else
                     found = true;
             }
             c >>= 1;
         }
+    }
+
+    public Map<CharSequence, CharSequence> asAvroOptions()
+    {
+        Map<CharSequence, CharSequence> options = new HashMap<CharSequence, CharSequence>();
+        for (Map.Entry<String, String> entry : otherOptions.entrySet())
+            options.put(new Utf8(entry.getKey()), new Utf8(entry.getValue()));
+
+        if (sstableCompressor == null)
+            return options;
+
+        options.put(new Utf8(SSTABLE_COMPRESSION), new Utf8(sstableCompressor.getClass().getName()));
+        if (chunkLength != null)
+            options.put(new Utf8(CHUNK_LENGTH), new Utf8(chunkLength.toString()));
+        return options;
+    }
+
+    public Map<String, String> asThriftOptions()
+    {
+        Map<String, String> options = new HashMap<String, String>(otherOptions);
+        if (sstableCompressor == null)
+            return options;
+
+        options.put(SSTABLE_COMPRESSION, sstableCompressor.getClass().getName());
+        if (chunkLength != null)
+            options.put(CHUNK_LENGTH, chunkLength.toString());
+        return options;
     }
 
     @Override
@@ -180,8 +219,9 @@ public class CompressionParameters
 
         CompressionParameters cp = (CompressionParameters) obj;
         return new EqualsBuilder()
-            .append(compressorClass, cp.compressorClass)
-            .append(compressionOptions, cp.compressionOptions)
+            .append(sstableCompressor, cp.sstableCompressor)
+            .append(chunkLength, cp.chunkLength)
+            .append(otherOptions, cp.otherOptions)
             .isEquals();
     }
 
@@ -189,8 +229,9 @@ public class CompressionParameters
     public int hashCode()
     {
         return new HashCodeBuilder(29, 1597)
-            .append(compressorClass)
-            .append(compressionOptions)
+            .append(sstableCompressor)
+            .append(chunkLength)
+            .append(otherOptions)
             .toHashCode();
     }
 }

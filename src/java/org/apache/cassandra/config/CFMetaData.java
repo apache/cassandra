@@ -345,16 +345,7 @@ public final class CFMetaData
             for (Map.Entry<String, String> e : compactionStrategyOptions.entrySet())
                 cf.compaction_strategy_options.put(new Utf8(e.getKey()), new Utf8(e.getValue()));
         }
-        if (compressionParameters.compressorClass != null)
-        {
-            cf.compression = new Utf8(compressionParameters.compressorClass.getName());
-            if (compressionParameters.compressionOptions != null)
-            {
-                cf.compression_options = new HashMap<CharSequence, CharSequence>();
-                for (Map.Entry<String, String> e : compressionParameters.compressionOptions.entrySet())
-                    cf.compression_options.put(new Utf8(e.getKey()), new Utf8(e.getValue()));
-            }
-        }
+        cf.compression_options = compressionParameters.asAvroOptions();
         return cf;
     }
 
@@ -437,7 +428,7 @@ public final class CFMetaData
         CompressionParameters cp;
         try
         {
-            cp = new CompressionParameters(cf.compression, cf.compression_options);
+            cp = CompressionParameters.create(cf.compression_options);
         }
         catch (ConfigurationException e)
         {
@@ -714,7 +705,7 @@ public final class CFMetaData
         if (cf_def.isSetCompaction_strategy_options())
             newCFMD.compactionStrategyOptions(new HashMap<String, String>(cf_def.compaction_strategy_options));
 
-        CompressionParameters cp = new CompressionParameters(cf_def.compression, cf_def.compression_options);
+        CompressionParameters cp = CompressionParameters.create(cf_def.compression_options);
 
         return newCFMD.comment(cf_def.comment)
                       .rowCacheSize(cf_def.row_cache_size)
@@ -830,7 +821,7 @@ public final class CFMetaData
                 compactionStrategyOptions.put(e.getKey().toString(), e.getValue().toString());
         }
 
-        compressionParameters = new CompressionParameters(cf_def.compression, cf_def.compression_options);
+        compressionParameters = CompressionParameters.create(cf_def.compression_options);
 
         logger.debug("application result is {}", this);
     }
@@ -922,11 +913,7 @@ public final class CFMetaData
         def.setColumn_metadata(column_meta);
         def.setCompaction_strategy(compactionStrategyClass.getName());
         def.setCompaction_strategy_options(new HashMap<String, String>(compactionStrategyOptions));
-        if (compressionParameters.compressorClass != null)
-        {
-            def.setCompression(compressionParameters.compressorClass.getName());
-            def.setCompression_options(compressionParameters.compressionOptions);
-        }
+        def.setCompression_options(compressionParameters.asThriftOptions());
         return def;
     }
 
@@ -1051,8 +1038,7 @@ public final class CFMetaData
             .append("column_metadata", column_metadata)
             .append("compactionStrategyClass", compactionStrategyClass)
             .append("compactionStrategyOptions", compactionStrategyOptions)
-            .append("compressorClass", compressionParameters.compressorClass)
-            .append("compressionOptions", compressionParameters.compressionOptions)
+            .append("compressionOptions", compressionParameters.asThriftOptions())
             .toString();
     }
 }

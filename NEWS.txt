@@ -11,14 +11,13 @@ Upgrading
 
 Features
 --------
-    - "cassandra.bat install" will install Cassandra as a Windows Service
-    - SSTable compression can be enabled by setting "compressionParameters"
-      attribute on CFMetaData (set "compressionParameters" to null to disable compression).
-      SnappyCompressor and DeflateCompressor are currently
-      available as "compression class" and "chunk_length_kb" as compression
-      option. Stress tool supports -I option to provide compressor and
-      CLI `{create/update} column family` commands support "compression"
-      and "compression_options" parameters.
+    - SSTable compression is supported through the 'compression_options'
+      parameter when creating/updating a column family. For instance, you can
+      create a column family Cf using compression (using the Snappy library)
+      in the CLI with:
+        create column family Cf with compression_options={sstable_compression: SnappyCompressor}
+      SSTable compression is not activated by default but can be activated or
+      deactivated at any time.
     - Compressed SSTable blocks are checksummed to protect against bitrot
     - New LevelDB-inspired compaction algorithm can be enabled by setting the 
       Columnfamily compaction_strategy=LeveledCompactionStrategy option.  
@@ -34,6 +33,10 @@ Features
     - A dead node may be replaced in a single step by starting a new node
       with -Dcassandra.replace_token=<token>.  More details can be found at
       http://wiki.apache.org/cassandra/Operations#Replacing_a_Dead_Node
+    - It is now possible to repair only the first range returned by the
+      partitioner for a node with `nodetool repair -pr`. It makes it
+      easier/possible to repair a full cluster without any work duplication by
+      running this command on every node of the cluster.
 
 Other
 -----
@@ -41,10 +44,6 @@ Other
       when HH is enabled, repair only needs to be run if a node crashes.
     - Because of this, read repair is disabled now by default on newly
       created ColumnFamilies.
-    - It is now possible to repair only the first range returned by the
-      partitioner for a node with `nodetool repair -pr`. It makes it
-      easier/possible to repair a full cluster without any work duplication by
-      running this command on every node of the cluster.
 
 
 0.8.5
