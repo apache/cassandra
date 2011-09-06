@@ -97,11 +97,6 @@ public class ReversedType<T> extends AbstractType<T>
         return baseType.decompose(value);
     }
 
-    public String toString(T t)
-    {
-        return baseType.toString(t);
-    }
-
     @Override
     public String toString()
     {

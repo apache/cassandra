@@ -69,11 +69,6 @@ public class DoubleType extends AbstractType<Double>
         }
     }
 
-    public String toString(Double d)
-    {
-        return DoubleTerm.instance.toString(d);
-    }
-
     public ByteBuffer fromString(String source) throws MarshalException
     {
       // Return an empty ByteBuffer for an empty string.

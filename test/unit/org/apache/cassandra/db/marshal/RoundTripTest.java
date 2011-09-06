@@ -22,6 +22,8 @@ package org.apache.cassandra.db.marshal;
 
 
 import com.google.common.base.Charsets;
+
+import org.apache.cassandra.cql.term.*;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 import org.junit.Test;
@@ -43,7 +45,7 @@ public class RoundTripTest
         assert IntegerType.instance.fromString(IntegerType.instance.getString(ByteBuffer.wrap(bi.toByteArray())))
                 .equals(ByteBuffer.wrap(bi.toByteArray()));
         assert IntegerType.instance.compose(ByteBuffer.wrap(bi.toByteArray())).equals(bi);
-        assert IntegerType.instance.toString(bi).equals("1");
+        assert IntegerTerm.instance.toString(bi).equals("1");
     }
     
     @Test
@@ -54,7 +56,7 @@ public class RoundTripTest
         assert LongType.instance.fromString(LongType.instance.getString(ByteBuffer.wrap(v)))
                 .equals(ByteBuffer.wrap(v));
         assert LongType.instance.compose(ByteBuffer.wrap(v)) == 1L;
-        assert LongType.instance.toString(1L).equals("1");
+        assert LongTerm.instance.toString(1L).equals("1");
     }
     
     @Test
@@ -65,31 +67,31 @@ public class RoundTripTest
         assert AsciiType.instance.fromString(AsciiType.instance.getString(ByteBuffer.wrap(abc)))
                 .equals(ByteBuffer.wrap(abc));
         assert AsciiType.instance.compose(ByteBuffer.wrap(abc)).equals("abc");
-        assert AsciiType.instance.toString("abc").equals("abc");
+        assert AsciiTerm.instance.toString("abc").equals("abc");
     }
     
     @Test
     public void testBytes()
     {
         byte[] v = new byte[] {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
-        assert BytesType.instance.toString(BytesType.instance.fromString(FBUtilities.bytesToHex(v)))
+        assert BytesTerm.instance.toString(BytesType.instance.fromString(FBUtilities.bytesToHex(v)))
                 .equals(FBUtilities.bytesToHex(v));
-        assert BytesType.instance.fromString(BytesType.instance.toString(ByteBuffer.wrap(v)))
+        assert BytesType.instance.fromString(BytesTerm.instance.toString(ByteBuffer.wrap(v)))
                 .equals(ByteBuffer.wrap(v));
         assert BytesType.instance.compose(ByteBuffer.wrap(v)).equals(ByteBuffer.wrap(v));
-        assert BytesType.instance.toString(ByteBuffer.wrap(v)).equals(FBUtilities.bytesToHex(v));
+        assert BytesTerm.instance.toString(ByteBuffer.wrap(v)).equals(FBUtilities.bytesToHex(v));
     }
     
     @Test
     public void testLexicalUUID()
     {
         UUID uuid = UUIDGen.makeType1UUIDFromHost(FBUtilities.getBroadcastAddress());
-        assert LexicalUUIDType.instance.getString(LexicalUUIDType.instance.fromString(uuid.toString()))
+        assert LexicalUUIDTerm.instance.getString(LexicalUUIDType.instance.fromString(uuid.toString()))
                 .equals(uuid.toString());
         assert LexicalUUIDType.instance.fromString(LexicalUUIDType.instance.getString(ByteBuffer.wrap(UUIDGen.decompose(uuid))))
                 .equals(ByteBuffer.wrap(UUIDGen.decompose(uuid)));
         assert LexicalUUIDType.instance.compose(ByteBuffer.wrap(UUIDGen.decompose(uuid))).equals(uuid);
-        assert LexicalUUIDType.instance.toString(uuid).equals(uuid.toString());
+        assert LexicalUUIDTerm.instance.toString(uuid).equals(uuid.toString());
     }
     
     @Test
@@ -103,7 +105,7 @@ public class RoundTripTest
         assert TimeUUIDType.instance.compose(ByteBuffer.wrap(UUIDGen.decompose(uuid))).equals(uuid);
         
         assert uuid.equals(TimeUUIDType.instance.compose(TimeUUIDType.instance.fromString(uuid.toString())));
-        assert TimeUUIDType.instance.toString(uuid).equals(uuid.toString());
+        assert TimeUUIDTerm.instance.toString(uuid).equals(uuid.toString());
         
         TimeZone.setDefault(TimeZone.getTimeZone("America/New_York"));
         Calendar c = Calendar.getInstance();
@@ -140,6 +142,6 @@ public class RoundTripTest
         assert UTF8Type.instance.fromString(UTF8Type.instance.getString(ByteBuffer.wrap(v.getBytes(Charsets.UTF_8))))
                 .equals(ByteBuffer.wrap(v.getBytes(Charsets.UTF_8)));
         assert UTF8Type.instance.compose(ByteBuffer.wrap(v.getBytes(Charsets.UTF_8))).equals(v);
-        assert UTF8Type.instance.toString(v).equals(v);
+        assert UTF8Term.instance.toString(v).equals(v);
     }
 }

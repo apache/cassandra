@@ -46,11 +46,6 @@ public class CounterColumnType extends AbstractCommutativeType
         return ByteBufferUtil.bytesToHex(bytes);
     }
 
-    public String toString(Long l)
-    {
-        return l.toString();
-    }
-
     /**
      * create commutative column
      */

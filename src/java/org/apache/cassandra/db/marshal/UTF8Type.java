@@ -60,11 +60,6 @@ public class UTF8Type extends AbstractType<String>
         }
     }
 
-    public String toString(String s)
-    {
-        return UTF8Term.instance.toString(s);
-    }
-
     public ByteBuffer fromString(String source)
     {
         return decompose(source);

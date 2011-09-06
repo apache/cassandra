@@ -78,11 +78,6 @@ public class DateType extends AbstractType<Date>
         }
     }
 
-    public String toString(Date d)
-    {
-        return DateTerm.instance.toString(d);
-    }
-
     public ByteBuffer fromString(String source) throws MarshalException
     {
       // Return an empty ByteBuffer for an empty string.

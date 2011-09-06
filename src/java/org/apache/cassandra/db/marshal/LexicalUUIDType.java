@@ -70,11 +70,6 @@ public class LexicalUUIDType extends AbstractType<UUID>
         }
     }
 
-    public String toString(UUID uuid)
-    {
-        return LexicalUUIDTerm.instance.toString(uuid);
-    }
-
     public ByteBuffer fromString(String source) throws MarshalException
     {
         // Return an empty ByteBuffer for an empty string.

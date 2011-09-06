@@ -64,11 +64,6 @@ public class BytesType extends AbstractType<ByteBuffer>
         return BytesTerm.instance.getString(bytes);
     }
 
-    public String toString(ByteBuffer byteBuffer)
-    {
-        return BytesTerm.instance.toString(byteBuffer);
-    }
-
     public ByteBuffer fromString(String source)
     {
         try

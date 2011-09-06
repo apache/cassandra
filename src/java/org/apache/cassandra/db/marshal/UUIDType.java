@@ -165,11 +165,6 @@ public class UUIDType extends AbstractType<UUID>
         return UUIDTerm.instance.compose(bytes);
     }
 
-    public String toString(UUID uuid)
-    {
-        return UUIDTerm.instance.toString(uuid);
-    }
-
     public void validate(ByteBuffer bytes)
     {
         if ((bytes.remaining() != 0) && (bytes.remaining() != 16))

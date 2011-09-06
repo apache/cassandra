@@ -74,11 +74,6 @@ public class LongType extends AbstractType<Long>
         }
     }
 
-    public String toString(Long l)
-    {
-        return LongTerm.instance.toString(l);
-    }
-
     public ByteBuffer fromString(String source) throws MarshalException
     {
         // Return an empty ByteBuffer for an empty string.

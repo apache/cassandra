@@ -66,11 +66,6 @@ public class BooleanType extends AbstractType<Boolean>
       }
   }
 
-  public String toString(Boolean b)
-  {
-      return BooleanTerm.instance.toString(b);
-  }
-
   public ByteBuffer fromString(String source) throws MarshalException
   {
     

@@ -36,9 +36,4 @@ public abstract class AbstractTerm<T>
     public abstract Class<T> getType();
     public abstract int getJdbcType();
     public abstract T compose(ByteBuffer bytes);
-    
-    public boolean isCommutative()
-    {
-        return false;
-    }
 }

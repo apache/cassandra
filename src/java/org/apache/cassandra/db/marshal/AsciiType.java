@@ -48,11 +48,6 @@ public class AsciiType extends AbstractType<String>
         }
     }
 
-    public String toString(String s)
-    {
-        return AsciiTerm.instance.toString(s);
-    }
-
     public int compare(ByteBuffer o1, ByteBuffer o2)
     {
         return BytesType.bytesCompare(o1, o2);

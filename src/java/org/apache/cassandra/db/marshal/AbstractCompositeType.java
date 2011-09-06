@@ -229,11 +229,6 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
         return value;
     }
 
-    public String toString(ByteBuffer value)
-    {
-        return getString(value);
-    }
-
     abstract protected AbstractType getNextComparator(int i, ByteBuffer bb);
     abstract protected AbstractType getNextComparator(int i, ByteBuffer bb1, ByteBuffer bb2);
     abstract protected AbstractType getAndAppendNextComparator(int i, ByteBuffer bb, StringBuilder sb);

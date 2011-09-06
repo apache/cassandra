@@ -109,11 +109,6 @@ public class TimeUUIDType extends AbstractType<UUID>
         }
     }
 
-    public String toString(UUID uuid)
-    {
-        return TimeUUIDTerm.instance.toString(uuid);
-    }
-
     public ByteBuffer fromString(String source) throws MarshalException
     {
         // Return an empty ByteBuffer for an empty string.

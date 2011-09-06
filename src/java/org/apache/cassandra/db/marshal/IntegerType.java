@@ -130,11 +130,6 @@ public final class IntegerType extends AbstractType<BigInteger>
     {
         return IntegerTerm.instance.getString(bytes);
     }
-    
-    public String toString(BigInteger bi)
-    {
-        return IntegerTerm.instance.toString(bi);
-    }
 
     public ByteBuffer fromString(String source) throws MarshalException
     {

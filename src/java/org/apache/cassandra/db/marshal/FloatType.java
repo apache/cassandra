@@ -70,11 +70,6 @@ public class FloatType extends AbstractType<Float>
         }
     }
 
-    public String toString(Float d)
-    {
-        return FloatTerm.instance.toString(d);
-    }
-
     public ByteBuffer fromString(String source) throws MarshalException
     {
       // Return an empty ByteBuffer for an empty string.
