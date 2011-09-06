@@ -205,9 +205,6 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     public void finishBootstrapping()
     {
         isBootstrapMode = false;
-        SystemTable.setBootstrapped(true);
-        setToken(getLocalToken());
-        logger_.info("Bootstrap/move completed! Now serving reads.");
     }
 
     /** This method updates the local token on disk  */
@@ -471,6 +468,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         Gossiper.instance.start(SystemTable.incrementAndGetGeneration()); // needed for node-ring gathering.
         // add rpc listening info
         Gossiper.instance.addLocalApplicationState(ApplicationState.RPC_ADDRESS, valueFactory.rpcaddress(DatabaseDescriptor.getRpcAddress()));
+        Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS, valueFactory.hibernate(null != DatabaseDescriptor.getReplaceToken()));
 
         MessagingService.instance().listen(FBUtilities.getLocalAddress());
         LoadBroadcaster.instance.startBroadcasting();
@@ -484,7 +482,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                 && !SystemTable.isBootstrapped())
             logger_.info("This node will not auto bootstrap because it is configured to be a seed node.");
 
-        Token token;
+        // first startup is only chance to bootstrap
+        Token<?> token;
         if (DatabaseDescriptor.isAutoBootstrap()
             && !(DatabaseDescriptor.getSeeds().contains(FBUtilities.getBroadcastAddress()) || SystemTable.isBootstrapped()))
         {
@@ -499,25 +498,42 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             }
             if (logger_.isDebugEnabled())
                 logger_.debug("... got ring + schema info");
-            if (tokenMetadata_.isMember(FBUtilities.getBroadcastAddress()))
+            if (null != DatabaseDescriptor.getReplaceToken())
             {
-                String s = "This node is already a member of the token ring; bootstrap aborted. (If replacing a dead node, remove the old one from the ring first.)";
-                throw new UnsupportedOperationException(s);
+                try
+                {
+                    // Sleeping additionally to make sure that the server actually is not alive 
+                    // and giving it more time to gossip if alive.
+                    Thread.sleep(LoadBroadcaster.BROADCAST_INTERVAL);
+                }
+                catch (InterruptedException e)
+                {
+                    throw new AssertionError(e);
+                }
+                token = StorageService.getPartitioner().getTokenFactory().fromString(DatabaseDescriptor.getReplaceToken());
+                // check for operator errors...
+                InetAddress current = tokenMetadata_.getEndpoint(token);
+                if (null != current && Gossiper.instance.getEndpointStateForEndpoint(current).getUpdateTimestamp() > (System.currentTimeMillis() - delay))
+                    throw new UnsupportedOperationException("Cannnot replace a token for a Live node... ");
+                setMode("Joining: Replacing a node with token: " + token, true);
             }
-            setMode("Joining: getting bootstrap token", true);
-            token = BootStrapper.getBootstrapToken(tokenMetadata_, LoadBroadcaster.instance.getLoadInfo());
+            else
+            {
+                if (tokenMetadata_.isMember(FBUtilities.getBroadcastAddress()))
+                {
+                    String s = "This node is already a member of the token ring; bootstrap aborted. (If replacing a dead node, remove the old one from the ring first.)";
+                    throw new UnsupportedOperationException(s);
+                }
+                setMode("Joining: getting bootstrap token", true);
+                token = BootStrapper.getBootstrapToken(tokenMetadata_, LoadBroadcaster.instance.getLoadInfo());
+            }
             // don't bootstrap if there are no tables defined.
             if (Schema.instance.getNonSystemTables().size() > 0)
             {
                 bootstrap(token);
                 assert !isBootstrapMode; // bootstrap will block until finished
             }
-            else
-            {
-                // nothing to bootstrap, go directly to participating in ring
-                SystemTable.setBootstrapped(true);
-                setToken(token);
-            }
+            // Else: nothing to bootstrap, go directly to participating in ring
         }
         else
         {
@@ -542,8 +558,10 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             }
         }
 
-        SystemTable.setBootstrapped(true); // first startup is only chance to bootstrap
+        // start participating in the ring.
+        SystemTable.setBootstrapped(true);
         setToken(token);
+        logger_.info("Bootstrap/Replace/Move completed! Now serving reads.");
         assert tokenMetadata_.sortedTokens().size() > 0;
     }
 
@@ -578,17 +596,26 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     {
         isBootstrapMode = true;
         SystemTable.updateToken(token); // DON'T use setToken, that makes us part of the ring locally which is incorrect until we are done bootstrapping
-        Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS, valueFactory.bootstrapping(token));
-        setMode("Joining: sleeping " + RING_DELAY + " ms for pending range setup", true);
-        try
+        if (null == DatabaseDescriptor.getReplaceToken())
         {
-            Thread.sleep(RING_DELAY);
+            // if not an existing token then bootstrap
+            Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS, valueFactory.bootstrapping(token));
+            setMode("Joining: sleeping " + RING_DELAY + " ms for pending range setup", true);
+            try
+            {
+                Thread.sleep(RING_DELAY);
+            }
+            catch (InterruptedException e)
+            {
+                throw new AssertionError(e);
+            }
         }
-        catch (InterruptedException e)
+        else
         {
-            throw new AssertionError(e);
+            // Dont set any state for the node which is bootstrapping the existing token...
+            tokenMetadata_.updateNormalToken(token, FBUtilities.getBroadcastAddress());
         }
-        setMode("Bootstrapping", true);
+        setMode("Starting to bootstrap...", true);
         new BootStrapper(FBUtilities.getBroadcastAddress(), token, tokenMetadata_).bootstrap(); // handles token update
     }
 
@@ -993,9 +1020,9 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
     private void excise(Token token, InetAddress endpoint)
     {
+        HintedHandOffManager.instance.deleteHintsForEndpoint(endpoint);
         Gossiper.instance.removeEndpoint(endpoint);
         tokenMetadata_.removeEndpoint(endpoint);
-        HintedHandOffManager.instance.deleteHintsForEndpoint(endpoint);
         tokenMetadata_.removeBootstrapToken(token);
         calculatePendingRanges();
         if (!isClientMode)

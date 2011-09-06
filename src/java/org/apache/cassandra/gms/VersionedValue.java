@@ -60,6 +60,8 @@ public class VersionedValue implements Comparable<VersionedValue>
     public final static String REMOVING_TOKEN = "removing";
     public final static String REMOVED_TOKEN = "removed";
 
+    public final static String HIBERNATE = "hibernate";
+
     // values for ApplicationState.REMOVAL_COORDINATOR
     public final static String REMOVAL_COORDINATOR = "REMOVER";
 
@@ -146,6 +148,11 @@ public class VersionedValue implements Comparable<VersionedValue>
         public VersionedValue removalCoordinator(Token token)
         {
             return new VersionedValue(VersionedValue.REMOVAL_COORDINATOR + VersionedValue.DELIMITER + partitioner.getTokenFactory().toString(token));
+        }
+
+        public VersionedValue hibernate(boolean value)
+        {
+            return new VersionedValue(VersionedValue.HIBERNATE + VersionedValue.DELIMITER + value);
         }
 
         public VersionedValue datacenter(String dcId)

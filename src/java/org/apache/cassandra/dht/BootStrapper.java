@@ -61,7 +61,7 @@ public class BootStrapper
     /* endpoints that need to be bootstrapped */
     protected final InetAddress address;
     /* tokens of the nodes being bootstrapped. */
-    protected final Token token;
+    protected final Token<?> token;
     protected final TokenMetadata tokenMetadata;
     private static final long BOOTSTRAP_TIMEOUT = 30000; // default bootstrap timeout of 30s
 
@@ -100,7 +100,6 @@ public class BootStrapper
             for (Map.Entry<InetAddress, Collection<Range>> entry : rangesToFetch.get(table))
             {
                 final InetAddress source = entry.getKey();
-                Collection<Range> ranges = entry.getValue();
                 final Runnable callback = new Runnable()
                 {
                     public void run()
@@ -257,7 +256,8 @@ public class BootStrapper
         {
             for (InetAddress source : rangesWithSourceTarget.get(range))
             {
-                if (failureDetector.isAlive(source))
+                // ignore the local IP...
+                if (failureDetector.isAlive(source) && !source.equals(FBUtilities.getBroadcastAddress()))
                 {
                     sources.put(source, range);
                     break;

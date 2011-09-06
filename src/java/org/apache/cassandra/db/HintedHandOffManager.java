@@ -41,6 +41,7 @@ import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.Gossiper;
@@ -134,9 +135,9 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         return true;
     }
 
-    private static void deleteHint(ByteBuffer endpointAddress, ByteBuffer hintId, long timestamp) throws IOException
+    private static void deleteHint(ByteBuffer tokenBytes, ByteBuffer hintId, long timestamp) throws IOException
     {
-        RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, endpointAddress);
+        RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, tokenBytes);
         rm.delete(new QueryPath(HINTS_CF, hintId), timestamp);
         rm.apply();
     }
@@ -158,9 +159,12 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
 
     public void deleteHintsForEndpoint(final InetAddress endpoint)
     {
-        final String ipaddr = endpoint.getHostAddress();
+        if (!StorageService.instance.getTokenMetadata().isMember(endpoint))
+            return;
+        Token<?> token = StorageService.instance.getTokenMetadata().getToken(endpoint);
+        ByteBuffer tokenBytes = StorageService.getPartitioner().getTokenFactory().toByteArray(token);
         final ColumnFamilyStore hintStore = Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(HINTS_CF);
-        final RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, ByteBufferUtil.bytes(ipaddr));
+        final RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, tokenBytes);
         rm.delete(new QueryPath(HINTS_CF), System.currentTimeMillis());
 
         // execute asynchronously to avoid blocking caller (which may be processing gossip)
@@ -170,14 +174,14 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
             {
                 try
                 {
-                    logger_.info("Deleting any stored hints for " + ipaddr);
+                    logger_.info("Deleting any stored hints for " + endpoint);
                     rm.apply();
                     hintStore.forceFlush();
                     CompactionManager.instance.submitMaximal(hintStore, Integer.MAX_VALUE);
                 }
                 catch (Exception e)
                 {
-                    logger_.warn("Could not delete hints for " + ipaddr + ": " + e);
+                    logger_.warn("Could not delete hints for " + endpoint + ": " + e);
                 }
             }
         };
@@ -223,7 +227,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
     {
         try
         {
-            logger_.debug("Checking remote schema before delivering hints");
+            logger_.debug("Checking remote({}) schema before delivering hints", endpoint);
             int waited = waitForSchemaAgreement(endpoint);
             // sleep a random amount to stagger handoff delivery from different replicas.
             // (if we had to wait, then gossiper randomness took care of that for us already.)
@@ -244,15 +248,17 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
             queuedDeliveries.remove(endpoint);
         }
 
-        logger_.info("Started hinted handoff for endpoint " + endpoint);
-
         // 1. Get the key of the endpoint we need to handoff
         // 2. For each column, deserialize the mutation and send it to the endpoint
         // 3. Delete the subcolumn if the write was successful
         // 4. Force a flush
         // 5. Do major compaction to clean up all deletes etc.
-        ByteBuffer endpointAsUTF8 = ByteBufferUtil.bytes(endpoint.getHostAddress()); // keys have to be UTF8 to make OPP happy
-        DecoratedKey<?> epkey =  StorageService.getPartitioner().decorateKey(endpointAsUTF8);
+
+        // find the hints for the node using its token.
+        Token<?> token = StorageService.instance.getTokenMetadata().getToken(endpoint);
+        logger_.info("Started hinted handoff for token: {} with IP: {}", token, endpoint);
+        ByteBuffer tokenBytes = StorageService.getPartitioner().getTokenFactory().toByteArray(token);
+        DecoratedKey<?> epkey =  StorageService.getPartitioner().decorateKey(tokenBytes);
         int rowsReplayed = 0;
         ColumnFamilyStore hintStore = Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(HINTS_CF);
         ByteBuffer startColumn = ByteBufferUtil.EMPTY_BYTE_BUFFER;
@@ -282,7 +288,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
 
                 if (sendMutation(endpoint, rm))
                 {
-                    deleteHint(endpointAsUTF8, hint.name(), versionColumn.timestamp());
+                    deleteHint(tokenBytes, hint.name(), versionColumn.timestamp());
                     rowsReplayed++;
                 }
                 else

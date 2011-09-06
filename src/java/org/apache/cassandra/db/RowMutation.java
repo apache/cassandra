@@ -120,9 +120,9 @@ public class RowMutation implements IMutation, MessageProducer
      * }
      *
      */
-    public static RowMutation hintFor(RowMutation mutation, ByteBuffer address) throws IOException
+    public static RowMutation hintFor(RowMutation mutation, ByteBuffer token) throws IOException
     {
-        RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, address);
+        RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, token);
         ByteBuffer hintId = ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes());
 
         // determine the TTL for the RowMutation

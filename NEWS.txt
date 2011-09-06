@@ -31,6 +31,9 @@ Features
           only replicas known to be down when the write started were hinted.)
       This means that running with read repair completely off is much more
       viable than before.
+    - A dead node may be replaced in a single step by starting a new node
+      with -Dcassandra.replace_token=<token>.  More details can be found at
+      http://wiki.apache.org/cassandra/Operations#Replacing_a_Dead_Node
 
 Other
 -----

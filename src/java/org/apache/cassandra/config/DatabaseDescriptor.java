@@ -604,6 +604,11 @@ public class DatabaseDescriptor
         return System.getProperty("cassandra.initial_token", conf.initial_token);
     }
 
+    public static String getReplaceToken()
+    {
+        return System.getProperty("cassandra.replace_token", null);
+    }
+
    public static String getClusterName()
     {
         return conf.cluster_name;

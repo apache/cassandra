@@ -346,7 +346,9 @@ public class StorageProxy implements StorageProxyMBean
 
                 try
                 {
-                    RowMutation hintedMutation = RowMutation.hintFor(mutation, ByteBufferUtil.bytes(target.getHostAddress()));
+                    Token<?> token = StorageService.instance.getTokenMetadata().getToken(target);
+                    ByteBuffer tokenbytes = StorageService.getPartitioner().getTokenFactory().toByteArray(token);
+                    RowMutation hintedMutation = RowMutation.hintFor(mutation, tokenbytes);
                     hintedMutation.apply();
 
                     totalHints.incrementAndGet();

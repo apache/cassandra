@@ -66,7 +66,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     private static final DebuggableScheduledThreadPoolExecutor executor = new DebuggableScheduledThreadPoolExecutor("GossipTasks");
 
     static final ApplicationState[] STATES = ApplicationState.values();
-    static final List<String> DEAD_STATES = Arrays.asList(VersionedValue.REMOVING_TOKEN, VersionedValue.REMOVED_TOKEN, VersionedValue.STATUS_LEFT);
+    static final List<String> DEAD_STATES = Arrays.asList(VersionedValue.REMOVING_TOKEN, VersionedValue.REMOVED_TOKEN, 
+                                                          VersionedValue.STATUS_LEFT, VersionedValue.HIBERNATE);
 
     private ScheduledFuture<?> scheduledGossipTask;
     public final static int intervalInMillis = 1000;
@@ -726,10 +727,10 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
      */
     private void handleMajorStateChange(InetAddress ep, EndpointState epState)
     {
-        if (epState.getApplicationState(ApplicationState.STATUS) != null && !isDeadState(epState.getApplicationState(ApplicationState.STATUS).value))
+        if (epState.getApplicationState(ApplicationState.STATUS) != null && !isDeadState(epState))
         {
             if (endpointStateMap.get(ep) != null)
-                logger.info("Node {} has restarted, now UP again", ep);
+                logger.info("Node {} has restarted, now UP", ep);
             else
                 logger.info("Node {} is now part of the cluster", ep);
         }
@@ -741,20 +742,21 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         for (IEndpointStateChangeSubscriber subscriber : subscribers)
             subscriber.onRestart(ep, epState);
 
-        if (epState.getApplicationState(ApplicationState.STATUS) != null && !isDeadState(epState.getApplicationState(ApplicationState.STATUS).value))
+        if (epState.getApplicationState(ApplicationState.STATUS) != null && !isDeadState(epState))
             markAlive(ep, epState);
         else
         {
             logger.debug("Not marking " + ep + " alive due to dead state");
-            epState.markDead();
+            markDead(ep, epState);
             epState.setHasToken(true); // fat clients won't have a dead state
         }
         for (IEndpointStateChangeSubscriber subscriber : subscribers)
             subscriber.onJoin(ep, epState);
     }
 
-    private Boolean isDeadState(String value)
+    public Boolean isDeadState(EndpointState epState)
     {
+        String value = epState.getApplicationState(ApplicationState.STATUS).value;
         String[] pieces = value.split(VersionedValue.DELIMITER_STR, -1);
         assert (pieces.length > 0);
         String state = pieces[0];
@@ -812,7 +814,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 	                }
                     else if (logger.isTraceEnabled())
                             logger.trace("Ignoring remote version " + remoteMaxVersion + " <= " + localMaxVersion + " for " + ep);
-                    if (!localEpStatePtr.isAlive()) // unless of course, it was dead
+                    if (!localEpStatePtr.isAlive() && !isDeadState(localEpStatePtr)) // unless of course, it was dead
                         markAlive(ep, localEpStatePtr);
             	}
                 else
