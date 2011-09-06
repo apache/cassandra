@@ -31,10 +31,10 @@ import java.util.Iterator;
 import java.util.List;
 
 import org.apache.cassandra.cql.jdbc.CassandraResultSet;
-import org.apache.cassandra.cql.jdbc.AsciiTerm;
+import org.apache.cassandra.cql.jdbc.JdbcAscii;
 import org.apache.cassandra.cql.jdbc.JdbcBytes;
 import org.apache.cassandra.cql.jdbc.JdbcInteger;
-import org.apache.cassandra.cql.jdbc.LongTerm;
+import org.apache.cassandra.cql.jdbc.JdbcLong;
 import org.apache.cassandra.cql.jdbc.JdbcUTF8;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -177,11 +177,11 @@ public class JdbcDriverTest extends EmbeddedServiceBase
         
         ResultSetMetaData md = rs.getMetaData();
         assert md.getColumnCount() == 2;
-        expectedMetaData(md, 1, Long.class.getName(), "JdbcLong", "Keyspace1", "1", Types.INTEGER, LongTerm.class.getSimpleName(), true, false);
-        expectedMetaData(md, 2, Long.class.getName(), "JdbcLong", "Keyspace1", "2", Types.INTEGER, LongTerm.class.getSimpleName(), true, false);
+        expectedMetaData(md, 1, Long.class.getName(), "JdbcLong", "Keyspace1", "1", Types.INTEGER, JdbcLong.class.getSimpleName(), true, false);
+        expectedMetaData(md, 2, Long.class.getName(), "JdbcLong", "Keyspace1", "2", Types.INTEGER, JdbcLong.class.getSimpleName(), true, false);
         
         for (int i = 0; i < md.getColumnCount(); i++)
-            expectedMetaData(md, i + 1, Long.class.getName(), Types.INTEGER, LongTerm.class.getSimpleName(), true, false);
+            expectedMetaData(md, i + 1, Long.class.getName(), Types.INTEGER, JdbcLong.class.getSimpleName(), true, false);
     }
 
     @Test
@@ -203,8 +203,8 @@ public class JdbcDriverTest extends EmbeddedServiceBase
         
         ResultSetMetaData md = rs0.getMetaData();
         assert md.getColumnCount() == 2;
-        expectedMetaData(md, 1, String.class.getName(), "JdbcAscii", "Keyspace1", "a", Types.VARCHAR, AsciiTerm.class.getSimpleName(), false, true);
-        expectedMetaData(md, 2, String.class.getName(), "JdbcAscii", "Keyspace1", "b", Types.VARCHAR, AsciiTerm.class.getSimpleName(), false, true);
+        expectedMetaData(md, 1, String.class.getName(), "JdbcAscii", "Keyspace1", "a", Types.VARCHAR, JdbcAscii.class.getSimpleName(), false, true);
+        expectedMetaData(md, 2, String.class.getName(), "JdbcAscii", "Keyspace1", "b", Types.VARCHAR, JdbcAscii.class.getSimpleName(), false, true);
         md = rs1.getMetaData();
         assert md.getColumnCount() == 2;
         expectedMetaData(md, 1, String.class.getName(), "JdbcUtf8", "Keyspace1", "a", Types.VARCHAR, JdbcUTF8.class.getSimpleName(), false, true);
@@ -216,7 +216,7 @@ public class JdbcDriverTest extends EmbeddedServiceBase
                              i + 1,
                              String.class.getName(),
                              Types.VARCHAR,
-                             AsciiTerm.class.getSimpleName(),
+                             JdbcAscii.class.getSimpleName(),
                              false,
                              true);
             expectedMetaData(rs1.getMetaData(),

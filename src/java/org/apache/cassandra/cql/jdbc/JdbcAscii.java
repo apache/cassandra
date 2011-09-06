@@ -22,31 +22,32 @@ package org.apache.cassandra.cql.jdbc;
 
 
 import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
 import java.sql.Types;
+
+import com.google.common.base.Charsets;
 
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-public class JdbcLong extends AbstractJdbcType<Long>
+public class JdbcAscii extends AbstractJdbcType<String>
 {
-    public static final JdbcLong instance = new JdbcLong();
-
-    JdbcLong()
-    {
-    }
-
+    public static final JdbcAscii instance = new JdbcAscii();
+    
+    JdbcAscii() {}
+    
     public boolean isCaseSensitive()
     {
-        return false;
+        return true;
     }
 
-    public int getScale(Long obj)
+    public int getScale(String obj)
     {
-        return 0;
+        return -1;
     }
 
-    public int getPrecision(Long obj)
+    public int getPrecision(String obj)
     {
-        return obj.toString().length();
+        return -1;
     }
 
     public boolean isCurrency()
@@ -56,45 +57,44 @@ public class JdbcLong extends AbstractJdbcType<Long>
 
     public boolean isSigned()
     {
-        return true;
+        return false;
     }
 
-    public String toString(Long obj)
+    public String toString(String obj)
     {
-        return obj.toString();
+        return obj;
     }
 
     public boolean needsQuotes()
     {
-        return false;
+        return true;
     }
 
     public String getString(ByteBuffer bytes)
     {
-        if (bytes.remaining() == 0)
+        try
         {
-            return "";
+            return ByteBufferUtil.string(bytes, Charsets.US_ASCII);
         }
-        if (bytes.remaining() != 8)
+        catch (CharacterCodingException e)
         {
-            throw new MarshalException("A long is exactly 8 bytes: " + bytes.remaining());
+            throw new MarshalException("Invalid ascii bytes " + ByteBufferUtil.bytesToHex(bytes));
         }
-
-        return String.valueOf(bytes.getLong(bytes.position()));
     }
 
-    public Class<Long> getType()
+    public Class<String> getType()
     {
-        return Long.class;
+        return String.class;
     }
 
     public int getJdbcType()
     {
-        return Types.INTEGER;
+        return Types.VARCHAR;
     }
 
-    public Long compose(ByteBuffer bytes)
+    public String compose(ByteBuffer bytes)
     {
-        return ByteBufferUtil.toLong(bytes);
+        return getString(bytes);
     }
+
 }

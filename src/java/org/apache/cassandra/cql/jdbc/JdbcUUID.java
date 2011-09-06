@@ -24,7 +24,7 @@ package org.apache.cassandra.cql.jdbc;
 import java.nio.ByteBuffer;
 import java.util.UUID;
 
-public class JdbcUUID extends JdbcLong
+public class JdbcUUID extends AbstractJdbcUUID
 {
     public static final JdbcUUID instance = new JdbcUUID();
     

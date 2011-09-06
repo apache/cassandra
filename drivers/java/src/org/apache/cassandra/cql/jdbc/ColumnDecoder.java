@@ -86,7 +86,7 @@ class ColumnDecoder
         try
         {
             if (ByteBufferUtil.string(name).equalsIgnoreCase(ByteBufferUtil.string(cf.keyAlias)))
-                return AsciiTerm.instance;
+                return JdbcAscii.instance;
         }
         catch (CharacterCodingException e)
         {

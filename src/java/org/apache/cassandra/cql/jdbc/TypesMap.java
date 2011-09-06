@@ -9,7 +9,7 @@ public class TypesMap
     
     static
     {
-        map.put("org.apache.cassandra.db.marshal.AsciiType", AsciiTerm.instance);
+        map.put("org.apache.cassandra.db.marshal.AsciiType", JdbcAscii.instance);
         map.put("org.apache.cassandra.db.marshal.BooleanType", JdbcBoolean.instance);
         map.put("org.apache.cassandra.db.marshal.BytesType", JdbcBytes.instance);
         map.put("org.apache.cassandra.db.marshal.ColumnCounterType", JdbcCounterColumn.instance);
@@ -18,7 +18,7 @@ public class TypesMap
         map.put("org.apache.cassandra.db.marshal.FloatType", JdbcFloat.instance);
         map.put("org.apache.cassandra.db.marshal.IntegerType", JdbcInteger.instance);
         map.put("org.apache.cassandra.db.marshal.LexicalUUIDType", JdbcLexicalUUID.instance);
-        map.put("org.apache.cassandra.db.marshal.LongType", LongTerm.instance);
+        map.put("org.apache.cassandra.db.marshal.LongType", JdbcLong.instance);
         map.put("org.apache.cassandra.db.marshal.TimeUUIDType", JdbcTimeUUID.instance);
         map.put("org.apache.cassandra.db.marshal.UTF8Type", JdbcUTF8.instance);
         map.put("org.apache.cassandra.db.marshal.UUIDType", JdbcUUID.instance);
@@ -28,7 +28,7 @@ public class TypesMap
     {
         // If not fully qualified, assume it's the short name for a built-in.
         if ((comparator != null) && (!comparator.contains(".")))
-            return map.get("org.apache.cassandra.db." + comparator);
+            return map.get("org.apache.cassandra.db.marshal." + comparator);
         return map.get(comparator);
     }
 }

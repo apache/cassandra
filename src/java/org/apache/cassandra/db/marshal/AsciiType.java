@@ -25,7 +25,7 @@ import java.nio.ByteBuffer;
 
 import com.google.common.base.Charsets;
 
-import org.apache.cassandra.cql.jdbc.AsciiTerm;
+import org.apache.cassandra.cql.jdbc.JdbcAscii;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class AsciiType extends AbstractType<String>
@@ -38,7 +38,7 @@ public class AsciiType extends AbstractType<String>
     {
         try
         {
-            return AsciiTerm.instance.getString(bytes);
+            return JdbcAscii.instance.getString(bytes);
         }
         catch (org.apache.cassandra.cql.jdbc.MarshalException e)
         {
@@ -53,7 +53,7 @@ public class AsciiType extends AbstractType<String>
 
     public String compose(ByteBuffer bytes)
     {
-        return AsciiTerm.instance.getString(bytes);
+        return JdbcAscii.instance.getString(bytes);
     }
 
     public ByteBuffer decompose(String value)

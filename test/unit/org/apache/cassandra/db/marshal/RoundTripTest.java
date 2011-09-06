@@ -56,7 +56,7 @@ public class RoundTripTest
         assert LongType.instance.fromString(LongType.instance.getString(ByteBuffer.wrap(v)))
                 .equals(ByteBuffer.wrap(v));
         assert LongType.instance.compose(ByteBuffer.wrap(v)) == 1L;
-        assert LongTerm.instance.toString(1L).equals("1");
+        assert JdbcLong.instance.toString(1L).equals("1");
     }
     
     @Test
@@ -67,7 +67,7 @@ public class RoundTripTest
         assert AsciiType.instance.fromString(AsciiType.instance.getString(ByteBuffer.wrap(abc)))
                 .equals(ByteBuffer.wrap(abc));
         assert AsciiType.instance.compose(ByteBuffer.wrap(abc)).equals("abc");
-        assert AsciiTerm.instance.toString("abc").equals("abc");
+        assert JdbcAscii.instance.toString("abc").equals("abc");
     }
     
     @Test

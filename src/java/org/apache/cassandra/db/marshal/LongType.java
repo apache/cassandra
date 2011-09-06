@@ -23,7 +23,7 @@ package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.cql.jdbc.LongTerm;
+import org.apache.cassandra.cql.jdbc.JdbcLong;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class LongType extends AbstractType<Long>
@@ -34,7 +34,7 @@ public class LongType extends AbstractType<Long>
 
     public Long compose(ByteBuffer bytes)
     {
-        return LongTerm.instance.compose(bytes);
+        return ByteBufferUtil.toLong(bytes);
     }
 
     public ByteBuffer decompose(Long value)
@@ -65,7 +65,7 @@ public class LongType extends AbstractType<Long>
     {
         try
         {
-            return LongTerm.instance.getString(bytes);
+            return JdbcLong.instance.getString(bytes);
         }
         catch (org.apache.cassandra.cql.jdbc.MarshalException e)
         {

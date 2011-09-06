@@ -21,31 +21,27 @@ package org.apache.cassandra.cql.jdbc;
  */
 
 
-import java.nio.ByteBuffer;
-import java.nio.charset.CharacterCodingException;
 import java.sql.Types;
+import java.util.UUID;
 
-import org.apache.cassandra.utils.ByteBufferUtil;
-
-import com.google.common.base.Charsets;
-
-public class AsciiTerm extends AbstractJdbcType<String>
+public abstract class AbstractJdbcUUID extends AbstractJdbcType<UUID>
 {
-    public static final AsciiTerm instance = new AsciiTerm();
-    
-    AsciiTerm() {}
+    public String toString(UUID obj)
+    {
+        return obj.toString();
+    }
     
     public boolean isCaseSensitive()
     {
-        return true;
+        return false;
     }
 
-    public int getScale(String obj)
+    public int getScale(UUID obj)
     {
         return -1;
     }
 
-    public int getPrecision(String obj)
+    public int getPrecision(UUID obj)
     {
         return -1;
     }
@@ -60,41 +56,18 @@ public class AsciiTerm extends AbstractJdbcType<String>
         return false;
     }
 
-    public String toString(String obj)
-    {
-        return obj;
-    }
-
     public boolean needsQuotes()
     {
-        return true;
+        return false;
     }
 
-    public String getString(ByteBuffer bytes)
+    public Class<UUID> getType()
     {
-        try
-        {
-            return ByteBufferUtil.string(bytes, Charsets.US_ASCII);
-        }
-        catch (CharacterCodingException e)
-        {
-            throw new MarshalException("Invalid ascii bytes " + ByteBufferUtil.bytesToHex(bytes));
-        }
-    }
-
-    public Class<String> getType()
-    {
-        return String.class;
+        return UUID.class;
     }
 
     public int getJdbcType()
     {
-        return Types.VARCHAR;
+        return Types.OTHER;
     }
-
-    public String compose(ByteBuffer bytes)
-    {
-        return getString(bytes);
-    }
-
 }
