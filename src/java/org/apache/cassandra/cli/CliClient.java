@@ -1607,11 +1607,10 @@ public class CliClient
      */
     private void showKeyspace(StringBuilder sb, KsDef ksDef)
     {
-
         sb.append("create keyspace " + ksDef.name);
-        if (ksDef.isSetReplication_factor())
-            writeAttr(sb, false, "replication_factor", ksDef.getReplication_factor());
+
         writeAttr(sb, true, "placement_strategy", normaliseType(ksDef.strategy_class, "org.apache.cassandra.locator"));
+
         if (ksDef.strategy_options != null && !ksDef.strategy_options.isEmpty())
         {
             final StringBuilder opts = new StringBuilder();

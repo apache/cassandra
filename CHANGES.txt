@@ -3,6 +3,8 @@
    (CASSANDRA-3138)
  * prevent users from creating keyspaces with LocalStrategy replication
    (CASSANDRA-3139)
+ * fix CLI `show schema;` to output correct keyspace definition statement
+   (CASSANDRA-3129)
 
 0.8.5
  * fix NPE when encryption_options is unspecified (CASSANDRA-3007)
