@@ -31,8 +31,6 @@ public interface CassandraResultSet extends ResultSet
      */
     public byte[] getKey()throws SQLException;;
     
-    public TypedColumn getTypedKey()throws SQLException;;
-
     /** @return a BigInteger value for the given column offset*/
     public BigInteger getBigInteger(int i) throws SQLException;
     /** @return a BigInteger value for the given column name */

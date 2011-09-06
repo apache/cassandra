@@ -76,7 +76,7 @@ public class CliClient
 
         Function(AbstractType validator)
         {
-            this.validator = validator;  
+            this.validator = validator;
         }
 
         public AbstractType getValidator()
@@ -98,7 +98,7 @@ public class CliClient
             return functionNames.toString();
         }
     }
-    
+
     /*
      * the <i>add keyspace</i> command requires a list of arguments,
      *  this enum defines which arguments are valid
@@ -526,7 +526,7 @@ public class CliClient
     private AbstractType getFormatType(String compareWith)
     {
         Function function;
-        
+
         try
         {
             function = Function.valueOf(compareWith.toUpperCase());

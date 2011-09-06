@@ -76,7 +76,7 @@ class ColumnDecoder
     protected AbstractJdbcType<?> getComparator(String keyspace, String columnFamily)
     {
         CFamMeta cf = metadata.get(String.format("%s.%s", keyspace, columnFamily));
-        AbstractJdbcType<?> type = (cf != null) ? TypesMap.getTermForComparator(cf.comparator) : null;
+        AbstractJdbcType<?> type = (cf != null) ? TypesMap.getTypeForComparator(cf.comparator) : null;
         return (type == null) ? null : type;
     }
 
@@ -92,7 +92,7 @@ class ColumnDecoder
         {
             // not be the key name
         }
-        return TypesMap.getTermForComparator(cf.comparator);
+        return TypesMap.getTypeForComparator(cf.comparator);
     }
 
     private AbstractJdbcType<?> getValueType(String keyspace, String columnFamily, ByteBuffer name)
@@ -104,21 +104,21 @@ class ColumnDecoder
         try
         {
             if (ByteBufferUtil.string(name).equalsIgnoreCase(ByteBufferUtil.string(cf.keyAlias)))
-                return TypesMap.getTermForComparator(cf.keyValidator);
+                return TypesMap.getTypeForComparator(cf.keyValidator);
         }
         catch (CharacterCodingException e)
         {
             // not be the key name
         }
         
-        AbstractJdbcType<?> type = TypesMap.getTermForComparator(cf.columnMeta.get(name));
-        return (type != null) ? type : TypesMap.getTermForComparator(cf.defaultValidator);
+        AbstractJdbcType<?> type = TypesMap.getTypeForComparator(cf.columnMeta.get(name));
+        return (type != null) ? type : TypesMap.getTypeForComparator(cf.defaultValidator);
     }
 
     public AbstractJdbcType<?> getKeyValidator(String keyspace, String columnFamily)
     {
         CFamMeta cf = metadata.get(String.format("%s.%s", keyspace, columnFamily));
-        AbstractJdbcType<?> type = (cf != null) ? TypesMap.getTermForComparator(cf.keyValidator) : null;
+        AbstractJdbcType<?> type = (cf != null) ? TypesMap.getTypeForComparator(cf.keyValidator) : null;
         return (type == null) ? null : type;
     }
 

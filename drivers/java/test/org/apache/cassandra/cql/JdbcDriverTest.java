@@ -90,7 +90,6 @@ public class JdbcDriverTest extends EmbeddedServiceBase
                                   String label, int type, String typeName, boolean signed, boolean caseSensitive) throws SQLException
     {
         assertEquals(colClass, md.getColumnClassName(col)); // full class name of type<T>
-        assertEquals(table, md.getTableName(col));
         assertEquals(schema, md.getSchemaName(col));
         assertEquals(label, md.getColumnLabel(col));
         assertEquals(label, md.getColumnName(col));
@@ -458,10 +457,6 @@ public class JdbcDriverTest extends EmbeddedServiceBase
         while (rs.next())
         {
             actualRows++;
-            if (keyIter != null)
-            {
-                assert cassandraRs.getTypedKey().getValueString().equals(keyIter.next());
-            }
 
             for (int c = 0; c < cols.length; c++)
             {

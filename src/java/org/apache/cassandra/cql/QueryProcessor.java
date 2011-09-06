@@ -33,16 +33,15 @@ import java.util.concurrent.TimeoutException;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.config.KSMetaData;
-import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.CounterColumn;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.MarshalException;
+import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.db.migration.*;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.dht.Token;
@@ -559,6 +558,10 @@ public class QueryProcessor
                 
                 List<CqlRow> cqlRows = new ArrayList<CqlRow>();
                 result.type = CqlResultType.ROWS;
+                result.schema = new CqlMetadata(new HashMap<ByteBuffer, String>(),
+                                                new HashMap<ByteBuffer, String>(),
+                                                metadata.comparator.toString(),
+                                                TypeParser.getShortName(metadata.getDefaultValidator()));
 
                 // Create the result set
                 for (org.apache.cassandra.db.Row row : rows)
@@ -567,7 +570,63 @@ public class QueryProcessor
                     if (row.cf == null)
                         continue;
 
-                    List<Column> thriftColumns = extractThriftColumns(select, metadata, row);
+                    List<Column> thriftColumns = new ArrayList<Column>();
+                    if (select.isColumnRange())
+                    {
+                        if (select.isWildcard())
+                        {
+                            // prepend key
+                            thriftColumns.add(new Column(metadata.getKeyName()).setValue(row.key.key).setTimestamp(-1));
+                            result.schema.name_types.put(metadata.getKeyName(), TypeParser.getShortName(AsciiType.instance));
+                            result.schema.value_types.put(metadata.getKeyName(), TypeParser.getShortName(metadata.getKeyValidator()));
+                        }
+
+                        // preserve comparator order
+                        for (IColumn c : row.cf.getSortedColumns())
+                        {
+                            if (c.isMarkedForDelete())
+                                continue;
+                            thriftColumns.add(thriftify(c));
+                        }
+                    }
+                    else
+                    {
+                        String keyString = getKeyString(metadata);
+
+                        // order columns in the order they were asked for
+                        for (Term term : select.getColumnNames())
+                        {
+                            if (term.getText().equalsIgnoreCase(keyString))
+                            {
+                                // preserve case of key as it was requested
+                                ByteBuffer requestedKey = ByteBufferUtil.bytes(term.getText());
+                                thriftColumns.add(new Column(requestedKey).setValue(row.key.key).setTimestamp(-1));
+                                result.schema.name_types.put(requestedKey, TypeParser.getShortName(AsciiType.instance));
+                                result.schema.value_types.put(requestedKey, TypeParser.getShortName(metadata.getKeyValidator()));
+                                continue;
+                            }
+
+                            ByteBuffer name;
+                            try
+                            {
+                                name = term.getByteBuffer(metadata.comparator);
+                            }
+                            catch (InvalidRequestException e)
+                            {
+                                throw new AssertionError(e);
+                            }
+
+                            ColumnDefinition cd = metadata.getColumnDefinition(name);
+                            if (cd != null)
+                                result.schema.value_types.put(name, TypeParser.getShortName(cd.getValidator()));
+                            IColumn c = row.cf.getColumn(name);
+                            if (c == null || c.isMarkedForDelete())
+                                thriftColumns.add(new Column().setName(name));
+                            else
+                                thriftColumns.add(thriftify(c));
+                        }
+                    }
+
                     // Create a new row, add the columns to it, and then add it to the list of rows
                     CqlRow cqlRow = new CqlRow();
                     cqlRow.key = row.key.key;
@@ -882,60 +941,6 @@ public class QueryProcessor
         }
         
         return null;    // We should never get here.
-    }
-
-    private static List<Column> extractThriftColumns(SelectStatement select, CFMetaData metadata, Row row)
-    {
-        List<Column> thriftColumns = new ArrayList<Column>();
-        if (select.isColumnRange())
-        {
-            if (select.isWildcard())
-            {
-                // prepend key
-                thriftColumns.add(new Column(metadata.getKeyName()).setValue(row.key.key).setTimestamp(-1));
-            }
-
-            // preserve comparator order
-            for (IColumn c : row.cf.getSortedColumns())
-            {
-                if (c.isMarkedForDelete())
-                    continue;
-                thriftColumns.add(thriftify(c));
-            }
-        }
-        else
-        {
-            String keyString = getKeyString(metadata);
-
-            // order columns in the order they were asked for
-            for (Term term : select.getColumnNames())
-            {
-                if (term.getText().equalsIgnoreCase(keyString))
-                {
-                    // preserve case of key as it was requested
-                    ByteBuffer requestedKey = ByteBufferUtil.bytes(term.getText());
-                    thriftColumns.add(new Column(requestedKey).setValue(row.key.key).setTimestamp(-1));
-                    continue;
-                }
-
-                ByteBuffer name;
-                try
-                {
-                    name = term.getByteBuffer(metadata.comparator);
-                }
-                catch (InvalidRequestException e)
-                {
-                    throw new AssertionError(e);
-                }
-
-                IColumn c = row.cf.getColumn(name);
-                if (c == null || c.isMarkedForDelete())
-                    thriftColumns.add(new Column().setName(name));
-                else
-                    thriftColumns.add(thriftify(c));
-            }
-        }
-        return thriftColumns;
     }
 
     private static Column thriftify(IColumn c)

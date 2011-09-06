@@ -48,6 +48,7 @@ public class CqlResult implements org.apache.thrift.TBase<CqlResult, CqlResult._
   private static final org.apache.thrift.protocol.TField TYPE_FIELD_DESC = new org.apache.thrift.protocol.TField("type", org.apache.thrift.protocol.TType.I32, (short)1);
   private static final org.apache.thrift.protocol.TField ROWS_FIELD_DESC = new org.apache.thrift.protocol.TField("rows", org.apache.thrift.protocol.TType.LIST, (short)2);
   private static final org.apache.thrift.protocol.TField NUM_FIELD_DESC = new org.apache.thrift.protocol.TField("num", org.apache.thrift.protocol.TType.I32, (short)3);
+  private static final org.apache.thrift.protocol.TField SCHEMA_FIELD_DESC = new org.apache.thrift.protocol.TField("schema", org.apache.thrift.protocol.TType.STRUCT, (short)4);
 
   /**
    * 
@@ -56,6 +57,7 @@ public class CqlResult implements org.apache.thrift.TBase<CqlResult, CqlResult._
   public CqlResultType type;
   public List<CqlRow> rows;
   public int num;
+  public CqlMetadata schema;
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
   public enum _Fields implements org.apache.thrift.TFieldIdEnum {
@@ -65,7 +67,8 @@ public class CqlResult implements org.apache.thrift.TBase<CqlResult, CqlResult._
      */
     TYPE((short)1, "type"),
     ROWS((short)2, "rows"),
-    NUM((short)3, "num");
+    NUM((short)3, "num"),
+    SCHEMA((short)4, "schema");
 
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -86,6 +89,8 @@ public class CqlResult implements org.apache.thrift.TBase<CqlResult, CqlResult._
           return ROWS;
         case 3: // NUM
           return NUM;
+        case 4: // SCHEMA
+          return SCHEMA;
         default:
           return null;
       }
@@ -139,6 +144,8 @@ public class CqlResult implements org.apache.thrift.TBase<CqlResult, CqlResult._
             new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, CqlRow.class))));
     tmpMap.put(_Fields.NUM, new org.apache.thrift.meta_data.FieldMetaData("num", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
         new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32)));
+    tmpMap.put(_Fields.SCHEMA, new org.apache.thrift.meta_data.FieldMetaData("schema", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, CqlMetadata.class)));
     metaDataMap = Collections.unmodifiableMap(tmpMap);
     org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(CqlResult.class, metaDataMap);
   }
@@ -170,6 +177,9 @@ public class CqlResult implements org.apache.thrift.TBase<CqlResult, CqlResult._
       this.rows = __this__rows;
     }
     this.num = other.num;
+    if (other.isSetSchema()) {
+      this.schema = new CqlMetadata(other.schema);
+    }
   }
 
   public CqlResult deepCopy() {
@@ -182,6 +192,7 @@ public class CqlResult implements org.apache.thrift.TBase<CqlResult, CqlResult._
     this.rows = null;
     setNumIsSet(false);
     this.num = 0;
+    this.schema = null;
   }
 
   /**
@@ -278,6 +289,30 @@ public class CqlResult implements org.apache.thrift.TBase<CqlResult, CqlResult._
     __isset_bit_vector.set(__NUM_ISSET_ID, value);
   }
 
+  public CqlMetadata getSchema() {
+    return this.schema;
+  }
+
+  public CqlResult setSchema(CqlMetadata schema) {
+    this.schema = schema;
+    return this;
+  }
+
+  public void unsetSchema() {
+    this.schema = null;
+  }
+
+  /** Returns true if field schema is set (has been assigned a value) and false otherwise */
+  public boolean isSetSchema() {
+    return this.schema != null;
+  }
+
+  public void setSchemaIsSet(boolean value) {
+    if (!value) {
+      this.schema = null;
+    }
+  }
+
   public void setFieldValue(_Fields field, Object value) {
     switch (field) {
     case TYPE:
@@ -304,6 +339,14 @@ public class CqlResult implements org.apache.thrift.TBase<CqlResult, CqlResult._
       }
       break;
 
+    case SCHEMA:
+      if (value == null) {
+        unsetSchema();
+      } else {
+        setSchema((CqlMetadata)value);
+      }
+      break;
+
     }
   }
 
@@ -317,6 +360,9 @@ public class CqlResult implements org.apache.thrift.TBase<CqlResult, CqlResult._
 
     case NUM:
       return new Integer(getNum());
+
+    case SCHEMA:
+      return getSchema();
 
     }
     throw new IllegalStateException();
@@ -335,6 +381,8 @@ public class CqlResult implements org.apache.thrift.TBase<CqlResult, CqlResult._
       return isSetRows();
     case NUM:
       return isSetNum();
+    case SCHEMA:
+      return isSetSchema();
     }
     throw new IllegalStateException();
   }
@@ -379,6 +427,15 @@ public class CqlResult implements org.apache.thrift.TBase<CqlResult, CqlResult._
         return false;
     }
 
+    boolean this_present_schema = true && this.isSetSchema();
+    boolean that_present_schema = true && that.isSetSchema();
+    if (this_present_schema || that_present_schema) {
+      if (!(this_present_schema && that_present_schema))
+        return false;
+      if (!this.schema.equals(that.schema))
+        return false;
+    }
+
     return true;
   }
 
@@ -400,6 +457,11 @@ public class CqlResult implements org.apache.thrift.TBase<CqlResult, CqlResult._
     builder.append(present_num);
     if (present_num)
       builder.append(num);
+
+    boolean present_schema = true && (isSetSchema());
+    builder.append(present_schema);
+    if (present_schema)
+      builder.append(schema);
 
     return builder.toHashCode();
   }
@@ -442,6 +504,16 @@ public class CqlResult implements org.apache.thrift.TBase<CqlResult, CqlResult._
         return lastComparison;
       }
     }
+    lastComparison = Boolean.valueOf(isSetSchema()).compareTo(typedOther.isSetSchema());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    if (isSetSchema()) {
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.schema, typedOther.schema);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
     return 0;
   }
 
@@ -469,14 +541,14 @@ public class CqlResult implements org.apache.thrift.TBase<CqlResult, CqlResult._
         case 2: // ROWS
           if (field.type == org.apache.thrift.protocol.TType.LIST) {
             {
-              org.apache.thrift.protocol.TList _list61 = iprot.readListBegin();
-              this.rows = new ArrayList<CqlRow>(_list61.size);
-              for (int _i62 = 0; _i62 < _list61.size; ++_i62)
+              org.apache.thrift.protocol.TList _list71 = iprot.readListBegin();
+              this.rows = new ArrayList<CqlRow>(_list71.size);
+              for (int _i72 = 0; _i72 < _list71.size; ++_i72)
               {
-                CqlRow _elem63;
-                _elem63 = new CqlRow();
-                _elem63.read(iprot);
-                this.rows.add(_elem63);
+                CqlRow _elem73;
+                _elem73 = new CqlRow();
+                _elem73.read(iprot);
+                this.rows.add(_elem73);
               }
               iprot.readListEnd();
             }
@@ -488,6 +560,14 @@ public class CqlResult implements org.apache.thrift.TBase<CqlResult, CqlResult._
           if (field.type == org.apache.thrift.protocol.TType.I32) {
             this.num = iprot.readI32();
             setNumIsSet(true);
+          } else { 
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
+        case 4: // SCHEMA
+          if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
+            this.schema = new CqlMetadata();
+            this.schema.read(iprot);
           } else { 
             org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
@@ -517,9 +597,9 @@ public class CqlResult implements org.apache.thrift.TBase<CqlResult, CqlResult._
         oprot.writeFieldBegin(ROWS_FIELD_DESC);
         {
           oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, this.rows.size()));
-          for (CqlRow _iter64 : this.rows)
+          for (CqlRow _iter74 : this.rows)
           {
-            _iter64.write(oprot);
+            _iter74.write(oprot);
           }
           oprot.writeListEnd();
         }
@@ -530,6 +610,13 @@ public class CqlResult implements org.apache.thrift.TBase<CqlResult, CqlResult._
       oprot.writeFieldBegin(NUM_FIELD_DESC);
       oprot.writeI32(this.num);
       oprot.writeFieldEnd();
+    }
+    if (this.schema != null) {
+      if (isSetSchema()) {
+        oprot.writeFieldBegin(SCHEMA_FIELD_DESC);
+        this.schema.write(oprot);
+        oprot.writeFieldEnd();
+      }
     }
     oprot.writeFieldStop();
     oprot.writeStructEnd();
@@ -561,6 +648,16 @@ public class CqlResult implements org.apache.thrift.TBase<CqlResult, CqlResult._
       if (!first) sb.append(", ");
       sb.append("num:");
       sb.append(this.num);
+      first = false;
+    }
+    if (isSetSchema()) {
+      if (!first) sb.append(", ");
+      sb.append("schema:");
+      if (this.schema == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.schema);
+      }
       first = false;
     }
     sb.append(")");

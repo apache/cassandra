@@ -31,6 +31,7 @@ import java.sql.Date;
 import java.util.*;
 
 import org.apache.cassandra.thrift.Column;
+import org.apache.cassandra.thrift.CqlMetadata;
 import org.apache.cassandra.thrift.CqlResult;
 import org.apache.cassandra.thrift.CqlRow;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -41,10 +42,7 @@ class CResultSet extends AbstractResultSet implements CassandraResultSet
     public static final int DEFAULT_CONCURRENCY = ResultSet.CONCUR_READ_ONLY;
     public static final int DEFAULT_HOLDABILITY = ResultSet.HOLD_CURSORS_OVER_COMMIT;
 
-    private final ColumnDecoder decoder;
     private final String keyspace;
-
-    private final String columnFamily;
 
     /**
      * The r set iter.
@@ -54,8 +52,6 @@ class CResultSet extends AbstractResultSet implements CassandraResultSet
     int rowNumber = 0;
     // the current row key when iterating through results.
     private byte[] curRowKey = null;
-
-    private TypedColumn typedCurRowKey = null;
 
     /**
      * The values.
@@ -84,14 +80,14 @@ class CResultSet extends AbstractResultSet implements CassandraResultSet
 
     private boolean wasNull;
 
+    private CqlMetadata schema;
+
     /**
      * no argument constructor.
      */
     CResultSet()
     {
         keyspace = null;
-        columnFamily = null;
-        decoder = null;
         statement = null;
         meta = new CResultSetMetaData();
     }
@@ -99,16 +95,15 @@ class CResultSet extends AbstractResultSet implements CassandraResultSet
     /**
      * Instantiates a new cassandra result set.
      */
-    CResultSet(Statement statement, CqlResult resultSet, ColumnDecoder decoder, String keyspace, String columnFamily) throws SQLException
+    CResultSet(Statement statement, CqlResult resultSet, String keyspace) throws SQLException
     {
         this.statement = statement;
+        this.keyspace = keyspace;
         this.resultSetType = statement.getResultSetType();
         this.fetchDirection = statement.getFetchDirection();
         this.fetchSize = statement.getFetchSize();
+        this.schema = resultSet.schema;
 
-        this.decoder = decoder;
-        this.keyspace = keyspace;
-        this.columnFamily = columnFamily;
         rSetIter = resultSet.getRowsIterator();
         meta = new CResultSetMetaData();
     }
@@ -771,11 +766,6 @@ class CResultSet extends AbstractResultSet implements CassandraResultSet
         return resultSetType;
     }
 
-    public TypedColumn getTypedKey() throws SQLException
-    {
-        return typedCurRowKey;
-    }
-
     // URL (awaiting some clarifications as to how it is stored in C* ... just a validated Sting in URL format?
     public URL getURL(int arg0) throws SQLException
     {
@@ -853,13 +843,11 @@ class CResultSet extends AbstractResultSet implements CassandraResultSet
             CqlRow row = rSetIter.next();
             rowNumber++;
             curRowKey = row.getKey();
-            typedCurRowKey = decoder.makeKeyColumn(keyspace, columnFamily, curRowKey);
             List<Column> cols = row.getColumns();
             for (Column col : cols)
             {
-
-                TypedColumn c = decoder.makeCol(keyspace, columnFamily, col);
-                String columnName = decoder.colNameAsString(keyspace, columnFamily, col.name);
+                TypedColumn c = createColumn(col);
+                String columnName = c.getNameString();
                 values.add(c);
                 indexMap.put(columnName, values.size()); // one greater than 0 based index of a list
                 valueMap.put(columnName, c);
@@ -871,6 +859,15 @@ class CResultSet extends AbstractResultSet implements CassandraResultSet
             rowNumber = Integer.MAX_VALUE;
             return false;
         }
+    }
+
+    private TypedColumn createColumn(Column column)
+    {
+        String nameType = schema.name_types.get(column.name);
+        AbstractJdbcType<?> comparator = TypesMap.getTypeForComparator(nameType == null ? schema.default_name_type : nameType);
+        String valueType = schema.value_types.get(column.name);
+        AbstractJdbcType<?> validator = TypesMap.getTypeForComparator(valueType == null ? schema.default_value_type : valueType);
+        return new TypedColumn(column, comparator, validator);
     }
 
     public boolean previous() throws SQLException
@@ -991,8 +988,7 @@ class CResultSet extends AbstractResultSet implements CassandraResultSet
 
         public String getTableName(int column) throws SQLException
         {
-            checkIndex(column);
-            return columnFamily;
+            throw new SQLFeatureNotSupportedException();
         }
 
         public boolean isAutoIncrement(int column) throws SQLException

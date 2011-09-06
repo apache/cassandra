@@ -25,12 +25,18 @@ import java.io.IOException;
 import java.net.Socket;
 import java.net.UnknownHostException;
 
+import org.junit.BeforeClass;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.config.*;
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.service.AbstractCassandraDaemon;
 import org.apache.cassandra.service.EmbeddedCassandraService;
-import org.junit.BeforeClass;
 
 /**
  * The abstract BaseClass.
@@ -44,6 +50,8 @@ public abstract class EmbeddedServiceBase
     {
         AbstractCassandraDaemon.initLog4j();
     }
+
+    private static final Logger logger = LoggerFactory.getLogger(EmbeddedServiceBase.class);
 
     @BeforeClass
     public static void cleanUpOldStuff() throws IOException
@@ -61,6 +69,7 @@ public abstract class EmbeddedServiceBase
     {
         if (!checkIfServerRunning())
         {
+            logger.debug("Starting embeddeded server");
             loadData();
             cassandra = new EmbeddedCassandraService();
             cassandra.start();

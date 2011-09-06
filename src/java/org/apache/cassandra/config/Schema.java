@@ -32,10 +32,15 @@ import org.apache.cassandra.utils.Pair;
 
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 public class Schema
 {
+    private static final Logger logger = LoggerFactory.getLogger(Schema.class);
+
     public static final UUID INITIAL_VERSION = new UUID(4096, 0); // has type nibble set to 1, everything else to zero.
 
     public static final Schema instance = new Schema(INITIAL_VERSION);
@@ -377,6 +382,7 @@ public class Schema
         if (cfIdMap.containsKey(key))
             throw new ConfigurationException("Attempt to assign id to existing column family.");
 
+        logger.debug("Adding {} to cfIdMap", cfm);
         cfIdMap.put(key, cfm.cfId);
     }
 

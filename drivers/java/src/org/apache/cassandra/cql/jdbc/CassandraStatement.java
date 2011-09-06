@@ -154,12 +154,11 @@ class CassandraStatement extends AbstractStatement implements Statement
             resetResults();
             CqlResult rSet = connection.execute(sql);
             String keyspace = connection.currentKeyspace;
-            String columnfamily = determineCurrentColumnFamily(sql);
 
             switch (rSet.getType())
             {
                 case ROWS:
-                    currentResultSet = new CResultSet(this, rSet, connection.decoder, keyspace, columnfamily);
+                    currentResultSet = new CResultSet(this, rSet, keyspace);
                     break;
                 case INT:
                     updateCount = rSet.getNum();

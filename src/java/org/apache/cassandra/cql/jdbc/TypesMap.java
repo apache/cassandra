@@ -24,7 +24,7 @@ public class TypesMap
         map.put("org.apache.cassandra.db.marshal.UUIDType", JdbcUUID.instance);
     }
     
-    public static AbstractJdbcType<?> getTermForComparator(String comparator)
+    public static AbstractJdbcType<?> getTypeForComparator(String comparator)
     {
         // If not fully qualified, assume it's the short name for a built-in.
         if ((comparator != null) && (!comparator.contains(".")))

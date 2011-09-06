@@ -86,6 +86,9 @@ unmarshallers = {BYTES_TYPE:          unmarshal_noop,
                  LEXICAL_UUID_TYPE:   unmarshal_uuid,
                  TIME_UUID_TYPE:      unmarshal_uuid,
                  COUNTER_COLUMN_TYPE: unmarshal_long}
+for name, typ in unmarshallers.items():
+    short_name = name.split('.')[-1]
+    unmarshallers[short_name] = typ
 
 def decode_bigint(term):
     val = int(term.encode('hex'), 16)

@@ -22,47 +22,30 @@ class SchemaDecoder(object):
     """
     Decode binary column names/values according to schema.
     """
-    def __init__(self, schema={}):
+    def __init__(self, schema):
         self.schema = schema
 
-    def __get_column_family_def(self, keyspace, column_family):
-        if keyspace in self.schema and column_family in self.schema[keyspace]:
-            return self.schema[keyspace][column_family]
-        return None
-
-    def __comparator_for(self, keyspace, column_family):
-        cfam = self.__get_column_family_def(keyspace, column_family)
-        return cfam.get("comparator", None)
-
-    def decode_description(self, keyspace, column_family, row):
+    def decode_description(self, row):
+        schema = self.schema
         description = []
-        comparator = self.__comparator_for(keyspace, column_family)
-        unmarshal = unmarshallers.get(comparator, unmarshal_noop)
-        for column in row.columns:
-            if column.name == self.__get_column_family_def(keyspace, column_family)['key_alias']:
-                description.append((column.name, 'text', None, None, None, None, True))
-            else:
-                description.append((unmarshal(column.name), comparator, None, None, None, None, True))
-        return description
-
-    def decode_row(self, keyspace, column_family, row):
-        cfdef = self.__get_column_family_def(keyspace, column_family)
-        key_alias = cfdef['key_alias']
-        validators = cfdef['columns']
-        default_validator = cfdef['default_validation_class']
-        key_validator = cfdef.get("key_validation_class", None)
-
-        values = []
         for column in row.columns:
             name = column.name
+            comparator = schema.name_types.get(name, schema.default_name_type)
+            unmarshal = unmarshallers.get(comparator, unmarshal_noop)
+            description.append((unmarshal(name), comparator, None, None, None, None, True))
+        return description
+
+    def decode_row(self, row):
+        schema = self.schema
+        values = []
+        for column in row.columns:
             if column.value is None:
                 values.append(None)
                 continue
 
-            if name == key_alias:
-                validator = key_validator
-            else:
-                validator = validators.get(name, default_validator)
+            name = column.name
+            validator = schema.value_types.get(name, schema.default_value_type)
+            unmarshal = unmarshallers.get(validator, unmarshal_noop)
             values.append(unmarshallers.get(validator, unmarshal_noop)(column.value))
 
         return values

@@ -113,13 +113,16 @@ class IndexOperator:
 
 class IndexType:
   KEYS = 0
+  CUSTOM = 1
 
   _VALUES_TO_NAMES = {
     0: "KEYS",
+    1: "CUSTOM",
   }
 
   _NAMES_TO_VALUES = {
     "KEYS": 0,
+    "CUSTOM": 1,
   }
 
 class Compression:
@@ -2201,6 +2204,7 @@ class ColumnDef:
    - validation_class
    - index_type
    - index_name
+   - index_options
   """
 
   thrift_spec = (
@@ -2209,13 +2213,15 @@ class ColumnDef:
     (2, TType.STRING, 'validation_class', None, None, ), # 2
     (3, TType.I32, 'index_type', None, None, ), # 3
     (4, TType.STRING, 'index_name', None, None, ), # 4
+    (5, TType.MAP, 'index_options', (TType.STRING,None,TType.STRING,None), None, ), # 5
   )
 
-  def __init__(self, name=None, validation_class=None, index_type=None, index_name=None,):
+  def __init__(self, name=None, validation_class=None, index_type=None, index_name=None, index_options=None,):
     self.name = name
     self.validation_class = validation_class
     self.index_type = index_type
     self.index_name = index_name
+    self.index_options = index_options
 
   def read(self, iprot):
     if iprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and isinstance(iprot.trans, TTransport.CReadableTransport) and self.thrift_spec is not None and fastbinary is not None:
@@ -2246,6 +2252,17 @@ class ColumnDef:
           self.index_name = iprot.readString();
         else:
           iprot.skip(ftype)
+      elif fid == 5:
+        if ftype == TType.MAP:
+          self.index_options = {}
+          (_ktype52, _vtype53, _size51 ) = iprot.readMapBegin() 
+          for _i55 in xrange(_size51):
+            _key56 = iprot.readString();
+            _val57 = iprot.readString();
+            self.index_options[_key56] = _val57
+          iprot.readMapEnd()
+        else:
+          iprot.skip(ftype)
       else:
         iprot.skip(ftype)
       iprot.readFieldEnd()
@@ -2271,6 +2288,14 @@ class ColumnDef:
     if self.index_name != None:
       oprot.writeFieldBegin('index_name', TType.STRING, 4)
       oprot.writeString(self.index_name)
+      oprot.writeFieldEnd()
+    if self.index_options != None:
+      oprot.writeFieldBegin('index_options', TType.MAP, 5)
+      oprot.writeMapBegin(TType.STRING, TType.STRING, len(self.index_options))
+      for kiter58,viter59 in self.index_options.items():
+        oprot.writeString(kiter58)
+        oprot.writeString(viter59)
+      oprot.writeMapEnd()
       oprot.writeFieldEnd()
     oprot.writeFieldStop()
     oprot.writeStructEnd()
@@ -2313,7 +2338,6 @@ class CfDef:
    - max_compaction_threshold
    - row_cache_save_period_in_seconds
    - key_cache_save_period_in_seconds
-   - memtable_flush_after_mins
    - memtable_throughput_in_mb
    - memtable_operations_in_millions
    - replicate_on_write
@@ -2321,6 +2345,10 @@ class CfDef:
    - key_validation_class
    - row_cache_provider
    - key_alias
+   - compaction_strategy
+   - compaction_strategy_options
+   - row_cache_keys_to_save
+   - compression_options
   """
 
   thrift_spec = (
@@ -2345,7 +2373,7 @@ class CfDef:
     (18, TType.I32, 'max_compaction_threshold', None, None, ), # 18
     (19, TType.I32, 'row_cache_save_period_in_seconds', None, None, ), # 19
     (20, TType.I32, 'key_cache_save_period_in_seconds', None, None, ), # 20
-    (21, TType.I32, 'memtable_flush_after_mins', None, None, ), # 21
+    None, # 21
     (22, TType.I32, 'memtable_throughput_in_mb', None, None, ), # 22
     (23, TType.DOUBLE, 'memtable_operations_in_millions', None, None, ), # 23
     (24, TType.BOOL, 'replicate_on_write', None, None, ), # 24
@@ -2353,9 +2381,13 @@ class CfDef:
     (26, TType.STRING, 'key_validation_class', None, None, ), # 26
     (27, TType.STRING, 'row_cache_provider', None, "org.apache.cassandra.cache.ConcurrentLinkedHashCacheProvider", ), # 27
     (28, TType.STRING, 'key_alias', None, None, ), # 28
+    (29, TType.STRING, 'compaction_strategy', None, None, ), # 29
+    (30, TType.MAP, 'compaction_strategy_options', (TType.STRING,None,TType.STRING,None), None, ), # 30
+    (31, TType.I32, 'row_cache_keys_to_save', None, None, ), # 31
+    (32, TType.MAP, 'compression_options', (TType.STRING,None,TType.STRING,None), None, ), # 32
   )
 
-  def __init__(self, keyspace=None, name=None, column_type=thrift_spec[3][4], comparator_type=thrift_spec[5][4], subcomparator_type=None, comment=None, row_cache_size=thrift_spec[9][4], key_cache_size=thrift_spec[11][4], read_repair_chance=thrift_spec[12][4], column_metadata=None, gc_grace_seconds=None, default_validation_class=None, id=None, min_compaction_threshold=None, max_compaction_threshold=None, row_cache_save_period_in_seconds=None, key_cache_save_period_in_seconds=None, memtable_flush_after_mins=None, memtable_throughput_in_mb=None, memtable_operations_in_millions=None, replicate_on_write=None, merge_shards_chance=None, key_validation_class=None, row_cache_provider=thrift_spec[27][4], key_alias=None,):
+  def __init__(self, keyspace=None, name=None, column_type=thrift_spec[3][4], comparator_type=thrift_spec[5][4], subcomparator_type=None, comment=None, row_cache_size=thrift_spec[9][4], key_cache_size=thrift_spec[11][4], read_repair_chance=thrift_spec[12][4], column_metadata=None, gc_grace_seconds=None, default_validation_class=None, id=None, min_compaction_threshold=None, max_compaction_threshold=None, row_cache_save_period_in_seconds=None, key_cache_save_period_in_seconds=None, memtable_throughput_in_mb=None, memtable_operations_in_millions=None, replicate_on_write=None, merge_shards_chance=None, key_validation_class=None, row_cache_provider=thrift_spec[27][4], key_alias=None, compaction_strategy=None, compaction_strategy_options=None, row_cache_keys_to_save=None, compression_options=None,):
     self.keyspace = keyspace
     self.name = name
     self.column_type = column_type
@@ -2373,7 +2405,6 @@ class CfDef:
     self.max_compaction_threshold = max_compaction_threshold
     self.row_cache_save_period_in_seconds = row_cache_save_period_in_seconds
     self.key_cache_save_period_in_seconds = key_cache_save_period_in_seconds
-    self.memtable_flush_after_mins = memtable_flush_after_mins
     self.memtable_throughput_in_mb = memtable_throughput_in_mb
     self.memtable_operations_in_millions = memtable_operations_in_millions
     self.replicate_on_write = replicate_on_write
@@ -2381,6 +2412,10 @@ class CfDef:
     self.key_validation_class = key_validation_class
     self.row_cache_provider = row_cache_provider
     self.key_alias = key_alias
+    self.compaction_strategy = compaction_strategy
+    self.compaction_strategy_options = compaction_strategy_options
+    self.row_cache_keys_to_save = row_cache_keys_to_save
+    self.compression_options = compression_options
 
   def read(self, iprot):
     if iprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and isinstance(iprot.trans, TTransport.CReadableTransport) and self.thrift_spec is not None and fastbinary is not None:
@@ -2439,11 +2474,11 @@ class CfDef:
       elif fid == 13:
         if ftype == TType.LIST:
           self.column_metadata = []
-          (_etype54, _size51) = iprot.readListBegin()
-          for _i55 in xrange(_size51):
-            _elem56 = ColumnDef()
-            _elem56.read(iprot)
-            self.column_metadata.append(_elem56)
+          (_etype63, _size60) = iprot.readListBegin()
+          for _i64 in xrange(_size60):
+            _elem65 = ColumnDef()
+            _elem65.read(iprot)
+            self.column_metadata.append(_elem65)
           iprot.readListEnd()
         else:
           iprot.skip(ftype)
@@ -2482,11 +2517,6 @@ class CfDef:
           self.key_cache_save_period_in_seconds = iprot.readI32();
         else:
           iprot.skip(ftype)
-      elif fid == 21:
-        if ftype == TType.I32:
-          self.memtable_flush_after_mins = iprot.readI32();
-        else:
-          iprot.skip(ftype)
       elif fid == 22:
         if ftype == TType.I32:
           self.memtable_throughput_in_mb = iprot.readI32();
@@ -2520,6 +2550,38 @@ class CfDef:
       elif fid == 28:
         if ftype == TType.STRING:
           self.key_alias = iprot.readString();
+        else:
+          iprot.skip(ftype)
+      elif fid == 29:
+        if ftype == TType.STRING:
+          self.compaction_strategy = iprot.readString();
+        else:
+          iprot.skip(ftype)
+      elif fid == 30:
+        if ftype == TType.MAP:
+          self.compaction_strategy_options = {}
+          (_ktype67, _vtype68, _size66 ) = iprot.readMapBegin() 
+          for _i70 in xrange(_size66):
+            _key71 = iprot.readString();
+            _val72 = iprot.readString();
+            self.compaction_strategy_options[_key71] = _val72
+          iprot.readMapEnd()
+        else:
+          iprot.skip(ftype)
+      elif fid == 31:
+        if ftype == TType.I32:
+          self.row_cache_keys_to_save = iprot.readI32();
+        else:
+          iprot.skip(ftype)
+      elif fid == 32:
+        if ftype == TType.MAP:
+          self.compression_options = {}
+          (_ktype74, _vtype75, _size73 ) = iprot.readMapBegin() 
+          for _i77 in xrange(_size73):
+            _key78 = iprot.readString();
+            _val79 = iprot.readString();
+            self.compression_options[_key78] = _val79
+          iprot.readMapEnd()
         else:
           iprot.skip(ftype)
       else:
@@ -2571,8 +2633,8 @@ class CfDef:
     if self.column_metadata != None:
       oprot.writeFieldBegin('column_metadata', TType.LIST, 13)
       oprot.writeListBegin(TType.STRUCT, len(self.column_metadata))
-      for iter57 in self.column_metadata:
-        iter57.write(oprot)
+      for iter80 in self.column_metadata:
+        iter80.write(oprot)
       oprot.writeListEnd()
       oprot.writeFieldEnd()
     if self.gc_grace_seconds != None:
@@ -2603,10 +2665,6 @@ class CfDef:
       oprot.writeFieldBegin('key_cache_save_period_in_seconds', TType.I32, 20)
       oprot.writeI32(self.key_cache_save_period_in_seconds)
       oprot.writeFieldEnd()
-    if self.memtable_flush_after_mins != None:
-      oprot.writeFieldBegin('memtable_flush_after_mins', TType.I32, 21)
-      oprot.writeI32(self.memtable_flush_after_mins)
-      oprot.writeFieldEnd()
     if self.memtable_throughput_in_mb != None:
       oprot.writeFieldBegin('memtable_throughput_in_mb', TType.I32, 22)
       oprot.writeI32(self.memtable_throughput_in_mb)
@@ -2635,6 +2693,30 @@ class CfDef:
       oprot.writeFieldBegin('key_alias', TType.STRING, 28)
       oprot.writeString(self.key_alias)
       oprot.writeFieldEnd()
+    if self.compaction_strategy != None:
+      oprot.writeFieldBegin('compaction_strategy', TType.STRING, 29)
+      oprot.writeString(self.compaction_strategy)
+      oprot.writeFieldEnd()
+    if self.compaction_strategy_options != None:
+      oprot.writeFieldBegin('compaction_strategy_options', TType.MAP, 30)
+      oprot.writeMapBegin(TType.STRING, TType.STRING, len(self.compaction_strategy_options))
+      for kiter81,viter82 in self.compaction_strategy_options.items():
+        oprot.writeString(kiter81)
+        oprot.writeString(viter82)
+      oprot.writeMapEnd()
+      oprot.writeFieldEnd()
+    if self.row_cache_keys_to_save != None:
+      oprot.writeFieldBegin('row_cache_keys_to_save', TType.I32, 31)
+      oprot.writeI32(self.row_cache_keys_to_save)
+      oprot.writeFieldEnd()
+    if self.compression_options != None:
+      oprot.writeFieldBegin('compression_options', TType.MAP, 32)
+      oprot.writeMapBegin(TType.STRING, TType.STRING, len(self.compression_options))
+      for kiter83,viter84 in self.compression_options.items():
+        oprot.writeString(kiter83)
+        oprot.writeString(viter84)
+      oprot.writeMapEnd()
+      oprot.writeFieldEnd()
     oprot.writeFieldStop()
     oprot.writeStructEnd()
     def validate(self):
@@ -2662,8 +2744,9 @@ class KsDef:
    - name
    - strategy_class
    - strategy_options
-   - replication_factor: deprecated
+   - replication_factor: @deprecated
    - cf_defs
+   - durable_writes
   """
 
   thrift_spec = (
@@ -2673,14 +2756,16 @@ class KsDef:
     (3, TType.MAP, 'strategy_options', (TType.STRING,None,TType.STRING,None), None, ), # 3
     (4, TType.I32, 'replication_factor', None, None, ), # 4
     (5, TType.LIST, 'cf_defs', (TType.STRUCT,(CfDef, CfDef.thrift_spec)), None, ), # 5
+    (6, TType.BOOL, 'durable_writes', None, True, ), # 6
   )
 
-  def __init__(self, name=None, strategy_class=None, strategy_options=None, replication_factor=None, cf_defs=None,):
+  def __init__(self, name=None, strategy_class=None, strategy_options=None, replication_factor=None, cf_defs=None, durable_writes=thrift_spec[6][4],):
     self.name = name
     self.strategy_class = strategy_class
     self.strategy_options = strategy_options
     self.replication_factor = replication_factor
     self.cf_defs = cf_defs
+    self.durable_writes = durable_writes
 
   def read(self, iprot):
     if iprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and isinstance(iprot.trans, TTransport.CReadableTransport) and self.thrift_spec is not None and fastbinary is not None:
@@ -2704,11 +2789,11 @@ class KsDef:
       elif fid == 3:
         if ftype == TType.MAP:
           self.strategy_options = {}
-          (_ktype59, _vtype60, _size58 ) = iprot.readMapBegin() 
-          for _i62 in xrange(_size58):
-            _key63 = iprot.readString();
-            _val64 = iprot.readString();
-            self.strategy_options[_key63] = _val64
+          (_ktype86, _vtype87, _size85 ) = iprot.readMapBegin() 
+          for _i89 in xrange(_size85):
+            _key90 = iprot.readString();
+            _val91 = iprot.readString();
+            self.strategy_options[_key90] = _val91
           iprot.readMapEnd()
         else:
           iprot.skip(ftype)
@@ -2720,12 +2805,17 @@ class KsDef:
       elif fid == 5:
         if ftype == TType.LIST:
           self.cf_defs = []
-          (_etype68, _size65) = iprot.readListBegin()
-          for _i69 in xrange(_size65):
-            _elem70 = CfDef()
-            _elem70.read(iprot)
-            self.cf_defs.append(_elem70)
+          (_etype95, _size92) = iprot.readListBegin()
+          for _i96 in xrange(_size92):
+            _elem97 = CfDef()
+            _elem97.read(iprot)
+            self.cf_defs.append(_elem97)
           iprot.readListEnd()
+        else:
+          iprot.skip(ftype)
+      elif fid == 6:
+        if ftype == TType.BOOL:
+          self.durable_writes = iprot.readBool();
         else:
           iprot.skip(ftype)
       else:
@@ -2749,9 +2839,9 @@ class KsDef:
     if self.strategy_options != None:
       oprot.writeFieldBegin('strategy_options', TType.MAP, 3)
       oprot.writeMapBegin(TType.STRING, TType.STRING, len(self.strategy_options))
-      for kiter71,viter72 in self.strategy_options.items():
-        oprot.writeString(kiter71)
-        oprot.writeString(viter72)
+      for kiter98,viter99 in self.strategy_options.items():
+        oprot.writeString(kiter98)
+        oprot.writeString(viter99)
       oprot.writeMapEnd()
       oprot.writeFieldEnd()
     if self.replication_factor != None:
@@ -2761,9 +2851,13 @@ class KsDef:
     if self.cf_defs != None:
       oprot.writeFieldBegin('cf_defs', TType.LIST, 5)
       oprot.writeListBegin(TType.STRUCT, len(self.cf_defs))
-      for iter73 in self.cf_defs:
-        iter73.write(oprot)
+      for iter100 in self.cf_defs:
+        iter100.write(oprot)
       oprot.writeListEnd()
+      oprot.writeFieldEnd()
+    if self.durable_writes != None:
+      oprot.writeFieldBegin('durable_writes', TType.BOOL, 6)
+      oprot.writeBool(self.durable_writes)
       oprot.writeFieldEnd()
     oprot.writeFieldStop()
     oprot.writeStructEnd()
@@ -2824,11 +2918,11 @@ class CqlRow:
       elif fid == 2:
         if ftype == TType.LIST:
           self.columns = []
-          (_etype77, _size74) = iprot.readListBegin()
-          for _i78 in xrange(_size74):
-            _elem79 = Column()
-            _elem79.read(iprot)
-            self.columns.append(_elem79)
+          (_etype104, _size101) = iprot.readListBegin()
+          for _i105 in xrange(_size101):
+            _elem106 = Column()
+            _elem106.read(iprot)
+            self.columns.append(_elem106)
           iprot.readListEnd()
         else:
           iprot.skip(ftype)
@@ -2849,8 +2943,8 @@ class CqlRow:
     if self.columns != None:
       oprot.writeFieldBegin('columns', TType.LIST, 2)
       oprot.writeListBegin(TType.STRUCT, len(self.columns))
-      for iter80 in self.columns:
-        iter80.write(oprot)
+      for iter107 in self.columns:
+        iter107.write(oprot)
       oprot.writeListEnd()
       oprot.writeFieldEnd()
     oprot.writeFieldStop()
@@ -2874,12 +2968,136 @@ class CqlRow:
   def __ne__(self, other):
     return not (self == other)
 
+class CqlMetadata:
+  """
+  Attributes:
+   - name_types
+   - value_types
+   - default_name_type
+   - default_value_type
+  """
+
+  thrift_spec = (
+    None, # 0
+    (1, TType.MAP, 'name_types', (TType.STRING,None,TType.STRING,None), None, ), # 1
+    (2, TType.MAP, 'value_types', (TType.STRING,None,TType.STRING,None), None, ), # 2
+    (3, TType.STRING, 'default_name_type', None, None, ), # 3
+    (4, TType.STRING, 'default_value_type', None, None, ), # 4
+  )
+
+  def __init__(self, name_types=None, value_types=None, default_name_type=None, default_value_type=None,):
+    self.name_types = name_types
+    self.value_types = value_types
+    self.default_name_type = default_name_type
+    self.default_value_type = default_value_type
+
+  def read(self, iprot):
+    if iprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and isinstance(iprot.trans, TTransport.CReadableTransport) and self.thrift_spec is not None and fastbinary is not None:
+      fastbinary.decode_binary(self, iprot.trans, (self.__class__, self.thrift_spec))
+      return
+    iprot.readStructBegin()
+    while True:
+      (fname, ftype, fid) = iprot.readFieldBegin()
+      if ftype == TType.STOP:
+        break
+      if fid == 1:
+        if ftype == TType.MAP:
+          self.name_types = {}
+          (_ktype109, _vtype110, _size108 ) = iprot.readMapBegin() 
+          for _i112 in xrange(_size108):
+            _key113 = iprot.readString();
+            _val114 = iprot.readString();
+            self.name_types[_key113] = _val114
+          iprot.readMapEnd()
+        else:
+          iprot.skip(ftype)
+      elif fid == 2:
+        if ftype == TType.MAP:
+          self.value_types = {}
+          (_ktype116, _vtype117, _size115 ) = iprot.readMapBegin() 
+          for _i119 in xrange(_size115):
+            _key120 = iprot.readString();
+            _val121 = iprot.readString();
+            self.value_types[_key120] = _val121
+          iprot.readMapEnd()
+        else:
+          iprot.skip(ftype)
+      elif fid == 3:
+        if ftype == TType.STRING:
+          self.default_name_type = iprot.readString();
+        else:
+          iprot.skip(ftype)
+      elif fid == 4:
+        if ftype == TType.STRING:
+          self.default_value_type = iprot.readString();
+        else:
+          iprot.skip(ftype)
+      else:
+        iprot.skip(ftype)
+      iprot.readFieldEnd()
+    iprot.readStructEnd()
+
+  def write(self, oprot):
+    if oprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and self.thrift_spec is not None and fastbinary is not None:
+      oprot.trans.write(fastbinary.encode_binary(self, (self.__class__, self.thrift_spec)))
+      return
+    oprot.writeStructBegin('CqlMetadata')
+    if self.name_types != None:
+      oprot.writeFieldBegin('name_types', TType.MAP, 1)
+      oprot.writeMapBegin(TType.STRING, TType.STRING, len(self.name_types))
+      for kiter122,viter123 in self.name_types.items():
+        oprot.writeString(kiter122)
+        oprot.writeString(viter123)
+      oprot.writeMapEnd()
+      oprot.writeFieldEnd()
+    if self.value_types != None:
+      oprot.writeFieldBegin('value_types', TType.MAP, 2)
+      oprot.writeMapBegin(TType.STRING, TType.STRING, len(self.value_types))
+      for kiter124,viter125 in self.value_types.items():
+        oprot.writeString(kiter124)
+        oprot.writeString(viter125)
+      oprot.writeMapEnd()
+      oprot.writeFieldEnd()
+    if self.default_name_type != None:
+      oprot.writeFieldBegin('default_name_type', TType.STRING, 3)
+      oprot.writeString(self.default_name_type)
+      oprot.writeFieldEnd()
+    if self.default_value_type != None:
+      oprot.writeFieldBegin('default_value_type', TType.STRING, 4)
+      oprot.writeString(self.default_value_type)
+      oprot.writeFieldEnd()
+    oprot.writeFieldStop()
+    oprot.writeStructEnd()
+    def validate(self):
+      if self.name_types is None:
+        raise TProtocol.TProtocolException(message='Required field name_types is unset!')
+      if self.value_types is None:
+        raise TProtocol.TProtocolException(message='Required field value_types is unset!')
+      if self.default_name_type is None:
+        raise TProtocol.TProtocolException(message='Required field default_name_type is unset!')
+      if self.default_value_type is None:
+        raise TProtocol.TProtocolException(message='Required field default_value_type is unset!')
+      return
+
+
+  def __repr__(self):
+    L = ['%s=%r' % (key, value)
+      for key, value in self.__dict__.iteritems()]
+    return '%s(%s)' % (self.__class__.__name__, ', '.join(L))
+
+  def __eq__(self, other):
+    return isinstance(other, self.__class__) and self.__dict__ == other.__dict__
+
+  def __ne__(self, other):
+    return not (self == other)
+
 class CqlResult:
   """
   Attributes:
    - type
    - rows
    - num
+   - schema
   """
 
   thrift_spec = (
@@ -2887,12 +3105,14 @@ class CqlResult:
     (1, TType.I32, 'type', None, None, ), # 1
     (2, TType.LIST, 'rows', (TType.STRUCT,(CqlRow, CqlRow.thrift_spec)), None, ), # 2
     (3, TType.I32, 'num', None, None, ), # 3
+    (4, TType.STRUCT, 'schema', (CqlMetadata, CqlMetadata.thrift_spec), None, ), # 4
   )
 
-  def __init__(self, type=None, rows=None, num=None,):
+  def __init__(self, type=None, rows=None, num=None, schema=None,):
     self.type = type
     self.rows = rows
     self.num = num
+    self.schema = schema
 
   def read(self, iprot):
     if iprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and isinstance(iprot.trans, TTransport.CReadableTransport) and self.thrift_spec is not None and fastbinary is not None:
@@ -2911,17 +3131,23 @@ class CqlResult:
       elif fid == 2:
         if ftype == TType.LIST:
           self.rows = []
-          (_etype84, _size81) = iprot.readListBegin()
-          for _i85 in xrange(_size81):
-            _elem86 = CqlRow()
-            _elem86.read(iprot)
-            self.rows.append(_elem86)
+          (_etype129, _size126) = iprot.readListBegin()
+          for _i130 in xrange(_size126):
+            _elem131 = CqlRow()
+            _elem131.read(iprot)
+            self.rows.append(_elem131)
           iprot.readListEnd()
         else:
           iprot.skip(ftype)
       elif fid == 3:
         if ftype == TType.I32:
           self.num = iprot.readI32();
+        else:
+          iprot.skip(ftype)
+      elif fid == 4:
+        if ftype == TType.STRUCT:
+          self.schema = CqlMetadata()
+          self.schema.read(iprot)
         else:
           iprot.skip(ftype)
       else:
@@ -2941,13 +3167,17 @@ class CqlResult:
     if self.rows != None:
       oprot.writeFieldBegin('rows', TType.LIST, 2)
       oprot.writeListBegin(TType.STRUCT, len(self.rows))
-      for iter87 in self.rows:
-        iter87.write(oprot)
+      for iter132 in self.rows:
+        iter132.write(oprot)
       oprot.writeListEnd()
       oprot.writeFieldEnd()
     if self.num != None:
       oprot.writeFieldBegin('num', TType.I32, 3)
       oprot.writeI32(self.num)
+      oprot.writeFieldEnd()
+    if self.schema != None:
+      oprot.writeFieldBegin('schema', TType.STRUCT, 4)
+      self.schema.write(oprot)
       oprot.writeFieldEnd()
     oprot.writeFieldStop()
     oprot.writeStructEnd()

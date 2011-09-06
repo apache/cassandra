@@ -161,6 +161,9 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>
     /**
      * This must be overriden by subclasses if necessary so that for any
      * AbstractType, this == TypeParser.parse(toString()).
+     *
+     * Note that for backwards compatibility this includes the full classname.
+     * For CQL purposes the short name is fine.
      */
     @Override
     public String toString()

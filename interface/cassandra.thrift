@@ -46,7 +46,7 @@ namespace rb CassandraThrift
 #           for every edit that doesn't result in a change to major/minor.
 #
 # See the Semantic Versioning Specification (SemVer) http://semver.org.
-const string VERSION = "19.12.0"
+const string VERSION = "19.13.0"
 
 
 #
@@ -433,10 +433,18 @@ struct CqlRow {
     2: required list<Column> columns
 }
 
+struct CqlMetadata {
+    1: required map<binary,string> name_types,
+    2: required map<binary,string> value_types,
+    3: required string default_name_type,
+    4: required string default_value_type
+}
+
 struct CqlResult {
     1: required CqlResultType type,
     2: optional list<CqlRow> rows,
-    3: optional i32 num
+    3: optional i32 num,
+    4: optional CqlMetadata schema
 }
 
 service Cassandra {

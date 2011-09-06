@@ -92,6 +92,11 @@ public class TypeParser
         return parse(compareWith == null ? null : compareWith.toString());
     }
 
+    public static String getShortName(AbstractType type)
+    {
+        return type.getClass().getSimpleName();
+    }
+
     /**
      * Parse an AbstractType from current position of this parser.
      */
