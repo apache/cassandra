@@ -76,6 +76,7 @@ public class CreateColumnFamilyStatement
         comparators.put("date", "DateType");
         comparators.put("float", "FloatType");
         comparators.put("double", "DoubleType");
+        comparators.put("decimal", "DecimalType");
 
         keywords.add(KW_COMPARATOR);
         keywords.add(KW_COMMENT);
