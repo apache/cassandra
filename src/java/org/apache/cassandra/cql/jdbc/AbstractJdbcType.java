@@ -1,4 +1,4 @@
-package org.apache.cassandra.cql.term;
+package org.apache.cassandra.cql.jdbc;
 /*
  * 
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -21,53 +21,19 @@ package org.apache.cassandra.cql.term;
  */
 
 
-import java.sql.Types;
-import java.util.UUID;
+import java.nio.ByteBuffer;
 
-public abstract class AbstractUUIDTerm extends AbstractTerm<UUID>
+public abstract class AbstractJdbcType<T>
 {
-    public String toString(UUID obj)
-    {
-        return obj.toString();
-    }
-    
-    public boolean isCaseSensitive()
-    {
-        return false;
-    }
-
-    public int getScale(UUID obj)
-    {
-        return -1;
-    }
-
-    public int getPrecision(UUID obj)
-    {
-        return -1;
-    }
-
-    public boolean isCurrency()
-    {
-        return false;
-    }
-
-    public boolean isSigned()
-    {
-        return false;
-    }
-
-    public boolean needsQuotes()
-    {
-        return false;
-    }
-
-    public Class<UUID> getType()
-    {
-        return UUID.class;
-    }
-
-    public int getJdbcType()
-    {
-        return Types.OTHER;
-    }
+    public abstract boolean isCaseSensitive();
+    public abstract int getScale(T obj);
+    public abstract int getPrecision(T obj);
+    public abstract boolean isCurrency();
+    public abstract boolean isSigned();
+    public abstract String toString(T obj);
+    public abstract boolean needsQuotes();
+    public abstract String getString(ByteBuffer bytes);
+    public abstract Class<T> getType();
+    public abstract int getJdbcType();
+    public abstract T compose(ByteBuffer bytes);
 }

@@ -19,14 +19,14 @@ package org.apache.cassandra.db.marshal;
  * under the License.
  * 
  */
-import static org.apache.cassandra.cql.term.DateTerm.iso8601Patterns;
+import static org.apache.cassandra.cql.jdbc.JdbcDate.iso8601Patterns;
 
 import java.nio.ByteBuffer;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
-import org.apache.cassandra.cql.term.DateTerm;
+import org.apache.cassandra.cql.jdbc.JdbcDate;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.commons.lang.time.DateUtils;
 
@@ -42,7 +42,7 @@ public class DateType extends AbstractType<Date>
 
     public Date compose(ByteBuffer bytes)
     {
-        return DateTerm.instance.compose(bytes);
+        return JdbcDate.instance.compose(bytes);
     }
     
     public ByteBuffer decompose(Date value)
@@ -70,9 +70,9 @@ public class DateType extends AbstractType<Date>
     {
         try
         {
-            return DateTerm.instance.getString(bytes);
+            return JdbcDate.instance.getString(bytes);
         }
-        catch (org.apache.cassandra.cql.term.MarshalException e)
+        catch (org.apache.cassandra.cql.jdbc.MarshalException e)
         {
             throw new MarshalException(e.getMessage());
         }

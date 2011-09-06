@@ -22,9 +22,8 @@ package org.apache.cassandra.db.marshal;
 
 
 import java.nio.ByteBuffer;
-import java.sql.Types;
 
-import org.apache.cassandra.cql.term.LongTerm;
+import org.apache.cassandra.cql.jdbc.LongTerm;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class LongType extends AbstractType<Long>
@@ -68,7 +67,7 @@ public class LongType extends AbstractType<Long>
         {
             return LongTerm.instance.getString(bytes);
         }
-        catch (org.apache.cassandra.cql.term.MarshalException e)
+        catch (org.apache.cassandra.cql.jdbc.MarshalException e)
         {
             throw new MarshalException(e.getMessage());
         }

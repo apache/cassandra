@@ -26,8 +26,6 @@ import static org.apache.cassandra.cql.jdbc.Utils.NO_CF;
 import static org.apache.cassandra.cql.jdbc.Utils.NO_COMPARATOR;
 import static org.apache.cassandra.cql.jdbc.Utils.NO_VALIDATOR;
 
-import org.apache.cassandra.cql.term.AbstractTerm;
-
 import java.io.InputStream;
 import java.io.Reader;
 import java.math.BigDecimal;
@@ -88,7 +86,7 @@ class CassandraPreparedStatement extends CassandraStatement implements PreparedS
     }
 
     // null type means just call param.toString() and quote it (default for keys).
-    private static String applySimpleBindings(String q, AbstractTerm type, ParameterIterator params) throws SQLException
+    private static String applySimpleBindings(String q, AbstractJdbcType type, ParameterIterator params) throws SQLException
     {
         assert type != null;
         // we need to keep track of whether or not we are between quotes and ignore any question marks within them
@@ -125,7 +123,7 @@ class CassandraPreparedStatement extends CassandraStatement implements PreparedS
         return sb.toString();
     }
 
-    private static String applyDualBindings(String q, AbstractTerm ltype, AbstractTerm rtype, ParameterIterator params) throws SQLException
+    private static String applyDualBindings(String q, AbstractJdbcType ltype, AbstractJdbcType rtype, ParameterIterator params) throws SQLException
     {
         StringBuffer sb = new StringBuffer();
         boolean between = false;
@@ -144,7 +142,7 @@ class CassandraPreparedStatement extends CassandraStatement implements PreparedS
                 try
                 {
                     Object param = params.nextParam();
-                    AbstractTerm type = left ? ltype : rtype;
+                    AbstractJdbcType type = left ? ltype : rtype;
                     String stringParam = makeCqlString(type.toString(param));
                     if (type.needsQuotes())
                         stringParam = "'" + stringParam + "'";
@@ -191,12 +189,12 @@ class CassandraPreparedStatement extends CassandraStatement implements PreparedS
 
         ParameterIterator params = new ParameterIterator();
         String left = cql.substring(0, pivot);
-        AbstractTerm leftType = connection.decoder.getComparator(keyspace, columnFamily);
+        AbstractJdbcType leftType = connection.decoder.getComparator(keyspace, columnFamily);
         if (leftType == null) throw new SQLDataException(String.format(NO_COMPARATOR, keyspace, columnFamily));
         left = applySimpleBindings(left, leftType, params);
 
         String right = cql.substring(pivot);
-        AbstractTerm keyVald = connection.decoder.getKeyValidator(keyspace, columnFamily);
+        AbstractJdbcType keyVald = connection.decoder.getKeyValidator(keyspace, columnFamily);
         if (keyVald == null) throw new SQLDataException(String.format(NO_VALIDATOR, keyspace, columnFamily));
         right = applySimpleBindings(right, keyVald, params);
         return left + right;
@@ -211,12 +209,12 @@ class CassandraPreparedStatement extends CassandraStatement implements PreparedS
 
         ParameterIterator params = new ParameterIterator();
         String left = cql.substring(0, pivot);
-        AbstractTerm leftType = connection.decoder.getComparator(keyspace, columnFamily);
+        AbstractJdbcType leftType = connection.decoder.getComparator(keyspace, columnFamily);
         if (leftType == null) throw new SQLDataException(String.format(NO_COMPARATOR, keyspace, columnFamily));
         left = applySimpleBindings(left, leftType, params);
 
         String right = cql.substring(pivot);
-        AbstractTerm keyVald = connection.decoder.getKeyValidator(keyspace, columnFamily);
+        AbstractJdbcType keyVald = connection.decoder.getKeyValidator(keyspace, columnFamily);
         if (keyVald == null) throw new SQLDataException(String.format(NO_VALIDATOR, keyspace, columnFamily));
         right = applySimpleBindings(right, keyVald, params);
         return left + right;
@@ -233,15 +231,15 @@ class CassandraPreparedStatement extends CassandraStatement implements PreparedS
 
         ParameterIterator params = new ParameterIterator();
         String left = cql.substring(0, pivot);
-        AbstractTerm leftComp = connection.decoder.getComparator(keyspace, columnFamily);
+        AbstractJdbcType leftComp = connection.decoder.getComparator(keyspace, columnFamily);
         if (leftComp == null) throw new SQLDataException(String.format(NO_COMPARATOR, keyspace, columnFamily));
 
-        AbstractTerm leftVald = connection.decoder.getComparator(keyspace, columnFamily);
+        AbstractJdbcType leftVald = connection.decoder.getComparator(keyspace, columnFamily);
         if (leftVald == null) throw new SQLDataException(String.format(NO_VALIDATOR, keyspace, columnFamily));
         left = applyDualBindings(left, leftComp, leftVald, params);
 
         String right = cql.substring(pivot);
-        AbstractTerm keyVald = connection.decoder.getKeyValidator(keyspace, columnFamily);
+        AbstractJdbcType keyVald = connection.decoder.getKeyValidator(keyspace, columnFamily);
         if (keyVald == null) throw new SQLDataException(String.format(NO_VALIDATOR, keyspace, columnFamily));
         right = applySimpleBindings(right, keyVald, params);
         return left + right;

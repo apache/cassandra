@@ -1,4 +1,4 @@
-package org.apache.cassandra.cql.term;
+package org.apache.cassandra.cql.jdbc;
 /*
  * 
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -22,29 +22,32 @@ package org.apache.cassandra.cql.term;
 
 
 import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
 import java.sql.Types;
 
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-public class FloatTerm extends AbstractTerm<Float>
+import com.google.common.base.Charsets;
+
+public class AsciiTerm extends AbstractJdbcType<String>
 {
-    public static final FloatTerm instance = new FloatTerm();
+    public static final AsciiTerm instance = new AsciiTerm();
     
-    FloatTerm() {}
+    AsciiTerm() {}
     
     public boolean isCaseSensitive()
     {
-        return false;
+        return true;
     }
 
-    public int getScale(Float obj)
+    public int getScale(String obj)
     {
-        return 40;
+        return -1;
     }
 
-    public int getPrecision(Float obj)
+    public int getPrecision(String obj)
     {
-        return 7;
+        return -1;
     }
 
     public boolean isCurrency()
@@ -54,45 +57,44 @@ public class FloatTerm extends AbstractTerm<Float>
 
     public boolean isSigned()
     {
-        return true;
+        return false;
     }
 
-    public String toString(Float obj)
+    public String toString(String obj)
     {
-        return obj.toString();
+        return obj;
     }
 
     public boolean needsQuotes()
     {
-        return false;
+        return true;
     }
 
     public String getString(ByteBuffer bytes)
     {
-        if (bytes.remaining() == 0)
+        try
         {
-            return "";
+            return ByteBufferUtil.string(bytes, Charsets.US_ASCII);
         }
-        if (bytes.remaining() != 4)
+        catch (CharacterCodingException e)
         {
-            throw new MarshalException("A float is exactly 4 bytes : "+bytes.remaining());
+            throw new MarshalException("Invalid ascii bytes " + ByteBufferUtil.bytesToHex(bytes));
         }
-        
-        return ((Float)ByteBufferUtil.toFloat(bytes)).toString();
     }
 
-    public Class<Float> getType()
+    public Class<String> getType()
     {
-        return Float.class;
+        return String.class;
     }
 
     public int getJdbcType()
     {
-        return Types.FLOAT;
+        return Types.VARCHAR;
     }
 
-    public Float compose(ByteBuffer bytes)
+    public String compose(ByteBuffer bytes)
     {
-        return ByteBufferUtil.toFloat(bytes);
+        return getString(bytes);
     }
+
 }

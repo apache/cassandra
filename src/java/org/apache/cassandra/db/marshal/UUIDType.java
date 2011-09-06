@@ -25,13 +25,13 @@ import java.nio.ByteBuffer;
 import java.text.ParseException;
 import java.util.UUID;
 
-import org.apache.cassandra.cql.term.UUIDTerm;
+import org.apache.cassandra.cql.jdbc.JdbcUUID;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 import org.apache.commons.lang.time.DateUtils;
 
-import static org.apache.cassandra.cql.term.DateTerm.iso8601Patterns;
+import static org.apache.cassandra.cql.jdbc.JdbcDate.iso8601Patterns;
 
 /**
  * Compares UUIDs using the following criteria:<br>
@@ -162,7 +162,7 @@ public class UUIDType extends AbstractType<UUID>
     public UUID compose(ByteBuffer bytes)
     {
 
-        return UUIDTerm.instance.compose(bytes);
+        return JdbcUUID.instance.compose(bytes);
     }
 
     public void validate(ByteBuffer bytes)
@@ -177,9 +177,9 @@ public class UUIDType extends AbstractType<UUID>
     {
         try
         {
-            return UUIDTerm.instance.getString(bytes);
+            return JdbcUUID.instance.getString(bytes);
         }
-        catch (org.apache.cassandra.cql.term.MarshalException e)
+        catch (org.apache.cassandra.cql.jdbc.MarshalException e)
         {
             throw new MarshalException(e.getMessage());
         }

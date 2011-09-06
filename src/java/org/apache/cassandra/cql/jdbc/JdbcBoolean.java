@@ -1,4 +1,4 @@
-package org.apache.cassandra.cql.term;
+package org.apache.cassandra.cql.jdbc;
 /*
  * 
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -22,30 +22,25 @@ package org.apache.cassandra.cql.term;
 
 
 import java.nio.ByteBuffer;
-import java.nio.charset.CharacterCodingException;
 import java.sql.Types;
 
-import org.apache.cassandra.utils.ByteBufferUtil;
-
-import com.google.common.base.Charsets;
-
-public class AsciiTerm extends AbstractTerm<String>
+public class JdbcBoolean extends AbstractJdbcType<Boolean>
 {
-    public static final AsciiTerm instance = new AsciiTerm();
+    public static final JdbcBoolean instance = new JdbcBoolean();
     
-    AsciiTerm() {}
+    JdbcBoolean() {}
     
     public boolean isCaseSensitive()
     {
-        return true;
+        return false;
     }
 
-    public int getScale(String obj)
+    public int getScale(Boolean obj)
     {
         return -1;
     }
 
-    public int getPrecision(String obj)
+    public int getPrecision(Boolean obj)
     {
         return -1;
     }
@@ -60,41 +55,45 @@ public class AsciiTerm extends AbstractTerm<String>
         return false;
     }
 
-    public String toString(String obj)
+    public String toString(Boolean obj)
     {
-        return obj;
+        return obj.toString();
     }
 
     public boolean needsQuotes()
     {
-        return true;
+        return false;
     }
 
     public String getString(ByteBuffer bytes)
     {
-        try
+        if (bytes.remaining() == 0)
         {
-            return ByteBufferUtil.string(bytes, Charsets.US_ASCII);
+            return Boolean.FALSE.toString();
         }
-        catch (CharacterCodingException e)
+        if (bytes.remaining() != 1)
         {
-            throw new MarshalException("Invalid ascii bytes " + ByteBufferUtil.bytesToHex(bytes));
+            throw new MarshalException("A boolean is stored in exactly 1 byte: "+bytes.remaining());
         }
+        byte value = bytes.get(bytes.position());
+        
+        return value ==0 ? Boolean.FALSE.toString(): Boolean.TRUE.toString();
     }
 
-    public Class<String> getType()
+    public Class<Boolean> getType()
     {
-        return String.class;
+        return Boolean.class;
     }
 
     public int getJdbcType()
     {
-        return Types.VARCHAR;
+        return Types.BOOLEAN;
     }
 
-    public String compose(ByteBuffer bytes)
+    public Boolean compose(ByteBuffer bytes)
     {
-        return getString(bytes);
+        byte value = bytes.get(bytes.position());
+        return Boolean.valueOf(value ==0 ? false:true);
     }
 
 }

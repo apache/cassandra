@@ -1,4 +1,4 @@
-package org.apache.cassandra.cql.term;
+package org.apache.cassandra.cql.jdbc;
 /*
  * 
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -22,29 +22,30 @@ package org.apache.cassandra.cql.term;
 
 
 import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
 import java.sql.Types;
 
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-public class DoubleTerm extends AbstractTerm<Double>
+public class JdbcUTF8 extends AbstractJdbcType<String>
 {
-    public static final DoubleTerm instance = new DoubleTerm();
+    public static final JdbcUTF8 instance = new JdbcUTF8();
     
-    DoubleTerm() {}
+    public JdbcUTF8() {}
     
     public boolean isCaseSensitive()
     {
-        return false;
+        return true;
     }
 
-    public int getScale(Double obj)
+    public int getScale(String obj)
     {
-        return 300;
+        return -1;
     }
 
-    public int getPrecision(Double obj)
+    public int getPrecision(String obj)
     {
-        return 15;
+        return -1;
     }
 
     public boolean isCurrency()
@@ -54,45 +55,43 @@ public class DoubleTerm extends AbstractTerm<Double>
 
     public boolean isSigned()
     {
-        return true;
+        return false;
     }
 
-    public String toString(Double obj)
+    public String toString(String obj)
     {
-        return obj.toString();
+        return obj;
     }
 
     public boolean needsQuotes()
     {
-        return false;
+        return true;
     }
 
     public String getString(ByteBuffer bytes)
     {
-        if (bytes.remaining() == 0)
+        try
         {
-            return "";
+            return ByteBufferUtil.string(bytes);
         }
-        if (bytes.remaining() != 8)
+        catch (CharacterCodingException e)
         {
-            throw new MarshalException("A double is exactly 8 bytes : "+bytes.remaining());
+            throw new MarshalException("invalid UTF8 bytes " + ByteBufferUtil.bytesToHex(bytes));
         }
-        
-        return ((Double)ByteBufferUtil.toDouble(bytes)).toString();
     }
 
-    public Class<Double> getType()
+    public Class<String> getType()
     {
-        return Double.class;
+        return String.class;
     }
 
     public int getJdbcType()
     {
-        return Types.DOUBLE;
+        return Types.VARCHAR;
     }
 
-    public Double compose(ByteBuffer bytes)
+    public String compose(ByteBuffer bytes)
     {
-        return ByteBufferUtil.toDouble(bytes);
+        return getString(bytes);
     }
 }

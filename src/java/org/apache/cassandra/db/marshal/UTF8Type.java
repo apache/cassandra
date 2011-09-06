@@ -24,7 +24,7 @@ import java.nio.ByteBuffer;
 
 import com.google.common.base.Charsets;
 
-import org.apache.cassandra.cql.term.UTF8Term;
+import org.apache.cassandra.cql.jdbc.JdbcUTF8;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class UTF8Type extends AbstractType<String>
@@ -35,7 +35,7 @@ public class UTF8Type extends AbstractType<String>
 
     public String compose(ByteBuffer bytes)
     {
-        return UTF8Term.instance.compose(bytes);
+        return JdbcUTF8.instance.compose(bytes);
     }
 
     public ByteBuffer decompose(String value)
@@ -52,9 +52,9 @@ public class UTF8Type extends AbstractType<String>
     {
         try
         {
-            return UTF8Term.instance.getString(bytes);
+            return JdbcUTF8.instance.getString(bytes);
         }
-        catch (org.apache.cassandra.cql.term.MarshalException e)
+        catch (org.apache.cassandra.cql.jdbc.MarshalException e)
         {
             throw new MarshalException(e.getMessage());
         }

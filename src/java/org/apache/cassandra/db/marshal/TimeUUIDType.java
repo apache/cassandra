@@ -26,13 +26,13 @@ import java.text.ParseException;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
-import org.apache.cassandra.cql.term.TimeUUIDTerm;
+import org.apache.cassandra.cql.jdbc.JdbcTimeUUID;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 import org.apache.commons.lang.time.DateUtils;
 
-import static org.apache.cassandra.cql.term.DateTerm.iso8601Patterns;
+import static org.apache.cassandra.cql.jdbc.JdbcDate.iso8601Patterns;
 
 public class TimeUUIDType extends AbstractType<UUID>
 {
@@ -44,7 +44,7 @@ public class TimeUUIDType extends AbstractType<UUID>
 
     public UUID compose(ByteBuffer bytes)
     {
-        return TimeUUIDTerm.instance.compose(bytes);
+        return JdbcTimeUUID.instance.compose(bytes);
     }
 
     public ByteBuffer decompose(UUID value)
@@ -101,9 +101,9 @@ public class TimeUUIDType extends AbstractType<UUID>
     {
         try
         {
-            return TimeUUIDTerm.instance.getString(bytes);
+            return JdbcTimeUUID.instance.getString(bytes);
         }
-        catch (org.apache.cassandra.cql.term.MarshalException e)
+        catch (org.apache.cassandra.cql.jdbc.MarshalException e)
         {
             throw new MarshalException(e.getMessage());
         }

@@ -21,9 +21,8 @@ package org.apache.cassandra.db.marshal;
  */
 
 import java.nio.ByteBuffer;
-import java.sql.Types;
 
-import org.apache.cassandra.cql.term.DoubleTerm;
+import org.apache.cassandra.cql.jdbc.JdbcDouble;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class DoubleType extends AbstractType<Double>
@@ -34,7 +33,7 @@ public class DoubleType extends AbstractType<Double>
 
     public Double compose(ByteBuffer bytes)
     {
-        return DoubleTerm.instance.compose(bytes);
+        return JdbcDouble.instance.compose(bytes);
     }
     
     public ByteBuffer decompose(Double value)
@@ -61,9 +60,9 @@ public class DoubleType extends AbstractType<Double>
     {   
         try
         {
-            return DoubleTerm.instance.getString(bytes);
+            return JdbcDouble.instance.getString(bytes);
         }
-        catch (org.apache.cassandra.cql.term.MarshalException e)
+        catch (org.apache.cassandra.cql.jdbc.MarshalException e)
         {
             throw new MarshalException(e.getMessage());
         }

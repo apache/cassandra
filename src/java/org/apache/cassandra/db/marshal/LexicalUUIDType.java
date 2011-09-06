@@ -24,7 +24,7 @@ package org.apache.cassandra.db.marshal;
 import java.nio.ByteBuffer;
 import java.util.UUID;
 
-import org.apache.cassandra.cql.term.LexicalUUIDTerm;
+import org.apache.cassandra.cql.jdbc.LexicalUUIDTerm;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.UUIDGen;
 
@@ -64,7 +64,7 @@ public class LexicalUUIDType extends AbstractType<UUID>
         {
             return LexicalUUIDTerm.instance.getString(bytes);
         }
-        catch (org.apache.cassandra.cql.term.MarshalException e)
+        catch (org.apache.cassandra.cql.jdbc.MarshalException e)
         {
             throw new MarshalException(e.getMessage());
         }

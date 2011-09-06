@@ -1,4 +1,4 @@
-package org.apache.cassandra.cql.term;
+package org.apache.cassandra.cql.jdbc;
 /*
  * 
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -27,11 +27,11 @@ import java.sql.Types;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 
-public class BytesTerm extends AbstractTerm<ByteBuffer>
+public class JdbcBytes extends AbstractJdbcType<ByteBuffer>
 {
-    public static final BytesTerm instance = new BytesTerm();
+    public static final JdbcBytes instance = new JdbcBytes();
     
-    BytesTerm() {}
+    JdbcBytes() {}
 
     public boolean isCaseSensitive()
     {

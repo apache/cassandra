@@ -1,4 +1,4 @@
-package org.apache.cassandra.cql.term;
+package org.apache.cassandra.cql.jdbc;
 /*
  * 
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -23,28 +23,45 @@ package org.apache.cassandra.cql.term;
 
 import java.nio.ByteBuffer;
 import java.sql.Types;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-public class LongTerm extends AbstractTerm<Long>
+public class JdbcDate extends AbstractJdbcType<Date>
 {
-    public static final LongTerm instance = new LongTerm();
+    public static final String[] iso8601Patterns = new String[] {
+        "yyyy-MM-dd HH:mm",
+        "yyyy-MM-dd HH:mm:ss",
+        "yyyy-MM-dd HH:mmZ",
+        "yyyy-MM-dd HH:mm:ssZ",
+        "yyyy-MM-dd'T'HH:mm",
+        "yyyy-MM-dd'T'HH:mmZ",
+        "yyyy-MM-dd'T'HH:mm:ss",
+        "yyyy-MM-dd'T'HH:mm:ssZ",
+        "yyyy-MM-dd",
+        "yyyy-MM-ddZ"
+    };
+    static final String DEFAULT_FORMAT = iso8601Patterns[3];
+    static final SimpleDateFormat FORMATTER = new SimpleDateFormat(DEFAULT_FORMAT);
     
-    LongTerm() {}
+    public static final JdbcDate instance = new JdbcDate();
+    
+    JdbcDate() {}
     
     public boolean isCaseSensitive()
     {
         return false;
     }
 
-    public int getScale(Long obj)
+    public int getScale(Date obj)
     {
-        return 0;
+        return -1;
     }
 
-    public int getPrecision(Long obj)
+    public int getPrecision(Date obj)
     {
-        return obj.toString().length();
+        return -1;
     }
 
     public boolean isCurrency()
@@ -54,12 +71,12 @@ public class LongTerm extends AbstractTerm<Long>
 
     public boolean isSigned()
     {
-        return true;
+        return false;
     }
 
-    public String toString(Long obj)
+    public String toString(Date obj)
     {
-        return obj.toString();
+        return FORMATTER.format(obj);
     }
 
     public boolean needsQuotes()
@@ -75,24 +92,25 @@ public class LongTerm extends AbstractTerm<Long>
         }
         if (bytes.remaining() != 8)
         {
-            throw new MarshalException("A long is exactly 8 bytes: "+bytes.remaining());
+            throw new MarshalException("A date is exactly 8 bytes (stored as a long): " + bytes.remaining());
         }
         
-        return String.valueOf(bytes.getLong(bytes.position()));
+        // uses ISO-8601 formatted string
+        return FORMATTER.format(new Date(bytes.getLong(bytes.position())));
     }
 
-    public Class<Long> getType()
+    public Class<Date> getType()
     {
-        return Long.class;
+        return Date.class;
     }
 
     public int getJdbcType()
     {
-        return Types.INTEGER;
+        return Types.DATE;
     }
 
-    public Long compose(ByteBuffer bytes)
+    public Date compose(ByteBuffer bytes)
     {
-        return ByteBufferUtil.toLong(bytes);
+        return new Date(ByteBufferUtil.toLong(bytes));
     }
 }

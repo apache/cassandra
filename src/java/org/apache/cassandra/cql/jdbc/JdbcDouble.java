@@ -1,4 +1,4 @@
-package org.apache.cassandra.cql.term;
+package org.apache.cassandra.cql.jdbc;
 /*
  * 
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -24,25 +24,27 @@ package org.apache.cassandra.cql.term;
 import java.nio.ByteBuffer;
 import java.sql.Types;
 
-public class BooleanTerm extends AbstractTerm<Boolean>
+import org.apache.cassandra.utils.ByteBufferUtil;
+
+public class JdbcDouble extends AbstractJdbcType<Double>
 {
-    public static final BooleanTerm instance = new BooleanTerm();
+    public static final JdbcDouble instance = new JdbcDouble();
     
-    BooleanTerm() {}
+    JdbcDouble() {}
     
     public boolean isCaseSensitive()
     {
         return false;
     }
 
-    public int getScale(Boolean obj)
+    public int getScale(Double obj)
     {
-        return -1;
+        return 300;
     }
 
-    public int getPrecision(Boolean obj)
+    public int getPrecision(Double obj)
     {
-        return -1;
+        return 15;
     }
 
     public boolean isCurrency()
@@ -52,10 +54,10 @@ public class BooleanTerm extends AbstractTerm<Boolean>
 
     public boolean isSigned()
     {
-        return false;
+        return true;
     }
 
-    public String toString(Boolean obj)
+    public String toString(Double obj)
     {
         return obj.toString();
     }
@@ -69,31 +71,28 @@ public class BooleanTerm extends AbstractTerm<Boolean>
     {
         if (bytes.remaining() == 0)
         {
-            return Boolean.FALSE.toString();
+            return "";
         }
-        if (bytes.remaining() != 1)
+        if (bytes.remaining() != 8)
         {
-            throw new MarshalException("A boolean is stored in exactly 1 byte: "+bytes.remaining());
+            throw new MarshalException("A double is exactly 8 bytes : "+bytes.remaining());
         }
-        byte value = bytes.get(bytes.position());
         
-        return value ==0 ? Boolean.FALSE.toString(): Boolean.TRUE.toString();
+        return ((Double)ByteBufferUtil.toDouble(bytes)).toString();
     }
 
-    public Class<Boolean> getType()
+    public Class<Double> getType()
     {
-        return Boolean.class;
+        return Double.class;
     }
 
     public int getJdbcType()
     {
-        return Types.BOOLEAN;
+        return Types.DOUBLE;
     }
 
-    public Boolean compose(ByteBuffer bytes)
+    public Double compose(ByteBuffer bytes)
     {
-        byte value = bytes.get(bytes.position());
-        return Boolean.valueOf(value ==0 ? false:true);
+        return ByteBufferUtil.toDouble(bytes);
     }
-
 }

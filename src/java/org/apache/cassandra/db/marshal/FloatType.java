@@ -21,9 +21,8 @@ package org.apache.cassandra.db.marshal;
  */
 
 import java.nio.ByteBuffer;
-import java.sql.Types;
 
-import org.apache.cassandra.cql.term.FloatTerm;
+import org.apache.cassandra.cql.jdbc.JdbcFloat;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 
@@ -35,7 +34,7 @@ public class FloatType extends AbstractType<Float>
 
     public Float compose(ByteBuffer bytes)
     {
-        return FloatTerm.instance.compose(bytes);
+        return JdbcFloat.instance.compose(bytes);
     }
     
     public ByteBuffer decompose(Float value)
@@ -62,9 +61,9 @@ public class FloatType extends AbstractType<Float>
     {
         try
         {
-            return FloatTerm.instance.getString(bytes);
+            return JdbcFloat.instance.getString(bytes);
         }
-        catch (org.apache.cassandra.cql.term.MarshalException e)
+        catch (org.apache.cassandra.cql.jdbc.MarshalException e)
         {
             throw new MarshalException(e.getMessage());
         }

@@ -22,12 +22,10 @@ package org.apache.cassandra.db.marshal;
 
 
 import java.nio.ByteBuffer;
-import java.nio.charset.CharacterCodingException;
-import java.sql.Types;
 
 import com.google.common.base.Charsets;
 
-import org.apache.cassandra.cql.term.AsciiTerm;
+import org.apache.cassandra.cql.jdbc.AsciiTerm;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class AsciiType extends AbstractType<String>
@@ -42,7 +40,7 @@ public class AsciiType extends AbstractType<String>
         {
             return AsciiTerm.instance.getString(bytes);
         }
-        catch (org.apache.cassandra.cql.term.MarshalException e)
+        catch (org.apache.cassandra.cql.jdbc.MarshalException e)
         {
             throw new MarshalException(e.getMessage());
         }

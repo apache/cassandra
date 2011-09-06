@@ -1,4 +1,4 @@
-package org.apache.cassandra.cql.term;
+package org.apache.cassandra.cql.jdbc;
 /*
  * 
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -23,45 +23,28 @@ package org.apache.cassandra.cql.term;
 
 import java.nio.ByteBuffer;
 import java.sql.Types;
-import java.text.SimpleDateFormat;
-import java.util.Date;
 
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-public class DateTerm extends AbstractTerm<Date>
+public class JdbcFloat extends AbstractJdbcType<Float>
 {
-    public static final String[] iso8601Patterns = new String[] {
-        "yyyy-MM-dd HH:mm",
-        "yyyy-MM-dd HH:mm:ss",
-        "yyyy-MM-dd HH:mmZ",
-        "yyyy-MM-dd HH:mm:ssZ",
-        "yyyy-MM-dd'T'HH:mm",
-        "yyyy-MM-dd'T'HH:mmZ",
-        "yyyy-MM-dd'T'HH:mm:ss",
-        "yyyy-MM-dd'T'HH:mm:ssZ",
-        "yyyy-MM-dd",
-        "yyyy-MM-ddZ"
-    };
-    static final String DEFAULT_FORMAT = iso8601Patterns[3];
-    static final SimpleDateFormat FORMATTER = new SimpleDateFormat(DEFAULT_FORMAT);
+    public static final JdbcFloat instance = new JdbcFloat();
     
-    public static final DateTerm instance = new DateTerm();
-    
-    DateTerm() {}
+    JdbcFloat() {}
     
     public boolean isCaseSensitive()
     {
         return false;
     }
 
-    public int getScale(Date obj)
+    public int getScale(Float obj)
     {
-        return -1;
+        return 40;
     }
 
-    public int getPrecision(Date obj)
+    public int getPrecision(Float obj)
     {
-        return -1;
+        return 7;
     }
 
     public boolean isCurrency()
@@ -71,12 +54,12 @@ public class DateTerm extends AbstractTerm<Date>
 
     public boolean isSigned()
     {
-        return false;
+        return true;
     }
 
-    public String toString(Date obj)
+    public String toString(Float obj)
     {
-        return FORMATTER.format(obj);
+        return obj.toString();
     }
 
     public boolean needsQuotes()
@@ -90,27 +73,26 @@ public class DateTerm extends AbstractTerm<Date>
         {
             return "";
         }
-        if (bytes.remaining() != 8)
+        if (bytes.remaining() != 4)
         {
-            throw new MarshalException("A date is exactly 8 bytes (stored as a long): " + bytes.remaining());
+            throw new MarshalException("A float is exactly 4 bytes : "+bytes.remaining());
         }
         
-        // uses ISO-8601 formatted string
-        return FORMATTER.format(new Date(bytes.getLong(bytes.position())));
+        return ((Float)ByteBufferUtil.toFloat(bytes)).toString();
     }
 
-    public Class<Date> getType()
+    public Class<Float> getType()
     {
-        return Date.class;
+        return Float.class;
     }
 
     public int getJdbcType()
     {
-        return Types.DATE;
+        return Types.FLOAT;
     }
 
-    public Date compose(ByteBuffer bytes)
+    public Float compose(ByteBuffer bytes)
     {
-        return new Date(ByteBufferUtil.toLong(bytes));
+        return ByteBufferUtil.toFloat(bytes);
     }
 }

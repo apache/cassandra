@@ -1,4 +1,4 @@
-package org.apache.cassandra.cql.term;
+package org.apache.cassandra.cql.jdbc;
 /*
  * 
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -21,15 +21,33 @@ package org.apache.cassandra.cql.term;
  */
 
 
-public class MarshalException extends RuntimeException
+import java.nio.ByteBuffer;
+import java.util.UUID;
+
+import org.apache.cassandra.utils.UUIDGen;
+
+public class LexicalUUIDTerm extends JdbcLong
 {
-    public MarshalException(String message)
+    public static final LexicalUUIDTerm instance = new LexicalUUIDTerm();
+    
+    public LexicalUUIDTerm() {}
+    
+    public String getString(ByteBuffer bytes)
     {
-        super(message);
+        if (bytes.remaining() == 0)
+        {
+            return "";
+        }
+        if (bytes.remaining() != 16)
+        {
+            throw new MarshalException("UUIDs must be exactly 16 bytes");
+        }
+        return UUIDGen.getUUID(bytes).toString();
     }
 
-    public MarshalException(String message, Throwable cause)
+    public UUID compose(ByteBuffer bytes)
     {
-        super(message, cause);
+        return UUIDGen.getUUID(bytes);
     }
+
 }

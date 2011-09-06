@@ -1,4 +1,4 @@
-package org.apache.cassandra.cql.term;
+package org.apache.cassandra.cql.jdbc;
 /*
  * 
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -21,34 +21,15 @@ package org.apache.cassandra.cql.term;
  */
 
 
-import java.nio.ByteBuffer;
-import java.util.UUID;
-
-public class UUIDTerm extends AbstractUUIDTerm
+public class MarshalException extends RuntimeException
 {
-    public static final UUIDTerm instance = new UUIDTerm();
-    
-    UUIDTerm() {}
-    
-    public UUID compose(ByteBuffer bytes)
+    public MarshalException(String message)
     {
-        bytes = bytes.slice();
-        if (bytes.remaining() < 16)
-            return new UUID(0, 0);
-        return new UUID(bytes.getLong(), bytes.getLong());
+        super(message);
     }
 
-    public String getString(ByteBuffer bytes)
+    public MarshalException(String message, Throwable cause)
     {
-        if (bytes.remaining() == 0)
-        {
-            return "";
-        }
-        if (bytes.remaining() != 16)
-        {
-            throw new MarshalException("UUIDs must be exactly 16 bytes");
-        }
-        
-        return compose(bytes).toString();
+        super(message, cause);
     }
 }

@@ -1,4 +1,4 @@
-package org.apache.cassandra.cql.term;
+package org.apache.cassandra.cql.jdbc;
 /*
  * 
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -21,29 +21,28 @@ package org.apache.cassandra.cql.term;
  */
 
 
-import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.sql.Types;
 
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-public class IntegerTerm extends AbstractTerm<BigInteger>
+public class LongTerm extends AbstractJdbcType<Long>
 {
-    public static final IntegerTerm instance = new IntegerTerm();
+    public static final LongTerm instance = new LongTerm();
     
-    IntegerTerm() {}
+    LongTerm() {}
     
     public boolean isCaseSensitive()
     {
         return false;
     }
 
-    public int getScale(BigInteger obj)
+    public int getScale(Long obj)
     {
         return 0;
     }
 
-    public int getPrecision(BigInteger obj)
+    public int getPrecision(Long obj)
     {
         return obj.toString().length();
     }
@@ -58,7 +57,7 @@ public class IntegerTerm extends AbstractTerm<BigInteger>
         return true;
     }
 
-    public String toString(BigInteger obj)
+    public String toString(Long obj)
     {
         return obj.toString();
     }
@@ -70,26 +69,30 @@ public class IntegerTerm extends AbstractTerm<BigInteger>
 
     public String getString(ByteBuffer bytes)
     {
-        if (bytes == null)
-            return "null";
         if (bytes.remaining() == 0)
-            return "empty";
-
-        return new BigInteger(ByteBufferUtil.getArray(bytes)).toString(10);
+        {
+            return "";
+        }
+        if (bytes.remaining() != 8)
+        {
+            throw new MarshalException("A long is exactly 8 bytes: "+bytes.remaining());
+        }
+        
+        return String.valueOf(bytes.getLong(bytes.position()));
     }
 
-    public Class<BigInteger> getType()
+    public Class<Long> getType()
     {
-        return BigInteger.class;
+        return Long.class;
     }
 
     public int getJdbcType()
     {
-        return Types.BIGINT;
+        return Types.INTEGER;
     }
 
-    public BigInteger compose(ByteBuffer bytes)
+    public Long compose(ByteBuffer bytes)
     {
-        return new BigInteger(ByteBufferUtil.getArray(bytes));
+        return ByteBufferUtil.toLong(bytes);
     }
 }

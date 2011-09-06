@@ -1,4 +1,4 @@
-package org.apache.cassandra.cql.term;
+package org.apache.cassandra.cql.jdbc;
 /*
  * 
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -21,31 +21,31 @@ package org.apache.cassandra.cql.term;
  */
 
 
+import java.math.BigInteger;
 import java.nio.ByteBuffer;
-import java.nio.charset.CharacterCodingException;
 import java.sql.Types;
 
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-public class UTF8Term extends AbstractTerm<String>
+public class JdbcInteger extends AbstractJdbcType<BigInteger>
 {
-    public static final UTF8Term instance = new UTF8Term();
+    public static final JdbcInteger instance = new JdbcInteger();
     
-    public UTF8Term() {}
+    JdbcInteger() {}
     
     public boolean isCaseSensitive()
     {
-        return true;
+        return false;
     }
 
-    public int getScale(String obj)
+    public int getScale(BigInteger obj)
     {
-        return -1;
+        return 0;
     }
 
-    public int getPrecision(String obj)
+    public int getPrecision(BigInteger obj)
     {
-        return -1;
+        return obj.toString().length();
     }
 
     public boolean isCurrency()
@@ -55,43 +55,41 @@ public class UTF8Term extends AbstractTerm<String>
 
     public boolean isSigned()
     {
-        return false;
+        return true;
     }
 
-    public String toString(String obj)
+    public String toString(BigInteger obj)
     {
-        return obj;
+        return obj.toString();
     }
 
     public boolean needsQuotes()
     {
-        return true;
+        return false;
     }
 
     public String getString(ByteBuffer bytes)
     {
-        try
-        {
-            return ByteBufferUtil.string(bytes);
-        }
-        catch (CharacterCodingException e)
-        {
-            throw new MarshalException("invalid UTF8 bytes " + ByteBufferUtil.bytesToHex(bytes));
-        }
+        if (bytes == null)
+            return "null";
+        if (bytes.remaining() == 0)
+            return "empty";
+
+        return new BigInteger(ByteBufferUtil.getArray(bytes)).toString(10);
     }
 
-    public Class<String> getType()
+    public Class<BigInteger> getType()
     {
-        return String.class;
+        return BigInteger.class;
     }
 
     public int getJdbcType()
     {
-        return Types.VARCHAR;
+        return Types.BIGINT;
     }
 
-    public String compose(ByteBuffer bytes)
+    public BigInteger compose(ByteBuffer bytes)
     {
-        return getString(bytes);
+        return new BigInteger(ByteBufferUtil.getArray(bytes));
     }
 }

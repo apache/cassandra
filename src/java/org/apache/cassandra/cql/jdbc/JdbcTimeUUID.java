@@ -1,4 +1,4 @@
-package org.apache.cassandra.cql.term;
+package org.apache.cassandra.cql.jdbc;
 /*
  * 
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -26,11 +26,11 @@ import java.util.UUID;
 
 import org.apache.cassandra.utils.UUIDGen;
 
-public class LexicalUUIDTerm extends AbstractUUIDTerm
+public class JdbcTimeUUID extends JdbcLong
 {
-    public static final LexicalUUIDTerm instance = new LexicalUUIDTerm();
+    public static final JdbcTimeUUID instance = new JdbcTimeUUID();
     
-    public LexicalUUIDTerm() {}
+    JdbcTimeUUID() {}
     
     public String getString(ByteBuffer bytes)
     {
@@ -42,12 +42,16 @@ public class LexicalUUIDTerm extends AbstractUUIDTerm
         {
             throw new MarshalException("UUIDs must be exactly 16 bytes");
         }
-        return UUIDGen.getUUID(bytes).toString();
+        UUID uuid = UUIDGen.getUUID(bytes);
+        if (uuid.version() != 1)
+        {
+            throw new MarshalException("TimeUUID only makes sense with version 1 UUIDs");
+        }
+        return uuid.toString();
     }
 
     public UUID compose(ByteBuffer bytes)
     {
         return UUIDGen.getUUID(bytes);
     }
-
 }

@@ -20,9 +20,6 @@ package org.apache.cassandra.cql.jdbc;
  * 
  */
 
-import org.apache.cassandra.cql.term.AbstractTerm;
-import org.apache.cassandra.cql.term.AsciiTerm;
-import org.apache.cassandra.cql.term.TypesMap;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -76,14 +73,14 @@ class ColumnDecoder
                 metadata.put(String.format("%s.%s", ks.getName(), cf.getName()), new CFamMeta(cf));
     }
 
-    protected AbstractTerm<?> getComparator(String keyspace, String columnFamily)
+    protected AbstractJdbcType<?> getComparator(String keyspace, String columnFamily)
     {
         CFamMeta cf = metadata.get(String.format("%s.%s", keyspace, columnFamily));
-        AbstractTerm<?> type = (cf != null) ? TypesMap.getTermForComparator(cf.comparator) : null;
+        AbstractJdbcType<?> type = (cf != null) ? TypesMap.getTermForComparator(cf.comparator) : null;
         return (type == null) ? null : type;
     }
 
-    private AbstractTerm<?> getNameType(String keyspace, String columnFamily, ByteBuffer name)
+    private AbstractJdbcType<?> getNameType(String keyspace, String columnFamily, ByteBuffer name)
     {
         CFamMeta cf = metadata.get(String.format("%s.%s", keyspace, columnFamily));
         try
@@ -98,7 +95,7 @@ class ColumnDecoder
         return TypesMap.getTermForComparator(cf.comparator);
     }
 
-    private AbstractTerm<?> getValueType(String keyspace, String columnFamily, ByteBuffer name)
+    private AbstractJdbcType<?> getValueType(String keyspace, String columnFamily, ByteBuffer name)
     {
         CFamMeta cf = metadata.get(String.format("%s.%s", keyspace, columnFamily));
         if (cf == null)
@@ -114,21 +111,21 @@ class ColumnDecoder
             // not be the key name
         }
         
-        AbstractTerm<?> type = TypesMap.getTermForComparator(cf.columnMeta.get(name));
+        AbstractJdbcType<?> type = TypesMap.getTermForComparator(cf.columnMeta.get(name));
         return (type != null) ? type : TypesMap.getTermForComparator(cf.defaultValidator);
     }
 
-    public AbstractTerm<?> getKeyValidator(String keyspace, String columnFamily)
+    public AbstractJdbcType<?> getKeyValidator(String keyspace, String columnFamily)
     {
         CFamMeta cf = metadata.get(String.format("%s.%s", keyspace, columnFamily));
-        AbstractTerm<?> type = (cf != null) ? TypesMap.getTermForComparator(cf.keyValidator) : null;
+        AbstractJdbcType<?> type = (cf != null) ? TypesMap.getTermForComparator(cf.keyValidator) : null;
         return (type == null) ? null : type;
     }
 
     /** uses the AbstractType to map a column name to a string. */
     public String colNameAsString(String keyspace, String columnFamily, ByteBuffer name)
     {
-        AbstractTerm<?> comparator = getNameType(keyspace, columnFamily, name);
+        AbstractJdbcType<?> comparator = getNameType(keyspace, columnFamily, name);
         return comparator.getString(name);
     }
 
