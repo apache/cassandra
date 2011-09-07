@@ -22,7 +22,7 @@ public class ArrayBackedSortedColumnsTest
 
     private void testAddInternal(boolean reversed)
     {
-        ISortedColumns map = ArrayBackedSortedColumns.FACTORY.create(BytesType.instance, reversed);
+        ISortedColumns map = ArrayBackedSortedColumns.factory().create(BytesType.instance, reversed);
         int[] values = new int[]{ 1, 2, 2, 3 };
 
         for (int i = 0; i < values.length; ++i)
@@ -43,8 +43,8 @@ public class ArrayBackedSortedColumnsTest
 
     private void testAddAllInternal(boolean reversed)
     {
-        ISortedColumns map = ArrayBackedSortedColumns.FACTORY.create(BytesType.instance, reversed);
-        ISortedColumns map2 = ArrayBackedSortedColumns.FACTORY.create(BytesType.instance, reversed);
+        ISortedColumns map = ArrayBackedSortedColumns.factory().create(BytesType.instance, reversed);
+        ISortedColumns map2 = ArrayBackedSortedColumns.factory().create(BytesType.instance, reversed);
 
         int[] values1 = new int[]{ 1, 3, 5, 6 };
         int[] values2 = new int[]{ 2, 4, 5, 6 };
@@ -75,7 +75,7 @@ public class ArrayBackedSortedColumnsTest
 
     private void testGetCollectionInternal(boolean reversed)
     {
-        ISortedColumns map = ArrayBackedSortedColumns.FACTORY.create(BytesType.instance, reversed);
+        ISortedColumns map = ArrayBackedSortedColumns.factory().create(BytesType.instance, reversed);
         int[] values = new int[]{ 1, 2, 3, 5, 9 };
 
         List<IColumn> sorted = new ArrayList<IColumn>();
@@ -100,7 +100,7 @@ public class ArrayBackedSortedColumnsTest
 
     private void testGetNamesInternal(boolean reversed)
     {
-        ISortedColumns map = ArrayBackedSortedColumns.FACTORY.create(BytesType.instance, reversed);
+        ISortedColumns map = ArrayBackedSortedColumns.factory().create(BytesType.instance, reversed);
         List<ByteBuffer> names = new ArrayList<ByteBuffer>();
         int[] values = new int[]{ 1, 2, 3, 5, 9 };
         for (int v : values)

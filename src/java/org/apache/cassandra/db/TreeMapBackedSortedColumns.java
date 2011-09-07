@@ -22,23 +22,23 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.SortedMap;
 import java.util.SortedSet;
-import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.TreeMap;
 
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.utils.Allocator;
 
-public class ThreadSafeSortedColumns extends ConcurrentSkipListMap<ByteBuffer, IColumn> implements ISortedColumns
+public class TreeMapBackedSortedColumns extends TreeMap<ByteBuffer, IColumn> implements ISortedColumns
 {
     public static final ISortedColumns.Factory factory = new Factory()
     {
         public ISortedColumns create(AbstractType<?> comparator, boolean insertReversed)
         {
-            return new ThreadSafeSortedColumns(comparator);
+            return new TreeMapBackedSortedColumns(comparator);
         }
 
         public ISortedColumns fromSorted(SortedMap<ByteBuffer, IColumn> sortedMap, boolean insertReversed)
         {
-            return new ThreadSafeSortedColumns(sortedMap);
+            return new TreeMapBackedSortedColumns(sortedMap);
         }
     };
 
@@ -52,19 +52,19 @@ public class ThreadSafeSortedColumns extends ConcurrentSkipListMap<ByteBuffer, I
         return (AbstractType)comparator();
     }
 
-    private ThreadSafeSortedColumns(AbstractType<?> comparator)
+    private TreeMapBackedSortedColumns(AbstractType<?> comparator)
     {
         super(comparator);
     }
 
-    private ThreadSafeSortedColumns(SortedMap<ByteBuffer, IColumn> columns)
+    private TreeMapBackedSortedColumns(SortedMap<ByteBuffer, IColumn> columns)
     {
         super(columns);
     }
 
     public ISortedColumns cloneMe()
     {
-        return new ThreadSafeSortedColumns(this);
+        return new TreeMapBackedSortedColumns(this);
     }
 
     /*
@@ -74,24 +74,19 @@ public class ThreadSafeSortedColumns extends ConcurrentSkipListMap<ByteBuffer, I
     public void addColumn(IColumn column, Allocator allocator)
     {
         ByteBuffer name = column.name();
-        IColumn oldColumn;
-        while ((oldColumn = putIfAbsent(name, column)) != null)
+        IColumn oldColumn = put(name, column);
+        if (oldColumn != null)
         {
             if (oldColumn instanceof SuperColumn)
             {
                 assert column instanceof SuperColumn;
                 ((SuperColumn) oldColumn).putColumn((SuperColumn)column, allocator);
-                break;  // Delegated to SuperColumn
             }
             else
             {
                 // calculate reconciled col from old (existing) col and new col
                 IColumn reconciledColumn = column.reconcile(oldColumn, allocator);
-                if (replace(name, oldColumn, reconciledColumn))
-                    break;
-
-                // We failed to replace column due to a concurrent update or a concurrent removal. Keep trying.
-                // (Currently, concurrent removal should not happen (only updates), but let us support that anyway.)
+                put(name, reconciledColumn);
             }
         }
     }
@@ -110,7 +105,22 @@ public class ThreadSafeSortedColumns extends ConcurrentSkipListMap<ByteBuffer, I
         if (!oldColumn.name().equals(newColumn.name()))
             throw new IllegalArgumentException();
 
-        return replace(oldColumn.name(), oldColumn, newColumn);
+        // We are not supposed to put the newColumn is either there was not
+        // column or the column was not equal to oldColumn (to be coherent
+        // with other implementation). We optimize for the common case where
+        // oldColumn do is present though.
+        IColumn previous = put(oldColumn.name(), newColumn);
+        if (previous == null)
+        {
+            remove(oldColumn.name());
+            return false;
+        }
+        if (!previous.equals(oldColumn))
+        {
+            put(oldColumn.name(), previous);
+            return false;
+        }
+        return true;
     }
 
     public IColumn getColumn(ByteBuffer name)
@@ -135,7 +145,7 @@ public class ThreadSafeSortedColumns extends ConcurrentSkipListMap<ByteBuffer, I
 
     public SortedSet<ByteBuffer> getColumnNames()
     {
-        return keySet();
+        return navigableKeySet();
     }
 
     public int getEstimatedColumnCount()

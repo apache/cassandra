@@ -110,7 +110,7 @@ class ReadResponseSerializer implements ICompactSerializer<ReadResponse>
         if (!isDigest)
         {
             // This is coming from a remote host
-            row = Row.serializer().deserialize(dis, version, true, ArrayBackedSortedColumns.FACTORY);
+            row = Row.serializer().deserialize(dis, version, true, ArrayBackedSortedColumns.factory());
         }
 
         return isDigest ? new ReadResponse(ByteBuffer.wrap(digest)) : new ReadResponse(row);

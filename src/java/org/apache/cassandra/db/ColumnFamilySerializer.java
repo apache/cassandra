@@ -111,7 +111,7 @@ public class ColumnFamilySerializer implements ICompactSerializer3<ColumnFamily>
 
     public ColumnFamily deserialize(DataInput dis) throws IOException
     {
-        return deserialize(dis, false, ThreadSafeSortedColumns.FACTORY);
+        return deserialize(dis, false, ThreadSafeSortedColumns.factory());
     }
 
     public ColumnFamily deserialize(DataInput dis, boolean fromRemote, ISortedColumns.Factory factory) throws IOException

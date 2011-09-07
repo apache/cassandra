@@ -224,7 +224,7 @@ public class SSTableWriter extends SSTable
 
         // deserialize each column to obtain maxTimestamp and immediately serialize it.
         long maxTimestamp = Long.MIN_VALUE;
-        ColumnFamily cf = ColumnFamily.create(metadata, ArrayBackedSortedColumns.FACTORY);
+        ColumnFamily cf = ColumnFamily.create(metadata, ArrayBackedSortedColumns.factory());
         for (int i = 0; i < columnCount; i++)
         {
             // deserialize column with fromRemote false, in order to keep size of streamed column

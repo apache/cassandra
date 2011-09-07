@@ -35,7 +35,7 @@ public class ArrayBackedSortedColumns extends ArrayList<IColumn> implements ISor
     private final AbstractType<?> comparator;
     private final boolean reversed;
 
-    public static final ISortedColumns.Factory FACTORY = new Factory()
+    public static final ISortedColumns.Factory factory = new Factory()
     {
         public ISortedColumns create(AbstractType<?> comparator, boolean insertReversed)
         {
@@ -50,7 +50,7 @@ public class ArrayBackedSortedColumns extends ArrayList<IColumn> implements ISor
 
     public static ISortedColumns.Factory factory()
     {
-        return FACTORY;
+        return factory;
     }
 
     private ArrayBackedSortedColumns(AbstractType<?> comparator, boolean reversed)

@@ -71,7 +71,7 @@ public class Row
 
         public Row deserialize(DataInputStream dis, int version) throws IOException
         {
-            return deserialize(dis, version, false, ThreadSafeSortedColumns.FACTORY);
+            return deserialize(dis, version, false, ThreadSafeSortedColumns.factory());
         }
     }
 }
