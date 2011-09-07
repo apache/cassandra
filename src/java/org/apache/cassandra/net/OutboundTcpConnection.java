@@ -155,7 +155,7 @@ public class OutboundTcpConnection extends Thread
         if (false)
             header |= 4;
         // Setting up the version bit
-        header |= (MessagingService.version_ << 8);
+        header |= (message.getVersion() << 8);
 
         try
         {
