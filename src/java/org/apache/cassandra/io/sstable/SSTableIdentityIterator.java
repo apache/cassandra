@@ -31,11 +31,12 @@ import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.columniterator.IColumnIterator;
+import org.apache.cassandra.db.columniterator.ICountableColumnIterator;
 import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.utils.BytesReadTracker;
 
-public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterator>, IColumnIterator
+public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterator>, ICountableColumnIterator
 {
     private static final Logger logger = LoggerFactory.getLogger(SSTableIdentityIterator.class);
 
@@ -46,7 +47,7 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
     public final boolean fromRemote;
 
     private final ColumnFamily columnFamily;
-    public final int columnCount;
+    private final int columnCount;
     private long columnPosition;
 
     private BytesReadTracker inputWithTracker; // tracks bytes read
@@ -270,5 +271,10 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
             throw new IOError(e);
         }
         inputWithTracker.reset(headerSize());
+    }
+
+    public int getColumnCount()
+    {
+        return columnCount;
     }
 }

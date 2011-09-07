@@ -56,6 +56,14 @@ public class PrecompactedRow extends AbstractCompactedRow
         this.gcBefore = Integer.MAX_VALUE;
     }
 
+    /** it is caller's responsibility to call removeDeleted + removeOldShards from the cf before calling this constructor */
+    public PrecompactedRow(DecoratedKey key, CompactionController controller, ColumnFamily cf)
+    {
+        super(key);
+        this.gcBefore = controller.gcBefore;
+        compactedCf = cf;
+    }
+
     public static ColumnFamily removeDeletedAndOldShards(DecoratedKey key, CompactionController controller, ColumnFamily cf)
     {
         return removeDeletedAndOldShards(controller.shouldPurge(key), controller, cf);
@@ -71,9 +79,9 @@ public class PrecompactedRow extends AbstractCompactedRow
 
     public PrecompactedRow(CompactionController controller, List<SSTableIdentityIterator> rows)
     {
-        super(rows.get(0).getKey());
-        gcBefore = controller.gcBefore;
-        compactedCf = removeDeletedAndOldShards(rows.get(0).getKey(), controller, merge(rows));
+        this(rows.get(0).getKey(),
+             controller,
+             removeDeletedAndOldShards(rows.get(0).getKey(), controller, merge(rows)));
     }
 
     private static ColumnFamily merge(List<SSTableIdentityIterator> rows)

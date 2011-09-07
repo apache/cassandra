@@ -68,7 +68,7 @@ public class EchoedRow extends AbstractCompactedRow
 
     public int columnCount()
     {
-        return row.columnCount;
+        return row.getColumnCount();
     }
 
     public long maxTimestamp()

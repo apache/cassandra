@@ -58,6 +58,9 @@
  * expose the ability to repair the first range (as returned by the
    partitioner) of a node (CASSANDRA-2606)
  * Streams Compression (CASSANDRA-3015)
+ * add ability to use multiple threads during a single compaction
+   (CASSANDRA-2901)
+
 
 0.8.5
  * fix NPE when encryption_options is unspecified (CASSANDRA-3007)

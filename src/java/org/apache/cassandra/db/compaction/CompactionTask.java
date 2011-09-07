@@ -128,7 +128,9 @@ public class CompactionTask extends AbstractCompactionTask
         if (logger.isDebugEnabled())
             logger.debug("Expected bloom filter size : " + expectedBloomFilterSize);
 
-        CompactionIterable ci = new CompactionIterable(type, toCompact, controller); // retain a handle so we can call close()
+        AbstractCompactionIterable ci = DatabaseDescriptor.isMultithreadedCompaction()
+                                      ? new ParallelCompactionIterable(type, toCompact, controller)
+                                      : new CompactionIterable(type, toCompact, controller);
         CloseableIterator<AbstractCompactedRow> iter = ci.iterator();
         Iterator<AbstractCompactedRow> nni = Iterators.filter(iter, Predicates.notNull());
         Map<DecoratedKey, Long> cachedKeys = new HashMap<DecoratedKey, Long>();

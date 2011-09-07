@@ -699,7 +699,7 @@ public class CompactionManager implements CompactionManagerMBean
             if (compactionFileLocation == null)
                 throw new IOException("disk full");
 
-            SSTableScanner scanner = sstable.getDirectScanner(CompactionIterable.FILE_BUFFER_SIZE);
+            SSTableScanner scanner = sstable.getDirectScanner(AbstractCompactionIterable.FILE_BUFFER_SIZE);
             Collection<ByteBuffer> indexedColumns = cfs.indexManager.getIndexedColumns();
             CleanupInfo ci = new CleanupInfo(sstable, scanner);
             executor.beginCompaction(ci);

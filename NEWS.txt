@@ -23,6 +23,8 @@ Features
       Columnfamily compaction_strategy=LeveledCompactionStrategy option.  
       Leveled compaction means you only need to keep a few MB of space free for 
       compaction instead of (in the worst case) 50%.
+    - Ability to use multiple threads during a single compaction.  See 
+      multithreaded_compaction in cassandra.yaml for more details.
     - Windows Service ("cassandra.bat install" to enable)
     - Hinted Handoff has two major improvements:
         - Hint replay is much more efficient thanks to a change in the data model

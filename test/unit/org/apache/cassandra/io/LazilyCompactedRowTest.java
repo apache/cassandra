@@ -21,25 +21,23 @@ package org.apache.cassandra.io;
  */
 
 
-import static junit.framework.Assert.assertEquals;
-
-import java.io.*;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Collection;
-import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
+import org.junit.Test;
+
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.*;
-import org.apache.cassandra.db.IColumn;
-import org.apache.cassandra.db.RowMutation;
-import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.io.sstable.IndexHelper;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
@@ -48,30 +46,54 @@ import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.MappedFileDataInput;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 
-import org.junit.Test;
+import static junit.framework.Assert.assertEquals;
 
 
 public class LazilyCompactedRowTest extends CleanupHelper
 {
-    private void assertBytes(ColumnFamilyStore cfs, int gcBefore) throws IOException
+    private static void assertBytes(ColumnFamilyStore cfs, int gcBefore) throws IOException
     {
         Collection<SSTableReader> sstables = cfs.getSSTables();
-        Iterator<AbstractCompactedRow> ci1 = new CompactionIterable(CompactionType.UNKNOWN, sstables, new PreCompactingController(cfs, sstables, gcBefore, false)).iterator();
-        Iterator<AbstractCompactedRow> ci2 = new CompactionIterable(CompactionType.UNKNOWN, sstables, new LazilyCompactingController(cfs, sstables, gcBefore, false)).iterator();
+
+        // compare eager and lazy compactions
+        AbstractCompactionIterable eager = new CompactionIterable(CompactionType.UNKNOWN,
+                                                                  sstables,
+                                                                  new PreCompactingController(cfs, sstables, gcBefore, false));
+        AbstractCompactionIterable lazy = new CompactionIterable(CompactionType.UNKNOWN,
+                                                                 sstables,
+                                                                 new LazilyCompactingController(cfs, sstables, gcBefore, false));
+        assertBytes(sstables, eager, lazy);
+
+        // compare eager and parallel-lazy compactions
+        eager = new CompactionIterable(CompactionType.UNKNOWN,
+                                       sstables,
+                                       new PreCompactingController(cfs, sstables, gcBefore, false));
+        AbstractCompactionIterable parallel = new ParallelCompactionIterable(CompactionType.UNKNOWN,
+                                                                             sstables,
+                                                                             new CompactionController(cfs, sstables, gcBefore, false),
+                                                                             0);
+        assertBytes(sstables, eager, parallel);
+    }
+
+    private static void assertBytes(Collection<SSTableReader> sstables, AbstractCompactionIterable ci1, AbstractCompactionIterable ci2) throws IOException
+    {
+        CloseableIterator<AbstractCompactedRow> iter1 = ci1.iterator();
+        CloseableIterator<AbstractCompactedRow> iter2 = ci2.iterator();
 
         while (true)
         {
-            if (!ci1.hasNext())
+            if (!iter1.hasNext())
             {
-                assert !ci2.hasNext();
+                assert !iter2.hasNext();
                 break;
             }
 
-            AbstractCompactedRow row1 = ci1.next();
-            AbstractCompactedRow row2 = ci2.next();
+            AbstractCompactedRow row1 = iter1.next();
+            AbstractCompactedRow row2 = iter2.next();
             DataOutputBuffer out1 = new DataOutputBuffer();
             DataOutputBuffer out2 = new DataOutputBuffer();
             row1.write(out1);
@@ -94,8 +116,8 @@ public class LazilyCompactedRowTest extends CleanupHelper
             // row size can differ b/c of bloom filter counts being different
             long rowSize1 = SSTableReader.readRowSize(in1, sstables.iterator().next().descriptor);
             long rowSize2 = SSTableReader.readRowSize(in2, sstables.iterator().next().descriptor);
-            assertEquals(out1.getLength(), rowSize1 + 8);
-            assertEquals(out2.getLength(), rowSize2 + 8);
+            assertEquals(rowSize1 + 8, out1.getLength());
+            assertEquals(rowSize2 + 8, out2.getLength());
             // bloom filter
             IndexHelper.defreezeBloomFilter(in1, rowSize1, false);
             IndexHelper.defreezeBloomFilter(in2, rowSize2, false);
@@ -115,7 +137,7 @@ public class LazilyCompactedRowTest extends CleanupHelper
             ColumnFamily.serializer().deserializeFromSSTableNoColumns(cf1, in1);
             ColumnFamily.serializer().deserializeFromSSTableNoColumns(cf2, in2);
             assert cf1.getLocalDeletionTime() == cf2.getLocalDeletionTime();
-            assert cf1.getMarkedForDeleteAt() == cf2.getMarkedForDeleteAt();   
+            assert cf1.getMarkedForDeleteAt() == cf2.getMarkedForDeleteAt();
             // columns
             int columns = in1.readInt();
             assert columns == in2.readInt();
@@ -130,23 +152,25 @@ public class LazilyCompactedRowTest extends CleanupHelper
             assert in2.available() == 0;
         }
     }
-    
+
     private void assertDigest(ColumnFamilyStore cfs, int gcBefore) throws IOException, NoSuchAlgorithmException
     {
         Collection<SSTableReader> sstables = cfs.getSSTables();
-        Iterator<AbstractCompactedRow> ci1 = new CompactionIterable(CompactionType.UNKNOWN, sstables, new PreCompactingController(cfs, sstables, gcBefore, false)).iterator();
-        Iterator<AbstractCompactedRow> ci2 = new CompactionIterable(CompactionType.UNKNOWN, sstables, new LazilyCompactingController(cfs, sstables, gcBefore, false)).iterator();
+        AbstractCompactionIterable ci1 = new CompactionIterable(CompactionType.UNKNOWN, sstables, new PreCompactingController(cfs, sstables, gcBefore, false));
+        AbstractCompactionIterable ci2 = new CompactionIterable(CompactionType.UNKNOWN, sstables, new LazilyCompactingController(cfs, sstables, gcBefore, false));
+        CloseableIterator<AbstractCompactedRow> iter1 = ci1.iterator();
+        CloseableIterator<AbstractCompactedRow> iter2 = ci2.iterator();
 
         while (true)
         {
-            if (!ci1.hasNext())
+            if (!iter1.hasNext())
             {
-                assert !ci2.hasNext();
+                assert !iter2.hasNext();
                 break;
             }
 
-            AbstractCompactedRow row1 = ci1.next();
-            AbstractCompactedRow row2 = ci2.next();
+            AbstractCompactedRow row1 = iter1.next();
+            AbstractCompactedRow row2 = iter2.next();
             MessageDigest digest1 = MessageDigest.getInstance("MD5");
             MessageDigest digest2 = MessageDigest.getInstance("MD5");
 

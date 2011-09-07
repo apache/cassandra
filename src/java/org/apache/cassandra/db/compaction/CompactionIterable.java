@@ -29,31 +29,27 @@ import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.columniterator.IColumnIterator;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.sstable.SSTableScanner;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.MergeIterator;
-import org.apache.cassandra.utils.Throttle;
 
-public class CompactionIterable implements Iterable<AbstractCompactedRow>, CompactionInfo.Holder
+public class CompactionIterable extends AbstractCompactionIterable
 {
     private static Logger logger = LoggerFactory.getLogger(CompactionIterable.class);
 
-    public static final int FILE_BUFFER_SIZE = 1024 * 1024;
-
-    private MergeIterator<IColumnIterator, AbstractCompactedRow> source;
-    protected final CompactionType type;
-    private final List<SSTableScanner> scanners;
-    protected final CompactionController controller;
-    private final Throttle throttle;
-
-    private long totalBytes;
-    private long bytesRead;
     private long row;
+    private final List<SSTableScanner> scanners;
+
+    private static final Comparator<IColumnIterator> comparator = new Comparator<IColumnIterator>()
+    {
+        public int compare(IColumnIterator i1, IColumnIterator i2)
+        {
+            return i1.getKey().compareTo(i2.getKey());
+        }
+    };
 
     public CompactionIterable(CompactionType type, Iterable<SSTableReader> sstables, CompactionController controller) throws IOException
     {
@@ -62,27 +58,12 @@ public class CompactionIterable implements Iterable<AbstractCompactedRow>, Compa
 
     protected CompactionIterable(CompactionType type, List<SSTableScanner> scanners, CompactionController controller)
     {
-        this.type = type;
+        super(controller, type);
         this.scanners = scanners;
-        this.controller = controller;
         row = 0;
         totalBytes = bytesRead = 0;
         for (SSTableScanner scanner : scanners)
             totalBytes += scanner.getFileLength();
-        this.throttle = new Throttle(toString(), new Throttle.ThroughputFunction()
-        {
-            /** @return Instantaneous throughput target in bytes per millisecond. */
-            public int targetThroughput()
-            {
-                if (DatabaseDescriptor.getCompactionThroughputMbPerSec() < 1 || StorageService.instance.isBootstrapMode())
-                    // throttling disabled
-                    return 0;
-                // total throughput
-                int totalBytesPerMS = DatabaseDescriptor.getCompactionThroughputMbPerSec() * 1024 * 1024 / 1000;
-                // per stream throughput (target bytes per MS)
-                return totalBytesPerMS / Math.max(1, CompactionManager.instance.getActiveCompactions());
-            }
-        });
     }
 
     protected static List<SSTableScanner> getScanners(Iterable<SSTableReader> sstables) throws IOException
@@ -93,33 +74,23 @@ public class CompactionIterable implements Iterable<AbstractCompactedRow>, Compa
         return scanners;
     }
 
-    public CompactionInfo getCompactionInfo()
-    {
-        return new CompactionInfo(this.hashCode(),
-                                  controller.getKeyspace(),
-                                  controller.getColumnFamily(),
-                                  type,
-                                  bytesRead,
-                                  totalBytes);
-    }
-
     public CloseableIterator<AbstractCompactedRow> iterator()
     {
-        return MergeIterator.get(scanners, ICOMP, new Reducer());
+        return MergeIterator.get(scanners, comparator, new Reducer());
     }
 
     public String toString()
     {
         return this.getCompactionInfo().toString();
     }
-    
+
     protected class Reducer extends MergeIterator.Reducer<IColumnIterator, AbstractCompactedRow>
     {
         protected final List<SSTableIdentityIterator> rows = new ArrayList<SSTableIdentityIterator>();
 
         public void reduce(IColumnIterator current)
         {
-            rows.add((SSTableIdentityIterator)current);
+            rows.add((SSTableIdentityIterator) current);
         }
 
         protected AbstractCompactedRow getReduced()
@@ -134,11 +105,13 @@ public class CompactionIterable implements Iterable<AbstractCompactedRow>, Compa
                     controller.invalidateCachedRow(compactedRow.key);
                     return null;
                 }
-
-                // If the raw is cached, we call removeDeleted on it to have/ coherent query returns. However it would look
-                // like some deleted columns lived longer than gc_grace + compaction. This can also free up big amount of
-                // memory on long running instances
-                controller.removeDeletedInCache(compactedRow.key);
+                else
+                {
+                    // If the raw is cached, we call removeDeleted on it to have/ coherent query returns. However it would look
+                    // like some deleted columns lived longer than gc_grace + compaction. This can also free up big amount of
+                    // memory on long running instances
+                    controller.removeDeletedInCache(compactedRow.key);
+                }
 
                 return compactedRow;
             }
@@ -147,22 +120,13 @@ public class CompactionIterable implements Iterable<AbstractCompactedRow>, Compa
                 rows.clear();
                 if ((row++ % 1000) == 0)
                 {
-                    bytesRead = 0;
+                    long n = 0;
                     for (SSTableScanner scanner : scanners)
-                    {
-                        bytesRead += scanner.getFilePointer();
-                    }
+                        n += scanner.getFilePointer();
+                    bytesRead = n;
                     throttle.throttle(bytesRead);
                 }
             }
         }
     }
-
-    public final static Comparator<IColumnIterator> ICOMP = new Comparator<IColumnIterator>()
-    {
-        public int compare(IColumnIterator i1, IColumnIterator i2)
-        {
-            return i1.getKey().compareTo(i2.getKey());
-        }
-    };
 }

@@ -83,9 +83,10 @@ public class Config
     public Integer in_memory_compaction_limit_in_mb = 256;
     public Integer concurrent_compactors = Runtime.getRuntime().availableProcessors();
     public Integer compaction_throughput_mb_per_sec = 16;
+    public Boolean multithreaded_compaction = false;
 
     public Integer stream_throughput_outbound_megabits_per_sec;
-    
+
     public String[] data_file_directories;
 
     public String saved_caches_directory;

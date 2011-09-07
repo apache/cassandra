@@ -32,7 +32,8 @@ import org.apache.cassandra.utils.CloseableIterator;
 public interface IColumnIterator extends CloseableIterator<IColumn>
 {
     /**
-     * @return An empty CF holding metadata for the row being iterated.
+     * @return A ColumnFamily holding metadata for the row being iterated.
+     * Do not modify this CF. Whether it is empty or not is implementation-dependent.
      */
     public abstract ColumnFamily getColumnFamily();
 

@@ -21,6 +21,7 @@ package org.apache.cassandra.db.compaction;
  */
 
 
+import java.io.Closeable;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.security.MessageDigest;
@@ -42,12 +43,19 @@ public abstract class AbstractCompactedRow
     }
 
     /**
-     * write the row (size + column index + filter + column data, but NOT row key) to @param out
+     * write the row (size + column index + filter + column data, but NOT row key) to @param out.
+     * It is an error to call this if isEmpty is false.  (Because the key is appended first,
+     * so we'd have an incomplete row written.)
+     *
+     * write() may change internal state; it is NOT valid to call write() or update() a second time.
      */
     public abstract long write(DataOutput out) throws IOException;
 
     /**
-     * update @param digest with the data bytes of the row (not including row key or row size)
+     * update @param digest with the data bytes of the row (not including row key or row size).
+     * May be called even if empty.
+     *
+     * update() may change internal state; it is NOT valid to call write() or update() a second time.
      */
     public abstract void update(MessageDigest digest);
 

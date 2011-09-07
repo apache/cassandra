@@ -268,16 +268,26 @@ column_index_size_in_kb: 64
 in_memory_compaction_limit_in_mb: 64
 
 # Number of simultaneous compactions to allow, NOT including
-# validation "compactions" for anti-entropy repair. This defaults to
-# the number of cores. This can help preserve read performance in a
-# mixed read/write workload, by mitigating the tendency of small
-# sstables to accumulate during a single long running compactions. The
-# default is usually fine and if you experience problems with
-# compaction running too slowly or too fast, you should look at
+# validation "compactions" for anti-entropy repair.  Simultaneous
+# compactions can help preserve read performance in a mixed read/write
+# workload, by mitigating the tendency of small sstables to accumulate
+# during a single long running compactions. The default is usually
+# fine and if you experience problems with compaction running too
+# slowly or too fast, you should look at
 # compaction_throughput_mb_per_sec first.
 #
-# Uncomment to make compaction mono-threaded.
+# This setting has no effect on LeveledCompactionStrategy.
+#
+# concurrent_compactors defaults to the number of cores.
+# Uncomment to make compaction mono-threaded, the pre-0.8 default.
 #concurrent_compactors: 1
+
+# Multi-threaded compaction. When enabled, each compaction will use
+# up to one thread per core, plus one thread per sstable being merged.
+# This is usually only useful for SSD-based hardware: otherwise, 
+# your concern is usually to get compaction to do LESS i/o (see:
+# compaction_throughput_mb_per_sec), not more.
+multithreaded_compaction: false
 
 # Throttles compaction to the given total throughput across the entire
 # system. The faster you insert data, the faster you need to compact in

@@ -674,6 +674,11 @@ public class DatabaseDescriptor
         return conf.concurrent_compactors;
     }
 
+    public static boolean isMultithreadedCompaction()
+    {
+        return conf.multithreaded_compaction;
+    }
+
     public static int getCompactionThroughputMbPerSec()
     {
         return conf.compaction_throughput_mb_per_sec;
