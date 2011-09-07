@@ -1,13 +1,16 @@
 package org.apache.cassandra.utils.IntervalTree;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.ConcurrentSkipListSet;
+import com.google.common.collect.ImmutableList;
 
 public class IntervalNode
 {
     Interval interval;
     Comparable v_pt;
+    Comparable v_min;
+    Comparable v_max;
     List<Interval> v_left;
     List<Interval> v_right;
     IntervalNode left = null;
@@ -17,7 +20,7 @@ public class IntervalNode
     {
         if (toBisect.size() > 0)
         {
-            v_pt = findMedianEndpoint(toBisect);
+            findMinMedianMax(toBisect);
             v_left = interval.minOrdering.sortedCopy(getIntersectingIntervals(toBisect));
             v_right = interval.maxOrdering.reverse().sortedCopy(getIntersectingIntervals(toBisect));
             //if i.min < v_pt then it goes to the left subtree
@@ -64,22 +67,22 @@ public class IntervalNode
         return retval;
     }
 
-    public Comparable findMedianEndpoint(List<Interval> intervals)
+    public void findMinMedianMax(List<Interval> intervals)
     {
-
-        ConcurrentSkipListSet<Comparable> sortedSet = new ConcurrentSkipListSet<Comparable>();
-
-        for (Interval interval : intervals)
+        if (intervals.size() > 0)
         {
-            sortedSet.add(interval.min);
-            sortedSet.add(interval.max);
+            List<Comparable> allEndpoints = new ArrayList<Comparable>(intervals.size() * 2);
+
+            for (Interval interval : intervals)
+            {
+                allEndpoints.add(interval.min);
+                allEndpoints.add(interval.max);
+            }
+            Collections.sort(allEndpoints);
+            v_pt = allEndpoints.get(intervals.size());
+            v_min = allEndpoints.get(0);
+            v_max = allEndpoints.get(allEndpoints.size() - 1);
         }
-        int medianIndex = sortedSet.size() / 2;
-        if (sortedSet.size() > 0)
-        {
-            return (Comparable) sortedSet.toArray()[medianIndex];
-        }
-        return null;
     }
 
 }

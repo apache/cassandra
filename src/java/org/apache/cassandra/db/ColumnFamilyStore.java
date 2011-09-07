@@ -1303,7 +1303,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             view = data.getView();
             // startAt == minimum is ok, but stopAt == minimum is confusing because all IntervalTree deals with
             // is Comparable, so it won't know to special-case that.
-            Comparable stopInTree = stopAt.isEmpty() ? view.intervalTree.max : stopAt;
+            Comparable stopInTree = stopAt.isEmpty() ? view.intervalTree.max() : stopAt;
             sstables = view.intervalTree.search(new Interval(startWith, stopInTree));
             if (SSTableReader.acquireReferences(sstables))
                 break;

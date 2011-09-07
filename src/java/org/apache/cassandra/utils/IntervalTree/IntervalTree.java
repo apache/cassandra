@@ -8,9 +8,6 @@ public class IntervalTree<T>
 {
     private final IntervalNode head;
 
-    public Comparable max = null;
-    public Comparable min = null;
-
     public IntervalTree()
     {
         head = null;
@@ -18,12 +15,17 @@ public class IntervalTree<T>
 
     public IntervalTree(List<Interval> intervals)
     {
-        if (intervals.size() > 0)
-        {
-            min = intervals.get(0).min;
-            max = intervals.get(intervals.size() - 1).max;
-        }
         head = new IntervalNode(intervals);
+    }
+
+    public Comparable max()
+    {
+        return head.v_max;
+    }
+
+    public Comparable min()
+    {
+        return head.v_min;
     }
 
     public List<T> search(Interval searchInterval)

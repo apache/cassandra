@@ -516,11 +516,9 @@ public class DataTracker
 
         private IntervalTree buildIntervalTree(List<SSTableReader> sstables)
         {
-            List<SSTableReader> itsstList = ImmutableList.copyOf(Ordering.from(SSTable.sstableComparator).sortedCopy(sstables));
-            List<Interval> intervals = new ArrayList<Interval>(itsstList.size());
-            for (SSTableReader sstable : itsstList)
+            List<Interval> intervals = new ArrayList<Interval>(sstables.size());
+            for (SSTableReader sstable : sstables)
                 intervals.add(new Interval<SSTableReader>(sstable.first, sstable.last, sstable));
-            assert intervals.size() == sstables.size();
             return new IntervalTree<SSTableReader>(intervals);
         }
 
