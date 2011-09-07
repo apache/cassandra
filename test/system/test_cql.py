@@ -336,11 +336,23 @@ class TestCql(ThriftTester):
     def test_column_count(self):
         "getting a result count instead of results"
         cursor = init()
-        cursor.execute("""
-            SELECT COUNT(1..4) FROM StandardLongA WHERE KEY = 'aa';
-        """)
+        cursor.execute("SELECT COUNT(*) FROM StandardLongA")
         r = cursor.fetchone()
-        assert r[0] == 4, "expected 4 results, got %d" % (r and r or 0)
+        assert r[0] == 7, "expected 7 results, got %d" % (r and r or 0)
+        cursor.execute("SELECT COUNT(1) FROM StandardLongA")
+        r = cursor.fetchone()
+        assert r[0] == 7, "expected 7 results, got %d" % (r and r or 0)
+
+        # count(*) and count(1) are only supported operations
+        assert_raises(cql.ProgrammingError,
+                      cursor.execute,
+                      "SELECT COUNT(name) FROM StandardLongA")
+        assert_raises(cql.ProgrammingError,
+                      cursor.execute,
+                      "SELECT COUNT(1..2) FROM StandardLongA")
+        assert_raises(cql.ProgrammingError,
+                      cursor.execute,
+                      "SELECT COUNT(1, 2, 3) FROM StandardLongA")
 
     def test_truncate_columnfamily(self):
         "truncating a column family"

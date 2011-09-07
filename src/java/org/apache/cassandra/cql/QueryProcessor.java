@@ -320,9 +320,6 @@ public class QueryProcessor
     /* Test for SELECT-specific taboos */
     private static void validateSelect(String keyspace, SelectStatement select) throws InvalidRequestException
     {
-        if (select.isCountOperation() && (select.isKeyRange() || select.getKeys().size() < 1))
-            throw new InvalidRequestException("Counts can only be performed for a single record (Hint: KEY=term)");
-        
         // Finish key w/o start key (KEY < foo)
         if (!select.isKeyRange() && (select.getKeyFinish() != null))
             throw new InvalidRequestException("Key range clauses must include a start key (i.e. KEY > term)");
@@ -530,17 +527,6 @@ public class QueryProcessor
                 if (!select.isKeyRange() && (select.getKeys().size() > 0))
                 {
                     rows = getSlice(keyspace, select);
-
-                    // Only return the column count, (of the at-most 1 row).
-                    if (select.isCountOperation())
-                    {
-                        result.type = CqlResultType.INT;
-                        if (rows.size() > 0)
-                            result.setNum(rows.get(0).cf != null ? rows.get(0).cf.getSortedColumns().size() : 0);
-                        else
-                            result.setNum(0);
-                        return result;
-                    }
                 }
                 else
                 {
@@ -555,15 +541,29 @@ public class QueryProcessor
                         rows = getIndexedSlices(keyspace, select);
                     }
                 }
-                
-                List<CqlRow> cqlRows = new ArrayList<CqlRow>();
+
+                // count resultset is a single column named "count"
                 result.type = CqlResultType.ROWS;
+                if (select.isCountOperation())
+                {
+                    validateCountOperation(select);
+
+                    ByteBuffer countBytes = ByteBufferUtil.bytes("count");
+                    result.schema = new CqlMetadata(Collections.<ByteBuffer, String>emptyMap(),
+                                                    Collections.<ByteBuffer, String>emptyMap(),
+                                                    "AsciiType",
+                                                    "LongType");
+                    List<Column> columns = Collections.singletonList(new Column(countBytes).setValue(ByteBufferUtil.bytes((long) rows.size())));
+                    result.rows = Collections.singletonList(new CqlRow(countBytes, columns));
+                    return result;
+                }
+
+                // otherwise create resultset from query results
                 result.schema = new CqlMetadata(new HashMap<ByteBuffer, String>(),
                                                 new HashMap<ByteBuffer, String>(),
                                                 metadata.comparator.toString(),
                                                 TypeParser.getShortName(metadata.getDefaultValidator()));
-
-                // Create the result set
+                List<CqlRow> cqlRows = new ArrayList<CqlRow>();
                 for (org.apache.cassandra.db.Row row : rows)
                 {
                     /// No results for this row
@@ -635,7 +635,7 @@ public class QueryProcessor
                         Collections.reverse(cqlRow.columns);
                     cqlRows.add(cqlRow);
                 }
-                
+
                 result.rows = cqlRows;
                 return result;
 
@@ -1003,6 +1003,23 @@ public class QueryProcessor
         }
 
         throw new SchemaDisagreementException();
+    }
+
+    private static void validateCountOperation(SelectStatement select) throws InvalidRequestException
+    {
+        if (select.isWildcard())
+            return; // valid count(*)
+
+        if (!select.isColumnRange())
+        {
+            List<Term> columnNames = select.getColumnNames();
+            String firstColumn = columnNames.get(0).getText();
+
+            if (columnNames.size() == 1 && (firstColumn.equals("*") || firstColumn.equals("1")))
+                return; // valid count(*) || count(1)
+        }
+
+        throw new InvalidRequestException("Only COUNT(*) and COUNT(1) operations are currently supported.");
     }
 
     private static String bufferToString(ByteBuffer string)

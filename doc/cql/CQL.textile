@@ -1,4 +1,4 @@
-h1. Cassandra Query Language (CQL) v1.1.1
+h1. Cassandra Query Language (CQL) v2.0
 
 h2. Table of Contents
 
@@ -43,6 +43,13 @@ bc.
 SELECT ... FROM <COLUMN FAMILY> ...
 
 The @FROM@ clause is used to specify the Cassandra column family applicable to a @SELECT@ query.
+
+bc.
+SELECT count(*) FROM <COLUMN FAMILY> ...
+
+The @count@ aggregate function returns a single row, with a single column "count" whose value is the number of rows from the pre-aggregation resultset.
+
+Currently, @count@ is the only function supported by CQL.
 
 h3. Consistency Level
 
@@ -373,6 +380,9 @@ Versioning of the CQL language adheres to the "Semantic Versioning":http://semve
 h1. Changes
 
 pre. 
+Thu, 07 Sep 2011 09:01:00 -0500 - Jonathan Ellis
+ * Updated version to 2.0; Documented row-based count()
+
 Wed, 10 Aug 2011 11:22:00 -0500 - Eric Evans
  * Improved INSERT vs. UPDATE wording.
  * Documented counter column incr/descr.
