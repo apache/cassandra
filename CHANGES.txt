@@ -64,7 +64,8 @@
  * fix of the CQL count() behavior (CASSANDRA-3068)
  * use TreeMap backed column families for the SSTable simple writers
    (CASSANDRA-3148)
-
+ * fix inconsistency of the CLI syntax when {} should be used instead of [{}]
+   (CASSANDRA-3119)
 
 0.8.5
  * fix NPE when encryption_options is unspecified (CASSANDRA-3007)

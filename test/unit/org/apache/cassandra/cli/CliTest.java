@@ -129,6 +129,7 @@ public class CliTest extends CleanupHelper
         "drop index on CF3.'big world';",
         "update keyspace TestKeySpace with placement_strategy='org.apache.cassandra.locator.LocalStrategy' and durable_writes = false;",
         "update keyspace TestKeySpace with strategy_options={DC1:3, DC2:4, DC5:1};",
+        "update keyspace TestKeySpace with strategy_options=[{DC1:3, DC2:4, DC5:1}];",
         "assume 123 comparator as utf8;",
         "assume 123 sub_comparator as integer;",
         "assume 123 validator as lexicaluuid;",

@@ -25,6 +25,8 @@ import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.util.*;
 
+import antlr.Token;
+
 import com.google.common.base.Predicate;
 import com.google.common.collect.Collections2;
 import org.apache.commons.lang.StringUtils;
@@ -2438,9 +2440,20 @@ public class CliClient
      */
     private Map<String, String> getStrategyOptionsFromTree(Tree options)
     {
+        //Check for old [{}] syntax
+        if (options.getText().equalsIgnoreCase("ARRAY"))
+        {
+            System.err.println("WARNING: [{}] strategy_options syntax is deprecated, please use {}");
+
+            if (options.getChildCount() == 0)
+                return Collections.EMPTY_MAP;
+
+            return getStrategyOptionsFromTree(options.getChild(0));
+        }
+
         // this map will be returned
         Map<String, String> strategyOptions = new HashMap<String, String>();
-               
+
         // each child node is ^(PAIR $key $value)
         for (int j = 0; j < options.getChildCount(); j++)
         {
