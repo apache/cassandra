@@ -155,10 +155,6 @@ abstract class AbstractResultSet
         throw new SQLFeatureNotSupportedException(NOT_SUPPORTED);
     }
 
-    public RowId getRowId(int arg0) throws SQLException
-    {
-        throw new SQLFeatureNotSupportedException(NOT_SUPPORTED);
-    }
 
     public SQLXML getSQLXML(int arg0) throws SQLException
     {

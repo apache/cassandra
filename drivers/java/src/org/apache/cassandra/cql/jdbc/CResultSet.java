@@ -592,10 +592,24 @@ class CResultSet extends AbstractResultSet implements CassandraResultSet
         return rowNumber;
     }
 
-    // RowId (shall we just store the raw bytes as it is kept in C* ? Probably...
-    public RowId getRowId(String arg0) throws SQLException
+    public RowId getRowId(int index) throws SQLException
     {
-        throw new SQLFeatureNotSupportedException(NOT_SUPPORTED);
+        checkIndex(index);
+        return getRowId(values.get(index - 1));
+    }
+
+    public RowId getRowId(String name) throws SQLException
+    {
+        checkName(name);
+        return getRowId(valueMap.get(name));
+    }
+
+    private final RowId getRowId(TypedColumn column) throws SQLException
+    {
+        checkNotClosed();
+        ByteBuffer value =  column.getRawColumn().value;
+        wasNull = value == null;
+        return value == null ? null : new CassandraRowId(value);
     }
 
     public short getShort(int index) throws SQLException

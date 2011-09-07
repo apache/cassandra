@@ -311,6 +311,11 @@ class CassandraPreparedStatement extends CassandraStatement implements PreparedS
         variables.put(parameterIndex, x);
     }
 
+    public void setRowId(int parameterIndex, RowId rowid) throws SQLException
+    {
+        setObject(parameterIndex, ByteBuffer.wrap(rowid.getBytes()));
+    }
+
     public void setShort(int parameterIndex, short x) throws SQLException
     {
         setInt(parameterIndex, x);
@@ -486,11 +491,6 @@ class CassandraPreparedStatement extends CassandraStatement implements PreparedS
     }
 
     public void setRef(int parameterIndex, Ref x) throws SQLException
-    {
-        throw new SQLFeatureNotSupportedException(NOT_SUPPORTED);
-    }
-
-    public void setRowId(int parameterIndex, RowId x) throws SQLException
     {
         throw new SQLFeatureNotSupportedException(NOT_SUPPORTED);
     }

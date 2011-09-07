@@ -29,9 +29,6 @@ import java.sql.RowIdLifetime;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 
-import org.apache.cassandra.db.DBConstants;
-import org.apache.cassandra.utils.FBUtilities;
-
 class CassandraDatabaseMetaData implements DatabaseMetaData
 {
     private CassandraConnection connection;
@@ -360,7 +357,7 @@ class CassandraDatabaseMetaData implements DatabaseMetaData
 
     public RowIdLifetime getRowIdLifetime() throws SQLException
     {
-        return RowIdLifetime.ROWID_UNSUPPORTED;
+        return RowIdLifetime.ROWID_VALID_FOREVER;
     }
 
     public String getSQLKeywords() throws SQLException
