@@ -193,6 +193,8 @@ public class CustomTThreadPoolServer extends TServer
             catch (TTransportException ttx)
             {
                 // Assume the client died and continue silently
+                // Log at debug to allow debugging of "frame too large" errors (see CASSANDRA-3142).
+                LOGGER.debug("Thrift transport error occurred during processing of message.", ttx);
             }
             catch (TException tx)
             {
