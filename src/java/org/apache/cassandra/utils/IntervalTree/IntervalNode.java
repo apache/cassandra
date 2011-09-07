@@ -7,12 +7,11 @@ import com.google.common.collect.ImmutableList;
 
 public class IntervalNode
 {
-    Interval interval;
     Comparable v_pt;
     Comparable v_min;
     Comparable v_max;
-    List<Interval> v_left;
-    List<Interval> v_right;
+    List<Interval> intersects_left;
+    List<Interval> intersects_right;
     IntervalNode left = null;
     IntervalNode right = null;
 
@@ -21,9 +20,10 @@ public class IntervalNode
         if (toBisect.size() > 0)
         {
             findMinMedianMax(toBisect);
-            v_left = interval.minOrdering.sortedCopy(getIntersectingIntervals(toBisect));
-            v_right = interval.maxOrdering.reverse().sortedCopy(getIntersectingIntervals(toBisect));
-            //if i.min < v_pt then it goes to the left subtree
+            List<Interval> intersects = getIntersectingIntervals(toBisect);
+            intersects_left = Interval.minOrdering.sortedCopy(intersects);
+            intersects_right = Interval.maxOrdering.reverse().sortedCopy(intersects);
+            //if i.max < v_pt then it goes to the left subtree
             List<Interval> leftSegment = getLeftIntervals(toBisect);
             List<Interval> rightSegment = getRightIntervals(toBisect);
             if (leftSegment.size() > 0)
@@ -84,5 +84,4 @@ public class IntervalNode
             v_max = allEndpoints.get(allEndpoints.size() - 1);
         }
     }
-
 }

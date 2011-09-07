@@ -1,6 +1,5 @@
 package org.apache.cassandra.utils.IntervalTree;
 
-import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -28,7 +27,7 @@ public class IntervalTree<T>
         return head.v_min;
     }
 
-    public List<T> search(Interval searchInterval)
+    public List<T> search(Interval<T> searchInterval)
     {
         List<T> retlist = new LinkedList<T>();
         searchInternal(head, searchInterval, retlist);
@@ -41,14 +40,12 @@ public class IntervalTree<T>
             return;
         if (null == node || node.v_pt == null)
             return;
-        if (null == node)
-            return;
         //if searchInterval.contains(node.v_pt)
         //then add every interval contained in this node to the result set then search left and right for further
         //overlapping intervals
         if (searchInterval.contains(node.v_pt))
         {
-            for (Interval<T> interval : node.v_left)
+            for (Interval<T> interval : node.intersects_left)
             {
                 retList.add(interval.Data);
             }
@@ -59,12 +56,12 @@ public class IntervalTree<T>
         }
 
         //if v.pt < searchInterval.left
-        //add intervals in v with v[i].right >= searchitnerval.left
+        //add intervals in v with v[i].right >= searchInterval.left
         //L contains no overlaps
         //R May
         if (node.v_pt.compareTo(searchInterval.min) < 0)
         {
-            for (Interval<T> interval : node.v_right)
+            for (Interval<T> interval : node.intersects_right)
             {
                 if (interval.max.compareTo(searchInterval.min) >= 0)
                 {
@@ -77,12 +74,12 @@ public class IntervalTree<T>
         }
 
         //if v.pt > searchInterval.right
-        //add intervals in v with [i].left <= searchitnerval.right
+        //add intervals in v with [i].left <= searchInterval.right
         //R contains no overlaps
         //L May
         if (node.v_pt.compareTo(searchInterval.max) > 0)
         {
-            for (Interval<T> interval : node.v_left)
+            for (Interval<T> interval : node.intersects_left)
             {
                 if (interval.min.compareTo(searchInterval.max) <= 0)
                 {
