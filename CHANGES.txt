@@ -60,6 +60,7 @@
  * Streams Compression (CASSANDRA-3015)
  * add ability to use multiple threads during a single compaction
    (CASSANDRA-2901)
+ * make AbstractBounds.normalize support overlapping ranges (CASSANDRA-2641)
 
 
 0.8.5
