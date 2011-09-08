@@ -28,6 +28,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
+import com.google.common.collect.MapMaker;
 
 /**
  * The SlabAllocator is a bump-the-pointer allocator that allocates
@@ -45,11 +46,11 @@ import com.google.common.collect.Iterables;
  */
 public class SlabAllocator extends Allocator
 {
-    private final static int REGION_SIZE = 2 * 1024 * 1024;
-    private final static int MAX_CLONED_SIZE = 256 * 1024; // bigger than this don't go in the region
+    private final static int REGION_SIZE = 1024 * 1024;
+    private final static int MAX_CLONED_SIZE = 128 * 1024; // bigger than this don't go in the region
 
     private final AtomicReference<Region> currentRegion = new AtomicReference<Region>();
-    private final Collection<Region> filledRegions = new LinkedBlockingQueue<Region>();
+    private final Collection<Region> filledRegions = Collections.newSetFromMap(new MapMaker().weakKeys().<Region, Boolean>makeMap());
 
     /** @return Total number of bytes allocated by this allocator. */
     public long size()
