@@ -63,20 +63,20 @@ public class CreateColumnFamilyStatement
     
     static
     {
-        comparators.put("bytea", "BytesType");
         comparators.put("ascii", "AsciiType");
+        comparators.put("bigint", "LongType");
+        comparators.put("blob", "BytesType");
+        comparators.put("boolean", "BooleanType");
+        comparators.put("counter", "CounterColumnType");
+        comparators.put("decimal", "DecimalType");
+        comparators.put("double", "DoubleType");
+        comparators.put("float", "FloatType");
+        // comparators.put("int", "LongType"); TODO add int -> Int32Type
         comparators.put("text", "UTF8Type");
+        comparators.put("timestamp", "DateType");
+        comparators.put("uuid", "UUIDType");
         comparators.put("varchar", "UTF8Type");
         comparators.put("varint", "IntegerType");
-        comparators.put("int", "LongType");
-        comparators.put("bigint", "LongType");
-        comparators.put("uuid", "UUIDType");
-        comparators.put("counter", "CounterColumnType");
-        comparators.put("boolean", "BooleanType");
-        comparators.put("date", "DateType");
-        comparators.put("float", "FloatType");
-        comparators.put("double", "DoubleType");
-        comparators.put("decimal", "DecimalType");
 
         keywords.add(KW_COMPARATOR);
         keywords.add(KW_COMMENT);

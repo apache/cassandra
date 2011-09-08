@@ -71,7 +71,7 @@ def load_sample(dbconn):
             WITH comparator = ascii AND default_validation = uuid;
     """)
     dbconn.execute("""
-        CREATE COLUMNFAMILY IndexedA (KEY text PRIMARY KEY, birthdate int)
+        CREATE COLUMNFAMILY IndexedA (KEY text PRIMARY KEY, birthdate bigint)
             WITH comparator = ascii AND default_validation = ascii;
     """)
     dbconn.execute("""
@@ -490,7 +490,7 @@ class TestCql(ThriftTester):
         assert_raises(cql.ProgrammingError, cursor.execute, "CREATE COLUMNFAMILY NewCf2")
 
         # column name should not match key alias
-        assert_raises(cql.ProgrammingError, cursor.execute, "CREATE COLUMNFAMILY NewCf2 (id 'utf8' primary key, id int)")
+        assert_raises(cql.ProgrammingError, cursor.execute, "CREATE COLUMNFAMILY NewCf2 (id 'utf8' primary key, id bigint)")
 
         # Too many primary keys
         assert_raises(cql.ProgrammingError,
@@ -544,7 +544,7 @@ class TestCql(ThriftTester):
         "creating column indexes"
         cursor = init()
         cursor.execute("USE Keyspace1")
-        cursor.execute("CREATE COLUMNFAMILY CreateIndex1 (KEY text PRIMARY KEY, items text, stuff int)")
+        cursor.execute("CREATE COLUMNFAMILY CreateIndex1 (KEY text PRIMARY KEY, items text, stuff bigint)")
         cursor.execute("CREATE INDEX namedIndex ON CreateIndex1 (items)")
         cursor.execute("CREATE INDEX ON CreateIndex1 (stuff)")
 

@@ -8,6 +8,8 @@ Upgrading
     - the compaction_thread_priority setting has been removed from 
       cassandra.yaml (use compaction_throughput_mb_per_sec to throttle
       compaction instead)
+    - CQL types bytea and date were renamed to blob and timestamp, respectively,
+      to conform with SQL norms
 
 Features
 --------
@@ -39,6 +41,10 @@ Features
       partitioner for a node with `nodetool repair -pr`. It makes it
       easier/possible to repair a full cluster without any work duplication by
       running this command on every node of the cluster.
+
+New data types
+--------------
+    - decimal
 
 Other
 -----
