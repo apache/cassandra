@@ -1218,10 +1218,8 @@ public class CliClient
                 cfDef.setColumn_metadata(getCFColumnMetaFromTree(cfDef, arrayOfMetaAttributes));
                 break;
             case MEMTABLE_OPERATIONS:
-                cfDef.setMemtable_operations_in_millions(Double.parseDouble(mValue));
                 break;
             case MEMTABLE_THROUGHPUT:
-                cfDef.setMemtable_throughput_in_mb(Integer.parseInt(mValue));
                 break;
             case ROW_CACHE_SAVE_PERIOD:
                 cfDef.setRow_cache_save_period_in_seconds(Integer.parseInt(mValue));
@@ -1635,8 +1633,6 @@ public class CliClient
                         normaliseType(cfDef.default_validation_class, "org.apache.cassandra.db.marshal"));
         writeAttr(sb, false, "key_validation_class",
                     normaliseType(cfDef.key_validation_class, "org.apache.cassandra.db.marshal"));
-        writeAttr(sb, false, "memtable_operations", cfDef.memtable_operations_in_millions);
-        writeAttr(sb, false, "memtable_throughput", cfDef.memtable_throughput_in_mb);
         writeAttr(sb, false, "rows_cached", cfDef.row_cache_size);
         writeAttr(sb, false, "row_cache_save_period", cfDef.row_cache_save_period_in_seconds);
         writeAttr(sb, false, "keys_cached", cfDef.key_cache_size);
@@ -1928,8 +1924,6 @@ public class CliClient
                 cf_def.row_cache_size, cf_def.row_cache_save_period_in_seconds,
                 cf_def.row_cache_keys_to_save == Integer.MAX_VALUE ? "all" : cf_def.row_cache_keys_to_save);
         sessionState.out.printf("      Key cache size / save period in seconds: %s/%s%n", cf_def.key_cache_size, cf_def.key_cache_save_period_in_seconds);
-        sessionState.out.printf("      Memtable thresholds: %s/%s (millions of ops/MB)%n",
-                cf_def.memtable_operations_in_millions, cf_def.memtable_throughput_in_mb);
         sessionState.out.printf("      GC grace seconds: %s%n", cf_def.gc_grace_seconds);
         sessionState.out.printf("      Compaction min/max thresholds: %s/%s%n", cf_def.min_compaction_threshold, cf_def.max_compaction_threshold);
         sessionState.out.printf("      Read repair chance: %s%n", cf_def.read_repair_chance);

@@ -26,7 +26,6 @@ import java.util.*;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.index.SecondaryIndex;
-import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.dht.IPartitioner;
@@ -650,7 +649,6 @@ public class ThriftValidation
                 }
             }
             validateMinMaxCompactionThresholds(cf_def);
-            validateMemtableSettings(cf_def);
         }
         catch (ConfigurationException e)
         {
@@ -710,14 +708,6 @@ public class ThriftValidation
         {
             //Defaults are valid.
         }
-    }
-
-    public static void validateMemtableSettings(org.apache.cassandra.thrift.CfDef cf_def) throws ConfigurationException
-    {
-        if (cf_def.isSetMemtable_throughput_in_mb())
-            DatabaseDescriptor.validateMemtableThroughput(cf_def.memtable_throughput_in_mb);
-        if (cf_def.isSetMemtable_operations_in_millions())
-            DatabaseDescriptor.validateMemtableOperations(cf_def.memtable_operations_in_millions);
     }
 
     public static void validateKeyspaceNotYetExisting(String newKsName) throws InvalidRequestException
