@@ -62,6 +62,7 @@ public class ReadVerbHandler implements IVerbHandler
             Row row = command.getRow(table);
 
             DataOutputBuffer out = threadLocalOut.get();
+            out.reset();
             ReadResponse.serializer().serialize(getResponse(command, row), out, message.getVersion());
             byte[] bytes = new byte[out.getLength()];
             System.arraycopy(out.getData(), 0, bytes, 0, bytes.length);
