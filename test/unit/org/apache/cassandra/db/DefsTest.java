@@ -112,8 +112,6 @@ public class DefsTest extends CleanupHelper
            .maxCompactionThreshold(500)
            .rowCacheSavePeriod(500)
            .keyCacheSavePeriod(500)
-           .memSize(500)
-           .memOps(500.0)
            .mergeShardsChance(0.0)
            .columnMetadata(indexes);
 

@@ -2451,42 +2451,25 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      */
     public void flushLargestMemtables()
     {
-        ColumnFamilyStore largestByOps = null;
-        ColumnFamilyStore largestByThroughput = null;
+        ColumnFamilyStore largest = null;
         for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
         {
-            long ops = 0;
-            long throughput = 0;
-            for (ColumnFamilyStore subordinate : cfs.concatWithIndexes())
-            {
-                ops += subordinate.getMemtableColumnsCount();
-                throughput += subordinate.getMemtableDataSize();
-            }
+            long total = cfs.getTotalMemtableLiveSize();
 
-            if (ops > 0 && (largestByOps == null || ops > largestByOps.getMemtableColumnsCount()))
+            if (total > 0 && (largest == null || total > largest.getTotalMemtableLiveSize()))
             {
-                logger_.debug(ops + " total ops in " + cfs);
-                largestByOps = cfs;
-            }
-            if (throughput > 0 && (largestByThroughput == null || throughput > largestByThroughput.getMemtableThroughputInMB()))
-            {
-                logger_.debug(throughput + " total throughput in " + cfs);
-                largestByThroughput = cfs;
+                logger_.debug(total + " estimated memtable size for " + cfs);
+                largest = cfs;
             }
         }
-        if (largestByOps == null)
+        if (largest == null)
         {
             logger_.info("Unable to reduce heap usage since there are no dirty column families");
             return;
         }
 
-        logger_.warn("Flushing " + largestByOps + " to relieve memory pressure");
-        largestByOps.forceFlush();
-        if (largestByThroughput != largestByOps)
-        {
-            logger_.warn("Flushing " + largestByThroughput + " to relieve memory pressure");
-            largestByThroughput.forceFlush();
-        }
+        logger_.warn("Flushing " + largest + " to relieve memory pressure");
+        largest.forceFlush();
     }
 
     public void reduceCacheSizes()

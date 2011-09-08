@@ -121,12 +121,7 @@ public abstract class SecondaryIndex
      * @return the secondary index search impl
      */
     protected abstract SecondaryIndexSearcher createSecondaryIndexSearcher(Set<ByteBuffer> columns);
-    
-    /**
-     * Depending on the underlying impl, we might need to flush data to disk
-     */
-    public abstract void maybeFlush();
-    
+        
     /**
      * Forces this indexes in memory data to disk
      * @throws ExecutionException

@@ -58,11 +58,9 @@ public class KeysIndex extends SecondaryIndex
 {
     private static final Logger logger = LoggerFactory.getLogger(KeysIndex.class);
     private ColumnFamilyStore indexedCfs;
-    private final ConcurrentSkipListSet<Memtable> fullMemtables;
 
     public KeysIndex() 
     {
-        fullMemtables = new ConcurrentSkipListSet<Memtable>();
     }
     
     public void init()
@@ -93,12 +91,9 @@ public class KeysIndex extends SecondaryIndex
         int localDeletionTime = (int) (System.currentTimeMillis() / 1000);
         ColumnFamily cfi = ColumnFamily.create(indexedCfs.metadata);
         cfi.addTombstone(rowKey, localDeletionTime, column.timestamp());
-        Memtable fullMemtable = indexedCfs.apply(valueKey, cfi);
+        indexedCfs.apply(valueKey, cfi);
         if (logger.isDebugEnabled())
             logger.debug("removed index entry for cleaned-up value {}:{}", valueKey, cfi);
-        if (fullMemtable != null)
-            fullMemtables.add(fullMemtable);
-            
     }
 
     @Override
@@ -117,10 +112,7 @@ public class KeysIndex extends SecondaryIndex
         if (logger.isDebugEnabled())
             logger.debug("applying index row {}:{}", valueKey, cfi);
         
-        Memtable fullMemtable = indexedCfs.apply(valueKey, cfi);
-        
-        if (fullMemtable != null)
-            fullMemtables.add(fullMemtable);
+        indexedCfs.apply(valueKey, cfi);
     }
     
     @Override
@@ -133,22 +125,6 @@ public class KeysIndex extends SecondaryIndex
     public void commitRow(ByteBuffer rowKey)
     {
        //nothing required in this impl since indexes are per column 
-    }
-
-    @Override
-    public void maybeFlush()
-    {
-        Iterator<Memtable> iterator = fullMemtables.iterator();
-        while(iterator.hasNext())
-        {           
-            Memtable memtable = iterator.next();
-            
-            if(memtable == null)
-                continue;
-            
-            memtable.cfs.maybeSwitchMemtable(memtable, false);
-            iterator.remove();
-        }      
     }
 
     @Override

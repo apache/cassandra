@@ -63,8 +63,6 @@ protocol InterNode {
         union { int, null } row_cache_save_period_in_seconds = 0;
         union { int, null } key_cache_save_period_in_seconds = 3600;
         union { null, int } row_cache_keys_to_save = null;
-        union { null, int } memtable_throughput_in_mb = null;
-        union { null, double} memtable_operations_in_millions = null;
         union { null, double} merge_shards_chance = null;
         union { int, null } id;
         union { array<ColumnDef>, null } column_metadata;

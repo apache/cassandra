@@ -79,15 +79,11 @@ public class Memtable
     private final ConcurrentNavigableMap<DecoratedKey, ColumnFamily> columnFamilies = new ConcurrentSkipListMap<DecoratedKey, ColumnFamily>();
     public final ColumnFamilyStore cfs;
 
-    private final long THRESHOLD;
-    private final long THRESHOLD_COUNT;
     private SlabAllocator allocator = new SlabAllocator();
 
     public Memtable(ColumnFamilyStore cfs)
     {
         this.cfs = cfs;
-        THRESHOLD = cfs.getMemtableThroughputInMB() * 1024L * 1024L;
-        THRESHOLD_COUNT = (long) (cfs.getMemtableOperationsInMillions() * 1024 * 1024);
     }
 
     public long getLiveSize()
@@ -105,11 +101,6 @@ public class Memtable
     public long getOperations()
     {
         return currentOperations.get();
-    }
-
-    boolean isThresholdViolated()
-    {
-        return currentThroughput.get() >= this.THRESHOLD || currentOperations.get() >= this.THRESHOLD_COUNT;
     }
 
     boolean isFrozen()

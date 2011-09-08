@@ -209,12 +209,6 @@ public interface ColumnFamilyStoreMBean
      */
     public void disableAutoCompaction();
 
-    public int getMemtableThroughputInMB();
-    public void setMemtableThroughputInMB(int size) throws ConfigurationException;
-
-    public double getMemtableOperationsInMillions();
-    public void setMemtableOperationsInMillions(double ops) throws ConfigurationException;
-
     public long estimateKeys();
 
     public long[] getEstimatedRowSizeHistogram();

@@ -62,8 +62,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
   private static final org.apache.thrift.protocol.TField MAX_COMPACTION_THRESHOLD_FIELD_DESC = new org.apache.thrift.protocol.TField("max_compaction_threshold", org.apache.thrift.protocol.TType.I32, (short)18);
   private static final org.apache.thrift.protocol.TField ROW_CACHE_SAVE_PERIOD_IN_SECONDS_FIELD_DESC = new org.apache.thrift.protocol.TField("row_cache_save_period_in_seconds", org.apache.thrift.protocol.TType.I32, (short)19);
   private static final org.apache.thrift.protocol.TField KEY_CACHE_SAVE_PERIOD_IN_SECONDS_FIELD_DESC = new org.apache.thrift.protocol.TField("key_cache_save_period_in_seconds", org.apache.thrift.protocol.TType.I32, (short)20);
-  private static final org.apache.thrift.protocol.TField MEMTABLE_THROUGHPUT_IN_MB_FIELD_DESC = new org.apache.thrift.protocol.TField("memtable_throughput_in_mb", org.apache.thrift.protocol.TType.I32, (short)22);
-  private static final org.apache.thrift.protocol.TField MEMTABLE_OPERATIONS_IN_MILLIONS_FIELD_DESC = new org.apache.thrift.protocol.TField("memtable_operations_in_millions", org.apache.thrift.protocol.TType.DOUBLE, (short)23);
   private static final org.apache.thrift.protocol.TField REPLICATE_ON_WRITE_FIELD_DESC = new org.apache.thrift.protocol.TField("replicate_on_write", org.apache.thrift.protocol.TType.BOOL, (short)24);
   private static final org.apache.thrift.protocol.TField MERGE_SHARDS_CHANCE_FIELD_DESC = new org.apache.thrift.protocol.TField("merge_shards_chance", org.apache.thrift.protocol.TType.DOUBLE, (short)25);
   private static final org.apache.thrift.protocol.TField KEY_VALIDATION_CLASS_FIELD_DESC = new org.apache.thrift.protocol.TField("key_validation_class", org.apache.thrift.protocol.TType.STRING, (short)26);
@@ -91,8 +89,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
   public int max_compaction_threshold;
   public int row_cache_save_period_in_seconds;
   public int key_cache_save_period_in_seconds;
-  public int memtable_throughput_in_mb;
-  public double memtable_operations_in_millions;
   public boolean replicate_on_write;
   public double merge_shards_chance;
   public String key_validation_class;
@@ -122,8 +118,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     MAX_COMPACTION_THRESHOLD((short)18, "max_compaction_threshold"),
     ROW_CACHE_SAVE_PERIOD_IN_SECONDS((short)19, "row_cache_save_period_in_seconds"),
     KEY_CACHE_SAVE_PERIOD_IN_SECONDS((short)20, "key_cache_save_period_in_seconds"),
-    MEMTABLE_THROUGHPUT_IN_MB((short)22, "memtable_throughput_in_mb"),
-    MEMTABLE_OPERATIONS_IN_MILLIONS((short)23, "memtable_operations_in_millions"),
     REPLICATE_ON_WRITE((short)24, "replicate_on_write"),
     MERGE_SHARDS_CHANCE((short)25, "merge_shards_chance"),
     KEY_VALIDATION_CLASS((short)26, "key_validation_class"),
@@ -181,10 +175,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
           return ROW_CACHE_SAVE_PERIOD_IN_SECONDS;
         case 20: // KEY_CACHE_SAVE_PERIOD_IN_SECONDS
           return KEY_CACHE_SAVE_PERIOD_IN_SECONDS;
-        case 22: // MEMTABLE_THROUGHPUT_IN_MB
-          return MEMTABLE_THROUGHPUT_IN_MB;
-        case 23: // MEMTABLE_OPERATIONS_IN_MILLIONS
-          return MEMTABLE_OPERATIONS_IN_MILLIONS;
         case 24: // REPLICATE_ON_WRITE
           return REPLICATE_ON_WRITE;
         case 25: // MERGE_SHARDS_CHANCE
@@ -252,12 +242,10 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
   private static final int __MAX_COMPACTION_THRESHOLD_ISSET_ID = 6;
   private static final int __ROW_CACHE_SAVE_PERIOD_IN_SECONDS_ISSET_ID = 7;
   private static final int __KEY_CACHE_SAVE_PERIOD_IN_SECONDS_ISSET_ID = 8;
-  private static final int __MEMTABLE_THROUGHPUT_IN_MB_ISSET_ID = 9;
-  private static final int __MEMTABLE_OPERATIONS_IN_MILLIONS_ISSET_ID = 10;
-  private static final int __REPLICATE_ON_WRITE_ISSET_ID = 11;
-  private static final int __MERGE_SHARDS_CHANCE_ISSET_ID = 12;
-  private static final int __ROW_CACHE_KEYS_TO_SAVE_ISSET_ID = 13;
-  private BitSet __isset_bit_vector = new BitSet(14);
+  private static final int __REPLICATE_ON_WRITE_ISSET_ID = 9;
+  private static final int __MERGE_SHARDS_CHANCE_ISSET_ID = 10;
+  private static final int __ROW_CACHE_KEYS_TO_SAVE_ISSET_ID = 11;
+  private BitSet __isset_bit_vector = new BitSet(12);
 
   public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
   static {
@@ -297,10 +285,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
         new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32)));
     tmpMap.put(_Fields.KEY_CACHE_SAVE_PERIOD_IN_SECONDS, new org.apache.thrift.meta_data.FieldMetaData("key_cache_save_period_in_seconds", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
         new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32)));
-    tmpMap.put(_Fields.MEMTABLE_THROUGHPUT_IN_MB, new org.apache.thrift.meta_data.FieldMetaData("memtable_throughput_in_mb", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
-        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32)));
-    tmpMap.put(_Fields.MEMTABLE_OPERATIONS_IN_MILLIONS, new org.apache.thrift.meta_data.FieldMetaData("memtable_operations_in_millions", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
-        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.DOUBLE)));
     tmpMap.put(_Fields.REPLICATE_ON_WRITE, new org.apache.thrift.meta_data.FieldMetaData("replicate_on_write", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
         new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.BOOL)));
     tmpMap.put(_Fields.MERGE_SHARDS_CHANCE, new org.apache.thrift.meta_data.FieldMetaData("merge_shards_chance", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
@@ -394,8 +378,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     this.max_compaction_threshold = other.max_compaction_threshold;
     this.row_cache_save_period_in_seconds = other.row_cache_save_period_in_seconds;
     this.key_cache_save_period_in_seconds = other.key_cache_save_period_in_seconds;
-    this.memtable_throughput_in_mb = other.memtable_throughput_in_mb;
-    this.memtable_operations_in_millions = other.memtable_operations_in_millions;
     this.replicate_on_write = other.replicate_on_write;
     this.merge_shards_chance = other.merge_shards_chance;
     if (other.isSetKey_validation_class()) {
@@ -478,10 +460,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     this.row_cache_save_period_in_seconds = 0;
     setKey_cache_save_period_in_secondsIsSet(false);
     this.key_cache_save_period_in_seconds = 0;
-    setMemtable_throughput_in_mbIsSet(false);
-    this.memtable_throughput_in_mb = 0;
-    setMemtable_operations_in_millionsIsSet(false);
-    this.memtable_operations_in_millions = 0.0;
     setReplicate_on_writeIsSet(false);
     this.replicate_on_write = false;
     setMerge_shards_chanceIsSet(false);
@@ -911,52 +889,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     __isset_bit_vector.set(__KEY_CACHE_SAVE_PERIOD_IN_SECONDS_ISSET_ID, value);
   }
 
-  public int getMemtable_throughput_in_mb() {
-    return this.memtable_throughput_in_mb;
-  }
-
-  public CfDef setMemtable_throughput_in_mb(int memtable_throughput_in_mb) {
-    this.memtable_throughput_in_mb = memtable_throughput_in_mb;
-    setMemtable_throughput_in_mbIsSet(true);
-    return this;
-  }
-
-  public void unsetMemtable_throughput_in_mb() {
-    __isset_bit_vector.clear(__MEMTABLE_THROUGHPUT_IN_MB_ISSET_ID);
-  }
-
-  /** Returns true if field memtable_throughput_in_mb is set (has been assigned a value) and false otherwise */
-  public boolean isSetMemtable_throughput_in_mb() {
-    return __isset_bit_vector.get(__MEMTABLE_THROUGHPUT_IN_MB_ISSET_ID);
-  }
-
-  public void setMemtable_throughput_in_mbIsSet(boolean value) {
-    __isset_bit_vector.set(__MEMTABLE_THROUGHPUT_IN_MB_ISSET_ID, value);
-  }
-
-  public double getMemtable_operations_in_millions() {
-    return this.memtable_operations_in_millions;
-  }
-
-  public CfDef setMemtable_operations_in_millions(double memtable_operations_in_millions) {
-    this.memtable_operations_in_millions = memtable_operations_in_millions;
-    setMemtable_operations_in_millionsIsSet(true);
-    return this;
-  }
-
-  public void unsetMemtable_operations_in_millions() {
-    __isset_bit_vector.clear(__MEMTABLE_OPERATIONS_IN_MILLIONS_ISSET_ID);
-  }
-
-  /** Returns true if field memtable_operations_in_millions is set (has been assigned a value) and false otherwise */
-  public boolean isSetMemtable_operations_in_millions() {
-    return __isset_bit_vector.get(__MEMTABLE_OPERATIONS_IN_MILLIONS_ISSET_ID);
-  }
-
-  public void setMemtable_operations_in_millionsIsSet(boolean value) {
-    __isset_bit_vector.set(__MEMTABLE_OPERATIONS_IN_MILLIONS_ISSET_ID, value);
-  }
-
   public boolean isReplicate_on_write() {
     return this.replicate_on_write;
   }
@@ -1340,22 +1272,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       }
       break;
 
-    case MEMTABLE_THROUGHPUT_IN_MB:
-      if (value == null) {
-        unsetMemtable_throughput_in_mb();
-      } else {
-        setMemtable_throughput_in_mb((Integer)value);
-      }
-      break;
-
-    case MEMTABLE_OPERATIONS_IN_MILLIONS:
-      if (value == null) {
-        unsetMemtable_operations_in_millions();
-      } else {
-        setMemtable_operations_in_millions((Double)value);
-      }
-      break;
-
     case REPLICATE_ON_WRITE:
       if (value == null) {
         unsetReplicate_on_write();
@@ -1484,12 +1400,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     case KEY_CACHE_SAVE_PERIOD_IN_SECONDS:
       return new Integer(getKey_cache_save_period_in_seconds());
 
-    case MEMTABLE_THROUGHPUT_IN_MB:
-      return new Integer(getMemtable_throughput_in_mb());
-
-    case MEMTABLE_OPERATIONS_IN_MILLIONS:
-      return new Double(getMemtable_operations_in_millions());
-
     case REPLICATE_ON_WRITE:
       return new Boolean(isReplicate_on_write());
 
@@ -1562,10 +1472,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       return isSetRow_cache_save_period_in_seconds();
     case KEY_CACHE_SAVE_PERIOD_IN_SECONDS:
       return isSetKey_cache_save_period_in_seconds();
-    case MEMTABLE_THROUGHPUT_IN_MB:
-      return isSetMemtable_throughput_in_mb();
-    case MEMTABLE_OPERATIONS_IN_MILLIONS:
-      return isSetMemtable_operations_in_millions();
     case REPLICATE_ON_WRITE:
       return isSetReplicate_on_write();
     case MERGE_SHARDS_CHANCE:
@@ -1754,24 +1660,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
         return false;
     }
 
-    boolean this_present_memtable_throughput_in_mb = true && this.isSetMemtable_throughput_in_mb();
-    boolean that_present_memtable_throughput_in_mb = true && that.isSetMemtable_throughput_in_mb();
-    if (this_present_memtable_throughput_in_mb || that_present_memtable_throughput_in_mb) {
-      if (!(this_present_memtable_throughput_in_mb && that_present_memtable_throughput_in_mb))
-        return false;
-      if (this.memtable_throughput_in_mb != that.memtable_throughput_in_mb)
-        return false;
-    }
-
-    boolean this_present_memtable_operations_in_millions = true && this.isSetMemtable_operations_in_millions();
-    boolean that_present_memtable_operations_in_millions = true && that.isSetMemtable_operations_in_millions();
-    if (this_present_memtable_operations_in_millions || that_present_memtable_operations_in_millions) {
-      if (!(this_present_memtable_operations_in_millions && that_present_memtable_operations_in_millions))
-        return false;
-      if (this.memtable_operations_in_millions != that.memtable_operations_in_millions)
-        return false;
-    }
-
     boolean this_present_replicate_on_write = true && this.isSetReplicate_on_write();
     boolean that_present_replicate_on_write = true && that.isSetReplicate_on_write();
     if (this_present_replicate_on_write || that_present_replicate_on_write) {
@@ -1944,16 +1832,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     builder.append(present_key_cache_save_period_in_seconds);
     if (present_key_cache_save_period_in_seconds)
       builder.append(key_cache_save_period_in_seconds);
-
-    boolean present_memtable_throughput_in_mb = true && (isSetMemtable_throughput_in_mb());
-    builder.append(present_memtable_throughput_in_mb);
-    if (present_memtable_throughput_in_mb)
-      builder.append(memtable_throughput_in_mb);
-
-    boolean present_memtable_operations_in_millions = true && (isSetMemtable_operations_in_millions());
-    builder.append(present_memtable_operations_in_millions);
-    if (present_memtable_operations_in_millions)
-      builder.append(memtable_operations_in_millions);
 
     boolean present_replicate_on_write = true && (isSetReplicate_on_write());
     builder.append(present_replicate_on_write);
@@ -2177,26 +2055,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     }
     if (isSetKey_cache_save_period_in_seconds()) {
       lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.key_cache_save_period_in_seconds, typedOther.key_cache_save_period_in_seconds);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-    }
-    lastComparison = Boolean.valueOf(isSetMemtable_throughput_in_mb()).compareTo(typedOther.isSetMemtable_throughput_in_mb());
-    if (lastComparison != 0) {
-      return lastComparison;
-    }
-    if (isSetMemtable_throughput_in_mb()) {
-      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.memtable_throughput_in_mb, typedOther.memtable_throughput_in_mb);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-    }
-    lastComparison = Boolean.valueOf(isSetMemtable_operations_in_millions()).compareTo(typedOther.isSetMemtable_operations_in_millions());
-    if (lastComparison != 0) {
-      return lastComparison;
-    }
-    if (isSetMemtable_operations_in_millions()) {
-      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.memtable_operations_in_millions, typedOther.memtable_operations_in_millions);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -2447,22 +2305,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
             org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
-        case 22: // MEMTABLE_THROUGHPUT_IN_MB
-          if (field.type == org.apache.thrift.protocol.TType.I32) {
-            this.memtable_throughput_in_mb = iprot.readI32();
-            setMemtable_throughput_in_mbIsSet(true);
-          } else { 
-            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
-          }
-          break;
-        case 23: // MEMTABLE_OPERATIONS_IN_MILLIONS
-          if (field.type == org.apache.thrift.protocol.TType.DOUBLE) {
-            this.memtable_operations_in_millions = iprot.readDouble();
-            setMemtable_operations_in_millionsIsSet(true);
-          } else { 
-            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
-          }
-          break;
         case 24: // REPLICATE_ON_WRITE
           if (field.type == org.apache.thrift.protocol.TType.BOOL) {
             this.replicate_on_write = iprot.readBool();
@@ -2670,16 +2512,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     if (isSetKey_cache_save_period_in_seconds()) {
       oprot.writeFieldBegin(KEY_CACHE_SAVE_PERIOD_IN_SECONDS_FIELD_DESC);
       oprot.writeI32(this.key_cache_save_period_in_seconds);
-      oprot.writeFieldEnd();
-    }
-    if (isSetMemtable_throughput_in_mb()) {
-      oprot.writeFieldBegin(MEMTABLE_THROUGHPUT_IN_MB_FIELD_DESC);
-      oprot.writeI32(this.memtable_throughput_in_mb);
-      oprot.writeFieldEnd();
-    }
-    if (isSetMemtable_operations_in_millions()) {
-      oprot.writeFieldBegin(MEMTABLE_OPERATIONS_IN_MILLIONS_FIELD_DESC);
-      oprot.writeDouble(this.memtable_operations_in_millions);
       oprot.writeFieldEnd();
     }
     if (isSetReplicate_on_write()) {
@@ -2891,18 +2723,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       if (!first) sb.append(", ");
       sb.append("key_cache_save_period_in_seconds:");
       sb.append(this.key_cache_save_period_in_seconds);
-      first = false;
-    }
-    if (isSetMemtable_throughput_in_mb()) {
-      if (!first) sb.append(", ");
-      sb.append("memtable_throughput_in_mb:");
-      sb.append(this.memtable_throughput_in_mb);
-      first = false;
-    }
-    if (isSetMemtable_operations_in_millions()) {
-      if (!first) sb.append(", ");
-      sb.append("memtable_operations_in_millions:");
-      sb.append(this.memtable_operations_in_millions);
       first = false;
     }
     if (isSetReplicate_on_write()) {

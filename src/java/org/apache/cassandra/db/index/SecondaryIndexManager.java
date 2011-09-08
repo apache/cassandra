@@ -307,15 +307,14 @@ public class SecondaryIndexManager
      * 
      * @return list of full (index CF) memtables
      */
-    public Set<SecondaryIndex> applyIndexUpdates(ByteBuffer rowKey,
+    public void applyIndexUpdates(ByteBuffer rowKey,
                                                  ColumnFamily cf,
                                                  SortedSet<ByteBuffer> mutatedIndexedColumns,
                                                  ColumnFamily oldIndexedColumns)
     {
-        
         //Track the indexes we touch so we can commit the row across them
         Set<SecondaryIndex> indexesTouched = new HashSet<SecondaryIndex>(indexesByColumn.size());
-        
+
         // remove the old index entries
         if (oldIndexedColumns != null)
         {
@@ -333,7 +332,7 @@ public class SecondaryIndexManager
            
                 SecondaryIndex index = getIndexForColumn(columnName);
                 assert index != null;
-                
+
                 indexesTouched.add(index);
 
                 DecoratedKey<LocalToken> valueKey = getIndexKeyFor(columnName, column.value());
@@ -353,7 +352,7 @@ public class SecondaryIndexManager
             assert index != null;
 
             indexesTouched.add(index);
-            
+
             DecoratedKey<LocalToken> valueKey = getIndexKeyFor(columnName, column.value());
                         
             index.insertColumn(valueKey, rowKey, column);         
@@ -364,8 +363,6 @@ public class SecondaryIndexManager
         {
             index.commitRow(rowKey);
         }
-        
-        return indexesTouched;
     }
      
     /**

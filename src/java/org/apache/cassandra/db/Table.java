@@ -451,10 +451,7 @@ public class Table
                         ignoreObsoleteMutations(cf, mutatedIndexedColumns, oldIndexedColumns);
                     }
 
-                    Memtable fullMemtable = cfs.apply(key, cf);
-                    if (fullMemtable != null)
-                        memtablesToFlush = addFullMemtable(memtablesToFlush, fullMemtable);
-
+                    cfs.apply(key, cf);
                     if (mutatedIndexedColumns != null)
                     {
                         // ignore full index memtables -- we flush those when the "master" one is full
@@ -472,14 +469,6 @@ public class Table
         // usually mTF will be empty and this will be a no-op.
         for (Memtable memtable : memtablesToFlush)
             memtable.cfs.maybeSwitchMemtable(memtable, writeCommitLog);
-    }
-
-    private static List<Memtable> addFullMemtable(List<Memtable> memtablesToFlush, Memtable fullMemtable)
-    {
-        if (memtablesToFlush.isEmpty())
-            memtablesToFlush = new ArrayList<Memtable>(2);
-        memtablesToFlush.add(fullMemtable);
-        return memtablesToFlush;
     }
 
     private static void ignoreObsoleteMutations(ColumnFamily cf, SortedSet<ByteBuffer> mutatedIndexedColumns, ColumnFamily oldIndexedColumns)
@@ -538,7 +527,6 @@ public class Table
     public static void indexRow(DecoratedKey<?> key, ColumnFamilyStore cfs, SortedSet<ByteBuffer> indexedColumns)
     {
         logger.debug("Indexing row {} ", key);
-        Set<SecondaryIndex> indexesToFlush = Collections.emptySet();
         switchLock.readLock().lock();
         try
         {
@@ -546,17 +534,13 @@ public class Table
             {
                 ColumnFamily cf = readCurrentIndexedColumns(key, cfs, indexedColumns);
                 if (cf != null)
-                    indexesToFlush = cfs.indexManager.applyIndexUpdates(key.key, cf, cf.getColumnNames(), null);
+                    cfs.indexManager.applyIndexUpdates(key.key, cf, cf.getColumnNames(), null);
             }
         }
         finally
         {
             switchLock.readLock().unlock();
         }
-
-        // during index build, we do flush index memtables separately from master; otherwise we could OOM
-        for (SecondaryIndex index : indexesToFlush)
-            index.maybeFlush();
     }
 
     private Object indexLockFor(ByteBuffer key)

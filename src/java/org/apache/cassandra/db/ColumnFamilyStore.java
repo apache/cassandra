@@ -89,16 +89,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     static
     {
-        if (DatabaseDescriptor.estimatesRealMemtableSize())
-        {
-            logger.info("Global memtable threshold is enabled at {}MB", DatabaseDescriptor.getTotalMemtableSpaceInMB());
-            // (can block if flush queue fills up, so don't put on scheduledTasks)
-            StorageService.tasks.scheduleWithFixedDelay(new MeteredFlusher(), 1000, 1000, TimeUnit.MILLISECONDS);
-        }
-        else
-        {
-            logger.info("Global memtable threshold is disabled");
-        }
+        // (can block if flush queue fills up, so don't put on scheduledTasks)
+        StorageService.tasks.scheduleWithFixedDelay(new MeteredFlusher(), 1000, 1000, TimeUnit.MILLISECONDS);
     }
 
     public final Table table;
@@ -132,8 +124,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private volatile DefaultInteger minCompactionThreshold;
     private volatile DefaultInteger maxCompactionThreshold;
     private volatile AbstractCompactionStrategy compactionStrategy;
-    private volatile DefaultInteger memsize;
-    private volatile DefaultDouble memops;
     private volatile DefaultInteger rowCacheSaveInSeconds;
     private volatile DefaultInteger keyCacheSaveInSeconds;
     private volatile DefaultInteger rowCacheKeysToSave;
@@ -180,12 +170,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         if (!maxCompactionThreshold.isModified())
             for (ColumnFamilyStore cfs : concatWithIndexes())
                 cfs.maxCompactionThreshold = new DefaultInteger(metadata.getMaxCompactionThreshold());
-        if (!memsize.isModified())
-            for (ColumnFamilyStore cfs : concatWithIndexes())
-                cfs.memsize = new DefaultInteger(metadata.getMemtableThroughputInMb());
-        if (!memops.isModified())
-            for (ColumnFamilyStore cfs : concatWithIndexes())
-                cfs.memops = new DefaultDouble(metadata.getMemtableOperationsInMillions());
         if (!rowCacheSaveInSeconds.isModified())
             rowCacheSaveInSeconds = new DefaultInteger(metadata.getRowCacheSavePeriodInSeconds());
         if (!keyCacheSaveInSeconds.isModified())
@@ -210,8 +194,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         this.metadata = metadata;
         this.minCompactionThreshold = new DefaultInteger(metadata.getMinCompactionThreshold());
         this.maxCompactionThreshold = new DefaultInteger(metadata.getMaxCompactionThreshold());
-        this.memsize = new DefaultInteger(metadata.getMemtableThroughputInMb());
-        this.memops = new DefaultDouble(metadata.getMemtableOperationsInMillions());
         this.rowCacheSaveInSeconds = new DefaultInteger(metadata.getRowCacheSavePeriodInSeconds());
         this.keyCacheSaveInSeconds = new DefaultInteger(metadata.getKeyCacheSavePeriodInSeconds());
         this.rowCacheKeysToSave = new DefaultInteger(metadata.getRowCacheKeysToSave());
@@ -761,33 +743,28 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * param @ key - key for update/insert
      * param @ columnFamily - columnFamily changes
      */
-    public Memtable apply(DecoratedKey key, ColumnFamily columnFamily)
+    public void apply(DecoratedKey key, ColumnFamily columnFamily)
     {
         long start = System.nanoTime();
 
         Memtable mt = getMemtableThreadSafe();
-        boolean flushRequested = mt.isThresholdViolated();
         mt.put(key, columnFamily);
         updateRowCache(key, columnFamily);
         writeStats.addNano(System.nanoTime() - start);
 
-        if (DatabaseDescriptor.estimatesRealMemtableSize())
+        // recompute liveRatio, if we have doubled the number of ops since last calculated
+        while (true)
         {
-            while (true)
+            long last = liveRatioComputedAt.get();
+            long operations = writeStats.getOpCount();
+            if (operations < 2 * last)
+                break;
+            if (liveRatioComputedAt.compareAndSet(last, operations))
             {
-                long last = liveRatioComputedAt.get();
-                long operations = writeStats.getOpCount();
-                if (operations < 2 * last)
-                    break;
-                if (liveRatioComputedAt.compareAndSet(last, operations))
-                {
-                    logger.debug("computing liveRatio of {} at {} ops", this, operations);
-                    mt.updateLiveRatio();
-                }
+                logger.debug("computing liveRatio of {} at {} ops", this, operations);
+                mt.updateLiveRatio();
             }
         }
-
-        return flushRequested ? mt : null;
     }
 
     public static ColumnFamily removeDeletedCF(ColumnFamily cf, int gcBefore)
@@ -1768,26 +1745,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public boolean isCompactionDisabled()
     {
         return getMinimumCompactionThreshold() <= 0 || getMaximumCompactionThreshold() <= 0;
-    }
-
-    public int getMemtableThroughputInMB()
-    {
-        return memsize.value();
-    }
-    public void setMemtableThroughputInMB(int size) throws ConfigurationException
-    {
-        DatabaseDescriptor.validateMemtableThroughput(size);
-        memsize.set(size);
-    }
-
-    public double getMemtableOperationsInMillions()
-    {
-        return memops.value();
-    }
-    public void setMemtableOperationsInMillions(double ops) throws ConfigurationException
-    {
-        DatabaseDescriptor.validateMemtableOperations(ops);
-        memops.set(ops);
     }
 
     public int getRowCacheSavePeriodInSeconds()

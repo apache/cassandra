@@ -221,11 +221,14 @@ public class DatabaseDescriptor
 
             if (conf.concurrent_replicates != null && conf.concurrent_replicates < 2)
             {
-                throw new ConfigurationException("conf.concurrent_replicates must be at least 2");
+                throw new ConfigurationException("concurrent_replicates must be at least 2");
             }
 
             if (conf.memtable_total_space_in_mb == null)
                 conf.memtable_total_space_in_mb = (int) (Runtime.getRuntime().maxMemory() / (3 * 1048576));
+            if (conf.memtable_total_space_in_mb <= 0)
+                throw new ConfigurationException("memtable_total_space_in_mb must be positive");
+            logger.info("Global memtable threshold is enabled at {}MB", conf.memtable_total_space_in_mb);
 
             /* Memtable flush writer threads */
             if (conf.memtable_flush_writers != null && conf.memtable_flush_writers < 1)
@@ -984,11 +987,6 @@ public class DatabaseDescriptor
         // should only be called if estimatesRealMemtableSize() is true
         assert conf.memtable_total_space_in_mb > 0;
         return conf.memtable_total_space_in_mb;
-    }
-
-    public static boolean estimatesRealMemtableSize()
-    {
-        return conf.memtable_total_space_in_mb > 0;
     }
 
     public static long getTotalCommitlogSpaceInMB()
