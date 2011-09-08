@@ -516,50 +516,45 @@ public class StorageProxy implements StorageProxyMBean
             ReadCallback<Row> handler = getReadCallback(resolver, command, consistency_level, endpoints);
             handler.assureSufficientLiveNodes();
             assert !handler.endpoints.isEmpty();
+            readCallbacks.add(handler);
 
-            // The data-request message is sent to dataPoint, the node that will actually get
-            // the data for us. The other replicas are only sent a digest query.
-            ReadCommand digestCommand = null;
-            if (handler.endpoints.size() > 1)
-            {
-                digestCommand = command.copy();
-                digestCommand.setDigestQuery(true);
-            }
-
+            // The data-request message is sent to dataPoint, the node that will actually get the data for us
             InetAddress dataPoint = handler.endpoints.get(0);
             if (dataPoint.equals(FBUtilities.getLocalAddress()))
             {
-                if (logger.isDebugEnabled())
-                    logger.debug("reading data locally");
+                logger.debug("reading data locally");
                 StageManager.getStage(Stage.READ).execute(new LocalReadRunnable(command, handler));
             }
             else
             {
-                if (logger.isDebugEnabled())
-                    logger.debug("reading data from " + dataPoint);
+                logger.debug("reading data from {}", dataPoint);
                 MessagingService.instance().sendRR(command, dataPoint, handler);
             }
 
-            // We lazy-construct the digest Message object since it may not be necessary if we
-            // are doing a local digest read, or no digest reads at all.
-            MessageProducer producer = new CachingMessageProducer(digestCommand);
+            if (handler.endpoints.size() == 1)
+                continue;
+
+            // send the other endpoints a digest request
+            ReadCommand digestCommand = command.copy();
+            digestCommand.setDigestQuery(true);
+            MessageProducer producer = null;
             for (InetAddress digestPoint : handler.endpoints.subList(1, handler.endpoints.size()))
             {
                 if (digestPoint.equals(FBUtilities.getLocalAddress()))
                 {
-                    if (logger.isDebugEnabled())
-                        logger.debug("reading digest locally");
+                    logger.debug("reading digest locally");
                     StageManager.getStage(Stage.READ).execute(new LocalReadRunnable(digestCommand, handler));
                 }
                 else
                 {
-                    if (logger.isDebugEnabled())
-                        logger.debug("reading digest for from " + digestPoint);
+                    logger.debug("reading digest from {}", digestPoint);
+                    // (We lazy-construct the digest Message object since it may not be necessary if we
+                    // are doing a local digest read, or no digest reads at all.)
+                    if (producer == null)
+                        producer = new CachingMessageProducer(digestCommand);
                     MessagingService.instance().sendRR(producer, digestPoint, handler);
                 }
             }
-
-            readCallbacks.add(handler);
         }
 
         // read results and make a second pass for any digest mismatches
@@ -591,8 +586,9 @@ public class StorageProxy implements StorageProxyMBean
                     logger.debug("Digest mismatch: {}", ex.toString());
                 RowRepairResolver resolver = new RowRepairResolver(command.table, command.key);
                 RepairCallback<Row> repairHandler = new RepairCallback<Row>(resolver, handler.endpoints);
+                MessageProducer producer = new CachingMessageProducer(command);
                 for (InetAddress endpoint : handler.endpoints)
-                    MessagingService.instance().sendRR(command, endpoint, repairHandler);
+                    MessagingService.instance().sendRR(producer, endpoint, repairHandler);
 
                 if (repairResponseHandlers == null)
                     repairResponseHandlers = new ArrayList<RepairCallback<Row>>();
