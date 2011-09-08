@@ -165,28 +165,60 @@ class CResultSet extends AbstractResultSet implements CassandraResultSet
         throw new SQLFeatureNotSupportedException(NOT_SUPPORTED);
     }
 
-    // Big Decimal (awaiting a new AbstractType implementation)
 
-    public BigDecimal getBigDecimal(int arg0) throws SQLException
+    public BigDecimal getBigDecimal(int index) throws SQLException
     {
-        throw new SQLFeatureNotSupportedException(NOT_SUPPORTED);
+        checkIndex(index);
+        return getBigDecimal(values.get(index - 1));
     }
 
-    public BigDecimal getBigDecimal(int arg0, int arg1) throws SQLException
+    /** @deprecated */
+    public BigDecimal getBigDecimal(int index, int scale) throws SQLException
     {
-        throw new SQLFeatureNotSupportedException(NOT_SUPPORTED);
+        checkIndex(index);
+        return (getBigDecimal(values.get(index - 1))).setScale(scale);
     }
 
-    public BigDecimal getBigDecimal(String arg0) throws SQLException
+    public BigDecimal getBigDecimal(String name) throws SQLException
     {
-        throw new SQLFeatureNotSupportedException(NOT_SUPPORTED);
+        checkName(name);
+        return getBigDecimal(valueMap.get(name));
     }
 
-    public BigDecimal getBigDecimal(String arg0, int arg1) throws SQLException
+    /** @deprecated */
+    public BigDecimal getBigDecimal(String name, int scale) throws SQLException
     {
-        throw new SQLFeatureNotSupportedException(NOT_SUPPORTED);
+        checkName(name);
+        return (getBigDecimal(valueMap.get(name))).setScale(scale);
     }
 
+    private BigDecimal getBigDecimal(TypedColumn column) throws SQLException
+    {
+        checkNotClosed();
+        Object value = column.getValue();
+        wasNull = value == null;
+
+        if (wasNull) return BigDecimal.ZERO;
+
+        if (value instanceof BigDecimal) return (BigDecimal) value;
+
+        if (value instanceof Long) return BigDecimal.valueOf((Long) value);
+        
+        if (value instanceof Double) return BigDecimal.valueOf((Double) value);
+
+        if (value instanceof BigInteger) return new BigDecimal((BigInteger) value);
+
+        try
+        {
+            if (value instanceof String) return (new BigDecimal((String) value));
+        }
+        catch (NumberFormatException e)
+        {
+            throw new SQLSyntaxErrorException(e);
+        }
+
+        throw new SQLSyntaxErrorException(String.format(NOT_TRANSLATABLE, value.getClass().getSimpleName(), "BigDecimal"));
+    }
     public BigInteger getBigInteger(int index) throws SQLException
     {
         checkIndex(index);

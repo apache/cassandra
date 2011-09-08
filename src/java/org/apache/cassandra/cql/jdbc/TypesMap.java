@@ -14,6 +14,7 @@ public class TypesMap
         map.put("org.apache.cassandra.db.marshal.BytesType", JdbcBytes.instance);
         map.put("org.apache.cassandra.db.marshal.ColumnCounterType", JdbcCounterColumn.instance);
         map.put("org.apache.cassandra.db.marshal.DateType", JdbcDate.instance);
+        map.put("org.apache.cassandra.db.marshal.DecimalType", JdbcDecimal.instance);
         map.put("org.apache.cassandra.db.marshal.DoubleType", JdbcDouble.instance);
         map.put("org.apache.cassandra.db.marshal.FloatType", JdbcFloat.instance);
         map.put("org.apache.cassandra.db.marshal.IntegerType", JdbcInteger.instance);
