@@ -23,10 +23,16 @@ package org.apache.cassandra.thrift;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.index.SecondaryIndex;
-import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.AsciiType;
+import org.apache.cassandra.db.marshal.MarshalException;
+import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
@@ -35,8 +41,6 @@ import org.apache.cassandra.locator.*;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * This has a lot of building blocks for CassandraServer to call to make sure it has valid input
@@ -676,6 +680,10 @@ public class ThriftValidation
         TokenMetadata tmd = StorageService.instance.getTokenMetadata();
         IEndpointSnitch eps = DatabaseDescriptor.getEndpointSnitch();
         Class<? extends AbstractReplicationStrategy> cls = AbstractReplicationStrategy.getClass(ks_def.strategy_class);
+
+        if (cls.equals(LocalStrategy.class))
+            throw new ConfigurationException("Unable to use given strategy class: LocalStrategy is reserved for internal use.");
+
         AbstractReplicationStrategy.createReplicationStrategy(ks_def.name, cls, tmd, eps, options);
     }
 

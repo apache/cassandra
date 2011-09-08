@@ -68,6 +68,18 @@
    (CASSANDRA-3119)
  * rename CQL type names to match expected SQL behavior (CASSANDRA-3149)
 
+
+0.8.6
+ * avoid trying to watch cassandra-topology.properties when loaded from jar
+   (CASSANDRA-3138)
+ * prevent users from creating keyspaces with LocalStrategy replication
+   (CASSANDRA-3139)
+ * fix CLI `show schema;` to output correct keyspace definition statement
+   (CASSANDRA-3129)
+ * CustomTThreadPoolServer to log TTransportException at DEBUG level
+   (CASSANDRA-3142)
+
+
 0.8.5
  * fix NPE when encryption_options is unspecified (CASSANDRA-3007)
  * include column name in validation failure exceptions (CASSANDRA-2849)
@@ -121,6 +133,10 @@
  * bundle sstableloader with the debian package (CASSANDRA-3113)
  * don't try to build secondary indexes when there is none (CASSANDRA-3123)
  * improve SSTableSimpleUnsortedWriter speed for large rows (CASSANDRA-3122)
+ * handle keyspace arguments correctly in nodetool snapshot (CASSANDRA-3038)
+ * Fix SSTableImportTest on windows (CASSANDRA-3043)
+ * expose compactionThroughputMbPerSec through JMX (CASSANDRA-3117)
+ * log keyspace and CF of large rows being compacted
 
 
 0.8.4
@@ -182,7 +198,7 @@
  * allow deleting a row and updating indexed columns in it in the
    same mutation (CASSANDRA-2773)
  * Expose number of threads blocked on submitting memtable to flush
-   (CASSANDRA-2817)
+   in JMX (CASSANDRA-2817)
  * add ability to return "endpoints" to nodetool (CASSANDRA-2776)
  * Add support for multiple (comma-delimited) coordinator addresses
    to ColumnFamilyInputFormat (CASSANDRA-2807)

@@ -58,14 +58,22 @@ public class PropertyFileSnitch extends AbstractNetworkTopologySnitch
     public PropertyFileSnitch() throws ConfigurationException
     {
         reloadConfiguration();
-        Runnable runnable = new WrappedRunnable()
+        try
         {
-            protected void runMayThrow() throws ConfigurationException
+            FBUtilities.resourceToFile(RACK_PROPERTY_FILENAME);
+            Runnable runnable = new WrappedRunnable()
             {
-                reloadConfiguration();
-            }
-        };
-        ResourceWatcher.watch(RACK_PROPERTY_FILENAME, runnable, 60 * 1000);
+                protected void runMayThrow() throws ConfigurationException
+                {
+                    reloadConfiguration();
+                }
+            };
+            ResourceWatcher.watch(RACK_PROPERTY_FILENAME, runnable, 60 * 1000);
+        }
+        catch (ConfigurationException ex)
+        {
+            logger.debug(RACK_PROPERTY_FILENAME + " found, but does not look like a plain file. Will not watch it for changes");
+        }
     }
 
     /**

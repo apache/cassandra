@@ -70,7 +70,8 @@ public class BloomFilter extends Filter
                                       numElements, bucketsPerElement, targetBucketsPerElem));
         }
         BloomCalculations.BloomSpecification spec = BloomCalculations.computeBloomSpec(bucketsPerElement);
-        logger.debug("Creating bloom filter for {} elements and spec {}", numElements, spec);
+        if (logger.isTraceEnabled())
+            logger.trace("Creating bloom filter for {} elements and spec {}", numElements, spec);
         return new BloomFilter(spec.K, bucketsFor(numElements, spec.bucketsPerElement));
     }
 
