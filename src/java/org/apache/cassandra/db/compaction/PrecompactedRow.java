@@ -49,7 +49,7 @@ public class PrecompactedRow extends AbstractCompactedRow
     private final int gcBefore;
 
     // For testing purposes
-    public PrecompactedRow(DecoratedKey key, ColumnFamily compacted)
+    public PrecompactedRow(DecoratedKey<?> key, ColumnFamily compacted)
     {
         super(key);
         this.compactedCf = compacted;
@@ -57,14 +57,14 @@ public class PrecompactedRow extends AbstractCompactedRow
     }
 
     /** it is caller's responsibility to call removeDeleted + removeOldShards from the cf before calling this constructor */
-    public PrecompactedRow(DecoratedKey key, CompactionController controller, ColumnFamily cf)
+    public PrecompactedRow(DecoratedKey<?> key, CompactionController controller, ColumnFamily cf)
     {
         super(key);
         this.gcBefore = controller.gcBefore;
         compactedCf = cf;
     }
 
-    public static ColumnFamily removeDeletedAndOldShards(DecoratedKey key, CompactionController controller, ColumnFamily cf)
+    public static ColumnFamily removeDeletedAndOldShards(DecoratedKey<?> key, CompactionController controller, ColumnFamily cf)
     {
         return removeDeletedAndOldShards(controller.shouldPurge(key), controller, cf);
     }

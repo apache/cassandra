@@ -30,7 +30,6 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IColumn;
-import org.apache.cassandra.db.columniterator.IColumnIterator;
 import org.apache.cassandra.db.columniterator.ICountableColumnIterator;
 import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.io.util.RandomAccessReader;
@@ -40,7 +39,7 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
 {
     private static final Logger logger = LoggerFactory.getLogger(SSTableIdentityIterator.class);
 
-    private final DecoratedKey key;
+    private final DecoratedKey<?> key;
     private final DataInput input;
     private final long dataStart;
     public final long dataSize;
@@ -66,7 +65,7 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
      * @param dataSize length of row data
      * @throws IOException
      */
-    public SSTableIdentityIterator(SSTableReader sstable, RandomAccessReader file, DecoratedKey key, long dataStart, long dataSize)
+    public SSTableIdentityIterator(SSTableReader sstable, RandomAccessReader file, DecoratedKey<?> key, long dataStart, long dataSize)
     throws IOException
     {
         this(sstable, file, key, dataStart, dataSize, false);
@@ -82,20 +81,20 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
      * @param checkData if true, do its best to deserialize and check the coherence of row data
      * @throws IOException
      */
-    public SSTableIdentityIterator(SSTableReader sstable, RandomAccessReader file, DecoratedKey key, long dataStart, long dataSize, boolean checkData)
+    public SSTableIdentityIterator(SSTableReader sstable, RandomAccessReader file, DecoratedKey<?> key, long dataStart, long dataSize, boolean checkData)
     throws IOException
     {
         this(sstable.metadata, file, key, dataStart, dataSize, checkData, sstable, false);
     }
 
-    public SSTableIdentityIterator(CFMetaData metadata, DataInput file, DecoratedKey key, long dataStart, long dataSize, boolean fromRemote)
+    public SSTableIdentityIterator(CFMetaData metadata, DataInput file, DecoratedKey<?> key, long dataStart, long dataSize, boolean fromRemote)
     throws IOException
     {
         this(metadata, file, key, dataStart, dataSize, false, null, fromRemote);
     }
 
     // sstable may be null *if* deserializeRowHeader is false
-    private SSTableIdentityIterator(CFMetaData metadata, DataInput input, DecoratedKey key, long dataStart, long dataSize, boolean checkData, SSTableReader sstable, boolean fromRemote)
+    private SSTableIdentityIterator(CFMetaData metadata, DataInput input, DecoratedKey<?> key, long dataStart, long dataSize, boolean checkData, SSTableReader sstable, boolean fromRemote)
     throws IOException
     {
         this.input = input;
@@ -157,7 +156,7 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
         }
     }
 
-    public DecoratedKey getKey()
+    public DecoratedKey<?> getKey()
     {
         return key;
     }

@@ -56,12 +56,12 @@ public class IndexSummary
         return keysWritten % DatabaseDescriptor.getIndexInterval() == 0;
     }
 
-    public void addEntry(DecoratedKey decoratedKey, long indexPosition)
+    public void addEntry(DecoratedKey<?> decoratedKey, long indexPosition)
     {
         indexPositions.add(new KeyPosition(decoratedKey, indexPosition));
     }
 
-    public void maybeAddEntry(DecoratedKey decoratedKey, long indexPosition)
+    public void maybeAddEntry(DecoratedKey<?> decoratedKey, long indexPosition)
     {
         if (shouldAddEntry())
             addEntry(decoratedKey, indexPosition);
@@ -86,10 +86,10 @@ public class IndexSummary
      */
     public static final class KeyPosition implements Comparable<KeyPosition>
     {
-        public final DecoratedKey key;
+        public final DecoratedKey<?> key;
         public final long indexPosition;
 
-        public KeyPosition(DecoratedKey key, long indexPosition)
+        public KeyPosition(DecoratedKey<?> key, long indexPosition)
         {
             this.key = key;
             this.indexPosition = indexPosition;

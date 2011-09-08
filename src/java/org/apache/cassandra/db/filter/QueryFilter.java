@@ -40,14 +40,14 @@ import org.apache.cassandra.utils.MergeIterator;
 
 public class QueryFilter
 {
-    private static Logger logger = LoggerFactory.getLogger(QueryFilter.class);
+    private static final Logger logger = LoggerFactory.getLogger(QueryFilter.class);
 
-    public final DecoratedKey key;
+    public final DecoratedKey<?> key;
     public final QueryPath path;
     public final IFilter filter;
     private final IFilter superFilter;
 
-    public QueryFilter(DecoratedKey key, QueryPath path, IFilter filter)
+    public QueryFilter(DecoratedKey<?> key, QueryPath path, IFilter filter)
     {
         this.key = key;
         this.path = path;
@@ -63,7 +63,7 @@ public class QueryFilter
         return getMemtableColumnIterator(cf, key, comparator);
     }
 
-    public IColumnIterator getMemtableColumnIterator(ColumnFamily cf, DecoratedKey key, AbstractType comparator)
+    public IColumnIterator getMemtableColumnIterator(ColumnFamily cf, DecoratedKey<?> key, AbstractType comparator)
     {
         assert cf != null;
         if (path.superColumnName == null)
@@ -79,7 +79,7 @@ public class QueryFilter
         return superFilter.getSSTableColumnIterator(sstable, key);
     }
 
-    public IColumnIterator getSSTableColumnIterator(SSTableReader sstable, FileDataInput file, DecoratedKey key)
+    public IColumnIterator getSSTableColumnIterator(SSTableReader sstable, FileDataInput file, DecoratedKey<?> key)
     {
         if (path.superColumnName == null)
             return filter.getSSTableColumnIterator(sstable, file, key);
@@ -166,7 +166,7 @@ public class QueryFilter
      * @param reversed true to start with the largest column (as determined by configured sort order) instead of smallest
      * @param limit maximum number of non-deleted columns to return
      */
-    public static QueryFilter getSliceFilter(DecoratedKey key, QueryPath path, ByteBuffer start, ByteBuffer finish, boolean reversed, int limit)
+    public static QueryFilter getSliceFilter(DecoratedKey<?> key, QueryPath path, ByteBuffer start, ByteBuffer finish, boolean reversed, int limit)
     {
         return new QueryFilter(key, path, new SliceQueryFilter(start, finish, reversed, limit));
     }
@@ -175,7 +175,7 @@ public class QueryFilter
      * return a QueryFilter object that includes every column in the row.
      * This is dangerous on large rows; avoid except for test code.
      */
-    public static QueryFilter getIdentityFilter(DecoratedKey key, QueryPath path)
+    public static QueryFilter getIdentityFilter(DecoratedKey<?> key, QueryPath path)
     {
         return new QueryFilter(key, path, new IdentityQueryFilter());
     }
@@ -186,7 +186,7 @@ public class QueryFilter
      * @param path path to the level to slice at (CF or SuperColumn)
      * @param columns the column names to restrict the results to
      */
-    public static QueryFilter getNamesFilter(DecoratedKey key, QueryPath path, SortedSet<ByteBuffer> columns)
+    public static QueryFilter getNamesFilter(DecoratedKey<?> key, QueryPath path, SortedSet<ByteBuffer> columns)
     {
         return new QueryFilter(key, path, new NamesQueryFilter(columns));
     }
@@ -207,7 +207,7 @@ public class QueryFilter
     /**
      * convenience method for creating a name filter matching a single column
      */
-    public static QueryFilter getNamesFilter(DecoratedKey key, QueryPath path, ByteBuffer column)
+    public static QueryFilter getNamesFilter(DecoratedKey<?> key, QueryPath path, ByteBuffer column)
     {
         return new QueryFilter(key, path, new NamesQueryFilter(column));
     }

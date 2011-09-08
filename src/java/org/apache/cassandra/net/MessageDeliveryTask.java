@@ -26,7 +26,7 @@ import org.apache.cassandra.service.StorageService;
 
 public class MessageDeliveryTask implements Runnable
 {
-    private static final Logger logger_ = LoggerFactory.getLogger(MessageDeliveryTask.class);    
+    private static final Logger logger = LoggerFactory.getLogger(MessageDeliveryTask.class);
 
     private Message message;
     private final long constructionTime = System.currentTimeMillis();
@@ -38,9 +38,9 @@ public class MessageDeliveryTask implements Runnable
         this.message = message;
         this.id = id;
     }
-    
+
     public void run()
-    { 
+    {
         StorageService.Verb verb = message.getVerb();
         if (MessagingService.DROPPABLE_VERBS.contains(verb)
             && System.currentTimeMillis() > constructionTime + DatabaseDescriptor.getRpcTimeout())
@@ -52,7 +52,7 @@ public class MessageDeliveryTask implements Runnable
         IVerbHandler verbHandler = MessagingService.instance().getVerbHandler(verb);
         if (verbHandler == null)
         {
-            logger_.debug("Unknown verb {}", verb);
+            logger.debug("Unknown verb {}", verb);
             return;
         }
 

@@ -50,17 +50,17 @@ public class NamesQueryFilter implements IFilter
         this(FBUtilities.singleton(column));
     }
 
-    public IColumnIterator getMemtableColumnIterator(ColumnFamily cf, DecoratedKey key, AbstractType comparator)
+    public IColumnIterator getMemtableColumnIterator(ColumnFamily cf, DecoratedKey<?> key, AbstractType comparator)
     {
         return Memtable.getNamesIterator(key, cf, this);
     }
 
-    public IColumnIterator getSSTableColumnIterator(SSTableReader sstable, DecoratedKey key)
+    public IColumnIterator getSSTableColumnIterator(SSTableReader sstable, DecoratedKey<?> key)
     {
         return new SSTableNamesIterator(sstable, key, columns);
     }
     
-    public IColumnIterator getSSTableColumnIterator(SSTableReader sstable, FileDataInput file, DecoratedKey key)
+    public IColumnIterator getSSTableColumnIterator(SSTableReader sstable, FileDataInput file, DecoratedKey<?> key)
     {
         return new SSTableNamesIterator(sstable, file, key, columns);
     }

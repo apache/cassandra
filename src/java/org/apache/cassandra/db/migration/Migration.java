@@ -130,10 +130,10 @@ public abstract class Migration
                 Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(Migration.MIGRATIONS_CF),
                 Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(Migration.SCHEMA_CF)
             };
-            List<Future> flushes = new ArrayList<Future>();
+            List<Future<?>> flushes = new ArrayList<Future<?>>();
             for (ColumnFamilyStore cfs : schemaStores)
                 flushes.add(cfs.forceFlush());
-            for (Future f : flushes)
+            for (Future<?> f : flushes)
             {
                 if (f == null)
                     // applying the migration triggered a flush independently
@@ -172,7 +172,7 @@ public abstract class Migration
 
     public static UUID getLastMigrationId()
     {
-        DecoratedKey dkey = StorageService.getPartitioner().decorateKey(LAST_MIGRATION_KEY);
+        DecoratedKey<?> dkey = StorageService.getPartitioner().decorateKey(LAST_MIGRATION_KEY);
         Table defs = Table.open(Table.SYSTEM_TABLE);
         ColumnFamilyStore cfStore = defs.getColumnFamilyStore(SCHEMA_CF);
         QueryFilter filter = QueryFilter.getNamesFilter(dkey, new QueryPath(SCHEMA_CF), LAST_MIGRATION_KEY);
@@ -267,8 +267,8 @@ public abstract class Migration
         Migration migration;
         try
         {
-            Class migrationClass = Class.forName(mi.classname.toString());
-            Constructor migrationConstructor = migrationClass.getDeclaredConstructor();
+            Class<?> migrationClass = Class.forName(mi.classname.toString());
+            Constructor<?> migrationConstructor = migrationClass.getDeclaredConstructor();
             migrationConstructor.setAccessible(true);
             migration = (Migration)migrationConstructor.newInstance();
         }
@@ -296,7 +296,7 @@ public abstract class Migration
     /** load serialized migrations. */
     public static Collection<IColumn> getLocalMigrations(UUID start, UUID end)
     {
-        DecoratedKey dkey = StorageService.getPartitioner().decorateKey(MIGRATIONS_KEY);
+        DecoratedKey<?> dkey = StorageService.getPartitioner().decorateKey(MIGRATIONS_KEY);
         Table defs = Table.open(Table.SYSTEM_TABLE);
         ColumnFamilyStore cfStore = defs.getColumnFamilyStore(Migration.MIGRATIONS_CF);
         QueryFilter filter = QueryFilter.getSliceFilter(dkey,

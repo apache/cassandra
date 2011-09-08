@@ -84,7 +84,7 @@ public class SSTableScanner implements CloseableIterator<IColumnIterator>
         file.close();
     }
 
-    public void seekTo(DecoratedKey seekKey)
+    public void seekTo(DecoratedKey<?> seekKey)
     {
         try
         {
@@ -165,7 +165,7 @@ public class SSTableScanner implements CloseableIterator<IColumnIterator>
                     file.seek(finishedAt);
                 assert !file.isEOF();
 
-                DecoratedKey key = SSTableReader.decodeKey(sstable.partitioner,
+                DecoratedKey<?> key = SSTableReader.decodeKey(sstable.partitioner,
                                                            sstable.descriptor,
                                                            ByteBufferUtil.readWithShortLength(file));
                 long dataSize = SSTableReader.readRowSize(file, sstable.descriptor);

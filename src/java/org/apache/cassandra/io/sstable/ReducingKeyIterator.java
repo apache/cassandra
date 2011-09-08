@@ -42,14 +42,14 @@ public class ReducingKeyIterator implements CloseableIterator<DecoratedKey>
             iters.add(new KeyIterator(sstable.descriptor));
         mi = MergeIterator.get(iters, DecoratedKey.comparator, new MergeIterator.Reducer<DecoratedKey,DecoratedKey>()
         {
-            DecoratedKey reduced = null;
+            DecoratedKey<?> reduced = null;
 
             public void reduce(DecoratedKey current)
             {
                 reduced = current;
             }
 
-            protected DecoratedKey getReduced()
+            protected DecoratedKey<?> getReduced()
             {
                 return reduced;
             }
@@ -94,7 +94,7 @@ public class ReducingKeyIterator implements CloseableIterator<DecoratedKey>
         return mi.hasNext();
     }
 
-    public DecoratedKey next()
+    public DecoratedKey<?> next()
     {
         return mi.next();
     }

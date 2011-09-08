@@ -152,14 +152,14 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
      */
     public static void applyMigrations(final UUID from, final UUID to) throws IOException
     {
-        List<Future> updates = new ArrayList<Future>();
+        List<Future<?>> updates = new ArrayList<Future<?>>();
         Collection<IColumn> migrations = Migration.getLocalMigrations(from, to);
         for (IColumn col : migrations)
         {
             // assuming MessagingService.version_ is a bit of a risk, but you're playing with fire if you purposefully
             // take down a node to upgrade it during the middle of a schema update.
             final Migration migration = Migration.deserialize(col.value(), MessagingService.version_);
-            Future update = StageManager.getStage(Stage.MIGRATION).submit(new Runnable()
+            Future<?> update = StageManager.getStage(Stage.MIGRATION).submit(new Runnable()
             {
                 public void run()
                 {
@@ -182,7 +182,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
         }
         
         // wait on all the updates before proceeding.
-        for (Future f : updates)
+        for (Future<?> f : updates)
         {
             try
             {

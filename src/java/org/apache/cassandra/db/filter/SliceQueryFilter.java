@@ -56,17 +56,17 @@ public class SliceQueryFilter implements IFilter
         this.count = count;
     }
 
-    public IColumnIterator getMemtableColumnIterator(ColumnFamily cf, DecoratedKey key, AbstractType comparator)
+    public IColumnIterator getMemtableColumnIterator(ColumnFamily cf, DecoratedKey<?> key, AbstractType comparator)
     {
         return Memtable.getSliceIterator(key, cf, this, comparator);
     }
 
-    public IColumnIterator getSSTableColumnIterator(SSTableReader sstable, DecoratedKey key)
+    public IColumnIterator getSSTableColumnIterator(SSTableReader sstable, DecoratedKey<?> key)
     {
         return new SSTableSliceIterator(sstable, key, start, finish, reversed);
     }
     
-    public IColumnIterator getSSTableColumnIterator(SSTableReader sstable, FileDataInput file, DecoratedKey key)
+    public IColumnIterator getSSTableColumnIterator(SSTableReader sstable, FileDataInput file, DecoratedKey<?> key)
     {
         return new SSTableSliceIterator(sstable, file, key, start, finish, reversed);
     }

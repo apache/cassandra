@@ -48,7 +48,7 @@ public class SSTableWriter extends SSTable
     private IndexWriter iwriter;
     private SegmentedFile.Builder dbuilder;
     private final SequentialWriter dataFile;
-    private DecoratedKey lastWrittenKey;
+    private DecoratedKey<?> lastWrittenKey;
     private FileMark dataMark;
     private SSTableMetadata.Collector sstableMetadataCollector;
 
@@ -72,7 +72,7 @@ public class SSTableWriter extends SSTable
     public SSTableWriter(String filename,
                          long keyCount,
                          CFMetaData metadata,
-                         IPartitioner partitioner,
+                         IPartitioner<?> partitioner,
                          SSTableMetadata.Collector sstableMetadataCollector) throws IOException
     {
         super(Descriptor.fromFilename(filename),
@@ -117,7 +117,7 @@ public class SSTableWriter extends SSTable
         }
     }
 
-    private long beforeAppend(DecoratedKey decoratedKey) throws IOException
+    private long beforeAppend(DecoratedKey<?> decoratedKey) throws IOException
     {
         if (decoratedKey == null)
         {
@@ -133,7 +133,7 @@ public class SSTableWriter extends SSTable
         return (lastWrittenKey == null) ? 0 : dataFile.getFilePointer();
     }
 
-    private void afterAppend(DecoratedKey decoratedKey, long dataPosition) throws IOException
+    private void afterAppend(DecoratedKey<?> decoratedKey, long dataPosition) throws IOException
     {
         lastWrittenKey = decoratedKey;
         this.last = lastWrittenKey;
@@ -162,7 +162,7 @@ public class SSTableWriter extends SSTable
         return currentPosition;
     }
 
-    public void append(DecoratedKey decoratedKey, ColumnFamily cf) throws IOException
+    public void append(DecoratedKey<?> decoratedKey, ColumnFamily cf) throws IOException
     {
         long startPosition = beforeAppend(decoratedKey);
         ByteBufferUtil.writeWithShortLength(decoratedKey.key, dataFile.stream);
@@ -183,7 +183,7 @@ public class SSTableWriter extends SSTable
         sstableMetadataCollector.addColumnCount(columnCount);
     }
 
-    public void append(DecoratedKey decoratedKey, ByteBuffer value) throws IOException
+    public void append(DecoratedKey<?> decoratedKey, ByteBuffer value) throws IOException
     {
         long currentPosition = beforeAppend(decoratedKey);
         ByteBufferUtil.writeWithShortLength(decoratedKey.key, dataFile.stream);
@@ -193,7 +193,7 @@ public class SSTableWriter extends SSTable
         afterAppend(decoratedKey, currentPosition);
     }
 
-    public long appendFromStream(DecoratedKey key, CFMetaData metadata, long dataSize, DataInput in) throws IOException
+    public long appendFromStream(DecoratedKey<?> key, CFMetaData metadata, long dataSize, DataInput in) throws IOException
     {
         long currentPosition = beforeAppend(key);
         ByteBufferUtil.writeWithShortLength(key.key, dataFile.stream);
@@ -359,13 +359,13 @@ public class SSTableWriter extends SSTable
     {
         private final SequentialWriter indexFile;
         public final Descriptor desc;
-        public final IPartitioner partitioner;
+        public final IPartitioner<?> partitioner;
         public final SegmentedFile.Builder builder;
         public final IndexSummary summary;
         public final BloomFilter bf;
         private FileMark mark;
 
-        IndexWriter(Descriptor desc, IPartitioner part, long keyCount) throws IOException
+        IndexWriter(Descriptor desc, IPartitioner<?> part, long keyCount) throws IOException
         {
             this.desc = desc;
             this.partitioner = part;
@@ -375,7 +375,7 @@ public class SSTableWriter extends SSTable
             bf = BloomFilter.getFilter(keyCount, 15);
         }
 
-        public void afterAppend(DecoratedKey key, long dataPosition) throws IOException
+        public void afterAppend(DecoratedKey<?> key, long dataPosition) throws IOException
         {
             bf.add(key.key);
             long indexPosition = indexFile.getFilePointer();

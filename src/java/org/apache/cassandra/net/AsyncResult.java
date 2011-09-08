@@ -31,7 +31,8 @@ import org.slf4j.LoggerFactory;
 
 class AsyncResult implements IAsyncResult
 {
-    private static Logger logger = LoggerFactory.getLogger(AsyncResult.class);
+    private static final Logger logger = LoggerFactory.getLogger(AsyncResult.class);
+
     private byte[] result;
     private AtomicBoolean done = new AtomicBoolean(false);
     private Lock lock = new ReentrantLock();
