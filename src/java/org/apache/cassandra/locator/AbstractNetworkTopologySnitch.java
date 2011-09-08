@@ -84,14 +84,6 @@ public abstract class AbstractNetworkTopologySnitch extends AbstractEndpointSnit
         if (address.equals(a2) && !address.equals(a1))
             return 1;
 
-        String addressRack = getRack(address);
-        String a1Rack = getRack(a1);
-        String a2Rack = getRack(a2);
-        if (addressRack.equals(a1Rack) && !addressRack.equals(a2Rack))
-            return -1;
-        if (addressRack.equals(a2Rack) && !addressRack.equals(a1Rack))
-            return 1;
-
         String addressDatacenter = getDatacenter(address);
         String a1Datacenter = getDatacenter(a1);
         String a2Datacenter = getDatacenter(a2);
@@ -100,6 +92,13 @@ public abstract class AbstractNetworkTopologySnitch extends AbstractEndpointSnit
         if (addressDatacenter.equals(a2Datacenter) && !addressDatacenter.equals(a1Datacenter))
             return 1;
 
+        String addressRack = getRack(address);
+        String a1Rack = getRack(a1);
+        String a2Rack = getRack(a2);
+        if (addressRack.equals(a1Rack) && !addressRack.equals(a2Rack))
+            return -1;
+        if (addressRack.equals(a2Rack) && !addressRack.equals(a1Rack))
+            return 1;
         return 0;
     }
 }
