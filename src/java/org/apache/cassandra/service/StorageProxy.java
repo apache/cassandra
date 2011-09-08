@@ -652,7 +652,7 @@ public class StorageProxy implements StorageProxyMBean
             {
                 ReadCallback<Row> handler = readCallbacks.get(i);
                 Row row;
-                ReadCommand command = commands.get(i);
+                ReadCommand command = commandsToSend.get(i);
                 try
                 {
                     long startTime2 = System.currentTimeMillis();

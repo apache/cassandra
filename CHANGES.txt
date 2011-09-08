@@ -24,7 +24,7 @@
  * use lazy initialization instead of class initialization in NodeId
    (CASSANDRA-2953)
  * add paging to get_count (CASSANDRA-2894)
- * fix "short reads" in [multi]get (CASSANDRA-2643)
+ * fix "short reads" in [multi]get (CASSANDRA-2643, 3157)
  * add optional compression for sstables (CASSANDRA-47, 3001, 3128)
  * add scheduler JMX metrics (CASSANDRA-2962)
  * add block level checksum for compressed data (CASSANDRA-1717)
