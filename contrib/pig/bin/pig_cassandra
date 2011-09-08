@@ -46,5 +46,5 @@ fi
 CLASSPATH=$CLASSPATH:$PIG_JAR
 
 export PIG_CLASSPATH=$PIG_CLASSPATH:$CLASSPATH
-export PIG_OPTS=$PIG_OPTS" -Dudf.import.list=org.apache.cassandra.hadoop.pig"
+export PIG_OPTS="$PIG_OPTS -Dudf.import.list=org.apache.cassandra.hadoop.pig"
 cat "$cwd/../build/bootstrap.pig" - | $PIG_HOME/bin/pig $*
