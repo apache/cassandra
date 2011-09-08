@@ -51,12 +51,12 @@ public class CompactionIterable extends AbstractCompactionIterable
         }
     };
 
-    public CompactionIterable(CompactionType type, Iterable<SSTableReader> sstables, CompactionController controller) throws IOException
+    public CompactionIterable(OperationType type, Iterable<SSTableReader> sstables, CompactionController controller) throws IOException
     {
         this(type, getScanners(sstables), controller);
     }
 
-    protected CompactionIterable(CompactionType type, List<SSTableScanner> scanners, CompactionController controller)
+    protected CompactionIterable(OperationType type, List<SSTableScanner> scanners, CompactionController controller)
     {
         super(controller, type);
         this.scanners = scanners;

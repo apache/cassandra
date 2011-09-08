@@ -25,7 +25,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.compaction.CompactionInfo;
-import org.apache.cassandra.db.compaction.CompactionType;
+import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.io.sstable.ReducingKeyIterator;
 
 /**
@@ -51,7 +51,7 @@ public class SecondaryIndexBuilder implements  CompactionInfo.Holder
         return new CompactionInfo(this.hashCode(),
                                   cfs.table.name,
                                   cfs.columnFamily,
-                                  CompactionType.INDEX_BUILD,
+                                  OperationType.INDEX_BUILD,
                                   iter.getBytesRead(),
                                   iter.getTotalBytes());
     }

@@ -60,19 +60,19 @@ public class LazilyCompactedRowTest extends CleanupHelper
         Collection<SSTableReader> sstables = cfs.getSSTables();
 
         // compare eager and lazy compactions
-        AbstractCompactionIterable eager = new CompactionIterable(CompactionType.UNKNOWN,
+        AbstractCompactionIterable eager = new CompactionIterable(OperationType.UNKNOWN,
                                                                   sstables,
                                                                   new PreCompactingController(cfs, sstables, gcBefore, false));
-        AbstractCompactionIterable lazy = new CompactionIterable(CompactionType.UNKNOWN,
+        AbstractCompactionIterable lazy = new CompactionIterable(OperationType.UNKNOWN,
                                                                  sstables,
                                                                  new LazilyCompactingController(cfs, sstables, gcBefore, false));
         assertBytes(sstables, eager, lazy);
 
         // compare eager and parallel-lazy compactions
-        eager = new CompactionIterable(CompactionType.UNKNOWN,
+        eager = new CompactionIterable(OperationType.UNKNOWN,
                                        sstables,
                                        new PreCompactingController(cfs, sstables, gcBefore, false));
-        AbstractCompactionIterable parallel = new ParallelCompactionIterable(CompactionType.UNKNOWN,
+        AbstractCompactionIterable parallel = new ParallelCompactionIterable(OperationType.UNKNOWN,
                                                                              sstables,
                                                                              new CompactionController(cfs, sstables, gcBefore, false),
                                                                              0);
@@ -156,8 +156,8 @@ public class LazilyCompactedRowTest extends CleanupHelper
     private void assertDigest(ColumnFamilyStore cfs, int gcBefore) throws IOException, NoSuchAlgorithmException
     {
         Collection<SSTableReader> sstables = cfs.getSSTables();
-        AbstractCompactionIterable ci1 = new CompactionIterable(CompactionType.UNKNOWN, sstables, new PreCompactingController(cfs, sstables, gcBefore, false));
-        AbstractCompactionIterable ci2 = new CompactionIterable(CompactionType.UNKNOWN, sstables, new LazilyCompactingController(cfs, sstables, gcBefore, false));
+        AbstractCompactionIterable ci1 = new CompactionIterable(OperationType.UNKNOWN, sstables, new PreCompactingController(cfs, sstables, gcBefore, false));
+        AbstractCompactionIterable ci2 = new CompactionIterable(OperationType.UNKNOWN, sstables, new LazilyCompactingController(cfs, sstables, gcBefore, false));
         CloseableIterator<AbstractCompactedRow> iter1 = ci1.iterator();
         CloseableIterator<AbstractCompactedRow> iter2 = ci2.iterator();
 

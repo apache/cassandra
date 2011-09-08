@@ -28,11 +28,11 @@ public final class CompactionInfo implements Serializable
     private final int id;
     private final String ksname;
     private final String cfname;
-    private final CompactionType tasktype;
+    private final OperationType tasktype;
     private final long bytesComplete;
     private final long totalBytes;
 
-    public CompactionInfo(int id, String ksname, String cfname, CompactionType tasktype, long bytesComplete, long totalBytes)
+    public CompactionInfo(int id, String ksname, String cfname, OperationType tasktype, long bytesComplete, long totalBytes)
     {
         this.id = id;
         this.ksname = ksname;
@@ -73,7 +73,7 @@ public final class CompactionInfo implements Serializable
         return totalBytes;
     }
 
-    public CompactionType getTaskType()
+    public OperationType getTaskType()
     {
         return tasktype;
     }

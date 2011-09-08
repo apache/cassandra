@@ -940,7 +940,7 @@ public class CompactionManager implements CompactionManagerMBean
     {
         public ValidationCompactionIterable(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, Range range) throws IOException
         {
-            super(CompactionType.VALIDATION,
+            super(OperationType.VALIDATION,
                   getScanners(sstables, range),
                   new CompactionController(cfs, sstables, getDefaultGcBefore(cfs), true));
         }
@@ -1097,7 +1097,7 @@ public class CompactionManager implements CompactionManagerMBean
                 return new CompactionInfo(this.hashCode(),
                                           sstable.descriptor.ksname,
                                           sstable.descriptor.cfname,
-                                          CompactionType.CLEANUP,
+                                          OperationType.CLEANUP,
                                           scanner.getFilePointer(),
                                           scanner.getFileLength());
             }
@@ -1125,7 +1125,7 @@ public class CompactionManager implements CompactionManagerMBean
                 return new CompactionInfo(this.hashCode(),
                                           sstable.descriptor.ksname,
                                           sstable.descriptor.cfname,
-                                          CompactionType.SCRUB,
+                                          OperationType.SCRUB,
                                           dataFile.getFilePointer(),
                                           dataFile.length());
             }

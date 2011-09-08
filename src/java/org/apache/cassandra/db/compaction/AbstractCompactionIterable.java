@@ -20,14 +20,14 @@ public abstract class AbstractCompactionIterable implements Iterable<AbstractCom
 
     private static Logger logger = LoggerFactory.getLogger(CompactionIterable.class);
 
-    protected final CompactionType type;
+    protected final OperationType type;
     protected final CompactionController controller;
     protected long totalBytes;
     protected volatile long bytesRead;
 
     protected final Throttle throttle;
 
-    public AbstractCompactionIterable(CompactionController controller, CompactionType type)
+    public AbstractCompactionIterable(CompactionController controller, OperationType type)
     {
         this.controller = controller;
         this.type = type;

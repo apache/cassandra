@@ -25,8 +25,6 @@ import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.util.*;
 
-import antlr.Token;
-
 import com.google.common.base.Predicate;
 import com.google.common.collect.Collections2;
 import org.apache.commons.lang.StringUtils;
@@ -39,7 +37,7 @@ import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.db.compaction.CompactionInfo;
 import org.apache.cassandra.db.compaction.CompactionManagerMBean;
-import org.apache.cassandra.db.compaction.CompactionType;
+import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.SimpleSnitch;
@@ -1874,7 +1872,7 @@ public class CliClient
                 for (CompactionInfo info : compactionManagerMBean.getCompactions())
                 {
                     // if ongoing compaction type is index build
-                    if (info.getTaskType() != CompactionType.INDEX_BUILD)
+                    if (info.getTaskType() != OperationType.INDEX_BUILD)
                         continue;
                     sessionState.out.printf("%nCurrently building index %s, completed %d of %d bytes.%n",
                                             info.getColumnFamily(),

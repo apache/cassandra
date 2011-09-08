@@ -31,7 +31,6 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.EchoedRow;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
 import org.apache.cassandra.io.sstable.SSTableReader;
-import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
  * Manage compaction options.
@@ -44,7 +43,6 @@ public class CompactionController
     private final Set<SSTableReader> sstables;
     private final boolean forceDeserialize;
 
-    public final boolean isMajor;
     public final int gcBefore;
 
     public CompactionController(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, int gcBefore, boolean forceDeserialize)
@@ -54,7 +52,6 @@ public class CompactionController
         this.sstables = new HashSet<SSTableReader>(sstables);
         this.gcBefore = gcBefore;
         this.forceDeserialize = forceDeserialize;
-        isMajor = cfs.isCompleteSSTables(this.sstables);
     }
 
     public String getKeyspace()
@@ -69,7 +66,7 @@ public class CompactionController
 
     public boolean shouldPurge(DecoratedKey key)
     {
-        return isMajor || !cfs.isKeyInRemainingSSTables(key, sstables);
+        return !cfs.isKeyInRemainingSSTables(key, sstables);
     }
 
     public boolean needDeserialize()
@@ -94,11 +91,6 @@ public class CompactionController
         ColumnFamily cachedRow = cfs.getRawCachedRow(key);
         if (cachedRow != null)
             ColumnFamilyStore.removeDeleted(cachedRow, gcBefore);
-    }
-
-    public boolean isMajor()
-    {
-        return isMajor;
     }
 
     /**

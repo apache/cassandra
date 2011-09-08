@@ -37,7 +37,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.compaction.CompactionInfo;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.compaction.CompactionType;
+import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -207,14 +207,14 @@ public abstract class AutoSavingCache<K, V> extends InstrumentingCache<K, V>
                 bytes += translateKey(key).remaining();
             // an approximation -- the keyset can change while saving
             estimatedTotalBytes = bytes;
-            CompactionType type;
+            OperationType type;
 
             if (cacheType == ColumnFamilyStore.CacheType.KEY_CACHE_TYPE) 
-                type = CompactionType.KEY_CACHE_SAVE;
+                type = OperationType.KEY_CACHE_SAVE;
             else if (cacheType == ColumnFamilyStore.CacheType.ROW_CACHE_TYPE)
-                type = CompactionType.ROW_CACHE_SAVE;
+                type = OperationType.ROW_CACHE_SAVE;
             else
-                type = CompactionType.UNKNOWN;
+                type = OperationType.UNKNOWN;
 
             info = new CompactionInfo(this.hashCode(),
                                       ksname,

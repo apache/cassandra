@@ -21,22 +21,20 @@ package org.apache.cassandra.db.compaction;
  */
 
 
-public enum CompactionType
+public enum OperationType
 {
-    MAJOR("Major"),
-    MINOR("Minor"),
+    COMPACTION("Compaction"),
     VALIDATION("Validation"),
     KEY_CACHE_SAVE("Key cache save"),
     ROW_CACHE_SAVE("Row cache save"),
     CLEANUP("Cleanup"),
     SCRUB("Scrub"),
     INDEX_BUILD("Secondary index build"),
-    SSTABLE_BUILD("SSTable build"),
     UNKNOWN("Unkown compaction type");
 
     private final String type;
 
-    CompactionType(String type)
+    OperationType(String type)
     {
         this.type = type;
     }

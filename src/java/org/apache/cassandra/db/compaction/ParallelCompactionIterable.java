@@ -62,17 +62,17 @@ public class ParallelCompactionIterable extends AbstractCompactionIterable
     private final List<SSTableScanner> scanners;
     private final int maxInMemorySize;
 
-    public ParallelCompactionIterable(CompactionType type, Iterable<SSTableReader> sstables, CompactionController controller) throws IOException
+    public ParallelCompactionIterable(OperationType type, Iterable<SSTableReader> sstables, CompactionController controller) throws IOException
     {
         this(type, getScanners(sstables), controller, DatabaseDescriptor.getInMemoryCompactionLimit() / Iterables.size(sstables));
     }
 
-    public ParallelCompactionIterable(CompactionType type, Iterable<SSTableReader> sstables, CompactionController controller, int maxInMemorySize) throws IOException
+    public ParallelCompactionIterable(OperationType type, Iterable<SSTableReader> sstables, CompactionController controller, int maxInMemorySize) throws IOException
     {
         this(type, getScanners(sstables), controller, maxInMemorySize);
     }
 
-    protected ParallelCompactionIterable(CompactionType type, List<SSTableScanner> scanners, CompactionController controller, int maxInMemorySize)
+    protected ParallelCompactionIterable(OperationType type, List<SSTableScanner> scanners, CompactionController controller, int maxInMemorySize)
     {
         super(controller, type);
         this.scanners = scanners;

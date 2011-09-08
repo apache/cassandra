@@ -28,6 +28,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.commons.lang.StringUtils;
 
+import com.sun.corba.se.spi.orb.Operation;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
@@ -115,10 +116,7 @@ public class CompactionTask extends AbstractCompactionTask
         // new sstables from flush can be added during a compaction, but only the compaction can remove them,
         // so in our single-threaded compaction world this is a valid way of determining if we're compacting
         // all the sstables (that existed when we started)
-        CompactionType type = controller.isMajor()
-                            ? CompactionType.MAJOR
-                            : CompactionType.MINOR;
-        logger.info("Compacting {}: {}", type, toCompact);
+        logger.info("Compacting {}", toCompact);
 
         long startTime = System.currentTimeMillis();
         long totalkeysWritten = 0;
@@ -129,8 +127,8 @@ public class CompactionTask extends AbstractCompactionTask
             logger.debug("Expected bloom filter size : " + expectedBloomFilterSize);
 
         AbstractCompactionIterable ci = DatabaseDescriptor.isMultithreadedCompaction()
-                                      ? new ParallelCompactionIterable(type, toCompact, controller)
-                                      : new CompactionIterable(type, toCompact, controller);
+                                      ? new ParallelCompactionIterable(OperationType.COMPACTION, toCompact, controller)
+                                      : new CompactionIterable(OperationType.COMPACTION, toCompact, controller);
         CloseableIterator<AbstractCompactedRow> iter = ci.iterator();
         Iterator<AbstractCompactedRow> nni = Iterators.filter(iter, Predicates.notNull());
         Map<DecoratedKey, Long> cachedKeys = new HashMap<DecoratedKey, Long>();
