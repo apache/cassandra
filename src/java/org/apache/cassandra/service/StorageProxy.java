@@ -582,6 +582,7 @@ public class StorageProxy implements StorageProxyMBean
 
         do
         {
+            readCallbacks.clear();
             List<ReadCommand> commandsToSend = commandsToRetry.isEmpty() ? commands : commandsToRetry;
 
             if (!commandsToRetry.isEmpty())
@@ -601,16 +602,9 @@ public class StorageProxy implements StorageProxyMBean
                 ReadCallback<Row> handler = getReadCallback(resolver, command, consistency_level, endpoints);
                 handler.assureSufficientLiveNodes();
                 assert !handler.endpoints.isEmpty();
+                readCallbacks.add(handler);
 
-                // The data-request message is sent to dataPoint, the node that will actually get
-                // the data for us. The other replicas are only sent a digest query.
-                ReadCommand digestCommand = null;
-                if (handler.endpoints.size() > 1)
-                {
-                    digestCommand = command.copy();
-                    digestCommand.setDigestQuery(true);
-                }
-
+                // The data-request message is sent to dataPoint, the node that will actually get the data for us
                 InetAddress dataPoint = handler.endpoints.get(0);
                 if (dataPoint.equals(FBUtilities.getBroadcastAddress()))
                 {
@@ -623,9 +617,13 @@ public class StorageProxy implements StorageProxyMBean
                     MessagingService.instance().sendRR(command, dataPoint, handler);
                 }
 
-                // We lazy-construct the digest Message object since it may not be necessary if we
-                // are doing a local digest read, or no digest reads at all.
-                MessageProducer producer = new CachingMessageProducer(digestCommand);
+                if (handler.endpoints.size() == 1)
+                    continue;
+
+                // send the other endpoints a digest request
+                ReadCommand digestCommand = command.copy();
+                digestCommand.setDigestQuery(true);
+                MessageProducer producer = null;
                 for (InetAddress digestPoint : handler.endpoints.subList(1, handler.endpoints.size()))
                 {
                     if (digestPoint.equals(FBUtilities.getBroadcastAddress()))
@@ -636,11 +634,13 @@ public class StorageProxy implements StorageProxyMBean
                     else
                     {
                         logger.debug("reading digest from {}", digestPoint);
+                        // (We lazy-construct the digest Message object since it may not be necessary if we
+                        // are doing a local digest read, or no digest reads at all.)
+                        if (producer == null)
+                            producer = new CachingMessageProducer(digestCommand);
                         MessagingService.instance().sendRR(producer, digestPoint, handler);
                     }
                 }
-
-                readCallbacks.add(handler);
             }
 
             if (repairCommands != Collections.EMPTY_LIST)
@@ -651,12 +651,11 @@ public class StorageProxy implements StorageProxyMBean
             for (int i = 0; i < commandsToSend.size(); i++)
             {
                 ReadCallback<Row> handler = readCallbacks.get(i);
-                Row row;
                 ReadCommand command = commandsToSend.get(i);
                 try
                 {
                     long startTime2 = System.currentTimeMillis();
-                    row = handler.get(); // CL.ONE is special cased here to ignore digests even if some have arrived
+                    Row row = handler.get();
                     if (row != null)
                         rows.add(row);
 
@@ -680,8 +679,9 @@ public class StorageProxy implements StorageProxyMBean
                         repairCommands = new ArrayList<ReadCommand>();
                     repairCommands.add(command);
 
+                    MessageProducer producer = new CachingMessageProducer(command);
                     for (InetAddress endpoint : handler.endpoints)
-                        MessagingService.instance().sendRR(command, endpoint, repairHandler);
+                        MessagingService.instance().sendRR(producer, endpoint, repairHandler);
 
                     if (repairResponseHandlers == null)
                         repairResponseHandlers = new ArrayList<RepairCallback>();
@@ -722,9 +722,8 @@ public class StorageProxy implements StorageProxyMBean
                         assert maxLiveColumns <= sliceCommand.count;
                         if ((maxLiveColumns == sliceCommand.count) && (liveColumnsInRow < sliceCommand.count))
                         {
-                            if (logger.isDebugEnabled())
-                                logger.debug("detected short read: expected {} columns, but only resolved {} columns",
-                                             sliceCommand.count, liveColumnsInRow);
+                            logger.debug("detected short read: expected {} columns, but only resolved {} columns",
+                                         sliceCommand.count, liveColumnsInRow);
 
                             int retryCount = sliceCommand.count + sliceCommand.count - liveColumnsInRow;
                             SliceFromReadCommand retryCommand = new SliceFromReadCommand(command.table,
