@@ -503,8 +503,8 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
         <dependency groupId="org.slf4j" artifactId="slf4j-api"/>
         <dependency groupId="org.apache.thrift" artifactId="libthrift"/>
       </artifact:pom>
-      <artifact:pom id="cookie-pom"
-                    artifactId="cassandra-cookie"
+      <artifact:pom id="clientutil-pom"
+                    artifactId="cassandra-clientutil"
                     url="http://cassandra.apache.org"
                     name="Apache Cassandra">
         <parent groupId="org.apache.cassandra"
@@ -758,18 +758,16 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
           <attribute name="Premain-Class"
                      value="org.apache.cassandra.infrastructure.continuations.CAgent"/>
           <attribute name="Class-Path"
-                     value="${ant.project.name}-thrift-${version}.jar" />
-          <attribute name="Class-Path"
-                     value="${ant.project.name}-cookie-${version}.jar" />
+                     value="${ant.project.name}-clientutil-${version}.jar ${ant.project.name}-thrift-${version}.jar" />
         <!-- </section> -->
         </manifest>
       </jar>
 
-      <!-- Cookie Jar -->
+      <!-- Clientutil Jar -->
       <!-- TODO: write maven pom here -->
-      <artifact:writepom pomRefId="cookie-pom"
-              file="${build.dir}/${ant.project.name}-cookie-${version}.pom"/>
-      <jar jarfile="${build.dir}/${ant.project.name}-cookie-${version}.jar">
+      <artifact:writepom pomRefId="clientutil-pom"
+              file="${build.dir}/${ant.project.name}-clientutil-${version}.pom"/>
+      <jar jarfile="${build.dir}/${ant.project.name}-clientutil-${version}.jar">
         <fileset dir="${build.classes.main}">
           <include name="org/apache/cassandra/cql/jdbc/*" />
           <include name="org/apache/cassandra/utils/ByteBufferUtil*.class" />
