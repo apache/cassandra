@@ -67,6 +67,7 @@
  * fix inconsistency of the CLI syntax when {} should be used instead of [{}]
    (CASSANDRA-3119)
  * rename CQL type names to match expected SQL behavior (CASSANDRA-3149)
+ * Arena-based allocation for memtables (CASSANDRA-2252, 3162)
 
 
 0.8.6
