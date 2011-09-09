@@ -36,7 +36,6 @@
     <property name="build.src" value="${basedir}/src"/>
     <property name="build.src.java" value="${basedir}/src/java"/>
     <property name="build.src.resources" value="${basedir}/src/resources"/>
-    <property name="build.src.driver" value="${basedir}/drivers/java/src" />
     <property name="avro.src" value="${basedir}/src/avro"/>
     <property name="build.src.gen-java" value="${basedir}/src/gen-java"/>
     <property name="build.lib" value="${basedir}/lib"/>
@@ -60,11 +59,9 @@
     <property name="test.data" value="${test.dir}/data"/>
     <property name="test.name" value="*Test"/>
     <property name="test.unit.src" value="${test.dir}/unit"/>
-    <property name="test.src.driver" value="${basedir}/drivers/java/test"/>
     <property name="test.long.src" value="${test.dir}/long"/>
     <property name="test.distributed.src" value="${test.dir}/distributed"/>
     <property name="dist.dir" value="${build.dir}/dist"/>
-    <property name="cql.driver.version" value="1.0.4" />
     <condition property="version" value="${base.version}">
       <isset property="release"/>
     </condition>
@@ -698,11 +695,6 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
             <src path="${build.src.gen-java}"/>
             <classpath refid="cassandra.classpath"/>
         </javac>
-        <javac debug="true" debuglevel="${debuglevel}"
-               destdir="${build.classes.cql}" includeantruntime="false">
-            <src path="${build.src.driver}" />
-            <classpath refid="cassandra.classpath"/>
-        </javac>
         <copy todir="${build.classes.main}">
             <fileset dir="${build.src.resources}" />
         </copy>
@@ -779,20 +771,6 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
           <attribute name="Implementation-Vendor" value="Apache"/>
         </manifest>
       </jar>
-
-      <!-- CQL driver Jar -->
-      <artifact:writepom pomRefId="cql-pom" 
-              file="${build.dir}/${ant.project.name}-cql-${cql.driver.version}.pom"/>
-      <jar jarfile="${build.dir}/${ant.project.name}-cql-${cql.driver.version}.jar"
-           basedir="${build.classes.cql}">
-        <manifest>
-          <attribute name="Implementation-Title" value="Cassandra"/>
-          <attribute name="Implementation-Version" value="${version}"/>
-          <attribute name="Implementation-Vendor" value="Apache"/>
-          <attribute name="Class-Path"
-                     value="${ant.project.name}-thrift-${version}.jar" />
-        </manifest>
-      </jar>
     </target>
 
     <!--
@@ -818,23 +796,11 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
         <fileset dir="${build.src.gen-java}" defaultexcludes="yes">
           <include name="org/apache/**/*.java"/>
         </fileset>
-        <fileset dir="${build.src.driver}" defaultexcludes="yes">
-          <include name="org/apache/**/*.java"/>
-        </fileset>
         </filesets>
       </create-javadoc>
       <jar jarfile="${build.dir}/${final.name}-javadoc.jar"
            basedir="${javadoc.jars.dir}/main"/>
 
-      <create-javadoc destdir="${javadoc.jars.dir}/cql">
-        <filesets>
-        <fileset dir="${build.src.driver}" defaultexcludes="yes">
-          <include name="org/apache/**/*.java"/>
-        </fileset>
-        </filesets>
-      </create-javadoc>
-      <jar jarfile="${build.dir}/${ant.project.name}-cql-${cql.driver.version}-javadoc.jar"
-           basedir="${javadoc.jars.dir}/cql"/>
       <!-- javadoc task always rebuilds so might as well remove the generated docs to prevent 
            being pulled into the distribution by accident -->
       <delete quiet="true" dir="${javadoc.jars.dir}"/>
@@ -856,19 +822,11 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
         <fileset dir="${build.src.gen-java}" defaultexcludes="yes">
           <include name="org/apache/**/*.java"/>
         </fileset>
-        <fileset dir="${build.src.driver}" defaultexcludes="yes">
-          <include name="org/apache/**/*.java"/>
-        </fileset>
-      </jar>
-      <jar jarfile="${build.dir}/${ant.project.name}-cql-${cql.driver.version}-sources.jar">
-        <fileset dir="${build.src.driver}" defaultexcludes="yes">
-          <include name="org/apache/**/*.java"/>
-        </fileset>
       </jar>
     </target>
 
     <!-- creates release tarballs -->
-    <target name="artifacts" depends="jar,javadoc,py-cql-driver"
+    <target name="artifacts" depends="jar,javadoc"
             description="Create Cassandra release artifacts">
       <mkdir dir="${dist.dir}"/>
       <copy todir="${dist.dir}/lib">
@@ -958,14 +916,12 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
                 algorithm="MD5">
         <fileset dir="${build.dir}">
           <include name="*.tar.gz" />
-          <include name="${ant.project.name}-cql-${cql.driver.version}.jar" />
         </fileset>
       </checksum>
       <checksum forceOverwrite="yes" todir="${build.dir}" fileext=".sha"
                 algorithm="SHA">
         <fileset dir="${build.dir}">
           <include name="*.tar.gz" />
-          <include name="${ant.project.name}-cql-${cql.driver.version}.jar" />
         </fileset>
       </checksum>
 
@@ -999,7 +955,6 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
       </classpath>
       <src path="${test.unit.src}"/>
       <src path="${test.long.src}"/>
-      <src path="${test.src.driver}"/>
     </javac>
 
     <!-- Non-java resources needed by the test suite -->
@@ -1076,9 +1031,6 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
     <testmacro suitename="unit" inputdir="${test.unit.src}" timeout="60000">
       <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
       <jvmarg value="-Dcorrupt-sstable-root=${test.data}/corrupt-sstables"/>
-    </testmacro>
-    <testmacro suitename="driverunit" inputdir="${test.src.driver}" timeout="60000">
-      <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
     </testmacro>
   </target>
     
@@ -1234,8 +1186,6 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
   <classpathentry kind="src" path="src/java"/>
   <classpathentry kind="src" path="src/gen-java"/>
   <classpathentry kind="src" path="interface/thrift/gen-java"/>
-  <classpathentry kind="src" path="drivers/java/src"/>
-  <classpathentry kind="src" path="drivers/java/test"/>
   <classpathentry kind="src" path="test/unit"/>
   <classpathentry kind="src" path="test/long"/>
   <classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
@@ -1313,17 +1263,6 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
   	<delete dir="build/eclipse-classes" />
   </target>
 
-  <target name="py-cql-driver"
-          description="Generate Python CQL driver artifact">
-    <echo>Creating Python CQL driver artifact...</echo>
-    <exec executable="python" dir="${basedir}/drivers/py" failonerror="true">
-      <arg line="setup.py" />
-      <arg line="sdist" />
-      <arg line="--dist-dir" />
-      <arg line="${build.dir}" />
-    </exec>
-  </target>
-
   <!-- Publish artifacts to Maven repositories -->
   <target name="mvn-install"
           depends="maven-declare-dependencies,artifacts,jar,sources-jar,javadoc-jar"
@@ -1347,7 +1286,7 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
              packaging="tar.gz"
              classifier="src"/>
           
-    <!-- the cassandra-thrift jar -->  
+    <!-- the cassandr-thrift jar -->  
     <install pomFile="${build.dir}/${ant.project.name}-thrift-${version}.pom"
              file="${build.dir}/${ant.project.name}-thrift-${version}.jar"/>
     <install pomFile="${build.dir}/${ant.project.name}-thrift-${version}.pom"
@@ -1365,16 +1304,6 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
              classifier="sources"/>
     <install pomFile="${build.dir}/${final.name}.pom"
              file="${build.dir}/${final.name}-javadoc.jar"
-             classifier="javadoc"/>
-
-    <!-- the cassandra-cql jar -->
-    <install pomFile="${build.dir}/${ant.project.name}-cql-${cql.driver.version}.pom"
-             file="${build.dir}/${ant.project.name}-cql-${cql.driver.version}.jar"/>
-    <install pomFile="${build.dir}/${ant.project.name}-cql-${cql.driver.version}.pom"
-             file="${build.dir}/${ant.project.name}-cql-${cql.driver.version}-sources.jar"
-             classifier="sources"/>
-    <install pomFile="${build.dir}/${ant.project.name}-cql-${cql.driver.version}.pom"
-             file="${build.dir}/${ant.project.name}-cql-${cql.driver.version}-javadoc.jar"
              classifier="javadoc"/>
   </target>
 
@@ -1419,16 +1348,6 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
             classifier="sources"/>
     <deploy pomFile="${build.dir}/${final.name}.pom"
             file="${build.dir}/${final.name}-javadoc.jar"
-            classifier="javadoc"/>
-
-    <!-- the cassandra-cql jar -->
-    <deploy pomFile="${build.dir}/${ant.project.name}-cql-${cql.driver.version}.pom"
-            file="${build.dir}/${ant.project.name}-cql-${cql.driver.version}.jar"/>
-    <deploy pomFile="${build.dir}/${ant.project.name}-cql-${cql.driver.version}.pom"
-            file="${build.dir}/${ant.project.name}-cql-${cql.driver.version}-sources.jar"
-            classifier="sources"/>
-    <deploy pomFile="${build.dir}/${ant.project.name}-cql-${cql.driver.version}.pom"
-            file="${build.dir}/${ant.project.name}-cql-${cql.driver.version}-javadoc.jar"
             classifier="javadoc"/>
   </target>
 
