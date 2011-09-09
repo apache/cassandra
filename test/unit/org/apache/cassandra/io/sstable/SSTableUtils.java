@@ -32,7 +32,6 @@ import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.columniterator.IColumnIterator;
-import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import org.apache.cassandra.Util;
@@ -78,8 +77,8 @@ public class SSTableUtils
 
     public static void assertContentEquals(SSTableReader lhs, SSTableReader rhs) throws IOException
     {
-        SSTableScanner slhs = lhs.getDirectScanner(2048);
-        SSTableScanner srhs = rhs.getDirectScanner(2048);
+        SSTableScanner slhs = lhs.getDirectScanner();
+        SSTableScanner srhs = rhs.getDirectScanner();
         while (slhs.hasNext())
         {
             IColumnIterator ilhs = slhs.next();

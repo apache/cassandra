@@ -31,6 +31,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+// TODO refactor this to separate concept of "buffer to avoid lots of read() syscalls" and "compression buffer"
 public class CompressedRandomAccessReader extends RandomAccessReader
 {
     private static final Logger logger = LoggerFactory.getLogger(CompressedRandomAccessReader.class);

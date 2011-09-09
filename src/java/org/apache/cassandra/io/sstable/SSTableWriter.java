@@ -369,7 +369,7 @@ public class SSTableWriter extends SSTable
         {
             this.desc = desc;
             this.partitioner = part;
-            indexFile = SequentialWriter.open(new File(desc.filenameFor(SSTable.COMPONENT_INDEX)), 8 * 1024 * 1024, true);
+            indexFile = SequentialWriter.open(new File(desc.filenameFor(SSTable.COMPONENT_INDEX)), true);
             builder = SegmentedFile.getBuilder(DatabaseDescriptor.getIndexAccessMode());
             summary = new IndexSummary(keyCount);
             bf = BloomFilter.getFilter(keyCount, 15);
