@@ -71,7 +71,7 @@ public class CreateColumnFamilyStatement
         comparators.put("decimal", "DecimalType");
         comparators.put("double", "DoubleType");
         comparators.put("float", "FloatType");
-        // comparators.put("int", "LongType"); TODO add int -> Int32Type
+        comparators.put("int", "Int32Type");
         comparators.put("text", "UTF8Type");
         comparators.put("timestamp", "DateType");
         comparators.put("uuid", "UUIDType");

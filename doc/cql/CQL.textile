@@ -273,6 +273,7 @@ It is possible to assign columns a type during column family creation.  Columns 
 |decimal|Variable-precision decimal|
 |double|8-byte floating point|
 |float|4-byte floating point|
+|int|4-byte int|
 |text|UTF8 encoded string|
 |timestamp|Date + Time, encoded as 8 bytes since epoch|
 |uuid|Type 1, or type 4 UUID|
@@ -384,6 +385,9 @@ Versioning of the CQL language adheres to the "Semantic Versioning":http://semve
 h1. Changes
 
 pre. 
+Fri, 09 Sep 2011 11:43:00 -0500 - Jonathan Ellis
+ * add int data type
+
 Wed, 07 Sep 2011 09:01:00 -0500 - Jonathan Ellis
  * Updated version to 2.0; Documented row-based count()
  * Updated list of supported data types

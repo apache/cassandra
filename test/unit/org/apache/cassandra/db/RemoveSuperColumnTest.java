@@ -85,7 +85,7 @@ public class RemoveSuperColumnTest extends CleanupHelper
 
         // remove
         rm = new RowMutation("Keyspace1", dk.key);
-        rm.delete(new QueryPath("Super3", ByteBufferUtil.bytes("SC1"), Util.getBytes(1)), 1);
+        rm.delete(new QueryPath("Super3", ByteBufferUtil.bytes("SC1"), Util.getBytes(1L)), 1);
         rm.apply();
 
         validateRemoveSubColumn(dk);
@@ -97,9 +97,9 @@ public class RemoveSuperColumnTest extends CleanupHelper
     private void validateRemoveSubColumn(DecoratedKey dk) throws IOException
     {
         ColumnFamilyStore store = Table.open("Keyspace1").getColumnFamilyStore("Super3");
-        ColumnFamily cf = store.getColumnFamily(QueryFilter.getNamesFilter(dk, new QueryPath("Super3", ByteBufferUtil.bytes("SC1")), Util.getBytes(1)));
+        ColumnFamily cf = store.getColumnFamily(QueryFilter.getNamesFilter(dk, new QueryPath("Super3", ByteBufferUtil.bytes("SC1")), Util.getBytes(1L)));
         assertNull(Util.cloneAndRemoveDeleted(cf, Integer.MAX_VALUE));
-        cf = store.getColumnFamily(QueryFilter.getNamesFilter(dk, new QueryPath("Super3", ByteBufferUtil.bytes("SC1")), Util.getBytes(2)));
+        cf = store.getColumnFamily(QueryFilter.getNamesFilter(dk, new QueryPath("Super3", ByteBufferUtil.bytes("SC1")), Util.getBytes(2L)));
         assertNotNull(Util.cloneAndRemoveDeleted(cf, Integer.MAX_VALUE));
     }
 
@@ -162,7 +162,7 @@ public class RemoveSuperColumnTest extends CleanupHelper
     private void validateRemoveWithNewData(DecoratedKey dk) throws IOException
     {
         ColumnFamilyStore store = Table.open("Keyspace1").getColumnFamilyStore("Super2");
-        ColumnFamily cf = store.getColumnFamily(QueryFilter.getNamesFilter(dk, new QueryPath("Super2", ByteBufferUtil.bytes("SC1")), getBytes(2)));
+        ColumnFamily cf = store.getColumnFamily(QueryFilter.getNamesFilter(dk, new QueryPath("Super2", ByteBufferUtil.bytes("SC1")), getBytes(2L)));
         Collection<IColumn> subColumns = cf.getSortedColumns().iterator().next().getSubColumns();
         assert subColumns.size() == 1;
         assert subColumns.iterator().next().timestamp() == 2;

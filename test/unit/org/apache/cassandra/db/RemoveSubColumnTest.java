@@ -51,11 +51,11 @@ public class RemoveSubColumnTest extends CleanupHelper
 
         // remove
         rm = new RowMutation("Keyspace1", dk.key);
-        rm.delete(new QueryPath("Super1", ByteBufferUtil.bytes("SC1"), getBytes(1)), 1);
+        rm.delete(new QueryPath("Super1", ByteBufferUtil.bytes("SC1"), getBytes(1L)), 1);
         rm.apply();
 
         ColumnFamily retrieved = store.getColumnFamily(QueryFilter.getIdentityFilter(dk, new QueryPath("Super1", ByteBufferUtil.bytes("SC1"))));
-        assert retrieved.getColumn(ByteBufferUtil.bytes("SC1")).getSubColumn(getBytes(1)).isMarkedForDelete();
+        assert retrieved.getColumn(ByteBufferUtil.bytes("SC1")).getSubColumn(getBytes(1L)).isMarkedForDelete();
         assertNull(Util.cloneAndRemoveDeleted(retrieved, Integer.MAX_VALUE));
     }
 }

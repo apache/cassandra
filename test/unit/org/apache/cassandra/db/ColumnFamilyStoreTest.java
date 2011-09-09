@@ -499,16 +499,16 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         
         // create an isolated sstable.
         putColsSuper(cfs, key, scfName, 
-                new Column(getBytes(1), ByteBufferUtil.bytes("val1"), 1),
-                new Column(getBytes(2), ByteBufferUtil.bytes("val2"), 1),
-                new Column(getBytes(3), ByteBufferUtil.bytes("val3"), 1));
+                new Column(getBytes(1L), ByteBufferUtil.bytes("val1"), 1),
+                new Column(getBytes(2L), ByteBufferUtil.bytes("val2"), 1),
+                new Column(getBytes(3L), ByteBufferUtil.bytes("val3"), 1));
         cfs.forceBlockingFlush();
         
         // insert, don't flush.
         putColsSuper(cfs, key, scfName, 
-                new Column(getBytes(4), ByteBufferUtil.bytes("val4"), 1),
-                new Column(getBytes(5), ByteBufferUtil.bytes("val5"), 1),
-                new Column(getBytes(6), ByteBufferUtil.bytes("val6"), 1));
+                new Column(getBytes(4L), ByteBufferUtil.bytes("val4"), 1),
+                new Column(getBytes(5L), ByteBufferUtil.bytes("val5"), 1),
+                new Column(getBytes(6L), ByteBufferUtil.bytes("val6"), 1));
         
         // verify insert.
         final SlicePredicate sp = new SlicePredicate();
@@ -535,17 +535,17 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         
         // late insert.
         putColsSuper(cfs, key, scfName, 
-                new Column(getBytes(4), ByteBufferUtil.bytes("val4"), 1L),
-                new Column(getBytes(7), ByteBufferUtil.bytes("val7"), 1L));
+                new Column(getBytes(4L), ByteBufferUtil.bytes("val4"), 1L),
+                new Column(getBytes(7L), ByteBufferUtil.bytes("val7"), 1L));
         
         // re-verify delete.
         assertRowAndColCount(1, 0, scfName, false, cfs.getRangeSlice(scfName, Util.range("f", "g"), 100, QueryFilter.getFilter(sp, cfs.getComparator())));
         
         // make sure new writes are recognized.
         putColsSuper(cfs, key, scfName, 
-                new Column(getBytes(3), ByteBufferUtil.bytes("val3"), 3),
-                new Column(getBytes(8), ByteBufferUtil.bytes("val8"), 3),
-                new Column(getBytes(9), ByteBufferUtil.bytes("val9"), 3));
+                new Column(getBytes(3L), ByteBufferUtil.bytes("val3"), 3),
+                new Column(getBytes(8L), ByteBufferUtil.bytes("val8"), 3),
+                new Column(getBytes(9L), ByteBufferUtil.bytes("val9"), 3));
         assertRowAndColCount(1, 3, scfName, false, cfs.getRangeSlice(scfName, Util.range("f", "g"), 100, QueryFilter.getFilter(sp, cfs.getComparator())));
     }
     

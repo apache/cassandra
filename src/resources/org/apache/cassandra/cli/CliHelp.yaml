@@ -363,6 +363,7 @@ commands:
                 - AsciiType
                 - BytesType
                 - CounterColumnType (distributed counter column)
+                - Int32Type
                 - IntegerType (a generic variable-length integer type)
                 - LexicalUUIDType
                 - LongType
@@ -401,6 +402,7 @@ commands:
             - AsciiType
             - BytesType
             - CounterColumnType (distributed counter column)
+            - Int32Type
             - IntegerType (a generic variable-length integer type)
             - LexicalUUIDType
             - LongType
@@ -417,6 +419,7 @@ commands:
             - AsciiType
             - BytesType
             - CounterColumnType (distributed counter column)
+            - Int32Type
             - IntegerType (a generic variable-length integer type)
             - LexicalUUIDType
             - LongType
@@ -431,6 +434,7 @@ commands:
           Supported values are:
             - AsciiType
             - BytesType
+            - Int32Type
             - IntegerType (a generic variable-length integer type)
             - LexicalUUIDType
             - LongType
@@ -511,6 +515,7 @@ commands:
             - AsciiType
             - BytesType
             - CounterColumnType (distributed counter column)
+            - Int32Type
             - IntegerType (a generic variable-length integer type)
             - LexicalUUIDType
             - LongType
@@ -626,6 +631,7 @@ commands:
                 - AsciiType
                 - BytesType
                 - CounterColumnType (distributed counter column)
+                - Int32Type
                 - IntegerType (a generic variable-length integer type)
                 - LexicalUUIDType
                 - LongType
@@ -668,6 +674,7 @@ commands:
             - AsciiType
             - BytesType
             - CounterColumnType (distributed counter column)
+            - Int32Type
             - IntegerType (a generic variable-length integer type)
             - LexicalUUIDType
             - LongType
@@ -684,6 +691,7 @@ commands:
             - AsciiType
             - BytesType
             - CounterColumnType (distributed counter column)
+            - Int32Type
             - IntegerType (a generic variable-length integer type)
             - LexicalUUIDType
             - LongType
@@ -698,6 +706,7 @@ commands:
           Supported values are:
             - AsciiType
             - BytesType
+            - Int32Type
             - IntegerType (a generic variable-length integer type)
             - LexicalUUIDType
             - LongType
@@ -778,6 +787,7 @@ commands:
             - AsciiType
             - BytesType
             - CounterColumnType (distributed counter column)
+            - Int32Type
             - IntegerType (a generic variable-length integer type)
             - LexicalUUIDType
             - LongType
@@ -919,6 +929,7 @@ commands:
           Valid options are:
             - ascii
             - bytes: if used without arguments generates a zero length byte array
+            - int32
             - integer
             - lexicaluuid: if used without arguments generates a new random uuid
             - long
@@ -944,6 +955,7 @@ commands:
             - AsciiType
             - BytesType
             - CounterColumnType (distributed counter column)
+            - Int32Type
             - IntegerType (a generic variable-length integer type)
             - LexicalUUIDType
             - LongType
@@ -987,6 +999,7 @@ commands:
           Valid options are:
             - ascii
             - bytes: if used without arguments generates a zero length byte array
+            - int32
             - integer
             - lexicaluuid: if used without arguments generates a new random uuid
             - long
@@ -1030,6 +1043,7 @@ commands:
            Supported values are:
             - ascii
             - bytes: if used without arguments generates a zero length byte array
+            - int32
             - integer
             - lexicaluuid: if used without arguments generates a new random uuid
             - long
@@ -1134,6 +1148,7 @@ commands:
             - ascii
             - bytes
             - counterColumn (distributed counter column)
+            - int32
             - integer (a generic variable-length integer type)
             - lexicalUUID
             - long

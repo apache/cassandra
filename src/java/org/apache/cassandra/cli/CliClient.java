@@ -66,6 +66,7 @@ public class CliClient
         BYTES         (BytesType.instance),
         INTEGER       (IntegerType.instance),
         LONG          (LongType.instance),
+        INT           (Int32Type.instance),
         LEXICALUUID   (LexicalUUIDType.instance),
         TIMEUUID      (TimeUUIDType.instance),
         UTF8          (UTF8Type.instance),
