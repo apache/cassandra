@@ -31,8 +31,6 @@ import java.util.regex.Pattern;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
-import com.google.common.base.Equivalence;
-import com.google.common.base.Equivalences;
 import com.google.common.collect.Iterables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
