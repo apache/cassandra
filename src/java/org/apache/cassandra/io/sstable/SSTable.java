@@ -34,6 +34,7 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.HeapAllocator;
 import org.apache.cassandra.utils.Pair;
 
 /**
@@ -141,6 +142,17 @@ public abstract class SSTable
 
         logger.debug("Deleted {}", desc);
         return true;
+    }
+
+    /**
+     * If the given @param key occupies only part of a larger buffer, allocate a new buffer that is only
+     * as large as necessary.
+     */
+    public static DecoratedKey<?> getMinimalKey(DecoratedKey<?> key)
+    {
+        return key.key.position() > 0 || key.key.hasRemaining()
+                                       ? new DecoratedKey(key.token, HeapAllocator.instance.clone(key.key))
+                                       : key;
     }
 
     public String getFilename()

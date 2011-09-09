@@ -56,9 +56,9 @@ public class IndexSummary
         return keysWritten % DatabaseDescriptor.getIndexInterval() == 0;
     }
 
-    public void addEntry(DecoratedKey<?> decoratedKey, long indexPosition)
+    public void addEntry(DecoratedKey<?> key, long indexPosition)
     {
-        indexPositions.add(new KeyPosition(decoratedKey, indexPosition));
+        indexPositions.add(new KeyPosition(SSTable.getMinimalKey(key), indexPosition));
     }
 
     public void maybeAddEntry(DecoratedKey<?> decoratedKey, long indexPosition)
