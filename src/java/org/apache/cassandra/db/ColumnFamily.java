@@ -81,12 +81,17 @@ public class ColumnFamily extends AbstractColumnContainer
         this.cfm = cfm;
     }
     
-    public ColumnFamily cloneMeShallow()
+    public ColumnFamily cloneMeShallow(ISortedColumns.Factory factory)
     {
-        ColumnFamily cf = ColumnFamily.create(cfm);
+        ColumnFamily cf = ColumnFamily.create(cfm, factory);
         // since deletion info is immutable, aliasing it is fine
         cf.deletionInfo.set(deletionInfo.get());
         return cf;
+    }
+
+    public ColumnFamily cloneMeShallow()
+    {
+        return cloneMeShallow(columns.getFactory());
     }
 
     public AbstractType getSubComparator()

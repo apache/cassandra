@@ -62,6 +62,11 @@ public class TreeMapBackedSortedColumns extends TreeMap<ByteBuffer, IColumn> imp
         super(columns);
     }
 
+    public ISortedColumns.Factory getFactory()
+    {
+        return factory();
+    }
+
     public ISortedColumns cloneMe()
     {
         return new TreeMapBackedSortedColumns(this);

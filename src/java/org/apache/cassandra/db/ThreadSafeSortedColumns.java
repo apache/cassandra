@@ -62,6 +62,11 @@ public class ThreadSafeSortedColumns extends ConcurrentSkipListMap<ByteBuffer, I
         super(columns);
     }
 
+    public ISortedColumns.Factory getFactory()
+    {
+        return factory();
+    }
+
     public ISortedColumns cloneMe()
     {
         return new ThreadSafeSortedColumns(this);
