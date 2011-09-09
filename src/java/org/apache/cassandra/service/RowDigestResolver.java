@@ -33,7 +33,10 @@ public class RowDigestResolver extends AbstractRowResolver
     {
         super(key, table);
     }
-    
+
+    /**
+     * Special case of resolve() so that CL.ONE reads never throw DigestMismatchException in the foreground
+     */
     public Row getData() throws IOException
     {
         for (Map.Entry<Message, ReadResponse> entry : replies.entrySet())
@@ -62,14 +65,10 @@ public class RowDigestResolver extends AbstractRowResolver
             logger.debug("resolving " + replies.size() + " responses");
 
         long startTime = System.currentTimeMillis();
-		ColumnFamily data = null;
 
         // validate digests against each other; throw immediately on mismatch.
-        // also, collects data results into versions/endpoints lists.
-        //
-        // results are cleared as we process them, to avoid unnecessary duplication of work
-        // when resolve() is called a second time for read repair on responses that were not
-        // necessary to satisfy ConsistencyLevel.
+        // also extract the data reply, if any.
+        ColumnFamily data = null;
         ByteBuffer digest = null;
         for (Map.Entry<Message, ReadResponse> entry : replies.entrySet())
         {

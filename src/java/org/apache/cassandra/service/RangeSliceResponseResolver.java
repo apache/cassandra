@@ -45,7 +45,7 @@ import org.apache.cassandra.utils.MergeIterator;
  */
 public class RangeSliceResponseResolver implements IResponseResolver<Iterable<Row>>
 {
-    private static final Logger logger_ = LoggerFactory.getLogger(RangeSliceResponseResolver.class);
+    private static final Logger logger = LoggerFactory.getLogger(RangeSliceResponseResolver.class);
 
     private static final Comparator<Pair<Row,InetAddress>> pairComparator = new Comparator<Pair<Row, InetAddress>>()
     {

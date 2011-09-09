@@ -27,6 +27,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import com.google.common.collect.Iterables;
+
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.filter.QueryFilter;
@@ -59,45 +61,41 @@ public class RowRepairResolver extends AbstractRowResolver
     {
         if (logger.isDebugEnabled())
             logger.debug("resolving " + replies.size() + " responses");
-
         long startTime = System.currentTimeMillis();
-		List<ColumnFamily> versions = new ArrayList<ColumnFamily>();
-		List<InetAddress> endpoints = new ArrayList<InetAddress>();
-
-        // case 1: validate digests against each other; throw immediately on mismatch.
-        // also, collects data results into versions/endpoints lists.
-        //
-        // results are cleared as we process them, to avoid unnecessary duplication of work
-        // when resolve() is called a second time for read repair on responses that were not
-        // necessary to satisfy ConsistencyLevel.
-        for (Map.Entry<Message, ReadResponse> entry : replies.entrySet())
-        {
-            Message message = entry.getKey();
-            ReadResponse response = entry.getValue();
-            assert !response.isDigestQuery();
-            versions.add(response.row().cf);
-            endpoints.add(message.getFrom());
-        }
 
         ColumnFamily resolved;
-        if (versions.size() > 1)
+        if (replies.size() > 1)
         {
-            for (ColumnFamily cf : versions)
+            List<ColumnFamily> versions = new ArrayList<ColumnFamily>(replies.size());
+            List<InetAddress> endpoints = new ArrayList<InetAddress>(replies.size());
+
+            for (Map.Entry<Message, ReadResponse> entry : replies.entrySet())
             {
+                Message message = entry.getKey();
+                ReadResponse response = entry.getValue();
+                ColumnFamily cf = response.row().cf;
+                assert !response.isDigestQuery() : "Received digest response to repair read from " + entry.getKey().getFrom();
+                versions.add(cf);
+                endpoints.add(message.getFrom());
+
+                // compute maxLiveColumns to prevent short reads -- see https://issues.apache.org/jira/browse/CASSANDRA-2643
                 int liveColumns = cf.getLiveColumnCount();
                 if (liveColumns > maxLiveColumns)
                     maxLiveColumns = liveColumns;
             }
+
             resolved = resolveSuperset(versions);
             if (logger.isDebugEnabled())
                 logger.debug("versions merged");
-            // resolved can be null even if versions doesn't have all nulls because of the call to removeDeleted in resolveSuperSet
+
+            // send updates to any replica that was missing part of the full row
+            // (resolved can be null even if versions doesn't have all nulls because of the call to removeDeleted in resolveSuperSet)
             if (resolved != null)
                 repairResults = scheduleRepairs(resolved, table, key, versions, endpoints);
         }
         else
         {
-            resolved = versions.get(0);
+            resolved = replies.values().iterator().next().row().cf;
         }
 
         if (logger.isDebugEnabled())
@@ -138,9 +136,9 @@ public class RowRepairResolver extends AbstractRowResolver
         return results;
     }
 
-    static ColumnFamily resolveSuperset(List<ColumnFamily> versions)
+    static ColumnFamily resolveSuperset(Iterable<ColumnFamily> versions)
     {
-        assert versions.size() > 0;
+        assert Iterables.size(versions) > 0;
 
         ColumnFamily resolved = null;
         for (ColumnFamily cf : versions)
