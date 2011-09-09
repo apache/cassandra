@@ -41,7 +41,7 @@ import static org.apache.cassandra.Util.column;
 import static org.apache.cassandra.Util.getBytes;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.filter.QueryPath;
-import org.apache.cassandra.db.marshal.LongType;
+import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.io.sstable.IndexHelper;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -487,7 +487,7 @@ public class TableTest extends CleanupHelper
 
         RowMutation rm = new RowMutation("Keyspace1", ROW.key);
         ColumnFamily cf = ColumnFamily.create("Keyspace1", "Super1");
-        SuperColumn sc = new SuperColumn(ByteBufferUtil.bytes("sc1"), LongType.instance);
+        SuperColumn sc = new SuperColumn(ByteBufferUtil.bytes("sc1"), Int32Type.instance);
         sc.addColumn(new Column(getBytes(1), ByteBufferUtil.bytes("val1"), 1L));
         cf.addColumn(sc);
         rm.add(cf);

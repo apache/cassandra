@@ -26,11 +26,11 @@ import java.sql.Types;
 
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-public class JdbcLong extends AbstractJdbcType<Long>
+public class JdbcInt32 extends AbstractJdbcType<Integer>
 {
-    public static final JdbcLong instance = new JdbcLong();
+    public static final JdbcInt32 instance = new JdbcInt32();
 
-    JdbcLong()
+    JdbcInt32()
     {
     }
 
@@ -39,12 +39,12 @@ public class JdbcLong extends AbstractJdbcType<Long>
         return false;
     }
 
-    public int getScale(Long obj)
+    public int getScale(Integer obj)
     {
         return 0;
     }
 
-    public int getPrecision(Long obj)
+    public int getPrecision(Integer obj)
     {
         return obj.toString().length();
     }
@@ -59,7 +59,7 @@ public class JdbcLong extends AbstractJdbcType<Long>
         return true;
     }
 
-    public String toString(Long obj)
+    public String toString(Integer obj)
     {
         return obj.toString();
     }
@@ -75,26 +75,26 @@ public class JdbcLong extends AbstractJdbcType<Long>
         {
             return "";
         }
-        if (bytes.remaining() != 8)
+        if (bytes.remaining() != 4)
         {
-            throw new MarshalException("A long is exactly 8 bytes: " + bytes.remaining());
+            throw new MarshalException("A int is exactly 4 bytes: " + bytes.remaining());
         }
 
-        return String.valueOf(bytes.getLong(bytes.position()));
+        return String.valueOf(bytes.getInt(bytes.position()));
     }
 
-    public Class<Long> getType()
+    public Class<Integer> getType()
     {
-        return Long.class;
+        return Integer.class;
     }
 
     public int getJdbcType()
     {
-        return Types.BIGINT;
+        return Types.INTEGER;
     }
 
-    public Long compose(ByteBuffer bytes)
+    public Integer compose(ByteBuffer bytes)
     {
-        return ByteBufferUtil.toLong(bytes);
+        return ByteBufferUtil.toInt(bytes);
     }
 }

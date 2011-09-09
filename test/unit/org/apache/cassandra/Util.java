@@ -103,6 +103,15 @@ public class Util
         return bb;
     }
     
+    public static ByteBuffer getBytes(int v)
+    {
+        byte[] bytes = new byte[4];
+        ByteBuffer bb = ByteBuffer.wrap(bytes);
+        bb.putInt(v);
+        bb.rewind();
+        return bb;
+    }
+    
     public static List<Row> getRangeSlice(ColumnFamilyStore cfs) throws IOException, ExecutionException, InterruptedException
     {
         return getRangeSlice(cfs, null);

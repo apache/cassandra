@@ -93,6 +93,28 @@ public class TypeCompareTest
     }
 
     @Test
+    public void testInt()
+    {
+        Random rng = new Random();
+        ByteBuffer[] data = new ByteBuffer[1000];
+        for (int i = 0; i < data.length; i++)
+        {
+            data[i] = ByteBuffer.allocate(4);
+            rng.nextBytes(data[i].array());
+        }
+
+        Arrays.sort(data, Int32Type.instance);
+
+        for (int i = 1; i < data.length; i++)
+        {
+        	
+            int l0 = data[i - 1].getInt(data[i - 1].position());
+            int l1 = data[i].getInt(data[i].position());
+            assert l0 <= l1;
+        }
+    }
+
+    @Test
     public void testTimeUUID()
     {
         // two different UUIDs w/ the same timestamp
