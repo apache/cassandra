@@ -573,24 +573,23 @@ public class StorageProxy implements StorageProxyMBean
      * 4. If the digests (if any) match the data return the data
      * 5. else carry out read repair by getting data from all the nodes.
      */
-    private static List<Row> fetchRows(List<ReadCommand> commands, ConsistencyLevel consistency_level) throws IOException, UnavailableException, TimeoutException
+    private static List<Row> fetchRows(List<ReadCommand> initialCommands, ConsistencyLevel consistency_level) throws IOException, UnavailableException, TimeoutException
     {
-        List<ReadCallback<Row>> readCallbacks = new ArrayList<ReadCallback<Row>>();
-        List<Row> rows = new ArrayList<Row>();
+        List<Row> rows = new ArrayList<Row>(initialCommands.size());
         List<ReadCommand> commandsToRetry = Collections.emptyList();
-        List<ReadCommand> repairCommands = Collections.emptyList();
 
         do
         {
-            readCallbacks.clear();
-            List<ReadCommand> commandsToSend = commandsToRetry.isEmpty() ? commands : commandsToRetry;
+            List<ReadCommand> commands = commandsToRetry.isEmpty() ? initialCommands : commandsToRetry;
+            ReadCallback<Row>[] readCallbacks = new ReadCallback[commands.size()];
 
             if (!commandsToRetry.isEmpty())
                 logger.debug("Retrying {} commands", commandsToRetry.size());
 
             // send out read requests
-            for (ReadCommand command : commandsToSend)
+            for (int i = 0; i < commands.size(); i++)
             {
+                ReadCommand command = commands.get(i);
                 assert !command.isDigestQuery();
                 logger.debug("Command/ConsistencyLevel is {}/{}", command, consistency_level);
 
@@ -602,7 +601,7 @@ public class StorageProxy implements StorageProxyMBean
                 ReadCallback<Row> handler = getReadCallback(resolver, command, consistency_level, endpoints);
                 handler.assureSufficientLiveNodes();
                 assert !handler.endpoints.isEmpty();
-                readCallbacks.add(handler);
+                readCallbacks[i] = handler;
 
                 // The data-request message is sent to dataPoint, the node that will actually get the data for us
                 InetAddress dataPoint = handler.endpoints.get(0);
@@ -643,15 +642,13 @@ public class StorageProxy implements StorageProxyMBean
                 }
             }
 
-            if (repairCommands != Collections.EMPTY_LIST)
-                repairCommands.clear();
-
             // read results and make a second pass for any digest mismatches
+            List<ReadCommand> repairCommands = null;
             List<RepairCallback> repairResponseHandlers = null;
-            for (int i = 0; i < commandsToSend.size(); i++)
+            for (int i = 0; i < commands.size(); i++)
             {
-                ReadCallback<Row> handler = readCallbacks.get(i);
-                ReadCommand command = commandsToSend.get(i);
+                ReadCallback<Row> handler = readCallbacks[i];
+                ReadCommand command = commands.get(i);
                 try
                 {
                     long startTime2 = System.currentTimeMillis();
@@ -675,17 +672,17 @@ public class StorageProxy implements StorageProxyMBean
                     RowRepairResolver resolver = new RowRepairResolver(command.table, command.key);
                     RepairCallback repairHandler = new RepairCallback(resolver, handler.endpoints);
 
-                    if (repairCommands == Collections.EMPTY_LIST)
+                    if (repairCommands == null)
+                    {
                         repairCommands = new ArrayList<ReadCommand>();
+                        repairResponseHandlers = new ArrayList<RepairCallback>();
+                    }
                     repairCommands.add(command);
+                    repairResponseHandlers.add(repairHandler);
 
                     MessageProducer producer = new CachingMessageProducer(command);
                     for (InetAddress endpoint : handler.endpoints)
                         MessagingService.instance().sendRR(producer, endpoint, repairHandler);
-
-                    if (repairResponseHandlers == null)
-                        repairResponseHandlers = new ArrayList<RepairCallback>();
-                    repairResponseHandlers.add(repairHandler);
                 }
             }
 

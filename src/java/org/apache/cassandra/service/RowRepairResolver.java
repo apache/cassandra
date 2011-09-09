@@ -27,6 +27,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import com.google.common.base.Function;
+import com.google.common.collect.Iterables;
+
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.filter.QueryFilter;
@@ -59,45 +62,42 @@ public class RowRepairResolver extends AbstractRowResolver
     {
         if (logger.isDebugEnabled())
             logger.debug("resolving " + replies.size() + " responses");
-
         long startTime = System.currentTimeMillis();
-		List<ColumnFamily> versions = new ArrayList<ColumnFamily>();
-		List<InetAddress> endpoints = new ArrayList<InetAddress>();
-
-        // case 1: validate digests against each other; throw immediately on mismatch.
-        // also, collects data results into versions/endpoints lists.
-        //
-        // results are cleared as we process them, to avoid unnecessary duplication of work
-        // when resolve() is called a second time for read repair on responses that were not
-        // necessary to satisfy ConsistencyLevel.
-        for (Map.Entry<Message, ReadResponse> entry : replies.entrySet())
-        {
-            Message message = entry.getKey();
-            ReadResponse response = entry.getValue();
-            assert !response.isDigestQuery();
-            versions.add(response.row().cf);
-            endpoints.add(message.getFrom());
-        }
 
         ColumnFamily resolved;
-        if (versions.size() > 1)
+        if (replies.size() > 1)
         {
-            for (ColumnFamily cf : versions)
+            // compute maxLiveColumns to prevent short reads -- see https://issues.apache.org/jira/browse/CASSANDRA-2643
+            for (Map.Entry<Message, ReadResponse> entry : replies.entrySet())
             {
+                ReadResponse response = entry.getValue();
+                assert !response.isDigestQuery() : "Received digest response to repair read from " + entry.getKey().getFrom();
+
+                ColumnFamily cf = response.row().cf;
                 int liveColumns = cf.getLiveColumnCount();
                 if (liveColumns > maxLiveColumns)
                     maxLiveColumns = liveColumns;
             }
-            resolved = resolveSuperset(versions);
+
+            // merge the row versions
+            resolved = resolveSuperset(Iterables.transform(replies.values(), new Function<ReadResponse, ColumnFamily>()
+            {
+                public ColumnFamily apply(ReadResponse response)
+                {
+                    return response.row().cf;
+                }
+            }));
             if (logger.isDebugEnabled())
                 logger.debug("versions merged");
-            // resolved can be null even if versions doesn't have all nulls because of the call to removeDeleted in resolveSuperSet
+
+            // send updates to any replica that was missing part of the full row
+            // (resolved can be null even if versions doesn't have all nulls because of the call to removeDeleted in resolveSuperSet)
             if (resolved != null)
-                repairResults = scheduleRepairs(resolved, table, key, versions, endpoints);
+                repairResults = scheduleRepairs(resolved, table, key, replies);
         }
         else
         {
-            resolved = versions.get(0);
+            resolved = replies.values().iterator().next().row().cf;
         }
 
         if (logger.isDebugEnabled())
@@ -110,13 +110,15 @@ public class RowRepairResolver extends AbstractRowResolver
      * For each row version, compare with resolved (the superset of all row versions);
      * if it is missing anything, send a mutation to the endpoint it come from.
      */
-    public static List<IAsyncResult> scheduleRepairs(ColumnFamily resolved, String table, DecoratedKey<?> key, List<ColumnFamily> versions, List<InetAddress> endpoints)
+    public static List<IAsyncResult> scheduleRepairs(ColumnFamily resolved, String table, DecoratedKey<?> key, Map<Message,ReadResponse> replies)
     {
-        List<IAsyncResult> results = new ArrayList<IAsyncResult>(versions.size());
+        List<IAsyncResult> results = new ArrayList<IAsyncResult>(replies.size());
 
-        for (int i = 0; i < versions.size(); i++)
+        for (Map.Entry<Message, ReadResponse> entry : replies.entrySet())
         {
-            ColumnFamily diffCf = ColumnFamily.diff(versions.get(i), resolved);
+            InetAddress from = entry.getKey().getFrom();
+            ColumnFamily cf = entry.getValue().row().cf;
+            ColumnFamily diffCf = ColumnFamily.diff(cf, resolved);
             if (diffCf == null) // no repair needs to happen
                 continue;
 
@@ -126,21 +128,21 @@ public class RowRepairResolver extends AbstractRowResolver
             Message repairMessage;
             try
             {
-                repairMessage = rowMutation.getMessage(Gossiper.instance.getVersion(endpoints.get(i)));
+                repairMessage = rowMutation.getMessage(Gossiper.instance.getVersion(from));
             }
             catch (IOException e)
             {
                 throw new IOError(e);
             }
-            results.add(MessagingService.instance().sendRR(repairMessage, endpoints.get(i)));
+            results.add(MessagingService.instance().sendRR(repairMessage, from));
         }
 
         return results;
     }
 
-    static ColumnFamily resolveSuperset(List<ColumnFamily> versions)
+    static ColumnFamily resolveSuperset(Iterable<ColumnFamily> versions)
     {
-        assert versions.size() > 0;
+        assert Iterables.size(versions) > 0;
 
         ColumnFamily resolved = null;
         for (ColumnFamily cf : versions)
