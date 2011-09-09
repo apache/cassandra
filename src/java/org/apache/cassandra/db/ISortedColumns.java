@@ -42,6 +42,11 @@ public interface ISortedColumns extends IIterableColumns
     public ISortedColumns cloneMe();
 
     /**
+     * Returns the factory used for this ISortedColumns implementation.
+     */
+    public Factory getFactory();
+
+    /**
      * Adds a column to this column map.
      * If a column with the same name is already present in the map, it will
      * be replaced by the newly added column.

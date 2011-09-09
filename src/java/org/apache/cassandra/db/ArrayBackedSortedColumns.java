@@ -67,6 +67,11 @@ public class ArrayBackedSortedColumns extends ArrayList<IColumn> implements ISor
         this.reversed = reversed;
     }
 
+    public ISortedColumns.Factory getFactory()
+    {
+        return factory();
+    }
+
     public AbstractType<?> getComparator()
     {
         return comparator;
