@@ -56,7 +56,7 @@ public class CompressedSegmentedFile extends SegmentedFile
         }
     }
 
-    public FileDataInput getSegment(long position, int bufferSize)
+    public FileDataInput getSegment(long position)
     {
         try
         {

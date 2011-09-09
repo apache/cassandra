@@ -49,8 +49,7 @@ public class FileStreamTask extends WrappedRunnable
 {
     private static Logger logger = LoggerFactory.getLogger(FileStreamTask.class);
     
-    // 10MB chunks
-    public static final int CHUNK_SIZE = 10*1024*1024;
+    public static final int CHUNK_SIZE = 64 * 1024;
     // around 10 minutes at the default rpctimeout
     public static final int MAX_CONNECT_ATTEMPTS = 8;
 
@@ -127,9 +126,10 @@ public class FileStreamTask extends WrappedRunnable
         if (header.file == null)
             return;
 
+        // TODO just use a raw RandomAccessFile since we're managing our own buffer here
         RandomAccessReader file = (header.file.sstable.compression) // try to skip kernel page cache if possible
-                                    ? CompressedRandomAccessReader.open(header.file.getFilename(), true)
-                                    : RandomAccessReader.open(new File(header.file.getFilename()), CHUNK_SIZE, true);
+                                ? CompressedRandomAccessReader.open(header.file.getFilename(), true)
+                                : RandomAccessReader.open(new File(header.file.getFilename()), true);
 
         // setting up data compression stream
         output = new LZFOutputStream(output);

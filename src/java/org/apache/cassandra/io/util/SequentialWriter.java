@@ -65,11 +65,6 @@ public class SequentialWriter extends OutputStream
         return open(file, RandomAccessReader.DEFAULT_BUFFER_SIZE, false);
     }
 
-    public static SequentialWriter open(File file, int bufferSize) throws IOException
-    {
-        return open(file, bufferSize, false);
-    }
-
     public static SequentialWriter open(File file, boolean skipIOCache) throws IOException
     {
         return open(file, RandomAccessReader.DEFAULT_BUFFER_SIZE, skipIOCache);

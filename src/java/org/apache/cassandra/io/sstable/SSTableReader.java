@@ -675,34 +675,33 @@ public class SSTableReader extends SSTable
     }
 
     /**
-     * @param bufferSize Buffer size in bytes for this Scanner.
+     *
      * @param filter filter to use when reading the columns
      * @return A Scanner for seeking over the rows of the SSTable.
      */
-    public SSTableScanner getScanner(int bufferSize, QueryFilter filter)
+    public SSTableScanner getScanner(QueryFilter filter)
     {
-        return new SSTableScanner(this, filter, bufferSize);
+        return new SSTableScanner(this, filter);
     }
 
    /**
     * Direct I/O SSTableScanner
-    * @param bufferSize Buffer size in bytes for this Scanner.
     * @return A Scanner for seeking over the rows of the SSTable.
     */
-    public SSTableScanner getDirectScanner(int bufferSize)
+    public SSTableScanner getDirectScanner()
     {
-        return new SSTableScanner(this, bufferSize, true);
+        return new SSTableScanner(this, true);
     }
 
    /**
     * Direct I/O SSTableScanner over a defined range of tokens.
-    * @param bufferSize Buffer size in bytes for this Scanner.
+    *
     * @param range the range of keys to cover
     * @return A Scanner for seeking over the rows of the SSTable.
     */
-    public SSTableScanner getDirectScanner(int bufferSize, Range range)
+    public SSTableScanner getDirectScanner(Range range)
     {
-        return new SSTableBoundedScanner(this, bufferSize, true, range);
+        return new SSTableBoundedScanner(this, true, range);
     }
 
     public FileDataInput getFileDataInput(DecoratedKey decoratedKey, int bufferSize)
@@ -711,7 +710,7 @@ public class SSTableReader extends SSTable
         if (position < 0)
             return null;
 
-        return dfile.getSegment(position, bufferSize);
+        return dfile.getSegment(position);
     }
 
     /**
@@ -830,14 +829,9 @@ public class SSTableReader extends SSTable
 
     public RandomAccessReader openDataReader(boolean skipIOCache) throws IOException
     {
-        return openDataReader(RandomAccessReader.DEFAULT_BUFFER_SIZE, skipIOCache);
-    }
-
-    public RandomAccessReader openDataReader(int bufferSize, boolean skipIOCache) throws IOException
-    {
         return compression
-                ? CompressedRandomAccessReader.open(getFilename(), skipIOCache)
-                : RandomAccessReader.open(new File(getFilename()), bufferSize, skipIOCache);
+               ? CompressedRandomAccessReader.open(getFilename(), skipIOCache)
+               : RandomAccessReader.open(new File(getFilename()), skipIOCache);
     }
 
     /**

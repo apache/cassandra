@@ -203,8 +203,7 @@ public class CommitLog implements CommitLogMBean
         {
             final long segment = CommitLogSegment.idFromFilename(file.getName());
 
-            int bufferSize = (int) Math.min(Math.max(file.length(), 1), 32 * 1024 * 1024);
-            RandomAccessReader reader = RandomAccessReader.open(new File(file.getAbsolutePath()), bufferSize, true);
+            RandomAccessReader reader = RandomAccessReader.open(new File(file.getAbsolutePath()), true);
             assert reader.length() <= Integer.MAX_VALUE;
 
             try

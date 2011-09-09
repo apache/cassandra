@@ -92,7 +92,7 @@ public class CommitLogSegment
 
     private static SequentialWriter createWriter(String file) throws IOException
     {
-        return SequentialWriter.open(new File(file), 128 * 1024, true);
+        return SequentialWriter.open(new File(file), true);
     }
 
     public ReplayPosition write(RowMutation rowMutation) throws IOException

@@ -66,7 +66,7 @@ public abstract class SegmentedFile
         return new CompressedSegmentedFile.Builder();
     }
 
-    public abstract FileDataInput getSegment(long position, int bufferSize);
+    public abstract FileDataInput getSegment(long position);
 
     /**
      * @return An Iterator over segments, beginning with the segment containing the given position: each segment must be closed after use.
@@ -137,7 +137,7 @@ public abstract class SegmentedFile
             if (position >= length)
                 throw new NoSuchElementException();
 
-            FileDataInput segment = getSegment(nextpos, bufferSize);
+            FileDataInput segment = getSegment(nextpos);
             try
             {
                 nextpos = nextpos + segment.bytesRemaining();

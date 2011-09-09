@@ -16,8 +16,6 @@ import org.apache.cassandra.utils.Throttle;
 
 public abstract class AbstractCompactionIterable implements Iterable<AbstractCompactedRow>, CompactionInfo.Holder
 {
-    public static final int FILE_BUFFER_SIZE = 1024 * 1024;
-
     private static Logger logger = LoggerFactory.getLogger(CompactionIterable.class);
 
     protected final OperationType type;
@@ -51,7 +49,7 @@ public abstract class AbstractCompactionIterable implements Iterable<AbstractCom
     {
         ArrayList<SSTableScanner> scanners = new ArrayList<SSTableScanner>();
         for (SSTableReader sstable : sstables)
-            scanners.add(sstable.getDirectScanner(FILE_BUFFER_SIZE));
+            scanners.add(sstable.getDirectScanner());
         return scanners;
     }
 
