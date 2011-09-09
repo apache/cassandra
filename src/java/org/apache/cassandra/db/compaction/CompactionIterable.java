@@ -70,7 +70,7 @@ public class CompactionIterable extends AbstractCompactionIterable
     {
         ArrayList<SSTableScanner> scanners = new ArrayList<SSTableScanner>();
         for (SSTableReader sstable : sstables)
-            scanners.add(sstable.getDirectScanner(FILE_BUFFER_SIZE));
+            scanners.add(sstable.getDirectScanner());
         return scanners;
     }
 

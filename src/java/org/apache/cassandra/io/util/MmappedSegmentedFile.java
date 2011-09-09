@@ -75,7 +75,7 @@ public class MmappedSegmentedFile extends SegmentedFile
     /**
      * @return The segment containing the given position: must be closed after use.
      */
-    public FileDataInput getSegment(long position, int bufferSize)
+    public FileDataInput getSegment(long position)
     {
         Segment segment = floor(position);
         if (segment.right != null)
@@ -88,7 +88,7 @@ public class MmappedSegmentedFile extends SegmentedFile
         try
         {
             // FIXME: brafs are unbounded, so this segment will cover the rest of the file, rather than just the row
-            RandomAccessReader file = RandomAccessReader.open(new File(path), bufferSize);
+            RandomAccessReader file = RandomAccessReader.open(new File(path));
             file.seek(position);
             return file;
         }

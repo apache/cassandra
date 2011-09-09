@@ -18,15 +18,10 @@
 package org.apache.cassandra.db;
 
 import java.io.Closeable;
-import java.io.IOError;
-import java.io.IOException;
 import java.util.*;
-import java.util.Map.Entry;
 
-import com.google.common.base.Function;
 import com.google.common.base.Predicate;
 import com.google.common.collect.AbstractIterator;
-import com.google.common.collect.Iterators;
 
 import org.apache.cassandra.db.columniterator.IColumnIterator;
 import org.apache.cassandra.db.filter.QueryFilter;
@@ -90,7 +85,7 @@ public class RowIteratorFactory
 
         for (SSTableReader sstable : sstables)
         {
-            final SSTableScanner scanner = sstable.getScanner(RANGE_FILE_BUFFER_SIZE, filter);
+            final SSTableScanner scanner = sstable.getScanner(filter);
             scanner.seekTo(startWith);
             assert scanner instanceof Closeable; // otherwise we leak FDs
             iterators.add(scanner);

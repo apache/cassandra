@@ -48,11 +48,11 @@ public class SSTableScanner implements CloseableIterator<IColumnIterator>
     /**
      * @param sstable SSTable to scan.
      */
-    SSTableScanner(SSTableReader sstable, int bufferSize, boolean skipCache)
+    SSTableScanner(SSTableReader sstable, boolean skipCache)
     {
         try
         {
-            this.file = sstable.openDataReader(bufferSize, skipCache);
+            this.file = sstable.openDataReader(skipCache);
         }
         catch (IOException e)
         {
@@ -65,11 +65,11 @@ public class SSTableScanner implements CloseableIterator<IColumnIterator>
      * @param sstable SSTable to scan.
      * @param filter filter to use when scanning the columns
      */
-    SSTableScanner(SSTableReader sstable, QueryFilter filter, int bufferSize)
+    SSTableScanner(SSTableReader sstable, QueryFilter filter)
     {
         try
         {
-            this.file = sstable.openDataReader(bufferSize, false);
+            this.file = sstable.openDataReader(false);
         }
         catch (IOException e)
         {
