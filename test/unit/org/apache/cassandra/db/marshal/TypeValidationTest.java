@@ -52,8 +52,15 @@ public class TypeValidationTest
     @Test
     public void testLong()
     {
-        LongType.instance.validate(Util.getBytes(5));
+        LongType.instance.validate(Util.getBytes(5L));
         LongType.instance.validate(Util.getBytes(5555555555555555555L));
+    }
+    
+    @Test
+    public void testInt()
+    {
+        Int32Type.instance.validate(Util.getBytes(5));
+        Int32Type.instance.validate(Util.getBytes(2057022603));
     }
     
     @Test

@@ -9,7 +9,8 @@ Upgrading
       cassandra.yaml (use compaction_throughput_mb_per_sec to throttle
       compaction instead)
     - CQL types bytea and date were renamed to blob and timestamp, respectively,
-      to conform with SQL norms
+      to conform with SQL norms.  CQL type int is now a 4-byte int, not 8
+      (which is still available as bigint).
 
 Features
 --------

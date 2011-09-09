@@ -60,6 +60,17 @@ public class RoundTripTest
     }
     
     @Test
+    public void intLong()
+    {
+        byte[] v = new byte[]{0,0,0,1};
+        assert Int32Type.instance.getString(Int32Type.instance.fromString("1")).equals("1");
+        assert Int32Type.instance.fromString(Int32Type.instance.getString(ByteBuffer.wrap(v)))
+                .equals(ByteBuffer.wrap(v));
+        assert Int32Type.instance.compose(ByteBuffer.wrap(v)) == 1;
+        // assert Int32Type.instance.toString(1).equals("1");
+    }
+    
+    @Test
     public void testAscii() throws Exception
     {
         byte[] abc = "abc".getBytes(Charsets.US_ASCII);
