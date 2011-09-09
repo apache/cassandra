@@ -36,7 +36,7 @@ except ImportError:
 from cql.cursor import _COUNT_DESCRIPTION, _VOID_DESCRIPTION
 
 HISTORY = os.path.join(os.path.expanduser('~'), '.cqlsh')
-CQLTYPES = ("bytes", "ascii", "utf8", "timeuuid", "uuid", "long", "int")
+CQLTYPES = ("bytes", "ascii", "utf8", "timeuuid", "uuid", "long", "int", "int32")
 
 RED = "\033[1;31m%s\033[0m"
 GREEN = "\033[1;32m%s\033[0m"

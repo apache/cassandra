@@ -26,6 +26,7 @@ __all__ = ['prepare', 'marshal', 'unmarshal_noop', 'unmarshallers']
 if hasattr(struct, 'Struct'): # new in Python 2.5
    _have_struct = True
    _long_packer = struct.Struct('>q')
+   _int32_packer = struct.Struct('>i')
 else:
     _have_struct = False
 
@@ -34,6 +35,7 @@ _param_re = re.compile(r"(?<!strategy_options)(?<!\\)(:[a-zA-Z_][a-zA-Z0-9_]*)",
 BYTES_TYPE = "org.apache.cassandra.db.marshal.BytesType"
 ASCII_TYPE = "org.apache.cassandra.db.marshal.AsciiType"
 UTF8_TYPE = "org.apache.cassandra.db.marshal.UTF8Type"
+INT32_TYPE = "org.apache.cassandra.db.marshal.Int32Type"
 INTEGER_TYPE = "org.apache.cassandra.db.marshal.IntegerType"
 LONG_TYPE = "org.apache.cassandra.db.marshal.LongType"
 UUID_TYPE = "org.apache.cassandra.db.marshal.UUIDType"
@@ -64,6 +66,13 @@ def unmarshal_noop(bytestr):
 def unmarshal_utf8(bytestr):
     return bytestr.decode("utf8")
 
+if _have_struct:
+    def unmarshal_int32(bytestr):
+        return _int32_packer.unpack(bytestr)[0]
+else:
+    def unmarshal_int32(bytestr):
+        return struct.unpack(">i", bytestr)[0]
+
 def unmarshal_int(bytestr):
     return decode_bigint(bytestr)
 
@@ -80,6 +89,7 @@ def unmarshal_uuid(bytestr):
 unmarshallers = {BYTES_TYPE:          unmarshal_noop,
                  ASCII_TYPE:          unmarshal_noop,
                  UTF8_TYPE:           unmarshal_utf8,
+                 INT32_TYPE:          unmarshal_int32,
                  INTEGER_TYPE:        unmarshal_int,
                  LONG_TYPE:           unmarshal_long,
                  UUID_TYPE:           unmarshal_uuid,

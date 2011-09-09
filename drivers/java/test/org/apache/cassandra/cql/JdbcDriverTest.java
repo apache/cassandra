@@ -176,11 +176,11 @@ public class JdbcDriverTest extends EmbeddedServiceBase
         
         ResultSetMetaData md = rs.getMetaData();
         assert md.getColumnCount() == 2;
-        expectedMetaData(md, 1, Long.class.getName(), "JdbcLong", "Keyspace1", "1", Types.INTEGER, JdbcLong.class.getSimpleName(), true, false);
-        expectedMetaData(md, 2, Long.class.getName(), "JdbcLong", "Keyspace1", "2", Types.INTEGER, JdbcLong.class.getSimpleName(), true, false);
+        expectedMetaData(md, 1, Long.class.getName(), "JdbcLong", "Keyspace1", "1", Types.BIGINT, JdbcLong.class.getSimpleName(), true, false);
+        expectedMetaData(md, 2, Long.class.getName(), "JdbcLong", "Keyspace1", "2", Types.BIGINT, JdbcLong.class.getSimpleName(), true, false);
         
         for (int i = 0; i < md.getColumnCount(); i++)
-            expectedMetaData(md, i + 1, Long.class.getName(), Types.INTEGER, JdbcLong.class.getSimpleName(), true, false);
+            expectedMetaData(md, i + 1, Long.class.getName(), Types.BIGINT, JdbcLong.class.getSimpleName(), true, false);
     }
 
     @Test

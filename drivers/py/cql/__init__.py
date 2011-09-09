@@ -90,6 +90,7 @@ NUMBER = DBAPITypeObject(marshal.LONG_TYPE, marshal.INTEGER_TYPE)
 DATETIME = DBAPITypeObject(marshal.TIME_UUID_TYPE)
 
 ROWID = DBAPITypeObject(marshal.BYTES_TYPE, marshal.ASCII_TYPE, marshal.UTF8_TYPE,
+                        marshal.INT32_TYPE,
                         marshal.INTEGER_TYPE, marshal.LONG_TYPE, marshal.UUID_TYPE,
                         marshal.LEXICAL_UUID_TYPE, marshal.TIME_UUID_TYPE)
 
