@@ -59,7 +59,7 @@ class MeteredFlusher implements Runnable
                                                   / (1 + cfs.indexManager.getIndexedColumns().size()));
                 if (size > (DatabaseDescriptor.getTotalMemtableSpaceInMB() * 1048576L - flushingBytes) / maxInFlight)
                 {
-                    logger.info("flushing high-traffic column family {}", cfs);
+                    logger.info("flushing high-traffic column family {} (estimated {} bytes)", cfs, size);
                     cfs.forceFlush();
                 }
                 else

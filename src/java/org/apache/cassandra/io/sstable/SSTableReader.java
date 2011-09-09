@@ -127,7 +127,7 @@ public class SSTableReader extends SSTable
         assert components.contains(Component.PRIMARY_INDEX);
 
         long start = System.currentTimeMillis();
-        logger.info("Opening " + descriptor);
+        logger.info("Opening {} ({} bytes)", descriptor, new File(descriptor.filenameFor(COMPONENT_DATA)).length());
 
         SSTableMetadata sstableMetadata = components.contains(Component.STATS)
                                         ? SSTableMetadata.serializer.deserialize(descriptor)
@@ -315,8 +315,8 @@ public class SSTableReader extends SSTable
         {
             FileUtils.closeQuietly(input);
         }
-        this.first = left;
-        this.last = right;
+        this.first = getMinimalKey(left);
+        this.last = getMinimalKey(right);
 
         // finalize the state of the reader
         ifile = ibuilder.complete(descriptor.filenameFor(Component.PRIMARY_INDEX));

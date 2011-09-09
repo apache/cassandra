@@ -316,8 +316,8 @@ public class SSTableWriter extends SSTable
                                                            iwriter.bf,
                                                            maxDataAge,
                                                            sstableMetadata);
-        sstable.first = this.first;
-        sstable.last = this.last;
+        sstable.first = getMinimalKey(first);
+        sstable.last = getMinimalKey(last);
         iwriter = null;
         dbuilder = null;
         return sstable;
