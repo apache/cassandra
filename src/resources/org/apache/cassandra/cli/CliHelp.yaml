@@ -929,7 +929,7 @@ commands:
           Valid options are:
             - ascii
             - bytes: if used without arguments generates a zero length byte array
-            - int32
+            - int
             - integer
             - lexicaluuid: if used without arguments generates a new random uuid
             - long
@@ -999,7 +999,7 @@ commands:
           Valid options are:
             - ascii
             - bytes: if used without arguments generates a zero length byte array
-            - int32
+            - int
             - integer
             - lexicaluuid: if used without arguments generates a new random uuid
             - long
@@ -1043,7 +1043,7 @@ commands:
            Supported values are:
             - ascii
             - bytes: if used without arguments generates a zero length byte array
-            - int32
+            - int
             - integer
             - lexicaluuid: if used without arguments generates a new random uuid
             - long
@@ -1148,7 +1148,7 @@ commands:
             - ascii
             - bytes
             - counterColumn (distributed counter column)
-            - int32
+            - int
             - integer (a generic variable-length integer type)
             - lexicalUUID
             - long
