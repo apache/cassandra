@@ -1,7 +1,5 @@
-1.1-dev
- * describe_ring should include datacenter/topology information (CASSANDRA-2882)
-
 1.0.1
+ * describe_ring should include datacenter/topology information (CASSANDRA-2882)
 
 
 1.0
