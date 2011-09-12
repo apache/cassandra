@@ -159,6 +159,8 @@ public class IncomingTcpConnection extends Thread
 
     private void close()
     {
+        // reset version here, since we set when starting an incoming socket
+        Gossiper.instance.resetVersion(socket.getInetAddress());
         try
         {
             socket.close();

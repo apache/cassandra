@@ -29,6 +29,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.MapMaker;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * The SlabAllocator is a bump-the-pointer allocator that allocates
@@ -46,24 +48,13 @@ import com.google.common.collect.MapMaker;
  */
 public class SlabAllocator extends Allocator
 {
+    private static Logger logger = LoggerFactory.getLogger(SlabAllocator.class);
+
     private final static int REGION_SIZE = 1024 * 1024;
     private final static int MAX_CLONED_SIZE = 128 * 1024; // bigger than this don't go in the region
 
     private final AtomicReference<Region> currentRegion = new AtomicReference<Region>();
-    private final Collection<Region> filledRegions = Collections.newSetFromMap(new MapMaker().weakKeys().<Region, Boolean>makeMap());
-
-    /** @return Total number of bytes allocated by this allocator. */
-    public long size()
-    {
-        Iterable<Region> regions = filledRegions;
-        if (currentRegion.get() != null)
-            regions = Iterables.concat(regions, Collections.<Region>singleton(currentRegion.get()));
-
-        long total = 0;
-        for (Region region : regions)
-            total += region.size;
-        return total;
-    }
+    private volatile int regionCount;
 
     public ByteBuffer allocate(int size)
     {
@@ -86,22 +77,10 @@ public class SlabAllocator extends Allocator
                 return cloned;
 
             // not enough space!
-            tryRetireRegion(region);
+            currentRegion.compareAndSet(region, null);
         }
     }
     
-    /**
-     * Try to retire the current region if it is still <code>region</code>.
-     * Postcondition is that curRegion.get() != region
-     */
-    private void tryRetireRegion(Region region)
-    {
-        if (currentRegion.compareAndSet(region, null))
-        {
-            filledRegions.add(region);
-        }
-    }
-
     /**
      * Get the current region, or, if there is no current region, allocate a new one
      */
@@ -122,6 +101,8 @@ public class SlabAllocator extends Allocator
             {
                 // we won race - now we need to actually do the expensive allocation step
                 region.init();
+                regionCount++;
+                logger.debug("{} regions now allocated in {}", regionCount, this);
                 return region;
             }
             // someone else won race - that's fine, we'll try to grab theirs

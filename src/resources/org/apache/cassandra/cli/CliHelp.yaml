@@ -546,22 +546,23 @@ commands:
         follower replicas. Accepts the values true and false.
 
         - row_cache_provider: The provider for the row cache to use for this
-        column family. Defaults to ConcurrentLinkedHashCacheProvider.  .
+        column family. 
 
         Supported values are:
             - ConcurrentLinkedHashCacheProvider
-            - SerializingCacheProvider
+            - SerializingCacheProvider (requires JNA)
 
         It is also valid to specify the fully-qualified class name to a class
         that implements org.apache.cassandra.cache.IRowCacheProvider.
 
-        ConcurrentLinkedHashCacheProvider provides the same features as the versions
-        prior to Cassandra v0.8. Row data is cached using the Java JVM heap.
-
-        SerializingCacheProvider serialises the contents of the row and
-        stores the data off the JVM Heap. This may reduce the GC pressure.
-        NOTE: This provider requires JNA.jar to be in the class path to
-        enable native methods.
+        row_cache_provider defaults to ConcurrentLinkedHashCacheProvider, 
+        but if you have JNA installed you should usually use
+        SerializingCacheProvider, which serialises the contents of the
+        row and stores it in native memory, i.e., off the JVM
+        Heap. Serialized rows take significantly less memory than
+        "live" rows in the JVM, so you can cache more rows in a given
+        memory footprint.  And storing the cache off-heap means you
+        can use smaller heap sizes, reducing the impact of GC pauses.
 
         - compression: Use compression for SSTable data files.
 
@@ -818,22 +819,23 @@ commands:
         follower replicas. Accepts the values true and false.
 
         - row_cache_provider: The provider for the row cache to use for this
-        column family. Defaults to ConcurrentLinkedHashCacheProvider.  .
+        column family. 
 
         Supported values are:
             - ConcurrentLinkedHashCacheProvider
-            - SerializingCacheProvider
+            - SerializingCacheProvider (requires JNA)
 
         It is also valid to specify the fully-qualified class name to a class
         that implements org.apache.cassandra.cache.IRowCacheProvider.
 
-        ConcurrentLinkedHashCacheProvider provides the same features as the versions
-        prior to Cassandra v0.8. Row data is cached using the Java JVM heap.
-
-        SerializingCacheProvider serialises the contents of the row and
-        stores the data off the JVM Heap. This may reduce the GC pressure.
-        NOTE: Thsi provider requires JNA.jar to be in the class path to
-        enable native methods.
+        row_cache_provider defaults to ConcurrentLinkedHashCacheProvider, 
+        but if you have JNA installed you should usually use
+        SerializingCacheProvider, which serialises the contents of the
+        row and stores it in native memory, i.e., off the JVM
+        Heap. Serialized rows take significantly less memory than
+        "live" rows in the JVM, so you can cache more rows in a given
+        memory footprint.  And storing the cache off-heap means you
+        can use smaller heap sizes, reducing the impact of GC pauses.
 
         - compression: Use compression for SSTable data files. Accepts the values true and false.
 
@@ -929,7 +931,7 @@ commands:
           Valid options are:
             - ascii
             - bytes: if used without arguments generates a zero length byte array
-            - int32
+            - int
             - integer
             - lexicaluuid: if used without arguments generates a new random uuid
             - long
@@ -999,7 +1001,7 @@ commands:
           Valid options are:
             - ascii
             - bytes: if used without arguments generates a zero length byte array
-            - int32
+            - int
             - integer
             - lexicaluuid: if used without arguments generates a new random uuid
             - long
@@ -1043,7 +1045,7 @@ commands:
            Supported values are:
             - ascii
             - bytes: if used without arguments generates a zero length byte array
-            - int32
+            - int
             - integer
             - lexicaluuid: if used without arguments generates a new random uuid
             - long
@@ -1148,7 +1150,7 @@ commands:
             - ascii
             - bytes
             - counterColumn (distributed counter column)
-            - int32
+            - int
             - integer (a generic variable-length integer type)
             - lexicalUUID
             - long
