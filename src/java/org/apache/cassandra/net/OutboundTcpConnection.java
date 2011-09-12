@@ -197,9 +197,6 @@ public class OutboundTcpConnection extends Thread
             out = null;
             socket = null;
         }
-
-        // when we see the node again, try to connect at the most recent protocol we know about
-        Gossiper.instance.resetVersion(endpoint);
     }
 
     private Pair<Message, String> take()
