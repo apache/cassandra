@@ -70,6 +70,7 @@
  * Arena-based allocation for memtables (CASSANDRA-2252, 3162, 3163, 3168)
  * Default RR chance to 0.1 (CASSANDRA-3169)
  * Add RowLevel support to secondary index API (CASSANDRA-3147)
+ * Make SerializingCacheProvider the default if JNA is available (CASSANDRA-3183)
 
 0.8.6
  * avoid trying to watch cassandra-topology.properties when loaded from jar

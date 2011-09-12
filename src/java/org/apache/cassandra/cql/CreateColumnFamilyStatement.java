@@ -304,7 +304,7 @@ public class CreateColumnFamilyStatement
                    .mergeShardsChance(0.0)
                    .columnMetadata(getColumns(comparator))
                    .keyValidator(TypeParser.parse(comparators.get(getKeyType())))
-                   .rowCacheProvider(FBUtilities.newCacheProvider(getPropertyString(KW_ROW_CACHE_PROVIDER, CFMetaData.DEFAULT_ROW_CACHE_PROVIDER)))
+                   .rowCacheProvider(FBUtilities.newCacheProvider(getPropertyString(KW_ROW_CACHE_PROVIDER, CFMetaData.DEFAULT_ROW_CACHE_PROVIDER.getClass().getName())))
                    .keyAlias(keyAlias);
         }
         catch (ConfigurationException e)
