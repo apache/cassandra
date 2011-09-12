@@ -11,6 +11,9 @@ Upgrading
     - CQL types bytea and date were renamed to blob and timestamp, respectively,
       to conform with SQL norms.  CQL type int is now a 4-byte int, not 8
       (which is still available as bigint).
+    - Cassandra 1.0 uses arena allocation to reduce old generation fragmentation.
+      This means there is a minimum overhead of 1MB per ColumnFamily plus
+      1MB per index.
 
 Features
 --------
