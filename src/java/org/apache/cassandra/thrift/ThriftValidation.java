@@ -649,7 +649,7 @@ public class ThriftValidation
                     ColumnDefinition cdef = ColumnDefinition.fromThrift(c);
                    
                     // This method validates the column metadata but does not intialize the index
-                    SecondaryIndex.createInstance(null, cdef, false);
+                    SecondaryIndex.createInstance(null, cdef);
                 }
             }
             validateMinMaxCompactionThresholds(cf_def);

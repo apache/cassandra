@@ -159,7 +159,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     /** ops count last time we computed liveRatio */
     private final AtomicLong liveRatioComputedAt = new AtomicLong(32);
 
-    public void reload()
+    public void reload() throws IOException
     {
         // metadata object has been mutated directly. make all the members jibe with new settings.
 
@@ -488,7 +488,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * @param ksName The keyspace name
      * @param cfName The columnFamily name
      */
-    public static synchronized void loadNewSSTables(String ksName, String cfName)
+    public static synchronized void loadNewSSTables(String ksName, String cfName) 
     {
         /** ks/cf existence checks will be done by open and getCFS methods for us */
         Table table = Table.open(ksName);
@@ -565,7 +565,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         data.addSSTables(sstables); // this will call updateCacheSizes() for us
 
         logger.info("Requesting a full secondary index re-build for " + table.name + "/" + columnFamily);
-        indexManager.maybeBuildSecondaryIndexes(sstables, indexManager.getIndexedColumns());
+        try
+        {
+            indexManager.maybeBuildSecondaryIndexes(sstables, indexManager.getIndexedColumns());
+        }
+        catch (IOException e)
+        {
+           throw new IOError(e);
+        }
 
         logger.info("Setting up new generation: " + generation);
         fileIndexGenerator.set(generation);
@@ -956,7 +963,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return invalid;
     }
 
-    public void removeAllSSTables()
+    public void removeAllSSTables() throws IOException
     {
         data.removeAllSSTables();
         indexManager.removeAllIndexes();

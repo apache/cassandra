@@ -20,32 +20,20 @@ package org.apache.cassandra.db.index.keys;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Iterator;
 import java.util.Set;
-import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.ExecutionException;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.db.Column;
-import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.ExpiringColumn;
-import org.apache.cassandra.db.IColumn;
-import org.apache.cassandra.db.Memtable;
-import org.apache.cassandra.db.index.SecondaryIndex;
+import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.index.PerColumnSecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndexSearcher;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.LocalByPartionerType;
-import org.apache.cassandra.dht.ByteOrderedPartitioner;
-import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.dht.LocalPartitioner;
-import org.apache.cassandra.dht.OrderPreservingPartitioner;
+import org.apache.cassandra.dht.*;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.thrift.IndexType;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -54,18 +42,21 @@ import org.slf4j.LoggerFactory;
  * Implements a secondary index for a column family using a second column family
  * in which the row keys are indexed values, and column names are base row keys.
  */
-public class KeysIndex extends SecondaryIndex
+public class KeysIndex extends PerColumnSecondaryIndex
 {
     private static final Logger logger = LoggerFactory.getLogger(KeysIndex.class);
     private ColumnFamilyStore indexedCfs;
-
+    private ColumnDefinition  columnDef;
+    
     public KeysIndex() 
     {
     }
     
     public void init()
     {
-        assert baseCfs != null && columnDef != null;
+        assert baseCfs != null && columnDefs != null;
+        
+        columnDef = columnDefs.iterator().next();
         
         CFMetaData indexedCfMetadata = CFMetaData.newIndexMetadata(baseCfs.metadata, columnDef, indexComparator());
         indexedCfs = ColumnFamilyStore.createColumnFamilyStore(baseCfs.table,
@@ -122,22 +113,27 @@ public class KeysIndex extends SecondaryIndex
     }
 
     @Override
-    public void commitRow(ByteBuffer rowKey)
-    {
-       //nothing required in this impl since indexes are per column 
-    }
-
-    @Override
-    public void removeIndex()
-    {
+    public void removeIndex(ByteBuffer columnName) throws IOException
+    {        
         indexedCfs.removeAllSSTables();
-        indexedCfs.unregisterMBean();
+        indexedCfs.unregisterMBean();     
     }
 
     @Override
-    public void forceBlockingFlush() throws ExecutionException, InterruptedException
-    {
-        indexedCfs.forceBlockingFlush();
+    public void forceBlockingFlush() throws IOException
+    {       
+        try
+        {
+            indexedCfs.forceBlockingFlush();
+        } 
+        catch (ExecutionException e)
+        {
+            throw new IOException(e);
+        } 
+        catch (InterruptedException e)
+        {
+            throw new IOException(e);
+        }
     }
 
     @Override

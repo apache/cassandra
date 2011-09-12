@@ -109,7 +109,7 @@ public class CleanupTest extends CleanupHelper
         assertEquals(LOOPS, rows.size());
 
         SecondaryIndex index = cfs.indexManager.getIndexForColumn(COLUMN);
-        assertTrue(index.isIndexBuilt());
+        assertTrue(index.isIndexBuilt(COLUMN));
 
         // verify we get it back w/ index query too
         IndexExpression expr = new IndexExpression(COLUMN, IndexOperator.EQ, VALUE);
