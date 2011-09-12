@@ -7,6 +7,11 @@
    (CASSANDRA-3129)
  * CustomTThreadPoolServer to log TTransportException at DEBUG level
    (CASSANDRA-3142)
+ * allow topology sort to work with non-unique rack names between 
+   datacenters (CASSANDRA-3152)
+ * Improve caching of same-version Messages on digest and repair paths
+   (CASSANDRA-3158)
+
 
 0.8.5
  * fix NPE when encryption_options is unspecified (CASSANDRA-3007)
