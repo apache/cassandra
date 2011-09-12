@@ -45,12 +45,11 @@ import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.service.AntiEntropyService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.google.common.base.Predicates;
 import com.google.common.collect.Iterators;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * A singleton which manages a private executor of ongoing compactions. A readwrite lock
@@ -701,6 +700,8 @@ public class CompactionManager implements CompactionManagerMBean
 
             SSTableScanner scanner = sstable.getDirectScanner();
             Collection<ByteBuffer> indexedColumns = cfs.indexManager.getIndexedColumns();
+            List<IColumn> indexedColumnsInRow = null;
+
             CleanupInfo ci = new CleanupInfo(sstable, scanner);
             executor.beginCompaction(ci);
             try
@@ -719,17 +720,30 @@ public class CompactionManager implements CompactionManagerMBean
                     }
                     else
                     {
+                                              
                         cfs.invalidateCachedRow(row.getKey());
+                                                
                         if (!indexedColumns.isEmpty() || isCommutative)
                         {
+                            if (indexedColumnsInRow != null)
+                                indexedColumnsInRow.clear();
+                            
                             while (row.hasNext())
                             {
                                 IColumn column = row.next();
                                 if (column instanceof CounterColumn)
                                     renewer.maybeRenew((CounterColumn) column);
                                 if (indexedColumns.contains(column.name()))
-                                    cfs.indexManager.deleteFromIndex(row.getKey().key, column);
+                                {
+                                    if (indexedColumnsInRow == null)
+                                        indexedColumnsInRow = new ArrayList<IColumn>();
+                                    
+                                    indexedColumnsInRow.add(column);
+                                }
                             }
+                            
+                            if (indexedColumnsInRow != null && !indexedColumnsInRow.isEmpty())
+                                cfs.indexManager.deleteFromIndexes(row.getKey(), indexedColumnsInRow);
                         }
                     }
                 }
@@ -758,19 +772,9 @@ public class CompactionManager implements CompactionManagerMBean
                 logger.info(String.format(format, writer.getFilename(), startsize, endsize, (int)(ratio*100), totalkeysWritten, dTime));
             }
 
-            // flush to ensure we don't lose the tombstones on a restart, since they are not commitlog'd
-            try
-            {
-                cfs.indexManager.flushIndexes();
-            }
-            catch (ExecutionException e)
-            {
-               throw new IOException(e);
-            }
-            catch (InterruptedException e)
-            {
-               throw new IOException(e);
-            }
+            // flush to ensure we don't lose the tombstones on a restart, since they are not commitlog'd         
+            cfs.indexManager.flushIndexes();
+           
 
             cfs.replaceCompactedSSTables(Arrays.asList(sstable), results);
         }

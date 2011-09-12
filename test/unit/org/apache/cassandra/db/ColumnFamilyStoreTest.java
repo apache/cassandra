@@ -467,7 +467,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         // validate that drop clears it out & rebuild works (CASSANDRA-2320)
         SecondaryIndex indexedCfs = cfs.indexManager.getIndexForColumn(ByteBufferUtil.bytes("birthdate"));
         cfs.indexManager.removeIndexedColumn(ByteBufferUtil.bytes("birthdate"));
-        assert !indexedCfs.isIndexBuilt();
+        assert !indexedCfs.isIndexBuilt(ByteBufferUtil.bytes("birthdate"));
 
         // rebuild & re-query
         future = cfs.indexManager.addIndexedColumn(cd);

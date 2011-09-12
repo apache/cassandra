@@ -534,7 +534,14 @@ public class Table
             {
                 ColumnFamily cf = readCurrentIndexedColumns(key, cfs, indexedColumns);
                 if (cf != null)
-                    cfs.indexManager.applyIndexUpdates(key.key, cf, cf.getColumnNames(), null);
+                    try
+                    {
+                        cfs.indexManager.applyIndexUpdates(key.key, cf, cf.getColumnNames(), null);
+                    }
+                    catch (IOException e)
+                    {
+                        throw new IOError(e);
+                    }
             }
         }
         finally
