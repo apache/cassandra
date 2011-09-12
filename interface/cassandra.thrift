@@ -46,7 +46,7 @@ namespace rb CassandraThrift
 #           for every edit that doesn't result in a change to major/minor.
 #
 # See the Semantic Versioning Specification (SemVer) http://semver.org.
-const string VERSION = "19.14.0"
+const string VERSION = "19.15.0"
 
 
 #
@@ -342,10 +342,17 @@ struct Mutation {
     2: optional Deletion deletion,
 }
 
+struct EndpointDetails {
+	1: string host,
+	2: i32 port,
+	3: string datacenter
+}
+
 struct TokenRange {
     1: required string start_token,
     2: required string end_token,
     3: required list<string> endpoints,
+    4: optional list<EndpointDetails> endpoint_details,
 }
 
 /**

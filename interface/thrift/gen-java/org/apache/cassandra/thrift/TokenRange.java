@@ -48,16 +48,19 @@ public class TokenRange implements org.apache.thrift.TBase<TokenRange, TokenRang
   private static final org.apache.thrift.protocol.TField START_TOKEN_FIELD_DESC = new org.apache.thrift.protocol.TField("start_token", org.apache.thrift.protocol.TType.STRING, (short)1);
   private static final org.apache.thrift.protocol.TField END_TOKEN_FIELD_DESC = new org.apache.thrift.protocol.TField("end_token", org.apache.thrift.protocol.TType.STRING, (short)2);
   private static final org.apache.thrift.protocol.TField ENDPOINTS_FIELD_DESC = new org.apache.thrift.protocol.TField("endpoints", org.apache.thrift.protocol.TType.LIST, (short)3);
+  private static final org.apache.thrift.protocol.TField ENDPOINT_DETAILS_FIELD_DESC = new org.apache.thrift.protocol.TField("endpoint_details", org.apache.thrift.protocol.TType.LIST, (short)4);
 
   public String start_token;
   public String end_token;
   public List<String> endpoints;
+  public List<EndpointDetails> endpoint_details;
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
   public enum _Fields implements org.apache.thrift.TFieldIdEnum {
     START_TOKEN((short)1, "start_token"),
     END_TOKEN((short)2, "end_token"),
-    ENDPOINTS((short)3, "endpoints");
+    ENDPOINTS((short)3, "endpoints"),
+    ENDPOINT_DETAILS((short)4, "endpoint_details");
 
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -78,6 +81,8 @@ public class TokenRange implements org.apache.thrift.TBase<TokenRange, TokenRang
           return END_TOKEN;
         case 3: // ENDPOINTS
           return ENDPOINTS;
+        case 4: // ENDPOINT_DETAILS
+          return ENDPOINT_DETAILS;
         default:
           return null;
       }
@@ -129,6 +134,9 @@ public class TokenRange implements org.apache.thrift.TBase<TokenRange, TokenRang
     tmpMap.put(_Fields.ENDPOINTS, new org.apache.thrift.meta_data.FieldMetaData("endpoints", org.apache.thrift.TFieldRequirementType.REQUIRED, 
         new org.apache.thrift.meta_data.ListMetaData(org.apache.thrift.protocol.TType.LIST, 
             new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING))));
+    tmpMap.put(_Fields.ENDPOINT_DETAILS, new org.apache.thrift.meta_data.FieldMetaData("endpoint_details", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.ListMetaData(org.apache.thrift.protocol.TType.LIST, 
+            new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, EndpointDetails.class))));
     metaDataMap = Collections.unmodifiableMap(tmpMap);
     org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(TokenRange.class, metaDataMap);
   }
@@ -164,6 +172,13 @@ public class TokenRange implements org.apache.thrift.TBase<TokenRange, TokenRang
       }
       this.endpoints = __this__endpoints;
     }
+    if (other.isSetEndpoint_details()) {
+      List<EndpointDetails> __this__endpoint_details = new ArrayList<EndpointDetails>();
+      for (EndpointDetails other_element : other.endpoint_details) {
+        __this__endpoint_details.add(new EndpointDetails(other_element));
+      }
+      this.endpoint_details = __this__endpoint_details;
+    }
   }
 
   public TokenRange deepCopy() {
@@ -175,6 +190,7 @@ public class TokenRange implements org.apache.thrift.TBase<TokenRange, TokenRang
     this.start_token = null;
     this.end_token = null;
     this.endpoints = null;
+    this.endpoint_details = null;
   }
 
   public String getStart_token() {
@@ -264,6 +280,45 @@ public class TokenRange implements org.apache.thrift.TBase<TokenRange, TokenRang
     }
   }
 
+  public int getEndpoint_detailsSize() {
+    return (this.endpoint_details == null) ? 0 : this.endpoint_details.size();
+  }
+
+  public java.util.Iterator<EndpointDetails> getEndpoint_detailsIterator() {
+    return (this.endpoint_details == null) ? null : this.endpoint_details.iterator();
+  }
+
+  public void addToEndpoint_details(EndpointDetails elem) {
+    if (this.endpoint_details == null) {
+      this.endpoint_details = new ArrayList<EndpointDetails>();
+    }
+    this.endpoint_details.add(elem);
+  }
+
+  public List<EndpointDetails> getEndpoint_details() {
+    return this.endpoint_details;
+  }
+
+  public TokenRange setEndpoint_details(List<EndpointDetails> endpoint_details) {
+    this.endpoint_details = endpoint_details;
+    return this;
+  }
+
+  public void unsetEndpoint_details() {
+    this.endpoint_details = null;
+  }
+
+  /** Returns true if field endpoint_details is set (has been assigned a value) and false otherwise */
+  public boolean isSetEndpoint_details() {
+    return this.endpoint_details != null;
+  }
+
+  public void setEndpoint_detailsIsSet(boolean value) {
+    if (!value) {
+      this.endpoint_details = null;
+    }
+  }
+
   public void setFieldValue(_Fields field, Object value) {
     switch (field) {
     case START_TOKEN:
@@ -290,6 +345,14 @@ public class TokenRange implements org.apache.thrift.TBase<TokenRange, TokenRang
       }
       break;
 
+    case ENDPOINT_DETAILS:
+      if (value == null) {
+        unsetEndpoint_details();
+      } else {
+        setEndpoint_details((List<EndpointDetails>)value);
+      }
+      break;
+
     }
   }
 
@@ -303,6 +366,9 @@ public class TokenRange implements org.apache.thrift.TBase<TokenRange, TokenRang
 
     case ENDPOINTS:
       return getEndpoints();
+
+    case ENDPOINT_DETAILS:
+      return getEndpoint_details();
 
     }
     throw new IllegalStateException();
@@ -321,6 +387,8 @@ public class TokenRange implements org.apache.thrift.TBase<TokenRange, TokenRang
       return isSetEnd_token();
     case ENDPOINTS:
       return isSetEndpoints();
+    case ENDPOINT_DETAILS:
+      return isSetEndpoint_details();
     }
     throw new IllegalStateException();
   }
@@ -365,6 +433,15 @@ public class TokenRange implements org.apache.thrift.TBase<TokenRange, TokenRang
         return false;
     }
 
+    boolean this_present_endpoint_details = true && this.isSetEndpoint_details();
+    boolean that_present_endpoint_details = true && that.isSetEndpoint_details();
+    if (this_present_endpoint_details || that_present_endpoint_details) {
+      if (!(this_present_endpoint_details && that_present_endpoint_details))
+        return false;
+      if (!this.endpoint_details.equals(that.endpoint_details))
+        return false;
+    }
+
     return true;
   }
 
@@ -386,6 +463,11 @@ public class TokenRange implements org.apache.thrift.TBase<TokenRange, TokenRang
     builder.append(present_endpoints);
     if (present_endpoints)
       builder.append(endpoints);
+
+    boolean present_endpoint_details = true && (isSetEndpoint_details());
+    builder.append(present_endpoint_details);
+    if (present_endpoint_details)
+      builder.append(endpoint_details);
 
     return builder.toHashCode();
   }
@@ -424,6 +506,16 @@ public class TokenRange implements org.apache.thrift.TBase<TokenRange, TokenRang
     }
     if (isSetEndpoints()) {
       lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.endpoints, typedOther.endpoints);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
+    lastComparison = Boolean.valueOf(isSetEndpoint_details()).compareTo(typedOther.isSetEndpoint_details());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    if (isSetEndpoint_details()) {
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.endpoint_details, typedOther.endpoint_details);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -476,6 +568,24 @@ public class TokenRange implements org.apache.thrift.TBase<TokenRange, TokenRang
             org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
+        case 4: // ENDPOINT_DETAILS
+          if (field.type == org.apache.thrift.protocol.TType.LIST) {
+            {
+              org.apache.thrift.protocol.TList _list23 = iprot.readListBegin();
+              this.endpoint_details = new ArrayList<EndpointDetails>(_list23.size);
+              for (int _i24 = 0; _i24 < _list23.size; ++_i24)
+              {
+                EndpointDetails _elem25;
+                _elem25 = new EndpointDetails();
+                _elem25.read(iprot);
+                this.endpoint_details.add(_elem25);
+              }
+              iprot.readListEnd();
+            }
+          } else { 
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
         default:
           org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
       }
@@ -505,13 +615,27 @@ public class TokenRange implements org.apache.thrift.TBase<TokenRange, TokenRang
       oprot.writeFieldBegin(ENDPOINTS_FIELD_DESC);
       {
         oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRING, this.endpoints.size()));
-        for (String _iter23 : this.endpoints)
+        for (String _iter26 : this.endpoints)
         {
-          oprot.writeString(_iter23);
+          oprot.writeString(_iter26);
         }
         oprot.writeListEnd();
       }
       oprot.writeFieldEnd();
+    }
+    if (this.endpoint_details != null) {
+      if (isSetEndpoint_details()) {
+        oprot.writeFieldBegin(ENDPOINT_DETAILS_FIELD_DESC);
+        {
+          oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, this.endpoint_details.size()));
+          for (EndpointDetails _iter27 : this.endpoint_details)
+          {
+            _iter27.write(oprot);
+          }
+          oprot.writeListEnd();
+        }
+        oprot.writeFieldEnd();
+      }
     }
     oprot.writeFieldStop();
     oprot.writeStructEnd();
@@ -545,6 +669,16 @@ public class TokenRange implements org.apache.thrift.TBase<TokenRange, TokenRang
       sb.append(this.endpoints);
     }
     first = false;
+    if (isSetEndpoint_details()) {
+      if (!first) sb.append(", ");
+      sb.append("endpoint_details:");
+      if (this.endpoint_details == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.endpoint_details);
+      }
+      first = false;
+    }
     sb.append(")");
     return sb.toString();
   }
