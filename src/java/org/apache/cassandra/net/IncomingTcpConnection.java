@@ -80,6 +80,7 @@ public class IncomingTcpConnection extends Thread
             return;
         }
 
+        logger.debug("version is {}", version);
         if (version > MessagingService.version_)
         {
             // save the endpoint so gossip will reconnect to it
@@ -100,6 +101,7 @@ public class IncomingTcpConnection extends Thread
         {
             // only set version when <= to us, otherwise it's the responsibility of the other end to mimic us
             Gossiper.instance.setVersion(socket.getInetAddress(), version);
+            logger.debug("set version for {} to {}", socket.getInetAddress(), version);
         }
 
         while (true)
@@ -132,12 +134,17 @@ public class IncomingTcpConnection extends Thread
                         Message message = Message.serializer().deserialize(dis, version);
                         MessagingService.instance().receive(message, id);
                     }
+                    else
+                    {
+                        logger.debug("Ignoring message version {}", version);
+                    }
                 }
                 // prepare to read the next message
                 MessagingService.validateMagic(input.readInt());
                 int header = input.readInt();
                 assert isStream == (MessagingService.getBits(header, 3, 1) == 1) : "Connections cannot change type: " + isStream;
                 version = MessagingService.getBits(header, 15, 8);
+                logger.debug("Version is now {}", version);
             }
             catch (EOFException e)
             {
