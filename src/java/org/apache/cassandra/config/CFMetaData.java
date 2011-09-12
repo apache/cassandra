@@ -55,7 +55,7 @@ public final class CFMetaData
 
     public final static double DEFAULT_ROW_CACHE_SIZE = 0.0;
     public final static double DEFAULT_KEY_CACHE_SIZE = 200000;
-    public final static double DEFAULT_READ_REPAIR_CHANCE = 1.0;
+    public final static double DEFAULT_READ_REPAIR_CHANCE = 0.1;
     public final static boolean DEFAULT_REPLICATE_ON_WRITE = true;
     public final static int DEFAULT_ROW_CACHE_SAVE_PERIOD_IN_SECONDS = 0;
     public final static int DEFAULT_KEY_CACHE_SAVE_PERIOD_IN_SECONDS = 4 * 3600;
