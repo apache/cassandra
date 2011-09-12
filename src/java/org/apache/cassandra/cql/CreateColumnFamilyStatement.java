@@ -28,6 +28,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import com.google.common.collect.Sets;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.ConfigurationException;
@@ -41,6 +46,8 @@ import org.apache.cassandra.utils.FBUtilities;
 /** A <code>CREATE COLUMNFAMILY</code> parsed from a CQL query statement. */
 public class CreateColumnFamilyStatement
 {
+    private static Logger logger = LoggerFactory.getLogger(CreateColumnFamilyStatement.class);
+
     private static final String KW_COMPARATOR = "comparator";
     private static final String KW_COMMENT = "comment";
     private static final String KW_ROWCACHESIZE = "row_cache_size";
@@ -52,14 +59,13 @@ public class CreateColumnFamilyStatement
     private static final String KW_MAXCOMPACTIONTHRESHOLD = "max_compaction_threshold";
     private static final String KW_ROWCACHESAVEPERIODSECS = "row_cache_save_period_in_seconds";
     private static final String KW_KEYCACHESAVEPERIODSECS = "key_cache_save_period_in_seconds";
-    private static final String KW_MEMTABLESIZEINMB = "memtable_throughput_in_mb";
-    private static final String KW_MEMTABLEOPSINMILLIONS = "memtable_operations_in_millions";
     private static final String KW_REPLICATEONWRITE = "replicate_on_write";
     private static final String KW_ROW_CACHE_PROVIDER = "row_cache_provider";
     
     // Maps CQL short names to the respective Cassandra comparator/validator class names
     public  static final Map<String, String> comparators = new HashMap<String, String>();
     private static final Set<String> keywords = new HashSet<String>();
+    private static final Set<String> obsoleteKeywords = new HashSet<String>();
     
     static
     {
@@ -89,10 +95,12 @@ public class CreateColumnFamilyStatement
         keywords.add(KW_MAXCOMPACTIONTHRESHOLD);
         keywords.add(KW_ROWCACHESAVEPERIODSECS);
         keywords.add(KW_KEYCACHESAVEPERIODSECS);
-        keywords.add(KW_MEMTABLESIZEINMB);
-        keywords.add(KW_MEMTABLEOPSINMILLIONS);
         keywords.add(KW_REPLICATEONWRITE);
         keywords.add(KW_ROW_CACHE_PROVIDER);
+
+        obsoleteKeywords.add("memtable_throughput_in_mb");
+        obsoleteKeywords.add("memtable_operations_in_millions");
+        obsoleteKeywords.add("memtable_flush_after_mins");
     }
  
     private final String name;
@@ -114,11 +122,10 @@ public class CreateColumnFamilyStatement
             throw new InvalidRequestException(String.format("\"%s\" is not a valid column family name", name));
         
         // Catch the case where someone passed a kwarg that is not recognized.
-        Set<String> keywordsFound = new HashSet<String>(properties.keySet());
-        keywordsFound.removeAll(keywords);
-        
-        for (String bogus : keywordsFound)
+        for (String bogus : Sets.difference(properties.keySet(), Sets.union(keywords, obsoleteKeywords)))
             throw new InvalidRequestException(bogus + " is not a valid keyword argument for CREATE COLUMNFAMILY");
+        for (String obsolete : Sets.intersection(properties.keySet(), obsoleteKeywords))
+            logger.warn("Ignoring obsolete property {}", obsolete);
         
         // Validate min/max compaction thresholds
         Integer minCompaction = getPropertyInt(KW_MINCOMPACTIONTHRESHOLD, null);
@@ -147,17 +154,6 @@ public class CreateColumnFamilyStatement
                                                                 KW_MINCOMPACTIONTHRESHOLD,
                                                                 CFMetaData.DEFAULT_MIN_COMPACTION_THRESHOLD));
         }
-        
-        // Validate memtable settings
-        Integer memMb = getPropertyInt(KW_MEMTABLESIZEINMB, null);
-        Double memOps = getPropertyDouble(KW_MEMTABLEOPSINMILLIONS, null);
-
-        if ((memMb != null) && (memMb <= 0))
-            throw new InvalidRequestException(String.format("%s must be non-negative and greater than zero",
-                                                            KW_MEMTABLESIZEINMB));
-        if ((memOps != null) && (memOps <=0))
-            throw new InvalidRequestException(String.format("%s must be non-negative and greater than zero",
-                                                            KW_MEMTABLEOPSINMILLIONS));
         
         // Ensure that exactly one key has been specified.
         if (keyValidator.size() < 1)
