@@ -541,14 +541,14 @@ public class CqlResult implements org.apache.thrift.TBase<CqlResult, CqlResult._
         case 2: // ROWS
           if (field.type == org.apache.thrift.protocol.TType.LIST) {
             {
-              org.apache.thrift.protocol.TList _list71 = iprot.readListBegin();
-              this.rows = new ArrayList<CqlRow>(_list71.size);
-              for (int _i72 = 0; _i72 < _list71.size; ++_i72)
+              org.apache.thrift.protocol.TList _list75 = iprot.readListBegin();
+              this.rows = new ArrayList<CqlRow>(_list75.size);
+              for (int _i76 = 0; _i76 < _list75.size; ++_i76)
               {
-                CqlRow _elem73;
-                _elem73 = new CqlRow();
-                _elem73.read(iprot);
-                this.rows.add(_elem73);
+                CqlRow _elem77;
+                _elem77 = new CqlRow();
+                _elem77.read(iprot);
+                this.rows.add(_elem77);
               }
               iprot.readListEnd();
             }
@@ -597,9 +597,9 @@ public class CqlResult implements org.apache.thrift.TBase<CqlResult, CqlResult._
         oprot.writeFieldBegin(ROWS_FIELD_DESC);
         {
           oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, this.rows.size()));
-          for (CqlRow _iter74 : this.rows)
+          for (CqlRow _iter78 : this.rows)
           {
-            _iter74.write(oprot);
+            _iter78.write(oprot);
           }
           oprot.writeListEnd();
         }
