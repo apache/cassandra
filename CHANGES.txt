@@ -92,6 +92,7 @@
  * Avoid streaming data to nodes that already have it, on move as well as
    decommission (CASSANDRA-3041)
  * Fix divide by zero error in GCInspector
+ * revert CASSANDRA-2388
 
 
 0.8.5
@@ -116,7 +117,7 @@
  * prune index scan resultset back to original request for lazy
    resultset expansion case (CASSANDRA-2964)
  * (Hadoop) fail jobs when Cassandra node has failed but TaskTracker
-    has not (CASSANDRA-2388)
+   has not (CASSANDRA-2388)
  * fix dynamic snitch ignoring nodes when read_repair_chance is zero
    (CASSANDRA-2662)
  * avoid retaining references to dropped CFS objects in 
