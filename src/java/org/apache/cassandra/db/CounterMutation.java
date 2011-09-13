@@ -29,7 +29,6 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.LinkedList;
-import java.util.Random;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -51,15 +50,6 @@ public class CounterMutation implements IMutation
 
     private final RowMutation rowMutation;
     private final ConsistencyLevel consistency;
-
-    private static final ThreadLocal<Random> random = new ThreadLocal<Random>()
-    {
-        @Override
-        protected Random initialValue()
-        {
-            return new Random();
-        }
-    };
 
     public CounterMutation(RowMutation rowMutation, ConsistencyLevel consistency)
     {
@@ -135,7 +125,7 @@ public class CounterMutation implements IMutation
     {
         ColumnFamily cf = row.cf;
         // random check for merging to allow lessening the performance impact
-        if (cf.metadata().getMergeShardsChance() > random.get().nextDouble())
+        if (cf.metadata().getMergeShardsChance() > FBUtilities.threadLocalRandom().nextDouble())
         {
             ColumnFamily merger = computeShardMerger(cf);
             if (merger != null)

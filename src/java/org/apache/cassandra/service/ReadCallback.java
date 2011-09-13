@@ -42,21 +42,13 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.thrift.UnavailableException;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.SimpleCondition;
 import org.apache.cassandra.utils.WrappedRunnable;
 
 public class ReadCallback<T> implements IAsyncCallback
 {
     protected static final Logger logger = LoggerFactory.getLogger( ReadCallback.class );
-
-    private static final ThreadLocal<Random> random = new ThreadLocal<Random>()
-    {
-        @Override
-        protected Random initialValue()
-        {
-            return new Random();
-        }
-    };
 
     public final IResponseResolver<T> resolver;
     protected final SimpleCondition condition = new SimpleCondition();
@@ -98,7 +90,7 @@ public class ReadCallback<T> implements IAsyncCallback
             String table = ((RowDigestResolver) resolver).table;
             String columnFamily = ((ReadCommand) command).getColumnFamilyName();
             CFMetaData cfmd = DatabaseDescriptor.getTableMetaData(table).get(columnFamily);
-            return cfmd.getReadRepairChance() > random.get().nextDouble();
+            return cfmd.getReadRepairChance() > FBUtilities.threadLocalRandom().nextDouble();
         }
         // we don't read repair on range scans
         return false;

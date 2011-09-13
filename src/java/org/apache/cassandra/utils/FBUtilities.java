@@ -133,6 +133,15 @@ public class FBUtilities
         }
     };
 
+    private static final ThreadLocal<Random> localRandom = new ThreadLocal<Random>()
+    {
+        @Override
+        protected Random initialValue()
+        {
+            return new Random();
+        }
+    };
+
     public static final int MAX_UNSIGNED_SHORT = 0xFFFF;
 
     public static MessageDigest threadLocalMD5Digest()
@@ -150,6 +159,11 @@ public class FBUtilities
         {
             throw new RuntimeException("the requested digest algorithm (" + algorithm + ") is not available", nsae);
         }
+    }
+
+    public static Random threadLocalRandom()
+    {
+        return localRandom.get();
     }
 
     /**
