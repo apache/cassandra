@@ -25,8 +25,8 @@
     <property name="debuglevel" value="source,lines,vars"/>
 
     <!-- default version and SCM information (we need the default SCM info as people may checkout with git-svn) -->
-    <property name="base.version" value="0.8.2-dev"/>
-    <property name="scm.default.path" value="cassandra/branches/cassandra-0.8"/>
+    <property name="base.version" value="1.0"/>
+    <property name="scm.default.path" value="cassandra/branches/cassandra-1.0.0"/>
     <property name="scm.default.connection" value="scm:svn:http://svn.apache.org/repos/asf/${scm.default.path}"/>
     <property name="scm.default.developerConnection" value="scm:svn:https://svn.apache.org/repos/asf/${scm.default.path}"/>
     <property name="scm.default.url" value="http://svn.apache.org/viewvc/${scm.default.path}"/>
@@ -351,6 +351,8 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
         <license name="The Apache Software License, Version 2.0" url="http://www.apache.org/licenses/LICENSE-2.0.txt"/>
         <scm connection="${scm.connection}" developerConnection="${scm.developerConnection}" url="${scm.url}"/>
         <dependencyManagement>
+          <dependency groupId="org.xerial.snappy" artifactId="snappy-java" version="1.0.3.3"/>
+          <dependency groupId="com.ning" artifactId="compress-lzf" version="0.8.4"/>
           <dependency groupId="com.google.guava" artifactId="guava" version="r08"/>
           <dependency groupId="commons-cli" artifactId="commons-cli" version="1.1"/>
           <dependency groupId="commons-codec" artifactId="commons-codec" version="1.2"/>
@@ -460,6 +462,8 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
                 artifactId="cassandra-parent"
                 version="${version}"/>
         <scm connection="${scm.connection}" developerConnection="${scm.developerConnection}" url="${scm.url}"/>
+        <dependency groupId="org.xerial.snappy" artifactId="snappy-java"/>
+        <dependency groupId="com.ning" artifactId="compress-lzf"/>
         <dependency groupId="com.google.guava" artifactId="guava"/>
         <dependency groupId="commons-cli" artifactId="commons-cli"/>
         <dependency groupId="commons-codec" artifactId="commons-codec"/>
