@@ -42,17 +42,27 @@ import java.util.Arrays;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * A TokenRange describes part of the Cassandra ring, it is a mapping from a range to
+ * endpoints responsible for that range.
+ * @param start_token The first token in the range
+ * @param end_token The last token in the range
+ * @param endpoints The endpoints responsible for the range (listed by their configured listen_address)
+ * @param rpc_endpoints The endpoints responsible for the range (listed by their configured rpc_address)
+ */
 public class TokenRange implements org.apache.thrift.TBase<TokenRange, TokenRange._Fields>, java.io.Serializable, Cloneable {
   private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct("TokenRange");
 
   private static final org.apache.thrift.protocol.TField START_TOKEN_FIELD_DESC = new org.apache.thrift.protocol.TField("start_token", org.apache.thrift.protocol.TType.STRING, (short)1);
   private static final org.apache.thrift.protocol.TField END_TOKEN_FIELD_DESC = new org.apache.thrift.protocol.TField("end_token", org.apache.thrift.protocol.TType.STRING, (short)2);
   private static final org.apache.thrift.protocol.TField ENDPOINTS_FIELD_DESC = new org.apache.thrift.protocol.TField("endpoints", org.apache.thrift.protocol.TType.LIST, (short)3);
-  private static final org.apache.thrift.protocol.TField ENDPOINT_DETAILS_FIELD_DESC = new org.apache.thrift.protocol.TField("endpoint_details", org.apache.thrift.protocol.TType.LIST, (short)4);
+  private static final org.apache.thrift.protocol.TField RPC_ENDPOINTS_FIELD_DESC = new org.apache.thrift.protocol.TField("rpc_endpoints", org.apache.thrift.protocol.TType.LIST, (short)4);
+  private static final org.apache.thrift.protocol.TField ENDPOINT_DETAILS_FIELD_DESC = new org.apache.thrift.protocol.TField("endpoint_details", org.apache.thrift.protocol.TType.LIST, (short)5);
 
   public String start_token;
   public String end_token;
   public List<String> endpoints;
+  public List<String> rpc_endpoints;
   public List<EndpointDetails> endpoint_details;
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
@@ -60,7 +70,8 @@ public class TokenRange implements org.apache.thrift.TBase<TokenRange, TokenRang
     START_TOKEN((short)1, "start_token"),
     END_TOKEN((short)2, "end_token"),
     ENDPOINTS((short)3, "endpoints"),
-    ENDPOINT_DETAILS((short)4, "endpoint_details");
+    RPC_ENDPOINTS((short)4, "rpc_endpoints"),
+    ENDPOINT_DETAILS((short)5, "endpoint_details");
 
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -81,7 +92,9 @@ public class TokenRange implements org.apache.thrift.TBase<TokenRange, TokenRang
           return END_TOKEN;
         case 3: // ENDPOINTS
           return ENDPOINTS;
-        case 4: // ENDPOINT_DETAILS
+        case 4: // RPC_ENDPOINTS
+          return RPC_ENDPOINTS;
+        case 5: // ENDPOINT_DETAILS
           return ENDPOINT_DETAILS;
         default:
           return null;
@@ -134,6 +147,9 @@ public class TokenRange implements org.apache.thrift.TBase<TokenRange, TokenRang
     tmpMap.put(_Fields.ENDPOINTS, new org.apache.thrift.meta_data.FieldMetaData("endpoints", org.apache.thrift.TFieldRequirementType.REQUIRED, 
         new org.apache.thrift.meta_data.ListMetaData(org.apache.thrift.protocol.TType.LIST, 
             new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING))));
+    tmpMap.put(_Fields.RPC_ENDPOINTS, new org.apache.thrift.meta_data.FieldMetaData("rpc_endpoints", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.ListMetaData(org.apache.thrift.protocol.TType.LIST, 
+            new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING))));
     tmpMap.put(_Fields.ENDPOINT_DETAILS, new org.apache.thrift.meta_data.FieldMetaData("endpoint_details", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
         new org.apache.thrift.meta_data.ListMetaData(org.apache.thrift.protocol.TType.LIST, 
             new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, EndpointDetails.class))));
@@ -172,6 +188,13 @@ public class TokenRange implements org.apache.thrift.TBase<TokenRange, TokenRang
       }
       this.endpoints = __this__endpoints;
     }
+    if (other.isSetRpc_endpoints()) {
+      List<String> __this__rpc_endpoints = new ArrayList<String>();
+      for (String other_element : other.rpc_endpoints) {
+        __this__rpc_endpoints.add(other_element);
+      }
+      this.rpc_endpoints = __this__rpc_endpoints;
+    }
     if (other.isSetEndpoint_details()) {
       List<EndpointDetails> __this__endpoint_details = new ArrayList<EndpointDetails>();
       for (EndpointDetails other_element : other.endpoint_details) {
@@ -190,6 +213,7 @@ public class TokenRange implements org.apache.thrift.TBase<TokenRange, TokenRang
     this.start_token = null;
     this.end_token = null;
     this.endpoints = null;
+    this.rpc_endpoints = null;
     this.endpoint_details = null;
   }
 
@@ -280,6 +304,45 @@ public class TokenRange implements org.apache.thrift.TBase<TokenRange, TokenRang
     }
   }
 
+  public int getRpc_endpointsSize() {
+    return (this.rpc_endpoints == null) ? 0 : this.rpc_endpoints.size();
+  }
+
+  public java.util.Iterator<String> getRpc_endpointsIterator() {
+    return (this.rpc_endpoints == null) ? null : this.rpc_endpoints.iterator();
+  }
+
+  public void addToRpc_endpoints(String elem) {
+    if (this.rpc_endpoints == null) {
+      this.rpc_endpoints = new ArrayList<String>();
+    }
+    this.rpc_endpoints.add(elem);
+  }
+
+  public List<String> getRpc_endpoints() {
+    return this.rpc_endpoints;
+  }
+
+  public TokenRange setRpc_endpoints(List<String> rpc_endpoints) {
+    this.rpc_endpoints = rpc_endpoints;
+    return this;
+  }
+
+  public void unsetRpc_endpoints() {
+    this.rpc_endpoints = null;
+  }
+
+  /** Returns true if field rpc_endpoints is set (has been assigned a value) and false otherwise */
+  public boolean isSetRpc_endpoints() {
+    return this.rpc_endpoints != null;
+  }
+
+  public void setRpc_endpointsIsSet(boolean value) {
+    if (!value) {
+      this.rpc_endpoints = null;
+    }
+  }
+
   public int getEndpoint_detailsSize() {
     return (this.endpoint_details == null) ? 0 : this.endpoint_details.size();
   }
@@ -345,6 +408,14 @@ public class TokenRange implements org.apache.thrift.TBase<TokenRange, TokenRang
       }
       break;
 
+    case RPC_ENDPOINTS:
+      if (value == null) {
+        unsetRpc_endpoints();
+      } else {
+        setRpc_endpoints((List<String>)value);
+      }
+      break;
+
     case ENDPOINT_DETAILS:
       if (value == null) {
         unsetEndpoint_details();
@@ -367,6 +438,9 @@ public class TokenRange implements org.apache.thrift.TBase<TokenRange, TokenRang
     case ENDPOINTS:
       return getEndpoints();
 
+    case RPC_ENDPOINTS:
+      return getRpc_endpoints();
+
     case ENDPOINT_DETAILS:
       return getEndpoint_details();
 
@@ -387,6 +461,8 @@ public class TokenRange implements org.apache.thrift.TBase<TokenRange, TokenRang
       return isSetEnd_token();
     case ENDPOINTS:
       return isSetEndpoints();
+    case RPC_ENDPOINTS:
+      return isSetRpc_endpoints();
     case ENDPOINT_DETAILS:
       return isSetEndpoint_details();
     }
@@ -433,6 +509,15 @@ public class TokenRange implements org.apache.thrift.TBase<TokenRange, TokenRang
         return false;
     }
 
+    boolean this_present_rpc_endpoints = true && this.isSetRpc_endpoints();
+    boolean that_present_rpc_endpoints = true && that.isSetRpc_endpoints();
+    if (this_present_rpc_endpoints || that_present_rpc_endpoints) {
+      if (!(this_present_rpc_endpoints && that_present_rpc_endpoints))
+        return false;
+      if (!this.rpc_endpoints.equals(that.rpc_endpoints))
+        return false;
+    }
+
     boolean this_present_endpoint_details = true && this.isSetEndpoint_details();
     boolean that_present_endpoint_details = true && that.isSetEndpoint_details();
     if (this_present_endpoint_details || that_present_endpoint_details) {
@@ -463,6 +548,11 @@ public class TokenRange implements org.apache.thrift.TBase<TokenRange, TokenRang
     builder.append(present_endpoints);
     if (present_endpoints)
       builder.append(endpoints);
+
+    boolean present_rpc_endpoints = true && (isSetRpc_endpoints());
+    builder.append(present_rpc_endpoints);
+    if (present_rpc_endpoints)
+      builder.append(rpc_endpoints);
 
     boolean present_endpoint_details = true && (isSetEndpoint_details());
     builder.append(present_endpoint_details);
@@ -506,6 +596,16 @@ public class TokenRange implements org.apache.thrift.TBase<TokenRange, TokenRang
     }
     if (isSetEndpoints()) {
       lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.endpoints, typedOther.endpoints);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
+    lastComparison = Boolean.valueOf(isSetRpc_endpoints()).compareTo(typedOther.isSetRpc_endpoints());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    if (isSetRpc_endpoints()) {
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.rpc_endpoints, typedOther.rpc_endpoints);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -568,17 +668,34 @@ public class TokenRange implements org.apache.thrift.TBase<TokenRange, TokenRang
             org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
-        case 4: // ENDPOINT_DETAILS
+        case 4: // RPC_ENDPOINTS
           if (field.type == org.apache.thrift.protocol.TType.LIST) {
             {
               org.apache.thrift.protocol.TList _list23 = iprot.readListBegin();
-              this.endpoint_details = new ArrayList<EndpointDetails>(_list23.size);
+              this.rpc_endpoints = new ArrayList<String>(_list23.size);
               for (int _i24 = 0; _i24 < _list23.size; ++_i24)
               {
-                EndpointDetails _elem25;
-                _elem25 = new EndpointDetails();
-                _elem25.read(iprot);
-                this.endpoint_details.add(_elem25);
+                String _elem25;
+                _elem25 = iprot.readString();
+                this.rpc_endpoints.add(_elem25);
+              }
+              iprot.readListEnd();
+            }
+          } else { 
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
+        case 5: // ENDPOINT_DETAILS
+          if (field.type == org.apache.thrift.protocol.TType.LIST) {
+            {
+              org.apache.thrift.protocol.TList _list26 = iprot.readListBegin();
+              this.endpoint_details = new ArrayList<EndpointDetails>(_list26.size);
+              for (int _i27 = 0; _i27 < _list26.size; ++_i27)
+              {
+                EndpointDetails _elem28;
+                _elem28 = new EndpointDetails();
+                _elem28.read(iprot);
+                this.endpoint_details.add(_elem28);
               }
               iprot.readListEnd();
             }
@@ -615,22 +732,36 @@ public class TokenRange implements org.apache.thrift.TBase<TokenRange, TokenRang
       oprot.writeFieldBegin(ENDPOINTS_FIELD_DESC);
       {
         oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRING, this.endpoints.size()));
-        for (String _iter26 : this.endpoints)
+        for (String _iter29 : this.endpoints)
         {
-          oprot.writeString(_iter26);
+          oprot.writeString(_iter29);
         }
         oprot.writeListEnd();
       }
       oprot.writeFieldEnd();
+    }
+    if (this.rpc_endpoints != null) {
+      if (isSetRpc_endpoints()) {
+        oprot.writeFieldBegin(RPC_ENDPOINTS_FIELD_DESC);
+        {
+          oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRING, this.rpc_endpoints.size()));
+          for (String _iter30 : this.rpc_endpoints)
+          {
+            oprot.writeString(_iter30);
+          }
+          oprot.writeListEnd();
+        }
+        oprot.writeFieldEnd();
+      }
     }
     if (this.endpoint_details != null) {
       if (isSetEndpoint_details()) {
         oprot.writeFieldBegin(ENDPOINT_DETAILS_FIELD_DESC);
         {
           oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, this.endpoint_details.size()));
-          for (EndpointDetails _iter27 : this.endpoint_details)
+          for (EndpointDetails _iter31 : this.endpoint_details)
           {
-            _iter27.write(oprot);
+            _iter31.write(oprot);
           }
           oprot.writeListEnd();
         }
@@ -669,6 +800,16 @@ public class TokenRange implements org.apache.thrift.TBase<TokenRange, TokenRang
       sb.append(this.endpoints);
     }
     first = false;
+    if (isSetRpc_endpoints()) {
+      if (!first) sb.append(", ");
+      sb.append("rpc_endpoints:");
+      if (this.rpc_endpoints == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.rpc_endpoints);
+      }
+      first = false;
+    }
     if (isSetEndpoint_details()) {
       if (!first) sb.append(", ");
       sb.append("endpoint_details:");

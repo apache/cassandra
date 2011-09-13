@@ -554,15 +554,15 @@ public class CqlMetadata implements org.apache.thrift.TBase<CqlMetadata, CqlMeta
         case 1: // NAME_TYPES
           if (field.type == org.apache.thrift.protocol.TType.MAP) {
             {
-              org.apache.thrift.protocol.TMap _map65 = iprot.readMapBegin();
-              this.name_types = new HashMap<ByteBuffer,String>(2*_map65.size);
-              for (int _i66 = 0; _i66 < _map65.size; ++_i66)
+              org.apache.thrift.protocol.TMap _map69 = iprot.readMapBegin();
+              this.name_types = new HashMap<ByteBuffer,String>(2*_map69.size);
+              for (int _i70 = 0; _i70 < _map69.size; ++_i70)
               {
-                ByteBuffer _key67;
-                String _val68;
-                _key67 = iprot.readBinary();
-                _val68 = iprot.readString();
-                this.name_types.put(_key67, _val68);
+                ByteBuffer _key71;
+                String _val72;
+                _key71 = iprot.readBinary();
+                _val72 = iprot.readString();
+                this.name_types.put(_key71, _val72);
               }
               iprot.readMapEnd();
             }
@@ -573,15 +573,15 @@ public class CqlMetadata implements org.apache.thrift.TBase<CqlMetadata, CqlMeta
         case 2: // VALUE_TYPES
           if (field.type == org.apache.thrift.protocol.TType.MAP) {
             {
-              org.apache.thrift.protocol.TMap _map69 = iprot.readMapBegin();
-              this.value_types = new HashMap<ByteBuffer,String>(2*_map69.size);
-              for (int _i70 = 0; _i70 < _map69.size; ++_i70)
+              org.apache.thrift.protocol.TMap _map73 = iprot.readMapBegin();
+              this.value_types = new HashMap<ByteBuffer,String>(2*_map73.size);
+              for (int _i74 = 0; _i74 < _map73.size; ++_i74)
               {
-                ByteBuffer _key71;
-                String _val72;
-                _key71 = iprot.readBinary();
-                _val72 = iprot.readString();
-                this.value_types.put(_key71, _val72);
+                ByteBuffer _key75;
+                String _val76;
+                _key75 = iprot.readBinary();
+                _val76 = iprot.readString();
+                this.value_types.put(_key75, _val76);
               }
               iprot.readMapEnd();
             }
@@ -622,10 +622,10 @@ public class CqlMetadata implements org.apache.thrift.TBase<CqlMetadata, CqlMeta
       oprot.writeFieldBegin(NAME_TYPES_FIELD_DESC);
       {
         oprot.writeMapBegin(new org.apache.thrift.protocol.TMap(org.apache.thrift.protocol.TType.STRING, org.apache.thrift.protocol.TType.STRING, this.name_types.size()));
-        for (Map.Entry<ByteBuffer, String> _iter73 : this.name_types.entrySet())
+        for (Map.Entry<ByteBuffer, String> _iter77 : this.name_types.entrySet())
         {
-          oprot.writeBinary(_iter73.getKey());
-          oprot.writeString(_iter73.getValue());
+          oprot.writeBinary(_iter77.getKey());
+          oprot.writeString(_iter77.getValue());
         }
         oprot.writeMapEnd();
       }
@@ -635,10 +635,10 @@ public class CqlMetadata implements org.apache.thrift.TBase<CqlMetadata, CqlMeta
       oprot.writeFieldBegin(VALUE_TYPES_FIELD_DESC);
       {
         oprot.writeMapBegin(new org.apache.thrift.protocol.TMap(org.apache.thrift.protocol.TType.STRING, org.apache.thrift.protocol.TType.STRING, this.value_types.size()));
-        for (Map.Entry<ByteBuffer, String> _iter74 : this.value_types.entrySet())
+        for (Map.Entry<ByteBuffer, String> _iter78 : this.value_types.entrySet())
         {
-          oprot.writeBinary(_iter74.getKey());
-          oprot.writeString(_iter74.getValue());
+          oprot.writeBinary(_iter78.getKey());
+          oprot.writeString(_iter78.getValue());
         }
         oprot.writeMapEnd();
       }

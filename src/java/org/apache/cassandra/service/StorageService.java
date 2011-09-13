@@ -31,9 +31,7 @@ import javax.lang.model.type.TypeKind;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
-import com.google.common.collect.ArrayListMultimap;
-import com.google.common.collect.HashMultimap;
-import com.google.common.collect.Multimap;
+import com.google.common.collect.*;
 import org.apache.cassandra.config.*;
 import org.apache.log4j.Level;
 import org.apache.commons.lang.StringUtils;
@@ -44,6 +42,7 @@ import org.apache.cassandra.concurrent.DebuggableScheduledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.gms.*;
@@ -641,11 +640,6 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      */
     public Map<Range, List<String>> getRangeToEndpointMap(String keyspace)
     {
-        // some people just want to get a visual representation of things. Allow null and set it to the first
-        // non-system table.
-        if (keyspace == null)
-            keyspace = Schema.instance.getNonSystemTables().get(0);
-
         /* All the ranges for the tokens */
         Map<Range, List<String>> map = new HashMap<Range, List<String>>();
         for (Map.Entry<Range,List<InetAddress>> entry : getRangeToAddressMap(keyspace).entrySet())
@@ -656,17 +650,27 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     }
 
     /**
+     * Return the rpc address associated with an endpoint as a string.
+     * @param endpoint The endpoint to get rpc address for
+     * @return
+     */
+    public String getRpcaddress(InetAddress endpoint)
+    {
+        if (endpoint.equals(FBUtilities.getBroadcastAddress()))
+            return DatabaseDescriptor.getRpcAddress().getHostAddress();
+        else if (Gossiper.instance.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.RPC_ADDRESS) == null)
+            return endpoint.getHostAddress();
+        else
+            return Gossiper.instance.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.RPC_ADDRESS).value;
+    }
+
+    /**
      * for a keyspace, return the ranges and corresponding RPC addresses for a given keyspace.
      * @param keyspace
      * @return
      */
     public Map<Range, List<String>> getRangeToRpcaddressMap(String keyspace)
     {
-        // some people just want to get a visual representation of things. Allow null and set it to the first
-        // non-system table.
-        if (keyspace == null)
-            keyspace = Schema.instance.getNonSystemTables().get(0);
-
         /* All the ranges for the tokens */
         Map<Range, List<String>> map = new HashMap<Range, List<String>>();
         for (Map.Entry<Range,List<InetAddress>> entry : getRangeToAddressMap(keyspace).entrySet())
@@ -674,12 +678,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             List<String> rpcaddrs = new ArrayList<String>();
             for (InetAddress endpoint: entry.getValue())
             {
-                if (endpoint.equals(FBUtilities.getBroadcastAddress()))
-                    rpcaddrs.add(DatabaseDescriptor.getRpcAddress().getHostAddress());
-                else if (Gossiper.instance.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.RPC_ADDRESS) == null)
-                    rpcaddrs.add(endpoint.getHostAddress());
-                else
-                    rpcaddrs.add(Gossiper.instance.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.RPC_ADDRESS).value);
+                rpcaddrs.add(getRpcaddress(endpoint));
             }
             map.put(entry.getKey(), rpcaddrs);
         }
@@ -704,6 +703,11 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
     public Map<Range, List<InetAddress>> getRangeToAddressMap(String keyspace)
     {
+        // some people just want to get a visual representation of things. Allow null and set it to the first
+        // non-system table.
+        if (keyspace == null)
+            keyspace = Schema.instance.getNonSystemTables().get(0);
+
         List<Range> ranges = getAllRanges(tokenMetadata_.sortedTokens());
         return constructRangeToEndpointMap(keyspace, ranges);
     }
@@ -1096,10 +1100,9 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         // all leaving nodes are gone.
         for (Range range : affectedRanges)
         {
-            Collection<InetAddress> currentEndpoints = strategy.calculateNaturalEndpoints(range.right, tm);
-            Collection<InetAddress> newEndpoints = strategy.calculateNaturalEndpoints(range.right, allLeftMetadata);
-            newEndpoints.removeAll(currentEndpoints);
-            pendingRanges.putAll(range, newEndpoints);
+            Set<InetAddress> currentEndpoints = ImmutableSet.copyOf(strategy.calculateNaturalEndpoints(range.right, tm));
+            Set<InetAddress> newEndpoints = ImmutableSet.copyOf(strategy.calculateNaturalEndpoints(range.right, allLeftMetadata));
+            pendingRanges.putAll(range, Sets.difference(newEndpoints, currentEndpoints));
         }
 
         // At this stage pendingRanges has been updated according to leave operations. We can
@@ -2086,8 +2089,9 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
             for (Range toStream : rangesPerTable.left)
             {
-                List<InetAddress> endpoints = strategy.calculateNaturalEndpoints(toStream.right, tokenMetaClone);
-                rangeWithEndpoints.putAll(toStream, endpoints);
+                Set<InetAddress> currentEndpoints = ImmutableSet.copyOf(strategy.calculateNaturalEndpoints(toStream.right, tokenMetadata_));
+                Set<InetAddress> newEndpoints = ImmutableSet.copyOf(strategy.calculateNaturalEndpoints(toStream.right, tokenMetaClone));
+                rangeWithEndpoints.putAll(toStream, Sets.difference(newEndpoints, currentEndpoints));
             }
 
             // associating table with range-to-endpoints map

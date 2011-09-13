@@ -79,7 +79,7 @@ public class RowRepairResolver extends AbstractRowResolver
                 endpoints.add(message.getFrom());
 
                 // compute maxLiveColumns to prevent short reads -- see https://issues.apache.org/jira/browse/CASSANDRA-2643
-                int liveColumns = cf.getLiveColumnCount();
+                int liveColumns = cf == null ? 0 : cf.getLiveColumnCount();
                 if (liveColumns > maxLiveColumns)
                     maxLiveColumns = liveColumns;
             }

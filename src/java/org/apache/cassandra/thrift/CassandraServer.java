@@ -798,6 +798,7 @@ public class CassandraServer implements Cassandra.Iface
         {
             Range range = entry.getKey();
             List<String> endpoints = new ArrayList<String>();
+            List<String> rpc_endpoints = new ArrayList<String>();
             List<EndpointDetails> epDetails = new ArrayList<EndpointDetails>();
 
             for (InetAddress endpoint : entry.getValue())
@@ -823,13 +824,16 @@ public class CassandraServer implements Cassandra.Iface
                     details.datacenter = appStateDc.value;
 
                 endpoints.add(details.host);
+                rpc_endpoints.add(StorageService.instance.getRpcaddress(endpoint));
 
                 if (details.port != -1 || details.datacenter != null)
                     epDetails.add(details);
             }
 
-            ranges.add(new TokenRange(tf.toString(range.left), tf.toString(range.right), endpoints)
-                                      .setEndpoint_details(epDetails));
+            TokenRange tr = new TokenRange(tf.toString(range.left), tf.toString(range.right), endpoints)
+                            .setEndpoint_details(epDetails)
+                            .setRpc_endpoints(rpc_endpoints);
+            ranges.add(tr);
         }
 
         return ranges;

@@ -67,6 +67,8 @@ public class IncomingTcpConnection extends Thread
             int header = input.readInt();
             isStream = MessagingService.getBits(header, 3, 1) == 1;
             version = MessagingService.getBits(header, 15, 8);
+            if (logger.isDebugEnabled())
+                logger.debug("Version for " + socket.getInetAddress() + " is " + version);
             if (isStream)
             {
                 if (version == MessagingService.version_)
@@ -98,6 +100,7 @@ public class IncomingTcpConnection extends Thread
             else if (msg != null)
             {
                 Gossiper.instance.setVersion(msg.getFrom(), version);
+                logger.debug("set version for {} to {}", socket.getInetAddress(), version);
             }
             
             // loop to get the next message.
@@ -108,6 +111,7 @@ public class IncomingTcpConnection extends Thread
                 header = input.readInt();
                 assert isStream == (MessagingService.getBits(header, 3, 1) == 1) : "Connections cannot change type: " + isStream;
                 version = MessagingService.getBits(header, 15, 8);
+                logger.debug("Version is now {}", version);
                 receiveMessage(input, version);
             }
         } 
@@ -153,7 +157,7 @@ public class IncomingTcpConnection extends Thread
             MessagingService.instance().receive(message, id);
             return message;
         }
-        logger.info("Received connection from newer protocol version. Ignorning message.");
+        logger.debug("Received connection from newer protocol version {}. Ignorning message", version);
         return null;
     }
 
