@@ -138,6 +138,8 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
         return true;
     }
 
+    // we don't use endpointsnitch since we are trying to support hadoop nodes that are
+    // not necessarily on Cassandra machines, too.  This should be adequate for single-DC clusters, at least.
     private String getLocation()
     {
         InetAddress[] localAddresses;
@@ -168,7 +170,7 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
                 }
             }
         }
-        throw new UnsupportedOperationException("no local connection available");
+        return split.getLocations()[0];
     }
 
     private class RowIterator extends AbstractIterator<Pair<ByteBuffer, SortedMap<ByteBuffer, IColumn>>>
