@@ -44,7 +44,7 @@
    Thrift<->Avro conversion methods (CASSANDRA-3032)
  * Add timeouts to client request schedulers (CASSANDRA-3079, 3096)
  * Cli to use hashes rather than array of hashes for strategy options (CASSANDRA-3081)
- * LeveledCompactionStrategy (CASSANDRA-1608, 3085, 3110, 3087, 3145, 3154)
+ * LeveledCompactionStrategy (CASSANDRA-1608, 3085, 3110, 3087, 3145, 3154, 3182)
  * Improvements of the CLI `describe` command (CASSANDRA-2630)
  * reduce window where dropped CF sstables may not be deleted (CASSANDRA-2942)
  * Expose gossip/FD info to JMX (CASSANDRA-2806)

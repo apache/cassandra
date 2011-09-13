@@ -30,7 +30,6 @@ public class LeveledManifest
     private final List<SSTableReader>[] generations;
     private final DecoratedKey[] lastCompactedKeys;
     private final int maxSSTableSizeInMB;
-    private static int MAX_COMPACTING_L0 = 32;
 
     private LeveledManifest(ColumnFamilyStore cfs, int maxSSTableSizeInMB)
     {
@@ -250,8 +249,6 @@ public class LeveledManifest
             {
                 // pick a random sstable from L0, and any that overlap with it
                 List<SSTableReader> L0 = overlapping(remaining.iterator().next(), remaining);
-                //but not too many, as we could run out of memory
-                L0 = L0.size() > MAX_COMPACTING_L0 ? L0.subList(0, MAX_COMPACTING_L0) : L0;
                 // add the overlapping ones from L1
                 for (SSTableReader sstable : L0)
                 {
