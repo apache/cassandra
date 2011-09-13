@@ -14,7 +14,7 @@
  * optimize away seek when compacting wide rows (CASSANDRA-2879)
  * single-pass streaming (CASSANDRA-2677, 3003)
  * use reference counting for deleting sstables instead of relying on GC
-   (CASSANDRA-2521)
+   (CASSANDRA-2521, 3179)
  * store hints as serialized mutations instead of pointers to data row
    (CASSANDRA-2045)
  * store hints in the coordinator node instead of in the closest replica 

@@ -25,6 +25,8 @@ import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 
+import org.apache.cassandra.utils.ByteBufferUtil;
+
 public class MappedFileDataInput extends AbstractDataInput implements FileDataInput
 {
     private final MappedByteBuffer buffer;
@@ -117,11 +119,18 @@ public class MappedFileDataInput extends AbstractDataInput implements FileDataIn
             throw new IOException(String.format("mmap segment underflow; remaining is %d but %d requested",
                                                 remaining, length));
 
+        if (length == 0)
+            return ByteBufferUtil.EMPTY_BYTE_BUFFER;
+
         ByteBuffer bytes = buffer.duplicate();
         bytes.position(buffer.position() + position).limit(buffer.position() + position + length);
         position += length;
 
-        return bytes;
+        // we have to copy the data in case we unreference the underlying sstable.  See CASSANDRA-3179
+        ByteBuffer clone = ByteBuffer.allocate(bytes.remaining());
+        clone.put(bytes);
+        clone.flip();
+        return clone;
     }
 
     @Override
