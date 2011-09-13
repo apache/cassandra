@@ -134,7 +134,9 @@ public class StreamInSession
                     assert sstable.getTableName().equals(table);
 
                     // Acquiring the reference (for secondary index building) before adding it makes sure we don't have to care about races
-                    sstable.acquireReference();
+                    if (!sstable.acquireReference())
+                        throw new RuntimeException("We shouldn't fail acquiring a reference on a sstable that has just been transfered");
+
                     referenced.add(sstable);
 
                     ColumnFamilyStore cfs = Table.open(sstable.getTableName()).getColumnFamilyStore(sstable.getColumnFamilyName());
