@@ -232,7 +232,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
             // sleep a random amount to stagger handoff delivery from different replicas.
             // (if we had to wait, then gossiper randomness took care of that for us already.)
             if (waited == 0) {
-                int sleep = new Random().nextInt(60000);
+                int sleep = FBUtilities.threadLocalRandom().nextInt(60000);
                 logger_.debug("Sleeping {}ms to stagger hint delivery", sleep);
                 Thread.sleep(sleep);
             }
