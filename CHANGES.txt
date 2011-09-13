@@ -15,6 +15,7 @@
  * Fix using read_repair_chance instead of merge_shard_change (CASSANDRA-3202)
  * Avoid streaming data to nodes that already have it, on move as well as
    decommission (CASSANDRA-3041)
+ * Fix divide by zero error in GCInspector
 
 
 0.8.5
