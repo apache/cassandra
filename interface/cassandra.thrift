@@ -46,7 +46,7 @@ namespace rb CassandraThrift
 #           for every edit that doesn't result in a change to major/minor.
 #
 # See the Semantic Versioning Specification (SemVer) http://semver.org.
-const string VERSION = "19.15.0"
+const string VERSION = "19.18.0"
 
 
 #
@@ -348,11 +348,20 @@ struct EndpointDetails {
 	3: string datacenter
 }
 
+/**
+    A TokenRange describes part of the Cassandra ring, it is a mapping from a range to
+    endpoints responsible for that range.
+    @param start_token The first token in the range
+    @param end_token The last token in the range
+    @param endpoints The endpoints responsible for the range (listed by their configured listen_address)
+    @param rpc_endpoints The endpoints responsible for the range (listed by their configured rpc_address)
+*/
 struct TokenRange {
     1: required string start_token,
     2: required string end_token,
     3: required list<string> endpoints,
-    4: optional list<EndpointDetails> endpoint_details,
+    4: optional list<string> rpc_endpoints
+    5: optional list<EndpointDetails> endpoint_details,
 }
 
 /**

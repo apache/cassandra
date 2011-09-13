@@ -165,7 +165,12 @@ public class BootStrapper
         }
 
         if (endpoints.isEmpty())
-            throw new RuntimeException("No other nodes seen!  Unable to bootstrap");
+            throw new RuntimeException("No other nodes seen!  Unable to bootstrap."
+                                       + "If you intended to start a single-node cluster, you should make sure "
+                                       + "your broadcast_address (or listen_address) is listed as a seed.  "
+                                       + "Otherwise, you need to determine why the seed being contacted "
+                                       + "has no knowledge of the rest of the cluster.  Usually, this can be solved "
+                                       + "by giving all nodes the same seed list.");
         Collections.sort(endpoints, new Comparator<InetAddress>()
         {
             public int compare(InetAddress ia1, InetAddress ia2)

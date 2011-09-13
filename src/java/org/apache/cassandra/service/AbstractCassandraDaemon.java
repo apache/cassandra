@@ -346,15 +346,15 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
             }
             
             start();
-        } catch (Throwable e)
+        }
+        catch (Throwable e)
         {
-            String msg = "Exception encountered during startup.";
-            logger.error(msg, e);
+            logger.error("Exception encountered during startup", e);
             
             // try to warn user on stdout too, if we haven't already detached
-            System.out.println(msg);
             e.printStackTrace();
-            
+            System.out.println("Exception encountered during startup: " + e.getMessage());
+
             System.exit(3);
         }
     }

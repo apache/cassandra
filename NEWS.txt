@@ -56,10 +56,10 @@ Other
     - The old per-ColumnFamily memtable thresholds
       (memtable_throughput_in_mb, memtable_operations_in_millions,
       memtable_flush_after_mins) are ignored, in favor of the global
-      memtable_total_space_in_mb setting.  This does not affect client
-      compatibility -- the old options are still allowed, but have no
-      effect.  These options may be removed entirely in a future
-      release.
+      memtable_total_space_in_mb and commitlog_total_space_in_mb settings.  
+      This does not affect client compatibility -- the old options are
+      still allowed, but have no effect.  These options may be removed
+      entirely in a future release.
 
 
 0.8.5
