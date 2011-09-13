@@ -12,6 +12,7 @@
  * Improve caching of same-version Messages on digest and repair paths
    (CASSANDRA-3158)
  * Randomize choice of first replica for counter increment (CASSANDRA-2890)
+ * Fix using read_repair_chance instead of merge_shard_change (CASSANDRA-3202)
 
 
 0.8.5
