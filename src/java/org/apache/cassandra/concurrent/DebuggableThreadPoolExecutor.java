@@ -126,6 +126,10 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor
             {
                 throw new AssertionError(e);
             }
+            catch (CancellationException e)
+            {
+                logger.debug("Task cancelled", e);
+            }
             catch (ExecutionException e)
             {
                 if (Thread.getDefaultUncaughtExceptionHandler() == null)
