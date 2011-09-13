@@ -80,7 +80,6 @@ public class IncomingTcpConnection extends Thread
             return;
         }
 
-        logger.debug("version is {}", version);
         if (version > MessagingService.version_)
         {
             // save the endpoint so gossip will reconnect to it
