@@ -58,7 +58,7 @@
  * generate hints for replicas that timeout, not just replicas that are known
    to be down before starting (CASSANDRA-2034)
  * Add throttling for internode streaming (CASSANDRA-3080)
- * make the repair of a range repair all replica (CASSANDRA-2610)
+ * make the repair of a range repair all replica (CASSANDRA-2610, 3194)
  * expose the ability to repair the first range (as returned by the
    partitioner) of a node (CASSANDRA-2606)
  * Streams Compression (CASSANDRA-3015)
