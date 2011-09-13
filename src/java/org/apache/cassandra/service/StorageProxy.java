@@ -55,6 +55,7 @@ import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.util.FastByteArrayOutputStream;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
+import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.net.*;
 import org.apache.cassandra.thrift.*;
@@ -455,7 +456,7 @@ public class StorageProxy implements StorageProxyMBean
      */
     public static IWriteResponseHandler mutateCounter(CounterMutation cm, String localDataCenter) throws UnavailableException, TimeoutException, IOException
     {
-        InetAddress endpoint = findSuitableEndpoint(cm.getTable(), cm.key());
+        InetAddress endpoint = findSuitableEndpoint(cm.getTable(), cm.key(), localDataCenter);
 
         if (endpoint.equals(FBUtilities.getBroadcastAddress()))
         {
@@ -481,14 +482,42 @@ public class StorageProxy implements StorageProxyMBean
         }
     }
 
-    private static InetAddress findSuitableEndpoint(String table, ByteBuffer key) throws UnavailableException
+    /**
+     * Find a suitable replica as leader for counter update.
+     * For now, we pick a random replica in the local DC (or ask the snitch if
+     * there is no replica alive in the local DC).
+     * TODO: if we track the latency of the counter writes (which makes sense
+     * contrarily to standard writes since there is a read involved), we could
+     * trust the dynamic snitch entirely, which may be a better solution. It
+     * is unclear we want to mix those latencies with read latencies, so this
+     * may be a bit involved.
+     */
+    private static InetAddress findSuitableEndpoint(String table, ByteBuffer key, String localDataCenter) throws UnavailableException
     {
+        IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
         List<InetAddress> endpoints = StorageService.instance.getLiveNaturalEndpoints(table, key);
-        DatabaseDescriptor.getEndpointSnitch().sortByProximity(FBUtilities.getBroadcastAddress(), endpoints);
         if (endpoints.isEmpty())
             throw new UnavailableException();
-        return endpoints.get(0);
+
+        List<InetAddress> localEndpoints = new ArrayList<InetAddress>();
+        for (InetAddress endpoint : endpoints)
+        {
+            if (snitch.getDatacenter(endpoint).equals(localDataCenter))
+                localEndpoints.add(endpoint);
+        }
+        if (localEndpoints.isEmpty())
+        {
+            // No endpoint in local DC, pick the closest endpoint according to the snitch
+            snitch.sortByProximity(FBUtilities.getBroadcastAddress(), endpoints);
+            return endpoints.get(0);
+        }
+        else
+        {
+            return localEndpoints.get(FBUtilities.threadLocalRandom().nextInt(localEndpoints.size()));
+        }
     }
+
+
 
     // Must be called on a replica of the mutation. This replica becomes the
     // leader of this mutation.
