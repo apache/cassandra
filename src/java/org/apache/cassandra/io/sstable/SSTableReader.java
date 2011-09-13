@@ -647,14 +647,8 @@ public class SSTableReader extends SSTable
 
     /**
      * Mark the sstable as compacted.
-     * When calling this function, the caller must ensure two things:
-     *  - He must have acquired a reference with acquireReference()
-     *  - He must ensure that the SSTableReader is not referenced anywhere except for threads holding a reference.
-     *
-     * The reason we ask caller to acquire a reference is because this greatly simplify the logic here.
-     * If that wasn't the case, markCompacted would have to deal with both the case where some thread still
-     * have references and the case where no thread have any reference. Making this logic thread-safe is a
-     * bit hard, so we make sure that at least the caller thread has a reference and delegate the rest to releaseRefence()
+     * When calling this function, the caller must ensure that the SSTableReader is not referenced anywhere
+     * except for threads holding a reference.
      */
     public void markCompacted()
     {

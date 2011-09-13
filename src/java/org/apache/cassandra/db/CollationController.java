@@ -151,9 +151,9 @@ public class CollationController
         }
         finally
         {
-            SSTableReader.releaseReferences(view.sstables);
             for (IColumnIterator iter : iterators)
                 FileUtils.closeQuietly(iter);
+            SSTableReader.releaseReferences(view.sstables);
         }
     }
 
@@ -223,9 +223,9 @@ public class CollationController
         }
         finally
         {
-            SSTableReader.releaseReferences(view.sstables);
             for (IColumnIterator iter : iterators)
                 FileUtils.closeQuietly(iter);
+            SSTableReader.releaseReferences(view.sstables);
         }
     }
 
