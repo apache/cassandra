@@ -395,14 +395,14 @@ public class CqlRow implements org.apache.thrift.TBase<CqlRow, CqlRow._Fields>, 
         case 2: // COLUMNS
           if (field.type == org.apache.thrift.protocol.TType.LIST) {
             {
-              org.apache.thrift.protocol.TList _list42 = iprot.readListBegin();
-              this.columns = new ArrayList<Column>(_list42.size);
-              for (int _i43 = 0; _i43 < _list42.size; ++_i43)
+              org.apache.thrift.protocol.TList _list46 = iprot.readListBegin();
+              this.columns = new ArrayList<Column>(_list46.size);
+              for (int _i47 = 0; _i47 < _list46.size; ++_i47)
               {
-                Column _elem44;
-                _elem44 = new Column();
-                _elem44.read(iprot);
-                this.columns.add(_elem44);
+                Column _elem48;
+                _elem48 = new Column();
+                _elem48.read(iprot);
+                this.columns.add(_elem48);
               }
               iprot.readListEnd();
             }
@@ -434,9 +434,9 @@ public class CqlRow implements org.apache.thrift.TBase<CqlRow, CqlRow._Fields>, 
       oprot.writeFieldBegin(COLUMNS_FIELD_DESC);
       {
         oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, this.columns.size()));
-        for (Column _iter45 : this.columns)
+        for (Column _iter49 : this.columns)
         {
-          _iter45.write(oprot);
+          _iter49.write(oprot);
         }
         oprot.writeListEnd();
       }
@@ -477,6 +477,22 @@ public class CqlRow implements org.apache.thrift.TBase<CqlRow, CqlRow._Fields>, 
     }
     if (columns == null) {
       throw new org.apache.thrift.protocol.TProtocolException("Required field 'columns' was not present! Struct: " + toString());
+    }
+  }
+
+  private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
+    try {
+      write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
+    } catch (org.apache.thrift.TException te) {
+      throw new java.io.IOException(te);
+    }
+  }
+
+  private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
+    try {
+      read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
+    } catch (org.apache.thrift.TException te) {
+      throw new java.io.IOException(te);
     }
   }
 

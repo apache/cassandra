@@ -2111,14 +2111,14 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
         case 13: // COLUMN_METADATA
           if (field.type == org.apache.thrift.protocol.TType.LIST) {
             {
-              org.apache.thrift.protocol.TList _list29 = iprot.readListBegin();
-              this.column_metadata = new ArrayList<ColumnDef>(_list29.size);
-              for (int _i30 = 0; _i30 < _list29.size; ++_i30)
+              org.apache.thrift.protocol.TList _list33 = iprot.readListBegin();
+              this.column_metadata = new ArrayList<ColumnDef>(_list33.size);
+              for (int _i34 = 0; _i34 < _list33.size; ++_i34)
               {
-                ColumnDef _elem31;
-                _elem31 = new ColumnDef();
-                _elem31.read(iprot);
-                this.column_metadata.add(_elem31);
+                ColumnDef _elem35;
+                _elem35 = new ColumnDef();
+                _elem35.read(iprot);
+                this.column_metadata.add(_elem35);
               }
               iprot.readListEnd();
             }
@@ -2315,9 +2315,9 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
         oprot.writeFieldBegin(COLUMN_METADATA_FIELD_DESC);
         {
           oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, this.column_metadata.size()));
-          for (ColumnDef _iter32 : this.column_metadata)
+          for (ColumnDef _iter36 : this.column_metadata)
           {
-            _iter32.write(oprot);
+            _iter36.write(oprot);
           }
           oprot.writeListEnd();
         }
@@ -2616,6 +2616,24 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     }
     if (name == null) {
       throw new org.apache.thrift.protocol.TProtocolException("Required field 'name' was not present! Struct: " + toString());
+    }
+  }
+
+  private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
+    try {
+      write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
+    } catch (org.apache.thrift.TException te) {
+      throw new java.io.IOException(te);
+    }
+  }
+
+  private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
+    try {
+      // it doesn't seem like you should have to do this, but java serialization is wacky, and doesn't call the default constructor.
+      __isset_bit_vector = new BitSet(1);
+      read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
+    } catch (org.apache.thrift.TException te) {
+      throw new java.io.IOException(te);
     }
   }
 

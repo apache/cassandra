@@ -21,6 +21,7 @@ package org.apache.cassandra.thrift;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.net.InetAddress;
 import java.net.SocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
@@ -728,11 +729,22 @@ public class CassandraServer implements Cassandra.Iface
             throw new InvalidRequestException("There is no ring for the keyspace: " + keyspace);
         List<TokenRange> ranges = new ArrayList<TokenRange>();
         Token.TokenFactory tf = StorageService.getPartitioner().getTokenFactory();
-        for (Map.Entry<Range, List<String>> entry : StorageService.instance.getRangeToRpcaddressMap(keyspace).entrySet())
+
+        Map<Range, List<InetAddress>> address_map = StorageService.instance.getRangeToAddressMap(keyspace);
+        for (Map.Entry<Range, List<InetAddress>> entry : address_map.entrySet())
         {
             Range range = entry.getKey();
-            List<String> endpoints = entry.getValue();
-            ranges.add(new TokenRange(tf.toString(range.left), tf.toString(range.right), endpoints));
+            List<String> endpoints = new ArrayList<String>();
+            List<String> rpc_endpoints = new ArrayList<String>();
+            for (InetAddress endpoint : entry.getValue())
+            {
+                endpoints.add(endpoint.getHostAddress());
+                rpc_endpoints.add(StorageService.instance.getRpcaddress(endpoint));
+            }
+
+            TokenRange tr = new TokenRange(tf.toString(range.left), tf.toString(range.right), endpoints);
+            tr.rpc_endpoints = rpc_endpoints;
+            ranges.add(tr);
         }
         return ranges;
     }

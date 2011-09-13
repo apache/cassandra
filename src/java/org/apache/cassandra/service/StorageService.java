@@ -589,11 +589,6 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      */
     public Map<Range, List<String>> getRangeToEndpointMap(String keyspace)
     {
-        // some people just want to get a visual representation of things. Allow null and set it to the first
-        // non-system table.
-        if (keyspace == null)
-            keyspace = DatabaseDescriptor.getNonSystemTables().get(0);
-
         /* All the ranges for the tokens */
         Map<Range, List<String>> map = new HashMap<Range, List<String>>();
         for (Map.Entry<Range,List<InetAddress>> entry : getRangeToAddressMap(keyspace).entrySet())
@@ -603,6 +598,21 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         return map;
     }
 
+     /**
+     * Return the rpc address associated with an endpoint as a string.
+     * @param endpoint The endpoint to get rpc address for
+     * @return
+     */
+    public String getRpcaddress(InetAddress endpoint)
+    {
+        if (endpoint.equals(FBUtilities.getLocalAddress()))
+            return DatabaseDescriptor.getRpcAddress().getHostAddress();
+        else if (Gossiper.instance.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.RPC_ADDRESS) == null)
+            return endpoint.getHostAddress();
+        else
+            return Gossiper.instance.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.RPC_ADDRESS).value;
+    }
+
     /**
      * for a keyspace, return the ranges and corresponding RPC addresses for a given keyspace.
      * @param keyspace
@@ -610,11 +620,6 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      */
     public Map<Range, List<String>> getRangeToRpcaddressMap(String keyspace)
     {
-        // some people just want to get a visual representation of things. Allow null and set it to the first
-        // non-system table.
-        if (keyspace == null)
-            keyspace = DatabaseDescriptor.getNonSystemTables().get(0);
-
         /* All the ranges for the tokens */
         Map<Range, List<String>> map = new HashMap<Range, List<String>>();
         for (Map.Entry<Range,List<InetAddress>> entry : getRangeToAddressMap(keyspace).entrySet())
@@ -622,12 +627,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             List<String> rpcaddrs = new ArrayList<String>();
             for (InetAddress endpoint: entry.getValue())
             {
-                if (endpoint.equals(FBUtilities.getLocalAddress()))
-                    rpcaddrs.add(DatabaseDescriptor.getRpcAddress().getHostAddress());
-                else if (Gossiper.instance.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.RPC_ADDRESS) == null)
-                    rpcaddrs.add(endpoint.getHostAddress());
-                else
-                    rpcaddrs.add(Gossiper.instance.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.RPC_ADDRESS).value);
+                rpcaddrs.add(getRpcaddress(endpoint));
             }
             map.put(entry.getKey(), rpcaddrs);
         }
@@ -652,6 +652,11 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
     public Map<Range, List<InetAddress>> getRangeToAddressMap(String keyspace)
     {
+        // some people just want to get a visual representation of things. Allow null and set it to the first
+        // non-system table.
+        if (keyspace == null)
+            keyspace = DatabaseDescriptor.getNonSystemTables().get(0);
+
         List<Range> ranges = getAllRanges(tokenMetadata_.sortedTokens());
         return constructRangeToEndpointMap(keyspace, ranges);
     }

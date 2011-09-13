@@ -342,10 +342,19 @@ struct Mutation {
     2: optional Deletion deletion,
 }
 
+/**
+    A TokenRange describes part of the Cassandra ring, it is a mapping from a range to
+    endpoints responsible for that range.
+    @param start_token The first token in the range
+    @param end_token The last token in the range
+    @param endpoints The endpoints responsible for the range (listed by their configured listen_address)
+    @param rpc_endpoints The endpoints responsible for the range (listed by their configured rpc_address)
+*/
 struct TokenRange {
     1: required string start_token,
     2: required string end_token,
     3: required list<string> endpoints,
+    4: optional list<string> rpc_endpoints
 }
 
 /**

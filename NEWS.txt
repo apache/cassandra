@@ -1,3 +1,10 @@
+0.8.6
+=====
+
+Features
+--------
+    - describe_ring now returns both the listen_address and rpc_address
+
 0.8.5
 =====
 
