@@ -30,9 +30,7 @@ import java.util.concurrent.*;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
-import com.google.common.collect.ArrayListMultimap;
-import com.google.common.collect.HashMultimap;
-import com.google.common.collect.Multimap;
+import com.google.common.collect.*;
 import org.apache.log4j.Level;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
@@ -46,6 +44,7 @@ import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.gms.*;
@@ -1049,10 +1048,9 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         // all leaving nodes are gone.
         for (Range range : affectedRanges)
         {
-            Collection<InetAddress> currentEndpoints = strategy.calculateNaturalEndpoints(range.right, tm);
-            Collection<InetAddress> newEndpoints = strategy.calculateNaturalEndpoints(range.right, allLeftMetadata);
-            newEndpoints.removeAll(currentEndpoints);
-            pendingRanges.putAll(range, newEndpoints);
+            Set<InetAddress> currentEndpoints = ImmutableSet.copyOf(strategy.calculateNaturalEndpoints(range.right, tm));
+            Set<InetAddress> newEndpoints = ImmutableSet.copyOf(strategy.calculateNaturalEndpoints(range.right, allLeftMetadata));
+            pendingRanges.putAll(range, Sets.difference(newEndpoints, currentEndpoints));
         }
 
         // At this stage pendingRanges has been updated according to leave operations. We can
@@ -2025,8 +2023,9 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
             for (Range toStream : rangesPerTable.left)
             {
-                List<InetAddress> endpoints = strategy.calculateNaturalEndpoints(toStream.right, tokenMetaClone);
-                rangeWithEndpoints.putAll(toStream, endpoints);
+                Set<InetAddress> currentEndpoints = ImmutableSet.copyOf(strategy.calculateNaturalEndpoints(toStream.right, tokenMetadata_));
+                Set<InetAddress> newEndpoints = ImmutableSet.copyOf(strategy.calculateNaturalEndpoints(toStream.right, tokenMetaClone));
+                rangeWithEndpoints.putAll(toStream, Sets.difference(newEndpoints, currentEndpoints));
             }
 
             // associating table with range-to-endpoints map

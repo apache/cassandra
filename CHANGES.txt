@@ -13,6 +13,8 @@
    (CASSANDRA-3158)
  * Randomize choice of first replica for counter increment (CASSANDRA-2890)
  * Fix using read_repair_chance instead of merge_shard_change (CASSANDRA-3202)
+ * Avoid streaming data to nodes that already have it, on move as well as
+   decommission (CASSANDRA-3041)
 
 
 0.8.5
