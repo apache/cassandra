@@ -20,7 +20,6 @@ package org.apache.cassandra.cache;
  * 
  */
 
-
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DecoratedKey;
@@ -37,7 +36,7 @@ public class SerializingCacheProvider implements IRowCacheProvider
         }
         catch (NoClassDefFoundError e)
         {
-            throw new ConfigurationException("Cannot intialize SerializationCache without JNA in the class path");
+            throw new ConfigurationException("Cannot initialize SerializationCache without JNA in the class path");
         }
     }
 
