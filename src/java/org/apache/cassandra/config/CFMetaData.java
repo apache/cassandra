@@ -37,6 +37,9 @@ import org.apache.cassandra.db.migration.avro.ColumnDef;
 import org.apache.cassandra.io.IColumnSerializer;
 import org.apache.cassandra.io.compress.CompressionParameters;
 import org.apache.cassandra.thrift.InvalidRequestException;
+import org.apache.cassandra.cache.ConcurrentLinkedHashCacheProvider;
+import org.apache.cassandra.cache.SerializingCacheProvider;
+import org.apache.cassandra.utils.CLibrary;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -64,7 +67,7 @@ public final class CFMetaData
     public final static int DEFAULT_MIN_COMPACTION_THRESHOLD = 4;
     public final static int DEFAULT_MAX_COMPACTION_THRESHOLD = 32;
     public final static double DEFAULT_MERGE_SHARDS_CHANCE = 0.1;
-    public final static String DEFAULT_ROW_CACHE_PROVIDER = "org.apache.cassandra.cache.ConcurrentLinkedHashCacheProvider";
+    public final static IRowCacheProvider DEFAULT_ROW_CACHE_PROVIDER = initDefaultRowCacheProvider();
     public final static String DEFAULT_COMPACTION_STRATEGY_CLASS = "SizeTieredCompactionStrategy";
     public final static ByteBuffer DEFAULT_KEY_NAME = ByteBufferUtil.bytes("KEY");
 
@@ -74,6 +77,18 @@ public final class CFMetaData
     public static final CFMetaData SchemaCf = newSystemMetadata(Migration.SCHEMA_CF, 3, "current state of the schema", UTF8Type.instance, null);
     public static final CFMetaData IndexCf = newSystemMetadata(SystemTable.INDEX_CF, 5, "indexes that have been completed", UTF8Type.instance, null);
     public static final CFMetaData NodeIdCf = newSystemMetadata(SystemTable.NODE_ID_CF, 6, "nodeId and their metadata", TimeUUIDType.instance, null);
+
+    private static IRowCacheProvider initDefaultRowCacheProvider()
+    {
+        try
+        {
+            return new SerializingCacheProvider();
+        }
+        catch (ConfigurationException e)
+        {
+            return new ConcurrentLinkedHashCacheProvider();
+        }
+    }
 
     //REQUIRED
     public final Integer cfId;                        // internal id, never exposed to user
@@ -171,14 +186,7 @@ public final class CFMetaData
         minCompactionThreshold       = DEFAULT_MIN_COMPACTION_THRESHOLD;
         maxCompactionThreshold       = DEFAULT_MAX_COMPACTION_THRESHOLD;
         mergeShardsChance            = DEFAULT_MERGE_SHARDS_CHANCE;
-        try
-        {
-            rowCacheProvider             = FBUtilities.newCacheProvider(DEFAULT_ROW_CACHE_PROVIDER);
-        }
-        catch (ConfigurationException e)
-        {
-            throw new AssertionError(e); // the default provider should not error out
-        }
+        rowCacheProvider             = DEFAULT_ROW_CACHE_PROVIDER;
 
         // Defaults strange or simple enough to not need a DEFAULT_T for
         defaultValidator = BytesType.instance;
@@ -368,7 +376,10 @@ public final class CFMetaData
             }
             catch (ConfigurationException e)
             {
-                throw new RuntimeException(e);
+                // default was already set upon newCFMD init
+                logger.warn("Unable to instantiate cache provider {}; using default {} instead",
+                            cf.row_cache_provider,
+                            DEFAULT_ROW_CACHE_PROVIDER);
             }
         }
         if (cf.key_alias != null) { newCFMD.keyAlias(cf.key_alias); }
@@ -609,8 +620,6 @@ public final class CFMetaData
             cf_def.setRow_cache_keys_to_save(CFMetaData.DEFAULT_ROW_CACHE_KEYS_TO_SAVE);
         if (!cf_def.isSetMerge_shards_chance())
             cf_def.setMerge_shards_chance(CFMetaData.DEFAULT_MERGE_SHARDS_CHANCE);
-        if (!cf_def.isSetRow_cache_provider())
-            cf_def.setRow_cache_provider(CFMetaData.DEFAULT_ROW_CACHE_PROVIDER);
         if (null == cf_def.compaction_strategy)
             cf_def.compaction_strategy = DEFAULT_COMPACTION_STRATEGY_CLASS;
         if (null == cf_def.compaction_strategy_options)
@@ -836,6 +845,7 @@ public final class CFMetaData
         def.setRow_cache_save_period_in_seconds(rowCacheSavePeriodInSeconds);
         def.setKey_cache_save_period_in_seconds(keyCacheSavePeriodInSeconds);
         def.setRow_cache_keys_to_save(rowCacheKeysToSave);
+        def.setRow_cache_provider(rowCacheProvider.getClass().getName());
         def.setMerge_shards_chance(mergeShardsChance);
         def.setKey_alias(getKeyName());
         List<org.apache.cassandra.thrift.ColumnDef> column_meta = new ArrayList<org.apache.cassandra.thrift.ColumnDef>(column_metadata.size());
@@ -962,6 +972,7 @@ public final class CFMetaData
             .append("rowCacheSavePeriodInSeconds", rowCacheSavePeriodInSeconds)
             .append("keyCacheSavePeriodInSeconds", keyCacheSavePeriodInSeconds)
             .append("rowCacheKeysToSave", rowCacheKeysToSave)
+            .append("rowCacheProvider", rowCacheProvider)
             .append("mergeShardsChance", mergeShardsChance)
             .append("keyAlias", keyAlias)
             .append("column_metadata", column_metadata)

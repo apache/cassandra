@@ -292,6 +292,7 @@ A number of optional keyword arguments can be supplied to control the configurat
 |_. keyword|_. default|_. description|
 |comparator|text|Determines sorting and validation of column names. Valid values are identical to the types listed in "Specifying Column Type":#columntypes above.|
 |comment|none|A free-form, human-readable comment.|
+|row_cache_provider|SerializingCacheProvider if JNA is present, otherwise ConcurrentHashMapCacheProvider|A factory for the cache with which to back the row cache.|
 |row_cache_size|0|Number of rows whose entire contents to cache in memory.|
 |key_cache_size|200000|Number of keys per SSTable whose locations are kept in memory in "mostly LRU" order.|
 |read_repair_chance|1.0|The probability with which read repairs should be invoked on non-quorum reads.|
@@ -301,9 +302,6 @@ A number of optional keyword arguments can be supplied to control the configurat
 |max_compaction_threshold|32|Maximum number of SSTables allowed before a minor compaction is forced.|
 |row_cache_save_period_in_seconds|0|Number of seconds between saving row caches.|
 |key_cache_save_period_in_seconds|14400|Number of seconds between saving key caches.|
-|memtable_flush_after_mins|60|Maximum time to leave a dirty table unflushed.|
-|memtable_throughput_in_mb|dynamic|Maximum size of the memtable before it is flushed.|
-|memtable_operations_in_millions|dynamic|Number of operations in millions before the memtable is flushed.|
 |replicate_on_write|false| |
 
 h2. CREATE INDEX
