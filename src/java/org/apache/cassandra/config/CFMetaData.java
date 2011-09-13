@@ -444,7 +444,7 @@ public final class CFMetaData
 
     public double getMergeShardsChance()
     {
-        return readRepairChance;
+        return mergeShardsChance;
     }
 
     public boolean getReplicateOnWrite()
