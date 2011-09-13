@@ -83,6 +83,7 @@
  * CustomTThreadPoolServer to log TTransportException at DEBUG level
    (CASSANDRA-3142)
  * Randomize choice of first replica for counter increment (CASSANDRA-2890)
+ * Fix using read_repair_chance instead of merge_shard_change (CASSANDRA-3202)
 
 
 0.8.5
