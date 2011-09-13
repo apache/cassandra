@@ -106,7 +106,7 @@ public class GCInspector
             
             if (previousCount == null)
                 previousCount = 0L;           
-            if (count == previousCount)
+            if (count.equals(previousCount))
                 continue;
             
             gccounts.put(gc.getName(), count);
