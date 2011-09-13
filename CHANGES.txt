@@ -86,6 +86,7 @@
    (CASSANDRA-3129)
  * CustomTThreadPoolServer to log TTransportException at DEBUG level
    (CASSANDRA-3142)
+ * Randomize choice of first replica for counter increment (CASSANDRA-2890)
 
 
 0.8.5
