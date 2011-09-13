@@ -73,6 +73,7 @@
  * Make SerializingCacheProvider the default if JNA is available (CASSANDRA-3183)
  * Fix backwards compatibilty for CQL memtable properties (CASSANDRA-3190)
 
+
 0.8.6
  * avoid trying to watch cassandra-topology.properties when loaded from jar
    (CASSANDRA-3138)
@@ -82,8 +83,15 @@
    (CASSANDRA-3129)
  * CustomTThreadPoolServer to log TTransportException at DEBUG level
    (CASSANDRA-3142)
+ * allow topology sort to work with non-unique rack names between 
+   datacenters (CASSANDRA-3152)
+ * Improve caching of same-version Messages on digest and repair paths
+   (CASSANDRA-3158)
  * Randomize choice of first replica for counter increment (CASSANDRA-2890)
  * Fix using read_repair_chance instead of merge_shard_change (CASSANDRA-3202)
+ * Avoid streaming data to nodes that already have it, on move as well as
+   decommission (CASSANDRA-3041)
+ * Fix divide by zero error in GCInspector
 
 
 0.8.5
