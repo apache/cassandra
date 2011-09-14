@@ -115,7 +115,9 @@ Upgrading
 ---------
     - Upgrading from version 0.7.1 or later can be done with a rolling
       restart, one node at a time.  You do not need to bring down the
-      whole cluster at once.
+      whole cluster at once. 
+    - After upgrading, run nodetool scrub against each node before running
+      repair, moving nodes, or adding new ones.
     - Running nodetool drain before shutting down the 0.7 node is
       recommended but not required. (Skipping this will result in
       replay of entire commitlog, so it will take longer to restart but
