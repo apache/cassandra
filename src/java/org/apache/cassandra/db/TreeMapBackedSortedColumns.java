@@ -72,6 +72,11 @@ public class TreeMapBackedSortedColumns extends TreeMap<ByteBuffer, IColumn> imp
         return new TreeMapBackedSortedColumns(this);
     }
 
+    public boolean isInsertReversed()
+    {
+        return false;
+    }
+
     /*
      * If we find an old column that has the same name
      * the ask it to resolve itself else add the new column

@@ -72,6 +72,11 @@ public class ThreadSafeSortedColumns extends ConcurrentSkipListMap<ByteBuffer, I
         return new ThreadSafeSortedColumns(this);
     }
 
+    public boolean isInsertReversed()
+    {
+        return false;
+    }
+
     /*
      * If we find an old column that has the same name
      * the ask it to resolve itself else add the new column
