@@ -74,7 +74,7 @@
  * Fix backwards compatibilty for CQL memtable properties (CASSANDRA-3190)
  * Add five-minute delay before starting compactions on a restarted server
    (CASSANDRA-3181)
-
+ * support of compaction strategy option for stress.java (CASSANDRA-3204)
 
 0.8.6
  * avoid trying to watch cassandra-topology.properties when loaded from jar

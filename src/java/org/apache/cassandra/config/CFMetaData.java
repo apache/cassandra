@@ -776,7 +776,7 @@ public final class CFMetaData
         logger.debug("application result is {}", this);
     }
 
-    private static Class<? extends AbstractCompactionStrategy> createCompactionSrategy(String className) throws ConfigurationException
+    public static Class<? extends AbstractCompactionStrategy> createCompactionSrategy(String className) throws ConfigurationException
     {
         className = className.contains(".") ? className : "org.apache.cassandra.db.compaction." + className;
         try
