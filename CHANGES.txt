@@ -72,6 +72,8 @@
  * Add RowLevel support to secondary index API (CASSANDRA-3147)
  * Make SerializingCacheProvider the default if JNA is available (CASSANDRA-3183)
  * Fix backwards compatibilty for CQL memtable properties (CASSANDRA-3190)
+ * Add five-minute delay before starting compactions on a restarted server
+   (CASSANDRA-3181)
 
 
 0.8.6

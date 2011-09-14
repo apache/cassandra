@@ -29,24 +29,6 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
     private final int maxSSTableSize;
     private final AtomicReference<LeveledCompactionTask> task = new AtomicReference<LeveledCompactionTask>();
 
-    public class ScheduledBackgroundCompaction implements Runnable
-    {
-        ColumnFamilyStore cfs;
-
-        public ScheduledBackgroundCompaction(ColumnFamilyStore cfs)
-        {
-            this.cfs = cfs;
-        }
-
-        public void run()
-        {
-            if (CompactionManager.instance.getActiveCompactions() == 0)
-            {
-                CompactionManager.instance.submitBackground(cfs);
-            }
-        }
-    }
-
     public LeveledCompactionStrategy(ColumnFamilyStore cfs, Map<String, String> options)
     {
         super(cfs, options);
@@ -76,13 +58,11 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
         // override min/max for this strategy
         cfs.setMaximumCompactionThreshold(Integer.MAX_VALUE);
         cfs.setMinimumCompactionThreshold(1);
-
-        DebuggableScheduledThreadPoolExecutor st = StorageService.scheduledTasks;
-        st.scheduleAtFixedRate(new ScheduledBackgroundCompaction(cfs), 10000, 3000, TimeUnit.MILLISECONDS);
     }
 
     public void shutdown()
     {
+        super.shutdown();
         cfs.getDataTracker().unsubscribe(this);
     }
 
@@ -110,7 +90,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
 
     public List<AbstractCompactionTask> getMaximalTasks(int gcBefore)
     {
-        return Collections.emptyList();
+        return getBackgroundTasks(gcBefore);
     }
 
     public AbstractCompactionTask getUserDefinedTask(Collection<SSTableReader> sstables, int gcBefore)
