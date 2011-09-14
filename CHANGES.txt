@@ -1,3 +1,7 @@
+1.0.0-rc1
+ * Fix counting CFMetadata towards Memtable liveRatio (CASSANDRA-3023)
+
+
 1.0.0-beta1
  * removed binarymemtable (CASSANDRA-2692)
  * add commitlog_total_space_in_mb to prevent fragmented logs (CASSANDRA-2427)

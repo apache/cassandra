@@ -366,7 +366,7 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
           </dependency>
           <dependency groupId="com.googlecode.json-simple" artifactId="json-simple" version="1.1"/>
           <dependency groupId="com.github.stephenc.high-scale-lib" artifactId="high-scale-lib" version="1.1.2"/>
-          <dependency groupId="com.github.stephenc" artifactId="jamm" version="0.2.4"/>
+          <dependency groupId="com.github.stephenc" artifactId="jamm" version="0.2.5"/>
           <dependency groupId="org.yaml" artifactId="snakeyaml" version="1.6"/>
           <dependency groupId="org.apache.cassandra.deps" artifactId="avro" version="1.4.0-cassandra-1">
             <exclusion groupId="org.jboss.netty" artifactId="netty"/>
@@ -1002,7 +1002,7 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
         <jvmarg value="-Dstorage-config=${test.conf}"/>
         <jvmarg value="-Daccess.properties=${test.conf}/access.properties"/>
         <jvmarg value="-Dlog4j.configuration=log4j-junit.properties" />
-        <jvmarg value="-javaagent:${basedir}/lib/jamm-0.2.4.jar" />
+        <jvmarg value="-javaagent:${basedir}/lib/jamm-0.2.5.jar" />
         <jvmarg value="-ea"/>
         <optjvmargs/>
         <classpath>
