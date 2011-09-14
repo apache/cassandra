@@ -1194,7 +1194,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     IColumn sc = cached.getColumn(filter.path.superColumnName);
                     if (sc == null || sliceFilter.count >= sc.getSubColumns().size())
                     {
-                        ColumnFamily cf = cached.cloneMeShallow(ArrayBackedSortedColumns.factory());
+                        ColumnFamily cf = cached.cloneMeShallow(ArrayBackedSortedColumns.factory(), filter.filter.isReversed());
                         if (sc != null)
                             cf.addColumn(sc, HeapAllocator.instance);
                         return removeDeleted(cf, gcBefore);
@@ -1213,7 +1213,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
 
         IColumnIterator ci = filter.getMemtableColumnIterator(cached, null, getComparator());
-        ColumnFamily cf = ci.getColumnFamily().cloneMeShallow(ArrayBackedSortedColumns.factory());
+        ColumnFamily cf = ci.getColumnFamily().cloneMeShallow(ArrayBackedSortedColumns.factory(), filter.filter.isReversed());
         filter.collateColumns(cf, Collections.singletonList(ci), getComparator(), gcBefore);
         // TODO this is necessary because when we collate supercolumns together, we don't check
         // their subcolumns for relevance, so we need to do a second prune post facto here.
