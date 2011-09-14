@@ -58,7 +58,7 @@ public abstract class AbstractCompactionStrategy
                 }
             }
         };
-        StorageService.tasks.schedule(runnable, 5 * 60, TimeUnit.SECONDS);
+        StorageService.optionalTasks.schedule(runnable, 5 * 60, TimeUnit.SECONDS);
     }
 
     /**
