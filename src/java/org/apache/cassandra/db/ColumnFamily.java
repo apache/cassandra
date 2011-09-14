@@ -81,9 +81,9 @@ public class ColumnFamily extends AbstractColumnContainer
         this.cfm = cfm;
     }
     
-    public ColumnFamily cloneMeShallow(ISortedColumns.Factory factory)
+    public ColumnFamily cloneMeShallow(ISortedColumns.Factory factory, boolean reversedInsertOrder)
     {
-        ColumnFamily cf = ColumnFamily.create(cfm, factory);
+        ColumnFamily cf = ColumnFamily.create(cfm, factory, reversedInsertOrder);
         // since deletion info is immutable, aliasing it is fine
         cf.deletionInfo.set(deletionInfo.get());
         return cf;
@@ -91,7 +91,7 @@ public class ColumnFamily extends AbstractColumnContainer
 
     public ColumnFamily cloneMeShallow()
     {
-        return cloneMeShallow(columns.getFactory());
+        return cloneMeShallow(columns.getFactory(), columns.isInsertReversed());
     }
 
     public AbstractType getSubComparator()

@@ -82,6 +82,11 @@ public class ArrayBackedSortedColumns extends ArrayList<IColumn> implements ISor
         return new ArrayBackedSortedColumns(this, comparator, reversed);
     }
 
+    public boolean isInsertReversed()
+    {
+        return reversed;
+    }
+
     private int compare(ByteBuffer name1, ByteBuffer name2)
     {
         if (reversed)

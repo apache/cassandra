@@ -124,6 +124,11 @@ public interface ISortedColumns extends IIterableColumns
      */
     public Iterator<IColumn> reverseIterator();
 
+    /**
+     * Returns if this map only support inserts in reverse order.
+     */
+    public boolean isInsertReversed();
+
     public interface Factory
     {
         /**
