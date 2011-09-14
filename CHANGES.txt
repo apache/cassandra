@@ -2,7 +2,7 @@
  * describe_ring should include datacenter/topology information (CASSANDRA-2882)
 
 
-1.0
+1.0.0-beta1
  * removed binarymemtable (CASSANDRA-2692)
  * add commitlog_total_space_in_mb to prevent fragmented logs (CASSANDRA-2427)
  * removed commitlog_rotation_threshold_in_mb configuration (CASSANDRA-2771)
@@ -76,6 +76,8 @@
  * Add RowLevel support to secondary index API (CASSANDRA-3147)
  * Make SerializingCacheProvider the default if JNA is available (CASSANDRA-3183)
  * Fix backwards compatibilty for CQL memtable properties (CASSANDRA-3190)
+ * Add five-minute delay before starting compactions on a restarted server
+   (CASSANDRA-3181)
 
 
 0.8.6

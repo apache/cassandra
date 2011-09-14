@@ -60,6 +60,10 @@ Other
       This does not affect client compatibility -- the old options are
       still allowed, but have no effect.  These options may be removed
       entirely in a future release.
+    - Backlogged compactions will begin five minutes after startup.  The 0.8
+      behavior of never starting compaction until a flush happens is usually
+      not what is desired, but a short grace period is useful to allow caches
+      to warm up first.
 
 
 0.8.5

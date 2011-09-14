@@ -18,21 +18,14 @@
 
 package org.apache.cassandra.db.compaction;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
-import org.apache.commons.lang.StringUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.io.sstable.SSTableReader;
-import org.apache.cassandra.utils.DefaultInteger;
-import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.service.StorageService;
 
 
 /**
@@ -53,6 +46,19 @@ public abstract class AbstractCompactionStrategy
         assert cfs != null;
         this.cfs = cfs;
         this.options = options;
+
+        // start compactions in five minutes (if no flushes have occurred by then to do so)
+        Runnable runnable = new Runnable()
+        {
+            public void run()
+            {
+                if (CompactionManager.instance.getActiveCompactions() == 0)
+                {
+                    CompactionManager.instance.submitBackground(AbstractCompactionStrategy.this.cfs);
+                }
+            }
+        };
+        StorageService.tasks.schedule(runnable, 5 * 60, TimeUnit.SECONDS);
     }
 
     /**
