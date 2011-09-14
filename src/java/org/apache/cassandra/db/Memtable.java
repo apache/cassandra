@@ -21,10 +21,7 @@ package org.apache.cassandra.db;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Collection;
-import java.util.Comparator;
-import java.util.Iterator;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -55,7 +52,6 @@ public class Memtable
     private static final double MIN_SANE_LIVE_RATIO = 1.0;
     // max liveratio seen w/ 1-byte columns on a 64-bit jvm was 19. If it gets higher than 64 something is probably broken.
     private static final double MAX_SANE_LIVE_RATIO = 64.0;
-    private static final MemoryMeter meter = new MemoryMeter().omitSharedBufferOverhead();
 
     // we're careful to only allow one count to run at a time because counting is slow
     // (can be minutes, for a large memtable and a busy server), so we could keep memtables
@@ -69,6 +65,8 @@ public class Memtable
             DebuggableThreadPoolExecutor.logExceptionsAfterExecute(r, t);
         }
     };
+
+    private final MemoryMeter meter;
 
     volatile static Memtable activelyMeasuring;
 
@@ -84,6 +82,18 @@ public class Memtable
     public Memtable(ColumnFamilyStore cfs)
     {
         this.cfs = cfs;
+
+        Callable<Set<Object>> provider = new Callable<Set<Object>>()
+        {
+            public Set<Object> call() throws Exception
+            {
+                // avoid counting this once for each row
+                Set<Object> set = Collections.newSetFromMap(new IdentityHashMap<Object, Boolean>());
+                set.add(Memtable.this.cfs.metadata);
+                return set;
+            }
+        };
+        meter = new MemoryMeter().omitSharedBufferOverhead().withTrackerProvider(provider);
     }
 
     public long getLiveSize()

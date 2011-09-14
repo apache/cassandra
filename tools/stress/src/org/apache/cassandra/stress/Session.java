@@ -25,7 +25,9 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.commons.cli.*;
@@ -86,6 +88,7 @@ public class Session implements Serializable
         availableOptions.addOption("T",  "send-to",              true,   "Send this as a request to the stress daemon at specified address.");
         availableOptions.addOption("I",  "compression",          true,   "Specify the compression to use for sstable, default:no compression");
         availableOptions.addOption("Q",  "query-names",          true,   "Comma-separated list of column names to retrieve from each row.");
+        availableOptions.addOption("Z",  "compaction-strategy",  true,   "CompactionStrategy to use.");
     }
 
     private int numKeys          = 1000 * 1000;
@@ -102,6 +105,7 @@ public class Session implements Serializable
     private int port             = 9160;
     private int superColumns     = 1;
     private String compression   = null;
+    private String compactionStrategy = null;
 
     private int progressInterval  = 10;
     private int keysPerCall       = 1000;
@@ -301,6 +305,22 @@ public class Session implements Serializable
             {
                 columnNames = null;
             }
+
+            if (cmd.hasOption("Z"))
+            {
+                compactionStrategy = cmd.getOptionValue("Z");
+
+                try
+                {
+                    // validate compaction strategy class
+                    CFMetaData.createCompactionSrategy(compactionStrategy);
+                }
+                catch (ConfigurationException e)
+                {
+                    System.err.println(e.getMessage());
+                    System.exit(1);
+                }
+            }
         }
         catch (ParseException e)
         {
@@ -481,6 +501,14 @@ public class Session implements Serializable
         if (!replicationStrategyOptions.isEmpty())
         {
             keyspace.setStrategy_options(replicationStrategyOptions);
+        }
+
+        if (compactionStrategy != null)
+        {
+            standardCfDef.setCompaction_strategy(compactionStrategy);
+            superCfDef.setCompaction_strategy(compactionStrategy);
+            counterCfDef.setCompaction_strategy(compactionStrategy);
+            counterSuperCfDef.setCompaction_strategy(compactionStrategy);
         }
 
         keyspace.setCf_defs(new ArrayList<CfDef>(Arrays.asList(standardCfDef, superCfDef, counterCfDef, counterSuperCfDef)));
