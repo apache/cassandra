@@ -22,23 +22,24 @@ import java.io.*;
 import java.nio.ByteBuffer;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
-import org.apache.cassandra.config.Schema;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.compaction.CompactionInfo;
 import org.apache.cassandra.db.compaction.CompactionManager;
-import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.compaction.OperationType;
-import org.apache.cassandra.io.util.*;
+import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -99,10 +100,10 @@ public abstract class AutoSavingCache<K, V> extends InstrumentingCache<K, V>
                     submitWrite(keysToSave);
                 }
             };
-            saveTask = StorageService.tasks.scheduleWithFixedDelay(runnable,
-                                                                   savePeriodInSeconds,
-                                                                   savePeriodInSeconds,
-                                                                   TimeUnit.SECONDS);
+            saveTask = StorageService.optionalTasks.scheduleWithFixedDelay(runnable,
+                                                                           savePeriodInSeconds,
+                                                                           savePeriodInSeconds,
+                                                                           TimeUnit.SECONDS);
         }
     }
 

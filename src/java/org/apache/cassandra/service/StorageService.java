@@ -158,6 +158,14 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      */
     public static final DebuggableScheduledThreadPoolExecutor tasks = new DebuggableScheduledThreadPoolExecutor("NonPeriodicTasks");
 
+    /**
+     * tasks that do not need to be waited for on shutdown/drain
+     */
+    public static final DebuggableScheduledThreadPoolExecutor optionalTasks = new DebuggableScheduledThreadPoolExecutor("OptionalTasks");
+    static
+    {
+        tasks.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
+    }
 
     /* This abstraction maintains the token/endpoint metadata information */
     private TokenMetadata tokenMetadata_ = new TokenMetadata();
@@ -410,6 +418,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                 if (mutationStage.isShutdown())
                     return; // drained already
 
+                optionalTasks.shutdown();
                 Gossiper.instance.stop();
                 MessagingService.instance().shutdown();
 
@@ -2339,6 +2348,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             return;
         }
         setMode("Starting drain process", true);
+        optionalTasks.shutdown();
         Gossiper.instance.stop();
         setMode("Draining: shutting down MessageService", false);
         MessagingService.instance().shutdown();
