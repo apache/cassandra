@@ -31,3 +31,8 @@ YAML support provided by snakeyaml (http://code.google.com/p/snakeyaml/).
 Copyright (c) 2008-2010 Andrey Somov
 
 Compression support provided by snappy-java (http://code.google.com/p/snappy-java/)
+Written by Taro L. Saito.
+
+Streaming compression support provided by ning-compress
+(https://github.com/ning/compress)
+Copyright 2009-2010 Ning, Inc.
