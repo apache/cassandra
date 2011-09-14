@@ -109,7 +109,7 @@ public class CliTest extends CleanupHelper
         "set sCf1['hello'][1][9999] = Long(1234);",
         "del sCf1['hello'][9999];",
         "get sCf1['hello'][1][9999];",
-        "create column family Counter1 with comparator=UTF8Type and default_validation_class=CounterColumnType;",
+        "create column family 'Counter1' with comparator=UTF8Type and default_validation_class=CounterColumnType;",
         "assume Counter1 keys as utf8;",
         "incr Counter1['hello']['cassandra'];",
         "incr Counter1['hello']['cassandra'] by 3;",

@@ -17,7 +17,8 @@
    decommission (CASSANDRA-3041)
  * Fix divide by zero error in GCInspector
  * revert CASSANDRA-2388
-
+ * allow quoting of the ColumnFamily name in CLI `create column family`
+   statement (CASSANDRA-3195)
 
 0.8.5
  * fix NPE when encryption_options is unspecified (CASSANDRA-3007)

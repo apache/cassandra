@@ -1023,7 +1023,7 @@ public class CliClient
             return;
 
         // first value is the column family name, after that it is all key=value
-        CfDef cfDef = new CfDef(keySpace, statement.getChild(0).getText());
+        CfDef cfDef = new CfDef(keySpace, CliUtils.unescapeSQLString(statement.getChild(0).getText()));
 
         try
         {
