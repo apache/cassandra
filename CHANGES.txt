@@ -1,4 +1,7 @@
 0.8.6
+ * revert CASSANDRA-2388
+ * change TokenRange.endpoints back to listen/broadcast address to match
+   pre-1777 behavior, and add TokenRange.rpc_endpoints instead (CASSANDRA-3187)
  * avoid trying to watch cassandra-topology.properties when loaded from jar
    (CASSANDRA-3138)
  * prevent users from creating keyspaces with LocalStrategy replication
@@ -16,9 +19,9 @@
  * Avoid streaming data to nodes that already have it, on move as well as
    decommission (CASSANDRA-3041)
  * Fix divide by zero error in GCInspector
- * revert CASSANDRA-2388
  * allow quoting of the ColumnFamily name in CLI `create column family`
    statement (CASSANDRA-3195)
+
 
 0.8.5
  * fix NPE when encryption_options is unspecified (CASSANDRA-3007)
@@ -82,6 +85,8 @@
 
 
 0.8.4
+ * change TokenRing.endpoints to be a list of rpc addresses instead of 
+   listen/broadcast addresses (CASSANDRA-1777)
  * include files-to-be-streamed in StreamInSession.getSources (CASSANDRA-2972)
  * use JAVA env var in cassandra-env.sh (CASSANDRA-2785, 2992)
  * avoid doing read for no-op replicate-on-write at CL=1 (CASSANDRA-2892)
