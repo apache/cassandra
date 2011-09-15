@@ -22,6 +22,7 @@ package org.apache.cassandra.net;
 
 
 import java.io.*;
+import java.net.InetAddress;
 import java.net.Socket;
 
 import org.apache.cassandra.gms.Gossiper;
@@ -41,11 +42,13 @@ public class IncomingTcpConnection extends Thread
     private static final int CHUNK_SIZE = 1024 * 1024;
     
     private Socket socket;
+    public InetAddress from;
 
     public IncomingTcpConnection(Socket socket)
     {
         assert socket != null;
         this.socket = socket;
+        from = socket.getInetAddress(); // maximize chance of this not being nulled by disconnect
     }
 
     /**
@@ -70,8 +73,7 @@ public class IncomingTcpConnection extends Thread
                 // we should buffer
                 input = new DataInputStream(new BufferedInputStream(socket.getInputStream(), 4096));
             version = MessagingService.getBits(header, 15, 8);
-            if (logger.isDebugEnabled())
-                logger.debug("Version for " + socket.getInetAddress() + " is " + version);
+            logger.debug("Version for {} is {}", from, version);
         }
         catch (IOException e)
         {
@@ -83,7 +85,7 @@ public class IncomingTcpConnection extends Thread
         if (version > MessagingService.version_)
         {
             // save the endpoint so gossip will reconnect to it
-            Gossiper.instance.addSavedEndpoint(socket.getInetAddress());
+            Gossiper.instance.addSavedEndpoint(from);
             logger.info("Received " + (isStream ? "streaming " : "") + "connection from newer protocol version. Ignorning");
 
             // streaming connections are per-session and have a fixed version.  we can't do anything with a new-version
@@ -99,8 +101,8 @@ public class IncomingTcpConnection extends Thread
         else
         {
             // only set version when <= to us, otherwise it's the responsibility of the other end to mimic us
-            Gossiper.instance.setVersion(socket.getInetAddress(), version);
-            logger.debug("set version for {} to {}", socket.getInetAddress(), version);
+            Gossiper.instance.setVersion(from, version);
+            logger.debug("set version for {} to {}", from, version);
         }
 
         while (true)
@@ -165,7 +167,8 @@ public class IncomingTcpConnection extends Thread
     private void close()
     {
         // reset version here, since we set when starting an incoming socket
-        Gossiper.instance.resetVersion(socket.getInetAddress());
+        if (from != null)
+            Gossiper.instance.resetVersion(from);
         try
         {
             socket.close();
