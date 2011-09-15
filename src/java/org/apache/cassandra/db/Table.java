@@ -396,7 +396,6 @@ public class Table
     */
     public void apply(RowMutation mutation, boolean writeCommitLog) throws IOException
     {
-        List<Memtable> memtablesToFlush = Collections.emptyList();
         if (logger.isDebugEnabled())
             logger.debug("applying mutation of row {}", ByteBufferUtil.bytesToHex(mutation.key()));
 
@@ -465,10 +464,6 @@ public class Table
             switchLock.readLock().unlock();
         }
 
-        // flush memtables that got filled up outside the readlock (maybeSwitchMemtable acquires writeLock).
-        // usually mTF will be empty and this will be a no-op.
-        for (Memtable memtable : memtablesToFlush)
-            memtable.cfs.maybeSwitchMemtable(memtable, writeCommitLog);
     }
 
     private static void ignoreObsoleteMutations(ColumnFamily cf, SortedSet<ByteBuffer> mutatedIndexedColumns, ColumnFamily oldIndexedColumns)
