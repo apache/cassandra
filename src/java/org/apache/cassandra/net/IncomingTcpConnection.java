@@ -182,7 +182,8 @@ public class IncomingTcpConnection extends Thread
 
     private void stream(StreamHeader streamHeader, DataInputStream input) throws IOException
     {
-        if (DatabaseDescriptor.getEncryptionOptions().internode_encryption == EncryptionOptions.InternodeEncryption.all)
+        EncryptionOptions options = DatabaseDescriptor.getEncryptionOptions();
+        if (options != null && options.internode_encryption == EncryptionOptions.InternodeEncryption.all)
             new SSLIncomingStreamReader(streamHeader, socket, input).read();
         else
             new IncomingStreamReader(streamHeader, socket).read();
