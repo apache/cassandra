@@ -80,6 +80,7 @@
    (CASSANDRA-3181)
  * Reduce copies done for intra-host messages (CASSANDRA-1788, 3144)
  * support of compaction strategy option for stress.java (CASSANDRA-3204)
+ * make memtable throughput and column count thresholds no-ops (CASSANDRA-2449)
 
 
 0.8.6
