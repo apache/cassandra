@@ -137,9 +137,11 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
             {
                 exceptions.incrementAndGet();
                 logger.error("Fatal exception in thread " + t, e);
-                if (e instanceof OutOfMemoryError)
+                for (Throwable e2 = e; e2 != null; e2 = e2.getCause())
                 {
-                    System.exit(100);
+                    // some code, like FileChannel.map, will wrap an OutOfMemoryError in another exception
+                    if (e2 instanceof OutOfMemoryError)
+                        System.exit(100);
                 }
             }
         });

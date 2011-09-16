@@ -1,3 +1,7 @@
+0.8.7
+ * Kill server on wrapped OOME such as from FileChannel.map (CASSANDRA-3201)
+
+
 0.8.6
  * revert CASSANDRA-2388
  * change TokenRange.endpoints back to listen/broadcast address to match
