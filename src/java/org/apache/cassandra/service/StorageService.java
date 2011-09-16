@@ -506,11 +506,22 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             }
             if (logger_.isDebugEnabled())
                 logger_.debug("... got ring + schema info");
-            if (null != DatabaseDescriptor.getReplaceToken())
+
+            if (DatabaseDescriptor.getReplaceToken() == null)
+            {
+                if (tokenMetadata_.isMember(FBUtilities.getBroadcastAddress()))
+                {
+                    String s = "This node is already a member of the token ring; bootstrap aborted. (If replacing a dead node, remove the old one from the ring first.)";
+                    throw new UnsupportedOperationException(s);
+                }
+                setMode("Joining: getting bootstrap token", true);
+                token = BootStrapper.getBootstrapToken(tokenMetadata_, LoadBroadcaster.instance.getLoadInfo());
+            }
+            else
             {
                 try
                 {
-                    // Sleeping additionally to make sure that the server actually is not alive 
+                    // Sleeping additionally to make sure that the server actually is not alive
                     // and giving it more time to gossip if alive.
                     Thread.sleep(LoadBroadcaster.BROADCAST_INTERVAL);
                 }
@@ -525,16 +536,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                     throw new UnsupportedOperationException("Cannnot replace a token for a Live node... ");
                 setMode("Joining: Replacing a node with token: " + token, true);
             }
-            else
-            {
-                if (tokenMetadata_.isMember(FBUtilities.getBroadcastAddress()))
-                {
-                    String s = "This node is already a member of the token ring; bootstrap aborted. (If replacing a dead node, remove the old one from the ring first.)";
-                    throw new UnsupportedOperationException(s);
-                }
-                setMode("Joining: getting bootstrap token", true);
-                token = BootStrapper.getBootstrapToken(tokenMetadata_, LoadBroadcaster.instance.getLoadInfo());
-            }
+
             // don't bootstrap if there are no tables defined.
             if (Schema.instance.getNonSystemTables().size() > 0)
             {
