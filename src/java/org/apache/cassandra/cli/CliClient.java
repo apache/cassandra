@@ -1795,9 +1795,10 @@ public class CliClient
         String keySpaceName, username = null, password = null;
 
         // Get keyspace name
-        keySpaceName = statement.getChild(0).getText();
-        
-        if (childCount == 3) {
+        keySpaceName = CliUtils.unescapeSQLString(statement.getChild(0).getText());
+
+        if (childCount == 3)
+        {
             username  = statement.getChild(1).getText();
             password  = statement.getChild(2).getText();
         }
