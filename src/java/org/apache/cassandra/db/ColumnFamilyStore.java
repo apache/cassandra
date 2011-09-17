@@ -2215,7 +2215,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public long[] getEstimatedColumnCountHistogram()
     {
-        return data.getEstimatedRowSizeHistogram();
+        return data.getEstimatedColumnCountHistogram();
     }
 
     /**

@@ -521,8 +521,8 @@ public class NodeCmd
             output.println(String.format("%-10d%10s%18s%18s%18s%18s",
                                          offsets[i],
                                          (i < sprh.length ? sprh[i] : ""),
-                                         (i < rwlh.length ? rrlh[i] : ""),
-                                         (i < rrlh.length ? rwlh[i] : ""),
+                                         (i < rwlh.length ? rwlh[i] : ""),
+                                         (i < rrlh.length ? rrlh[i] : ""),
                                          (i < ersh.length ? ersh[i] : ""),
                                          (i < ecch.length ? ecch[i] : "")));
         }
