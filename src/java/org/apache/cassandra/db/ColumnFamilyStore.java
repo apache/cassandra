@@ -1813,7 +1813,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public long[] getEstimatedColumnCountHistogram()
     {
-        return data.getEstimatedRowSizeHistogram();
+        return data.getEstimatedColumnCountHistogram();
     }
 
     /** true if this CFS contains secondary index data */
