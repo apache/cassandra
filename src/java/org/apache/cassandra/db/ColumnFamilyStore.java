@@ -1121,17 +1121,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             if (cached == null)
                 return null;
 
-            if (!rowCache.isPutCopying())
-            {
-                // make a deep copy of column data so we don't keep references to direct buffers, which
-                // would prevent munmap post-compaction.
-                for (IColumn column : cached)
-                {
-                    cached.remove(column.name());
-                    cached.addColumn(column.localCopy(this));
-                }
-            }
-
             // avoid keeping a permanent reference to the original key buffer
             rowCache.put(new DecoratedKey(key.token, ByteBufferUtil.clone(key.key)), cached);
         }
