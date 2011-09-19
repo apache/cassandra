@@ -48,6 +48,8 @@ public class ClientState
     // Reusable array for authorization
     private final List<Object> resource = new ArrayList<Object>();
 
+    private long clock;
+
     /**
      * Construct a new, empty ClientState: can be reused after logout() or reset().
      */
@@ -179,5 +181,17 @@ public class ClientState
                                                         user,
                                                         perm,
                                                         Resources.toString(resource)));
+    }
+
+    /**
+     * This clock guarantees that updates from a given client will be ordered in the sequence seen,
+     * even if multiple updates happen in the same millisecond.  This can be useful when a client
+     * wants to perform multiple updates to a single column.
+     */
+    public long getTimestamp()
+    {
+        long current = System.currentTimeMillis() * 1000;
+        clock = clock >= current ? clock + 1 : current;
+        return clock;
     }
 }

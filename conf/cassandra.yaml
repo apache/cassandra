@@ -331,11 +331,6 @@ rpc_timeout_in_ms: 10000
 #    explicitly configured in cassandra-topology.properties.
 endpoint_snitch: org.apache.cassandra.locator.SimpleSnitch
 
-# dynamic_snitch -- This boolean controls whether the above snitch is
-# wrapped with a dynamic snitch, which will monitor read latencies
-# and avoid reading from hosts that have slowed (due to compaction,
-# for instance)
-dynamic_snitch: true
 # controls how often to perform the more expensive part of host score
 # calculation
 dynamic_snitch_update_interval_in_ms: 100 
@@ -349,7 +344,7 @@ dynamic_snitch_reset_interval_in_ms: 600000
 # expressed as a double which represents a percentage.  Thus, a value of
 # 0.2 means Cassandra would continue to prefer the static snitch values
 # until the pinned host was 20% worse than the fastest.
-dynamic_snitch_badness_threshold: 0.0
+dynamic_snitch_badness_threshold: 0.1
 
 # request_scheduler -- Set this to a class that implements
 # RequestScheduler, which will schedule incoming client requests
