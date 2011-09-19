@@ -28,6 +28,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.*;
 import javax.lang.model.type.TypeKind;
+import java.util.concurrent.atomic.AtomicInteger;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
@@ -208,6 +209,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
     /* Used for tracking drain progress */
     private volatile int totalCFs, remainingCFs;
+
+    private static final AtomicInteger nextRepairCommand = new AtomicInteger();
 
     public void finishBootstrapping()
     {
@@ -1648,8 +1651,13 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         if (Table.SYSTEM_TABLE.equals(tableName))
             return;
 
-        List<AntiEntropyService.RepairFuture> futures = new ArrayList<AntiEntropyService.RepairFuture>();
-        for (Range range : getLocalRanges(tableName))
+
+        Collection<Range> ranges = getLocalRanges(tableName);
+        int cmd = nextRepairCommand.incrementAndGet();
+        logger_.info("Starting repair command #{}, repairing {} ranges.", cmd, ranges.size());
+
+        List<AntiEntropyService.RepairFuture> futures = new ArrayList<AntiEntropyService.RepairFuture>(ranges.size());
+        for (Range range : ranges)
         {
             AntiEntropyService.RepairFuture future = forceTableRepair(range, tableName, columnFamilies);
             futures.add(future);
@@ -1681,7 +1689,9 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         }
 
         if (failedSession)
-            throw new IOException("Some repair session(s) failed (see log for details).");
+            throw new IOException("Repair command #" + cmd + ": some repair session(s) failed (see log for details).");
+        else
+            logger_.info("Repair command #{} completed successfully", cmd);
     }
 
     public void forceTableRepairPrimaryRange(final String tableName, final String... columnFamilies) throws IOException
