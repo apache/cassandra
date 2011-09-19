@@ -2,7 +2,7 @@
  * Fix counting CFMetadata towards Memtable liveRatio (CASSANDRA-3023)
  * Kill server on wrapped OOME such as from FileChannel.map (CASSANDRA-3201)
  * remove unnecessary copy when adding to row cache (CASSANDRA-3223)
-
+ * Log message when a full repair operation completes (CASSANDRA-3207)
 
 1.0.0-beta1
  * removed binarymemtable (CASSANDRA-2692)
