@@ -678,8 +678,15 @@ public class AntiEntropyService
                 // block whatever thread started this session until all requests have been returned:
                 // if this thread dies, the session will still complete in the background
                 completed.await();
-                if (exception != null)
+                if (exception == null)
+                {
+                    logger.info(String.format("Repair session %s (on cfs %s, range %s) completed successfully", getName()), cfnames, range);
+                }
+                else
+                {
+                    logger.error(String.format("Repair session %s (on cfs %s, range %s) failed with the following error", getName(), cfnames, range), exception);
                     throw exception;
+                }
             }
             catch (InterruptedException e)
             {
