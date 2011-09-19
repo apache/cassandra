@@ -3,10 +3,17 @@
 
 
 1.0.0-rc1
+ * Update CQL to generate microsecond timestamps by default (CASSANDRA-3227)
  * Fix counting CFMetadata towards Memtable liveRatio (CASSANDRA-3023)
+ * Kill server on wrapped OOME such as from FileChannel.map (CASSANDRA-3201)
+ * remove unnecessary copy when adding to row cache (CASSANDRA-3223)
  * Log message when a full repair operation completes (CASSANDRA-3207)
  * Fix streamOutSession keeping sstables references forever if the remote end
    dies (CASSANDRA-3216)
+ * Remove dynamic_snitch boolean from example configuration (defaulting to 
+   true) and set default badness threshold to 0.1 (CASSANDRA-3229)
+ * Base choice of random or "balanced" token on bootstrap on whether
+   schema definitions were found (CASSANDRA-3219)
 
 
 1.0.0-beta1
@@ -87,6 +94,7 @@
    (CASSANDRA-3181)
  * Reduce copies done for intra-host messages (CASSANDRA-1788, 3144)
  * support of compaction strategy option for stress.java (CASSANDRA-3204)
+ * make memtable throughput and column count thresholds no-ops (CASSANDRA-2449)
 
 
 0.8.6
@@ -109,9 +117,12 @@
  * Fix using read_repair_chance instead of merge_shard_change (CASSANDRA-3202)
  * Avoid streaming data to nodes that already have it, on move as well as
    decommission (CASSANDRA-3041)
- * Fix divide by zero error in GCInspector
+ * Fix divide by zero error in GCInspector (CASSANDRA-3164)
  * allow quoting of the ColumnFamily name in CLI `create column family`
    statement (CASSANDRA-3195)
+ * Fix rolling upgrade from 0.7 to 0.8 problem (CASANDRA-3166)
+ * Accomodate missing encryption_options in IncomingTcpConnection.stream
+   (CASSANDRA-3212)
 
 
 0.8.5

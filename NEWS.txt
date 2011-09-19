@@ -3,6 +3,13 @@
 
 Upgrading
 ---------
+    - CQL inserts/updates now generate microsecond resolution timestamps
+      by default, instead of millisecond. THIS MEANS A ROLLING UPGRADE COULD
+      MIX milliseconds and microseconds, with clients talking to servers
+      generating milliseconds unable to overwrite the larger microsecond
+      timestamps. If this is important for your application, you can either
+      perform a non-rolling upgrade to 1.0, or update your application first
+      to use explicit timestamps with the "USING timestamp=X" syntax.
     - the BinaryMemtable bulk-load interface has been removed. Use the
       sstableloader tool instead.
     - the compaction_thread_priority setting has been removed from 

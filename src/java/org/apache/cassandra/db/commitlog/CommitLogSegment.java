@@ -100,9 +100,7 @@ public class CommitLogSegment
         long currentPosition = -1L;
         try
         {
-            currentPosition = logWriter.getFilePointer();
-            assert currentPosition <= Integer.MAX_VALUE;
-            ReplayPosition cLogCtx = new ReplayPosition(id, (int) currentPosition);
+            ReplayPosition cLogCtx = getContext();
 
             for (ColumnFamily columnFamily : rowMutation.getColumnFamilies())
             {

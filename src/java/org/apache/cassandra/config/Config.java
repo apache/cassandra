@@ -99,10 +99,10 @@ public class Config
     public Integer commitlog_sync_period_in_ms;
     
     public String endpoint_snitch;
-    public Boolean dynamic_snitch = false;
+    public Boolean dynamic_snitch = true;
     public Integer dynamic_snitch_update_interval_in_ms = 100;
     public Integer dynamic_snitch_reset_interval_in_ms = 600000;
-    public Double dynamic_snitch_badness_threshold = 0.0;
+    public Double dynamic_snitch_badness_threshold = 0.1;
 
     public String request_scheduler;
     public RequestSchedulerId request_scheduler_id;

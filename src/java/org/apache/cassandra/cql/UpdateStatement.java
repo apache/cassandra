@@ -159,7 +159,7 @@ public class UpdateStatement extends AbstractModification
 
         for (Term key: keys)
         {
-            rowMutations.add(mutationForKey(keyspace, key.getByteBuffer(getKeyType(keyspace)), metadata, timestamp));
+            rowMutations.add(mutationForKey(keyspace, key.getByteBuffer(getKeyType(keyspace)), metadata, timestamp, clientState));
         }
 
         return rowMutations;
@@ -168,16 +168,18 @@ public class UpdateStatement extends AbstractModification
     /**
      * Compute a row mutation for a single key
      *
+     *
      * @param keyspace working keyspace
      * @param key key to change
      * @param metadata information about CF
      * @param timestamp global timestamp to use for every key mutation
      *
+     * @param clientState
      * @return row mutation
      *
      * @throws InvalidRequestException on the wrong request
      */
-    private IMutation mutationForKey(String keyspace, ByteBuffer key, CFMetaData metadata, Long timestamp) throws InvalidRequestException
+    private IMutation mutationForKey(String keyspace, ByteBuffer key, CFMetaData metadata, Long timestamp, ClientState clientState) throws InvalidRequestException
     {
         AbstractType<?> comparator = getComparator(keyspace);
 
@@ -200,7 +202,7 @@ public class UpdateStatement extends AbstractModification
                 validateColumn(metadata, colName, colValue);
                 rm.add(new QueryPath(columnFamily, null, colName),
                        colValue,
-                       (timestamp == null) ? getTimestamp() : timestamp,
+                       (timestamp == null) ? getTimestamp(clientState) : timestamp,
                        getTimeToLive());
             }
             else
