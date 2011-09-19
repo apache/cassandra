@@ -71,9 +71,9 @@ public abstract class AbstractModification
         return cLevel != null;
     }
 
-    public long getTimestamp()
+    public long getTimestamp(ClientState clientState)
     {
-        return timestamp == null ? System.currentTimeMillis() : timestamp;
+        return timestamp == null ? clientState.getTimestamp() : timestamp;
     }
 
     public boolean isSetTimestamp()

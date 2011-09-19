@@ -96,6 +96,8 @@ INSERT INTO <COLUMN FAMILY> (<KEY>, <col>, <col>, ...) VALUES (<key>, <val>, <va
 
 An @INSERT@ is used to write one or more columns to a record in a Cassandra column family. No results are returned. 
 
+If timestamp is unspecified, the server will generate a timestamp based on microseconds since 1970.
+
 Unlike SQL, the semantics of @INSERT@ and @UPDATE@ are identical, in either case a record is created if none existed before, and updated when it does.  For information on modifiers and types, see the "@UPDATE@":#update section below.
 
 h2(#update). UPDATE

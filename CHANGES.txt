@@ -1,4 +1,5 @@
 1.0.0-rc1
+ * Update CQL to generate microsecond timestamps by default (CASSANDRA-3227)
  * Fix counting CFMetadata towards Memtable liveRatio (CASSANDRA-3023)
  * Kill server on wrapped OOME such as from FileChannel.map (CASSANDRA-3201)
  * remove unnecessary copy when adding to row cache (CASSANDRA-3223)

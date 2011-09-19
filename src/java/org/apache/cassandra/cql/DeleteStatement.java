@@ -81,41 +81,39 @@ public class DeleteStatement extends AbstractModification
 
         for (Term key : keys)
         {
-            rowMutations.add(mutationForKey(key.getByteBuffer(keyType), keyspace, timestamp));
+            rowMutations.add(mutationForKey(key.getByteBuffer(keyType), keyspace, timestamp, clientState));
         }
 
         return rowMutations;
     }
 
     /** {@inheritDoc} */
-    public RowMutation mutationForKey(ByteBuffer key, String keyspace, Long timestamp) throws InvalidRequestException
+    public RowMutation mutationForKey(ByteBuffer key, String keyspace, Long timestamp, ClientState clientState) throws InvalidRequestException
     {
         RowMutation rm = new RowMutation(keyspace, key);
 
-        mutationForKey(rm, keyspace, timestamp);
-
-        return rm;
-    }
-
-    /** {@inheritDoc} */
-    public void mutationForKey(RowMutation mutation, String keyspace, Long timestamp) throws InvalidRequestException
-    {
         CFMetaData metadata = validateColumnFamily(keyspace, columnFamily);
         QueryProcessor.validateKeyAlias(metadata, keyName);
 
         AbstractType comparator = metadata.getComparatorFor(null);
 
-        if (columns.size() < 1) // No columns, delete the row
-            mutation.delete(new QueryPath(columnFamily), (timestamp == null) ? getTimestamp() : timestamp);
-        else    // Delete specific columns
+        if (columns.size() < 1)
         {
+            // No columns, delete the row
+            rm.delete(new QueryPath(columnFamily), (timestamp == null) ? getTimestamp(clientState) : timestamp);
+        }
+        else
+        {
+            // Delete specific columns
             for (Term column : columns)
             {
                 ByteBuffer columnName = column.getByteBuffer(comparator);
                 validateColumnName(columnName);
-                mutation.delete(new QueryPath(columnFamily, null, columnName), (timestamp == null) ? getTimestamp() : timestamp);
+                rm.delete(new QueryPath(columnFamily, null, columnName), (timestamp == null) ? getTimestamp(clientState) : timestamp);
             }
         }
+
+        return rm;
     }
 
     public String toString()
