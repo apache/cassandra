@@ -680,7 +680,7 @@ public class AntiEntropyService
                 completed.await();
                 if (exception == null)
                 {
-                    logger.info(String.format("Repair session %s (on cfs %s, range %s) completed successfully", getName()), cfnames, range);
+                    logger.info(String.format("Repair session %s (on cfs %s, range %s) completed successfully", getName(), cfnames, range));
                 }
                 else
                 {
