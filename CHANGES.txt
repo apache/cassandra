@@ -5,6 +5,9 @@
 1.0.0-rc1
  * Fix counting CFMetadata towards Memtable liveRatio (CASSANDRA-3023)
  * Log message when a full repair operation completes (CASSANDRA-3207)
+ * Fix streamOutSession keeping sstables references forever if the remote end
+   dies (CASSANDRA-3216)
+
 
 1.0.0-beta1
  * removed binarymemtable (CASSANDRA-2692)
