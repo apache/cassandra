@@ -27,13 +27,11 @@ import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.*;
-import javax.lang.model.type.TypeKind;
 import java.util.concurrent.atomic.AtomicInteger;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
 import com.google.common.collect.*;
-import org.apache.cassandra.config.*;
 import org.apache.log4j.Level;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
@@ -42,6 +40,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.concurrent.DebuggableScheduledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
+import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.commitlog.CommitLog;
@@ -518,7 +517,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                     throw new UnsupportedOperationException(s);
                 }
                 setMode("Joining: getting bootstrap token", true);
-                token = BootStrapper.getBootstrapToken(tokenMetadata_, LoadBroadcaster.instance.getLoadInfo());
+                token = getNewToken();
             }
             else
             {
@@ -552,23 +551,9 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         {
             token = SystemTable.getSavedToken();
             if (token == null)
-            {
-                String initialToken = DatabaseDescriptor.getInitialToken();
-                if (initialToken == null)
-                {
-                    token = partitioner.getRandomToken();
-                    logger_.warn("Generated random token " + token + ". Random tokens will result in an unbalanced ring; see http://wiki.apache.org/cassandra/Operations");
-                }
-                else
-                {
-                    token = partitioner.getTokenFactory().fromString(initialToken);
-                    logger_.info("Saved token not found. Using " + token + " from configuration");
-                }
-            }
+                token = getNewToken();
             else
-            {
                 logger_.info("Using saved token " + token);
-            }
         }
 
         // start participating in the ring.
@@ -576,6 +561,33 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         setToken(token);
         logger_.info("Bootstrap/Replace/Move completed! Now serving reads.");
         assert tokenMetadata_.sortedTokens().size() > 0;
+    }
+
+    /**
+     * Return a new token for this node.
+     */
+    private Token getNewToken() throws ConfigurationException
+    {
+        Token token;
+        if (DatabaseDescriptor.getInitialToken() != null)
+        {
+            logger_.debug("token manually specified as {}", DatabaseDescriptor.getInitialToken());
+            token = StorageService.getPartitioner().getTokenFactory().fromString(DatabaseDescriptor.getInitialToken());
+        }
+        else if (Schema.instance.getNonSystemTables().size() > 0)
+        {
+            // We are not bootstrapping, we are an initial node, getBalancedToken is not safe.
+            token = partitioner.getRandomToken();
+            logger_.warn("Generated random token " + token + ". Random tokens will result in an unbalanced ring; see http://wiki.apache.org/cassandra/Operation");
+        }
+        else
+        {
+            token = BootStrapper.getBalancedToken(tokenMetadata_, LoadBroadcaster.instance.getLoadInfo());
+        }
+
+        if (tokenMetadata_.getEndpoint(token) != null)
+            throw new ConfigurationException("Bootstraping to existing token " + token + " is not allowed (decommission/removetoken the old node first)");
+        return token;
     }
 
     public synchronized void joinRing() throws IOException, org.apache.cassandra.config.ConfigurationException
