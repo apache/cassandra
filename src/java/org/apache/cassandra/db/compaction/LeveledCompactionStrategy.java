@@ -76,9 +76,20 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
         logger.info(this + " subscribed to the data tracker.");
 
         manifest = LeveledManifest.create(cfs, this.maxSSTableSize);
+        logger.debug("Created {}", manifest);
         // override min/max for this strategy
         cfs.setMaximumCompactionThreshold(Integer.MAX_VALUE);
         cfs.setMinimumCompactionThreshold(1);
+
+        // TODO this is redundant wrt the kickoff in AbstractCompactionStrategy, once CASSANDRA-X is done
+        Runnable runnable = new Runnable()
+        {
+            public void run()
+            {
+                CompactionManager.instance.submitBackground(LeveledCompactionStrategy.this.cfs);
+            }
+        };
+        StorageService.optionalTasks.scheduleAtFixedRate(runnable, 5 * 60, 5, TimeUnit.SECONDS);
     }
 
     public void shutdown()
@@ -96,12 +107,17 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
     {
         LeveledCompactionTask currentTask = task.get();
         if (currentTask != null && !currentTask.isDone())
+        {
+            logger.debug("Compaction still in progress for {}", this);
             return Collections.emptyList();
+        }
 
         Collection<SSTableReader> sstables = manifest.getCompactionCandidates();
-        logger.debug("CompactionManager candidates are {}", StringUtils.join(sstables, ","));
         if (sstables.isEmpty())
+        {
+            logger.debug("No compaction necessary for {}", this);
             return Collections.emptyList();
+        }
 
         LeveledCompactionTask newTask = new LeveledCompactionTask(cfs, sstables, gcBefore, this.maxSSTableSize);
         return task.compareAndSet(currentTask, newTask)
@@ -138,5 +154,11 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
             manifest.promote(listChangedNotification.removed, listChangedNotification.added);
             manifest.logDistribution();
         }
+    }
+
+    @Override
+    public String toString()
+    {
+        return String.format("LCS@%d(%s)", hashCode(), cfs.columnFamily);
     }
 }

@@ -881,6 +881,7 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
         <fileset dir="${build.dir}">
           <include name="${final.name}.jar" />
           <include name="${ant.project.name}-thrift-${version}.jar" />
+          <include name="${ant.project.name}-clientutil-${version}.jar" />
         </fileset>
       </copy>
       <copy todir="${dist.dir}/javadoc">
