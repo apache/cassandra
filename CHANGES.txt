@@ -10,6 +10,8 @@
    true) and set default badness threshold to 0.1 (CASSANDRA-3229)
  * Base choice of random or "balanced" token on bootstrap on whether
    schema definitions were found (CASSANDRA-3219)
+ * Fixes for LeveledCompactionStrategy score computation, prioritization,
+   and scheduling (CASSANDRA-3224)
 
 
 1.0.0-beta1
