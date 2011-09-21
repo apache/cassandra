@@ -24,12 +24,9 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.*;
 
 import com.google.common.base.Function;
 import com.google.common.collect.Collections2;
-
-import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.io.compress.CompressedRandomAccessReader;
 import org.slf4j.Logger;
@@ -165,59 +162,6 @@ public class SSTableReader extends SSTable
             logger.debug(String.format("key cache contains %s/%s keys", sstable.getKeyCache().size(), sstable.getKeyCache().getCapacity()));
 
         return sstable;
-    }
-
-    public static void logOpenException(Descriptor descriptor, IOException e)
-    {
-        if (e instanceof FileNotFoundException)
-            logger.error("Missing sstable component in " + descriptor + "; skipped because of " + e.getMessage());
-        else
-            logger.error("Corrupt sstable " + descriptor + "; skipped", e);
-    }
-
-    public static Collection<SSTableReader> batchOpen(Set<Map.Entry<Descriptor, Set<Component>>> entries,
-                                                      final Set<DecoratedKey> savedKeys,
-                                                      final DataTracker tracker,
-                                                      final CFMetaData metadata,
-                                                      final IPartitioner partitioner)
-    {
-        final Collection<SSTableReader> sstables = new LinkedBlockingQueue<SSTableReader>();
-
-        ExecutorService executor = DebuggableThreadPoolExecutor.createWithPoolSize("SSTableBatchOpen", Runtime.getRuntime().availableProcessors());
-        for (final Map.Entry<Descriptor, Set<Component>> entry : entries)
-        {
-            Runnable runnable = new Runnable()
-            {
-                public void run()
-                {
-                    SSTableReader sstable;
-                    try
-                    {
-                        sstable = open(entry.getKey(), entry.getValue(), savedKeys, tracker, metadata, partitioner);
-                    }
-                    catch (IOException ex)
-                    {
-                        logger.error("Corrupt sstable " + entry + "; skipped", ex);
-                        return;
-                    }
-                    sstables.add(sstable);
-                }
-            };
-            executor.submit(runnable);
-        }
-
-        executor.shutdown();
-        try
-        {
-            executor.awaitTermination(7, TimeUnit.DAYS);
-        }
-        catch (InterruptedException e)
-        {
-            throw new AssertionError(e);
-        }
-
-        return sstables;
-
     }
 
     /**
