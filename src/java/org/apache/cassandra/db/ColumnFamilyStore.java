@@ -212,15 +212,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         // scan for sstables corresponding to this cf and load them
         data = new DataTracker(this);
         Set<DecoratedKey> savedKeys = keyCache.readSaved();
-        List<SSTableReader> sstables = new ArrayList<SSTableReader>();
-        for (Map.Entry<Descriptor,Set<Component>> sstableFiles : files(table.name, columnFamilyName, false, false).entrySet())
-        {
-            SSTableReader reader = openSSTableReader(sstableFiles, savedKeys, data, metadata, partitioner);
-
-            if (reader != null) // if == null, logger errors where already fired
-                sstables.add(reader);
-        }
-        data.addSSTables(sstables);
+        Set<Map.Entry<Descriptor, Set<Component>>> entries = files(table.name, columnFamilyName, false, false).entrySet();
+        data.addSSTables(SSTableReader.batchOpen(entries, savedKeys, data, metadata, this.partitioner));
 
         // compaction strategy should be created after the CFS has been prepared
         this.compactionStrategy = metadata.createCompactionStrategyInstance(this);
@@ -541,10 +534,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                                                          descriptor));
 
             logger.info("Initializing new SSTable {}", rawSSTable);
-            reader = openSSTableReader(rawSSTable, savedKeys, data, metadata, partitioner);
-
-            if (reader == null)
-                continue; // something wrong with SSTable, skipping
+            try
+            {
+                reader = SSTableReader.open(rawSSTable.getKey(), rawSSTable.getValue(), savedKeys, data, metadata, partitioner);
+            }
+            catch (IOException e)
+            {
+                SSTableReader.logOpenException(rawSSTable.getKey(), e);
+                continue;
+            }
 
             sstables.add(reader);
 
@@ -1890,30 +1888,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public List<String> getBuiltIndexes()
     {
        return indexManager.getBuiltIndexes();
-    }
-
-    private static SSTableReader openSSTableReader(Map.Entry<Descriptor, Set<Component>> rawSSTable,
-                                                   Set<DecoratedKey> savedKeys,
-                                                   DataTracker tracker,
-                                                   CFMetaData metadata,
-                                                   IPartitioner partitioner)
-    {
-        SSTableReader reader = null;
-
-        try
-        {
-            reader = SSTableReader.open(rawSSTable.getKey(), rawSSTable.getValue(), savedKeys, tracker, metadata, partitioner);
-        }
-        catch (FileNotFoundException ex)
-        {
-            logger.error("Missing sstable component in " + rawSSTable + "; skipped because of " + ex.getMessage());
-        }
-        catch (IOException ex)
-        {
-            logger.error("Corrupt sstable " + rawSSTable + "; skipped", ex);
-        }
-
-        return reader;
     }
 
     public int getUnleveledSSTables()
