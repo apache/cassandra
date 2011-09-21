@@ -652,7 +652,7 @@ public class AntiEntropyService
                 if (!FailureDetector.instance.isAlive(endpoint))
                 {
                     differencingDone.signalAll();
-                    logger.info("[repair #%s] Could not proceed on repair because a neighbor (%s) is dead: session failed", getName(), endpoint);
+                    logger.info(String.format("[repair #%s] Cannot proceed on repair because a neighbor (%s) is dead: session failed", getName(), endpoint));
                     return;
                 }
             }
