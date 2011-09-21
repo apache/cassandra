@@ -12,6 +12,7 @@
    schema definitions were found (CASSANDRA-3219)
  * Fixes for LeveledCompactionStrategy score computation, prioritization,
    and scheduling (CASSANDRA-3224)
+ * parallelize sstable open at server startup (CASSANDRA-2988)
 
 
 1.0.0-beta1

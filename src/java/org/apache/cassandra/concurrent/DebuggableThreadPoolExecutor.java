@@ -98,6 +98,11 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor
         this.setRejectedExecutionHandler(blockingExecutionHandler);
     }
 
+    public static DebuggableThreadPoolExecutor createWithPoolSize(String threadPoolName, int size)
+    {
+        return new DebuggableThreadPoolExecutor(size, Integer.MAX_VALUE, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>(), new NamedThreadFactory(threadPoolName));
+    }
+
     protected void onInitialRejection(Runnable task) {}
     protected void onFinalAccept(Runnable task) {}
     protected void onFinalRejection(Runnable task) {}
