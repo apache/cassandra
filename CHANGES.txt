@@ -13,6 +13,7 @@
  * Fixes for LeveledCompactionStrategy score computation, prioritization,
    and scheduling (CASSANDRA-3224)
  * parallelize sstable open at server startup (CASSANDRA-2988)
+ * fix handling of exceptions writing to OutboundTcpConnection (CASSANDRA-3235)
 
 
 1.0.0-beta1
