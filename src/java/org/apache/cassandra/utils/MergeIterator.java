@@ -161,7 +161,10 @@ public abstract class MergeIterator<In,Out> extends AbstractIterator<Out> implem
         /**
          * @return true if Out is the same as In for the case of a single source iterator
          */
-        public abstract boolean trivialReduceIsTrivial();
+        public boolean trivialReduceIsTrivial()
+        {
+            return false;
+        }
 
         /**
          * combine this object with the previous ones.

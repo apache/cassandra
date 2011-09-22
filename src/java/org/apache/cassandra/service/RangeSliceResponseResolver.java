@@ -141,11 +141,6 @@ public class RangeSliceResponseResolver implements IResponseResolver<Iterable<Ro
         List<InetAddress> versionSources = new ArrayList<InetAddress>(sources.size());
         DecoratedKey key;
 
-        public boolean trivialReduceIsTrivial()
-        {
-            return false;
-        }
-
         public void reduce(Pair<Row,InetAddress> current)
         {
             key = current.left.key;

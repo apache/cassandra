@@ -43,6 +43,7 @@ public class ReducingKeyIterator implements CloseableIterator<DecoratedKey>
         {
             DecoratedKey<?> reduced = null;
 
+            @Override
             public boolean trivialReduceIsTrivial()
             {
                 return true;
