@@ -89,10 +89,10 @@ public class ParallelCompactionIterable extends AbstractCompactionIterable
 
     private static class Unwrapper extends AbstractIterator<AbstractCompactedRow> implements CloseableIterator<AbstractCompactedRow>
     {
-        private final MergeIterator<RowContainer, CompactedRowContainer> reducer;
+        private final CloseableIterator<CompactedRowContainer> reducer;
         private final CompactionController controller;
 
-        public Unwrapper(MergeIterator<RowContainer, CompactedRowContainer> reducer, CompactionController controller)
+        public Unwrapper(CloseableIterator<CompactedRowContainer> reducer, CompactionController controller)
         {
             this.reducer = reducer;
             this.controller = controller;

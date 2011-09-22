@@ -19,9 +19,7 @@
 package org.apache.cassandra.utils;
 
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.Iterator;
-import java.util.List;
 
 import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.Iterators;
@@ -45,16 +43,6 @@ public class MergeIteratorTest
         d = new CLI();
     }
 
-    @Test
-    public void testOneToOne() throws Exception
-    {
-        MergeIterator<String,String> smi = MergeIterator.get(Arrays.asList(a, b, c, d),
-                                                             Ordering.<String>natural());
-        assert Iterators.elementsEqual(all, smi);
-        smi.close();
-        assert a.closed && b.closed && c.closed && d.closed;
-    }
-
     /** Test that duplicate values are concatted. */
     @Test
     public void testManyToOne() throws Exception
@@ -74,7 +62,7 @@ public class MergeIteratorTest
                 return tmp;
             }
         };
-        MergeIterator<String,String> smi = MergeIterator.get(Arrays.asList(a, b, c, d),
+        IMergeIterator<String,String> smi = MergeIterator.get(Arrays.asList(a, b, c, d),
                                                              Ordering.<String>natural(),
                                                              reducer);
         assert Iterators.elementsEqual(cat, smi);

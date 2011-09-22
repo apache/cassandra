@@ -86,7 +86,8 @@ public class RangeSliceResponseResolver implements IResponseResolver<Iterable<Ro
             iters.add(new RowIterator(reply.rows.iterator(), response.getFrom()));
         }
         // for each row, compute the combination of all different versions seen, and repair incomplete versions
-        MergeIterator<Pair<Row,InetAddress>, Row> iter = MergeIterator.get(iters, pairComparator, new Reducer());
+        // TODO do we need to call close?
+        CloseableIterator<Row> iter = MergeIterator.get(iters, pairComparator, new Reducer());
 
         List<Row> resolvedRows = new ArrayList<Row>(n);
         while (iter.hasNext())

@@ -93,7 +93,7 @@ public class QueryFilter
         Comparator<IColumn> fcomp = topLevelFilter.getColumnComparator(comparator);
         // define a 'reduced' iterator that merges columns w/ the same name, which
         // greatly simplifies computing liveColumns in the presence of tombstones.
-        Iterator<IColumn> reduced = MergeIterator.get(toCollate, fcomp, new MergeIterator.Reducer<IColumn, IColumn>()
+        MergeIterator.Reducer<IColumn, IColumn> reducer = new MergeIterator.Reducer<IColumn, IColumn>()
         {
             ColumnFamily curCF = returnCF.cloneMeShallow();
 
@@ -111,7 +111,7 @@ public class QueryFilter
                     // consumers make of the result (for instance CFS.getColumnFamily() call removeDeleted() on the
                     // result which removes column; which shouldn't be done on the original super column).
                     assert current instanceof SuperColumn;
-                    curCF.addColumn(((SuperColumn)current).cloneMe());
+                    curCF.addColumn(((SuperColumn) current).cloneMe());
                 }
                 else
                 {
@@ -129,16 +129,17 @@ public class QueryFilter
                     // time of the cf, if that is greater.
                     long deletedAt = c.getMarkedForDeleteAt();
                     if (returnCF.getMarkedForDeleteAt() > deletedAt)
-                        ((SuperColumn)c).delete(c.getLocalDeletionTime(), returnCF.getMarkedForDeleteAt());
+                        ((SuperColumn) c).delete(c.getLocalDeletionTime(), returnCF.getMarkedForDeleteAt());
 
-                    c = filter.filterSuperColumn((SuperColumn)c, gcBefore);
-                    ((SuperColumn)c).delete(c.getLocalDeletionTime(), deletedAt); // reset sc tombstone time to what it should be
+                    c = filter.filterSuperColumn((SuperColumn) c, gcBefore);
+                    ((SuperColumn) c).delete(c.getLocalDeletionTime(), deletedAt); // reset sc tombstone time to what it should be
                 }
-                curCF.clear();           
+                curCF.clear();
 
                 return c;
             }
-        });
+        };
+        Iterator<IColumn> reduced = MergeIterator.get(toCollate, fcomp, reducer);
 
         topLevelFilter.collectReducedColumns(returnCF, reduced, gcBefore);
     }
