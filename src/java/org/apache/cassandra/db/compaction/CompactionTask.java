@@ -120,10 +120,11 @@ public class CompactionTask extends AbstractCompactionTask
         long startTime = System.currentTimeMillis();
         long totalkeysWritten = 0;
 
-        // TODO the int cast here is potentially buggy
-        int expectedBloomFilterSize = Math.max(DatabaseDescriptor.getIndexInterval(), (int)SSTableReader.getApproximateKeyCount(toCompact));
+        long estimatedTotalKeys = Math.max(DatabaseDescriptor.getIndexInterval(), SSTableReader.getApproximateKeyCount(toCompact));
+        long estimatedSSTables = Math.max(1, SSTable.getTotalBytes(toCompact) / cfs.getCompactionStrategy().getMaxSSTableSize());
+        long keysPerSSTable = (long) Math.ceil((double) estimatedTotalKeys / estimatedSSTables);
         if (logger.isDebugEnabled())
-            logger.debug("Expected bloom filter size : " + expectedBloomFilterSize);
+            logger.debug("Expected bloom filter size : " + keysPerSSTable);
 
         AbstractCompactionIterable ci = DatabaseDescriptor.isMultithreadedCompaction()
                                       ? new ParallelCompactionIterable(OperationType.COMPACTION, toCompact, controller)
@@ -152,7 +153,7 @@ public class CompactionTask extends AbstractCompactionTask
                 return 0;
             }
 
-            SSTableWriter writer = cfs.createCompactionWriter(expectedBloomFilterSize, compactionFileLocation, toCompact);
+            SSTableWriter writer = cfs.createCompactionWriter(keysPerSSTable, compactionFileLocation, toCompact);
             writers.add(writer);
             while (nni.hasNext())
             {
@@ -179,7 +180,7 @@ public class CompactionTask extends AbstractCompactionTask
                     SSTableReader toIndex = writer.closeAndOpenReader(getMaxDataAge(toCompact));
                     cachedKeyMap.put(toIndex, cachedKeys);
                     sstables.add(toIndex);
-                    writer = cfs.createCompactionWriter(expectedBloomFilterSize, compactionFileLocation, toCompact);
+                    writer = cfs.createCompactionWriter(keysPerSSTable, compactionFileLocation, toCompact);
                     writers.add(writer);
                     cachedKeys = new HashMap<DecoratedKey, Long>();
                 }
