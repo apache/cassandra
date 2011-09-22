@@ -88,11 +88,6 @@ public class CompactionIterable extends AbstractCompactionIterable
     {
         protected final List<SSTableIdentityIterator> rows = new ArrayList<SSTableIdentityIterator>();
 
-        public boolean trivialReduceIsTrivial()
-        {
-            return false;
-        }
-
         public void reduce(IColumnIterator current)
         {
             rows.add((SSTableIdentityIterator) current);

@@ -215,11 +215,6 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements IIterabl
         int size = 0;
         long maxTimestampSeen = Long.MIN_VALUE;
 
-        public boolean trivialReduceIsTrivial()
-        {
-            return true;
-        }
-
         public void reduce(IColumn current)
         {
             container.addColumn(current);

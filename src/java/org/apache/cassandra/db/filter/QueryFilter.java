@@ -97,11 +97,6 @@ public class QueryFilter
         {
             ColumnFamily curCF = returnCF.cloneMeShallow();
 
-            public boolean trivialReduceIsTrivial()
-            {
-                return true;
-            }
-
             protected boolean isEqual(IColumn o1, IColumn o2)
             {
                 return o1.name().equals(o2.name());
