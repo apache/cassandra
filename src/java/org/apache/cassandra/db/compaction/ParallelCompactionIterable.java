@@ -148,11 +148,6 @@ public class ParallelCompactionIterable extends AbstractCompactionIterable
         private final ThreadPoolExecutor executor;
         private int row = 0;
 
-        public boolean trivialReduceIsTrivial()
-        {
-            return false;
-        }
-
         private Reducer()
         {
             super();
