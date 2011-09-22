@@ -28,11 +28,9 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
-import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.concurrent.DebuggableScheduledThreadPoolExecutor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.notifications.INotification;
@@ -47,7 +45,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
 
     private LeveledManifest manifest;
     private final String SSTABLE_SIZE_OPTION = "sstable_size_in_mb";
-    private final int maxSSTableSize;
+    private final int maxSSTableSizeInMB;
     private final AtomicReference<LeveledCompactionTask> task = new AtomicReference<LeveledCompactionTask>();
 
     public LeveledCompactionStrategy(ColumnFamilyStore cfs, Map<String, String> options)
@@ -70,12 +68,12 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
                 }
             }
         }
-        maxSSTableSize = configuredMaxSSTableSize;
+        maxSSTableSizeInMB = configuredMaxSSTableSize;
 
         cfs.getDataTracker().subscribe(this);
         logger.info(this + " subscribed to the data tracker.");
 
-        manifest = LeveledManifest.create(cfs, this.maxSSTableSize);
+        manifest = LeveledManifest.create(cfs, this.maxSSTableSizeInMB);
         logger.debug("Created {}", manifest);
         // override min/max for this strategy
         cfs.setMaximumCompactionThreshold(Integer.MAX_VALUE);
@@ -119,7 +117,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
             return Collections.emptyList();
         }
 
-        LeveledCompactionTask newTask = new LeveledCompactionTask(cfs, sstables, gcBefore, this.maxSSTableSize);
+        LeveledCompactionTask newTask = new LeveledCompactionTask(cfs, sstables, gcBefore, this.maxSSTableSizeInMB);
         return task.compareAndSet(currentTask, newTask)
                ? Collections.<AbstractCompactionTask>singletonList(newTask)
                : Collections.<AbstractCompactionTask>emptyList();
@@ -154,6 +152,11 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
             manifest.promote(listChangedNotification.removed, listChangedNotification.added);
             manifest.logDistribution();
         }
+    }
+
+    public long getMaxSSTableSize()
+    {
+        return maxSSTableSizeInMB * 1024 * 1024;
     }
 
     @Override

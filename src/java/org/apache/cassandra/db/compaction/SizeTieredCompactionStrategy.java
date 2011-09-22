@@ -176,6 +176,11 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
         return minSSTableSize;
     }
 
+    public long getMaxSSTableSize()
+    {
+        return Long.MAX_VALUE;
+    }
+
     public String toString()
     {
         return String.format("SizeTieredCompactionStrategy[%s/%s]",

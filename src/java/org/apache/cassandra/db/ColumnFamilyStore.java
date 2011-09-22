@@ -812,8 +812,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     private static void removeDeletedStandard(ColumnFamily cf, int gcBefore)
     {
-        for (IColumn c : cf)
+        Iterator<IColumn> iter = cf.iterator();
+        while (iter.hasNext())
         {
+            IColumn c = iter.next();
             ByteBuffer cname = c.name();
             // remove columns if
             // (a) the column itself is tombstoned or
@@ -821,7 +823,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             if ((c.isMarkedForDelete() && c.getLocalDeletionTime() <= gcBefore)
                 || c.timestamp() <= cf.getMarkedForDeleteAt())
             {
-                cf.remove(cname);
+                iter.remove();
             }
         }
     }
@@ -836,15 +838,17 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             SuperColumn c = (SuperColumn)iter.next();
             long minTimestamp = Math.max(c.getMarkedForDeleteAt(), cf.getMarkedForDeleteAt());
-            for (IColumn subColumn : c.getSubColumns())
+            Iterator<IColumn> subIter = c.getSubColumns().iterator();
+            while (subIter.hasNext())
             {
+                IColumn subColumn = subIter.next();
                 // remove subcolumns if
                 // (a) the subcolumn itself is tombstoned or
                 // (b) the supercolumn is tombstoned and the subcolumn is not newer than it
                 if (subColumn.timestamp() <= minTimestamp
                     || (subColumn.isMarkedForDelete() && subColumn.getLocalDeletionTime() <= gcBefore))
                 {
-                    c.remove(subColumn.name());
+                    subIter.remove();
                 }
             }
             if (c.getSubColumns().isEmpty() && c.getLocalDeletionTime() <= gcBefore)

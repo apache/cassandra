@@ -136,7 +136,7 @@ public class OutboundTcpConnection extends Thread
         }
     }
 
-    static void write(Message message, String id, DataOutputStream out)
+    static void write(Message message, String id, DataOutputStream out) throws IOException
     {
         /*
          Setting up the protocol header. This is 4 bytes long
@@ -157,23 +157,16 @@ public class OutboundTcpConnection extends Thread
         // Setting up the version bit
         header |= (message.getVersion() << 8);
 
-        try
-        {
-            out.writeInt(MessagingService.PROTOCOL_MAGIC);
-            out.writeInt(header);
-            // compute total Message length for compatibility w/ 0.8 and earlier
-            byte[] bytes = message.getMessageBody();
-            int total = messageLength(message.header_, id, bytes);
-            out.writeInt(total);
-            out.writeUTF(id);
-            Header.serializer().serialize(message.header_, out, message.getVersion());
-            out.writeInt(bytes.length);
-            out.write(bytes);
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
+        out.writeInt(MessagingService.PROTOCOL_MAGIC);
+        out.writeInt(header);
+        // compute total Message length for compatibility w/ 0.8 and earlier
+        byte[] bytes = message.getMessageBody();
+        int total = messageLength(message.header_, id, bytes);
+        out.writeInt(total);
+        out.writeUTF(id);
+        Header.serializer().serialize(message.header_, out, message.getVersion());
+        out.writeInt(bytes.length);
+        out.write(bytes);
     }
 
     public static int messageLength(Header header, String id, byte[] bytes)

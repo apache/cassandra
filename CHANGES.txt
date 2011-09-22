@@ -15,8 +15,9 @@
  * Base choice of random or "balanced" token on bootstrap on whether
    schema definitions were found (CASSANDRA-3219)
  * Fixes for LeveledCompactionStrategy score computation, prioritization,
-   and scheduling (CASSANDRA-3224)
+   scheduling, and performance (CASSANDRA-3224, 3234)
  * parallelize sstable open at server startup (CASSANDRA-2988)
+ * fix handling of exceptions writing to OutboundTcpConnection (CASSANDRA-3235)
 
 
 1.0.0-beta1
