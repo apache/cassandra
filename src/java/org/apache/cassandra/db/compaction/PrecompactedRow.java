@@ -125,6 +125,7 @@ public class PrecompactedRow extends AbstractCompactedRow
             }
             else
             {
+                // addAll is ok even if cf is an ArrayBackedSortedColumns
                 cf.addAll(thisCF, HeapAllocator.instance);
             }
         }
