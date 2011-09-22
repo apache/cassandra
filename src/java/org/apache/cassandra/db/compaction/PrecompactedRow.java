@@ -66,7 +66,27 @@ public class PrecompactedRow extends AbstractCompactedRow
 
     public static ColumnFamily removeDeletedAndOldShards(DecoratedKey<?> key, CompactionController controller, ColumnFamily cf)
     {
-        return removeDeletedAndOldShards(controller.shouldPurge(key), controller, cf);
+        // avoid calling shouldPurge unless we actually need to: it can be very expensive if LCS
+        // gets behind and has hundreds of overlapping L0 sstables.  Essentially, this method is an
+        // ugly refactor of removeDeletedAndOldShards(controller.shouldPurge(key), controller, cf),
+        // taking this into account.
+        Boolean shouldPurge = null;
+
+        if (cf.hasExpiredTombstones(controller.gcBefore))
+            shouldPurge = controller.shouldPurge(key);
+        ColumnFamily compacted = shouldPurge != null && shouldPurge
+                               ? ColumnFamilyStore.removeDeleted(cf, controller.gcBefore)
+                               : cf;
+
+        if (compacted != null && compacted.metadata().getDefaultValidator().isCommutative())
+        {
+            if (shouldPurge == null)
+                shouldPurge = controller.shouldPurge(key);
+            if (shouldPurge)
+                CounterColumn.removeOldShards(compacted, controller.gcBefore);
+        }
+
+        return compacted;
     }
 
     public static ColumnFamily removeDeletedAndOldShards(boolean shouldPurge, CompactionController controller, ColumnFamily cf)

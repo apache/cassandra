@@ -280,5 +280,10 @@ public class Column implements IColumn
         if (valueValidator != null)
             valueValidator.validate(value());
     }
+
+    public boolean hasExpiredTombstones(int gcBefore)
+    {
+        return isMarkedForDelete() && getLocalDeletionTime() < gcBefore;
+    }
 }
 
