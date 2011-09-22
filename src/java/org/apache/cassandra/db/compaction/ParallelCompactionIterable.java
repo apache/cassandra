@@ -89,10 +89,10 @@ public class ParallelCompactionIterable extends AbstractCompactionIterable
 
     private static class Unwrapper extends AbstractIterator<AbstractCompactedRow> implements CloseableIterator<AbstractCompactedRow>
     {
-        private final MergeIterator<RowContainer, CompactedRowContainer> reducer;
+        private final CloseableIterator<CompactedRowContainer> reducer;
         private final CompactionController controller;
 
-        public Unwrapper(MergeIterator<RowContainer, CompactedRowContainer> reducer, CompactionController controller)
+        public Unwrapper(CloseableIterator<CompactedRowContainer> reducer, CompactionController controller)
         {
             this.reducer = reducer;
             this.controller = controller;
@@ -147,6 +147,11 @@ public class ParallelCompactionIterable extends AbstractCompactionIterable
 
         private final ThreadPoolExecutor executor;
         private int row = 0;
+
+        public boolean trivialReduceIsTrivial()
+        {
+            return false;
+        }
 
         private Reducer()
         {
@@ -224,6 +229,7 @@ public class ParallelCompactionIterable extends AbstractCompactionIterable
                     }
                     else
                     {
+                        // addAll is ok even if cf is an ArrayBackedSortedColumns
                         cf.addAll(thisCF, HeapAllocator.instance);
                     }
                 }

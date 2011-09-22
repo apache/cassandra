@@ -92,4 +92,9 @@ public abstract class AbstractCompactionStrategy
      * @return the number of background tasks estimated to still be needed for this columnfamilystore
      */
     public abstract int getEstimatedRemainingTasks();
+
+    /**
+     * @return size in bytes of the largest sstables for this strategy
+     */
+    public abstract long getMaxSSTableSize();
 }

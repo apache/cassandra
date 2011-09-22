@@ -20,72 +20,37 @@ package org.apache.cassandra.utils;
 
 import java.io.IOException;
 import java.io.IOError;
-import java.util.ArrayDeque;
-import java.util.Comparator;
-import java.util.List;
-import java.util.PriorityQueue;
+import java.util.*;
 
 import com.google.common.collect.AbstractIterator;
-import com.google.common.collect.Ordering;
 
 /** Merges sorted input iterators which individually contain unique items. */
-public abstract class MergeIterator<In,Out> extends AbstractIterator<Out> implements CloseableIterator<Out>
+public abstract class MergeIterator<In,Out> extends AbstractIterator<Out> implements IMergeIterator<In, Out>
 {
-    public final Comparator<In> comp;
+    protected final Reducer<In,Out> reducer;
     protected final List<? extends CloseableIterator<In>> iterators;
-    // a queue for return: all candidates must be open and have at least one item
-    protected final PriorityQueue<Candidate<In>> queue;
 
-    protected MergeIterator(List<? extends CloseableIterator<In>> iters, Comparator<In> comp)
+    protected MergeIterator(List<? extends CloseableIterator<In>> iters, Reducer<In, Out> reducer)
     {
         this.iterators = iters;
-        this.comp = comp;
-        this.queue = new PriorityQueue<Candidate<In>>(Math.max(1, iters.size()));
-        for (CloseableIterator<In> iter : iters)
-        {
-            Candidate<In> candidate = new Candidate<In>(iter, comp);
-            if (!candidate.advance())
-                // was empty
-                continue;
-            this.queue.add(candidate);
-        }
+        this.reducer = reducer;
     }
 
-    public static <E> MergeIterator<E,E> get(List<? extends CloseableIterator<E>> iters)
+    public static <In, Out> IMergeIterator<In, Out> get(final List<? extends CloseableIterator<In>> sources,
+                                                    Comparator<In> comparator,
+                                                    final Reducer<In, Out> reducer)
     {
-        return get(iters, (Comparator<E>)Ordering.natural());
-    }
-
-    public static <E> MergeIterator<E,E> get(List<? extends CloseableIterator<E>> iters, Comparator<E> comp)
-    {
-        return new OneToOne<E>(iters, comp);
-    }
-
-    public static <In,Out> MergeIterator<In,Out> get(List<? extends CloseableIterator<In>> iters, Comparator<In> comp, Reducer<In,Out> reducer)
-    {
-        return new ManyToOne<In,Out>(iters, comp, reducer);
+        assert !sources.isEmpty();
+        if (sources.size() == 1)
+            return reducer.trivialReduceIsTrivial()
+                   ? new TrivialOneToOne<In, Out>(sources, reducer)
+                   : new OneToOne<In, Out>(sources, reducer);
+        return new ManyToOne<In, Out>(sources, comparator, reducer);
     }
 
     public Iterable<? extends CloseableIterator<In>> iterators()
     {
         return iterators;
-    }
-
-    /**
-     * Consumes sorted items from the queue: should only remove items from the queue,
-     * not add them.
-     */
-    protected abstract Out consume();
-
-    /**
-     * Returns consumed items to the queue.
-     */
-    protected abstract void advance();
-
-    protected final Out computeNext()
-    {
-        advance();
-        return consume();
     }
 
     public void close()
@@ -103,45 +68,36 @@ public abstract class MergeIterator<In,Out> extends AbstractIterator<Out> implem
         }
     }
 
-    /** A MergeIterator that returns a single value for each one consumed. */
-    private static final class OneToOne<E> extends MergeIterator<E,E>
-    {
-        // the last returned candidate, so that we can lazily call 'advance()'
-        protected Candidate<E> candidate;
-        public OneToOne(List<? extends CloseableIterator<E>> iters, Comparator<E> comp)
-        {
-            super(iters, comp);
-        }
-
-        protected final E consume()
-        {
-            candidate = queue.poll();
-            if (candidate == null)
-                return endOfData();
-            return candidate.item;
-        }
-
-        protected final void advance()
-        {
-            if (candidate != null && candidate.advance())
-                // has more items
-                queue.add(candidate);
-        }
-    }
-
     /** A MergeIterator that consumes multiple input values per output value. */
     private static final class ManyToOne<In,Out> extends MergeIterator<In,Out>
     {
-        protected final Reducer<In,Out> reducer;
+        public final Comparator<In> comp;
+        // a queue for return: all candidates must be open and have at least one item
+        protected final PriorityQueue<Candidate<In>> queue;
         // a stack of the last consumed candidates, so that we can lazily call 'advance()'
         // TODO: if we had our own PriorityQueue implementation we could stash items
         // at the end of its array, so we wouldn't need this storage
         protected final ArrayDeque<Candidate<In>> candidates;
         public ManyToOne(List<? extends CloseableIterator<In>> iters, Comparator<In> comp, Reducer<In,Out> reducer)
         {
-            super(iters, comp);
-            this.reducer = reducer;
+            super(iters, reducer);
+            this.comp = comp;
+            this.queue = new PriorityQueue<Candidate<In>>(Math.max(1, iters.size()));
+            for (CloseableIterator<In> iter : iters)
+            {
+                Candidate<In> candidate = new Candidate<In>(iter, comp);
+                if (!candidate.advance())
+                    // was empty
+                    continue;
+                this.queue.add(candidate);
+            }
             this.candidates = new ArrayDeque<Candidate<In>>(queue.size());
+        }
+
+        protected final Out computeNext()
+        {
+            advance();
+            return consume();
         }
 
         /** Consume values by sending them to the reducer while they are equal. */
@@ -177,15 +133,11 @@ public abstract class MergeIterator<In,Out> extends AbstractIterator<Out> implem
         private final CloseableIterator<In> iter;
         private final Comparator<In> comp;
         private In item;
+
         public Candidate(CloseableIterator<In> iter, Comparator<In> comp)
         {
             this.iter = iter;
             this.comp = comp;
-        }
-
-        public In item()
-        {
-            return item;
         }
 
         /** @return True if our iterator had an item, and it is now available */
@@ -207,6 +159,11 @@ public abstract class MergeIterator<In,Out> extends AbstractIterator<Out> implem
     public static abstract class Reducer<In,Out>
     {
         /**
+         * @return true if Out is the same as In for the case of a single source iterator
+         */
+        public abstract boolean trivialReduceIsTrivial();
+
+        /**
          * combine this object with the previous ones.
          * intermediate state is up to your implementation.
          */
@@ -220,5 +177,43 @@ public abstract class MergeIterator<In,Out> extends AbstractIterator<Out> implem
          * To be overriden by implementing classes.
          */
         protected void onKeyChange() {}
+    }
+
+    private static class OneToOne<In, Out> extends MergeIterator<In, Out>
+    {
+        private final CloseableIterator<In> source;
+
+        public OneToOne(List<? extends CloseableIterator<In>> sources, Reducer<In, Out> reducer)
+        {
+            super(sources, reducer);
+            source = sources.get(0);
+        }
+
+        protected Out computeNext()
+        {
+            if (!source.hasNext())
+                return endOfData();
+            reducer.onKeyChange();
+            reducer.reduce(source.next());
+            return reducer.getReduced();
+        }
+    }
+
+    private static class TrivialOneToOne<In, Out> extends MergeIterator<In, Out>
+    {
+        private final CloseableIterator<?> source;
+
+        public TrivialOneToOne(List<? extends CloseableIterator<In>> sources, Reducer<In, Out> reducer)
+        {
+            super(sources, reducer);
+            source = sources.get(0);
+        }
+
+        protected Out computeNext()
+        {
+            if (!source.hasNext())
+                return endOfData();
+            return (Out) source.next();
+        }
     }
 }

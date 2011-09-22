@@ -27,9 +27,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.IColumn;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.ICountableColumnIterator;
 import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.io.util.RandomAccessReader;
@@ -228,7 +226,7 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
     public ColumnFamily getColumnFamilyWithColumns() throws IOException
     {
         assert inputWithTracker.getBytesRead() == headerSize();
-        ColumnFamily cf = columnFamily.cloneMeShallow();
+        ColumnFamily cf = columnFamily.cloneMeShallow(ArrayBackedSortedColumns.factory(), false);
         // since we already read column count, just pass that value and continue deserialization
         ColumnFamily.serializer().deserializeColumns(inputWithTracker, cf, columnCount, fromRemote);
         if (validateColumns)

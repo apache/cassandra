@@ -72,6 +72,11 @@ public interface IColumn
     boolean isLive();
 
     /**
+     * @return true if the column or any its subcolumns expired before @param gcBefore
+     */
+    public boolean hasExpiredTombstones(int gcBefore);
+
+    /**
      * For a standard column, this is the same as timestamp().
      * For a super column, this is the max column timestamp of the sub columns.
      */

@@ -244,4 +244,16 @@ public abstract class AbstractColumnContainer implements IColumnContainer, IIter
             this.localDeletionTime = localDeletionTime;
         }
     }
+
+    public boolean hasExpiredTombstones(int gcBefore)
+    {
+        if (isMarkedForDelete() && getLocalDeletionTime() < gcBefore)
+            return true;
+
+        for (IColumn column : columns)
+            if (column.hasExpiredTombstones(gcBefore))
+                return true;
+
+        return false;
+    }
 }
