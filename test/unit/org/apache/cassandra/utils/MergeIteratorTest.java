@@ -50,6 +50,12 @@ public class MergeIteratorTest
         MergeIterator.Reducer<String,String> reducer = new MergeIterator.Reducer<String,String>()
         {
             String concatted = "";
+
+            public boolean trivialReduceIsTrivial()
+            {
+                return false; // technically true, but let's not optimize anything away here...
+            }
+
             public void reduce(String value)
             {
                 concatted += value;

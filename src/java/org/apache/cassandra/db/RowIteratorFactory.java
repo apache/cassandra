@@ -100,6 +100,11 @@ public class RowIteratorFactory
             private DecoratedKey key;
             private ColumnFamily returnCF;
 
+            public boolean trivialReduceIsTrivial()
+            {
+                return false;
+            }
+
             @Override
             protected void onKeyChange()
             {

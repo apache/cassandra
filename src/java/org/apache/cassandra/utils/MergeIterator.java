@@ -42,7 +42,9 @@ public abstract class MergeIterator<In,Out> extends AbstractIterator<Out> implem
     {
         assert !sources.isEmpty();
         if (sources.size() == 1)
-            return new OneToOne<In, Out>(sources, reducer);
+            return reducer.trivialReduceIsTrivial()
+                   ? new TrivialOneToOne<In, Out>(sources, reducer)
+                   : new OneToOne<In, Out>(sources, reducer);
         return new ManyToOne<In, Out>(sources, comparator, reducer);
     }
 
@@ -157,6 +159,11 @@ public abstract class MergeIterator<In,Out> extends AbstractIterator<Out> implem
     public static abstract class Reducer<In,Out>
     {
         /**
+         * @return true if Out is the same as In for the case of a single source iterator
+         */
+        public abstract boolean trivialReduceIsTrivial();
+
+        /**
          * combine this object with the previous ones.
          * intermediate state is up to your implementation.
          */
@@ -189,6 +196,24 @@ public abstract class MergeIterator<In,Out> extends AbstractIterator<Out> implem
             reducer.onKeyChange();
             reducer.reduce(source.next());
             return reducer.getReduced();
+        }
+    }
+
+    private static class TrivialOneToOne<In, Out> extends MergeIterator<In, Out>
+    {
+        private final CloseableIterator<?> source;
+
+        public TrivialOneToOne(List<? extends CloseableIterator<In>> sources, Reducer<In, Out> reducer)
+        {
+            super(sources, reducer);
+            source = sources.get(0);
+        }
+
+        protected Out computeNext()
+        {
+            if (!source.hasNext())
+                return endOfData();
+            return (Out) source.next();
         }
     }
 }
