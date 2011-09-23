@@ -147,7 +147,7 @@ Features
     - optional intranode encryption; see comments around 'encryption_options'
       in cassandra.yaml
     - compaction multithreading and rate-limiting; see 
-      'compaction_multithreading' and 'compaction_throughput_mb_per_sec' in
+      'concurrent_compactors' and 'compaction_throughput_mb_per_sec' in
       cassandra.yaml
     - cassandra will limit total memtable memory usage to 1/3 of the heap
       by default.  This can be ajusted or disabled with the 
