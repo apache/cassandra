@@ -321,7 +321,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public static void scrubDataDirectories(String table, String columnFamily)
     {
-        logger.info("Removing compacted SSTable files from " + columnFamily + " (see http://wiki.apache.org/cassandra/MemtableSSTable)");
+        logger.debug("Removing compacted SSTable files from {} (see http://wiki.apache.org/cassandra/MemtableSSTable)", columnFamily);
+
         for (Map.Entry<Descriptor,Set<Component>> sstableFiles : files(table, columnFamily, true, true).entrySet())
         {
             Descriptor desc = sstableFiles.getKey();

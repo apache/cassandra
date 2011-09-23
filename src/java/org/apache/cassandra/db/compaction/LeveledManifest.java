@@ -135,14 +135,16 @@ public class LeveledManifest
         serialize();
     }
 
-    // if the number of SSTables in the current compacted set exeeds the target level, find an empty level
+    /**
+     * if the number of SSTables in the current compacted set *by itself* exeeds the target level's
+     * (regardless of the level's current contents), find an empty level instead
+     */
     private int skipLevels(int newLevel, Iterable<SSTableReader> added)
     {
-        // skip newlevel if the resulting sstables exceed newlevel threshold
-        if (maxBytesForLevel(newLevel) < SSTableReader.getTotalBytes(added)
-            && SSTableReader.getTotalBytes(generations[(newLevel + 1)]) == 0)
+        while (maxBytesForLevel(newLevel) < SSTableReader.getTotalBytes(added)
+            && generations[(newLevel + 1)].isEmpty())
         {
-            newLevel = skipLevels(newLevel + 1, added);
+            newLevel++;
         }
         return newLevel;
     }
@@ -171,7 +173,8 @@ public class LeveledManifest
         int newLevel = minimumLevel == maximumLevel ? maximumLevel + 1 : maximumLevel;
         newLevel = skipLevels(newLevel, added);
         assert newLevel > 0;
-        logger.debug("Adding [{}] at L{}", StringUtils.join(added.iterator(), ", "), newLevel);
+        if (logger.isDebugEnabled())
+            logger.debug("Adding [{}] at L{}", toString(added), newLevel);
 
         lastCompactedKeys[minimumLevel] = SSTable.sstableOrdering.max(added).last;
         for (SSTableReader ssTableReader : added)
@@ -185,7 +188,12 @@ public class LeveledManifest
         StringBuilder builder = new StringBuilder();
         for (SSTableReader sstable : sstables)
         {
-            builder.append(sstable.toString()).append(" (L").append(levelOf(sstable)).append("), ");
+            builder.append(sstable.descriptor.cfname)
+                   .append('-')
+                   .append(sstable.descriptor.generation)
+                   .append("(L")
+                   .append(levelOf(sstable))
+                   .append("), ");
         }
         return builder.toString();
     }
@@ -383,7 +391,7 @@ public class LeveledManifest
             File manifestFile = new File(new File(dir, cfs.table.name), cfs.columnFamily + ".json");
             if (manifestFile.exists())
             {
-                logger.debug("Loading manifest from {}", manifestFile);
+                logger.debug("Found manifest at {}", manifestFile);
                 return manifestFile;
             }
         }

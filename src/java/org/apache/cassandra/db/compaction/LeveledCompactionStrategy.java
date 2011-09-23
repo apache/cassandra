@@ -71,7 +71,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
         maxSSTableSizeInMB = configuredMaxSSTableSize;
 
         cfs.getDataTracker().subscribe(this);
-        logger.info(this + " subscribed to the data tracker.");
+        logger.debug("{} subscribed to the data tracker.", this);
 
         manifest = LeveledManifest.create(cfs, this.maxSSTableSizeInMB);
         logger.debug("Created {}", manifest);
