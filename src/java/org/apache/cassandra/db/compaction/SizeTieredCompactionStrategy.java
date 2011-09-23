@@ -25,6 +25,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DataTracker;
+import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.utils.Pair;
 
@@ -179,6 +181,11 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
     public long getMaxSSTableSize()
     {
         return Long.MAX_VALUE;
+    }
+
+    public boolean isKeyExistenceExpensive(Set<? extends SSTable> sstablesToIgnore)
+    {
+        return cfs.getSSTables().size() - sstablesToIgnore.size() > 20;
     }
 
     public String toString()

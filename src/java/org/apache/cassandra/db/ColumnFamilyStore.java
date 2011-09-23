@@ -885,6 +885,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return false;
     }
 
+    public boolean isKeyExistenceExpensive(Set<? extends SSTable> sstablesToIgnore)
+    {
+        return compactionStrategy.isKeyExistenceExpensive(sstablesToIgnore);
+    }
+
     /*
      * Called after a BinaryMemtable flushes its in-memory data, or we add a file
      * via bootstrap. This information is cached in the ColumnFamilyStore.

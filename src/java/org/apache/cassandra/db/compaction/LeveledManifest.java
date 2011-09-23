@@ -27,8 +27,6 @@ import java.io.IOException;
 import java.util.*;
 
 import com.google.common.collect.Iterables;
-import org.apache.commons.lang.StringUtils;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -54,12 +52,13 @@ public class LeveledManifest
      * uses a pessimistic estimate of how many keys overlap (none), so we risk wasting memory
      * or even OOMing when compacting highly overlapping sstables
      */
-    private static int MAX_COMPACTING_L0 = 32;
+    static int MAX_COMPACTING_L0 = 32;
 
     private final ColumnFamilyStore cfs;
     private final List<SSTableReader>[] generations;
     private final DecoratedKey[] lastCompactedKeys;
     private final int maxSSTableSizeInMB;
+    private int levelCount;
 
     private LeveledManifest(ColumnFamilyStore cfs, int maxSSTableSizeInMB)
     {
@@ -403,5 +402,20 @@ public class LeveledManifest
     public String toString()
     {
         return "Manifest@" + hashCode();
+    }
+
+    public int getLevelCount()
+    {
+        for (int i = generations.length - 1; i >= 0; i--)
+        {
+            if (generations[i].size() > 0)
+                return i;
+        }
+        return 0;
+    }
+
+    public List<SSTableReader> getLevel(int i)
+    {
+        return generations[i];
     }
 }
