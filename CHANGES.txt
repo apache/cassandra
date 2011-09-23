@@ -20,6 +20,7 @@
  * fix handling of exceptions writing to OutboundTcpConnection (CASSANDRA-3235)
  * Allow using quotes in "USE <keyspace>;" CLI command (CASSANDRA-3208)
  * Don't allow any cache loading exceptions to halt startup (CASSANDRA-3218)
+ * Fix sstableloader --ignores option (CASSANDRA-3247)
 
 
 1.0.0-beta1
