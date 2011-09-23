@@ -315,12 +315,12 @@ public class BulkLoader
                     {
                         for (String node : nodes)
                         {
-                            opts.ignores.add(InetAddress.getByName(node));
+                            opts.ignores.add(InetAddress.getByName(node.trim()));
                         }
                     }
                     catch (UnknownHostException e)
                     {
-                        errorMsg(e.getMessage(), options);
+                        errorMsg("Unknown host: " + e.getMessage(), options);
                     }
                 }
 
@@ -358,7 +358,7 @@ public class BulkLoader
             options.addOption("v",  VERBOSE_OPTION,      "verbose output");
             options.addOption("h",  HELP_OPTION,         "display this help message");
             options.addOption(null, NOPROGRESS_OPTION,   "don't display progress");
-            options.addOption("i",  IGNORE_NODES_OPTION, "don't stream to this (comma separated) list of nodes");
+            options.addOption("i",  IGNORE_NODES_OPTION, "NODES", "don't stream to this (comma separated) list of nodes");
             return options;
         }
 
