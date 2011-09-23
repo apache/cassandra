@@ -148,9 +148,9 @@ public abstract class AutoSavingCache<K, V> extends InstrumentingCache<K, V>
                     logger.debug(String.format("completed reading (%d ms; %d keys) saved cache %s",
                                                System.currentTimeMillis() - start, keys.size(), path));
             }
-            catch (IOException ioe)
+            catch (Exception e)
             {
-                logger.warn(String.format("error reading saved cache %s", path.getAbsolutePath()), ioe);
+                logger.warn(String.format("error reading saved cache %s", path.getAbsolutePath()), e);
             }
             finally
             {

@@ -18,6 +18,8 @@
    scheduling, and performance (CASSANDRA-3224, 3234)
  * parallelize sstable open at server startup (CASSANDRA-2988)
  * fix handling of exceptions writing to OutboundTcpConnection (CASSANDRA-3235)
+ * Allow using quotes in "USE <keyspace>;" CLI command (CASSANDRA-3208)
+ * Don't allow any cache loading exceptions to halt startup (CASSANDRA-3218)
 
 
 1.0.0-beta1

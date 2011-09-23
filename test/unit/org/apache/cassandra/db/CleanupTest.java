@@ -109,7 +109,9 @@ public class CleanupTest extends CleanupHelper
         assertEquals(LOOPS, rows.size());
 
         SecondaryIndex index = cfs.indexManager.getIndexForColumn(COLUMN);
-        assertTrue(index.isIndexBuilt(COLUMN));
+        long start = System.currentTimeMillis();
+        while (!index.isIndexBuilt(COLUMN) && System.currentTimeMillis() < start + 10000)
+            Thread.sleep(10);
 
         // verify we get it back w/ index query too
         IndexExpression expr = new IndexExpression(COLUMN, IndexOperator.EQ, VALUE);
