@@ -4,6 +4,7 @@
  * Log message when a full repair operation completes (CASSANDRA-3207)
  * Don't allow any cache loading exceptions to halt startup (CASSANDRA-3218)
  * Fix sstableloader --ignores option (CASSANDRA-3247)
+ * File descriptor limit increased in packaging (CASSANDRA-3206)
 
 
 0.8.6
