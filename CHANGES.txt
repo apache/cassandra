@@ -18,6 +18,7 @@
  * Don't allow any cache loading exceptions to halt startup (CASSANDRA-3218)
  * Fix sstableloader --ignores option (CASSANDRA-3247)
  * File descriptor limit increased in packaging (CASSANDRA-3206)
+ * Fix deadlock in commit log during flush (CASSANDRA-3253)
 
 
 1.0.0-beta1

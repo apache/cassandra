@@ -43,6 +43,7 @@ import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.FastByteArrayInputStream;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.WrappedRunnable;
@@ -570,7 +571,18 @@ public class CommitLog implements CommitLogMBean
             for (Integer dirtyCFId : oldestSegment.cfLastWrite.keySet())
             {
                 String keypace = Schema.instance.getCF(dirtyCFId).left;
-                Table.open(keypace).getColumnFamilyStore(dirtyCFId).forceFlush();
+                final ColumnFamilyStore cfs = Table.open(keypace).getColumnFamilyStore(dirtyCFId);
+                // flush shouldn't run on the commitlog executor, since it acquires Table.switchLock,
+                // which may already be held by a thread waiting for the CL executor (via getContext),
+                // causing deadlock
+                Runnable runnable = new Runnable()
+                {
+                    public void run()
+                    {
+                        cfs.forceFlush();
+                    }
+                };
+                StorageService.optionalTasks.execute(runnable);
             }
         }
     }
