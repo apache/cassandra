@@ -167,7 +167,11 @@ public class AntiEntropyService
     private void rendezvous(TreeRequest request, MerkleTree tree)
     {
         RepairSession session = sessions.get(request.sessionid);
-        assert session != null;
+        if (session == null)
+        {
+            logger.warn("Got a merkle tree response for unknown repair session {}: either this node has been restarted since the session was started, or the session has been interrupted for an unknown reason. ", request.sessionid);
+            return;
+        }
 
         RepairSession.RepairJob job = session.jobs.peek();
         assert job != null : "A repair should have at least some jobs scheduled";

@@ -5,6 +5,8 @@
  * Don't allow any cache loading exceptions to halt startup (CASSANDRA-3218)
  * Fix sstableloader --ignores option (CASSANDRA-3247)
  * File descriptor limit increased in packaging (CASSANDRA-3206)
+ * Log a miningfull warning when a node receive a message for a repair session
+   that don't exist anymore (CASSANDRA-3256)
 
 
 0.8.6
