@@ -873,7 +873,7 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
     </target>
 
     <!-- creates release tarballs -->
-    <target name="artifacts" depends="jar,javadoc,py-cql-driver"
+    <target name="artifacts" depends="jar,javadoc"
             description="Create Cassandra release artifacts">
       <mkdir dir="${dist.dir}"/>
       <copy todir="${dist.dir}/lib">
@@ -1317,17 +1317,6 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
     <delete dir=".settings" />
   	<delete dir=".externalToolBuilders" />
   	<delete dir="build/eclipse-classes" />
-  </target>
-
-  <target name="py-cql-driver"
-          description="Generate Python CQL driver artifact">
-    <echo>Creating Python CQL driver artifact...</echo>
-    <exec executable="python" dir="${basedir}/drivers/py" failonerror="true">
-      <arg line="setup.py" />
-      <arg line="sdist" />
-      <arg line="--dist-dir" />
-      <arg line="${build.dir}" />
-    </exec>
   </target>
 
   <!-- Publish artifacts to Maven repositories -->
