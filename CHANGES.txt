@@ -1,6 +1,7 @@
 1.0.0-final
  * Log a miningfull warning when a node receive a message for a repair session
    that don't exist anymore (CASSANDRA-3256)
+ * test for NUMA policy support as well as numactl presence (CASSANDRA-3245)
 
 
 1.0.0-rc1
