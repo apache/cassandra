@@ -25,7 +25,7 @@
     <property name="debuglevel" value="source,lines,vars"/>
 
     <!-- default version and SCM information (we need the default SCM info as people may checkout with git-svn) -->
-    <property name="base.version" value="1.0.0-beta1"/>
+    <property name="base.version" value="1.0.0-rc1"/>
     <property name="scm.default.path" value="cassandra/branches/cassandra-1.0.0"/>
     <property name="scm.default.connection" value="scm:svn:http://svn.apache.org/repos/asf/${scm.default.path}"/>
     <property name="scm.default.developerConnection" value="scm:svn:https://svn.apache.org/repos/asf/${scm.default.path}"/>
