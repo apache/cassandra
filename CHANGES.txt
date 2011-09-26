@@ -7,6 +7,7 @@
  * File descriptor limit increased in packaging (CASSANDRA-3206)
  * Log a miningfull warning when a node receive a message for a repair session
    that don't exist anymore (CASSANDRA-3256)
+ * Fix FD leak when internode encryption is enabled (CASSANDRA-3257)
 
 
 0.8.6

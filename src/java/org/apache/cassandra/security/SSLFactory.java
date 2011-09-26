@@ -76,6 +76,8 @@ public final class SSLFactory
     }
 
     private static SSLContext createSSLContext(EncryptionOptions options) throws IOException {
+        FileInputStream tsf = new FileInputStream(options.truststore);
+        FileInputStream ksf = new FileInputStream(options.keystore);
         SSLContext ctx;
         try {
             ctx = SSLContext.getInstance(PROTOCOL);
@@ -84,18 +86,21 @@ public final class SSLFactory
 
             tmf = TrustManagerFactory.getInstance(ALGORITHM);
             KeyStore ts = KeyStore.getInstance(STORE_TYPE);
-            ts.load(new FileInputStream(options.truststore), options.truststore_password.toCharArray());
+            ts.load(tsf, options.truststore_password.toCharArray());
             tmf.init(ts);
 
             kmf = KeyManagerFactory.getInstance(ALGORITHM);
             KeyStore ks = KeyStore.getInstance(STORE_TYPE);
-            ks.load(new FileInputStream(options.keystore), options.keystore_password.toCharArray());
+            ks.load(ksf, options.keystore_password.toCharArray());
             kmf.init(ks, options.keystore_password.toCharArray());
 
             ctx.init(kmf.getKeyManagers(), tmf.getTrustManagers(), null);
 
         } catch (Exception e) {
             throw new IOException("Error creating the initializing the SSL Context", e);
+        } finally {
+            tsf.close();
+            ksf.close();
         }
         return ctx;
     }
