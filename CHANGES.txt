@@ -5,6 +5,7 @@
 1.0.0-final
  * Log a miningfull warning when a node receive a message for a repair session
    that don't exist anymore (CASSANDRA-3256)
+ * Remove incorrect assertion in mergeIterator (CASSANDRA-3260)
 
 
 1.0.0-rc1
