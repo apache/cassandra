@@ -47,8 +47,6 @@ import org.apache.cassandra.concurrent.CreationTimeAwareFuture;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -406,10 +404,14 @@ public class FBUtilities
     {
         if (str.length() % 2 == 1)
             str = "0" + str;
-        byte[] bytes = new byte[str.length()/2];
+        byte[] bytes = new byte[str.length() / 2];
         for (int i = 0; i < bytes.length; i++)
         {
-            bytes[i] = (byte)((charToByte[str.charAt(i * 2)] << 4) | charToByte[str.charAt(i*2 + 1)]);
+            byte halfByte1 = charToByte[str.charAt(i * 2)];
+            byte halfByte2 = charToByte[str.charAt(i * 2 + 1)];
+            if (halfByte1 == -1 || halfByte2 == -1)
+                throw new NumberFormatException("Non-hex characters in " + str);
+            bytes[i] = (byte)((halfByte1 << 4) | halfByte2);
         }
         return bytes;
     }
