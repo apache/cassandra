@@ -21,9 +21,11 @@ package org.apache.cassandra.db.compaction;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.service.StorageService;
 
@@ -97,4 +99,10 @@ public abstract class AbstractCompactionStrategy
      * @return size in bytes of the largest sstables for this strategy
      */
     public abstract long getMaxSSTableSize();
+
+    /**
+     * @return true if checking for whether a key exists, ignoring @param sstablesToIgnore,
+     * is going to be expensive
+     */
+    public abstract boolean isKeyExistenceExpensive(Set<? extends SSTable> sstablesToIgnore);
 }

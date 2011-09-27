@@ -22,6 +22,7 @@ CONFDIR=/etc/cassandra
 JSVC=/usr/bin/jsvc
 WAIT_FOR_START=10
 CASSANDRA_HOME=/usr/share/cassandra
+FD_LIMIT=100000
 
 # The first existing directory is used for JAVA_HOME if needed.
 JVM_SEARCH_DIRS="/usr/lib/jvm/java-6-openjdk /usr/lib/jvm/java-6-sun"
@@ -127,6 +128,7 @@ do_start()
     is_running && return 1
 
     ulimit -l unlimited
+    ulimit -n "$FD_LIMIT"
 
     cassandra_home=`getent passwd cassandra | awk -F ':' '{ print $6; }'`
     cd /    # jsvc doesn't chdir() for us
