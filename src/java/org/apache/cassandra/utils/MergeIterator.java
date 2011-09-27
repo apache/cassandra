@@ -40,7 +40,6 @@ public abstract class MergeIterator<In,Out> extends AbstractIterator<Out> implem
                                                     Comparator<In> comparator,
                                                     final Reducer<In, Out> reducer)
     {
-        assert !sources.isEmpty();
         if (sources.size() == 1)
             return reducer.trivialReduceIsTrivial()
                    ? new TrivialOneToOne<In, Out>(sources, reducer)

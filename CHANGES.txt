@@ -3,6 +3,7 @@
    that don't exist anymore (CASSANDRA-3256)
  * test for NUMA policy support as well as numactl presence (CASSANDRA-3245)
  * Fix FD leak when internode encryption is enabled (CASSANDRA-3257)
+ * Remove incorrect assertion in mergeIterator (CASSANDRA-3260)
 
 
 1.0.0-rc1
