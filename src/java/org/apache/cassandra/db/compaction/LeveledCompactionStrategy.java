@@ -21,17 +21,17 @@ package org.apache.cassandra.db.compaction;
  */
 
 
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.notifications.INotification;
 import org.apache.cassandra.notifications.INotificationConsumer;
@@ -71,7 +71,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
         maxSSTableSizeInMB = configuredMaxSSTableSize;
 
         cfs.getDataTracker().subscribe(this);
-        logger.info(this + " subscribed to the data tracker.");
+        logger.debug("{} subscribed to the data tracker.", this);
 
         manifest = LeveledManifest.create(cfs, this.maxSSTableSizeInMB);
         logger.debug("Created {}", manifest);
@@ -157,6 +157,12 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
     public long getMaxSSTableSize()
     {
         return maxSSTableSizeInMB * 1024 * 1024;
+    }
+
+    public boolean isKeyExistenceExpensive(Set<? extends SSTable> sstablesToIgnore)
+    {
+        Set<SSTableReader> L0 = ImmutableSet.copyOf(manifest.getLevel(0));
+        return Sets.difference(L0, sstablesToIgnore).size() + manifest.getLevelCount() > 20;
     }
 
     @Override

@@ -44,6 +44,7 @@ public class CompactionController
     private final boolean forceDeserialize;
 
     public final int gcBefore;
+    public boolean keyExistenceIsExpensive;
 
     public CompactionController(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, int gcBefore, boolean forceDeserialize)
     {
@@ -52,6 +53,7 @@ public class CompactionController
         this.sstables = new HashSet<SSTableReader>(sstables);
         this.gcBefore = gcBefore;
         this.forceDeserialize = forceDeserialize;
+        keyExistenceIsExpensive = cfs.getCompactionStrategy().isKeyExistenceExpensive(this.sstables);
     }
 
     public String getKeyspace()
@@ -102,12 +104,18 @@ public class CompactionController
      */
     public AbstractCompactedRow getCompactedRow(List<SSTableIdentityIterator> rows)
     {
-        if (rows.size() == 1 && !needDeserialize() && !shouldPurge(rows.get(0).getKey()))
-            return new EchoedRow(this, rows.get(0));
-
         long rowSize = 0;
         for (SSTableIdentityIterator row : rows)
             rowSize += row.dataSize;
+
+        // in-memory echoedrow is only enabled if we think checking for the key's existence in the other sstables,
+        // is going to be less expensive than simply de/serializing the row again
+        if (rows.size() == 1 && !needDeserialize()
+            && (rowSize > DatabaseDescriptor.getInMemoryCompactionLimit() || !keyExistenceIsExpensive)
+            && !shouldPurge(rows.get(0).getKey()))
+        {
+            return new EchoedRow(this, rows.get(0));
+        }
 
         if (rowSize > DatabaseDescriptor.getInMemoryCompactionLimit())
         {

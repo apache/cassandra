@@ -25,7 +25,6 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.net.SocketAddress;
 import java.security.KeyStore;
 
 import javax.net.ssl.KeyManagerFactory;
@@ -35,6 +34,7 @@ import javax.net.ssl.SSLSocket;
 import javax.net.ssl.TrustManagerFactory;
 
 import org.apache.cassandra.config.EncryptionOptions;
+import org.apache.cassandra.io.util.FileUtils;
 
 /**
  * A Factory for providing and setting up Client and Server SSL wrapped
@@ -45,7 +45,6 @@ public final class SSLFactory
     private static final String PROTOCOL = "TLS";
     private static final String ALGORITHM = "SunX509";
     private static final String STORE_TYPE = "JKS";
-
 
     public static SSLServerSocket getServerSocket(EncryptionOptions options, InetAddress address, int port) throws IOException
     {
@@ -75,27 +74,38 @@ public final class SSLFactory
         return socket;
     }
 
-    private static SSLContext createSSLContext(EncryptionOptions options) throws IOException {
+    private static SSLContext createSSLContext(EncryptionOptions options) throws IOException
+    {
+        FileInputStream tsf = new FileInputStream(options.truststore);
+        FileInputStream ksf = new FileInputStream(options.keystore);
         SSLContext ctx;
-        try {
+        try
+        {
             ctx = SSLContext.getInstance(PROTOCOL);
-            TrustManagerFactory tmf = null;
-            KeyManagerFactory kmf = null;
+            TrustManagerFactory tmf;
+            KeyManagerFactory kmf;
 
             tmf = TrustManagerFactory.getInstance(ALGORITHM);
             KeyStore ts = KeyStore.getInstance(STORE_TYPE);
-            ts.load(new FileInputStream(options.truststore), options.truststore_password.toCharArray());
+            ts.load(tsf, options.truststore_password.toCharArray());
             tmf.init(ts);
 
             kmf = KeyManagerFactory.getInstance(ALGORITHM);
             KeyStore ks = KeyStore.getInstance(STORE_TYPE);
-            ks.load(new FileInputStream(options.keystore), options.keystore_password.toCharArray());
+            ks.load(ksf, options.keystore_password.toCharArray());
             kmf.init(ks, options.keystore_password.toCharArray());
 
             ctx.init(kmf.getKeyManagers(), tmf.getTrustManagers(), null);
 
-        } catch (Exception e) {
+        }
+        catch (Exception e)
+        {
             throw new IOException("Error creating the initializing the SSL Context", e);
+        }
+        finally
+        {
+            FileUtils.closeQuietly(tsf);
+            FileUtils.closeQuietly(ksf);
         }
         return ctx;
     }

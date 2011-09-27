@@ -72,11 +72,12 @@ public class CompactionTask extends AbstractCompactionTask
         Set<SSTableReader> toCompact = new HashSet<SSTableReader>(sstables);
         if (!isUserDefined)
         {
-            if ( !allowSingletonCompaction() && toCompact.size() < 2)
+            if (!allowSingletonCompaction() && toCompact.size() < 2)
             {
-                logger.info("Nothing to compact in " + cfs.getColumnFamilyName() + "." +
-                            "Use forceUserDefinedCompaction if you wish to force compaction of single sstables " +
-                            "(e.g. for tombstone collection)");
+                String msg = "Nothing to compact in " + cfs.getColumnFamilyName();
+                if (cfs.getCompactionStrategy() instanceof SizeTieredCompactionStrategy)
+                    msg += ".  Use forceUserDefinedCompaction if you wish to force compaction of single sstables (e.g. for tombstone collection)";
+                logger.info(msg);
                 return 0;
             }
 
@@ -220,7 +221,7 @@ public class CompactionTask extends AbstractCompactionTask
         double mbps = dTime > 0 ? (double)endsize/(1024*1024)/((double)dTime/1000) : 0;
         logger.info(String.format("Compacted to %s.  %,d to %,d (~%d%% of original) bytes for %,d keys at %fMBPS.  Time: %,dms.",
                                   builder.toString(), startsize, endsize, (int) (ratio * 100), totalkeysWritten, mbps, dTime));
-        logger.info(String.format("CF Total Bytes Compacted: %,d", CompactionTask.addToTotalBytesCompacted(endsize)));
+        logger.debug(String.format("CF Total Bytes Compacted: %,d", CompactionTask.addToTotalBytesCompacted(endsize)));
         return toCompact.size();
     }
 

@@ -91,10 +91,12 @@ fi
 
 # If numactl is available, use it. For Cassandra, the priority is to
 # avoid disk I/O. Even for the purpose of CPU efficiency, we don't
-# really have CPU<->data affinity anyway.
-if which numactl >/dev/null 2>/dev/null
+# really have CPU<->data affinity anyway. Also, empirically test that numactl
+# works before trying to use it (CASSANDRA-3245).
+NUMACTL_ARGS="--interleave=all"
+if which numactl >/dev/null 2>/dev/null && numactl $NUMACTL_ARGS ls / >/dev/null 2>/dev/null
 then
-    NUMACTL="numactl --interleave=all"
+    NUMACTL="numactl $NUMACTL_ARGS"
 else
     NUMACTL=""
 fi

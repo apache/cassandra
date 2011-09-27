@@ -137,7 +137,6 @@ concurrent_writes: 32
 # Total memory to use for memtables.  Cassandra will flush the largest
 # memtable when this much memory is used.
 # If omitted, Cassandra will set it to 1/3 of the heap.
-# If set to 0, only the old flush thresholds are used.
 # memtable_total_space_in_mb: 2048
 
 # Total space to use for commitlogs. 
