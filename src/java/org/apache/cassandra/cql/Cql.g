@@ -600,7 +600,7 @@ IDENT
     ;
     
 COMPIDENT
-    : IDENT ( ':' IDENT)*
+    : IDENT ( ':' (IDENT | INTEGER))*
     ;
    
 UUID
