@@ -8,7 +8,8 @@
  * Log a miningfull warning when a node receive a message for a repair session
    that don't exist anymore (CASSANDRA-3256)
  * Fix FD leak when internode encryption is enabled (CASSANDRA-3257)
-
+ * FBUtilities.hexToBytes(String) to throw NumberFormatException when string
+   contains non-hex characters (CASSANDRA-3231)
 
 0.8.6
  * revert CASSANDRA-2388
