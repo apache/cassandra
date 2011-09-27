@@ -25,6 +25,7 @@
  * Fix sstableloader --ignores option (CASSANDRA-3247)
  * File descriptor limit increased in packaging (CASSANDRA-3206)
  * Fix deadlock in commit log during flush (CASSANDRA-3253)
+ * Fix FD leak when internode encryption is enabled (CASSANDRA-3257)
 
 
 1.0.0-beta1
