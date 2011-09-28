@@ -12,7 +12,7 @@
    contains non-hex characters (CASSANDRA-3231)
  * Keep SimpleSnitch proximity ordering unchanged from what the Strategy
    generates, as intended (CASSANDRA-3262)
-
+ * fix Scrub compaction finishing (CASSANDRA-3255)
 
 0.8.6
  * revert CASSANDRA-2388
