@@ -10,6 +10,9 @@
  * Fix FD leak when internode encryption is enabled (CASSANDRA-3257)
  * FBUtilities.hexToBytes(String) to throw NumberFormatException when string
    contains non-hex characters (CASSANDRA-3231)
+ * Keep SimpleSnitch proximity ordering unchanged from what the Strategy
+   generates, as intended (CASSANDRA-3262)
+
 
 0.8.6
  * revert CASSANDRA-2388
