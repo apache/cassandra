@@ -47,35 +47,6 @@ public abstract class AbstractNetworkTopologySnitch extends AbstractEndpointSnit
      */
     abstract public String getDatacenter(InetAddress endpoint);
 
-    /**
-     * Sorts the <tt>Collection</tt> of node addresses by proximity to the given address
-     * @param address the address to sort by proximity to
-     * @param addresses the nodes to sort
-     * @return a new sorted <tt>List</tt>
-     */
-    public List<InetAddress> getSortedListByProximity(final InetAddress address, Collection<InetAddress> addresses)
-    {
-        List<InetAddress> preferred = new ArrayList<InetAddress>(addresses);
-        sortByProximity(address, preferred);
-        return preferred;
-    }
-
-    /**
-     * Sorts the <tt>List</tt> of node addresses by proximity to the given address
-     * @param address the address to sort the proximity by
-     * @param addresses the nodes to sort
-     */
-    public void sortByProximity(final InetAddress address, List<InetAddress> addresses)
-    {
-        Collections.sort(addresses, new Comparator<InetAddress>()
-        {
-            public int compare(InetAddress a1, InetAddress a2)
-            {
-                   return compareEndpoints(address, a1, a2);
-            }
-        });
-    }
-
     public int compareEndpoints(InetAddress address, InetAddress a1, InetAddress a2)
     {
         if (address.equals(a1) && !address.equals(a2))
