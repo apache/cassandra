@@ -8,6 +8,8 @@
  * test for NUMA policy support as well as numactl presence (CASSANDRA-3245)
  * Fix FD leak when internode encryption is enabled (CASSANDRA-3257)
  * Remove incorrect assertion in mergeIterator (CASSANDRA-3260)
+ * Keep SimpleSnitch proximity ordering unchanged from what the Strategy
+   generates, as intended (CASSANDRA-3262)
 
 
 1.0.0-rc1
@@ -114,6 +116,9 @@
  * make memtable throughput and column count thresholds no-ops (CASSANDRA-2449)
 
 
+=======
+
+>>>>>>> .merge-right.r1176712
 0.8.6
  * revert CASSANDRA-2388
  * change TokenRange.endpoints back to listen/broadcast address to match

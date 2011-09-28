@@ -39,13 +39,17 @@ public class SimpleSnitch extends AbstractEndpointSnitch
     {
         return "datacenter1";
     }
-    
-    public List<InetAddress> getSortedListByProximity(final InetAddress address, Collection<InetAddress> addresses)
-    {
-        return new ArrayList<InetAddress>(addresses);
-    }
 
+    @Override
     public void sortByProximity(final InetAddress address, List<InetAddress> addresses)
     {
+        // Optimization to avoid walking the list
+    }
+
+    public int compareEndpoints(InetAddress target, InetAddress a1, InetAddress a2)
+    {
+        // Making all endpoints equal ensures we won't change the original ordering (since
+        // Collections.sort is guaranteed to be stable)
+        return 0;
     }
 }
