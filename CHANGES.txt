@@ -13,6 +13,8 @@
  * Keep SimpleSnitch proximity ordering unchanged from what the Strategy
    generates, as intended (CASSANDRA-3262)
  * fix Scrub compaction finishing (CASSANDRA-3255)
+ * Fix tool .bat files when CASSANDRA_HOME contains spaces (CASSANDRA-3258)
+
 
 0.8.6
  * revert CASSANDRA-2388
