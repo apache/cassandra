@@ -33,7 +33,7 @@ public class TypesMap
         map.put("org.apache.cassandra.db.marshal.AsciiType", JdbcAscii.instance);
         map.put("org.apache.cassandra.db.marshal.BooleanType", JdbcBoolean.instance);
         map.put("org.apache.cassandra.db.marshal.BytesType", JdbcBytes.instance);
-        map.put("org.apache.cassandra.db.marshal.ColumnCounterType", JdbcCounterColumn.instance);
+        map.put("org.apache.cassandra.db.marshal.CounterColumnType", JdbcCounterColumn.instance);
         map.put("org.apache.cassandra.db.marshal.DateType", JdbcDate.instance);
         map.put("org.apache.cassandra.db.marshal.DecimalType", JdbcDecimal.instance);
         map.put("org.apache.cassandra.db.marshal.DoubleType", JdbcDouble.instance);

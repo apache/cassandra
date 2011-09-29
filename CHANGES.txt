@@ -8,6 +8,7 @@
    contains non-hex characters (CASSANDRA-3231)
  * Keep SimpleSnitch proximity ordering unchanged from what the Strategy
    generates, as intended (CASSANDRA-3262)
+ * fix counter entry in jdbc TypesMap (CASSANDRA-3268)
 
 
 1.0.0-rc1
