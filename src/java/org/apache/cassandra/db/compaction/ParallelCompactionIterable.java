@@ -144,21 +144,13 @@ public class ParallelCompactionIterable extends AbstractCompactionIterable
     private class Reducer extends MergeIterator.Reducer<RowContainer, CompactedRowContainer>
     {
         private final List<RowContainer> rows = new ArrayList<RowContainer>();
-
-        private final ThreadPoolExecutor executor;
         private int row = 0;
 
-        private Reducer()
-        {
-            super();
-            executor = new ThreadPoolExecutor(Runtime.getRuntime().availableProcessors(),
-                                              Runtime.getRuntime().availableProcessors(),
-                                              Integer.MAX_VALUE,
-                                              TimeUnit.MILLISECONDS,
-                                              new SynchronousQueue<Runnable>(),
-                                              new NamedThreadFactory("CompactionReducer"));
-            executor.setRejectedExecutionHandler(DebuggableThreadPoolExecutor.blockingExecutionHandler);
-        }
+        private final ThreadPoolExecutor executor = new DebuggableThreadPoolExecutor(Runtime.getRuntime().availableProcessors(),
+                                                                                     Integer.MAX_VALUE,
+                                                                                     TimeUnit.MILLISECONDS,
+                                                                                     new SynchronousQueue<Runnable>(),
+                                                                                     new NamedThreadFactory("CompactionReducer"));
 
         public void reduce(RowContainer current)
         {
