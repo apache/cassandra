@@ -1,4 +1,4 @@
-1.0.0-final
+1.0.0-rc2
  * Log a meaningful warning when a node receives a message for a repair session
    that doesn't exist anymore (CASSANDRA-3256)
  * test for NUMA policy support as well as numactl presence (CASSANDRA-3245)
