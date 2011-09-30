@@ -472,14 +472,8 @@ commands:
           terms of I/O for the key cache. Row cache saving is much more expensive and
           has limited use.
 
-        - memtable_operations: Number of operations in millions before the memtable
-          is flushed. Default is memtable_throughput / 64 * 0.3
-
-        - memtable_throughput: Maximum size in MB to let a memtable get to before
-          it is flushed. Default is to use 1/16 the JVM heap size.
-
         - read_repair_chance: Probability (0.0-1.0) with which to perform read
-          repairs for any read operation. Default is 1.0 to enable read repair.
+          repairs for any read operation. Default is 0.1.
 
           Note that disabling read repair entirely means that the dynamic snitch
           will not have any latency information from all the replicas to recognize
@@ -739,14 +733,8 @@ commands:
           terms of I/O for the key cache. Row cache saving is much more expensive and
           has limited use.
 
-        - memtable_operations: Number of operations in millions before the memtable
-          is flushed. Default is memtable_throughput / 64 * 0.3
-
-        - memtable_throughput: Maximum size in MB to let a memtable get to before
-          it is flushed. Default is to use 1/16 the JVM heap size.
-
         - read_repair_chance: Probability (0.0-1.0) with which to perform read
-          repairs for any read operation. Default is 1.0 to enable read repair.
+          repairs for any read operation. Default is 0.1.
 
           Note that disabling read repair entirely means that the dynamic snitch
           will not have any latency information from all the replicas to recognize
