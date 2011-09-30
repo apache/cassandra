@@ -10,6 +10,7 @@
  * Remove incorrect assertion in mergeIterator (CASSANDRA-3260)
  * Keep SimpleSnitch proximity ordering unchanged from what the Strategy
    generates, as intended (CASSANDRA-3262)
+ * fix bootstrap process (CASSANDRA-3285)
 
 
 1.0.0-rc1

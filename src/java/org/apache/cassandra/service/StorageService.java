@@ -497,7 +497,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         if (DatabaseDescriptor.isAutoBootstrap()
             && !(SystemTable.isBootstrapped()
                  || DatabaseDescriptor.getSeeds().contains(FBUtilities.getBroadcastAddress())
-                 || Schema.instance.getNonSystemTables().isEmpty()))
+                 || !Schema.instance.getNonSystemTables().isEmpty()))
         {
             setMode("Joining: waiting for ring and schema information", true);
             try
@@ -565,13 +565,13 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             {
                 logger_.info("Using saved token " + token);
             }
-
-            // start participating in the ring.
-            SystemTable.setBootstrapped(true);
-            setToken(token);
-            logger_.info("Bootstrap/Replace/Move completed! Now serving reads.");
-            assert tokenMetadata_.sortedTokens().size() > 0;
         }
+
+        // start participating in the ring.
+        SystemTable.setBootstrapped(true);
+        setToken(token);
+        logger_.info("Bootstrap/Replace/Move completed! Now serving reads.");
+        assert tokenMetadata_.sortedTokens().size() > 0;
     }
 
     public synchronized void joinRing() throws IOException, org.apache.cassandra.config.ConfigurationException
