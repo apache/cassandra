@@ -841,7 +841,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             logger_.info(String.format("Nodes %s and %s have the same token %s.  %s is the new owner",
                                        endpoint, currentOwner, token, endpoint));
             tokenMetadata_.updateNormalToken(token, endpoint);
-            Gossiper.instance.removeEndpoint(currentOwner);
+            Gossiper.instance.replacedEndpoint(currentOwner);
             if (!isClientMode)
                 SystemTable.updateToken(endpoint, token);
         }
@@ -849,6 +849,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         {
             logger_.info(String.format("Nodes %s and %s have the same token %s.  Ignoring %s",
                                        endpoint, currentOwner, token, endpoint));
+            Gossiper.instance.replacedEndpoint(endpoint);
         }
 
         if (tokenMetadata_.isMoving(endpoint)) // if endpoint was moving to a new token

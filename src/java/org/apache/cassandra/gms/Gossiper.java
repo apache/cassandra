@@ -302,6 +302,17 @@ public class Gossiper implements IFailureDetectionEventListener
     }
 
     /**
+     * Remove the Endpoint and evict immediately, to avoid gossiping about this node.
+     * This should only be called when a token is taken over by a new IP address.
+     * @param endpoint The endpoint that has been replaced
+     */
+    public void replacedEndpoint(InetAddress endpoint)
+    {
+        removeEndpoint(endpoint);
+        evictFromMembership(endpoint);
+    }
+
+    /**
      * The gossip digest is built based on randomization
      * rather than just looping through the collection of live endpoints.
      *
