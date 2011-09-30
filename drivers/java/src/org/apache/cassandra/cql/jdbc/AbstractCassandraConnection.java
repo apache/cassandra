@@ -31,6 +31,7 @@ import java.sql.SQLFeatureNotSupportedException;
 import java.sql.SQLXML;
 import java.sql.Savepoint;
 import java.sql.Struct;
+import java.util.concurrent.Executor;
 import java.util.Map;
 
 abstract class AbstractCassandraConnection
@@ -125,5 +126,29 @@ abstract class AbstractCassandraConnection
     {
         throw new SQLFeatureNotSupportedException(NOT_SUPPORTED);
     }
+    
+    public void abort(Executor executor) throws SQLException
+    {
+    	throw new SQLFeatureNotSupportedException(NOT_SUPPORTED);
+    }
 
+    public void setSchema(String schema) throws SQLException
+    {
+    	throw new SQLFeatureNotSupportedException(NOT_SUPPORTED);
+    }
+
+    public String getSchema() throws SQLException
+    {
+    	throw new SQLFeatureNotSupportedException(NOT_SUPPORTED);
+    }
+
+    public void setNetworkTimeout(Executor executor, int milliseconds) throws SQLException
+    {
+    	throw new SQLFeatureNotSupportedException(NOT_SUPPORTED);
+    }
+
+    public int getNetworkTimeout() throws SQLException
+    {
+    	throw new SQLFeatureNotSupportedException(NOT_SUPPORTED);
+    }
 }

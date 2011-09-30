@@ -3,6 +3,7 @@ package org.apache.cassandra.cql.jdbc;
 
 import static org.apache.cassandra.cql.jdbc.Utils.HOST_REQUIRED;
 import static org.apache.cassandra.cql.jdbc.Utils.NO_INTERFACE;
+import static org.apache.cassandra.cql.jdbc.Utils.NOT_SUPPORTED;
 import static org.apache.cassandra.cql.jdbc.Utils.PROTOCOL;
 import static org.apache.cassandra.cql.jdbc.Utils.TAG_SERVER_NAME;
 import static org.apache.cassandra.cql.jdbc.Utils.TAG_DATABASE_NAME;
@@ -17,6 +18,7 @@ import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.sql.SQLNonTransientConnectionException;
+import java.util.logging.Logger;
 import java.util.Properties;
 
 import javax.sql.DataSource;
@@ -164,5 +166,10 @@ public class CassandraDataSource implements DataSource
     {
         if (iface.isAssignableFrom(getClass())) return iface.cast(this);
         throw new SQLFeatureNotSupportedException(String.format(NO_INTERFACE, iface.getSimpleName()));
-    }      
+    }  
+    
+    public Logger getParentLogger() throws SQLFeatureNotSupportedException
+    {
+    	throw new SQLFeatureNotSupportedException(String.format(NOT_SUPPORTED));
+    }
 }

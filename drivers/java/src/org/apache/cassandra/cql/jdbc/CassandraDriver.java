@@ -23,12 +23,14 @@ package org.apache.cassandra.cql.jdbc;
 import static org.apache.cassandra.cql.jdbc.Utils.PROTOCOL;
 import static org.apache.cassandra.cql.jdbc.Utils.TAG_PASSWORD;
 import static org.apache.cassandra.cql.jdbc.Utils.TAG_USER;
+import static org.apache.cassandra.cql.jdbc.Utils.NOT_SUPPORTED;
 
 import java.sql.Connection;
 import java.sql.Driver;
 import java.sql.DriverManager;
 import java.sql.DriverPropertyInfo;
 import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
 import java.util.Properties;
 
 import org.slf4j.Logger;
@@ -135,5 +137,10 @@ public class CassandraDriver implements Driver
     public boolean jdbcCompliant()
     {
         return false;
+    }
+    
+    public java.util.logging.Logger getParentLogger() throws SQLFeatureNotSupportedException
+    {
+    	throw new SQLFeatureNotSupportedException(String.format(NOT_SUPPORTED));
     }
 }

@@ -61,4 +61,14 @@ abstract class AbstractStatement
     {
         throw new SQLFeatureNotSupportedException(NOT_SUPPORTED);
     }
+
+    public void closeOnCompletion() throws SQLException
+    {
+        throw new SQLFeatureNotSupportedException(NOT_SUPPORTED);
+    }
+
+    public boolean isCloseOnCompletion() throws SQLException
+    {
+        throw new SQLFeatureNotSupportedException(NOT_SUPPORTED);
+    }
 }

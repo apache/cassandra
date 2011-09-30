@@ -21,6 +21,7 @@
 package org.apache.cassandra.cql.jdbc;
 
 import static org.apache.cassandra.cql.jdbc.Utils.NO_INTERFACE;
+import static org.apache.cassandra.cql.jdbc.Utils.NOT_SUPPORTED;
 
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
@@ -915,5 +916,14 @@ class CassandraDatabaseMetaData implements DatabaseMetaData
     {
         return false;
     }
-
+    
+    public boolean generatedKeyAlwaysReturned() throws SQLException
+    {
+    	throw new SQLFeatureNotSupportedException(String.format(NOT_SUPPORTED));
+    }
+    
+    public ResultSet getPseudoColumns(String catalog, String schemaPattern, String tableNamePattern, String columnNamePattern) throws SQLException
+    {
+    	throw new SQLFeatureNotSupportedException(String.format(NOT_SUPPORTED));
+    }
 }
