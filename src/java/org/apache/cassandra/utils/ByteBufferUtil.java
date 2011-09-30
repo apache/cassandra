@@ -83,6 +83,12 @@ public class ByteBufferUtil
         assert o1 != null;
         assert o2 != null;
 
+        if (o1.hasArray() && o2.hasArray())
+        {         
+            return FBUtilities.compareUnsigned(o1.array(), o2.array(), o1.position() + o1.arrayOffset(),
+                    o2.position() + o2.arrayOffset(), o1.remaining(), o2.remaining());
+        }
+        
         int minLength = Math.min(o1.remaining(), o2.remaining());
         for (int x = 0, i = o1.position(), j = o2.position(); x < minLength; x++, i++, j++)
         {

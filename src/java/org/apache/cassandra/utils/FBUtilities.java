@@ -348,7 +348,7 @@ public class FBUtilities
         }
         if (bytes2 == null) return 1;
 
-        int minLength = Math.min(len1 - offset1, len2 - offset2);
+        int minLength = Math.min(len1, len2);
         for (int x = 0, i = offset1, j = offset2; x < minLength; x++, i++, j++)
         {
             if (bytes1[i] == bytes2[j])
@@ -356,8 +356,8 @@ public class FBUtilities
             // compare non-equal bytes as unsigned
             return (bytes1[i] & 0xFF) < (bytes2[j] & 0xFF) ? -1 : 1;
         }
-        if ((len1 - offset1) == (len2 - offset2)) return 0;
-        else return ((len1 - offset1) < (len2 - offset2)) ? -1 : 1;
+        if (len1 == len2) return 0;
+        else return (len1 < len2) ? -1 : 1;
     }
   
     /**
