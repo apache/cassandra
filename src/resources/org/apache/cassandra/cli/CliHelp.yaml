@@ -563,25 +563,20 @@ commands:
         more rows in a given memory footprint.  And storing the cache off-heap
         means you can use smaller heap sizes, reducing the impact of GC pauses.
 
-        - compression: Use compression for SSTable data files.
-
-        Supported values are:
-            - null: to disable compression
-            - SnappyCompressor: compression based on the Snappy algorithm
-            - DeflateCompressor: compression based on the deflate algorithm
-            (through Java native support)
-
-        It is also valid to specify the fully-qualified class name to a class
-        that implements org.apache.cassandra.io.ICompressor.
-
         - compression_options: Options related to compression.
-          Options have the form [{key:value}]. The main recognized option are:
-          - sstable_compression: the algorithm to use to compress sstables for
-          this column family. If none is provided, compression will not be
-          enabled. Supported values are SnappyCompressor, DeflateCompressor or
-          any custom compressor.
-          - chunk_length_kb: specify the size of the chunk used by sstable
-          compression (default to 64, must be a power of 2).
+          Options have the form {key:value}.
+          The main recognized options are:
+            - sstable_compression: the algorithm to use to compress sstables for
+              this column family. If none is provided, compression will not be
+              enabled. Supported values are SnappyCompressor, DeflateCompressor or
+              any custom compressor. It is also valid to specify the fully-qualified
+              class name to a class that implements org.apache.cassandra.io.ICompressor.
+
+            - chunk_length_kb: specify the size of the chunk used by sstable
+              compression (default to 64, must be a power of 2).
+
+          To disable compression just set compression_options to null like this
+          `compression_options = null`.
 
         Examples:
         create column family Super4
@@ -836,7 +831,20 @@ commands:
         memory footprint.  And storing the cache off-heap means you
         can use smaller heap sizes, reducing the impact of GC pauses.
 
-        - compression: Use compression for SSTable data files. Accepts the values true and false.
+        - compression_options: Options related to compression.
+          Options have the form {key:value}.
+          The main recognized options are:
+            - sstable_compression: the algorithm to use to compress sstables for
+              this column family. If none is provided, compression will not be
+              enabled. Supported values are SnappyCompressor, DeflateCompressor or
+              any custom compressor. It is also valid to specify the fully-qualified
+              class name to a class that implements org.apache.cassandra.io.ICompressor.
+
+            - chunk_length_kb: specify the size of the chunk used by sstable
+              compression (default to 64, must be a power of 2).
+
+          To disable compression just set compression_options to null like this
+          `compression_options = null`.
 
         Examples:
         update column family Super4
