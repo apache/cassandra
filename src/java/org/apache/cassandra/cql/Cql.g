@@ -436,7 +436,7 @@ dropColumnFamilyStatement returns [String cfam]
     ;
 
 comparatorType
-    : 'bytea' | 'ascii' | 'text' | 'varchar' | 'int' | 'varint' | 'bigint' | 'uuid' | 'counter' | 'boolean' | 'date' | 'float' | 'double' | 'decimal'
+    : 'blob' | 'ascii' | 'text' | 'varchar' | 'int' | 'varint' | 'bigint' | 'uuid' | 'counter' | 'boolean' | 'date' | 'float' | 'double' | 'decimal'
     ;
 
 term returns [Term item]
@@ -600,7 +600,7 @@ IDENT
     ;
     
 COMPIDENT
-    : IDENT ( ':' IDENT)*
+    : IDENT ( ':' (IDENT | INTEGER))*
     ;
    
 UUID
