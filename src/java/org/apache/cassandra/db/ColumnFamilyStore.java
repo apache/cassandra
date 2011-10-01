@@ -1106,12 +1106,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public ColumnFamily getColumnFamily(QueryFilter filter)
     {
-        return getColumnFamily(filter, gcBefore(), ThreadSafeSortedColumns.factory());
+        return getColumnFamily(filter, gcBefore());
     }
 
     public ColumnFamily getColumnFamily(QueryFilter filter, ISortedColumns.Factory factory)
     {
-        return getColumnFamily(filter, gcBefore(), factory);
+        return getColumnFamily(filter, gcBefore());
     }
 
     public int gcBefore()
@@ -1125,7 +1125,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         if ((cached = rowCache.get(key)) == null)
         {
             // We force ThreadSafeSortedColumns because cached row will be accessed concurrently
-            cached = getTopLevelColumns(QueryFilter.getIdentityFilter(key, new QueryPath(columnFamily)), Integer.MIN_VALUE, ThreadSafeSortedColumns.factory());
+            cached = getTopLevelColumns(QueryFilter.getIdentityFilter(key, new QueryPath(columnFamily)), Integer.MIN_VALUE, true);
             if (cached == null)
                 return null;
 
@@ -1135,7 +1135,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return cached;
     }
 
-    private ColumnFamily getColumnFamily(QueryFilter filter, int gcBefore, ISortedColumns.Factory factory)
+    private ColumnFamily getColumnFamily(QueryFilter filter, int gcBefore)
     {
         assert columnFamily.equals(filter.getColumnFamilyName()) : filter.getColumnFamilyName();
 
@@ -1144,7 +1144,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             if (rowCache.getCapacity() == 0)
             {
-                ColumnFamily cf = getTopLevelColumns(filter, gcBefore, factory);
+                ColumnFamily cf = getTopLevelColumns(filter, gcBefore, false);
 
                 if (cf == null)
                     return null;
@@ -1291,9 +1291,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return new ViewFragment(sstables, Iterables.concat(Collections.singleton(view.memtable), view.memtablesPendingFlush));
     }
 
-    private ColumnFamily getTopLevelColumns(QueryFilter filter, int gcBefore, ISortedColumns.Factory factory)
+    private ColumnFamily getTopLevelColumns(QueryFilter filter, int gcBefore, boolean forCache)
     {
-        CollationController controller = new CollationController(this, factory, filter, gcBefore);
+        CollationController controller = new CollationController(this, forCache, filter, gcBefore);
         ColumnFamily columns = controller.getTopLevelColumns();
         recentSSTablesPerRead.add(controller.getSstablesIterated());
         sstablesPerRead.add(controller.getSstablesIterated());

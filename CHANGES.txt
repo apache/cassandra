@@ -1,8 +1,3 @@
-1.0.0-final
- * ignore any CF ids sent by client for adding CF/KS (CASSANDRA-3288)
- * remove obsolete hints on first startup (CASSANDRA-3291)
-
-
 1.0.0-rc2
  * Log a meaningful warning when a node receives a message for a repair session
    that doesn't exist anymore (CASSANDRA-3256)
@@ -17,6 +12,10 @@
  * fix full queue scenario for ParallelCompactionIterator (CASSANDRA-3270)
  * fix bootstrap process (CASSANDRA-3285)
  * CLI documentation change for ColumnFamily `compression_options` (CASSANDRA-3282)
+ * ignore any CF ids sent by client for adding CF/KS (CASSANDRA-3288)
+ * remove obsolete hints on first startup (CASSANDRA-3291)
+ * use correct ISortedColumns for time-optimized reads (CASSANDRA-3289)
+
 
 1.0.0-rc1
  * Update CQL to generate microsecond timestamps by default (CASSANDRA-3227)
