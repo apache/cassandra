@@ -225,6 +225,10 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
             
     private void deliverHintsToEndpoint(InetAddress endpoint) throws IOException, DigestMismatchException, InvalidRequestException, TimeoutException, InterruptedException
     {
+        ColumnFamilyStore hintStore = Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(HINTS_CF);
+        if (hintStore.getSSTables().isEmpty())
+            return; // nothing to do, don't confuse users by logging a no-op handoff
+
         try
         {
             logger_.debug("Checking remote({}) schema before delivering hints", endpoint);
@@ -260,7 +264,6 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         ByteBuffer tokenBytes = StorageService.getPartitioner().getTokenFactory().toByteArray(token);
         DecoratedKey<?> epkey =  StorageService.getPartitioner().decorateKey(tokenBytes);
         int rowsReplayed = 0;
-        ColumnFamilyStore hintStore = Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(HINTS_CF);
         ByteBuffer startColumn = ByteBufferUtil.EMPTY_BYTE_BUFFER;
 
         delivery:
@@ -323,6 +326,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
     */
     public void deliverHints(final InetAddress to)
     {
+        logger_.debug("deliverHints to {}", to);
         if (!queuedDeliveries.add(to))
             return;
 
