@@ -892,6 +892,7 @@ public class CassandraServer implements Cassandra.Iface
 
         try
         {
+            cf_def.unsetId(); // explicitly ignore any id set by client (Hector likes to set zero)
             applyMigrationOnStage(new AddColumnFamily(CFMetaData.fromThrift(cf_def)));
             return Schema.instance.getVersion().toString();
         }
@@ -957,6 +958,7 @@ public class CassandraServer implements Cassandra.Iface
             Collection<CFMetaData> cfDefs = new ArrayList<CFMetaData>(ks_def.cf_defs.size());
             for (CfDef cf_def : ks_def.cf_defs)
             {
+                cf_def.unsetId(); // explicitly ignore any id set by client (same as system_add_column_family)
                 CFMetaData.addDefaultIndexNames(cf_def);
                 ThriftValidation.validateCfDef(cf_def, null);
                 cfDefs.add(CFMetaData.fromThrift(cf_def));
