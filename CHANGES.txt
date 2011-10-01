@@ -121,9 +121,6 @@
  * make memtable throughput and column count thresholds no-ops (CASSANDRA-2449)
 
 
-=======
-
->>>>>>> .merge-right.r1176712
 0.8.6
  * revert CASSANDRA-2388
  * change TokenRange.endpoints back to listen/broadcast address to match
