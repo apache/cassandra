@@ -18,8 +18,6 @@
 
 package org.apache.cassandra.db;
 
-import java.io.File;
-import java.io.FilenameFilter;
 import java.io.IOError;
 import java.io.IOException;
 import java.net.InetAddress;
@@ -30,7 +28,6 @@ import java.util.List;
 import java.util.ArrayList;
 import java.util.SortedSet;
 import java.util.TreeSet;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.ExecutionException;
 
 import org.slf4j.Logger;
@@ -74,25 +71,24 @@ public class SystemTable
     /* if hints become incompatible across versions of cassandra, that logic (and associated purging) is managed here. */
     public static void purgeIncompatibleHints() throws IOException
     {
-        // 0.6->0.7
-        final ByteBuffer hintsPurged6to7 = ByteBufferUtil.bytes("Hints purged as part of upgrading from 0.6.x to 0.7");
+        ByteBuffer upgradeMarker = ByteBufferUtil.bytes("Pre-1.0 hints purged");
         Table table = Table.open(Table.SYSTEM_TABLE);
-        QueryFilter dotSeven = QueryFilter.getNamesFilter(decorate(COOKIE_KEY), new QueryPath(STATUS_CF), hintsPurged6to7);
-        ColumnFamily cf = table.getColumnFamilyStore(STATUS_CF).getColumnFamily(dotSeven);
-        if (cf == null)
+        QueryFilter filter = QueryFilter.getNamesFilter(decorate(COOKIE_KEY), new QueryPath(STATUS_CF), upgradeMarker);
+        ColumnFamily cf = table.getColumnFamilyStore(STATUS_CF).getColumnFamily(filter);
+        if (cf != null)
+            return;
+
+        // marker not found.  Snapshot + remove hints and add the marker
+        ColumnFamilyStore hintsCfs = Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(HintedHandOffManager.HINTS_CF);
+        if (hintsCfs.getSSTables().size() > 0)
         {
-            // 0.7+ marker not found.  Remove hints and add the marker.
-            ColumnFamilyStore hintsCfs = Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(HintedHandOffManager.HINTS_CF);
-            if (hintsCfs.getSSTables().size() > 0)
-            {
-                logger.info("Possible 0.6-format hints found. Snapshotting as 'old-hints' and purging");
-                hintsCfs.snapshot("old-hints");
-                hintsCfs.removeAllSSTables();
-            }
-            RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, COOKIE_KEY);
-            rm.add(new QueryPath(STATUS_CF, null, hintsPurged6to7), ByteBufferUtil.bytes("oh yes, it they were purged."), System.currentTimeMillis());
-            rm.apply();
+            logger.info("Possible old-format hints found. Snapshotting as 'old-hints' and purging");
+            hintsCfs.snapshot("old-hints");
+            hintsCfs.removeAllSSTables();
         }
+        RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, COOKIE_KEY);
+        rm.add(new QueryPath(STATUS_CF, null, upgradeMarker), ByteBufferUtil.bytes("oh yes, they were purged"), System.currentTimeMillis());
+        rm.apply();
     }
 
     /**
