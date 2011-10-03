@@ -15,7 +15,9 @@
  * fix Scrub compaction finishing (CASSANDRA-3255)
  * Fix tool .bat files when CASSANDRA_HOME contains spaces (CASSANDRA-3258)
  * Evict gossip state immediately when a token is taken over by a new IP (CASSANDRA-3259)
- * allow wrapping ranges in Hadoop queries (CASSANDRA-3137)
+ * (Hadoop) allow wrapping ranges in queries (CASSANDRA-3137)
+ * (Hadoop) check all interfaces for a match with split location
+   before falling back to random replica (CASSANDRA-3211)
 
 
 0.8.6
