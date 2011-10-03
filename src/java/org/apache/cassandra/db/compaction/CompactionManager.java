@@ -486,6 +486,8 @@ public class CompactionManager implements CompactionManagerMBean
 
         String indexFilename = sstable.descriptor.filenameFor(Component.PRIMARY_INDEX);
         RandomAccessReader indexFile = RandomAccessReader.open(new File(indexFilename), true);
+        ScrubInfo scrubInfo = new ScrubInfo(dataFile, sstable);
+
         try
         {
             ByteBuffer nextIndexKey = ByteBufferUtil.readWithShortLength(indexFile);
@@ -495,11 +497,18 @@ public class CompactionManager implements CompactionManagerMBean
                 assert firstRowPositionFromIndex == 0 : firstRowPositionFromIndex;
             }
 
-            // errors when creating the writer may leave empty temp files.
-            SSTableWriter writer = maybeCreateWriter(cfs, compactionFileLocation, expectedBloomFilterSize, null, Collections.singletonList(sstable));
             SSTableReader newSstable = null;
-            executor.beginCompaction(new ScrubInfo(dataFile, sstable));
+
+            // errors when creating the writer may leave empty temp files.
+            SSTableWriter writer = maybeCreateWriter(cfs,
+                                                     compactionFileLocation,
+                                                     expectedBloomFilterSize,
+                                                     null,
+                                                     Collections.singletonList(sstable));
+
             int goodRows = 0, badRows = 0, emptyRows = 0;
+
+            executor.beginCompaction(scrubInfo);
 
             try
             {
@@ -649,6 +658,8 @@ public class CompactionManager implements CompactionManagerMBean
         {
             FileUtils.closeQuietly(dataFile);
             FileUtils.closeQuietly(indexFile);
+
+            executor.finishCompaction(scrubInfo);
         }
     }
 

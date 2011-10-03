@@ -22,7 +22,6 @@
  * use correct ISortedColumns for time-optimized reads (CASSANDRA-3289)
  * don't try delivering hints if when there isn't any (CASSANDRA-3176)
 
-
 1.0.0-rc1
  * Update CQL to generate microsecond timestamps by default (CASSANDRA-3227)
  * Fix counting CFMetadata towards Memtable liveRatio (CASSANDRA-3023)
