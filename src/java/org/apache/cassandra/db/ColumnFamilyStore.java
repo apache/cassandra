@@ -2081,9 +2081,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     @Override
     public String toString()
     {
-        return "ColumnFamilyStore(" +
-               "table='" + table.name + '\'' +
-               ", columnFamily='" + columnFamily + '\'' +
+        return "CFS(" +
+               "Keyspace='" + table.name + '\'' +
+               ", ColumnFamily='" + columnFamily + '\'' +
                ')';
     }
 
