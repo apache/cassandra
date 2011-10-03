@@ -187,6 +187,7 @@ public class BootStrapperTest extends CleanupHelper
             public void registerFailureDetectionEventListener(IFailureDetectionEventListener listener) { throw new UnsupportedOperationException(); }
             public void unregisterFailureDetectionEventListener(IFailureDetectionEventListener listener) { throw new UnsupportedOperationException(); }
             public void remove(InetAddress ep) { throw new UnsupportedOperationException(); }
+            public void clear(InetAddress ep) { throw new UnsupportedOperationException(); }
         };
         Multimap<InetAddress, Range> temp = BootStrapper.getWorkMap(res, mockFailureDetector);
         // there isn't any point in testing the size of these collections for any specific size.  When a random partitioner
