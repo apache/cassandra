@@ -17,11 +17,13 @@
 package org.apache.cassandra.hadoop.pig;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.FBUtilities;
@@ -31,7 +33,7 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.SuperColumn;
-import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.hadoop.*;
 import org.apache.cassandra.thrift.Mutation;
 import org.apache.cassandra.thrift.Deletion;
@@ -46,6 +48,7 @@ import org.apache.pig.*;
 import org.apache.pig.backend.executionengine.ExecException;
 import org.apache.pig.backend.hadoop.executionengine.mapReduceLayer.PigSplit;
 import org.apache.pig.data.*;
+import org.apache.pig.ResourceSchema.ResourceFieldSchema;
 import org.apache.pig.impl.logicalLayer.FrontendException;
 import org.apache.pig.impl.util.UDFContext;
 import org.apache.thrift.TDeserializer;
@@ -61,7 +64,7 @@ import org.apache.thrift.transport.TTransportException;
  *
  * A row from a standard CF will be returned as nested tuples: (key, ((name1, val1), (name2, val2))).
  */
-public class CassandraStorage extends LoadFunc implements StoreFuncInterface
+public class CassandraStorage extends LoadFunc implements StoreFuncInterface, LoadMetadata
 {
     // system environment variables that can be set to configure connection info:
     // alternatively, Hadoop JobConf variables can be set using keys from ConfigHelper
@@ -142,18 +145,14 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface
         List<AbstractType> marshallers = getDefaultMarshallers(cfDef);
         Map<ByteBuffer,AbstractType> validators = getValidatorMap(cfDef);
 
+        setTupleValue(pair, 0, marshallers.get(0).compose(name));
         if (col instanceof Column)
         {
             // standard
-            pair.set(0, marshallers.get(0).compose(name));
             if (validators.get(name) == null)
-                // Have to special case BytesType because compose returns a ByteBuffer
-                if (marshallers.get(1) instanceof BytesType)
-                    pair.set(1, new DataByteArray(ByteBufferUtil.getArray(col.value())));
-                else
-                    pair.set(1, marshallers.get(1).compose(col.value()));
+                setTupleValue(pair, 1, marshallers.get(1).compose(col.value()));
             else
-                pair.set(1, validators.get(name).compose(col.value()));
+                setTupleValue(pair, 1, validators.get(name).compose(col.value()));
             return pair;
         }
 
@@ -164,6 +163,16 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface
         
         pair.set(1, new DefaultDataBag(subcols));
         return pair;
+    }
+
+    private void setTupleValue(Tuple pair, int position, Object value) throws ExecException
+    {
+       if (value instanceof BigInteger)
+           pair.set(position, ((BigInteger) value).intValue());
+       else if (value instanceof ByteBuffer)
+           pair.set(position, new DataByteArray(ByteBufferUtil.getArray((ByteBuffer) value)));
+       else
+           pair.set(position, value);
     }
 
     private CfDef getCfDef(String signature)
@@ -293,6 +302,103 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface
         initSchema(loadSignature);
     }
 
+    public ResourceSchema getSchema(String location, Job job) throws IOException
+    {
+        setLocation(location, job);
+        CfDef cfDef = getCfDef(loadSignature);
+
+        if (cfDef.column_type.equals("Super"))
+            return null;
+        // top-level schema, no type
+        ResourceSchema schema = new ResourceSchema();
+
+        // add key
+        ResourceFieldSchema keyFieldSchema = new ResourceFieldSchema();
+        keyFieldSchema.setName("key");
+        keyFieldSchema.setType(DataType.CHARARRAY); //TODO: get key type
+
+        // will become the bag of tuples
+        ResourceFieldSchema bagFieldSchema = new ResourceFieldSchema();
+        bagFieldSchema.setName("columns");
+        bagFieldSchema.setType(DataType.BAG);
+        ResourceSchema bagSchema = new ResourceSchema();
+
+
+        List<AbstractType> marshallers = getDefaultMarshallers(cfDef);
+        Map<ByteBuffer,AbstractType> validators = getValidatorMap(cfDef);
+        List<ResourceFieldSchema> tupleFields = new ArrayList<ResourceFieldSchema>();
+
+        // default comparator/validator
+        ResourceSchema innerTupleSchema = new ResourceSchema();
+        ResourceFieldSchema tupleField = new ResourceFieldSchema();
+        tupleField.setType(DataType.TUPLE);
+        tupleField.setSchema(innerTupleSchema);
+
+        ResourceFieldSchema colSchema = new ResourceFieldSchema();
+        colSchema.setName("name");
+        colSchema.setType(getPigType(marshallers.get(0)));
+        tupleFields.add(colSchema);
+
+        ResourceFieldSchema valSchema = new ResourceFieldSchema();
+        AbstractType validator = marshallers.get(1);
+        valSchema.setName("value");
+        valSchema.setType(getPigType(validator));
+        tupleFields.add(valSchema);
+
+        // defined validators/indexes
+        for (ColumnDef cdef : cfDef.column_metadata)
+        {
+            colSchema = new ResourceFieldSchema();
+            colSchema.setName(new String(cdef.getName()));
+            colSchema.setType(getPigType(marshallers.get(0)));
+            tupleFields.add(colSchema);
+
+            valSchema = new ResourceFieldSchema();
+            validator = validators.get(cdef.getName());
+            if (validator == null)
+                validator = marshallers.get(1);
+            valSchema.setName("value");
+            valSchema.setType(getPigType(validator));
+            tupleFields.add(valSchema);
+        }
+        innerTupleSchema.setFields(tupleFields.toArray(new ResourceFieldSchema[tupleFields.size()]));
+
+        // a bag can contain only one tuple, but that tuple can contain anything
+        bagSchema.setFields(new ResourceFieldSchema[] { tupleField });
+        bagFieldSchema.setSchema(bagSchema);
+        // top level schema contains everything
+        schema.setFields(new ResourceFieldSchema[] { keyFieldSchema, bagFieldSchema });
+        return schema;
+    }
+
+    private byte getPigType(AbstractType type)
+    {
+        if (type instanceof LongType)
+            return DataType.LONG;
+        else if (type instanceof IntegerType)
+            return DataType.INTEGER;
+        else if (type instanceof AsciiType)
+            return DataType.CHARARRAY;
+        else if (type instanceof UTF8Type)
+            return DataType.CHARARRAY;
+        return DataType.BYTEARRAY;
+    }
+
+    public ResourceStatistics getStatistics(String location, Job job)
+    {
+        return null;
+    }
+
+    public String[] getPartitionKeys(String location, Job job)
+    {
+        return null;
+    }
+
+    public void setPartitionFilter(Expression partitionFilter)
+    {
+        // no-op
+    }
+
     @Override
     public String relativeToAbsolutePath(String location, Path curDir) throws IOException
     {
@@ -355,8 +461,6 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface
         DefaultDataBag pairs = (DefaultDataBag) t.get(1);
         ArrayList<Mutation> mutationList = new ArrayList<Mutation>();
         CfDef cfDef = getCfDef(storeSignature);
-        List<AbstractType> marshallers = getDefaultMarshallers(cfDef);
-        Map<ByteBuffer,AbstractType> validators = getValidatorMap(cfDef);
         try
         {
             for (Tuple pair : pairs)
@@ -400,15 +504,8 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface
                    else
                    {
                        org.apache.cassandra.thrift.Column column = new org.apache.cassandra.thrift.Column();
-                       column.name = marshallers.get(0).decompose((pair.get(0)));
-                       if (validators.get(column.name) == null)
-                           // Have to special case BytesType to convert DataByteArray into ByteBuffer
-                           if (marshallers.get(1) instanceof BytesType)
-                               column.value = objToBB(pair.get(1));
-                           else
-                               column.value = marshallers.get(1).decompose(pair.get(1));
-                       else
-                           column.value = validators.get(column.name).decompose(pair.get(1));
+                       column.name = objToBB(pair.get(0));
+                       column.value = objToBB(pair.get(1));
                        column.setTimestamp(System.currentTimeMillis() * 1000);
                        mutation.column_or_supercolumn = new ColumnOrSuperColumn();
                        mutation.column_or_supercolumn.column = column;
@@ -528,3 +625,4 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface
         return cfDef;
     }
 }
+
