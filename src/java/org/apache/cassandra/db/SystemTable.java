@@ -109,6 +109,7 @@ public class SystemTable
         {
             throw new IOError(e);
         }
+        forceBlockingFlush(STATUS_CF);
     }
 
     /**
@@ -127,6 +128,7 @@ public class SystemTable
         {
             throw new IOError(e);
         }
+        forceBlockingFlush(STATUS_CF);
     }
 
     /**
