@@ -6,6 +6,7 @@
 
 1.0.0-final
  * Fix tool .bat files when CASSANDRA_HOME contains spaces (CASSANDRA-3258)
+ * Force flush of status table when removing/updating token (CASSANDRA-3243)
 
 
 1.0.0-rc2
