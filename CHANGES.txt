@@ -3,7 +3,7 @@
  * Force flush of status table when removing/updating token (CASSANDRA-3243)
  * fix bug preventing obsolete commitlog segments from being removed
    (CASSANDRA-3269)
-
+ * Evict gossip state immediately when a token is taken over by a new IP (CASSANDRA-3259)
 
 1.0.0-rc2
  * Log a meaningful warning when a node receives a message for a repair session
