@@ -134,13 +134,13 @@ public class ColumnFamilyInputFormat extends InputFormat<ByteBuffer, SortedMap<B
 
                     if (dhtRange.intersects(jobRange))
                     {
-                        Set<Range> intersections = dhtRange.intersectionWith(jobRange);
-                        assert intersections.size() == 1 : "wrapping ranges not yet supported";
-                        Range intersection = intersections.iterator().next();
-                        range.start_token = partitioner.getTokenFactory().toString(intersection.left);
-                        range.end_token = partitioner.getTokenFactory().toString(intersection.right);
-                        // for each range, pick a live owner and ask it to compute bite-sized splits
-                        splitfutures.add(executor.submit(new SplitCallable(range, conf)));
+                        for (Range intersection: dhtRange.intersectionWith(jobRange))
+                        {
+                            range.start_token = partitioner.getTokenFactory().toString(intersection.left);
+                            range.end_token = partitioner.getTokenFactory().toString(intersection.right);
+                            // for each range, pick a live owner and ask it to compute bite-sized splits
+                            splitfutures.add(executor.submit(new SplitCallable(range, conf)));
+                        }
                     }
                 }
             }

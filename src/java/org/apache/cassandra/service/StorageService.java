@@ -492,6 +492,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                 && !SystemTable.isBootstrapped())
             logger_.info("This node will not auto bootstrap because it is configured to be a seed node.");
 
+        InetAddress current = null;
         // first startup is only chance to bootstrap
         Token<?> token;
         if (DatabaseDescriptor.isAutoBootstrap()
@@ -535,7 +536,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                 }
                 token = StorageService.getPartitioner().getTokenFactory().fromString(DatabaseDescriptor.getReplaceToken());
                 // check for operator errors...
-                InetAddress current = tokenMetadata_.getEndpoint(token);
+                current = tokenMetadata_.getEndpoint(token);
                 if (null != current && Gossiper.instance.getEndpointStateForEndpoint(current).getUpdateTimestamp() > (System.currentTimeMillis() - delay))
                     throw new UnsupportedOperationException("Cannnot replace a token for a Live node... ");
                 setMode("Joining: Replacing a node with token: " + token, true);
@@ -570,6 +571,9 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         // start participating in the ring.
         SystemTable.setBootstrapped(true);
         setToken(token);
+        // remove the existing info about the replaced node.
+        if (current != null)
+            Gossiper.instance.replacedEndpoint(current);
         logger_.info("Bootstrap/Replace/Move completed! Now serving reads.");
         assert tokenMetadata_.sortedTokens().size() > 0;
     }

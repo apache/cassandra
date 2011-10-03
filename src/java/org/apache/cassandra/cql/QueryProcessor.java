@@ -64,6 +64,8 @@ import static org.apache.cassandra.thrift.ThriftValidation.validateColumnFamily;
 
 public class QueryProcessor
 {
+    public static final String CQL_VERSION = "2.0.0";
+
     private static final Logger logger = LoggerFactory.getLogger(QueryProcessor.class);
 
     private static final long timeLimitForSchemaAgreement = 10 * 1000;

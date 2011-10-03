@@ -2,6 +2,7 @@
  * describe_ring should include datacenter/topology information (CASSANDRA-2882)
  * Thrift sockets are not properly buffered (CASSANDRA-3261)
  * performance improvement for bytebufferutil compare function (CASSANDRA-3286)
+ * add system.versions ColumnFamily (CASSANDRA-3140)
 
 
 1.0.0-final
@@ -9,6 +10,13 @@
  * Force flush of status table when removing/updating token (CASSANDRA-3243)
  * fix bug preventing obsolete commitlog segments from being removed
    (CASSANDRA-3269)
+ * Evict gossip state immediately when a token is taken over by a new IP (CASSANDRA-3259)
+ * tolerate whitespace in seed CDL (CASSANDRA-3263)
+ * Fix bug where the failure detector can take too long to mark a host
+   down (CASSANDRA-3273)
+ * (Hadoop) allow wrapping ranges in queries (CASSANDRA-3137)
+ * (Hadoop) check all interfaces for a match with split location
+   before falling back to random replica (CASSANDRA-3211)
 
 
 1.0.0-rc2
@@ -29,6 +37,7 @@
  * ignore any CF ids sent by client for adding CF/KS (CASSANDRA-3288)
  * remove obsolete hints on first startup (CASSANDRA-3291)
  * use correct ISortedColumns for time-optimized reads (CASSANDRA-3289)
+ * Evict gossip state immediately when a token is taken over by a new IP (CASSANDRA-3259)
 
 
 1.0.0-rc1

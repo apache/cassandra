@@ -77,6 +77,25 @@ public final class CFMetaData
     public static final CFMetaData SchemaCf = newSystemMetadata(Migration.SCHEMA_CF, 3, "current state of the schema", UTF8Type.instance, null);
     public static final CFMetaData IndexCf = newSystemMetadata(SystemTable.INDEX_CF, 5, "indexes that have been completed", UTF8Type.instance, null);
     public static final CFMetaData NodeIdCf = newSystemMetadata(SystemTable.NODE_ID_CF, 6, "nodeId and their metadata", TimeUUIDType.instance, null);
+    public static final CFMetaData VersionCf = newSystemMetadata(SystemTable.VERSION_CF, 7, "server version information", UTF8Type.instance, null);
+    static
+    {
+        try
+        {
+            VersionCf.keyAlias(ByteBufferUtil.bytes("component"))
+                     .keyValidator(UTF8Type.instance)
+                     .columnMetadata(Collections.singletonMap(ByteBufferUtil.bytes("version"),
+                                                              new ColumnDefinition(ByteBufferUtil.bytes("version"),
+                                                                                   UTF8Type.instance,
+                                                                                   null,
+                                                                                   null,
+                                                                                   null)));
+        }
+        catch (ConfigurationException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
 
     private static IRowCacheProvider initDefaultRowCacheProvider()
     {

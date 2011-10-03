@@ -35,12 +35,14 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql.QueryProcessor;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.thrift.Constants;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.NodeId;
@@ -51,6 +53,7 @@ public class SystemTable
     public static final String STATUS_CF = "LocationInfo"; // keep the old CF string for backwards-compatibility
     public static final String INDEX_CF = "IndexInfo";
     public static final String NODE_ID_CF = "NodeIdInfo";
+    public static final String VERSION_CF = "Versions";
     private static final ByteBuffer LOCATION_KEY = ByteBufferUtil.bytes("L");
     private static final ByteBuffer RING_KEY = ByteBufferUtil.bytes("Ring");
     private static final ByteBuffer BOOTSTRAP_KEY = ByteBufferUtil.bytes("Bootstrap");
@@ -68,8 +71,38 @@ public class SystemTable
         return StorageService.getPartitioner().decorateKey(key);
     }
     
-    /* if hints become incompatible across versions of cassandra, that logic (and associated purging) is managed here. */
-    public static void purgeIncompatibleHints() throws IOException
+    public static void finishStartup() throws IOException
+    {
+        setupVersion();
+        purgeIncompatibleHints();
+    }
+
+    private static void setupVersion() throws IOException
+    {
+        RowMutation rm;
+        ColumnFamily cf;
+
+        rm = new RowMutation(Table.SYSTEM_TABLE, ByteBufferUtil.bytes("build"));
+        cf = ColumnFamily.create(Table.SYSTEM_TABLE, VERSION_CF);
+        cf.addColumn(new Column(ByteBufferUtil.bytes("version"), ByteBufferUtil.bytes(FBUtilities.getReleaseVersionString())));
+        rm.add(cf);
+        rm.apply();
+
+        rm = new RowMutation(Table.SYSTEM_TABLE, ByteBufferUtil.bytes("cql"));
+        cf = ColumnFamily.create(Table.SYSTEM_TABLE, VERSION_CF);
+        cf.addColumn(new Column(ByteBufferUtil.bytes("version"), ByteBufferUtil.bytes(QueryProcessor.CQL_VERSION)));
+        rm.add(cf);
+        rm.apply();
+
+        rm = new RowMutation(Table.SYSTEM_TABLE, ByteBufferUtil.bytes("thrift"));
+        cf = ColumnFamily.create(Table.SYSTEM_TABLE, VERSION_CF);
+        cf.addColumn(new Column(ByteBufferUtil.bytes("version"), ByteBufferUtil.bytes(Constants.VERSION)));
+        rm.add(cf);
+        rm.apply();
+    }
+
+    /** if hints become incompatible across versions of cassandra, that logic (and associated purging) is managed here. */
+    private static void purgeIncompatibleHints() throws IOException
     {
         ByteBuffer upgradeMarker = ByteBufferUtil.bytes("Pre-1.0 hints purged");
         Table table = Table.open(Table.SYSTEM_TABLE);
