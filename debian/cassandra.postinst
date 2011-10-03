@@ -34,7 +34,7 @@ case "$1" in
                 cassandra
         fi
 
-        if [ -n "$2" ] && dpkg --compare-versions "$2" le 0.6.4-2; then
+        if [ -z "$2" ]; then
             chown -R cassandra: /var/lib/cassandra
             chown -R cassandra: /var/log/cassandra
         fi
