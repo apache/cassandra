@@ -42,16 +42,16 @@ public class CollationController
     private static Logger logger = LoggerFactory.getLogger(CollationController.class);
 
     private final ColumnFamilyStore cfs;
-    private final ISortedColumns.Factory factory;
+    private final boolean mutableColumns;
     private final QueryFilter filter;
     private final int gcBefore;
 
     private int sstablesIterated = 0;
 
-    public CollationController(ColumnFamilyStore cfs, ISortedColumns.Factory factory, QueryFilter filter, int gcBefore)
+    public CollationController(ColumnFamilyStore cfs, boolean mutableColumns, QueryFilter filter, int gcBefore)
     {
         this.cfs = cfs;
-        this.factory = factory;
+        this.mutableColumns = mutableColumns;
         this.filter = filter;
         this.gcBefore = gcBefore;
     }
@@ -72,6 +72,9 @@ public class CollationController
     {
         logger.debug("collectTimeOrderedData");
 
+        ISortedColumns.Factory factory = mutableColumns
+                                       ? ThreadSafeSortedColumns.factory()
+                                       : TreeMapBackedSortedColumns.factory();
         ColumnFamily container = ColumnFamily.create(cfs.metadata, factory, filter.filter.isReversed());
         List<IColumnIterator> iterators = new ArrayList<IColumnIterator>();
         ColumnFamilyStore.ViewFragment view = cfs.markReferenced(filter.key);
@@ -184,6 +187,9 @@ public class CollationController
     private ColumnFamily collectAllData()
     {
         logger.debug("collectAllData");
+        ISortedColumns.Factory factory = mutableColumns
+                                       ? ThreadSafeSortedColumns.factory()
+                                       : ArrayBackedSortedColumns.factory();
         List<IColumnIterator> iterators = new ArrayList<IColumnIterator>();
         ColumnFamily returnCF = ColumnFamily.create(cfs.metadata, factory, filter.filter.isReversed());
 
