@@ -149,7 +149,14 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
             logger_.error("unknown endpoint " + ep);
         return epState != null && epState.isAlive();
     }
-    
+
+    public void clear(InetAddress ep)
+    {
+        ArrivalWindow heartbeatWindow = arrivalSamples_.get(ep);
+        if (heartbeatWindow != null)
+            heartbeatWindow.clear();
+    }
+
     public void report(InetAddress ep)
     {
         if (logger_.isTraceEnabled())
@@ -177,7 +184,9 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
             logger_.trace("PHI for " + ep + " : " + phi);
         
         if ( phi > phiConvictThreshold_ )
-        {     
+        {
+            logger_.trace("notifying listeners that {} is down", ep);
+            logger_.trace("intervals: {} mean: {}", hbWnd, hbWnd.mean());
             for ( IFailureDetectionEventListener listener : fdEvntListeners_ )
             {
                 listener.convict(ep, phi);
@@ -234,6 +243,11 @@ class ArrivalWindow
     // change.
     private final double PHI_FACTOR = 1.0 / Math.log(10.0);
 
+    // in the event of a long partition, never record an interval longer than the rpc timeout,
+    // since if a host is regularly experiencing connectivity problems lasting this long we'd
+    // rather mark it down quickly instead of adapting
+    private final double MAX_INTERVAL_IN_MS = DatabaseDescriptor.getRpcTimeout();
+
     ArrivalWindow(int size)
     {
         arrivalIntervals_ = new BoundedStatsDeque(size);
@@ -244,14 +258,17 @@ class ArrivalWindow
         double interArrivalTime;
         if ( tLast_ > 0L )
         {                        
-            interArrivalTime = (value - tLast_);            
+            interArrivalTime = (value - tLast_);
         }
         else
         {
             interArrivalTime = Gossiper.intervalInMillis / 2;
         }
-        tLast_ = value;            
-        arrivalIntervals_.add(interArrivalTime);        
+        if (interArrivalTime <= MAX_INTERVAL_IN_MS)
+            arrivalIntervals_.add(interArrivalTime);
+        else
+            logger_.debug("Ignoring interval time of {}", interArrivalTime);
+        tLast_ = value;
     }
     
     synchronized double sum()

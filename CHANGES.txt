@@ -5,6 +5,8 @@
    (CASSANDRA-3269)
  * Evict gossip state immediately when a token is taken over by a new IP (CASSANDRA-3259)
  * tolerate whitespace in seed CDL (CASSANDRA-3263)
+ * Fix bug where the failure detector can take too long to mark a host
+   down (CASSANDRA-3273)
 
 
 1.0.0-rc2

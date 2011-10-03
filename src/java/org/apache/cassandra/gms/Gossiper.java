@@ -685,6 +685,13 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             if ( remoteGeneration > localGeneration )
             {
                 localEndpointState.updateTimestamp();
+                // this node was dead and the generation changed, this indicates a reboot, or possibly a takeover
+                // we will clean the fd intervals for it and relearn them
+                if (!localEndpointState.isAlive())
+                {
+                    logger.debug("Clearing interval times for {} due to generation change", endpoint);
+                    fd.clear(endpoint);
+                }
                 fd.report(endpoint);
                 return;
             }
@@ -696,6 +703,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                 if ( remoteVersion > localVersion )
                 {
                     localEndpointState.updateTimestamp();
+                    // just a version change, report to the fd
                     fd.report(endpoint);
                 }
             }
