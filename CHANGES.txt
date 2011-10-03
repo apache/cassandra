@@ -18,6 +18,8 @@
  * (Hadoop) allow wrapping ranges in queries (CASSANDRA-3137)
  * (Hadoop) check all interfaces for a match with split location
    before falling back to random replica (CASSANDRA-3211)
+ * Fix bug where the failure detector can take too long to mark a host 
+   down (CASSANDRA-3273)
 
 
 0.8.6
