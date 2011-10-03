@@ -78,7 +78,7 @@ public class CompressedRandomAccessReaderTest
                 ? new CompressedRandomAccessReader(filename, new CompressionMetadata(filename + ".metadata", f.length()), false)
                 : new RandomAccessReader(f, CompressionParameters.DEFAULT_CHUNK_LENGTH, false);
             String expected = "The quick brown fox jumps over the lazy dog";
-            assert reader.length() == expected.length();
+            assertEquals(expected.length(), reader.length());
             byte[] b = new byte[expected.length()];
             reader.readFully(b);
             assert new String(b).equals(expected) : "Expecting '" + expected + "', got '" + new String(b) + "'";
