@@ -23,6 +23,8 @@ package org.apache.cassandra.hadoop;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.*;
@@ -31,14 +33,11 @@ import com.google.common.collect.AbstractIterator;
 
 import org.apache.cassandra.auth.SimpleAuthenticator;
 import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.thrift.*;
-import org.apache.cassandra.thrift.Column;
-import org.apache.cassandra.thrift.CounterColumn;
-import org.apache.cassandra.thrift.SuperColumn;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
@@ -147,15 +146,18 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
     // not necessarily on Cassandra machines, too.  This should be adequate for single-DC clusters, at least.
     private String getLocation()
     {
-        InetAddress[] localAddresses;
+        ArrayList<InetAddress> localAddresses = new ArrayList<InetAddress>();
         try
         {
-            localAddresses = InetAddress.getAllByName(InetAddress.getLocalHost().getHostAddress());
+            Enumeration<NetworkInterface> nets = NetworkInterface.getNetworkInterfaces();
+            while (nets.hasMoreElements())
+                localAddresses.addAll(Collections.list(nets.nextElement().getInetAddresses()));
         }
-        catch (UnknownHostException e)
+        catch (SocketException e)
         {
             throw new AssertionError(e);
         }
+
         for (InetAddress address : localAddresses)
         {
             for (String location : split.getLocations())

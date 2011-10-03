@@ -37,7 +37,13 @@ public interface IFailureDetector
      * @return true if UP and false if DOWN.
      */
     public boolean isAlive(InetAddress ep);
-    
+
+    /**
+     * Clear any existing interval timings for this endpoint
+     * @param ep
+     */
+    public void clear(InetAddress ep);
+
     /**
      * This method is invoked by any entity wanting to interrogate the status of an endpoint. 
      * In our case it would be the Gossiper. The Failure Detector will then calculate Phi and
