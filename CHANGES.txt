@@ -7,6 +7,9 @@
  * tolerate whitespace in seed CDL (CASSANDRA-3263)
  * Fix bug where the failure detector can take too long to mark a host
    down (CASSANDRA-3273)
+ * (Hadoop) allow wrapping ranges in queries (CASSANDRA-3137)
+ * (Hadoop) check all interfaces for a match with split location
+   before falling back to random replica (CASSANDRA-3211)
 
 
 1.0.0-rc2
@@ -27,6 +30,8 @@
  * remove obsolete hints on first startup (CASSANDRA-3291)
  * use correct ISortedColumns for time-optimized reads (CASSANDRA-3289)
  * don't try delivering hints if when there isn't any (CASSANDRA-3176)
+ * Evict gossip state immediately when a token is taken over by a new IP (CASSANDRA-3259)
+
 
 1.0.0-rc1
  * Update CQL to generate microsecond timestamps by default (CASSANDRA-3227)
