@@ -97,11 +97,10 @@ public class CommitLogSegment
 
     public ReplayPosition write(RowMutation rowMutation) throws IOException
     {
-        long currentPosition = -1L;
+        ReplayPosition cLogCtx = getContext();
+
         try
         {
-            ReplayPosition cLogCtx = getContext();
-
             for (ColumnFamily columnFamily : rowMutation.getColumnFamilies())
             {
                 // check for null cfm in case a cl write goes through after the cf is
@@ -113,7 +112,7 @@ public class CommitLogSegment
                 }
                 else
                 {
-                    turnOn(cfm.cfId, (int) currentPosition);
+                    turnOn(cfm.cfId, cLogCtx.position);
                 }
             }
 
@@ -131,8 +130,7 @@ public class CommitLogSegment
         }
         catch (IOException e)
         {
-            if (currentPosition != -1)
-                logWriter.truncate(currentPosition);
+            logWriter.truncate(cLogCtx.position);
             throw e;
         }
     }

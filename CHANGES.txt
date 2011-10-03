@@ -1,6 +1,8 @@
 1.0.0-final
  * Fix tool .bat files when CASSANDRA_HOME contains spaces (CASSANDRA-3258)
  * Force flush of status table when removing/updating token (CASSANDRA-3243)
+ * fix bug preventing obsolete commitlog segments from being removed
+   (CASSANDRA-3269)
 
 
 1.0.0-rc2
