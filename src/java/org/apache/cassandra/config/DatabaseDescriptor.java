@@ -34,6 +34,7 @@ import org.apache.cassandra.auth.IAuthority;
 import org.apache.cassandra.config.Config.RequestSchedulerId;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DefsTable;
+import org.apache.cassandra.db.SystemTable;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.dht.IPartitioner;
@@ -402,16 +403,18 @@ public class DatabaseDescriptor
                                                    CFMetaData.MigrationsCf,
                                                    CFMetaData.SchemaCf,
                                                    CFMetaData.IndexCf,
-                                                   CFMetaData.NodeIdCf);
+                                                   CFMetaData.NodeIdCf,
+                                                   CFMetaData.VersionCf);
             Schema.instance.load(CFMetaData.StatusCf);
             Schema.instance.load(CFMetaData.HintsCf);
             Schema.instance.load(CFMetaData.MigrationsCf);
             Schema.instance.load(CFMetaData.SchemaCf);
             Schema.instance.load(CFMetaData.IndexCf);
             Schema.instance.load(CFMetaData.NodeIdCf);
+            Schema.instance.load(CFMetaData.VersionCf);
 
             Schema.instance.addSystemTable(systemMeta);
-            
+
             /* Load the seeds for node contact points */
             if (conf.seed_provider == null)
             {

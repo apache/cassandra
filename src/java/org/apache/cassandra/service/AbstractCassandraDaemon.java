@@ -206,7 +206,7 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
             MigrationManager.applyMigrations(currentMigration, lastMigration);
         }
         
-        SystemTable.purgeIncompatibleHints();
+        SystemTable.finishStartup();
 
         // start server internals
         StorageService.instance.registerDaemon(this);
