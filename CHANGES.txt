@@ -1,3 +1,7 @@
+1.0.0-final
+ * Fix tool .bat files when CASSANDRA_HOME contains spaces (CASSANDRA-3258)
+
+
 1.0.0-rc2
  * Log a meaningful warning when a node receives a message for a repair session
    that doesn't exist anymore (CASSANDRA-3256)

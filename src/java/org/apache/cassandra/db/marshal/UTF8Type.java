@@ -67,7 +67,7 @@ public class UTF8Type extends AbstractType<String>
 
     public void validate(ByteBuffer bytes) throws MarshalException
     {
-        if (!UTF8Validator.validate(bytes.slice()))
+        if (!UTF8Validator.validate(bytes))
             throw new MarshalException("String didn't validate.");
     }
     
@@ -88,6 +88,7 @@ public class UTF8Type extends AbstractType<String>
         // buf has already been sliced/duplicated.
         static boolean validate(ByteBuffer buf) 
         {
+            buf = buf.slice();
             int b = 0;
             State state = State.START;
             while (buf.remaining() > 0)

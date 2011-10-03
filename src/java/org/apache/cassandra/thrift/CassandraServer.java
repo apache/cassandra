@@ -949,7 +949,7 @@ public class CassandraServer implements Cassandra.Iface
         {
             if (!cf.getKeyspace().equals(ks_def.getName()))
             {
-                throw new InvalidRequestException("CsDef (" + cf.getName() +") had a keyspace definition that did not match KsDef");
+                throw new InvalidRequestException("CfDef (" + cf.getName() +") had a keyspace definition that did not match KsDef");
             }
         }
 
