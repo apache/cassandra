@@ -17,6 +17,7 @@
  * (Hadoop) allow wrapping ranges in queries (CASSANDRA-3137)
  * (Hadoop) check all interfaces for a match with split location
    before falling back to random replica (CASSANDRA-3211)
+ * Fix stress COUNTER_GET option (CASSANDRA-3301)
 
 
 1.0.0-rc2
