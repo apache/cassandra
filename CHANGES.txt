@@ -13,7 +13,7 @@
  * Fix stress COUNTER_GET option (CASSANDRA-3301)
  * Change default heap thresholds to max(min(1/2 ram, 1G), min(1/4 ram, 8GB))
    (CASSANDRA-3295)
-
+ * Fix missing fields in CLI `show schema` output (CASSANDRA-3304)
 
 1.0.0-rc2
  * Log a meaningful warning when a node receives a message for a repair session
