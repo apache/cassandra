@@ -585,132 +585,145 @@ public class NodeCmd
         {
             err(ioe, "Error connection to remote JMX agent!");
         }
-
-        NodeCommand command = null;
-
         try
         {
-            command = cmd.getCommand();
+            NodeCommand command = null;
+
+            try
+            {
+                command = cmd.getCommand();
+            }
+            catch (IllegalArgumentException e)
+            {
+                badUse(e.getMessage());
+            }
+
+
+            NodeCmd nodeCmd = new NodeCmd(probe);
+
+            // Execute the requested command.
+            String[] arguments = cmd.getCommandArguments();
+
+            switch (command)
+            {
+                case RING            : nodeCmd.printRing(System.out); break;
+                case INFO            : nodeCmd.printInfo(System.out); break;
+                case CFSTATS         : nodeCmd.printColumnFamilyStats(System.out); break;
+                case DECOMMISSION    : probe.decommission(); break;
+                case TPSTATS         : nodeCmd.printThreadPoolStats(System.out); break;
+                case VERSION         : nodeCmd.printReleaseVersion(System.out); break;
+                case COMPACTIONSTATS : nodeCmd.printCompactionStats(System.out); break;
+                case DISABLEGOSSIP   : probe.stopGossiping(); break;
+                case ENABLEGOSSIP    : probe.startGossiping(); break;
+                case DISABLETHRIFT   : probe.stopThriftServer(); break;
+                case ENABLETHRIFT    : probe.startThriftServer(); break;
+                case STATUSTHRIFT    : nodeCmd.printIsThriftServerRunning(System.out); break;
+    
+                case DRAIN :
+                    try { probe.drain(); }
+                    catch (ExecutionException ee) { err(ee, "Error occured during flushing"); }
+                    break;
+
+                case NETSTATS :
+                    if (arguments.length > 0) { nodeCmd.printNetworkStats(InetAddress.getByName(arguments[0]), System.out); }
+                    else                      { nodeCmd.printNetworkStats(null, System.out); }
+                    break;
+
+                case SNAPSHOT :
+                case CLEARSNAPSHOT :
+                    String tag = cmd.getOptionValue(TAG_OPT.left);
+                    handleSnapshots(command, tag, arguments, probe);
+                    break;
+
+                case MOVE :
+                    if (arguments.length != 1) { badUse("Missing token argument for move."); }
+                    probe.move(arguments[0]);
+                    break;
+
+                case JOIN:
+                    if (probe.isJoined())
+                    {
+                        System.err.println("This node has already joined the ring.");
+                        System.exit(1);
+                    }
+
+                    probe.joinRing();
+                    break;
+
+                case SETCOMPACTIONTHROUGHPUT :
+                    if (arguments.length != 1) { badUse("Missing value argument."); }
+                    probe.setCompactionThroughput(Integer.valueOf(arguments[0]));
+                    break;
+
+                case REMOVETOKEN :
+                    if (arguments.length != 1) { badUse("Missing an argument for removetoken (either status, force, or a token)"); }
+                    else if (arguments[0].equals("status")) { nodeCmd.printRemovalStatus(System.out); }
+                    else if (arguments[0].equals("force"))  { nodeCmd.printRemovalStatus(System.out); probe.forceRemoveCompletion(); }
+                    else                                    { probe.removeToken(arguments[0]); }
+                    break;
+
+                case CLEANUP :
+                case COMPACT :
+                case REPAIR  :
+                case FLUSH   :
+                case SCRUB   :
+                case INVALIDATEKEYCACHE :
+                case INVALIDATEROWCACHE :
+                    optionalKSandCFs(command, arguments, probe);
+                    break;
+
+                case GETCOMPACTIONTHRESHOLD :
+                    if (arguments.length != 2) { badUse("getcompactionthreshold requires ks and cf args."); }
+                    probe.getCompactionThreshold(System.out, arguments[0], arguments[1]);
+                    break;
+
+                case CFHISTOGRAMS :
+                    if (arguments.length != 2) { badUse("cfhistograms requires ks and cf args"); }
+                    nodeCmd.printCfHistograms(arguments[0], arguments[1], System.out);
+                    break;
+
+                case SETCACHECAPACITY :
+                    if (arguments.length != 4) { badUse("setcachecapacity requires ks, cf, keycachecap, and rowcachecap args."); }
+                    probe.setCacheCapacities(arguments[0], arguments[1], Integer.parseInt(arguments[2]), Integer.parseInt(arguments[3]));
+                    break;
+
+                case SETCOMPACTIONTHRESHOLD :
+                    if (arguments.length != 4) { badUse("setcompactionthreshold requires ks, cf, min, and max threshold args."); }
+                    int minthreshold = Integer.parseInt(arguments[2]);
+                    int maxthreshold = Integer.parseInt(arguments[3]);
+                    if ((minthreshold < 0) || (maxthreshold < 0)) { badUse("Thresholds must be positive integers"); }
+                    if (minthreshold > maxthreshold)              { badUse("Min threshold cannot be greater than max."); }
+                    if (minthreshold < 2 && maxthreshold != 0)    { badUse("Min threshold must be at least 2"); }
+                    probe.setCompactionThreshold(arguments[0], arguments[1], minthreshold, maxthreshold);
+                    break;
+
+                case GETENDPOINTS :
+                    if (arguments.length != 3) { badUse("getendpoints requires ks, cf and key args"); }
+                    nodeCmd.printEndPoints(arguments[0], arguments[1], arguments[2], System.out);
+                    break;
+
+                case REFRESH:
+                    if (arguments.length != 2) { badUse("load_new_sstables requires ks and cf args"); }
+                    probe.loadNewSSTables(arguments[0], arguments[1]);
+                    break;
+                default :
+                    throw new RuntimeException("Unreachable code.");
+            }
         }
-        catch (IllegalArgumentException e)
+        finally
         {
-            badUse(e.getMessage());
-        }
-
-
-        NodeCmd nodeCmd = new NodeCmd(probe);
-
-        // Execute the requested command.
-        String[] arguments = cmd.getCommandArguments();
-
-        switch (command)
-        {
-            case RING            : nodeCmd.printRing(System.out); break;
-            case INFO            : nodeCmd.printInfo(System.out); break;
-            case CFSTATS         : nodeCmd.printColumnFamilyStats(System.out); break;
-            case DECOMMISSION    : probe.decommission(); break;
-            case TPSTATS         : nodeCmd.printThreadPoolStats(System.out); break;
-            case VERSION         : nodeCmd.printReleaseVersion(System.out); break;
-            case COMPACTIONSTATS : nodeCmd.printCompactionStats(System.out); break;
-            case DISABLEGOSSIP   : probe.stopGossiping(); break;
-            case ENABLEGOSSIP    : probe.startGossiping(); break;
-            case DISABLETHRIFT   : probe.stopThriftServer(); break;
-            case ENABLETHRIFT    : probe.startThriftServer(); break;
-            case STATUSTHRIFT    : nodeCmd.printIsThriftServerRunning(System.out); break;
-
-            case DRAIN :
-                try { probe.drain(); }
-                catch (ExecutionException ee) { err(ee, "Error occured during flushing"); }
-                break;
-
-            case NETSTATS :
-                if (arguments.length > 0) { nodeCmd.printNetworkStats(InetAddress.getByName(arguments[0]), System.out); }
-                else                      { nodeCmd.printNetworkStats(null, System.out); }
-                break;
-
-            case SNAPSHOT :
-            case CLEARSNAPSHOT :
-                String tag = cmd.getOptionValue(TAG_OPT.left);
-                handleSnapshots(command, tag, arguments, probe);
-                break;
-
-            case MOVE :
-                if (arguments.length != 1) { badUse("Missing token argument for move."); }
-                probe.move(arguments[0]);
-                break;
-
-            case JOIN:
-                if (probe.isJoined())
+            if (probe != null)
+            {
+                try
                 {
-                    System.err.println("This node has already joined the ring.");
-                    System.exit(1);
+                    probe.close();
                 }
-
-                probe.joinRing();
-                break;
-
-            case SETCOMPACTIONTHROUGHPUT :
-                if (arguments.length != 1) { badUse("Missing value argument."); }
-                probe.setCompactionThroughput(Integer.valueOf(arguments[0]));
-                break;
-
-            case REMOVETOKEN :
-                if (arguments.length != 1) { badUse("Missing an argument for removetoken (either status, force, or a token)"); }
-                else if (arguments[0].equals("status")) { nodeCmd.printRemovalStatus(System.out); }
-                else if (arguments[0].equals("force"))  { nodeCmd.printRemovalStatus(System.out); probe.forceRemoveCompletion(); }
-                else                                    { probe.removeToken(arguments[0]); }
-                break;
-
-            case CLEANUP :
-            case COMPACT :
-            case REPAIR  :
-            case FLUSH   :
-            case SCRUB   :
-            case INVALIDATEKEYCACHE :
-            case INVALIDATEROWCACHE :
-                optionalKSandCFs(command, arguments, probe);
-                break;
-
-            case GETCOMPACTIONTHRESHOLD :
-                if (arguments.length != 2) { badUse("getcompactionthreshold requires ks and cf args."); }
-                probe.getCompactionThreshold(System.out, arguments[0], arguments[1]);
-                break;
-
-            case CFHISTOGRAMS :
-                if (arguments.length != 2) { badUse("cfhistograms requires ks and cf args"); }
-                nodeCmd.printCfHistograms(arguments[0], arguments[1], System.out);
-                break;
-
-            case SETCACHECAPACITY :
-                if (arguments.length != 4) { badUse("setcachecapacity requires ks, cf, keycachecap, and rowcachecap args."); }
-                probe.setCacheCapacities(arguments[0], arguments[1], Integer.parseInt(arguments[2]), Integer.parseInt(arguments[3]));
-                break;
-
-            case SETCOMPACTIONTHRESHOLD :
-                if (arguments.length != 4) { badUse("setcompactionthreshold requires ks, cf, min, and max threshold args."); }
-                int minthreshold = Integer.parseInt(arguments[2]);
-                int maxthreshold = Integer.parseInt(arguments[3]);
-                if ((minthreshold < 0) || (maxthreshold < 0)) { badUse("Thresholds must be positive integers"); }
-                if (minthreshold > maxthreshold)              { badUse("Min threshold cannot be greater than max."); }
-                if (minthreshold < 2 && maxthreshold != 0)    { badUse("Min threshold must be at least 2"); }
-                probe.setCompactionThreshold(arguments[0], arguments[1], minthreshold, maxthreshold);
-                break;
-
-            case GETENDPOINTS :
-                if (arguments.length != 3) { badUse("getendpoints requires ks, cf and key args"); }
-                nodeCmd.printEndPoints(arguments[0], arguments[1], arguments[2], System.out);
-                break;
-
-            case REFRESH:
-                if (arguments.length != 2) { badUse("load_new_sstables requires ks and cf args"); }
-                probe.loadNewSSTables(arguments[0], arguments[1]);
-                break;
-
-            default :
-                throw new RuntimeException("Unreachable code.");
-
+                catch (IOException ex)
+                {
+                    // swallow the exception so the user will see the real one.
+                }
+            }
         }
-
         System.exit(0);
     }
 
