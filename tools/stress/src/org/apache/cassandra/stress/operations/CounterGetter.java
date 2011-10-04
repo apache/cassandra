@@ -64,7 +64,7 @@ public class CounterGetter extends Operation
         for (int j = 0; j < session.getSuperColumns(); j++)
         {
             String superColumn = 'S' + Integer.toString(j);
-            ColumnParent parent = new ColumnParent("CounterSuper1").setSuper_column(superColumn.getBytes());
+            ColumnParent parent = new ColumnParent("SuperCounter1").setSuper_column(superColumn.getBytes());
 
             long start = System.currentTimeMillis();
 

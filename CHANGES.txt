@@ -20,6 +20,7 @@
    before falling back to random replica (CASSANDRA-3211)
  * Fix bug where the failure detector can take too long to mark a host 
    down (CASSANDRA-3273)
+ * Fix stress COUNTER_GET option (CASSANDRA-3301)
 
 
 0.8.6
