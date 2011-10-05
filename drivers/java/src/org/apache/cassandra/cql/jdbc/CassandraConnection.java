@@ -20,51 +20,17 @@
  */
 package org.apache.cassandra.cql.jdbc;
 
-import static org.apache.cassandra.cql.jdbc.Utils.ALWAYS_AUTOCOMMIT;
-import static org.apache.cassandra.cql.jdbc.Utils.BAD_TIMEOUT;
-import static org.apache.cassandra.cql.jdbc.Utils.NO_INTERFACE;
-import static org.apache.cassandra.cql.jdbc.Utils.NO_TRANSACTIONS;
-import static org.apache.cassandra.cql.jdbc.Utils.PROTOCOL;
-import static org.apache.cassandra.cql.jdbc.Utils.SCHEMA_MISMATCH;
-import static org.apache.cassandra.cql.jdbc.Utils.TAG_SERVER_NAME;
-import static org.apache.cassandra.cql.jdbc.Utils.TAG_DATABASE_NAME;
-import static org.apache.cassandra.cql.jdbc.Utils.TAG_PASSWORD;
-import static org.apache.cassandra.cql.jdbc.Utils.TAG_PORT_NUMBER;
-import static org.apache.cassandra.cql.jdbc.Utils.TAG_USER;
-import static org.apache.cassandra.cql.jdbc.Utils.WAS_CLOSED_CON;
-import static org.apache.cassandra.cql.jdbc.Utils.createSubName;
-import static org.apache.cassandra.cql.jdbc.Utils.determineCurrentKeyspace;
-
-import java.sql.Connection;
-import java.sql.DatabaseMetaData;
-import java.sql.PreparedStatement;
-import java.sql.SQLClientInfoException;
-import java.sql.SQLException;
-import java.sql.SQLFeatureNotSupportedException;
-import java.sql.SQLInvalidAuthorizationSpecException;
-import java.sql.SQLNonTransientConnectionException;
-import java.sql.SQLRecoverableException;
-import java.sql.SQLSyntaxErrorException;
-import java.sql.SQLTimeoutException;
-import java.sql.SQLTransientConnectionException;
-import java.sql.SQLWarning;
-import java.sql.Statement;
-import java.util.ArrayList;
+import java.sql.*;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
+import java.util.concurrent.ConcurrentSkipListSet;
 
-import org.apache.cassandra.thrift.AuthenticationException;
-import org.apache.cassandra.thrift.AuthenticationRequest;
-import org.apache.cassandra.thrift.AuthorizationException;
-import org.apache.cassandra.thrift.Cassandra;
-import org.apache.cassandra.thrift.Compression;
-import org.apache.cassandra.thrift.CqlResult;
-import org.apache.cassandra.thrift.InvalidRequestException;
-import org.apache.cassandra.thrift.SchemaDisagreementException;
-import org.apache.cassandra.thrift.TimedOutException;
-import org.apache.cassandra.thrift.UnavailableException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.thrift.*;
 import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.protocol.TProtocol;
@@ -72,8 +38,7 @@ import org.apache.thrift.transport.TFramedTransport;
 import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransport;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import static org.apache.cassandra.cql.jdbc.Utils.*;
 
 /**
  * Implementation class for {@link Connection}.
@@ -99,9 +64,9 @@ class CassandraConnection extends AbstractCassandraConnection implements Connect
     private Properties clientInfo = new Properties();
 
     /**
-     * List of all Statements that have been created by this connection
+     * Set of all Statements that have been created by this connection
      */
-    private List<Statement> statements;
+    private Set<Statement> statements = new ConcurrentSkipListSet<Statement>();
 
     private Cassandra.Client client;
     private TTransport transport;
@@ -119,7 +84,6 @@ class CassandraConnection extends AbstractCassandraConnection implements Connect
      */
     public CassandraConnection(Properties props) throws SQLException
     {
-        statements = new ArrayList<Statement>();
         clientInfo = new Properties();
         url = PROTOCOL + createSubName(props);
         try
@@ -202,10 +166,13 @@ class CassandraConnection extends AbstractCassandraConnection implements Connect
      */
     public synchronized void close() throws SQLException
     {
+        // close all statements associated with this connection upon close
+        for (Statement statement : statements)
+            statement.close();
+        statements.clear();
+        
         if (isConnected())
         {
-            // spec says to close all statements associated with this connection upon close
-            for (Statement statement : statements) statement.close();
             // then disconnect from the transport                
             disconnect();
         }
@@ -220,22 +187,25 @@ class CassandraConnection extends AbstractCassandraConnection implements Connect
     public Statement createStatement() throws SQLException
     {
         checkNotClosed();
-        statements.add(new CassandraStatement(this));
-        return statements.get(statements.size() - 1);
+        Statement statement = new CassandraStatement(this);
+        statements.add(statement);
+        return statement;
     }
 
     public Statement createStatement(int resultSetType, int resultSetConcurrency) throws SQLException
     {
         checkNotClosed();
-        statements.add(new CassandraStatement(this, null, resultSetType, resultSetConcurrency));
-        return statements.get(statements.size() - 1);
+        Statement statement = new CassandraStatement(this, null, resultSetType, resultSetConcurrency);
+        statements.add(statement);
+        return statement;
     }
 
     public Statement createStatement(int resultSetType, int resultSetConcurrency, int resultSetHoldability) throws SQLException
     {
         checkNotClosed();
-        statements.add(new CassandraStatement(this, null, resultSetType, resultSetConcurrency, resultSetHoldability));
-        return statements.get(statements.size() - 1);
+        Statement statement = new CassandraStatement(this, null, resultSetType, resultSetConcurrency, resultSetHoldability);
+        statements.add(statement);
+        return statement;
     }
 
     public boolean getAutoCommit() throws SQLException
@@ -327,8 +297,9 @@ class CassandraConnection extends AbstractCassandraConnection implements Connect
     public PreparedStatement prepareStatement(String sql) throws SQLException
     {
         checkNotClosed();
-        statements.add(new CassandraPreparedStatement(this, sql));
-        return (PreparedStatement) statements.get(statements.size() - 1);
+        PreparedStatement statement = new CassandraPreparedStatement(this, sql);
+        statements.add(statement);
+        return statement;
     }
 
     public PreparedStatement prepareStatement(String arg0, int arg1, int arg2) throws SQLException
@@ -441,6 +412,14 @@ class CassandraConnection extends AbstractCassandraConnection implements Connect
         return execute(queryStr, defaultCompression);
     }
 
+    /**
+     * Remove a Statement from the Open Statements List
+     */
+    protected boolean removeStatement(Statement statement)
+    {
+        return statements.remove(statement);
+    }
+    
     /**
      * Shutdown the remote connection
      */

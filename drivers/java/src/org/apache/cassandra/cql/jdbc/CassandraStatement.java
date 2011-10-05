@@ -34,7 +34,6 @@ import java.sql.SQLSyntaxErrorException;
 import java.sql.SQLTransientConnectionException;
 import java.sql.SQLWarning;
 import java.sql.Statement;
-import java.util.regex.Pattern;
 
 import org.apache.cassandra.thrift.CqlResult;
 import org.apache.cassandra.thrift.InvalidRequestException;
@@ -143,10 +142,11 @@ class CassandraStatement extends AbstractStatement implements Statement
 
     public void close() throws SQLException
     {
+        connection.removeStatement(this);
         connection = null;
         cql = null;
     }
-
+    
     private void doExecute(String sql) throws SQLException
     {
         try
