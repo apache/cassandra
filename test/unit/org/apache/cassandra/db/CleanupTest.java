@@ -101,7 +101,9 @@ public class CleanupTest extends CleanupHelper
         assertEquals(LOOPS, rows.size());
 
         ColumnFamilyStore cfi = cfs.getIndexedColumnFamilyStore(COLUMN);
-        assertTrue(cfi.isIndexBuilt());
+        long start = System.currentTimeMillis();
+        while (!SystemTable.isIndexBuilt(cfi.table.name, cfi.getColumnFamilyName()) && System.currentTimeMillis() < start + 10000)
+            Thread.sleep(10);
 
         // verify we get it back w/ index query too
         IndexExpression expr = new IndexExpression(COLUMN, IndexOperator.EQ, VALUE);
