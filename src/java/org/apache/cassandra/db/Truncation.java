@@ -55,15 +55,6 @@ public class Truncation implements MessageProducer
         this.columnFamily = columnFamily;
     }
 
-    /**
-     * This is equivalent to calling commit. Applies the changes to
-     * to the table that is obtained by calling Table.open().
-     */
-    public void apply() throws IOException
-    {
-        Table.open(keyspace).getColumnFamilyStore(columnFamily).truncate();
-    }
-
     public Message getMessage(Integer version) throws IOException
     {
         FastByteArrayOutputStream bos = new FastByteArrayOutputStream();

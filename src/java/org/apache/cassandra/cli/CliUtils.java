@@ -118,4 +118,9 @@ public class CliUtils
 
         return null;
     }
+
+    public static String quote(String str)
+    {
+        return String.format("'%s'", str);
+    }
 }

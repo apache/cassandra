@@ -36,22 +36,21 @@ public class CompressedRandomAccessReaderTest
     public void testResetAndTruncate() throws IOException
     {
         // test reset in current buffer or previous one
-        testResetAndTruncate(false, 10);
-        testResetAndTruncate(false, CompressionParameters.DEFAULT_CHUNK_LENGTH);
+        testResetAndTruncate(File.createTempFile("normal", "1"), false, 10);
+        testResetAndTruncate(File.createTempFile("normal", "2"), false, CompressionParameters.DEFAULT_CHUNK_LENGTH);
     }
 
     @Test
     public void testResetAndTruncateCompressed() throws IOException
     {
         // test reset in current buffer or previous one
-        testResetAndTruncate(true, 10);
-        testResetAndTruncate(true, CompressionParameters.DEFAULT_CHUNK_LENGTH);
+        testResetAndTruncate(File.createTempFile("compressed", "1"), true, 10);
+        testResetAndTruncate(File.createTempFile("compressed", "2"), true, CompressionParameters.DEFAULT_CHUNK_LENGTH);
     }
 
-    private void testResetAndTruncate(boolean compressed, int junkSize) throws IOException
+    private void testResetAndTruncate(File f, boolean compressed, int junkSize) throws IOException
     {
-        String filename = "corruptFile";
-        File f = new File(filename);
+        final String filename = f.getAbsolutePath();
 
         try
         {

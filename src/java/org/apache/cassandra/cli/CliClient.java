@@ -1589,16 +1589,19 @@ public class CliClient
         if (ksDef.strategy_options != null && !ksDef.strategy_options.isEmpty())
         {
             final StringBuilder opts = new StringBuilder();
-            opts.append("[{");
+            opts.append("{");
             String prefix = "";
             for (Map.Entry<String, String> opt : ksDef.strategy_options.entrySet())
             {
                 opts.append(prefix + CliUtils.escapeSQLString(opt.getKey()) + " : " + CliUtils.escapeSQLString(opt.getValue()));
                 prefix = ", ";
             }
-            opts.append("}]");
+            opts.append("}");
             writeAttrRaw(sb, false, "strategy_options", opts.toString());
         }
+
+        writeAttr(sb, false, "durable_writes", ksDef.durable_writes);
+
         sb.append(";" + NEWLINE);
         sb.append(NEWLINE);
 
@@ -1624,7 +1627,7 @@ public class CliClient
 
         writeAttr(sb, true, "column_type", cfDef.column_type);
         writeAttr(sb, false, "comparator", normaliseType(cfDef.comparator_type, "org.apache.cassandra.db.marshal"));
-        if (cfDef.column_type == "Super")
+        if (cfDef.column_type.equals("Super"))
             writeAttr(sb, false, "subcomparator", normaliseType(cfDef.subcomparator_type, "org.apache.cassandra.db.marshal"));
         if (!StringUtils.isEmpty(cfDef.default_validation_class))
             writeAttr(sb, false, "default_validation_class",
@@ -1633,6 +1636,7 @@ public class CliClient
                     normaliseType(cfDef.key_validation_class, "org.apache.cassandra.db.marshal"));
         writeAttr(sb, false, "rows_cached", cfDef.row_cache_size);
         writeAttr(sb, false, "row_cache_save_period", cfDef.row_cache_save_period_in_seconds);
+        writeAttr(sb, false, "row_cache_keys_to_save", cfDef.row_cache_keys_to_save);
         writeAttr(sb, false, "keys_cached", cfDef.key_cache_size);
         writeAttr(sb, false, "key_cache_save_period", cfDef.key_cache_save_period_in_seconds);
         writeAttr(sb, false, "read_repair_chance", cfDef.read_repair_chance);
@@ -1641,6 +1645,32 @@ public class CliClient
         writeAttr(sb, false, "max_compaction_threshold", cfDef.max_compaction_threshold);
         writeAttr(sb, false, "replicate_on_write", cfDef.replicate_on_write);
         writeAttr(sb, false, "row_cache_provider", normaliseType(cfDef.row_cache_provider, "org.apache.cassandra.cache"));
+        writeAttr(sb, false, "compaction_strategy", cfDef.compaction_strategy);
+
+        if (!cfDef.compaction_strategy_options.isEmpty())
+        {
+            StringBuilder cOptions = new StringBuilder();
+
+            cOptions.append("{");
+
+            Map<String, String> options = cfDef.compaction_strategy_options;
+
+            int i = 0, size = options.size();
+
+            for (Map.Entry<String, String> entry : options.entrySet())
+            {
+                cOptions.append(CliUtils.quote(entry.getKey())).append(" : ").append(CliUtils.quote(entry.getValue()));
+
+                if (i != size - 1)
+                    cOptions.append(", ");
+
+                i++;
+            }
+
+            cOptions.append("}");
+
+            writeAttrRaw(sb, false, "compaction_strategy_options", cOptions.toString());
+        }
 
         if (!StringUtils.isEmpty(cfDef.comment))
             writeAttr(sb, false, "comment", cfDef.comment);
