@@ -418,4 +418,17 @@ public class LeveledManifest
     {
         return generations[i];
     }
+
+    public int getEstimatedTasks()
+    {
+        int n = 0;
+        for (int i = generations.length - 1; i >= 0; i--)
+        {
+            List<SSTableReader> sstables = generations[i];
+            if (sstables.isEmpty())
+                continue;
+            n += (SSTableReader.getTotalBytes(sstables) - maxBytesForLevel(i)) / maxSSTableSizeInMB;
+        }
+        return n;
+    }
 }
