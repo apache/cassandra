@@ -1622,6 +1622,9 @@ public class CliClient
             opts.append("}]");
             writeAttrRaw(sb, false, "strategy_options", opts.toString());
         }
+
+        writeAttr(sb, false, "durable_writes", ksDef.durable_writes);
+
         sb.append(";" + NEWLINE);
         sb.append(NEWLINE);
 
