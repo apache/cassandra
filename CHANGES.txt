@@ -5,16 +5,17 @@
  * Don't allow any cache loading exceptions to halt startup (CASSANDRA-3218)
  * Fix sstableloader --ignores option (CASSANDRA-3247)
  * File descriptor limit increased in packaging (CASSANDRA-3206)
- * Log a miningfull warning when a node receive a message for a repair session
-   that don't exist anymore (CASSANDRA-3256)
+ * Log a meaningfull warning when a node receive a message for a repair session
+   that doesn't exist anymore (CASSANDRA-3256)
  * Fix FD leak when internode encryption is enabled (CASSANDRA-3257)
  * FBUtilities.hexToBytes(String) to throw NumberFormatException when string
    contains non-hex characters (CASSANDRA-3231)
  * Keep SimpleSnitch proximity ordering unchanged from what the Strategy
    generates, as intended (CASSANDRA-3262)
- * fix Scrub compaction finishing (CASSANDRA-3255)
+ * remove Scrub from compactionstats when finished (CASSANDRA-3255)
  * Fix tool .bat files when CASSANDRA_HOME contains spaces (CASSANDRA-3258)
- * Evict gossip state immediately when a token is taken over by a new IP (CASSANDRA-3259)
+ * Evict gossip state immediately when a token is taken over by a new IP 
+   (CASSANDRA-3259)
  * (Hadoop) allow wrapping ranges in queries (CASSANDRA-3137)
  * (Hadoop) check all interfaces for a match with split location
    before falling back to random replica (CASSANDRA-3211)
