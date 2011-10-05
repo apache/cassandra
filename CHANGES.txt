@@ -22,6 +22,11 @@
    down (CASSANDRA-3273)
  * Fix stress COUNTER_GET option (CASSANDRA-3301)
  * Nodetool no longer leaks threads and closes JMX connections (CASSANDRA-3309)
+ * Fix exception during PIG 'dump' (CASSANDRA-2810)
+ * Fix transposition in cfHistograms (CASSANDRA-3222)
+ * Allow using number as DC name when creating keyspace in CQL (CASSANDRA-3239)
+ * Force flush of system table after updating/removing a token (CASSANDRA-3243)
+ * Make Pig storage handle implements LoadMetadata (CASSANDRA-2777)
 
 
 0.8.6
