@@ -27,7 +27,7 @@
  * Allow using number as DC name when creating keyspace in CQL (CASSANDRA-3239)
  * Force flush of system table after updating/removing a token (CASSANDRA-3243)
  * Make Pig storage handle implements LoadMetadata (CASSANDRA-2777)
-
+ * Improved CLI exceptions (CASSANDRA-3312)
 
 0.8.6
  * revert CASSANDRA-2388
