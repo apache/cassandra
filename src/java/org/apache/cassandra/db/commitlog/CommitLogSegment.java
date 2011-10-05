@@ -48,6 +48,7 @@ public class CommitLogSegment
 
     public final long id;
     private final SequentialWriter logWriter;
+    private long finalSize = -1;
 
     // cache which cf is dirty in this segment to avoid having to lookup all ReplayPositions to decide if we could delete this segment
     public final Map<Integer, Integer> cfLastWrite = new HashMap<Integer, Integer>();
@@ -159,6 +160,9 @@ public class CommitLogSegment
 
     public long length()
     {
+        if (finalSize >= 0)
+            return finalSize;
+        
         try
         {
             return logWriter.length();
@@ -171,8 +175,12 @@ public class CommitLogSegment
 
     public void close()
     {
+        if (finalSize >= 0)
+            return;
+
         try
         {
+            finalSize = logWriter.length();
             logWriter.close();
         }
         catch (IOException e)
