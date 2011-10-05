@@ -38,9 +38,15 @@ public class MemoryInputStream extends AbstractDataInput
     
     public int read() throws IOException
     {       
-        return mem.getValidByte(position++) & 0xFF;
+        return mem.getByte(position++) & 0xFF;
     }
-    
+
+    public void readFully(byte[] buffer, int offset, int count) throws IOException
+    {
+        mem.getBytes(position, buffer, offset, count);
+        position += count;
+    }
+
     protected void seekInternal(int pos)
     {
         position = pos;

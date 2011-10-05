@@ -20,11 +20,9 @@ package org.apache.cassandra.cache;
  * 
  */
 
-
-import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import com.sun.jna.Memory;
+import org.apache.cassandra.io.util.Memory;
 
 public class FreeableMemory extends Memory
 {
@@ -58,23 +56,16 @@ public class FreeableMemory extends Memory
             free();
     }
 
-    private void free()
-    {
-        assert peer != 0;
-        super.finalize(); // calls free and sets peer to zero
-    }
-
-    /**
-     * avoid re-freeing already-freed memory
-     */
     @Override
-    protected void finalize()
+    protected void finalize() throws Throwable
     {
         assert references.get() <= 0;
         assert peer == 0;
+        super.finalize();
     }
-    
-    public byte getValidByte(long offset)
+
+    @Override
+    public byte getByte(long offset)
     {
         assert peer != 0;
         return super.getByte(offset);

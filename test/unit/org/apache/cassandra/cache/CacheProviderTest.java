@@ -117,6 +117,6 @@ public class CacheProviderTest extends SchemaLoader
         ICache<String, ColumnFamily> cache = new SerializingCache<String, ColumnFamily>(CAPACITY, ColumnFamily.serializer(), tableName, cfName);
         ColumnFamily cf = createCF();
         simpleCase(cf, cache);
-        // concurrentCase(cf, cache);
+        concurrentCase(cf, cache);
     }
 }

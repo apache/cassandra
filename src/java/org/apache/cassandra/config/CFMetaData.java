@@ -67,7 +67,7 @@ public final class CFMetaData
     public final static int DEFAULT_MIN_COMPACTION_THRESHOLD = 4;
     public final static int DEFAULT_MAX_COMPACTION_THRESHOLD = 32;
     public final static double DEFAULT_MERGE_SHARDS_CHANCE = 0.1;
-    public final static IRowCacheProvider DEFAULT_ROW_CACHE_PROVIDER = initDefaultRowCacheProvider();
+    public final static IRowCacheProvider DEFAULT_ROW_CACHE_PROVIDER = new SerializingCacheProvider();
     public final static String DEFAULT_COMPACTION_STRATEGY_CLASS = "SizeTieredCompactionStrategy";
     public final static ByteBuffer DEFAULT_KEY_NAME = ByteBufferUtil.bytes("KEY");
 
@@ -94,18 +94,6 @@ public final class CFMetaData
         catch (ConfigurationException e)
         {
             throw new RuntimeException(e);
-        }
-    }
-
-    private static IRowCacheProvider initDefaultRowCacheProvider()
-    {
-        try
-        {
-            return new SerializingCacheProvider();
-        }
-        catch (ConfigurationException e)
-        {
-            return new ConcurrentLinkedHashCacheProvider();
         }
     }
 

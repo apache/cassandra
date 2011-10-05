@@ -3,7 +3,7 @@
  * Thrift sockets are not properly buffered (CASSANDRA-3261)
  * performance improvement for bytebufferutil compare function (CASSANDRA-3286)
  * add system.versions ColumnFamily (CASSANDRA-3140)
-
+ * off-heap cache to use sun.misc.Unsafe instead of JNA (CASSANDRA-3271)
 
 1.0.0-final
  * fix bug preventing obsolete commitlog segments from being removed

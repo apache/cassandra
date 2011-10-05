@@ -21,9 +21,8 @@ package org.apache.cassandra.io.util;
  */
 
 
+import java.io.IOException;
 import java.io.OutputStream;
-
-import com.sun.jna.Memory;
 
 /**
  * This class provides a way to stream the writes into the {@link Memory}
@@ -39,16 +38,20 @@ public class MemoryOutputStream extends OutputStream
         this.mem = mem;
     }
     
-    @Override
     public void write(int b)
     {
-        mem.setByte(this.position, (byte)b);
-        this.position++;
+        mem.setByte(position++, (byte) b);
     }
-    
+
+    @Override
+    public void write(byte[] b, int off, int len) throws IOException
+    {
+        mem.setBytes(position, b, off, len);
+        position += len;
+    }
+
     public int position()
     {
-        return this.position;
+        return position;
     }
-    
 }
