@@ -6,7 +6,7 @@
    (CASSANDRA-3295)
  * Fix broken CompressedRandomAccessReaderTest (CASSANDRA-3298)
  * (CQL) fix type information returned for wildcard queries (CASSANDRA-3311)
-(Merged from 0.8)
+Fixes merged from 0.8 below:
  * Fix tool .bat files when CASSANDRA_HOME contains spaces (CASSANDRA-3258)
  * Force flush of status table when removing/updating token (CASSANDRA-3243)
  * Evict gossip state immediately when a token is taken over by a new IP (CASSANDRA-3259)
