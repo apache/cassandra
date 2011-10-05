@@ -39,3 +39,4 @@ CLASSPATH=$CASSANDRA_CONF:$cassandra_bin
 for jar in $CASSANDRA_HOME/lib/*.jar; do
     CLASSPATH=$CLASSPATH:$jar
 done
+echo $CLASSPATH
