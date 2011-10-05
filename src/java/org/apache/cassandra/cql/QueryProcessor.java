@@ -588,6 +588,11 @@ public class QueryProcessor
                         {
                             if (c.isMarkedForDelete())
                                 continue;
+
+                            ColumnDefinition cd = metadata.getColumnDefinition(c.name());
+                            if (cd != null)
+                                result.schema.value_types.put(c.name(), TypeParser.getShortName(cd.getValidator()));
+
                             thriftColumns.add(thriftify(c));
                         }
                     }

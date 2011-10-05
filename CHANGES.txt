@@ -18,6 +18,13 @@
  * (Hadoop) check all interfaces for a match with split location
    before falling back to random replica (CASSANDRA-3211)
  * Fix stress COUNTER_GET option (CASSANDRA-3301)
+ * Change default heap thresholds to max(min(1/2 ram, 1G), min(1/4 ram, 8GB))
+   (CASSANDRA-3295)
+ * Fix missing fields in CLI `show schema` output (CASSANDRA-3304)
+ * Fix broken CompressedRandomAccessReaderTest (CASSANDRA-3298)
+ * Nodetool no longer leaks threads and closes JMX connections (CASSANDRA-3309)
+ * (CQL) fix type information returned for wildcard queries (CASSANDRA-3311)
+ * fix truncate allowing data to be replayed post-restart (CASSANDRA-3297)
 
 
 1.0.0-rc2
