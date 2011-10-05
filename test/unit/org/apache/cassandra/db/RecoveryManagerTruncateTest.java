@@ -48,7 +48,7 @@ public class RecoveryManagerTruncateTest extends CleanupHelper
 		RowMutation rm;
 		ColumnFamily cf;
 
-		// trucate clears memtable
+		// add a single cell
 		rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes("keymulti"));
 		cf = ColumnFamily.create("Keyspace1", "Standard1");
 		cf.addColumn(column("col1", "val1", 1L));
@@ -60,21 +60,10 @@ public class RecoveryManagerTruncateTest extends CleanupHelper
 
 		// and now truncate it
 		cfs.truncate().get();
+        CommitLog.instance.resetUnsafe();
 		CommitLog.recover();
 
 		// and validate truncation.
-		assertNull(getFromTable(table, "Standard1", "keymulti", "col1"));
-
-		// truncate clears sstable
-		rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes("keymulti"));
-		cf = ColumnFamily.create("Keyspace1", "Standard1");
-		cf.addColumn(column("col1", "val1", 1L));
-		rm.add(cf);
-		rm.apply();
-		cfs.forceBlockingFlush();
-		cfs.truncate().get();
-        CommitLog.instance.resetUnsafe();
-		CommitLog.recover();
 		assertNull(getFromTable(table, "Standard1", "keymulti", "col1"));
 	}
 

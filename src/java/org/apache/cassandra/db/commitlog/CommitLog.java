@@ -120,6 +120,8 @@ public class CommitLog
 
     public void resetUnsafe()
     {
+        for (CommitLogSegment segment : segments)
+            segment.close();
         segments.clear();
         segments.add(new CommitLogSegment());
     }
@@ -474,7 +476,6 @@ public class CommitLog
         if (segment.isSafeToDelete() && iter.hasNext())
         {
             logger.info("Discarding obsolete commit log:" + segment);
-            segment.close();
             DeletionService.executeDelete(segment.getPath());
             // usually this will be the first (remaining) segment, but not always, if segment A contains
             // writes to a CF that is unflushed but is followed by segment B whose CFs are all flushed.
@@ -492,34 +493,26 @@ public class CommitLog
         currentSegment().sync();
     }
 
-    public void forceNewSegment()
+    public void forceNewSegment() throws ExecutionException, InterruptedException
     {
         Callable<?> task = new Callable()
         {
             public Object call() throws IOException
             {
-                createNewSegment();
+                if (currentSegment().length() > 0)
+                    createNewSegment();
                 return null;
             }
         };
 
-        try
-        {
-            executor.submit(task).get();
-        }
-        catch (InterruptedException e)
-        {
-            throw new AssertionError(e);
-        }
-        catch (ExecutionException e)
-        {
-            throw new RuntimeException(e);
-        }
+        executor.submit(task).get();
     }
 
     private void createNewSegment() throws IOException
     {
+        assert !segments.isEmpty();
         sync();
+        segments.getLast().close();
         segments.add(new CommitLogSegment());
     }
 

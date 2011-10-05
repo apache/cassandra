@@ -1,3 +1,7 @@
+0.8.8
+ * fix truncate allowing data to be replayed post-restart (CASSANDRA-3297)
+
+
 0.8.7
  * Kill server on wrapped OOME such as from FileChannel.map (CASSANDRA-3201)
  * Allow using quotes in "USE <keyspace>;" CLI command (CASSANDRA-3208)
@@ -29,6 +33,7 @@
  * Force flush of system table after updating/removing a token (CASSANDRA-3243)
  * Make Pig storage handle implements LoadMetadata (CASSANDRA-2777)
  * Improved CLI exceptions (CASSANDRA-3312)
+
 
 0.8.6
  * revert CASSANDRA-2388
