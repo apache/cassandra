@@ -25,7 +25,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
-import java.util.concurrent.ConcurrentSkipListSet;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,6 +36,7 @@ import org.apache.thrift.protocol.TProtocol;
 import org.apache.thrift.transport.TFramedTransport;
 import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransport;
+import org.cliffc.high_scale_lib.NonBlockingHashSet;
 
 import static org.apache.cassandra.cql.jdbc.Utils.*;
 
@@ -66,7 +66,7 @@ class CassandraConnection extends AbstractCassandraConnection implements Connect
     /**
      * Set of all Statements that have been created by this connection
      */
-    private Set<Statement> statements = new ConcurrentSkipListSet<Statement>();
+    private Set<Statement> statements = new NonBlockingHashSet<Statement>();
 
     private Cassandra.Client client;
     private TTransport transport;
