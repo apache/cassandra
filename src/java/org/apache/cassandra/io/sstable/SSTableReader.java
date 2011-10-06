@@ -572,15 +572,15 @@ public class SSTableReader extends SSTable
         keyCache.put(new Pair<Descriptor, DecoratedKey>(descriptor, copiedKey), info);
     }
 
-    public Long getCachedPosition(DecoratedKey key)
+    public Long getCachedPosition(DecoratedKey key, boolean updateStats)
     {
-        return getCachedPosition(new Pair<Descriptor, DecoratedKey>(descriptor, key));
+        return getCachedPosition(new Pair<Descriptor, DecoratedKey>(descriptor, key), updateStats);
     }
 
-    private Long getCachedPosition(Pair<Descriptor, DecoratedKey> unifiedKey)
+    private Long getCachedPosition(Pair<Descriptor, DecoratedKey> unifiedKey, boolean updateStats)
     {
         if (keyCache != null && keyCache.getCapacity() > 0)
-            return keyCache.get(unifiedKey);
+            return updateStats ? keyCache.get(unifiedKey) : keyCache.getInternal(unifiedKey);
         return null;
     }
 
@@ -603,7 +603,7 @@ public class SSTableReader extends SSTable
         if (op == Operator.EQ || op == Operator.GE)
         {
             Pair<Descriptor, DecoratedKey> unifiedKey = new Pair<Descriptor, DecoratedKey>(descriptor, decoratedKey);
-            Long cachedPosition = getCachedPosition(unifiedKey);
+            Long cachedPosition = getCachedPosition(unifiedKey, true);
             if (cachedPosition != null)
                 return cachedPosition;
         }

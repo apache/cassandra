@@ -169,7 +169,7 @@ public class CompactionTask extends AbstractCompactionTask
                 {
                     for (SSTableReader sstable : toCompact)
                     {
-                        if (sstable.getCachedPosition(row.key) != null)
+                        if (sstable.getCachedPosition(row.key, false) != null)
                         {
                             cachedKeys.put(row.key, position);
                             break;
