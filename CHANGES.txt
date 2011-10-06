@@ -1,4 +1,5 @@
 1.0.0-final
+ * close scrubbed sstable fd before deleting it (CASSANDRA-3318)
  * fix bug preventing obsolete commitlog segments from being removed
    (CASSANDRA-3269)
  * tolerate whitespace in seed CDL (CASSANDRA-3263)
