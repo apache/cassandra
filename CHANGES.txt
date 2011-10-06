@@ -6,6 +6,7 @@
 
 
 1.0.0-final
+ * close scrubbed sstable fd before deleting it (CASSANDRA-3318)
  * fix bug preventing obsolete commitlog segments from being removed
    (CASSANDRA-3269)
  * tolerate whitespace in seed CDL (CASSANDRA-3263)
@@ -13,6 +14,9 @@
    (CASSANDRA-3295)
  * Fix broken CompressedRandomAccessReaderTest (CASSANDRA-3298)
  * (CQL) fix type information returned for wildcard queries (CASSANDRA-3311)
+ * add estimated tasks to LeveledCompactionStrategy (CASSANDRA-3322)
+ * avoid including compaction cache-warming in keycache stats (CASSANDRA-3325)
+ * run compaction and hinted handoff threads at MIN_PRIORITY (CASSANDRA-3308)
 Fixes merged from 0.8 below:
  * Fix tool .bat files when CASSANDRA_HOME contains spaces (CASSANDRA-3258)
  * Force flush of status table when removing/updating token (CASSANDRA-3243)
