@@ -135,7 +135,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
 
     public int getEstimatedRemainingTasks()
     {
-        return 0;
+        return manifest.getEstimatedTasks();
     }
 
     public void handleNotification(INotification notification, Object sender)
