@@ -239,7 +239,7 @@ public class LeveledManifest
 
             // L0 gets a special case that if we don't have anything more important to do,
             // we'll go ahead and compact even just one sstable
-            if (score > 1 || i == 0)
+            if (score > 1.001 || i == 0)
             {
                 Collection<SSTableReader> candidates = getCandidatesFor(i);
                 if (logger.isDebugEnabled())
@@ -425,9 +425,7 @@ public class LeveledManifest
         for (int i = generations.length - 1; i >= 0; i--)
         {
             List<SSTableReader> sstables = generations[i];
-            if (sstables.isEmpty())
-                continue;
-            n += (SSTableReader.getTotalBytes(sstables) - maxBytesForLevel(i)) / maxSSTableSizeInMB;
+            n += Math.max(0L, SSTableReader.getTotalBytes(sstables) - maxBytesForLevel(i)) / (maxSSTableSizeInMB * 1024 * 1024);
         }
         return n;
     }
