@@ -3,6 +3,12 @@
 
 Upgrading
 ---------
+    - Upgrading from version 0.7.1+ or 0.8.2+ can be done with a rolling
+      restart, one node at a time.  (0.8.0 or 0.8.1 are NOT network-compatible
+      with 1.0: upgrade to the most recent 0.8 release first.)
+      You do not need to bring down the whole cluster at once. 
+    - After upgrading, run nodetool scrub against each node before running
+      repair, moving nodes, or adding new ones.
     - CQL inserts/updates now generate microsecond resolution timestamps
       by default, instead of millisecond. THIS MEANS A ROLLING UPGRADE COULD
       MIX milliseconds and microseconds, with clients talking to servers
@@ -19,9 +25,9 @@ Upgrading
     - CQL types bytea and date were renamed to blob and timestamp, respectively,
       to conform with SQL norms.  CQL type int is now a 4-byte int, not 8
       (which is still available as bigint).
-    - Cassandra 1.0 uses arena allocation to reduce old generation fragmentation.
-      This means there is a minimum overhead of 1MB per ColumnFamily plus
-      1MB per index.
+    - Cassandra 1.0 uses arena allocation to reduce old generation
+      fragmentation.  This means there is a minimum overhead of 1MB
+      per ColumnFamily plus 1MB per index.
     - The SimpleAuthenticator and SimpleAuthority classes have been moved to
       the example directory (and are thus not available from the binary
       distribution). They never provided actual security and in their current
