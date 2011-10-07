@@ -10,6 +10,7 @@
  * add estimated tasks to LeveledCompactionStrategy (CASSANDRA-3322)
  * avoid including compaction cache-warming in keycache stats (CASSANDRA-3325)
  * run compaction and hinted handoff threads at MIN_PRIORITY (CASSANDRA-3308)
+ * default hsha thrift server to cpu core count in rpc pool (CASSANDRA-3329)
 Fixes merged from 0.8 below:
  * Fix tool .bat files when CASSANDRA_HOME contains spaces (CASSANDRA-3258)
  * Force flush of status table when removing/updating token (CASSANDRA-3243)
