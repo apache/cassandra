@@ -367,7 +367,7 @@ public class DatabaseDescriptor
                 throw new ConfigurationException("Unknown rpc_server_type: " + conf.rpc_server_type);
             if (conf.rpc_min_threads == null)
                 conf.rpc_min_threads = conf.rpc_server_type.toLowerCase().equals("hsha")
-                                     ? Runtime.getRuntime().availableProcessors()
+                                     ? Runtime.getRuntime().availableProcessors() * 4
                                      : 16;
             if (conf.rpc_max_threads == null)
                 conf.rpc_max_threads = conf.rpc_server_type.toLowerCase().equals("hsha")
