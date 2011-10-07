@@ -7,14 +7,15 @@ Upgrading
       by default, instead of millisecond. THIS MEANS A ROLLING UPGRADE COULD
       MIX milliseconds and microseconds, with clients talking to servers
       generating milliseconds unable to overwrite the larger microsecond
-      timestamps. If this is important for your application, you can either
-      perform a non-rolling upgrade to 1.0, or update your application first
-      to use explicit timestamps with the "USING timestamp=X" syntax.
-    - the BinaryMemtable bulk-load interface has been removed. Use the
-      sstableloader tool instead.
-    - the compaction_thread_priority setting has been removed from 
+      timestamps. If you are using CQL and this is important for your
+      application, you can either perform a non-rolling upgrade to 1.0, or
+      update your application first to use explicit timestamps with the "USING
+      timestamp=X" syntax.
+    - The BinaryMemtable bulk-load interface has been removed (use the
+      sstableloader tool instead).
+    - The compaction_thread_priority setting has been removed from
       cassandra.yaml (use compaction_throughput_mb_per_sec to throttle
-      compaction instead)
+      compaction instead).
     - CQL types bytea and date were renamed to blob and timestamp, respectively,
       to conform with SQL norms.  CQL type int is now a 4-byte int, not 8
       (which is still available as bigint).
@@ -26,21 +27,21 @@ Features
 --------
     - SSTable compression is supported through the 'compression_options'
       parameter when creating/updating a column family. For instance, you can
-      create a column family Cf using compression (using the Snappy library)
+      create a column family Cf using compression (through the Snappy library)
       in the CLI with:
         create column family Cf with compression_options={sstable_compression: SnappyCompressor}
       SSTable compression is not activated by default but can be activated or
       deactivated at any time.
     - Compressed SSTable blocks are checksummed to protect against bitrot
-    - New LevelDB-inspired compaction algorithm can be enabled by setting the 
-      Columnfamily compaction_strategy=LeveledCompactionStrategy option.  
-      Leveled compaction means you only need to keep a few MB of space free for 
+    - New LevelDB-inspired compaction algorithm can be enabled by setting the
+      Columnfamily compaction_strategy=LeveledCompactionStrategy option.
+      Leveled compaction means you only need to keep a few MB of space free for
       compaction instead of (in the worst case) 50%.
-    - Ability to use multiple threads during a single compaction.  See 
+    - Ability to use multiple threads during a single compaction. See
       multithreaded_compaction in cassandra.yaml for more details.
     - Windows Service ("cassandra.bat install" to enable)
     - A dead node may be replaced in a single step by starting a new node
-      with -Dcassandra.replace_token=<token>.  More details can be found at
+      with -Dcassandra.replace_token=<token>. More details can be found at
       http://wiki.apache.org/cassandra/Operations#Replacing_a_Dead_Node
     - It is now possible to repair only the first range returned by the
       partitioner for a node with `nodetool repair -pr`. It makes it
@@ -63,14 +64,17 @@ Other
     - The old per-ColumnFamily memtable thresholds
       (memtable_throughput_in_mb, memtable_operations_in_millions,
       memtable_flush_after_mins) are ignored, in favor of the global
-      memtable_total_space_in_mb and commitlog_total_space_in_mb settings.  
+      memtable_total_space_in_mb and commitlog_total_space_in_mb settings.
       This does not affect client compatibility -- the old options are
-      still allowed, but have no effect.  These options may be removed
+      still allowed, but have no effect. These options may be removed
       entirely in a future release.
     - Backlogged compactions will begin five minutes after startup.  The 0.8
       behavior of never starting compaction until a flush happens is usually
       not what is desired, but a short grace period is useful to allow caches
       to warm up first.
+    - The deletion of compacted data files is not performed during Garbage
+      Collection anymore. This means compacted files will now be deleted
+      without delay.
 
 
 0.8.5
