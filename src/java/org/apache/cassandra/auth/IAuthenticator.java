@@ -27,6 +27,9 @@ import org.apache.cassandra.thrift.AuthenticationException;
 
 public interface IAuthenticator
 {
+    public static final String USERNAME_KEY = "username";
+    public static final String PASSWORD_KEY = "password";
+
     /**
      * @return The user that a connection is initialized with, or 'null' if a user must call login().
      */

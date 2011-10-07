@@ -24,6 +24,7 @@ Fixes merged from 0.8 below:
  * Fix missing fields in CLI `show schema` output (CASSANDRA-3304)
  * Nodetool no longer leaks threads and closes JMX connections (CASSANDRA-3309)
  * fix truncate allowing data to be replayed post-restart (CASSANDRA-3297)
+ * Move SimpleAuthority and SimpleAuthenticator to examples (CASSANDRA-2922)
 
 
 1.0.0-rc2

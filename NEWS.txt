@@ -22,6 +22,10 @@ Upgrading
     - Cassandra 1.0 uses arena allocation to reduce old generation fragmentation.
       This means there is a minimum overhead of 1MB per ColumnFamily plus
       1MB per index.
+    - The SimpleAuthenticator and SimpleAuthority classes have been moved to
+      the example directory (and are thus not available from the binary
+      distribution). They never provided actual security and in their current
+      state are only meant as examples.
 
 Features
 --------
