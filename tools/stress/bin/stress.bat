@@ -13,6 +13,8 @@
 @REM  See the License for the specific language governing permissions and
 @REM  limitations under the License.
 
+@echo off
+
 if NOT DEFINED CASSANDRA_HOME set CASSANDRA_HOME=%CD%\..\..
 if NOT DEFINED STRESS_HOME set STRESS_HOME=%CD%
 

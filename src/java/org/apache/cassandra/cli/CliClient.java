@@ -32,7 +32,7 @@ import com.google.common.base.Charsets;
 import com.google.common.base.Joiner;
 
 import org.antlr.runtime.tree.Tree;
-import org.apache.cassandra.auth.SimpleAuthenticator;
+import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.db.compaction.CompactionInfo;
@@ -1833,8 +1833,8 @@ public class CliClient
         	{
         	    /* remove quotes */
         	    password = password.replace("\'", "");
-        	    credentials.put(SimpleAuthenticator.USERNAME_KEY, username);
-                credentials.put(SimpleAuthenticator.PASSWORD_KEY, password);
+        	    credentials.put(IAuthenticator.USERNAME_KEY, username);
+                credentials.put(IAuthenticator.PASSWORD_KEY, password);
                 authRequest = new AuthenticationRequest(credentials);
                 thriftClient.login(authRequest);
         	}

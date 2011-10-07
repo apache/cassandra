@@ -17,6 +17,8 @@
  * add estimated tasks to LeveledCompactionStrategy (CASSANDRA-3322)
  * avoid including compaction cache-warming in keycache stats (CASSANDRA-3325)
  * run compaction and hinted handoff threads at MIN_PRIORITY (CASSANDRA-3308)
+ * default hsha thrift server to cpu core count in rpc pool (CASSANDRA-3329)
+ * add bin\daemon to binary tarball for Windows service (CASSANDRA-3331)
 Fixes merged from 0.8 below:
  * Fix tool .bat files when CASSANDRA_HOME contains spaces (CASSANDRA-3258)
  * Force flush of status table when removing/updating token (CASSANDRA-3243)
@@ -30,6 +32,7 @@ Fixes merged from 0.8 below:
  * Fix missing fields in CLI `show schema` output (CASSANDRA-3304)
  * Nodetool no longer leaks threads and closes JMX connections (CASSANDRA-3309)
  * fix truncate allowing data to be replayed post-restart (CASSANDRA-3297)
+ * Move SimpleAuthority and SimpleAuthenticator to examples (CASSANDRA-2922)
 
 
 1.0.0-rc2
@@ -90,7 +93,7 @@ Fixes merged from 0.8 below:
  * don't bother persisting columns shadowed by a row tombstone (CASSANDRA-2589)
  * reset CF and SC deletion times after gc_grace (CASSANDRA-2317)
  * optimize away seek when compacting wide rows (CASSANDRA-2879)
- * single-pass streaming (CASSANDRA-2677, 3003)
+ * single-pass streaming (CASSANDRA-2677, 2906, 2916, 3003)
  * use reference counting for deleting sstables instead of relying on GC
    (CASSANDRA-2521, 3179)
  * store hints as serialized mutations instead of pointers to data row
@@ -103,7 +106,7 @@ Fixes merged from 0.8 below:
    (CASSANDRA-2953)
  * add paging to get_count (CASSANDRA-2894)
  * fix "short reads" in [multi]get (CASSANDRA-2643, 3157, 3192)
- * add optional compression for sstables (CASSANDRA-47, 3001, 3128)
+ * add optional compression for sstables (CASSANDRA-47, 2994, 3001, 3128)
  * add scheduler JMX metrics (CASSANDRA-2962)
  * add block level checksum for compressed data (CASSANDRA-1717)
  * make column family backed column map pluggable and introduce unsynchronized
@@ -155,6 +158,12 @@ Fixes merged from 0.8 below:
  * Reduce copies done for intra-host messages (CASSANDRA-1788, 3144)
  * support of compaction strategy option for stress.java (CASSANDRA-3204)
  * make memtable throughput and column count thresholds no-ops (CASSANDRA-2449)
+ * Return schema information along with the resultSet in CQL (CASSANDRA-2734)
+ * Add new DecimalType (CASSANDRA-2883)
+ * Fix assertion error in RowRepairResolver (CASSANDRA-3156)
+ * Reduce unnecessary high buffer sizes (CASSANDRA-3171)
+ * Pluggable compaction strategy (CASSANDRA-1610)
+ * Add new broadcast_address config option (CASSANDRA-2491)
 
 
 0.8.6
