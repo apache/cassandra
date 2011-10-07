@@ -129,6 +129,7 @@ public class LeveledManifest
 
     public synchronized void add(SSTableReader reader)
     {
+        logDistribution();
         logger.debug("Adding {} to L0", reader);
         add(reader, 0);
         serialize();
@@ -150,6 +151,7 @@ public class LeveledManifest
 
     public synchronized void promote(Iterable<SSTableReader> removed, Iterable<SSTableReader> added)
     {
+        logDistribution();
         if (logger.isDebugEnabled())
             logger.debug((Iterables.isEmpty(added) ? "Removing [" : "Replacing [") + toString(removed) + "]");
 
@@ -206,8 +208,6 @@ public class LeveledManifest
 
     public synchronized Collection<SSTableReader> getCompactionCandidates()
     {
-        logDistribution();
-
         // LevelDB gives each level a score of how much data it contains vs its ideal amount, and
         // compacts the level with the highest score. But this falls apart spectacularly once you
         // get behind.  Consider this set of levels:
@@ -257,7 +257,7 @@ public class LeveledManifest
         return generations.length > i ? generations[i].size() : 0;
     }
 
-    public void logDistribution()
+    private void logDistribution()
     {
         for (int i = 0; i < generations.length; i++)
         {

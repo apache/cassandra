@@ -39,7 +39,7 @@ import org.apache.cassandra.utils.CloseableIterator;
 
 public class CompactionTask extends AbstractCompactionTask
 {
-    private static final Logger logger = LoggerFactory.getLogger(CompactionTask.class);
+    protected static final Logger logger = LoggerFactory.getLogger(CompactionTask.class);
     protected String compactionFileLocation;
     protected final int gcBefore;
     protected boolean isUserDefined;
@@ -70,20 +70,13 @@ public class CompactionTask extends AbstractCompactionTask
         assert sstables != null;
 
         Set<SSTableReader> toCompact = new HashSet<SSTableReader>(sstables);
-        if (!isUserDefined)
+        if (!isCompactionInteresting(toCompact))
+            return 0;
+
+        if (compactionFileLocation == null)
+            compactionFileLocation = cfs.table.getDataFileLocation(cfs.getExpectedCompactedFileSize(toCompact));
+        if (partialCompactionsAcceptable())
         {
-            if (!allowSingletonCompaction() && toCompact.size() < 2)
-            {
-                String msg = "Nothing to compact in " + cfs.getColumnFamilyName();
-                if (cfs.getCompactionStrategy() instanceof SizeTieredCompactionStrategy)
-                    msg += ".  Use forceUserDefinedCompaction if you wish to force compaction of single sstables (e.g. for tombstone collection)";
-                logger.info(msg);
-                return 0;
-            }
-
-            if (compactionFileLocation == null)
-                compactionFileLocation = cfs.table.getDataFileLocation(cfs.getExpectedCompactedFileSize(toCompact));
-
             // If the compaction file path is null that means we have no space left for this compaction.
             // Try again w/o the largest one.
             if (compactionFileLocation == null)
@@ -219,10 +212,15 @@ public class CompactionTask extends AbstractCompactionTask
         builder.append("]");
 
         double mbps = dTime > 0 ? (double)endsize/(1024*1024)/((double)dTime/1000) : 0;
-        logger.info(String.format("Compacted to %s.  %,d to %,d (~%d%% of original) bytes for %,d keys at %fMBPS.  Time: %,dms.",
+        logger.info(String.format("Compacted to %s.  %,d to %,d (~%d%% of original) bytes for %,d keys at %fMB/s.  Time: %,dms.",
                                   builder.toString(), startsize, endsize, (int) (ratio * 100), totalkeysWritten, mbps, dTime));
         logger.debug(String.format("CF Total Bytes Compacted: %,d", CompactionTask.addToTotalBytesCompacted(endsize)));
         return toCompact.size();
+    }
+
+    protected boolean partialCompactionsAcceptable()
+    {
+        return !isUserDefined;
     }
 
     //extensibility point for other strategies that may want to limit the upper bounds of the sstable segment size
@@ -232,11 +230,15 @@ public class CompactionTask extends AbstractCompactionTask
     }
 
     /**
-     * extend this if the overridden compaction strategy requires single files to be compacted to function properly
-     * @return boolean
+     * @return true if the proposed compaction is worth proceeding with.  We allow leveled compaction to
+     * override this to allow "promoting" sstables from one level to another w/o rewriting them, if there is no overlapping.
      */
-    protected boolean allowSingletonCompaction()
+    protected boolean isCompactionInteresting(Set<SSTableReader> toCompact)
     {
+        if (isUserDefined || toCompact.size() >= 2)
+            return true;
+        logger.info(String.format("Nothing to compact in %s.  Use forceUserDefinedCompaction if you wish to force compaction of single sstables (e.g. for tombstone collection)",
+                                   cfs.getColumnFamilyName()));
         return false;
     }
 

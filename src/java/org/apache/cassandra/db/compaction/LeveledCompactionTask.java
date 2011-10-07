@@ -21,11 +21,19 @@ package org.apache.cassandra.db.compaction;
  */
 
 
+import java.io.File;
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 
+import com.google.common.collect.Iterables;
+
+import org.apache.commons.lang.StringUtils;
+
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Table;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.sstable.SSTableWriter;
 
@@ -61,8 +69,14 @@ public class LeveledCompactionTask extends CompactionTask
     }
 
     @Override
-    protected boolean allowSingletonCompaction()
+    protected boolean isCompactionInteresting(Set<SSTableReader> toCompact)
     {
         return true;
+    }
+
+    @Override
+    protected boolean partialCompactionsAcceptable()
+    {
+        return false;
     }
 }
