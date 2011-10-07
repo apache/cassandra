@@ -42,6 +42,7 @@
     <property name="build.lib" value="${basedir}/lib"/>
     <property name="build.dir" value="${basedir}/build"/>
     <property name="build.dir.lib" value="${basedir}/build/lib"/>
+    <property name="build.dir.daemon" value="${basedir}/bin/daemon"/>
     <property name="build.test.dir" value="${build.dir}/test"/>
     <property name="build.classes" value="${build.dir}/classes"/>
     <property name="build.classes.main" value="${build.classes}/main" />
@@ -917,6 +918,8 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
         <!-- Shell includes in bin/ (default mode) -->
         <tarfileset dir="${dist.dir}" prefix="${final.name}">
           <include name="bin/*.in.sh" />
+          <include name="${build.dir.daemon}/**" />
+
         </tarfileset>
         <!-- Executable scripts in bin/ -->
         <tarfileset dir="${dist.dir}" prefix="${final.name}" mode="755">
@@ -948,6 +951,7 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
         <tarfileset dir="${basedir}" prefix="${final.name}-src">
           <include name="bin/*.in.sh" />
           <include name="bin/*.bat" />
+	  <include name="${build.dir.daemon}/**" />
         </tarfileset>
         <!-- Everything else (assumed to be scripts), is executable -->
         <tarfileset dir="${basedir}" prefix="${final.name}-src" mode="755">

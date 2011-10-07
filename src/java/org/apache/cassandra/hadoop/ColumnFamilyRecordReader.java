@@ -31,7 +31,7 @@ import java.util.*;
 
 import com.google.common.collect.AbstractIterator;
 
-import org.apache.cassandra.auth.SimpleAuthenticator;
+import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -120,8 +120,8 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
             if (ConfigHelper.getInputKeyspaceUserName(conf) != null)
             {
                 Map<String, String> creds = new HashMap<String, String>();
-                creds.put(SimpleAuthenticator.USERNAME_KEY, ConfigHelper.getInputKeyspaceUserName(conf));
-                creds.put(SimpleAuthenticator.PASSWORD_KEY, ConfigHelper.getInputKeyspacePassword(conf));
+                creds.put(IAuthenticator.USERNAME_KEY, ConfigHelper.getInputKeyspaceUserName(conf));
+                creds.put(IAuthenticator.PASSWORD_KEY, ConfigHelper.getInputKeyspacePassword(conf));
                 AuthenticationRequest authRequest = new AuthenticationRequest(creds);
                 client.login(authRequest);
             }

@@ -27,7 +27,7 @@ import java.util.*;
 
 import jline.ConsoleReader;
 import jline.History;
-import org.apache.cassandra.auth.SimpleAuthenticator;
+import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.thrift.*;
 import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TBinaryProtocol;
@@ -95,8 +95,8 @@ public class CliMain
         {
             // Authenticate
             Map<String, String> credentials = new HashMap<String, String>();
-            credentials.put(SimpleAuthenticator.USERNAME_KEY, sessionState.username);
-            credentials.put(SimpleAuthenticator.PASSWORD_KEY, sessionState.password);
+            credentials.put(IAuthenticator.USERNAME_KEY, sessionState.username);
+            credentials.put(IAuthenticator.PASSWORD_KEY, sessionState.password);
             AuthenticationRequest authRequest = new AuthenticationRequest(credentials);
             try
             {

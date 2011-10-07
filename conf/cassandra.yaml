@@ -193,35 +193,35 @@ rpc_port: 9160
 # enable or disable keepalive on rpc connections
 rpc_keepalive: true
 
-# Cassandra provides you with a variety of options for RPC Server
-# sync  -> Creates one thread per connection but with a configurable number of
-#           threads.  This can be expensive in memory used for thread stack for
-#           a large enough number of clients.  (Hence, connection pooling is
-#           very, very strongly recommended.)
+# Cassandra provides three options for the RPC Server:
+#
+# sync  -> One connection per thread in the rpc pool (see below).
+#          For a very large number of clients, memory will be your limiting
+#          factor; on a 64 bit JVM, 128KB is the minimum stack size per thread.
+#          Connection pooling is very, very strongly recommended.
 #
 # async -> Nonblocking server implementation with one thread to serve 
-#           rpc connections.  This is not recommended for high throughput use
-#           cases.
+#          rpc connections.  This is not recommended for high throughput use
+#          cases. Async has been tested to be about 50% slower than sync
+#          or hsha and is deprecated: it will be removed in the next major release.
 #
-# hsha  -> half sync and half async implementation with configurable number
-#           of worker threads (For managing connections).  IO Management is
-#           done by a set of threads currently equal to the number of
-#           processors in the system. The number of threads in the threadpool
-#           is configured via rpc_min_threads and rpc_max_threads.  (Connection
-#           pooling is strongly recommended in this case too.) 
-
+# hsha  -> Stands for "half synchronous, half asynchronous." The rpc thread pool 
+#          (see below) is used to manage requests, but the threads are multiplexed
+#          across the different clients.
+#
+# The default is sync because on Windows hsha is about 30% slower.  On Linux,
+# sync/hsha performance is about the same, with hsha of course using less memory.
 rpc_server_type: sync
 
 # Uncomment rpc_min|max|thread to set request pool size.
 # You would primarily set max for the sync server to safeguard against
 # misbehaved clients; if you do hit the max, Cassandra will block until one
-# disconnects before accepting more.  The defaults are min of 16 and max
+# disconnects before accepting more.  The defaults for sync are min of 16 and max
 # unlimited.
 # 
-# For the Hsha server, you would set the max so that a fair amount of resources
-# are provided to the other working threads on the server.
+# For the Hsha server, the min and max both default to the number of CPU cores.
 #
-# This configuration is not used for the async server.
+# This configuration is ignored by the async server.
 #
 # rpc_min_threads: 16
 # rpc_max_threads: 2048

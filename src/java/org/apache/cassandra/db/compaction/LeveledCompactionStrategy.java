@@ -43,7 +43,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
 {
     private static final Logger logger = LoggerFactory.getLogger(LeveledCompactionStrategy.class);
 
-    private LeveledManifest manifest;
+    private final LeveledManifest manifest;
     private final String SSTABLE_SIZE_OPTION = "sstable_size_in_mb";
     private final int maxSSTableSizeInMB;
     private final AtomicReference<LeveledCompactionTask> task = new AtomicReference<LeveledCompactionTask>();
@@ -144,13 +144,11 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
         {
             SSTableAddedNotification flushedNotification = (SSTableAddedNotification) notification;
             manifest.add(flushedNotification.added);
-            manifest.logDistribution();
         }
         else if (notification instanceof SSTableListChangedNotification)
         {
             SSTableListChangedNotification listChangedNotification = (SSTableListChangedNotification) notification;
             manifest.promote(listChangedNotification.removed, listChangedNotification.added);
-            manifest.logDistribution();
         }
     }
 
