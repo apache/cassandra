@@ -14,8 +14,11 @@
 @REM  See the License for the specific language governing permissions and
 @REM  limitations under the License.
 
+@echo off
+
 set ARG=%1
 set INSTALL="INSTALL"
+set UNINSTALL="UNINSTALL"
 
 pushd %~dp0..
 if NOT DEFINED CASSANDRA_HOME set CASSANDRA_HOME=%CD%
@@ -60,7 +63,8 @@ goto :eof
 REM Include the build\classes\main directory so it works in development
 set CASSANDRA_CLASSPATH=%CLASSPATH%;"%CASSANDRA_HOME%\build\classes\main";"%CASSANDRA_HOME%\build\classes\thrift"
 set CASSANDRA_PARAMS=-Dcassandra -Dcassandra-foreground=yes
-if /i "%ARG%" == "INSTALL" goto installService
+if /i "%ARG%" == "INSTALL" goto doInstallOperation
+if /i "%ARG%" == "UNINSTALL" goto doInstallOperation
 goto runDaemon
 
 
@@ -69,7 +73,7 @@ echo Starting Cassandra Server
 "%JAVA_HOME%\bin\java" %JAVA_OPTS% %CASSANDRA_PARAMS% -cp %CASSANDRA_CLASSPATH% "%CASSANDRA_MAIN%"
 goto finally
 
-:installService
+:doInstallOperation
 set SERVICE_JVM="cassandra"
 rem location of Prunsrv
 set PATH_PRUNSRV=%CASSANDRA_HOME%\bin\daemon\
@@ -81,15 +85,17 @@ set JAVA_OPTS_DELM=%JAVA_OPTS: -=;-%
 rem Allow prunsrv to be overridden
 if "%PRUNSRV%" == "" set PRUNSRV=%PATH_PRUNSRV%prunsrv
 
-rem Install the service
 echo trying to delete service if it has been created already
-%PRUNSRV% //DS//%SERVICE_JVM%
-echo Installing %SERVICE_JVM%
-%PRUNSRV% //IS//%SERVICE_JVM%
+"%PRUNSRV%" //DS//%SERVICE_JVM%
+rem quit if we're just going to uninstall
+if /i "%ARG%" == "UNINSTALL" goto finally
 
+echo.
+echo Installing %SERVICE_JVM%. If you get registry warnings, re-run as an Administrator
+"%PRUNSRV%" //IS//%SERVICE_JVM%
 echo Setting the parameters for %SERVICE_JVM%
 rem set PR_CLASSPATH=%CASSANDRA_CLASSPATH%
-%PRUNSRV% //US//%SERVICE_JVM% ^
+"%PRUNSRV%" //US//%SERVICE_JVM% ^
  --Jvm=auto --StdOutput auto --StdError auto ^
  --Classpath=%CASSANDRA_CLASSPATH% ^
  --StartMode=jvm --StartClass=%CASSANDRA_MAIN% --StartMethod=main ^

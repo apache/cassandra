@@ -1,0 +1,116 @@
+$Id: RELEASE-NOTES.txt 1153024 2011-08-02 04:27:12Z mturk $
+
+            Commons Daemon Package
+               Version 1.0.7
+                Release Notes
+
+
+INTRODUCTION:
+
+Commons Daemon is a set of utilities and Java support classes for running
+Java applications as server processes.
+Commonly known as 'daemon' processes in Unix terminology (hence the name),
+on Windows they are called 'services'.
+
+This document contains the release notes for this version of the Commons
+Daemon package, and highlights changes since the previous version.  The
+current release adds new features and bug fixes, and is being done now to
+follow the release early/release often mentality.
+
+
+Compatibility with 1.0.3
+------------------------
+Binary compatible - Yes
+
+Source compatible - Yes
+
+Semantic compatible - Yes
+
+Commons DAEMON 1.0.3 requires a minimum of JDK 1.3
+
+
+NEW FEATURES:
+
+* DAEMON-209: Add --LibraryPath to procrun for setting the
+              LoadLibrary search paths (1.0.6)
+* DAEMON-208: Add -server and -client -jvm <name> synonyms (1.0.6)
+* DAEMON-205: Add support for building on ARM processors (1.0.6)
+* DAEMON-204: Add DaemonSignal interface that allows catching SIGUSR2
+              signals and creating custom callbacks (1.0.6)
+* DAEMON-202: Allow JSVC_OPTS environment variable to be used in
+              the example Tomcat scripts (1.0.6)
+* DAEMON-180: Add DaemonWrapper to allow running standard applications
+              as daemons. (1.0.4)
+* DAEMON-179: Allow procrun to use java/lang/System as --ShutdownClass. (1.0.4)
+* DAEMON-178: Allow jsvc umask to be configured at build time
+* DAEMON-177: Allow fail during init with nicer message. (1.0.4)
+* DAEMON-176: Create config.nice during configure step. (1.0.4)
+* DAEMON-173: Allow --JavaHome=jdk and --JavaHome=jre options that
+              will guess default JavaHome from the registry. (1.0.4)
+* DAEMON-160: Remove obsolete code; rename native/nt as native/windows (1.0.4)
+* DAEMON-144: Drop sample dependency on Commons Collections ExtendedProperties (1.0.4)
+* DAEMON-95:  Support log rotation using SIGUSR1 (1.0.4)
+* DAEMON-80:  Syslog support for jsvc (1.0.4)
+
+* DAEMON-138: Add --PidFile option to allow storing running process id. (1.0.3)
+* DAEMON-137: Add --LogJniMessages allowing to configure JNI verbose message
+              logging. By default those messages were always logged. (1.0.3)
+* DAEMON-140: Add missing Java6 parameters -ea, da, -esa, -dsa, -showversion
+              and their long name synonyms. (1.0.3)
+* DAEMON-142: Add option to display procrun version. (1.0.3)
+* DAEMON-166: Add classpath .jar expansion. If the classpath
+              element ends with asterisk it will evaluate to all .jar files
+              found in the path. (1.0.3)
+
+* Add -wait and -stop parameters. (1.0.1).
+  The -wait parameter is experimental: that a is loop testing for a
+  file in /tmp and waiting n/10 seconds.
+
+* Allow to run as normal user for testing. (1.0.1).
+
+* Initial import to Commons, including the daemon Java API, and jsvc
+  for Unix and Windows NT/2K/XP, which allows running a Java program
+  as a native operating system daemon
+
+* Switch to JIRA bug tracking system.
+
+* Add sample ProcrunService Java application for use with Procrun Jvm/Java modes (1.0.3)
+
+BUG FIXES:
+
+1.0.7: DAEMON-211
+
+1.0.6: DAEMON-186, DAEMON-193, DAEMON-194, DAEMON-206, DAEMON-185, DAEMON-200
+       DAEMON-192
+
+1.0.5: DAEMON-158, DAEMON-184, DAEMON-187, DAEMON-188, DAEMON-190
+
+1.0.4: DAEMON-95, DAEMON-171, DAEMON-100, DAEMON-164, DAEMON-165, DAEMON-175,
+       DAEMON-177, DAEMON-150, DAEMON-163, DAEMON-182, DAEMON-181
+
+1.0.3: DAEMON-108, DAEMON-128, DAEMON-139, DAEMON-143, DAEMON-148,
+       DAEMON-135, DAEMON-155, DAEMON-159, DAEMON-161, DAEMON-145, DAEMON-146,
+       DAEMON-167, DAEMON-168, DAEMON-154, DAEMON-149
+
+1.0.2: DAEMON-16, DAEMON-31, DAEMON-40, DAEMON-45, DAEMON-49, DAEMON-60,
+       DAEMON-84, DAEMON-90, DAEMON-91, DAEMON-92, DAEMON-93, DAEMON-94,
+       DAEMON-96, DAEMON-97, DAEMON-98, DAEMON-102, DAEMON-105, DAEMON-106,
+       DAEMON-110, DAEMON-112, DAEMON-113, DAEMON-114, DAEMON-115, DAEMON-116,
+       DAEMON-117, DAEMON-118, DAEMON-119, DAEMON-120, DAEMON-121, DAEMON-123,
+       DAEMON-124, DAEMON-125, DAEMON-126, DAEMON-129, DAEMON-130, DAEMON-132,
+       DAEMON-133
+
+1.0.1: 304310,  30177, 27523, 29465, 31614, 33580, 31613, 34851.
+
+Feedback
+--------
+Open source works best when you give feedback:
+http://commons.apache.org/daemon/
+
+Please direct all bug reports to JIRA
+https://issues.apache.org/jira/browse/DAEMON
+
+Or subscribe to the commons-user mailing list (prefix emails by [daemon])
+http://commons.apache.org/mail-lists.html
+
+The Commons-DAEMON Team
