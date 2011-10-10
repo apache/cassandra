@@ -23,6 +23,7 @@ package org.apache.cassandra.cql.jdbc;
 
 import org.apache.cassandra.cql.EmbeddedServiceBase;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Hex;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -30,9 +31,7 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
 
 
 public class PreparedStatementTest extends EmbeddedServiceBase
@@ -73,8 +72,8 @@ public class PreparedStatementTest extends EmbeddedServiceBase
             stmt.setBytes(3, key);
             ResultSet rs = stmt.executeQuery();
             assert rs.next();
-            assert Arrays.equals(rs.getBytes(FBUtilities.bytesToHex(FBUtilities.toByteArray(i))), FBUtilities.toByteArray((i+1)*10));
-            assert Arrays.equals(rs.getBytes(FBUtilities.bytesToHex(FBUtilities.toByteArray(i+100))), FBUtilities.toByteArray((i+1)*10+1));
+            assert Arrays.equals(rs.getBytes(Hex.bytesToHex(FBUtilities.toByteArray(i))), FBUtilities.toByteArray((i+1)*10));
+            assert Arrays.equals(rs.getBytes(Hex.bytesToHex(FBUtilities.toByteArray(i+100))), FBUtilities.toByteArray((i+1)*10+1));
             assert Arrays.equals(rs.getBytes(1), FBUtilities.toByteArray((i+1)*10));
             assert Arrays.equals(rs.getBytes(2), FBUtilities.toByteArray((i+1)*10+1));
             assert !rs.next();

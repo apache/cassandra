@@ -23,6 +23,7 @@ import java.util.Arrays;
 
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Hex;
 
 public class BytesToken extends Token<byte[]>
 {
@@ -41,7 +42,7 @@ public class BytesToken extends Token<byte[]>
     @Override
     public String toString()
     {
-        return "Token(bytes[" + FBUtilities.bytesToHex(token) + "])";
+        return "Token(bytes[" + Hex.bytesToHex(token) + "])";
     }
 
     public int compareTo(Token<byte[]> o)

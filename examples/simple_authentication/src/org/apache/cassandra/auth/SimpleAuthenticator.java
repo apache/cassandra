@@ -33,6 +33,7 @@ import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.thrift.AuthenticationException;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Hex;
 
 public class SimpleAuthenticator implements IAuthenticator
 {
@@ -108,7 +109,7 @@ public class SimpleAuthenticator implements IAuthenticator
                     authenticated = password.equals(props.getProperty(username));
                     break;
                 case MD5:
-                    authenticated = MessageDigest.isEqual(FBUtilities.threadLocalMD5Digest().digest(password.getBytes()), FBUtilities.hexToBytes(props.getProperty(username)));
+                    authenticated = MessageDigest.isEqual(FBUtilities.threadLocalMD5Digest().digest(password.getBytes()), Hex.hexToBytes(props.getProperty(username)));
                     break;
                 default:
                     throw new RuntimeException("Unknown PasswordMode " + mode);

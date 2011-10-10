@@ -40,7 +40,7 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Hex;
 
 import static junit.framework.Assert.assertEquals;
 
@@ -50,11 +50,11 @@ import static junit.framework.Assert.assertEquals;
 public class JdbcDriverTest extends EmbeddedServiceBase
 {
     private static java.sql.Connection con = null;
-    private static final String first = FBUtilities.bytesToHex("first".getBytes());
-    private static final String firstrec = FBUtilities.bytesToHex("firstrec".getBytes());
-    private static final String last = FBUtilities.bytesToHex("last".getBytes());
-    private static final String lastrec = FBUtilities.bytesToHex("lastrec".getBytes());
-    private static final String jsmith = FBUtilities.bytesToHex("jsmith".getBytes());
+    private static final String first = Hex.bytesToHex("first".getBytes());
+    private static final String firstrec = Hex.bytesToHex("firstrec".getBytes());
+    private static final String last = Hex.bytesToHex("last".getBytes());
+    private static final String lastrec = Hex.bytesToHex("lastrec".getBytes());
+    private static final String jsmith = Hex.bytesToHex("jsmith".getBytes());
 
     /** SetUp */
     @BeforeClass
@@ -130,7 +130,7 @@ public class JdbcDriverTest extends EmbeddedServiceBase
     @Test
     public void testNonDefaultColumnValidators() throws SQLException
     {
-        String key = FBUtilities.bytesToHex("Integer".getBytes());
+        String key = Hex.bytesToHex("Integer".getBytes());
         Statement stmt = con.createStatement();
         stmt.executeUpdate("update JdbcInteger set 1=36893488147419103232, 42='fortytwofortytwo' where key='" + key + "'");
         ResultSet rs = stmt.executeQuery("select 1, 2, 42 from JdbcInteger where key='" + key + "'");
@@ -146,7 +146,7 @@ public class JdbcDriverTest extends EmbeddedServiceBase
         
         rs = stmt.executeQuery("select key, 1, 2, 42 from JdbcInteger where key='" + key + "'");
         assert rs.next();
-        assert Arrays.equals(rs.getBytes("key"), FBUtilities.hexToBytes(key));
+        assert Arrays.equals(rs.getBytes("key"), Hex.hexToBytes(key));
         assert rs.getObject("1").equals(new BigInteger("36893488147419103232"));
         assert rs.getString("42").equals("fortytwofortytwo") : rs.getString("42");
 
@@ -166,7 +166,7 @@ public class JdbcDriverTest extends EmbeddedServiceBase
     @Test
     public void testLongMetadata() throws SQLException
     {
-        String key = FBUtilities.bytesToHex("Long".getBytes());
+        String key = Hex.bytesToHex("Long".getBytes());
         Statement stmt = con.createStatement();
         stmt.executeUpdate("UPDATE JdbcLong SET 1=111, 2=222 WHERE KEY = '" + key + "'");
         ResultSet rs = stmt.executeQuery("SELECT 1, 2 from JdbcLong WHERE KEY = '" + key + "'");
@@ -186,8 +186,8 @@ public class JdbcDriverTest extends EmbeddedServiceBase
     @Test
     public void testStringMetadata() throws SQLException
     {
-        String aKey = FBUtilities.bytesToHex("ascii".getBytes());
-        String uKey = FBUtilities.bytesToHex("utf8".getBytes());
+        String aKey = Hex.bytesToHex("ascii".getBytes());
+        String uKey = Hex.bytesToHex("utf8".getBytes());
         Statement stmt = con.createStatement();
         stmt.executeUpdate("UPDATE JdbcAscii SET a='aa', b='bb' WHERE KEY = '" + aKey + "'");
         stmt.executeUpdate("UPDATE JdbcUtf8 SET a='aa', b='bb' WHERE KEY = '" + uKey + "'");
@@ -232,7 +232,7 @@ public class JdbcDriverTest extends EmbeddedServiceBase
     @Test
     public void testBytesMetadata() throws SQLException 
     {
-        String key = FBUtilities.bytesToHex("bytes".getBytes());
+        String key = Hex.bytesToHex("bytes".getBytes());
         Statement stmt = con.createStatement();
         byte[] a = "a_".getBytes();
         byte[] b = "b_".getBytes();
@@ -240,23 +240,23 @@ public class JdbcDriverTest extends EmbeddedServiceBase
         byte[] bb = "_bb_".getBytes();
         stmt.executeUpdate(String.format(
                 "UPDATE JdbcBytes set '%s'='%s', '%s'='%s' WHERE KEY = '" + key + "'",
-                FBUtilities.bytesToHex(a),
-                FBUtilities.bytesToHex(aa),
-                FBUtilities.bytesToHex(b),
-                FBUtilities.bytesToHex(bb)));
+                Hex.bytesToHex(a),
+                Hex.bytesToHex(aa),
+                Hex.bytesToHex(b),
+                Hex.bytesToHex(bb)));
         ResultSet rs = stmt.executeQuery(String.format(
                 "SELECT '%s', '%s' from JdbcBytes WHERE KEY = '" + key + "'",
-                FBUtilities.bytesToHex(a),
-                FBUtilities.bytesToHex(b)));
+                Hex.bytesToHex(a),
+                Hex.bytesToHex(b)));
         assert rs.next();
         assert Arrays.equals(aa, rs.getBytes(1));
         assert Arrays.equals(bb, rs.getBytes(2));
-        assert Arrays.equals(aa, rs.getBytes(FBUtilities.bytesToHex(a)));
-        assert Arrays.equals(bb, rs.getBytes(FBUtilities.bytesToHex(b)));
+        assert Arrays.equals(aa, rs.getBytes(Hex.bytesToHex(a)));
+        assert Arrays.equals(bb, rs.getBytes(Hex.bytesToHex(b)));
         ResultSetMetaData md = rs.getMetaData();
         assert md.getColumnCount() == 2;
-        expectedMetaData(md, 1, ByteBuffer.class.getName(), "JdbcBytes", "Keyspace1", FBUtilities.bytesToHex(a), Types.BINARY, JdbcBytes.class.getSimpleName(), false, false);
-        expectedMetaData(md, 2, ByteBuffer.class.getName(), "JdbcBytes", "Keyspace1", FBUtilities.bytesToHex(b), Types.BINARY, JdbcBytes.class.getSimpleName(), false, false);
+        expectedMetaData(md, 1, ByteBuffer.class.getName(), "JdbcBytes", "Keyspace1", Hex.bytesToHex(a), Types.BINARY, JdbcBytes.class.getSimpleName(), false, false);
+        expectedMetaData(md, 2, ByteBuffer.class.getName(), "JdbcBytes", "Keyspace1", Hex.bytesToHex(b), Types.BINARY, JdbcBytes.class.getSimpleName(), false, false);
         
         for (int i = 0; i < md.getColumnCount(); i++)
             expectedMetaData(md, i + 1, ByteBuffer.class.getName(), Types.BINARY, JdbcBytes.class.getSimpleName(), false, false);
@@ -301,7 +301,7 @@ public class JdbcDriverTest extends EmbeddedServiceBase
         selectQ = "SELECT 'first', last FROM JdbcUtf8 WHERE KEY='" + jsmith + "'";
         checkResultSet(stmt.executeQuery(selectQ), "String", 1, keys, "first", "last");
 
-        String badKey = FBUtilities.bytesToHex(String.format("jsmith-%s", System.currentTimeMillis()).getBytes());
+        String badKey = Hex.bytesToHex(String.format("jsmith-%s", System.currentTimeMillis()).getBytes());
         selectQ = "SELECT 1, 2 FROM JdbcInteger WHERE KEY IN ('" + badKey + "', '" + jsmith + "')";
         checkResultSet(stmt.executeQuery(selectQ), "Int", 1, keys, "1", "2");
     }
@@ -346,7 +346,7 @@ public class JdbcDriverTest extends EmbeddedServiceBase
         selectQ = "SELECT 'first', last FROM JdbcUtf8 WHERE KEY='" + jsmith + "'";
         checkResultSet(executePreparedStatementWithResults(con, selectQ), "String", 1, keys, "first", "last");
 
-        String badKey = FBUtilities.bytesToHex(String.format("jsmith-%s", System.currentTimeMillis()).getBytes());
+        String badKey = Hex.bytesToHex(String.format("jsmith-%s", System.currentTimeMillis()).getBytes());
         selectQ = "SELECT 1, 2 FROM JdbcInteger WHERE KEY IN ('" + badKey + "', '" + jsmith + "')";
         checkResultSet(executePreparedStatementWithResults(con, selectQ), "Int", 1, keys, "1", "2");
     }
@@ -359,12 +359,12 @@ public class JdbcDriverTest extends EmbeddedServiceBase
         String[] statements = 
         {
                 String.format("DELETE '%s', '%s' FROM Standard1 WHERE KEY='%s'",
-                              FBUtilities.bytesToHex("firstN".getBytes()),
-                              FBUtilities.bytesToHex("lastN".getBytes()),
+                              Hex.bytesToHex("firstN".getBytes()),
+                              Hex.bytesToHex("lastN".getBytes()),
                               jsmith),
                 String.format("SELECT '%s', '%s' FROM Standard1 WHERE KEY='%s'",
-                              FBUtilities.bytesToHex("firstN".getBytes()),
-                              FBUtilities.bytesToHex("lastN".getBytes()),
+                              Hex.bytesToHex("firstN".getBytes()),
+                              Hex.bytesToHex("lastN".getBytes()),
                               jsmith),
                 String.format("SELECT '%s' FROM Standard1 WHERE KEY='%s'",
                               first,

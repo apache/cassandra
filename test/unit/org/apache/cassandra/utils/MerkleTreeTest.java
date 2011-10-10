@@ -30,7 +30,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.math.BigInteger;
-import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.Iterator;
@@ -89,8 +88,8 @@ public class MerkleTreeTest
 
     public static void assertHashEquals(String message, final byte[] left, final byte[] right)
     {
-        String lstring = left == null ? "null" : FBUtilities.bytesToHex(left);
-        String rstring = right == null ? "null" : FBUtilities.bytesToHex(right);
+        String lstring = left == null ? "null" : Hex.bytesToHex(left);
+        String rstring = right == null ? "null" : Hex.bytesToHex(right);
         assertEquals(message, lstring, rstring);
     }
 

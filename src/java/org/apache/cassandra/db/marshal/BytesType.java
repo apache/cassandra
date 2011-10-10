@@ -25,7 +25,7 @@ import java.nio.ByteBuffer;
 
 import org.apache.cassandra.cql.jdbc.JdbcBytes;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Hex;
 
 public class BytesType extends AbstractType<ByteBuffer>
 {
@@ -67,7 +67,7 @@ public class BytesType extends AbstractType<ByteBuffer>
     {
         try
         {
-            return ByteBuffer.wrap(FBUtilities.hexToBytes(source));
+            return ByteBuffer.wrap(Hex.hexToBytes(source));
         }
         catch (NumberFormatException e)
         {
