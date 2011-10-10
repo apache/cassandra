@@ -219,7 +219,8 @@ rpc_server_type: sync
 # disconnects before accepting more.  The defaults for sync are min of 16 and max
 # unlimited.
 # 
-# For the Hsha server, the min and max both default to the number of CPU cores.
+# For the Hsha server, the min and max both default to quadruple the number of
+# CPU cores.
 #
 # This configuration is ignored by the async server.
 #
