@@ -1,5 +1,6 @@
 0.8.8
  * fix truncate allowing data to be replayed post-restart (CASSANDRA-3297)
+ * make iwriter final in IndexWriter to avoid NPE (CASSANDRA-2863)
 
 
 0.8.7

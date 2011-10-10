@@ -302,19 +302,18 @@ public class SSTableWriter extends SSTable
         {
             if (cfs.isInvalid())
                 return null;
-            maybeOpenIndexer();
 
             File ifile = new File(desc.filenameFor(SSTable.COMPONENT_INDEX));
             File ffile = new File(desc.filenameFor(SSTable.COMPONENT_FILTER));
             assert !ifile.exists();
             assert !ffile.exists();
 
-            long estimatedRows = indexer.prepareIndexing();
+            maybeOpenIndexer();
 
             // build the index and filter
             long rows = indexer.index();
 
-            logger.debug("estimated row count was {} of real count", ((double)estimatedRows) / rows);
+            logger.debug("estimated row count was {} of real count", ((double)indexer.estimatedRows) / rows);
             return SSTableReader.open(rename(desc, SSTable.componentsFor(desc, false)));
         }
     }
@@ -324,8 +323,9 @@ public class SSTableWriter extends SSTable
         protected final Descriptor desc;
         public final BufferedRandomAccessFile dfile;
         private final OperationType type;
+        protected final IndexWriter iwriter;
+        public final long estimatedRows;
 
-        protected IndexWriter iwriter;
         protected ColumnFamilyStore cfs;
 
         RowIndexer(Descriptor desc, ColumnFamilyStore cfs, OperationType type) throws IOException
@@ -339,16 +339,11 @@ public class SSTableWriter extends SSTable
             this.dfile = dfile;
             this.type = type;
             this.cfs = cfs;
-        }
 
-        long prepareIndexing() throws IOException
-        {
-            long estimatedRows;
             try
             {
-                estimatedRows = SSTable.estimateRowsFromData(desc, dfile);
-                iwriter = new IndexWriter(desc, StorageService.getPartitioner(), estimatedRows);
-                return estimatedRows;
+                this.estimatedRows = SSTable.estimateRowsFromData(desc, dfile);
+                this.iwriter = new IndexWriter(desc, StorageService.getPartitioner(), estimatedRows);
             }
             catch(IOException e)
             {
