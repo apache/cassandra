@@ -100,7 +100,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
     {
         List<Pair<SSTableReader, Long>> tableLengthPairs = new ArrayList<Pair<SSTableReader, Long>>();
         for(SSTableReader table: collection)
-            tableLengthPairs.add(new Pair<SSTableReader, Long>(table, table.length()));
+            tableLengthPairs.add(new Pair<SSTableReader, Long>(table, table.onDiskLength()));
         return tableLengthPairs;
     }
 

@@ -472,7 +472,7 @@ public class CompactionManager implements CompactionManagerMBean
         boolean isCommutative = cfs.metadata.getDefaultValidator().isCommutative();
 
         // Calculate the expected compacted filesize
-        String compactionFileLocation = cfs.table.getDataFileLocation(sstable.length());
+        String compactionFileLocation = cfs.table.getDataFileLocation(sstable.onDiskLength());
         if (compactionFileLocation == null)
             throw new IOException("disk full");
         int expectedBloomFilterSize = Math.max(DatabaseDescriptor.getIndexInterval(),
@@ -765,8 +765,8 @@ public class CompactionManager implements CompactionManagerMBean
 
                 String format = "Cleaned up to %s.  %,d to %,d (~%d%% of original) bytes for %,d keys.  Time: %,dms.";
                 long dTime = System.currentTimeMillis() - startTime;
-                long startsize = sstable.length();
-                long endsize = newSstable.length();
+                long startsize = sstable.onDiskLength();
+                long endsize = newSstable.onDiskLength();
                 double ratio = (double)endsize / (double)startsize;
                 logger.info(String.format(format, writer.getFilename(), startsize, endsize, (int)(ratio*100), totalkeysWritten, dTime));
             }

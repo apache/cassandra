@@ -42,13 +42,23 @@ public abstract class SegmentedFile
     public final String path;
     public final long length;
 
+    // This differs from length for compressed files (but we still need length for
+    // SegmentIterator because offsets in the file are relative to the uncompressed size)
+    public final long onDiskLength;
+
     /**
      * Use getBuilder to get a Builder to construct a SegmentedFile.
      */
     SegmentedFile(String path, long length)
     {
+        this(path, length, length);
+    }
+
+    protected SegmentedFile(String path, long length, long onDiskLength)
+    {
         this.path = path;
         this.length = length;
+        this.onDiskLength = onDiskLength;
     }
 
     /**

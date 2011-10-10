@@ -555,7 +555,7 @@ public class SSTableReader extends SSTable
             long right = getPosition(new DecoratedKey(range.right, null), Operator.GT);
             if (right == -1 || Range.isWrapAround(range.left, range.right))
                 // right is past the end of the file, or it wraps
-                right = length();
+                right = uncompressedLength();
             if (left == right)
                 // empty range
                 continue;
@@ -669,11 +669,23 @@ public class SSTableReader extends SSTable
     }
 
     /**
-     * @return The length in bytes of the data file for this SSTable.
+     * @return The length in bytes of the data for this SSTable. For
+     * compressed files, this is not the same thing as the on disk size (see
+     * onDiskLength())
      */
-    public long length()
+    public long uncompressedLength()
     {
         return dfile.length;
+    }
+
+    /**
+     * @return The length in bytes of the on disk size for this SSTable. For
+     * compressed files, this is not the same thing as the data length (see
+     * length())
+     */
+    public long onDiskLength()
+    {
+        return dfile.onDiskLength;
     }
 
     public boolean acquireReference()

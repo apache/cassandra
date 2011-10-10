@@ -915,7 +915,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         long expectedFileSize = 0;
         for (SSTableReader sstable : sstables)
         {
-            long size = sstable.length();
+            long size = sstable.onDiskLength();
             expectedFileSize = expectedFileSize + size;
         }
         return expectedFileSize;
@@ -930,9 +930,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         SSTableReader maxFile = null;
         for (SSTableReader sstable : sstables)
         {
-            if (sstable.length() > maxSize)
+            if (sstable.onDiskLength() > maxSize)
             {
-                maxSize = sstable.length();
+                maxSize = sstable.onDiskLength();
                 maxFile = sstable;
             }
         }

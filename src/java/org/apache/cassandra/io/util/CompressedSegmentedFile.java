@@ -30,7 +30,7 @@ public class CompressedSegmentedFile extends SegmentedFile
 
     public CompressedSegmentedFile(String path, CompressionMetadata metadata)
     {
-        super(path, metadata.dataLength);
+        super(path, metadata.dataLength, metadata.compressedFileLength);
         this.metadata = metadata;
     }
 

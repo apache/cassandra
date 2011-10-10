@@ -257,7 +257,7 @@ public abstract class SSTable
         long sum = 0;
         for (SSTableReader sstable : sstables)
         {
-            sum += sstable.length();
+            sum += sstable.onDiskLength();
         }
         return sum;
     }
