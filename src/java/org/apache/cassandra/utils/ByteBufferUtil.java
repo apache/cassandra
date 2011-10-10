@@ -20,10 +20,8 @@ package org.apache.cassandra.utils;
 
 import java.io.DataInput;
 import java.io.DataOutput;
-import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.Charset;
@@ -483,15 +481,15 @@ public class ByteBufferUtil
         for (int i = 0; i < size; i++)
         {
             final int bint = bytes.get(i+offset);
-            c[i * 2] = FBUtilities.byteToChar[(bint & 0xf0) >> 4];
-            c[1 + i * 2] = FBUtilities.byteToChar[bint & 0x0f];
+            c[i * 2] = Hex.byteToChar[(bint & 0xf0) >> 4];
+            c[1 + i * 2] = Hex.byteToChar[bint & 0x0f];
         }
-        return FBUtilities.wrapCharArray(c);
+        return Hex.wrapCharArray(c);
     }
 
     public static ByteBuffer hexToBytes(String str)
     {
-        return ByteBuffer.wrap(FBUtilities.hexToBytes(str));
+        return ByteBuffer.wrap(Hex.hexToBytes(str));
     }
 
     /**

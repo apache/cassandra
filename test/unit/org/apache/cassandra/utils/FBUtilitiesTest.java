@@ -18,58 +18,18 @@
 
 package org.apache.cassandra.utils;
 
-import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
-import java.util.Arrays;
 
 import com.google.common.base.Charsets;
 import org.junit.Test;
 
 public class FBUtilitiesTest 
 {
-	@Test
-    public void testHexBytesConversion()
-    {
-        for (int i = Byte.MIN_VALUE; i <= Byte.MAX_VALUE; i++)
-        {
-            byte[] b = new byte[]{ (byte)i };
-            String s = FBUtilities.bytesToHex(b);
-            byte[] c = FBUtilities.hexToBytes(s);
-            assertArrayEquals(b, c);
-        }
-    }
-    
-    @Test
-    public void testHexToBytesStringConversion()
-    {
-        String[] values = new String[]
-        {
-            "0",
-            "10",
-            "100",
-            "101",
-            "f",
-            "ff"
-        };
-        byte[][] expected = new byte[][]
-        {
-            new byte[] { 0x00 },
-            new byte[] { 0x10 },
-            new byte[] { 0x01, 0x00 },
-            new byte[] { 0x01, 0x01 },
-            new byte[] { 0x0f },
-            new byte[] { (byte)0x000000ff }
-        };
-        
-        for (int i = 0; i < values.length; i++)
-            assert Arrays.equals(FBUtilities.hexToBytes(values[i]), expected[i]);
-    }
-
     @Test
     public void testCopyIntoBytes()
     {

@@ -26,6 +26,7 @@ import org.apache.cassandra.thrift.KeyRange;
 import org.apache.cassandra.thrift.SlicePredicate;
 import org.apache.cassandra.thrift.TBinaryProtocol;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Hex;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.thrift.TDeserializer;
 import org.apache.thrift.TException;
@@ -173,7 +174,7 @@ public class ConfigHelper
         TSerializer serializer = new TSerializer(new TBinaryProtocol.Factory());
         try
         {
-            return FBUtilities.bytesToHex(serializer.serialize(predicate));
+            return Hex.bytesToHex(serializer.serialize(predicate));
         }
         catch (TException e)
         {
@@ -188,7 +189,7 @@ public class ConfigHelper
         SlicePredicate predicate = new SlicePredicate();
         try
         {
-            deserializer.deserialize(predicate, FBUtilities.hexToBytes(st));
+            deserializer.deserialize(predicate, Hex.hexToBytes(st));
         }
         catch (TException e)
         {
@@ -220,7 +221,7 @@ public class ConfigHelper
         TSerializer serializer = new TSerializer(new TBinaryProtocol.Factory());
         try
         {
-            return FBUtilities.bytesToHex(serializer.serialize(keyRange));
+            return Hex.bytesToHex(serializer.serialize(keyRange));
         }
         catch (TException e)
         {
@@ -235,7 +236,7 @@ public class ConfigHelper
         KeyRange keyRange = new KeyRange();
         try
         {
-            deserializer.deserialize(keyRange, FBUtilities.hexToBytes(st));
+            deserializer.deserialize(keyRange, Hex.hexToBytes(st));
         }
         catch (TException e)
         {

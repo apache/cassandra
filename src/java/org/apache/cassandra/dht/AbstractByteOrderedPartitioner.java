@@ -29,6 +29,7 @@ import org.apache.commons.lang.ArrayUtils;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Hex;
 import org.apache.cassandra.utils.Pair;
 
 public abstract class AbstractByteOrderedPartitioner implements IPartitioner<BytesToken>
@@ -142,14 +143,14 @@ public abstract class AbstractByteOrderedPartitioner implements IPartitioner<Byt
 
         public String toString(Token<byte[]> bytesToken)
         {
-            return FBUtilities.bytesToHex(bytesToken.token);
+            return Hex.bytesToHex(bytesToken.token);
         }
 
         public void validate(String token) throws ConfigurationException
         {
             try
             {
-                FBUtilities.hexToBytes(token);
+                Hex.hexToBytes(token);
             }
             catch (NumberFormatException e)
             {
@@ -159,7 +160,7 @@ public abstract class AbstractByteOrderedPartitioner implements IPartitioner<Byt
 
         public Token<byte[]> fromString(String string)
         {
-            return new BytesToken(FBUtilities.hexToBytes(string));
+            return new BytesToken(Hex.hexToBytes(string));
         }
     };
 

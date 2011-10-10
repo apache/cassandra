@@ -25,6 +25,7 @@ import com.google.common.base.Charsets;
 
 import org.apache.cassandra.cql.jdbc.*;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Hex;
 import org.apache.cassandra.utils.UUIDGen;
 import org.junit.Test;
 
@@ -85,12 +86,12 @@ public class RoundTripTest
     public void testBytes()
     {
         byte[] v = new byte[] {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
-        assert JdbcBytes.instance.toString(BytesType.instance.fromString(FBUtilities.bytesToHex(v)))
-                .equals(FBUtilities.bytesToHex(v));
+        assert JdbcBytes.instance.toString(BytesType.instance.fromString(Hex.bytesToHex(v)))
+                .equals(Hex.bytesToHex(v));
         assert BytesType.instance.fromString(JdbcBytes.instance.toString(ByteBuffer.wrap(v)))
                 .equals(ByteBuffer.wrap(v));
         assert BytesType.instance.compose(ByteBuffer.wrap(v)).equals(ByteBuffer.wrap(v));
-        assert JdbcBytes.instance.toString(ByteBuffer.wrap(v)).equals(FBUtilities.bytesToHex(v));
+        assert JdbcBytes.instance.toString(ByteBuffer.wrap(v)).equals(Hex.bytesToHex(v));
     }
     
     @Test

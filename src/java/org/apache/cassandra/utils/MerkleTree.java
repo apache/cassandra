@@ -883,7 +883,7 @@ public class MerkleTree implements Serializable
         {
             if (hash == null)
                 return "null";
-            return "[" + FBUtilities.bytesToHex(hash) + "]";
+            return "[" + Hex.bytesToHex(hash) + "]";
         }
         
         private static class HashableSerializer implements ICompactSerializer<Hashable>

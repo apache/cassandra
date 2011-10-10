@@ -23,7 +23,7 @@ package org.apache.cassandra.auth;
 
 import java.util.List;
 
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Hex;
 
 /**
  * Constants related to Cassandra's resource hierarchy.
@@ -42,7 +42,7 @@ public final class Resources
         {
             buff.append("/");
             if (component instanceof byte[])
-                buff.append(FBUtilities.bytesToHex((byte[])component));
+                buff.append(Hex.bytesToHex((byte[])component));
             else
                 buff.append(component.toString());
         }

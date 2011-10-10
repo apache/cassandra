@@ -769,6 +769,7 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
         <fileset dir="${build.classes.main}">
           <include name="org/apache/cassandra/cql/jdbc/*" />
           <include name="org/apache/cassandra/utils/ByteBufferUtil*.class" />
+          <include name="org/apache/cassandra/utils/Hex.class" />
           <include name="org/apache/cassandra/utils/UUIDGen*.class" />
         </fileset>
         <manifest>
