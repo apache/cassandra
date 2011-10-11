@@ -121,7 +121,7 @@ public class StreamingRepairTask implements Runnable
             StreamOutSession outsession = StreamOutSession.create(tableName, dst, callback);
             StreamOut.transferSSTables(outsession, sstables, ranges, OperationType.AES);
             // request ranges from the remote node
-            StreamIn.requestRanges(dst, tableName, ranges, callback, OperationType.AES);
+            StreamIn.requestRanges(dst, tableName, Collections.singleton(cfstore), ranges, callback, OperationType.AES);
         }
         catch(Exception e)
         {
