@@ -371,7 +371,7 @@ public class DatabaseDescriptor
                                      : 16;
             if (conf.rpc_max_threads == null)
                 conf.rpc_max_threads = conf.rpc_server_type.toLowerCase().equals("hsha")
-                                     ? Runtime.getRuntime().availableProcessors()
+                                     ? Runtime.getRuntime().availableProcessors() * 4
                                      : Integer.MAX_VALUE;
 
             /* data file and commit log directories. they get created later, when they're needed. */
