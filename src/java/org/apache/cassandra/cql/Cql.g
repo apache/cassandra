@@ -121,7 +121,7 @@ query returns [CQLStatement stmnt]
 
 // USE <KEYSPACE>;
 useStatement returns [String keyspace]
-    : K_USE IDENT { $keyspace = $IDENT.text; } endStmnt
+    : K_USE name=( IDENT | INTEGER | STRING_LITERAL ) { $keyspace = $name.text; } endStmnt
     ;
 
 /**
