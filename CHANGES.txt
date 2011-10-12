@@ -24,7 +24,6 @@
 Fixes merged from 0.8 below:
  * Fix tool .bat files when CASSANDRA_HOME contains spaces (CASSANDRA-3258)
  * Force flush of status table when removing/updating token (CASSANDRA-3243)
- * Evict gossip state immediately when a token is taken over by a new IP (CASSANDRA-3259)
  * Fix bug where the failure detector can take too long to mark a host
    down (CASSANDRA-3273)
  * (Hadoop) allow wrapping ranges in queries (CASSANDRA-3137)
@@ -35,6 +34,12 @@ Fixes merged from 0.8 below:
  * Nodetool no longer leaks threads and closes JMX connections (CASSANDRA-3309)
  * fix truncate allowing data to be replayed post-restart (CASSANDRA-3297)
  * Move SimpleAuthority and SimpleAuthenticator to examples (CASSANDRA-2922)
+ * Fix exception during PIG 'dump' (CASSANDRA-2810)
+ * Fix transposition in cfHistograms (CASSANDRA-3222)
+ * Allow using number as DC name when creating keyspace in CQL (CASSANDRA-3239)
+ * Force flush of system table after updating/removing a token (CASSANDRA-3243)
+ * Make Pig storage handle implements LoadMetadata (CASSANDRA-2777)
+ * Improved CLI exceptions (CASSANDRA-3312)
 
 
 1.0.0-rc2
@@ -47,6 +52,7 @@ Fixes merged from 0.8 below:
    contains non-hex characters (CASSANDRA-3231)
  * Keep SimpleSnitch proximity ordering unchanged from what the Strategy
    generates, as intended (CASSANDRA-3262)
+ * remove Scrub from compactionstats when finished (CASSANDRA-3255)
  * fix counter entry in jdbc TypesMap (CASSANDRA-3268)
  * fix full queue scenario for ParallelCompactionIterator (CASSANDRA-3270)
  * fix bootstrap process (CASSANDRA-3285)
@@ -55,7 +61,8 @@ Fixes merged from 0.8 below:
  * ignore any CF ids sent by client for adding CF/KS (CASSANDRA-3288)
  * remove obsolete hints on first startup (CASSANDRA-3291)
  * use correct ISortedColumns for time-optimized reads (CASSANDRA-3289)
- * Evict gossip state immediately when a token is taken over by a new IP (CASSANDRA-3259)
+ * Evict gossip state immediately when a token is taken over by a new IP 
+   (CASSANDRA-3259)
 
 
 1.0.0-rc1
