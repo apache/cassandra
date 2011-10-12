@@ -1,6 +1,8 @@
 0.8.8
  * fix truncate allowing data to be replayed post-restart (CASSANDRA-3297)
  * make iwriter final in IndexWriter to avoid NPE (CASSANDRA-2863)
+ * (CQL) update grammar to require key clause in delete statement
+   (CASSANDRA-3349)
 
 
 0.8.7
