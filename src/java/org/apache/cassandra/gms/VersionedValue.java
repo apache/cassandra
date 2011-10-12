@@ -125,9 +125,10 @@ public class VersionedValue implements Comparable<VersionedValue>
             return new VersionedValue(VersionedValue.STATUS_LEAVING + VersionedValue.DELIMITER + partitioner.getTokenFactory().toString(token));
         }
 
-        public VersionedValue left(Token token)
+        public VersionedValue left(Token token, long expireTime)
         {
-            return new VersionedValue(VersionedValue.STATUS_LEFT + VersionedValue.DELIMITER + partitioner.getTokenFactory().toString(token));
+            return new VersionedValue(VersionedValue.STATUS_LEFT + VersionedValue.DELIMITER
+                    + partitioner.getTokenFactory().toString(token) + VersionedValue.DELIMITER + expireTime);
         }
 
         public VersionedValue moving(Token token)
@@ -140,9 +141,10 @@ public class VersionedValue implements Comparable<VersionedValue>
             return new VersionedValue(VersionedValue.REMOVING_TOKEN + VersionedValue.DELIMITER + partitioner.getTokenFactory().toString(token));
         }
 
-        public VersionedValue removedNonlocal(Token token)
+        public VersionedValue removedNonlocal(Token token, long expireTime)
         {
-            return new VersionedValue(VersionedValue.REMOVED_TOKEN + VersionedValue.DELIMITER + partitioner.getTokenFactory().toString(token));
+			return new VersionedValue(VersionedValue.REMOVED_TOKEN + VersionedValue.DELIMITER
+					+ partitioner.getTokenFactory().toString(token) + VersionedValue.DELIMITER + expireTime);
         }
 
         public VersionedValue removalCoordinator(Token token)

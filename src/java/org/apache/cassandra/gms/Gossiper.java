@@ -75,7 +75,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     private static Logger logger = LoggerFactory.getLogger(Gossiper.class);
     public static final Gossiper instance = new Gossiper();
 
-    private long aVeryLongTime;
+    public static final long aVeryLongTime = 259200 * 1000; // 3 days    
     private long FatClientTimeout;
     private Random random = new Random();
     private Comparator<InetAddress> inetcomparator = new Comparator<InetAddress>()
@@ -106,6 +106,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
      * after removal to prevent nodes from falsely reincarnating during the time when removal
      * gossip gets propagated to all nodes */
     private Map<InetAddress, Long> justRemovedEndpoints = new ConcurrentHashMap<InetAddress, Long>();
+    
+    private Map<InetAddress, Long> expireTimeEndpointMap = new ConcurrentHashMap<InetAddress, Long>();
     
     // protocol versions of the other nodes in the cluster
     private final ConcurrentMap<InetAddress, Integer> versions = new NonBlockingHashMap<InetAddress, Integer>();
@@ -174,8 +176,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     private Gossiper()
     {
-        // 3 days
-        aVeryLongTime = 259200 * 1000;
         // half of QUARATINE_DELAY, to ensure justRemovedEndpoints has enough leeway to prevent re-gossip
         FatClientTimeout = (long)(QUARANTINE_DELAY / 2);
         /* register with the Failure Detector for receiving Failure detector events */
@@ -296,6 +296,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     {
         unreachableEndpoints.remove(endpoint);
         endpointStateMap.remove(endpoint);
+        expireTimeEndpointMap.remove(endpoint);
         justRemovedEndpoints.put(endpoint, System.currentTimeMillis());
         if (logger.isDebugEnabled())
             logger.debug("evicting " + endpoint + " from gossip");
@@ -417,7 +418,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         EndpointState epState = endpointStateMap.get(endpoint);
         epState.updateTimestamp(); // make sure we don't evict it too soon
         epState.getHeartBeatState().forceNewerGenerationUnsafe();
-        epState.addApplicationState(ApplicationState.STATUS, StorageService.instance.valueFactory.removedNonlocal(token));
+        epState.addApplicationState(ApplicationState.STATUS, StorageService.instance.valueFactory.removedNonlocal(token,computeExpireTime()));
         logger.info("Completing removal of " + endpoint);
         endpointStateMap.put(endpoint, epState);
         // ensure at least one gossip round occurs before returning
@@ -572,8 +573,14 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                     evictFromMembership(endpoint); // can get rid of the state immediately
                 }
 
-                if ( !epState.isAlive() && (duration > aVeryLongTime) && (!StorageService.instance.getTokenMetadata().isMember(endpoint)))
+                long expireTime = getExpireTimeForEndpoint(endpoint);
+                if (!epState.isAlive() && (now > expireTime)
+                        && (!StorageService.instance.getTokenMetadata().isMember(endpoint)))
                 {
+                    if (logger.isDebugEnabled())
+                    {
+                        logger.debug("time is expiring for endpoint : " + endpoint + " (" + expireTime + ")");
+                    }
                     evictFromMembership(endpoint);
                 }
             }
@@ -591,6 +598,17 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                 }
             }
         }
+    }
+    
+    protected long getExpireTimeForEndpoint(InetAddress endpoint)
+    {
+        /* default expireTime is aVeryLongTime */
+        long expireTime = computeExpireTime();
+        if (expireTimeEndpointMap.containsKey(endpoint))
+        {
+            expireTime = expireTimeEndpointMap.get(endpoint);
+        }
+        return expireTime;
     }
 
     public EndpointState getEndpointStateForEndpoint(InetAddress ep)
@@ -719,6 +737,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         localState.updateTimestamp(); // prevents doStatusCheck from racing us and evicting if it was down > aVeryLongTime
         liveEndpoints.add(addr);
         unreachableEndpoints.remove(addr);
+        expireTimeEndpointMap.remove(addr);
+        logger.debug("removing expire time for endpoint : " + addr);
         logger.info("InetAddress {} is now UP", addr);
         for (IEndpointStateChangeSubscriber subscriber : subscribers)
             subscriber.onAlive(addr, localState);
@@ -1065,6 +1085,19 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     public int getCurrentGenerationNumber(String address) throws UnknownHostException
     {
         return getCurrentGenerationNumber(InetAddress.getByName(address));
+    }
+    
+    public void addExpireTimeForEndpoint(InetAddress endpoint, long expireTime)
+    {
+        if (logger.isDebugEnabled())
+        {
+            logger.debug("adding expire time for endpoint : " + endpoint + " (" + expireTime + ")");
+        }
+        expireTimeEndpointMap.put(endpoint, expireTime);
+    }
+    
+    public static long computeExpireTime() {
+        return System.currentTimeMillis() + Gossiper.aVeryLongTime;
     }
 
 }

@@ -35,6 +35,7 @@ import org.apache.cassandra.Util;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.gms.ApplicationState;
+import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.SimpleSnitch;
@@ -299,8 +300,10 @@ public class LeaveAndBootstrapTest extends CleanupHelper
 
         // Now finish node 6 and node 9 leaving, as well as boot1 (after this node 8 is still
         // leaving and boot2 in progress
-        ss.onChange(hosts.get(LEAVING[0]), ApplicationState.STATUS, valueFactory.left(endpointTokens.get(LEAVING[0])));
-        ss.onChange(hosts.get(LEAVING[2]), ApplicationState.STATUS, valueFactory.left(endpointTokens.get(LEAVING[2])));
+        ss.onChange(hosts.get(LEAVING[0]), ApplicationState.STATUS,
+                valueFactory.left(endpointTokens.get(LEAVING[0]), Gossiper.computeExpireTime()));
+        ss.onChange(hosts.get(LEAVING[2]), ApplicationState.STATUS,
+                valueFactory.left(endpointTokens.get(LEAVING[2]), Gossiper.computeExpireTime()));
         ss.onChange(boot1, ApplicationState.STATUS, valueFactory.normal(keyTokens.get(5)));
 
         // adjust precalcuated results.  this changes what the epected endpoints are.
@@ -506,7 +509,8 @@ public class LeaveAndBootstrapTest extends CleanupHelper
 
         // node 3 goes through leave and left and then jumps to normal at its new token
         ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.leaving(keyTokens.get(2)));
-        ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.left(keyTokens.get(2)));
+        ss.onChange(hosts.get(2), ApplicationState.STATUS,
+                valueFactory.left(keyTokens.get(2), Gossiper.computeExpireTime()));
         ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.normal(keyTokens.get(4)));
 
         assertTrue(tmd.getBootstrapTokens().isEmpty());
@@ -556,7 +560,8 @@ public class LeaveAndBootstrapTest extends CleanupHelper
         assertTrue(tmd.getBootstrapTokens().isEmpty());
 
         // go to state left
-        ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.left(keyTokens.get(1)));
+        ss.onChange(hosts.get(2), ApplicationState.STATUS,
+                valueFactory.left(keyTokens.get(1), Gossiper.computeExpireTime()));
 
         assertFalse(tmd.isMember(hosts.get(2)));
         assertFalse(tmd.isLeaving(hosts.get(2)));
@@ -583,7 +588,8 @@ public class LeaveAndBootstrapTest extends CleanupHelper
         Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, 7);
 
         // node hosts.get(2) goes jumps to left
-        ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.left(endpointTokens.get(2)));
+        ss.onChange(hosts.get(2), ApplicationState.STATUS,
+                valueFactory.left(endpointTokens.get(2), Gossiper.computeExpireTime()));
 
         assertFalse(tmd.isMember(hosts.get(2)));
 
@@ -595,7 +601,8 @@ public class LeaveAndBootstrapTest extends CleanupHelper
         assertTrue(tmd.getBootstrapTokens().get(keyTokens.get(1)).equals(hosts.get(3)));
 
         // and then directly to 'left'
-        ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.left(keyTokens.get(1)));
+        ss.onChange(hosts.get(2), ApplicationState.STATUS,
+                valueFactory.left(keyTokens.get(1), Gossiper.computeExpireTime()));
 
         assertTrue(tmd.getBootstrapTokens().size() == 0);
         assertFalse(tmd.isMember(hosts.get(2)));
