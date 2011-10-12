@@ -3,6 +3,9 @@
  * Thrift sockets are not properly buffered (CASSANDRA-3261)
  * performance improvement for bytebufferutil compare function (CASSANDRA-3286)
  * add system.versions ColumnFamily (CASSANDRA-3140)
+ * (CQL) update grammar to require key clause in DELETE statement
+   (CASSANDRA-3349)
+ * (CQL) allow numeric keyspace names in USE statement (CASSANDRA-3350)
 
 
 1.0.0-final

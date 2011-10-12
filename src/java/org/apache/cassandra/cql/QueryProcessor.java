@@ -34,6 +34,7 @@ import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.*;
+import org.apache.cassandra.cli.CliUtils;
 import org.apache.cassandra.db.CounterColumn;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.context.CounterContext;
@@ -687,7 +688,7 @@ public class QueryProcessor
                 return result;
                 
             case USE:
-                clientState.setKeyspace((String)statement.statement);
+                clientState.setKeyspace(CliUtils.unescapeSQLString((String) statement.statement));
                 result.type = CqlResultType.VOID;
                 
                 return result;
