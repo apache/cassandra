@@ -38,11 +38,15 @@ if [ "x$PIG_HOME" = "x" ]; then
 fi
 
 # pig jar.
-PIG_JAR=$PIG_HOME/pig*.jar
+for jar in $PIG_HOME/*.jar; do
+   PIG_JAR=$jar
+done
+echo "Using $PIG_JAR."
 if [ ! -e $PIG_JAR ]; then
     echo "Unable to locate Pig jar" >&2
     exit 1
 fi
+
 CLASSPATH=$CLASSPATH:$PIG_JAR
 
 export PIG_CLASSPATH=$PIG_CLASSPATH:$CLASSPATH

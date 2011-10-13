@@ -88,7 +88,7 @@ public class ColumnIndexer
         // update bloom filter and create a list of IndexInfo objects marking the first and last column
         // in each block of ColumnIndexSize
         List<IndexHelper.IndexInfo> indexList = new ArrayList<IndexHelper.IndexInfo>();
-        int endPosition = 0, startPosition = -1;
+        long endPosition = 0, startPosition = -1;
         IColumn lastColumn = null, firstColumn = null;
 
         for (IColumn column : columns)
