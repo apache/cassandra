@@ -30,6 +30,7 @@ Fixes merged from 0.8 below:
  * Nodetool no longer leaks threads and closes JMX connections (CASSANDRA-3309)
  * fix truncate allowing data to be replayed post-restart (CASSANDRA-3297)
  * Move SimpleAuthority and SimpleAuthenticator to examples (CASSANDRA-2922)
+ * Fix handling of tombstone by SSTableExport/Import (CASSANDRA-3357)
 
 
 1.0.0-rc2

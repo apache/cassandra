@@ -27,6 +27,7 @@ import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.MarshalException;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.commons.cli.*;
 
 import org.apache.cassandra.config.CFMetaData;
@@ -104,7 +105,6 @@ public class SSTableImport
                 assert fields.size() >= 3 : "Column definition should have at least 3";
 
                 name  = stringAsType((String) fields.get(0), comparator);
-                value = stringAsType((String) fields.get(1), meta.getValueValidator(name.duplicate()));
                 timestamp = (Long) fields.get(2);
                 kind = "";
 
@@ -138,6 +138,9 @@ public class SSTableImport
                         }
                     }
                 }
+
+                value = isDeleted() ? ByteBufferUtil.hexToBytes((String) fields.get(1))
+                                    : stringAsType((String) fields.get(1), meta.getValueValidator(name.duplicate()));
             }
         }
 
