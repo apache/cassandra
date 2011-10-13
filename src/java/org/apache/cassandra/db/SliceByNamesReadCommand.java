@@ -17,17 +17,17 @@
  */
 package org.apache.cassandra.db;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.ColumnParent;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class SliceByNamesReadCommand extends ReadCommand
 {
@@ -71,28 +71,26 @@ public class SliceByNamesReadCommand extends ReadCommand
 
 }
 
-class SliceByNamesReadCommandSerializer extends ReadCommandSerializer
+class SliceByNamesReadCommandSerializer implements IVersionedSerializer<ReadCommand>
 {
-    @Override
-    public void serialize(ReadCommand rm, DataOutputStream dos, int version) throws IOException
+    public void serialize(ReadCommand cmd, DataOutput dos, int version) throws IOException
     {
-        SliceByNamesReadCommand realRM = (SliceByNamesReadCommand)rm;
-        dos.writeBoolean(realRM.isDigestQuery());
-        dos.writeUTF(realRM.table);
-        ByteBufferUtil.writeWithShortLength(realRM.key, dos);
-        realRM.queryPath.serialize(dos);
-        dos.writeInt(realRM.columnNames.size());
-        if (realRM.columnNames.size() > 0)
+        SliceByNamesReadCommand command = (SliceByNamesReadCommand) cmd;
+        dos.writeBoolean(command.isDigestQuery());
+        dos.writeUTF(command.table);
+        ByteBufferUtil.writeWithShortLength(command.key, dos);
+        command.queryPath.serialize(dos);
+        dos.writeInt(command.columnNames.size());
+        if (!command.columnNames.isEmpty())
         {
-            for (ByteBuffer cName : realRM.columnNames)
+            for (ByteBuffer cName : command.columnNames)
             {
                 ByteBufferUtil.writeWithShortLength(cName, dos);
             }
         }
     }
 
-    @Override
-    public ReadCommand deserialize(DataInputStream dis, int version) throws IOException
+    public SliceByNamesReadCommand deserialize(DataInput dis, int version) throws IOException
     {
         boolean isDigest = dis.readBoolean();
         String table = dis.readUTF();
@@ -105,8 +103,24 @@ class SliceByNamesReadCommandSerializer extends ReadCommandSerializer
         {
             columns.add(ByteBufferUtil.readWithShortLength(dis));
         }
-        SliceByNamesReadCommand rm = new SliceByNamesReadCommand(table, key, columnParent, columns);
-        rm.setDigestQuery(isDigest);
-        return rm;
+        SliceByNamesReadCommand command = new SliceByNamesReadCommand(table, key, columnParent, columns);
+        command.setDigestQuery(isDigest);
+        return command;
+    }
+
+    public long serializedSize(ReadCommand cmd, int version)
+    {
+        SliceByNamesReadCommand command = (SliceByNamesReadCommand) cmd;
+        int size = DBConstants.boolSize;
+        size += DBConstants.shortSize + FBUtilities.encodedUTF8Length(command.table);
+        size += DBConstants.shortSize + command.key.remaining();
+        size += command.queryPath.serializedSize();
+        size += DBConstants.intSize;
+        if (!command.columnNames.isEmpty())
+        {
+            for (ByteBuffer cName : command.columnNames)
+                size += DBConstants.shortSize + cName.remaining();
+        }
+        return size;
     }
 }

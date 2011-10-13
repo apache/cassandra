@@ -20,9 +20,7 @@ package org.apache.cassandra.utils;
  * 
  */
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
@@ -71,13 +69,13 @@ public class UUIDGen
     }
 
     /** reads a uuid from an input stream. */
-    public static UUID read(DataInputStream dis) throws IOException
+    public static UUID read(DataInput dis) throws IOException
     {
         return new UUID(dis.readLong(), dis.readLong());
     }
 
     /** writes a uuid to an output stream. */
-    public static void write(UUID uuid, DataOutputStream dos) throws IOException
+    public static void write(UUID uuid, DataOutput dos) throws IOException
     {
         dos.writeLong(uuid.getMostSignificantBits());
         dos.writeLong(uuid.getLeastSignificantBits());
@@ -142,7 +140,7 @@ public class UUIDGen
      * 
      * @param uuid a type-1 (time-based) UUID
      * @return the number of milliseconds since the unix epoch
-     * @throws InvalidArgumentException if the UUID is not version 1
+     * @throws IllegalArgumentException if the UUID is not version 1
      */
     public static long getAdjustedTimestamp(UUID uuid)
     {

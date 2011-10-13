@@ -374,4 +374,9 @@ class SuperColumnSerializer implements IColumnSerializer
         superColumn.delete(localDeleteTime, markedForDeleteAt);
         return superColumn;
     }
+
+    public long serializedSize(IColumn object)
+    {
+        return object.serializedSize();
+    }
 }

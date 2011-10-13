@@ -21,7 +21,6 @@ package org.apache.cassandra.db;
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 import org.apache.commons.lang.StringUtils;
@@ -42,14 +41,16 @@ public class RangeSliceReply
 
     public Message getReply(Message originalMessage) throws IOException
     {
-        DataOutputBuffer dob = new DataOutputBuffer();
-        dob.writeInt(rows.size());
+        int size = DBConstants.intSize;
         for (Row row : rows)
-        {
-            Row.serializer().serialize(row, dob, originalMessage.getVersion());
-        }
-        byte[] data = Arrays.copyOf(dob.getData(), dob.getLength());
-        return originalMessage.getReply(FBUtilities.getBroadcastAddress(), data, originalMessage.getVersion());
+            size += Row.serializer().serializedSize(row, originalMessage.getVersion());
+
+        DataOutputBuffer buffer = new DataOutputBuffer(size);
+        buffer.writeInt(rows.size());
+        for (Row row : rows)
+            Row.serializer().serialize(row, buffer, originalMessage.getVersion());
+        assert buffer.getLength() == buffer.getData().length;
+        return originalMessage.getReply(FBUtilities.getBroadcastAddress(), buffer.getData(), originalMessage.getVersion());
     }
 
     @Override

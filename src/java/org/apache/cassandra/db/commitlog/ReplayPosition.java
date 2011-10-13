@@ -30,7 +30,7 @@ import com.google.common.base.Function;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Ordering;
 
-import org.apache.cassandra.io.ICompactSerializer2;
+import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.sstable.SSTableReader;
 
 public class ReplayPosition implements Comparable<ReplayPosition>
@@ -120,7 +120,7 @@ public class ReplayPosition implements Comparable<ReplayPosition>
                ')';
     }
 
-    public static class ReplayPositionSerializer implements ICompactSerializer2<ReplayPosition>
+    public static class ReplayPositionSerializer implements ISerializer<ReplayPosition>
     {
         public void serialize(ReplayPosition rp, DataOutput dos) throws IOException
         {
@@ -131,6 +131,11 @@ public class ReplayPosition implements Comparable<ReplayPosition>
         public ReplayPosition deserialize(DataInput dis) throws IOException
         {
             return new ReplayPosition(dis.readLong(), dis.readInt());
+        }
+
+        public long serializedSize(ReplayPosition object)
+        {
+            throw new UnsupportedOperationException();
         }
     }
 }

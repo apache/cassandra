@@ -25,7 +25,7 @@ import java.io.IOException;
 
 import org.apache.cassandra.db.IColumn;
 
-public interface IColumnSerializer extends ICompactSerializer2<IColumn>
+public interface IColumnSerializer extends ISerializer<IColumn>
 {
     public IColumn deserialize(DataInput in, boolean fromRemote, int expireBefore) throws IOException;
 }

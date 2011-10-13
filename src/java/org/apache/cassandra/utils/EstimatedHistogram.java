@@ -24,7 +24,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicLongArray;
 
-import org.apache.cassandra.io.ICompactSerializer2;
+import org.apache.cassandra.io.ISerializer;
 
 public class EstimatedHistogram
 {
@@ -202,7 +202,7 @@ public class EstimatedHistogram
                Arrays.equals(getBuckets(false), that.getBuckets(false));
     }
 
-    public static class EstimatedHistogramSerializer implements ICompactSerializer2<EstimatedHistogram>
+    public static class EstimatedHistogramSerializer implements ISerializer<EstimatedHistogram>
     {
         public void serialize(EstimatedHistogram eh, DataOutput dos) throws IOException
         {
@@ -227,6 +227,11 @@ public class EstimatedHistogram
                 buckets[i] = dis.readLong();
             }
             return new EstimatedHistogram(offsets, buckets);
+        }
+
+        public long serializedSize(EstimatedHistogram object)
+        {
+            throw new UnsupportedOperationException();
         }
     }
 }

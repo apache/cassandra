@@ -18,16 +18,14 @@
 
 package org.apache.cassandra.gms;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.cassandra.io.ICompactSerializer;
+import org.apache.cassandra.io.IVersionedSerializer;
 
 
 
@@ -38,7 +36,7 @@ import org.apache.cassandra.io.ICompactSerializer;
 
 class GossipDigestAckMessage
 {
-    private static ICompactSerializer<GossipDigestAckMessage> serializer_;
+    private static IVersionedSerializer<GossipDigestAckMessage> serializer_;
     static
     {
         serializer_ = new GossipDigestAckMessageSerializer();
@@ -47,7 +45,7 @@ class GossipDigestAckMessage
     List<GossipDigest> gDigestList_ = new ArrayList<GossipDigest>();
     Map<InetAddress, EndpointState> epStateMap_ = new HashMap<InetAddress, EndpointState>();
     
-    static ICompactSerializer<GossipDigestAckMessage> serializer()
+    static IVersionedSerializer<GossipDigestAckMessage> serializer()
     {
         return serializer_;
     }
@@ -69,20 +67,25 @@ class GossipDigestAckMessage
     }
 }
 
-class GossipDigestAckMessageSerializer implements ICompactSerializer<GossipDigestAckMessage>
+class GossipDigestAckMessageSerializer implements IVersionedSerializer<GossipDigestAckMessage>
 {
-    public void serialize(GossipDigestAckMessage gDigestAckMessage, DataOutputStream dos, int version) throws IOException
+    public void serialize(GossipDigestAckMessage gDigestAckMessage, DataOutput dos, int version) throws IOException
     {
         GossipDigestSerializationHelper.serialize(gDigestAckMessage.gDigestList_, dos, version);
         dos.writeBoolean(true); // 0.6 compatibility
         EndpointStatesSerializationHelper.serialize(gDigestAckMessage.epStateMap_, dos, version);
     }
 
-    public GossipDigestAckMessage deserialize(DataInputStream dis, int version) throws IOException
+    public GossipDigestAckMessage deserialize(DataInput dis, int version) throws IOException
     {
         List<GossipDigest> gDigestList = GossipDigestSerializationHelper.deserialize(dis, version);
         dis.readBoolean(); // 0.6 compatibility
         Map<InetAddress, EndpointState> epStateMap = EndpointStatesSerializationHelper.deserialize(dis, version);
         return new GossipDigestAckMessage(gDigestList, epStateMap);
+    }
+
+    public long serializedSize(GossipDigestAckMessage gossipDigestAckMessage, int version)
+    {
+        throw new UnsupportedOperationException();
     }
 }

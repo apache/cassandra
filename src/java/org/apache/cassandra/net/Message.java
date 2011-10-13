@@ -18,13 +18,9 @@
 
 package org.apache.cassandra.net;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
 import java.net.InetAddress;
 
 import org.apache.cassandra.concurrent.Stage;
-import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 

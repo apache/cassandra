@@ -18,12 +18,10 @@
 
 package org.apache.cassandra.gms;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.net.InetAddress;
 
-import org.apache.cassandra.io.ICompactSerializer;
+import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.net.CompactEndpointSerializationHelper;
 
 /**
@@ -33,7 +31,7 @@ import org.apache.cassandra.net.CompactEndpointSerializationHelper;
 
 public class GossipDigest implements Comparable<GossipDigest>
 {
-    private static ICompactSerializer<GossipDigest> serializer;
+    private static IVersionedSerializer<GossipDigest> serializer;
     static
     {
         serializer = new GossipDigestSerializer();
@@ -43,7 +41,7 @@ public class GossipDigest implements Comparable<GossipDigest>
     int generation;
     int maxVersion;
 
-    public static ICompactSerializer<GossipDigest> serializer()
+    public static IVersionedSerializer<GossipDigest> serializer()
     {
         return serializer;
     }
@@ -89,20 +87,25 @@ public class GossipDigest implements Comparable<GossipDigest>
     }
 }
 
-class GossipDigestSerializer implements ICompactSerializer<GossipDigest>
+class GossipDigestSerializer implements IVersionedSerializer<GossipDigest>
 {       
-    public void serialize(GossipDigest gDigest, DataOutputStream dos, int version) throws IOException
+    public void serialize(GossipDigest gDigest, DataOutput dos, int version) throws IOException
     {        
         CompactEndpointSerializationHelper.serialize(gDigest.endpoint, dos);
         dos.writeInt(gDigest.generation);
         dos.writeInt(gDigest.maxVersion);
     }
 
-    public GossipDigest deserialize(DataInputStream dis, int version) throws IOException
+    public GossipDigest deserialize(DataInput dis, int version) throws IOException
     {
         InetAddress endpoint = CompactEndpointSerializationHelper.deserialize(dis);
         int generation = dis.readInt();
         int maxVersion = dis.readInt();
         return new GossipDigest(endpoint, generation, maxVersion);
+    }
+
+    public long serializedSize(GossipDigest gossipDigest, int version)
+    {
+        throw new UnsupportedOperationException();
     }
 }

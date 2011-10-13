@@ -121,7 +121,7 @@ query returns [CQLStatement stmnt]
 
 // USE <KEYSPACE>;
 useStatement returns [String keyspace]
-    : K_USE IDENT { $keyspace = $IDENT.text; } endStmnt
+    : K_USE name=( IDENT | INTEGER | STRING_LITERAL ) { $keyspace = $name.text; } endStmnt
     ;
 
 /**
@@ -334,7 +334,7 @@ deleteStatement returns [DeleteStatement expr]
           ( cols=termList { columnsList = $cols.items; })?
           K_FROM columnFamily=( IDENT | STRING_LITERAL | INTEGER )
           ( usingClauseDelete[attrs] )?
-          K_WHERE ( key_alias=term ('=' key=term           { keyList = Collections.singletonList(key); }
+          ( K_WHERE key_alias=term ('=' key=term           { keyList = Collections.singletonList(key); }
                                    | K_IN '(' keys=termList { keyList = $keys.items; } ')')
                   )?
       {

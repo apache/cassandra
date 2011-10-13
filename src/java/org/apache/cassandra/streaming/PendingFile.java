@@ -21,13 +21,11 @@ package org.apache.cassandra.streaming;
  */
 
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.apache.cassandra.io.ICompactSerializer;
+import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.net.MessagingService;
@@ -108,9 +106,9 @@ public class PendingFile
         return getFilename() + " sections=" + sections.size() + " progress=" + progress + "/" + size + " - " + progress*100/size + "%";
     }
 
-    public static class PendingFileSerializer implements ICompactSerializer<PendingFile>
+    public static class PendingFileSerializer implements IVersionedSerializer<PendingFile>
     {
-        public void serialize(PendingFile sc, DataOutputStream dos, int version) throws IOException
+        public void serialize(PendingFile sc, DataOutput dos, int version) throws IOException
         {
             if (sc == null)
             {
@@ -131,7 +129,7 @@ public class PendingFile
                 dos.writeLong(sc.estimatedKeys);
         }
 
-        public PendingFile deserialize(DataInputStream dis, int version) throws IOException
+        public PendingFile deserialize(DataInput dis, int version) throws IOException
         {
             String filename = dis.readUTF();
             if (filename.isEmpty())
@@ -151,6 +149,11 @@ public class PendingFile
             if (version > MessagingService.VERSION_080)
                 estimatedKeys = dis.readLong();
             return new PendingFile(null, desc, component, sections, type, estimatedKeys);
+        }
+
+        public long serializedSize(PendingFile pendingFile, int version)
+        {
+            throw new UnsupportedOperationException();
         }
     }
 }

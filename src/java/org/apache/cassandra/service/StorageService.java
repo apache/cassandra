@@ -969,7 +969,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         if (logger_.isDebugEnabled())
             logger_.debug("Node " + endpoint + " state left, token " + token);
 
-        excise(token, endpoint);
+        excise(token, endpoint, extractExpireTime(pieces));
     }
 
     /**
@@ -1021,7 +1021,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
             if (VersionedValue.REMOVED_TOKEN.equals(state))
             {
-                excise(removeToken, endpoint);
+                excise(removeToken, endpoint, extractExpireTime(pieces));
             }
             else if (VersionedValue.REMOVING_TOKEN.equals(state))
             {
@@ -1053,6 +1053,30 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             logger_.info("Removing token " + token + " for " + endpoint);
             SystemTable.removeToken(token);
         }
+    }
+    
+    private void excise(Token token, InetAddress endpoint, long expireTime)
+    {
+        addExpireTimeIfFound(endpoint, expireTime);
+        excise(token, endpoint);
+    }
+    
+    protected void addExpireTimeIfFound(InetAddress endpoint, long expireTime)
+    {
+        if (expireTime != 0L)
+        {
+            Gossiper.instance.addExpireTimeForEndpoint(endpoint, expireTime);
+        }
+    }
+
+    protected long extractExpireTime(String[] pieces)
+    {
+        long expireTime = 0L;
+        if (pieces.length >= 3)
+        {
+            expireTime = Long.parseLong(pieces[2]);
+        }
+        return expireTime;
     }
 
     /**
@@ -1978,7 +2002,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         tokenMetadata_.removeEndpoint(FBUtilities.getBroadcastAddress());
         calculatePendingRanges();
 
-        Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS, valueFactory.left(getLocalToken()));
+        Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS, valueFactory.left(getLocalToken(),Gossiper.computeExpireTime()));
         logger_.info("Announcing that I have left the ring for " + RING_DELAY + "ms");
         try
         {

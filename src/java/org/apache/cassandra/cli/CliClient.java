@@ -297,9 +297,7 @@ public class CliClient
         }
         catch (SchemaDisagreementException e)
         {
-        	RuntimeException rtEx = new RuntimeException("schema does not match across nodes, (try again later).");
-            rtEx.initCause(e);
-            throw new RuntimeException();
+        	throw new RuntimeException("schema does not match across nodes, (try again later).", e);
         }
     }
 
@@ -542,7 +540,7 @@ public class CliClient
             {
                 StringBuilder errorMessage = new StringBuilder("Unknown comparator '" + compareWith + "'. ");
                 errorMessage.append("Available functions: ");
-                throw new RuntimeException(errorMessage.append(Function.getFunctionNames()).toString());
+                throw new RuntimeException(errorMessage.append(Function.getFunctionNames()).toString(), e);
             }
         }
 
@@ -768,7 +766,7 @@ public class CliClient
             }
             catch (Exception e)
             {
-                throw new RuntimeException(e.getMessage());
+                throw new RuntimeException(e);
             }
         }
 
@@ -797,11 +795,11 @@ public class CliClient
         }
         catch (InvalidRequestException e)
         {
-            throw new RuntimeException(e.getWhy());
+            throw new RuntimeException(e);
         }
         catch (Exception e)
         {
-            throw new RuntimeException(e.getMessage());
+            throw new RuntimeException(e);
         }
     }
 
@@ -884,7 +882,7 @@ public class CliClient
             }
             catch (Exception e)
             {
-                throw new RuntimeException(e.getMessage());
+                throw new RuntimeException(e);
             }
         }
 
@@ -951,7 +949,7 @@ public class CliClient
             }
             catch (Exception e)
             {
-                throw new RuntimeException(e.getMessage());
+                throw new RuntimeException(e);
             }
         }
 
@@ -994,11 +992,11 @@ public class CliClient
         }
         catch (InvalidRequestException e)
         {
-            throw new RuntimeException(e.getWhy());
+            throw new RuntimeException(e);
         }
         catch (Exception e)
         {
-            throw new RuntimeException(e.getMessage(), e);
+            throw new RuntimeException(e);
         }
     }
 
@@ -1024,11 +1022,11 @@ public class CliClient
         }
         catch (InvalidRequestException e)
         {
-            throw new RuntimeException(e.getWhy());
+            throw new RuntimeException(e);
         }
         catch (Exception e)
         {
-            throw new RuntimeException(e.getMessage(), e);
+            throw new RuntimeException(e);
         }
     }
 
@@ -1055,11 +1053,11 @@ public class CliClient
         }
         catch (InvalidRequestException e)
         {
-            throw new RuntimeException(e.getWhy());
+            throw new RuntimeException(e);
         }
         catch (Exception e)
         {
-            throw new RuntimeException(e.getMessage(), e);
+            throw new RuntimeException(e);
         }
     }
 
@@ -1089,11 +1087,11 @@ public class CliClient
         }
         catch (InvalidRequestException e)
         {
-            throw new RuntimeException(e.getWhy());
+            throw new RuntimeException(e);
         }
         catch (Exception e)
         {
-            throw new RuntimeException(e.getMessage(), e);
+            throw new RuntimeException(e);
         }
     }
 
@@ -1153,7 +1151,7 @@ public class CliClient
                 }
                 catch (UnknownHostException e)
                 {
-                    throw new RuntimeException(e.getMessage());
+                    throw new RuntimeException(e);
                 }
 
                 ksDef.setStrategy_options(options);
@@ -2244,7 +2242,7 @@ public class CliClient
             }
             catch (TException e)
             {
-                throw new RuntimeException(e.getMessage(), e);
+                throw new RuntimeException(e);
             }
 
             columnDefinitions.add(columnDefinition);
@@ -2275,7 +2273,7 @@ public class CliClient
             }
             catch (IllegalArgumentException ie)
             {
-                throw new RuntimeException("IndexType '" + indexTypeAsString + "' is unsupported.");
+                throw new RuntimeException("IndexType '" + indexTypeAsString + "' is unsupported.", ie);
             }
         }
 
@@ -2304,7 +2302,7 @@ public class CliClient
         }
         catch (MarshalException e)
         {
-            throw new RuntimeException(e.toString());
+            throw new RuntimeException(e);
         }
     }
     
@@ -2419,7 +2417,7 @@ public class CliClient
                 }
                 catch (Exception e)
                 {
-                    throw new RuntimeException(e.getMessage(), e);
+                    throw new RuntimeException(e);
                 }
             }
         }
@@ -2560,7 +2558,7 @@ public class CliClient
         }
         catch (Exception e)
         {
-            throw new RuntimeException(e.getMessage());
+            throw new RuntimeException(e);
         }
     }
 
@@ -2581,7 +2579,7 @@ public class CliClient
         {
             StringBuilder errorMessage = new StringBuilder("Function '" + functionName + "' not found. ");
             errorMessage.append("Available functions: ");
-            throw new RuntimeException(errorMessage.append(Function.getFunctionNames()).toString());
+            throw new RuntimeException(errorMessage.append(Function.getFunctionNames()).toString(), e);
         }
 
         return function.getValidator();

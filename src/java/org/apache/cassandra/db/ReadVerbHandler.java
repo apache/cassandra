@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.db;
 
+import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.IOException;
 
@@ -37,16 +38,6 @@ public class ReadVerbHandler implements IVerbHandler
 {
     private static Logger logger_ = LoggerFactory.getLogger( ReadVerbHandler.class );
 
-    // re-use output buffers between requests
-    private static ThreadLocal<DataOutputBuffer> threadLocalOut = new ThreadLocal<DataOutputBuffer>()
-    {
-        @Override
-        protected DataOutputBuffer initialValue()
-        {
-            return new DataOutputBuffer();
-        }
-    };
-
     public void doVerb(Message message, String id)
     {
         if (StorageService.instance.isBootstrapMode())
@@ -61,17 +52,14 @@ public class ReadVerbHandler implements IVerbHandler
             Table table = Table.open(command.table);
             Row row = command.getRow(table);
 
-            DataOutputBuffer out = threadLocalOut.get();
-            out.reset();
-            ReadResponse.serializer().serialize(getResponse(command, row), out, message.getVersion());
-            byte[] bytes = new byte[out.getLength()];
-            System.arraycopy(out.getData(), 0, bytes, 0, bytes.length);
-            Message response = message.getReply(FBUtilities.getBroadcastAddress(), bytes, message.getVersion());
+            ReadResponse response = getResponse(command, row);
+            byte[] bytes = FBUtilities.serialize(response, ReadResponse.serializer(), message.getVersion());
+            Message reply = message.getReply(FBUtilities.getBroadcastAddress(), bytes, message.getVersion());
 
             if (logger_.isDebugEnabled())
               logger_.debug(String.format("Read key %s; sending response to %s@%s",
                                           ByteBufferUtil.bytesToHex(command.key), id, message.getFrom()));
-            MessagingService.instance().sendReply(response, id, message.getFrom());
+            MessagingService.instance().sendReply(reply, id, message.getFrom());
         }
         catch (IOException ex)
         {

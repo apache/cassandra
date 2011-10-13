@@ -68,6 +68,7 @@ import org.apache.cassandra.utils.Pair;
 public class StorageProxy implements StorageProxyMBean
 {
     private static final Logger logger = LoggerFactory.getLogger(StorageProxy.class);
+    private static final boolean OPTIMIZE_LOCAL_REQUESTS = true; // set to false to test messagingservice path on single node
 
     // mbean stuff
     private static final LatencyTracker readStats = new LatencyTracker();
@@ -288,7 +289,7 @@ public class StorageProxy implements StorageProxyMBean
             {
                 String dc = DatabaseDescriptor.getEndpointSnitch().getDatacenter(destination);
 
-                if (destination.equals(FBUtilities.getBroadcastAddress()))
+                if (destination.equals(FBUtilities.getBroadcastAddress()) && OPTIMIZE_LOCAL_REQUESTS)
                 {
                     insertLocal(rm, responseHandler);
                 }
@@ -634,7 +635,7 @@ public class StorageProxy implements StorageProxyMBean
 
                 // The data-request message is sent to dataPoint, the node that will actually get the data for us
                 InetAddress dataPoint = handler.endpoints.get(0);
-                if (dataPoint.equals(FBUtilities.getBroadcastAddress()))
+                if (dataPoint.equals(FBUtilities.getBroadcastAddress()) && OPTIMIZE_LOCAL_REQUESTS)
                 {
                     logger.debug("reading data locally");
                     StageManager.getStage(Stage.READ).execute(new LocalReadRunnable(command, handler));

@@ -18,14 +18,9 @@
 
 package org.apache.cassandra.db;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
-import java.lang.ThreadLocal;
+import java.io.*;
 import java.nio.ByteBuffer;
-import java.net.InetAddress;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.List;
 import java.util.LinkedList;
 
@@ -33,13 +28,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.filter.QueryPath;
-import org.apache.cassandra.db.marshal.AbstractCommutativeType;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.io.ICompactSerializer;
-import org.apache.cassandra.io.util.FastByteArrayOutputStream;
+import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.Allocator;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.HeapAllocator;
 import org.apache.cassandra.utils.FBUtilities;
@@ -192,10 +184,8 @@ public class CounterMutation implements IMutation
 
     public Message makeMutationMessage(int version) throws IOException
     {
-        FastByteArrayOutputStream bos = new FastByteArrayOutputStream();
-        DataOutputStream dos = new DataOutputStream(bos);
-        serializer().serialize(this, dos, version);
-        return new Message(FBUtilities.getBroadcastAddress(), StorageService.Verb.COUNTER_MUTATION, bos.toByteArray(), version);
+        byte[] bytes = FBUtilities.serialize(this, serializer, version);
+        return new Message(FBUtilities.getBroadcastAddress(), StorageService.Verb.COUNTER_MUTATION, bytes, version);
     }
 
     public boolean shouldReplicateOnWrite()
@@ -240,18 +230,24 @@ public class CounterMutation implements IMutation
     }
 }
 
-class CounterMutationSerializer implements ICompactSerializer<CounterMutation>
+class CounterMutationSerializer implements IVersionedSerializer<CounterMutation>
 {
-    public void serialize(CounterMutation cm, DataOutputStream dos, int version) throws IOException
+    public void serialize(CounterMutation cm, DataOutput dos, int version) throws IOException
     {
         RowMutation.serializer().serialize(cm.rowMutation(), dos, version);
         dos.writeUTF(cm.consistency().name());
     }
 
-    public CounterMutation deserialize(DataInputStream dis, int version) throws IOException
+    public CounterMutation deserialize(DataInput dis, int version) throws IOException
     {
         RowMutation rm = RowMutation.serializer().deserialize(dis, version);
         ConsistencyLevel consistency = Enum.valueOf(ConsistencyLevel.class, dis.readUTF());
         return new CounterMutation(rm, consistency);
+    }
+
+    public long serializedSize(CounterMutation cm, int version)
+    {
+        return RowMutation.serializer().serializedSize(cm.rowMutation(), version)
+               + DBConstants.shortSize + FBUtilities.encodedUTF8Length(cm.consistency().name());
     }
 }

@@ -18,13 +18,12 @@
 
 package org.apache.cassandra.db;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
+import java.io.DataInput;
+import java.io.DataOutput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.io.ICompactSerializer;
-import org.apache.cassandra.io.util.FastByteArrayOutputStream;
+import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -44,12 +43,10 @@ public class WriteResponse
         return serializer_;
     }
 
-    public static Message makeWriteResponseMessage(Message original, WriteResponse writeResponseMessage) throws IOException
+    public static Message makeWriteResponseMessage(Message original, WriteResponse respose) throws IOException
     {
-    	FastByteArrayOutputStream bos = new FastByteArrayOutputStream();
-        DataOutputStream dos = new DataOutputStream( bos );
-        WriteResponse.serializer().serialize(writeResponseMessage, dos, original.getVersion());
-        return original.getReply(FBUtilities.getBroadcastAddress(), bos.toByteArray(), original.getVersion());
+        byte[] bytes = FBUtilities.serialize(respose, WriteResponse.serializer(), original.getVersion());
+        return original.getReply(FBUtilities.getBroadcastAddress(), bytes, original.getVersion());
     }
 
 	private final String table_;
@@ -77,21 +74,29 @@ public class WriteResponse
 		return status_;
 	}
 
-    public static class WriteResponseSerializer implements ICompactSerializer<WriteResponse>
+    public static class WriteResponseSerializer implements IVersionedSerializer<WriteResponse>
     {
-        public void serialize(WriteResponse wm, DataOutputStream dos, int version) throws IOException
+        public void serialize(WriteResponse wm, DataOutput dos, int version) throws IOException
         {
             dos.writeUTF(wm.table());
             ByteBufferUtil.writeWithShortLength(wm.key(), dos);
             dos.writeBoolean(wm.isSuccess());
         }
 
-        public WriteResponse deserialize(DataInputStream dis, int version) throws IOException
+        public WriteResponse deserialize(DataInput dis, int version) throws IOException
         {
             String table = dis.readUTF();
             ByteBuffer key = ByteBufferUtil.readWithShortLength(dis);
             boolean status = dis.readBoolean();
             return new WriteResponse(table, key, status);
+        }
+
+        public long serializedSize(WriteResponse response, int version)
+        {
+            int size = DBConstants.shortSize + FBUtilities.encodedUTF8Length(response.table());
+            size += DBConstants.shortSize + response.key().remaining();
+            size += DBConstants.boolSize;
+            return size;
         }
     }
 }

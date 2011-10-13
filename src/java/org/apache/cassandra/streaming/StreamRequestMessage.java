@@ -27,12 +27,11 @@ import java.util.*;
 
 import com.google.common.collect.Iterables;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.io.ICompactSerializer;
+import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.FastByteArrayOutputStream;
 import org.apache.cassandra.net.CompactEndpointSerializationHelper;
 import org.apache.cassandra.net.Message;
@@ -50,13 +49,13 @@ import org.apache.cassandra.utils.FBUtilities;
 */
 class StreamRequestMessage implements MessageProducer
 {
-    private static ICompactSerializer<StreamRequestMessage> serializer_;
+    private static IVersionedSerializer<StreamRequestMessage> serializer_;
     static
     {
         serializer_ = new StreamRequestMessageSerializer();
     }
 
-    protected static ICompactSerializer<StreamRequestMessage> serializer()
+    protected static IVersionedSerializer<StreamRequestMessage> serializer()
     {
         return serializer_;
     }
@@ -135,9 +134,9 @@ class StreamRequestMessage implements MessageProducer
         return sb.toString();
     }
 
-    private static class StreamRequestMessageSerializer implements ICompactSerializer<StreamRequestMessage>
+    private static class StreamRequestMessageSerializer implements IVersionedSerializer<StreamRequestMessage>
     {
-        public void serialize(StreamRequestMessage srm, DataOutputStream dos, int version) throws IOException
+        public void serialize(StreamRequestMessage srm, DataOutput dos, int version) throws IOException
         {
             dos.writeLong(srm.sessionId);
             CompactEndpointSerializationHelper.serialize(srm.target, dos);
@@ -168,7 +167,7 @@ class StreamRequestMessage implements MessageProducer
             }
         }
 
-        public StreamRequestMessage deserialize(DataInputStream dis, int version) throws IOException
+        public StreamRequestMessage deserialize(DataInput dis, int version) throws IOException
         {
             long sessionId = dis.readLong();
             InetAddress target = CompactEndpointSerializationHelper.deserialize(dis);
@@ -201,6 +200,11 @@ class StreamRequestMessage implements MessageProducer
 
                 return new StreamRequestMessage(target, ranges, table, stores, sessionId, type);
             }
+        }
+
+        public long serializedSize(StreamRequestMessage streamRequestMessage, int version)
+        {
+            throw new UnsupportedOperationException();
         }
     }
 }

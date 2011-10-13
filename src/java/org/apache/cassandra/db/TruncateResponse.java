@@ -18,11 +18,9 @@
 
 package org.apache.cassandra.db;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
+import java.io.*;
 
-import org.apache.cassandra.io.ICompactSerializer;
+import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.FastByteArrayOutputStream;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.utils.FBUtilities;
@@ -61,21 +59,26 @@ public class TruncateResponse
 		this.success = success;
 	}
 
-    public static class TruncateResponseSerializer implements ICompactSerializer<TruncateResponse>
+    public static class TruncateResponseSerializer implements IVersionedSerializer<TruncateResponse>
     {
-        public void serialize(TruncateResponse tr, DataOutputStream dos, int version) throws IOException
+        public void serialize(TruncateResponse tr, DataOutput dos, int version) throws IOException
         {
             dos.writeUTF(tr.keyspace);
             dos.writeUTF(tr.columnFamily);
             dos.writeBoolean(tr.success);
         }
 
-        public TruncateResponse deserialize(DataInputStream dis, int version) throws IOException
+        public TruncateResponse deserialize(DataInput dis, int version) throws IOException
         {
             String keyspace = dis.readUTF();
             String columnFamily = dis.readUTF();
             boolean success = dis.readBoolean();
             return new TruncateResponse(keyspace, columnFamily, success);
+        }
+
+        public long serializedSize(TruncateResponse truncateResponse, int version)
+        {
+            throw new UnsupportedOperationException();
         }
     }
 }

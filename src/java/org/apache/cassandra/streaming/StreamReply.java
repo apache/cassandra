@@ -21,11 +21,9 @@ package org.apache.cassandra.streaming;
  */
 
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
+import java.io.*;
 
-import org.apache.cassandra.io.ICompactSerializer;
+import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.FastByteArrayOutputStream;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageProducer;
@@ -41,7 +39,7 @@ class StreamReply implements MessageProducer
         SESSION_FINISHED,
     }
 
-    public static final ICompactSerializer<StreamReply> serializer = new FileStatusSerializer();
+    public static final IVersionedSerializer<StreamReply> serializer = new FileStatusSerializer();
 
     public final long sessionId;
     public final String file;
@@ -72,21 +70,26 @@ class StreamReply implements MessageProducer
                ')';
     }
 
-    private static class FileStatusSerializer implements ICompactSerializer<StreamReply>
+    private static class FileStatusSerializer implements IVersionedSerializer<StreamReply>
     {
-        public void serialize(StreamReply reply, DataOutputStream dos, int version) throws IOException
+        public void serialize(StreamReply reply, DataOutput dos, int version) throws IOException
         {
             dos.writeLong(reply.sessionId);
             dos.writeUTF(reply.file);
             dos.writeInt(reply.action.ordinal());
         }
 
-        public StreamReply deserialize(DataInputStream dis, int version) throws IOException
+        public StreamReply deserialize(DataInput dis, int version) throws IOException
         {
             long sessionId = dis.readLong();
             String targetFile = dis.readUTF();
             Status action = Status.values()[dis.readInt()];
             return new StreamReply(targetFile, sessionId, action);
+        }
+
+        public long serializedSize(StreamReply streamReply, int version)
+        {
+            throw new UnsupportedOperationException();
         }
     }
 }

@@ -18,11 +18,9 @@
 
 package org.apache.cassandra.db;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
+import java.io.*;
 
-import org.apache.cassandra.io.ICompactSerializer;
+import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.FastByteArrayOutputStream;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageProducer;
@@ -34,7 +32,7 @@ import org.apache.cassandra.utils.FBUtilities;
  */
 public class Truncation implements MessageProducer
 {
-    private static ICompactSerializer<Truncation> serializer;
+    private static IVersionedSerializer<Truncation> serializer;
 
     public final String keyspace;
     public final String columnFamily;
@@ -44,7 +42,7 @@ public class Truncation implements MessageProducer
         serializer = new TruncationSerializer();
     }
 
-    public static ICompactSerializer<Truncation> serializer()
+    public static IVersionedSerializer<Truncation> serializer()
     {
         return serializer;
     }
@@ -69,18 +67,23 @@ public class Truncation implements MessageProducer
     }
 }
 
-class TruncationSerializer implements ICompactSerializer<Truncation>
+class TruncationSerializer implements IVersionedSerializer<Truncation>
 {
-    public void serialize(Truncation t, DataOutputStream dos, int version) throws IOException
+    public void serialize(Truncation t, DataOutput dos, int version) throws IOException
     {
         dos.writeUTF(t.keyspace);
         dos.writeUTF(t.columnFamily);
     }
 
-    public Truncation deserialize(DataInputStream dis, int version) throws IOException
+    public Truncation deserialize(DataInput dis, int version) throws IOException
     {
         String keyspace = dis.readUTF();
         String columnFamily = dis.readUTF();
         return new Truncation(keyspace, columnFamily);
+    }
+
+    public long serializedSize(Truncation truncation, int version)
+    {
+        throw new UnsupportedOperationException();
     }
 }

@@ -18,11 +18,9 @@
 
 package org.apache.cassandra.db;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
+import java.io.*;
 
-import org.apache.cassandra.io.ICompactSerializer;
+import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -55,23 +53,28 @@ public class Row
                ')';
     }
 
-    public static class RowSerializer implements ICompactSerializer<Row>
+    public static class RowSerializer implements IVersionedSerializer<Row>
     {
-        public void serialize(Row row, DataOutputStream dos, int version) throws IOException
+        public void serialize(Row row, DataOutput dos, int version) throws IOException
         {
             ByteBufferUtil.writeWithShortLength(row.key.key, dos);
             ColumnFamily.serializer().serialize(row.cf, dos);
         }
 
-        public Row deserialize(DataInputStream dis, int version, boolean fromRemote, ISortedColumns.Factory factory) throws IOException
+        public Row deserialize(DataInput dis, int version, boolean fromRemote, ISortedColumns.Factory factory) throws IOException
         {
             return new Row(StorageService.getPartitioner().decorateKey(ByteBufferUtil.readWithShortLength(dis)),
                            ColumnFamily.serializer().deserialize(dis, fromRemote, factory));
         }
 
-        public Row deserialize(DataInputStream dis, int version) throws IOException
+        public Row deserialize(DataInput dis, int version) throws IOException
         {
             return deserialize(dis, version, false, ThreadSafeSortedColumns.factory());
+        }
+
+        public long serializedSize(Row row, int version)
+        {
+            return DBConstants.shortSize + row.key.key.remaining() + ColumnFamily.serializer().serializedSize(row.cf);
         }
     }
 }

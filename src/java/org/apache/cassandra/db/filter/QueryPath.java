@@ -21,14 +21,14 @@ package org.apache.cassandra.db.filter;
  */
 
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.nio.ByteBuffer;
 
+import org.apache.cassandra.db.DBConstants;
 import org.apache.cassandra.thrift.ColumnParent;
 import org.apache.cassandra.thrift.ColumnPath;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class QueryPath
 {
@@ -78,7 +78,7 @@ public class QueryPath
                ')';
     }
 
-    public void serialize(DataOutputStream dos) throws IOException
+    public void serialize(DataOutput dos) throws IOException
     {
         assert !"".equals(columnFamilyName);
         assert superColumnName == null || superColumnName.remaining() > 0;
@@ -88,7 +88,7 @@ public class QueryPath
         ByteBufferUtil.writeWithShortLength(columnName == null ? ByteBufferUtil.EMPTY_BYTE_BUFFER : columnName, dos);
     }
 
-    public static QueryPath deserialize(DataInputStream din) throws IOException
+    public static QueryPath deserialize(DataInput din) throws IOException
     {
         String cfName = din.readUTF();
         ByteBuffer scName = ByteBufferUtil.readWithShortLength(din);
@@ -96,5 +96,13 @@ public class QueryPath
         return new QueryPath(cfName.isEmpty() ? null : cfName, 
                              scName.remaining() == 0 ? null : scName, 
                              cName.remaining() == 0 ? null : cName);
+    }
+
+    public int serializedSize()
+    {
+        int size = DBConstants.shortSize + (columnFamilyName == null ? 0 : FBUtilities.encodedUTF8Length(columnFamilyName));
+        size += DBConstants.shortSize + (superColumnName == null ? 0 : superColumnName.remaining());
+        size += DBConstants.shortSize + (columnName == null ? 0 : columnName.remaining());
+        return size;
     }
 }

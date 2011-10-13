@@ -17,16 +17,16 @@
  */
 package org.apache.cassandra.db;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.ColumnParent;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class SliceFromReadCommand extends ReadCommand
 {
@@ -76,10 +76,9 @@ public class SliceFromReadCommand extends ReadCommand
     }
 }
 
-class SliceFromReadCommandSerializer extends ReadCommandSerializer
+class SliceFromReadCommandSerializer implements IVersionedSerializer<ReadCommand>
 {
-    @Override
-    public void serialize(ReadCommand rm, DataOutputStream dos, int version) throws IOException
+    public void serialize(ReadCommand rm, DataOutput dos, int version) throws IOException
     {
         SliceFromReadCommand realRM = (SliceFromReadCommand)rm;
         dos.writeBoolean(realRM.isDigestQuery());
@@ -92,8 +91,7 @@ class SliceFromReadCommandSerializer extends ReadCommandSerializer
         dos.writeInt(realRM.count);
     }
 
-    @Override
-    public ReadCommand deserialize(DataInputStream dis, int version) throws IOException
+    public ReadCommand deserialize(DataInput dis, int version) throws IOException
     {
         boolean isDigest = dis.readBoolean();
         SliceFromReadCommand rm = new SliceFromReadCommand(dis.readUTF(),
@@ -105,5 +103,19 @@ class SliceFromReadCommandSerializer extends ReadCommandSerializer
                                                            dis.readInt());
         rm.setDigestQuery(isDigest);
         return rm;
+    }
+
+    public long serializedSize(ReadCommand cmd, int version)
+    {
+        SliceFromReadCommand command = (SliceFromReadCommand) cmd;
+        int size = DBConstants.boolSize;
+        size += DBConstants.shortSize + FBUtilities.encodedUTF8Length(command.table);
+        size += DBConstants.shortSize + command.key.remaining();
+        size += command.queryPath.serializedSize();
+        size += DBConstants.shortSize + command.start.remaining();
+        size += DBConstants.shortSize + command.finish.remaining();
+        size += DBConstants.boolSize;
+        size += DBConstants.intSize;
+        return size;
     }
 }
