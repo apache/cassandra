@@ -48,6 +48,7 @@ Fixes merged from 0.8 below:
  * Force flush of system table after updating/removing a token (CASSANDRA-3243)
  * Make Pig storage handle implements LoadMetadata (CASSANDRA-2777)
  * Improved CLI exceptions (CASSANDRA-3312)
+ * Fix handling of tombstone by SSTableExport/Import (CASSANDRA-3357)
 
 
 1.0.0-rc2

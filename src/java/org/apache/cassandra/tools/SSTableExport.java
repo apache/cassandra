@@ -129,7 +129,10 @@ public class SSTableExport
         AbstractType validator = cfMetaData.getValueValidator(name);
 
         serializedColumn.add(comparator.getString(name));
-        serializedColumn.add(validator.getString(value));
+        if (column instanceof DeletedColumn)
+            serializedColumn.add(ByteBufferUtil.bytesToHex(value));
+        else
+            serializedColumn.add(validator.getString(value));
         serializedColumn.add(column.timestamp());
 
         if (column instanceof DeletedColumn)
