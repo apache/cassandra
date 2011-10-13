@@ -18,7 +18,9 @@
 
 package org.apache.cassandra.db;
 
-import java.io.*;
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
@@ -26,7 +28,6 @@ import java.util.Map;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.io.util.FastByteArrayOutputStream;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageProducer;
 import org.apache.cassandra.service.IReadCommand;
@@ -48,10 +49,8 @@ public abstract class ReadCommand implements MessageProducer, IReadCommand
 
     public Message getMessage(Integer version) throws IOException
     {
-        FastByteArrayOutputStream bos = new FastByteArrayOutputStream();
-        DataOutputStream dos = new DataOutputStream(bos);
-        ReadCommand.serializer().serialize(this, dos, version);
-        return new Message(FBUtilities.getBroadcastAddress(), StorageService.Verb.READ, bos.toByteArray(), version);
+        byte[] bytes = FBUtilities.serialize(this, serializer, version);
+        return new Message(FBUtilities.getBroadcastAddress(), StorageService.Verb.READ, bytes, version);
     }
 
     public final QueryPath queryPath;
@@ -100,7 +99,7 @@ public abstract class ReadCommand implements MessageProducer, IReadCommand
 
 class ReadCommandSerializer implements IVersionedSerializer<ReadCommand>
 {
-    private static final Map<Byte, ReadCommandSerializer> CMD_SERIALIZER_MAP = new HashMap<Byte, ReadCommandSerializer>(); 
+    private static final Map<Byte, IVersionedSerializer<ReadCommand>> CMD_SERIALIZER_MAP = new HashMap<Byte, IVersionedSerializer<ReadCommand>>();
     static 
     {
         CMD_SERIALIZER_MAP.put(ReadCommand.CMD_TYPE_GET_SLICE_BY_NAMES, new SliceByNamesReadCommandSerializer());
@@ -108,11 +107,10 @@ class ReadCommandSerializer implements IVersionedSerializer<ReadCommand>
     }
 
 
-    public void serialize(ReadCommand rm, DataOutput dos, int version) throws IOException
+    public void serialize(ReadCommand command, DataOutput dos, int version) throws IOException
     {
-        dos.writeByte(rm.commandType);
-        ReadCommandSerializer ser = CMD_SERIALIZER_MAP.get(rm.commandType);
-        ser.serialize(rm, dos, version);
+        dos.writeByte(command.commandType);
+        CMD_SERIALIZER_MAP.get(command.commandType).serialize(command, dos, version);
     }
 
     public ReadCommand deserialize(DataInput dis, int version) throws IOException
@@ -123,6 +121,6 @@ class ReadCommandSerializer implements IVersionedSerializer<ReadCommand>
 
     public long serializedSize(ReadCommand command, int version)
     {
-        throw new UnsupportedOperationException();
+        return 1 + CMD_SERIALIZER_MAP.get(command.commandType).serializedSize(command, version);
     }
 }

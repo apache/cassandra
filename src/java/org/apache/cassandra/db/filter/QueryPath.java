@@ -24,9 +24,11 @@ package org.apache.cassandra.db.filter;
 import java.io.*;
 import java.nio.ByteBuffer;
 
+import org.apache.cassandra.db.DBConstants;
 import org.apache.cassandra.thrift.ColumnParent;
 import org.apache.cassandra.thrift.ColumnPath;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class QueryPath
 {
@@ -94,5 +96,13 @@ public class QueryPath
         return new QueryPath(cfName.isEmpty() ? null : cfName, 
                              scName.remaining() == 0 ? null : scName, 
                              cName.remaining() == 0 ? null : cName);
+    }
+
+    public int serializedSize()
+    {
+        int size = DBConstants.shortSize + (columnFamilyName == null ? 0 : FBUtilities.encodedUTF8Length(columnFamilyName));
+        size += DBConstants.shortSize + (superColumnName == null ? 0 : superColumnName.remaining());
+        size += DBConstants.shortSize + (columnName == null ? 0 : columnName.remaining());
+        return size;
     }
 }

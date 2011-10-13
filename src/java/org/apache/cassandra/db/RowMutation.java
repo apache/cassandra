@@ -18,19 +18,21 @@
 
 package org.apache.cassandra.db;
 
-import java.io.*;
+import java.io.DataInput;
+import java.io.DataInputStream;
+import java.io.DataOutput;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import org.apache.cassandra.config.Schema;
 import org.apache.commons.lang.StringUtils;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.FastByteArrayInputStream;
-import org.apache.cassandra.io.util.FastByteArrayOutputStream;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageProducer;
 import org.apache.cassandra.net.MessagingService;
@@ -270,17 +272,13 @@ public class RowMutation implements IMutation, MessageProducer
 
     public synchronized byte[] getSerializedBuffer(int version) throws IOException
     {
-        byte[] preserializedBuffer = preserializedBuffers.get(version);
-        if (preserializedBuffer == null)
+        byte[] bytes = preserializedBuffers.get(version);
+        if (bytes == null)
         {
-            FastByteArrayOutputStream bout = new FastByteArrayOutputStream();
-            DataOutputStream dout = new DataOutputStream(bout);
-            RowMutation.serializer().serialize(this, dout, version);
-            dout.close();
-            preserializedBuffer = bout.toByteArray();
-            preserializedBuffers.put(version, preserializedBuffer);
+            bytes = FBUtilities.serialize(this, serializer(), version);
+            preserializedBuffers.put(version, bytes);
         }
-        return preserializedBuffer;
+        return bytes;
     }
 
     public String toString()
@@ -382,13 +380,11 @@ public class RowMutation implements IMutation, MessageProducer
             /* serialize the modifications_ in the mutation */
             int size = rm.modifications_.size();
             dos.writeInt(size);
-            if (size > 0)
+            assert size >= 0;
+            for (Map.Entry<Integer,ColumnFamily> entry : rm.modifications_.entrySet())
             {
-                for (Map.Entry<Integer,ColumnFamily> entry : rm.modifications_.entrySet())
-                {
-                    dos.writeInt(entry.getKey());
-                    ColumnFamily.serializer().serialize(entry.getValue(), dos);
-                }
+                dos.writeInt(entry.getKey());
+                ColumnFamily.serializer().serialize(entry.getValue(), dos);
             }
         }
 
@@ -412,9 +408,19 @@ public class RowMutation implements IMutation, MessageProducer
             return deserialize(dis, version, true);
         }
 
-        public long serializedSize(RowMutation rowMutation, int version)
+        public long serializedSize(RowMutation rm, int version)
         {
-            throw new UnsupportedOperationException();
+            int size = DBConstants.shortSize + FBUtilities.encodedUTF8Length(rm.getTable());
+            size += DBConstants.shortSize + rm.key().remaining();
+
+            size += DBConstants.intSize;
+            for (Map.Entry<Integer,ColumnFamily> entry : rm.modifications_.entrySet())
+            {
+                size += DBConstants.intSize;
+                size += entry.getValue().serializedSize();
+            }
+
+            return size;
         }
     }
 }

@@ -18,11 +18,12 @@
 
 package org.apache.cassandra.db;
 
-import java.io.*;
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.io.util.FastByteArrayOutputStream;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -42,12 +43,10 @@ public class WriteResponse
         return serializer_;
     }
 
-    public static Message makeWriteResponseMessage(Message original, WriteResponse writeResponseMessage) throws IOException
+    public static Message makeWriteResponseMessage(Message original, WriteResponse respose) throws IOException
     {
-    	FastByteArrayOutputStream bos = new FastByteArrayOutputStream();
-        DataOutputStream dos = new DataOutputStream( bos );
-        WriteResponse.serializer().serialize(writeResponseMessage, dos, original.getVersion());
-        return original.getReply(FBUtilities.getBroadcastAddress(), bos.toByteArray(), original.getVersion());
+        byte[] bytes = FBUtilities.serialize(respose, WriteResponse.serializer(), original.getVersion());
+        return original.getReply(FBUtilities.getBroadcastAddress(), bytes, original.getVersion());
     }
 
 	private final String table_;
@@ -94,7 +93,10 @@ public class WriteResponse
 
         public long serializedSize(WriteResponse response, int version)
         {
-            throw new UnsupportedOperationException();
+            int size = DBConstants.shortSize + FBUtilities.encodedUTF8Length(response.table());
+            size += DBConstants.shortSize + response.key().remaining();
+            size += DBConstants.boolSize;
+            return size;
         }
     }
 }

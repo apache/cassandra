@@ -29,7 +29,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.io.util.FastByteArrayOutputStream;
+import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -184,10 +184,8 @@ public class CounterMutation implements IMutation
 
     public Message makeMutationMessage(int version) throws IOException
     {
-        FastByteArrayOutputStream bos = new FastByteArrayOutputStream();
-        DataOutputStream dos = new DataOutputStream(bos);
-        serializer().serialize(this, dos, version);
-        return new Message(FBUtilities.getBroadcastAddress(), StorageService.Verb.COUNTER_MUTATION, bos.toByteArray(), version);
+        byte[] bytes = FBUtilities.serialize(this, serializer, version);
+        return new Message(FBUtilities.getBroadcastAddress(), StorageService.Verb.COUNTER_MUTATION, bytes, version);
     }
 
     public boolean shouldReplicateOnWrite()
@@ -247,8 +245,9 @@ class CounterMutationSerializer implements IVersionedSerializer<CounterMutation>
         return new CounterMutation(rm, consistency);
     }
 
-    public long serializedSize(CounterMutation object, int version)
+    public long serializedSize(CounterMutation cm, int version)
     {
-        return 0;
+        return RowMutation.serializer().serializedSize(cm.rowMutation(), version)
+               + DBConstants.shortSize + FBUtilities.encodedUTF8Length(cm.consistency().name());
     }
 }

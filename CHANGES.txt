@@ -6,6 +6,7 @@
  * (CQL) update grammar to require key clause in DELETE statement
    (CASSANDRA-3349)
  * (CQL) allow numeric keyspace names in USE statement (CASSANDRA-3350)
+ * reduce network copies (CASSANDRA-3333)
 
 
 1.0.0-final

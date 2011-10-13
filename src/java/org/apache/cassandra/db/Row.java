@@ -72,9 +72,9 @@ public class Row
             return deserialize(dis, version, false, ThreadSafeSortedColumns.factory());
         }
 
-        public long serializedSize(Row row)
+        public long serializedSize(Row row, int version)
         {
-            return 0;
+            return DBConstants.shortSize + row.key.key.remaining() + ColumnFamily.serializer().serializedSize(row.cf);
         }
     }
 }

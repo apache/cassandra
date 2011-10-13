@@ -79,17 +79,14 @@ private static IVersionedSerializer<ReadResponse> serializer_;
 
 class ReadResponseSerializer implements IVersionedSerializer<ReadResponse>
 {
-	public void serialize(ReadResponse rm, DataOutput dos, int version) throws IOException
+	public void serialize(ReadResponse response, DataOutput dos, int version) throws IOException
 	{
-        dos.writeInt(rm.isDigestQuery() ? rm.digest().remaining() : 0);
-        ByteBuffer buffer = rm.isDigestQuery() ? rm.digest() : ByteBufferUtil.EMPTY_BYTE_BUFFER;
+        dos.writeInt(response.isDigestQuery() ? response.digest().remaining() : 0);
+        ByteBuffer buffer = response.isDigestQuery() ? response.digest() : ByteBufferUtil.EMPTY_BYTE_BUFFER;
         ByteBufferUtil.write(buffer, dos);
-        dos.writeBoolean(rm.isDigestQuery());
-
-        if (!rm.isDigestQuery())
-        {
-            Row.serializer().serialize(rm.row(), dos, version);
-        }
+        dos.writeBoolean(response.isDigestQuery());
+        if (!response.isDigestQuery())
+            Row.serializer().serialize(response.row(), dos, version);
     }
 	
     public ReadResponse deserialize(DataInput dis, int version) throws IOException
@@ -114,8 +111,15 @@ class ReadResponseSerializer implements IVersionedSerializer<ReadResponse>
         return isDigest ? new ReadResponse(ByteBuffer.wrap(digest)) : new ReadResponse(row);
     }
 
-    public long serializedSize(ReadResponse readResponse)
+    public long serializedSize(ReadResponse response, int version)
     {
-        throw new UnsupportedOperationException();
+        int size = DBConstants.intSize;
+        size += (response.isDigestQuery() ? response.digest() : ByteBufferUtil.EMPTY_BYTE_BUFFER).remaining();
+        size += DBConstants.boolSize;
+        if (response.isDigestQuery())
+            size += response.digest().remaining();
+        else
+            size += Row.serializer().serializedSize(response.row(), version);
+        return size;
     }
 }
