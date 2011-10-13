@@ -18,14 +18,12 @@
 
 package org.apache.cassandra.gms;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.net.InetAddress;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.apache.cassandra.io.ICompactSerializer;
+import org.apache.cassandra.io.IVersionedSerializer;
 
 
 /**
@@ -35,7 +33,7 @@ import org.apache.cassandra.io.ICompactSerializer;
 
 class GossipDigestAck2Message
 {
-    private static  ICompactSerializer<GossipDigestAck2Message> serializer_;
+    private static  IVersionedSerializer<GossipDigestAck2Message> serializer_;
     static
     {
         serializer_ = new GossipDigestAck2MessageSerializer();
@@ -43,7 +41,7 @@ class GossipDigestAck2Message
     
     Map<InetAddress, EndpointState> epStateMap_ = new HashMap<InetAddress, EndpointState>();
 
-    public static ICompactSerializer<GossipDigestAck2Message> serializer()
+    public static IVersionedSerializer<GossipDigestAck2Message> serializer()
     {
         return serializer_;
     }
@@ -59,18 +57,23 @@ class GossipDigestAck2Message
     }
 }
 
-class GossipDigestAck2MessageSerializer implements ICompactSerializer<GossipDigestAck2Message>
+class GossipDigestAck2MessageSerializer implements IVersionedSerializer<GossipDigestAck2Message>
 {
-    public void serialize(GossipDigestAck2Message gDigestAck2Message, DataOutputStream dos, int version) throws IOException
+    public void serialize(GossipDigestAck2Message gDigestAck2Message, DataOutput dos, int version) throws IOException
     {
         /* Use the EndpointState */
         EndpointStatesSerializationHelper.serialize(gDigestAck2Message.epStateMap_, dos, version);
     }
 
-    public GossipDigestAck2Message deserialize(DataInputStream dis, int version) throws IOException
+    public GossipDigestAck2Message deserialize(DataInput dis, int version) throws IOException
     {
         Map<InetAddress, EndpointState> epStateMap = EndpointStatesSerializationHelper.deserialize(dis, version);
         return new GossipDigestAck2Message(epStateMap);        
+    }
+
+    public long serializedSize(GossipDigestAck2Message gossipDigestAck2Message, int version)
+    {
+        throw new UnsupportedOperationException();
     }
 }
 

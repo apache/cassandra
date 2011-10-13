@@ -28,7 +28,7 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.filter.QueryPath;
-import org.apache.cassandra.io.ICompactSerializer;
+import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.io.util.FastByteArrayOutputStream;
 import org.apache.cassandra.net.Message;
@@ -372,9 +372,9 @@ public class RowMutation implements IMutation, MessageProducer
         return rm;
     }
 
-    public static class RowMutationSerializer implements ICompactSerializer<RowMutation>
+    public static class RowMutationSerializer implements IVersionedSerializer<RowMutation>
     {
-        public void serialize(RowMutation rm, DataOutputStream dos, int version) throws IOException
+        public void serialize(RowMutation rm, DataOutput dos, int version) throws IOException
         {
             dos.writeUTF(rm.getTable());
             ByteBufferUtil.writeWithShortLength(rm.key(), dos);
@@ -392,7 +392,7 @@ public class RowMutation implements IMutation, MessageProducer
             }
         }
 
-        public RowMutation deserialize(DataInputStream dis, int version, boolean fromRemote) throws IOException
+        public RowMutation deserialize(DataInput dis, int version, boolean fromRemote) throws IOException
         {
             String table = dis.readUTF();
             ByteBuffer key = ByteBufferUtil.readWithShortLength(dis);
@@ -407,9 +407,14 @@ public class RowMutation implements IMutation, MessageProducer
             return new RowMutation(table, key, modifications);
         }
 
-        public RowMutation deserialize(DataInputStream dis, int version) throws IOException
+        public RowMutation deserialize(DataInput dis, int version) throws IOException
         {
             return deserialize(dis, version, true);
+        }
+
+        public long serializedSize(RowMutation rowMutation, int version)
+        {
+            throw new UnsupportedOperationException();
         }
     }
 }

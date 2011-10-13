@@ -21,9 +21,7 @@ package org.apache.cassandra.db.filter;
  */
 
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.thrift.ColumnParent;
@@ -78,7 +76,7 @@ public class QueryPath
                ')';
     }
 
-    public void serialize(DataOutputStream dos) throws IOException
+    public void serialize(DataOutput dos) throws IOException
     {
         assert !"".equals(columnFamilyName);
         assert superColumnName == null || superColumnName.remaining() > 0;
@@ -88,7 +86,7 @@ public class QueryPath
         ByteBufferUtil.writeWithShortLength(columnName == null ? ByteBufferUtil.EMPTY_BYTE_BUFFER : columnName, dos);
     }
 
-    public static QueryPath deserialize(DataInputStream din) throws IOException
+    public static QueryPath deserialize(DataInput din) throws IOException
     {
         String cfName = din.readUTF();
         ByteBuffer scName = ByteBufferUtil.readWithShortLength(din);

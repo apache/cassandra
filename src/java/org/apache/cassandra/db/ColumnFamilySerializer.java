@@ -32,10 +32,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.io.ICompactSerializer3;
+import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.sstable.SSTableMetadata;
 
-public class ColumnFamilySerializer implements ICompactSerializer3<ColumnFamily>
+public class ColumnFamilySerializer implements ISerializer<ColumnFamily>
 {
     private static final Logger logger = LoggerFactory.getLogger(ColumnFamilySerializer.class);
 

@@ -21,26 +21,24 @@ package org.apache.cassandra.streaming;
  *
  */
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
-import org.apache.cassandra.io.ICompactSerializer;
+import org.apache.cassandra.io.IVersionedSerializer;
 
 public class StreamHeader
 {
-    private static ICompactSerializer<StreamHeader> serializer;
+    private static IVersionedSerializer<StreamHeader> serializer;
 
     static
     {
         serializer = new StreamHeaderSerializer();
     }
 
-    public static ICompactSerializer<StreamHeader> serializer()
+    public static IVersionedSerializer<StreamHeader> serializer()
     {
         return serializer;
     }
@@ -69,9 +67,9 @@ public class StreamHeader
         this.pendingFiles = pendingFiles;
     }
 
-    private static class StreamHeaderSerializer implements ICompactSerializer<StreamHeader>
+    private static class StreamHeaderSerializer implements IVersionedSerializer<StreamHeader>
     {
-        public void serialize(StreamHeader sh, DataOutputStream dos, int version) throws IOException
+        public void serialize(StreamHeader sh, DataOutput dos, int version) throws IOException
         {
             dos.writeUTF(sh.table);
             dos.writeLong(sh.sessionId);
@@ -83,7 +81,7 @@ public class StreamHeader
             }
         }
 
-        public StreamHeader deserialize(DataInputStream dis, int version) throws IOException
+        public StreamHeader deserialize(DataInput dis, int version) throws IOException
         {
             String table = dis.readUTF();
             long sessionId = dis.readLong();
@@ -97,6 +95,11 @@ public class StreamHeader
             }
 
             return new StreamHeader(table, sessionId, file, pendingFiles);
+        }
+
+        public long serializedSize(StreamHeader streamHeader, int version)
+        {
+            throw new UnsupportedOperationException();
         }
     }
 }

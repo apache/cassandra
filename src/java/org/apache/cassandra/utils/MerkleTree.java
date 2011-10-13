@@ -18,12 +18,7 @@
 */
 package org.apache.cassandra.utils;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
-import java.io.Serializable;
+import java.io.*;
 import java.util.*;
 
 import com.google.common.collect.AbstractIterator;
@@ -32,7 +27,7 @@ import com.google.common.collect.PeekingIterator;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.io.ICompactSerializer;
+import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.net.MessagingService;
 
 /**
@@ -84,7 +79,7 @@ public class MerkleTree implements Serializable
     private long size;
     private Hashable root;
     
-    public static class MerkleTreeSerializer implements ICompactSerializer<MerkleTree>
+    public static class MerkleTreeSerializer
     {
         public void serialize(MerkleTree mt, DataOutputStream dos, int version) throws IOException
         {
@@ -632,7 +627,7 @@ public class MerkleTree implements Serializable
         private Hashable lchild;
         private Hashable rchild;
 
-        private static ICompactSerializer<Inner> serializer = new InnerSerializer();
+        private static InnerSerializer serializer = new InnerSerializer();
         
         /**
          * Constructs an Inner with the given token and children, and a null hash.
@@ -701,9 +696,9 @@ public class MerkleTree implements Serializable
             return buff.toString();
         }
         
-        private static class InnerSerializer implements ICompactSerializer<Inner>
+        private static class InnerSerializer
         {
-            public void serialize(Inner inner, DataOutputStream dos, int version) throws IOException
+            public void serialize(Inner inner, DataOutput dos, int version) throws IOException
             {
                 if (inner.hash == null)
                     dos.writeInt(-1);
@@ -717,7 +712,7 @@ public class MerkleTree implements Serializable
                 Hashable.serializer.serialize(inner.rchild, dos, version);
             }
 
-            public Inner deserialize(DataInputStream dis, int version) throws IOException
+            public Inner deserialize(DataInput dis, int version) throws IOException
             {
                 int hashLen = dis.readInt();
                 byte[] hash = hashLen >= 0 ? new byte[hashLen] : null;
@@ -744,7 +739,7 @@ public class MerkleTree implements Serializable
     {
         public static final long serialVersionUID = 1L;
         static final byte IDENT = 1;
-        private static ICompactSerializer<Leaf> serializer = new LeafSerializer();
+        private static LeafSerializer serializer = new LeafSerializer();
         
         /**
          * Constructs a null hash.
@@ -775,9 +770,9 @@ public class MerkleTree implements Serializable
             return "#<Leaf " + Hashable.toString(hash()) + ">";
         }
 
-        private static class LeafSerializer implements ICompactSerializer<Leaf>
+        private static class LeafSerializer
         {
-            public void serialize(Leaf leaf, DataOutputStream dos, int version) throws IOException
+            public void serialize(Leaf leaf, DataOutput dos) throws IOException
             {
                 if (leaf.hash == null)
                     dos.writeInt(-1);
@@ -788,7 +783,7 @@ public class MerkleTree implements Serializable
                 }
             }
 
-            public Leaf deserialize(DataInputStream dis, int version) throws IOException
+            public Leaf deserialize(DataInput dis) throws IOException
             {
                 int hashLen = dis.readInt();
                 byte[] hash = hashLen < 0 ? null : new byte[hashLen];
@@ -827,7 +822,7 @@ public class MerkleTree implements Serializable
     static abstract class Hashable implements Serializable
     {
         private static final long serialVersionUID = 1L;
-        private static ICompactSerializer<Hashable> serializer = new HashableSerializer();
+        private static IVersionedSerializer<Hashable> serializer = new HashableSerializer();
 
         protected byte[] hash;
 
@@ -886,9 +881,9 @@ public class MerkleTree implements Serializable
             return "[" + Hex.bytesToHex(hash) + "]";
         }
         
-        private static class HashableSerializer implements ICompactSerializer<Hashable>
+        private static class HashableSerializer implements IVersionedSerializer<Hashable>
         {
-            public void serialize(Hashable h, DataOutputStream dos, int version) throws IOException
+            public void serialize(Hashable h, DataOutput dos, int version) throws IOException
             {
                 if (h instanceof Inner) 
                 {
@@ -898,21 +893,26 @@ public class MerkleTree implements Serializable
                 else if (h instanceof Leaf)
                 {
                     dos.writeByte(Leaf.IDENT);
-                    Leaf.serializer.serialize((Leaf)h, dos, version);
+                    Leaf.serializer.serialize((Leaf)h, dos);
                 }
                 else
                     throw new IOException("Unexpected Hashable: " + h.getClass().getCanonicalName());
             }
 
-            public Hashable deserialize(DataInputStream dis, int version) throws IOException
+            public Hashable deserialize(DataInput dis, int version) throws IOException
             {
                 byte ident = dis.readByte();
                 if (Inner.IDENT == ident)
                     return Inner.serializer.deserialize(dis, version);
                 else if (Leaf.IDENT == ident)
-                    return Leaf.serializer.deserialize(dis, version);
+                    return Leaf.serializer.deserialize(dis);
                 else
                     throw new IOException("Unexpected Hashable: " + ident);
+            }
+
+            public long serializedSize(Hashable hashable, int version)
+            {
+                throw new UnsupportedOperationException();
             }
         }
     }

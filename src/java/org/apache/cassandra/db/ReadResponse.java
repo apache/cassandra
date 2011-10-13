@@ -18,12 +18,10 @@
 
 package org.apache.cassandra.db;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.io.ICompactSerializer;
+import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 
@@ -34,14 +32,14 @@ import org.apache.cassandra.utils.ByteBufferUtil;
  */
 public class ReadResponse
 {
-private static ICompactSerializer<ReadResponse> serializer_;
+private static IVersionedSerializer<ReadResponse> serializer_;
 
     static
     {
         serializer_ = new ReadResponseSerializer();
     }
 
-    public static ICompactSerializer<ReadResponse> serializer()
+    public static IVersionedSerializer<ReadResponse> serializer()
     {
         return serializer_;
     }
@@ -79,9 +77,9 @@ private static ICompactSerializer<ReadResponse> serializer_;
     }
 }
 
-class ReadResponseSerializer implements ICompactSerializer<ReadResponse>
+class ReadResponseSerializer implements IVersionedSerializer<ReadResponse>
 {
-	public void serialize(ReadResponse rm, DataOutputStream dos, int version) throws IOException
+	public void serialize(ReadResponse rm, DataOutput dos, int version) throws IOException
 	{
         dos.writeInt(rm.isDigestQuery() ? rm.digest().remaining() : 0);
         ByteBuffer buffer = rm.isDigestQuery() ? rm.digest() : ByteBufferUtil.EMPTY_BYTE_BUFFER;
@@ -94,7 +92,7 @@ class ReadResponseSerializer implements ICompactSerializer<ReadResponse>
         }
     }
 	
-    public ReadResponse deserialize(DataInputStream dis, int version) throws IOException
+    public ReadResponse deserialize(DataInput dis, int version) throws IOException
     {
         byte[] digest = null;
         int digestSize = dis.readInt();
@@ -114,5 +112,10 @@ class ReadResponseSerializer implements ICompactSerializer<ReadResponse>
         }
 
         return isDigest ? new ReadResponse(ByteBuffer.wrap(digest)) : new ReadResponse(row);
-    } 
+    }
+
+    public long serializedSize(ReadResponse readResponse)
+    {
+        throw new UnsupportedOperationException();
+    }
 }

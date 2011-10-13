@@ -27,7 +27,7 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.util.*;
 
-import org.apache.cassandra.io.ICompactSerializer2;
+import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.utils.Pair;
 
 public abstract class AbstractBounds implements Serializable
@@ -35,7 +35,7 @@ public abstract class AbstractBounds implements Serializable
     private static final long serialVersionUID = 1L;
     private static AbstractBoundsSerializer serializer = new AbstractBoundsSerializer();
 
-    public static ICompactSerializer2<AbstractBounds> serializer()
+    public static AbstractBoundsSerializer serializer()
     {
         return serializer;
     }
@@ -165,7 +165,7 @@ public abstract class AbstractBounds implements Serializable
         return output;
     }
 
-    private static class AbstractBoundsSerializer implements ICompactSerializer2<AbstractBounds>
+    public static class AbstractBoundsSerializer implements ISerializer<AbstractBounds>
     {
         public void serialize(AbstractBounds range, DataOutput out) throws IOException
         {
@@ -179,6 +179,11 @@ public abstract class AbstractBounds implements Serializable
             if (in.readInt() == Type.RANGE.ordinal())
                 return new Range(Token.serializer().deserialize(in), Token.serializer().deserialize(in));
             return new Bounds(Token.serializer().deserialize(in), Token.serializer().deserialize(in));
+        }
+
+        public long serializedSize(AbstractBounds abstractBounds)
+        {
+            throw new UnsupportedOperationException();
         }
     }
 }

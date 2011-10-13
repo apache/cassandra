@@ -31,7 +31,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.commitlog.ReplayPosition;
-import org.apache.cassandra.io.ICompactSerializer2;
+import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.EstimatedHistogram;
 
@@ -168,7 +168,7 @@ public class SSTableMetadata
         }
     }
 
-    public static class SSTableMetadataSerializer implements ICompactSerializer2<SSTableMetadata>
+    public static class SSTableMetadataSerializer implements ISerializer<SSTableMetadata>
     {
         private static final Logger logger = LoggerFactory.getLogger(SSTableMetadataSerializer.class);
 
@@ -219,6 +219,11 @@ public class SSTableMetadata
             ReplayPosition replayPosition = ReplayPosition.serializer.deserialize(dis);
             long maxTimestamp = dis.readLong();
             return new SSTableMetadata(rowSizes, columnCounts, replayPosition, maxTimestamp);
+        }
+
+        public long serializedSize(SSTableMetadata object)
+        {
+            throw new UnsupportedOperationException();
         }
     }
 }

@@ -30,7 +30,7 @@ import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap;
 import com.googlecode.concurrentlinkedhashmap.EvictionListener;
 import com.googlecode.concurrentlinkedhashmap.Weighers;
 
-import org.apache.cassandra.io.ICompactSerializer3;
+import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.util.MemoryInputStream;
 import org.apache.cassandra.io.util.MemoryOutputStream;
 import org.slf4j.Logger;
@@ -45,9 +45,9 @@ public class SerializingCache<K, V> implements ICache<K, V>
     private static final int DEFAULT_CONCURENCY_LEVEL = 64;
     
     private final ConcurrentLinkedHashMap<K, FreeableMemory> map;
-    private final ICompactSerializer3<V> serializer;
+    private final ISerializer<V> serializer;
 
-    public SerializingCache(int capacity, ICompactSerializer3<V> serializer, String tableName, String cfName)
+    public SerializingCache(int capacity, ISerializer<V> serializer, String tableName, String cfName)
     {
         this.serializer = serializer;
 

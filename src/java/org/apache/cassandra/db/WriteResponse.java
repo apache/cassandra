@@ -18,12 +18,10 @@
 
 package org.apache.cassandra.db;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.io.ICompactSerializer;
+import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.FastByteArrayOutputStream;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -77,21 +75,26 @@ public class WriteResponse
 		return status_;
 	}
 
-    public static class WriteResponseSerializer implements ICompactSerializer<WriteResponse>
+    public static class WriteResponseSerializer implements IVersionedSerializer<WriteResponse>
     {
-        public void serialize(WriteResponse wm, DataOutputStream dos, int version) throws IOException
+        public void serialize(WriteResponse wm, DataOutput dos, int version) throws IOException
         {
             dos.writeUTF(wm.table());
             ByteBufferUtil.writeWithShortLength(wm.key(), dos);
             dos.writeBoolean(wm.isSuccess());
         }
 
-        public WriteResponse deserialize(DataInputStream dis, int version) throws IOException
+        public WriteResponse deserialize(DataInput dis, int version) throws IOException
         {
             String table = dis.readUTF();
             ByteBuffer key = ByteBufferUtil.readWithShortLength(dis);
             boolean status = dis.readBoolean();
             return new WriteResponse(table, key, status);
+        }
+
+        public long serializedSize(WriteResponse response, int version)
+        {
+            throw new UnsupportedOperationException();
         }
     }
 }

@@ -38,7 +38,7 @@ import org.apache.cassandra.io.util.OutputBuffer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
- * Static serialization/deserialization utility functions, intended to eventually replace ICompactSerializers.
+ * Static serialization/deserialization utility functions, intended to eventually replace IVersionedSerializers.
  */
 public final class SerDeUtils
 {

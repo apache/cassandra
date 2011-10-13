@@ -18,28 +18,25 @@
 
 package org.apache.cassandra.net;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.net.InetAddress;
 import java.util.Hashtable;
 import java.util.Map;
-import java.util.Set;
 
-import org.apache.cassandra.io.ICompactSerializer;
+import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
 public class Header
 {
-    private static ICompactSerializer<Header> serializer_;
+    private static IVersionedSerializer<Header> serializer_;
 
     static
     {
         serializer_ = new HeaderSerializer();        
     }
     
-    static ICompactSerializer<Header> serializer()
+    static IVersionedSerializer<Header> serializer()
     {
         return serializer_;
     }
@@ -105,9 +102,9 @@ public class Header
     }
 }
 
-class HeaderSerializer implements ICompactSerializer<Header>
+class HeaderSerializer implements IVersionedSerializer<Header>
 {
-    public void serialize(Header t, DataOutputStream dos, int version) throws IOException
+    public void serialize(Header t, DataOutput dos, int version) throws IOException
     {           
         CompactEndpointSerializationHelper.serialize(t.getFrom(), dos);
         dos.writeInt(t.getVerb().ordinal());
@@ -121,7 +118,7 @@ class HeaderSerializer implements ICompactSerializer<Header>
         }
     }
 
-    public Header deserialize(DataInputStream dis, int version) throws IOException
+    public Header deserialize(DataInput dis, int version) throws IOException
     {
         InetAddress from = CompactEndpointSerializationHelper.deserialize(dis);
         int verbOrdinal = dis.readInt();
@@ -136,6 +133,11 @@ class HeaderSerializer implements ICompactSerializer<Header>
             details.put(key, bytes);
         }
         return new Header(from, StorageService.VERBS[verbOrdinal], details);
+    }
+
+    public long serializedSize(Header header, int version)
+    {
+        throw new UnsupportedOperationException();
     }
 }
 

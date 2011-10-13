@@ -17,9 +17,7 @@
  */
 package org.apache.cassandra.db;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.nio.ByteBuffer;
 import java.util.*;
 
@@ -74,7 +72,7 @@ public class SliceByNamesReadCommand extends ReadCommand
 class SliceByNamesReadCommandSerializer extends ReadCommandSerializer
 {
     @Override
-    public void serialize(ReadCommand rm, DataOutputStream dos, int version) throws IOException
+    public void serialize(ReadCommand rm, DataOutput dos, int version) throws IOException
     {
         SliceByNamesReadCommand realRM = (SliceByNamesReadCommand)rm;
         dos.writeBoolean(realRM.isDigestQuery());
@@ -92,7 +90,7 @@ class SliceByNamesReadCommandSerializer extends ReadCommandSerializer
     }
 
     @Override
-    public ReadCommand deserialize(DataInputStream dis, int version) throws IOException
+    public ReadCommand deserialize(DataInput dis, int version) throws IOException
     {
         boolean isDigest = dis.readBoolean();
         String table = dis.readUTF();

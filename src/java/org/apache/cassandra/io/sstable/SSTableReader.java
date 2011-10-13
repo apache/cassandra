@@ -292,7 +292,7 @@ public class SSTableReader extends SSTable
             stream = new DataInputStream(new BufferedInputStream(new FileInputStream(descriptor.filenameFor(Component.FILTER))));
             if (descriptor.usesOldBloomFilter)
             {
-                bf = LegacyBloomFilter.serializer().deserialize(stream, 0); // version means nothing.
+                bf = LegacyBloomFilter.serializer().deserialize(stream);
             }
             else
             {

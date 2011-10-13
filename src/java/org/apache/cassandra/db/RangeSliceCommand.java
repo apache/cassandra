@@ -36,14 +36,12 @@
 
 package org.apache.cassandra.db;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 
 import org.apache.cassandra.dht.AbstractBounds;
-import org.apache.cassandra.io.ICompactSerializer;
+import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.net.Message;
@@ -122,9 +120,9 @@ public class RangeSliceCommand implements MessageProducer, IReadCommand
     }
 }
 
-class RangeSliceCommandSerializer implements ICompactSerializer<RangeSliceCommand>
+class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceCommand>
 {
-    public void serialize(RangeSliceCommand sliceCommand, DataOutputStream dos, int version) throws IOException
+    public void serialize(RangeSliceCommand sliceCommand, DataOutput dos, int version) throws IOException
     {
         dos.writeUTF(sliceCommand.keyspace);
         dos.writeUTF(sliceCommand.column_family);
@@ -139,7 +137,7 @@ class RangeSliceCommandSerializer implements ICompactSerializer<RangeSliceComman
         dos.writeInt(sliceCommand.max_keys);
     }
 
-    public RangeSliceCommand deserialize(DataInputStream dis, int version) throws IOException
+    public RangeSliceCommand deserialize(DataInput dis, int version) throws IOException
     {
         String keyspace = dis.readUTF();
         String column_family = dis.readUTF();
@@ -147,7 +145,11 @@ class RangeSliceCommandSerializer implements ICompactSerializer<RangeSliceComman
         int scLength = dis.readInt();
         ByteBuffer super_column = null;
         if (scLength > 0)
-            super_column = ByteBuffer.wrap(readBuf(scLength, dis));
+        {
+            byte[] buf = new byte[scLength];
+            dis.readFully(buf);
+            super_column = ByteBuffer.wrap(buf);
+        }
 
         TDeserializer dser = new TDeserializer(new TBinaryProtocol.Factory());
         SlicePredicate pred = new SlicePredicate();
@@ -158,12 +160,8 @@ class RangeSliceCommandSerializer implements ICompactSerializer<RangeSliceComman
         return new RangeSliceCommand(keyspace, column_family, super_column, pred, range, max_keys);
     }
 
-    static byte[] readBuf(int len, DataInputStream dis) throws IOException
+    public long serializedSize(RangeSliceCommand rangeSliceCommand, int version)
     {
-        byte[] buf = new byte[len];
-        int read = 0;
-        while (read < len)
-            read = dis.read(buf, read, len - read);
-        return buf;
+        throw new UnsupportedOperationException();
     }
 }

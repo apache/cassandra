@@ -33,7 +33,7 @@ import org.apache.cassandra.db.Table;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.gms.Gossiper;
-import org.apache.cassandra.io.ICompactSerializer;
+import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.net.*;
 import org.apache.cassandra.service.StorageService;
@@ -267,9 +267,9 @@ public class StreamingRepairTask implements Runnable
         }
     }
 
-    private static class StreamingRepairTaskSerializer implements ICompactSerializer<StreamingRepairTask>
+    private static class StreamingRepairTaskSerializer implements IVersionedSerializer<StreamingRepairTask>
     {
-        public void serialize(StreamingRepairTask task, DataOutputStream dos, int version) throws IOException
+        public void serialize(StreamingRepairTask task, DataOutput dos, int version) throws IOException
         {
             UUIDGen.write(task.id, dos);
             CompactEndpointSerializationHelper.serialize(task.owner, dos);
@@ -285,14 +285,14 @@ public class StreamingRepairTask implements Runnable
             // We don't serialize the callback on purpose
         }
 
-        public StreamingRepairTask deserialize(DataInputStream dis, int version) throws IOException
+        public StreamingRepairTask deserialize(DataInput dis, int version) throws IOException
         {
             UUID id = UUIDGen.read(dis);
             InetAddress owner = CompactEndpointSerializationHelper.deserialize(dis);
             InetAddress src = CompactEndpointSerializationHelper.deserialize(dis);
             InetAddress dst = CompactEndpointSerializationHelper.deserialize(dis);
-            String tableName = dis.readUTF(dis);
-            String cfName = dis.readUTF(dis);
+            String tableName = dis.readUTF();
+            String cfName = dis.readUTF();
             int rangesCount = dis.readInt();
             List<Range> ranges = new ArrayList<Range>(rangesCount);
             for (int i = 0; i < rangesCount; ++i)
@@ -300,6 +300,11 @@ public class StreamingRepairTask implements Runnable
                 ranges.add((Range) AbstractBounds.serializer().deserialize(dis));
             }
             return new StreamingRepairTask(id, owner, src, dst, tableName, cfName, ranges, makeReplyingCallback(owner, id));
+        }
+
+        public long serializedSize(StreamingRepairTask task, int version)
+        {
+            throw new UnsupportedOperationException();
         }
     }
 }

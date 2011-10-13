@@ -35,7 +35,6 @@ import org.junit.Test;
 
 public class GossipDigestTest
 {
-
     @Test
     public void test() throws IOException
     {
@@ -56,5 +55,4 @@ public class GossipDigestTest
         GossipDigest actual = GossipDigest.serializer().deserialize(new DataInputStream(input), MessagingService.version_);
         assertEquals(0, expected.compareTo(actual));
     }
-
 }

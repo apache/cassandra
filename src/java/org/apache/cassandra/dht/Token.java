@@ -25,7 +25,7 @@ import java.io.Serializable;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.io.ICompactSerializer2;
+import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -79,7 +79,7 @@ public abstract class Token<T> implements Comparable<Token<T>>, Serializable
         public abstract void validate(String token) throws ConfigurationException;
     }
 
-    public static class TokenSerializer implements ICompactSerializer2<Token>
+    public static class TokenSerializer implements ISerializer<Token>
     {
         public void serialize(Token token, DataOutput dos) throws IOException
         {
@@ -95,6 +95,11 @@ public abstract class Token<T> implements Comparable<Token<T>>, Serializable
             byte[] bytes = new byte[size];
             dis.readFully(bytes);
             return p.getTokenFactory().fromByteArray(ByteBuffer.wrap(bytes));
+        }
+
+        public long serializedSize(Token object)
+        {
+            throw new UnsupportedOperationException();
         }
     }
 }

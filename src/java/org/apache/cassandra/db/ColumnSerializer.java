@@ -116,6 +116,11 @@ public class ColumnSerializer implements IColumnSerializer
         }
     }
 
+    public long serializedSize(IColumn object)
+    {
+        return object.serializedSize();
+    }
+
     private static class CorruptColumnException extends IOException
     {
         public CorruptColumnException(String s)

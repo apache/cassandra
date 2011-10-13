@@ -18,11 +18,9 @@
 
 package org.apache.cassandra.gms;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
+import java.io.*;
 
-import org.apache.cassandra.io.ICompactSerializer;
+import org.apache.cassandra.io.IVersionedSerializer;
 
 
 /**
@@ -31,7 +29,7 @@ import org.apache.cassandra.io.ICompactSerializer;
 
 class HeartBeatState
 {
-    private static ICompactSerializer<HeartBeatState> serializer;
+    private static IVersionedSerializer<HeartBeatState> serializer;
     
     static
     {
@@ -52,7 +50,7 @@ class HeartBeatState
         version = ver;
     }
 
-    public static ICompactSerializer<HeartBeatState> serializer()
+    public static IVersionedSerializer<HeartBeatState> serializer()
     {
         return serializer;
     }
@@ -78,16 +76,21 @@ class HeartBeatState
     }
 }
 
-class HeartBeatStateSerializer implements ICompactSerializer<HeartBeatState>
+class HeartBeatStateSerializer implements IVersionedSerializer<HeartBeatState>
 {
-    public void serialize(HeartBeatState hbState, DataOutputStream dos, int version) throws IOException
+    public void serialize(HeartBeatState hbState, DataOutput dos, int version) throws IOException
     {
         dos.writeInt(hbState.getGeneration());
         dos.writeInt(hbState.getHeartBeatVersion());
     }
     
-    public HeartBeatState deserialize(DataInputStream dis, int version) throws IOException
+    public HeartBeatState deserialize(DataInput dis, int version) throws IOException
     {
         return new HeartBeatState(dis.readInt(), dis.readInt());
+    }
+
+    public long serializedSize(HeartBeatState heartBeatState, int version)
+    {
+        throw new UnsupportedOperationException();
     }
 }

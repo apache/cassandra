@@ -21,7 +21,7 @@ package org.apache.cassandra.utils;
 import java.nio.ByteBuffer;
 import java.util.BitSet;
 
-import org.apache.cassandra.io.ICompactSerializer;
+import org.apache.cassandra.io.IVersionedSerializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -29,9 +29,9 @@ public class LegacyBloomFilter extends Filter
 {
     private static final int EXCESS = 20;
     private static final Logger logger = LoggerFactory.getLogger(LegacyBloomFilter.class);
-    static ICompactSerializer<LegacyBloomFilter> serializer_ = new LegacyBloomFilterSerializer();
+    static LegacyBloomFilterSerializer serializer_ = new LegacyBloomFilterSerializer();
 
-    public static ICompactSerializer<LegacyBloomFilter> serializer()
+    public static LegacyBloomFilterSerializer serializer()
     {
         return serializer_;
     }
@@ -119,11 +119,6 @@ public class LegacyBloomFilter extends Filter
     public String toString()
     {
         return filter_.toString();
-    }
-
-    ICompactSerializer<LegacyBloomFilter> tserializer()
-    {
-        return serializer_;
     }
 
     int emptyBuckets()

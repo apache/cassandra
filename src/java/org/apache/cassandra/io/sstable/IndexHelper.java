@@ -131,8 +131,8 @@ public class IndexHelper
 
         DataInputStream stream = new DataInputStream(ByteBufferUtil.inputStream(bytes));
         return useOldBuffer
-                ? LegacyBloomFilter.serializer().deserialize(stream, 0) // version means nothing there.
-                : BloomFilter.serializer().deserialize(stream);
+               ? LegacyBloomFilter.serializer().deserialize(stream)
+               : BloomFilter.serializer().deserialize(stream);
     }
 
     /**

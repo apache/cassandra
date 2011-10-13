@@ -18,15 +18,13 @@
 
 package org.apache.cassandra.gms;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.net.InetAddress;
 import java.util.UUID;
 
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.io.ICompactSerializer;
+import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.utils.FBUtilities;
 
 
@@ -44,7 +42,7 @@ import org.apache.cassandra.utils.FBUtilities;
 
 public class VersionedValue implements Comparable<VersionedValue>
 {
-    public static final ICompactSerializer<VersionedValue> serializer = new VersionedValueSerializer();
+    public static final IVersionedSerializer<VersionedValue> serializer = new VersionedValueSerializer();
 
     // this must be a char that cannot be present in any token
     public final static char DELIMITER = ',';
@@ -70,14 +68,14 @@ public class VersionedValue implements Comparable<VersionedValue>
 
     private VersionedValue(String value, int version)
     {
+        assert value != null;
         this.value = value;
         this.version = version;
     }
 
     private VersionedValue(String value)
     {
-        this.value = value;
-        version = VersionGenerator.getNextVersion();
+        this(value, VersionGenerator.getNextVersion());
     }
 
     public int compareTo(VersionedValue value)
@@ -183,19 +181,24 @@ public class VersionedValue implements Comparable<VersionedValue>
         }
     }
 
-    private static class VersionedValueSerializer implements ICompactSerializer<VersionedValue>
+    private static class VersionedValueSerializer implements IVersionedSerializer<VersionedValue>
     {
-        public void serialize(VersionedValue value, DataOutputStream dos, int version) throws IOException
+        public void serialize(VersionedValue value, DataOutput dos, int version) throws IOException
         {
             dos.writeUTF(value.value);
             dos.writeInt(value.version);
         }
 
-        public VersionedValue deserialize(DataInputStream dis, int version) throws IOException
+        public VersionedValue deserialize(DataInput dis, int version) throws IOException
         {
             String value = dis.readUTF();
             int valVersion = dis.readInt();
             return new VersionedValue(value, valVersion);
+        }
+
+        public long serializedSize(VersionedValue value, int version)
+        {
+            throw new UnsupportedOperationException();
         }
     }
 }

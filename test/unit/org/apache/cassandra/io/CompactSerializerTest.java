@@ -61,18 +61,12 @@ public class CompactSerializerTest extends CleanupHelper
         expectedClassNames.add("VersionedValueSerializer");
         expectedClassNames.add("HeaderSerializer");
         expectedClassNames.add("MessageSerializer");
-        expectedClassNames.add("TreeRequestVerbHandler");
-        expectedClassNames.add("TreeResponseVerbHandler");
         expectedClassNames.add("PendingFileSerializer");
         expectedClassNames.add("StreamHeaderSerializer");
         expectedClassNames.add("FileStatusSerializer");
         expectedClassNames.add("StreamRequestMessageSerializer");
-        expectedClassNames.add("LegacyBloomFilterSerializer");
         expectedClassNames.add("CounterMutationSerializer");
         expectedClassNames.add("HashableSerializer");
-        expectedClassNames.add("InnerSerializer");
-        expectedClassNames.add("LeafSerializer");
-        expectedClassNames.add("MerkleTreeSerializer");
         expectedClassNames.add("StreamingRepairTaskSerializer");
         
         discoveredClassNames = new ArrayList<String>();
@@ -107,7 +101,7 @@ public class CompactSerializerTest extends CleanupHelper
                                 if(t instanceof ParameterizedType)
                                 {
                                     ParameterizedType pt = (ParameterizedType)t;
-                                    if (((Class)pt.getRawType()).getSimpleName().equals("ICompactSerializer"))
+                                    if (((Class)pt.getRawType()).getSimpleName().equals("IVersionedSerializer"))
                                     {
                                         discoveredClassNames.add(simpleName);
                                         break classTraversal;

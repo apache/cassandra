@@ -26,10 +26,10 @@ import java.io.DataOutput;
 import java.io.IOException;
 
 import org.apache.cassandra.db.DBConstants;
-import org.apache.cassandra.io.ICompactSerializer2;
+import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.utils.obs.OpenBitSet;
 
-class BloomFilterSerializer implements ICompactSerializer2<BloomFilter>
+public class BloomFilterSerializer implements ISerializer<BloomFilter>
 {
     public void serialize(BloomFilter bf, DataOutput dos) throws IOException
     {
@@ -62,7 +62,7 @@ class BloomFilterSerializer implements ICompactSerializer2<BloomFilter>
      *
      * @return serialized size of the given bloom filter
      */
-    public static int serializedSize(BloomFilter bf)
+    public long serializedSize(BloomFilter bf)
     {
         return DBConstants.intSize // hash count
                + DBConstants.intSize // length

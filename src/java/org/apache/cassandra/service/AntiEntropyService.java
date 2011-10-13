@@ -42,7 +42,7 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.gms.*;
-import org.apache.cassandra.io.ICompactSerializer;
+import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.io.util.FastByteArrayOutputStream;
 import org.apache.cassandra.net.CompactEndpointSerializationHelper;
@@ -393,7 +393,7 @@ public class AntiEntropyService
      * Handler for requests from remote nodes to generate a valid tree.
      * The payload is a CFPair representing the columnfamily to validate.
      */
-    public static class TreeRequestVerbHandler implements IVerbHandler, ICompactSerializer<TreeRequest>
+    public static class TreeRequestVerbHandler implements IVerbHandler
     {
         public static final TreeRequestVerbHandler SERIALIZER = new TreeRequestVerbHandler();
         static Message makeVerb(TreeRequest request, int version)
@@ -411,7 +411,7 @@ public class AntiEntropyService
             }
         }
 
-        public void serialize(TreeRequest request, DataOutputStream dos, int version) throws IOException
+        public void serialize(TreeRequest request, DataOutput dos, int version) throws IOException
         {
             dos.writeUTF(request.sessionid);
             CompactEndpointSerializationHelper.serialize(request.endpoint, dos);
@@ -421,7 +421,7 @@ public class AntiEntropyService
                 AbstractBounds.serializer().serialize(request.range, dos);
         }
 
-        public TreeRequest deserialize(DataInputStream dis, int version) throws IOException
+        public TreeRequest deserialize(DataInput dis, int version) throws IOException
         {
             String sessId = dis.readUTF();
             InetAddress endpoint = CompactEndpointSerializationHelper.deserialize(dis);
@@ -465,7 +465,7 @@ public class AntiEntropyService
      * Handler for responses from remote nodes which contain a valid tree.
      * The payload is a completed Validator object from the remote endpoint.
      */
-    public static class TreeResponseVerbHandler implements IVerbHandler, ICompactSerializer<Validator>
+    public static class TreeResponseVerbHandler implements IVerbHandler
     {
         public static final TreeResponseVerbHandler SERIALIZER = new TreeResponseVerbHandler();
         static Message makeVerb(InetAddress local, Validator validator)

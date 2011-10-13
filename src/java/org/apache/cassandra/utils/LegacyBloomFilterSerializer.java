@@ -21,16 +21,14 @@ package org.apache.cassandra.utils;
  */
 
 
+import java.io.*;
 import java.util.BitSet;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
-import java.io.ObjectInputStream;
-import org.apache.cassandra.io.ICompactSerializer;
 
-class LegacyBloomFilterSerializer implements ICompactSerializer<LegacyBloomFilter>
+import org.apache.cassandra.io.IVersionedSerializer;
+
+public class LegacyBloomFilterSerializer
 {
-    public void serialize(LegacyBloomFilter bf, DataOutputStream dos, int version)
+    public void serialize(LegacyBloomFilter bf, DataOutput dos)
             throws IOException
     {
         throw new UnsupportedOperationException("Shouldn't be serializing legacy bloom filters");
@@ -40,7 +38,7 @@ class LegacyBloomFilterSerializer implements ICompactSerializer<LegacyBloomFilte
 //        oos.flush();
     }
 
-    public LegacyBloomFilter deserialize(DataInputStream dis, int version) throws IOException
+    public LegacyBloomFilter deserialize(DataInputStream dis) throws IOException
     {
         int hashes = dis.readInt();
         ObjectInputStream ois = new ObjectInputStream(dis);
@@ -52,5 +50,10 @@ class LegacyBloomFilterSerializer implements ICompactSerializer<LegacyBloomFilte
         {
           throw new RuntimeException(e);
         }
+    }
+
+    public long serializedSize(LegacyBloomFilter legacyBloomFilter)
+    {
+        throw new UnsupportedOperationException();
     }
 }

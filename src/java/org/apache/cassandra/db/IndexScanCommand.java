@@ -23,7 +23,7 @@ import java.io.*;
 import java.util.Arrays;
 
 import org.apache.cassandra.dht.AbstractBounds;
-import org.apache.cassandra.io.ICompactSerializer2;
+import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.net.Message;
@@ -80,7 +80,7 @@ public class IndexScanCommand implements MessageProducer
         return serializer.deserialize(new DataInputStream(bis));
     }
 
-    private static class IndexScanCommandSerializer implements ICompactSerializer2<IndexScanCommand>
+    private static class IndexScanCommandSerializer implements ISerializer<IndexScanCommand>
     {
         public void serialize(IndexScanCommand o, DataOutput out) throws IOException
         {
@@ -105,6 +105,11 @@ public class IndexScanCommand implements MessageProducer
             AbstractBounds range = AbstractBounds.serializer().deserialize(in);
 
             return new IndexScanCommand(keyspace, columnFamily, indexClause, predicate, range);
+        }
+
+        public long serializedSize(IndexScanCommand object)
+        {
+            throw new UnsupportedOperationException();
         }
     }
 }
