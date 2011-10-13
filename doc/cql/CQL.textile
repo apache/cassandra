@@ -197,7 +197,7 @@ h2. BATCH
 
 _Synopsis:_
 
-bc.
+bc. 
 BATCH BEGIN BATCH [USING CONSISTENCY <LEVEL> [AND TIMESTAMP <timestamp>]]
     INSERT or UPDATE or DELETE statements separated by semicolon or "end of line"
 APPLY BATCH
@@ -210,7 +210,7 @@ _NOTE: While there are no isolation guarantees,  @UPDATE@ queries are atomic wit
 
 _Example:_
 
-bc.
+bc. 
 BEGIN BATCH USING CONSISTENCY QUORUM
   INSERT INTO users (KEY, password, name) VALUES ('user2', 'ch@ngem3b', 'second user')
   UPDATE users SET password = 'ps22dhds' WHERE KEY = 'user2'
@@ -384,20 +384,19 @@ Versioning of the CQL language adheres to the "Semantic Versioning":http://semve
 
 h1. Changes
 
-pre. 
-Fri, 09 Sep 2011 11:43:00 -0500 - Jonathan Ellis
+pre. Fri, 09 Sep 2011 11:43:00 -0500 - Jonathan Ellis
  * add int data type
 
-Wed, 07 Sep 2011 09:01:00 -0500 - Jonathan Ellis
+pre. Wed, 07 Sep 2011 09:01:00 -0500 - Jonathan Ellis
  * Updated version to 2.0; Documented row-based count()
  * Updated list of supported data types
 
-Wed, 10 Aug 2011 11:22:00 -0500 - Eric Evans
+pre. Wed, 10 Aug 2011 11:22:00 -0500 - Eric Evans
  * Improved INSERT vs. UPDATE wording.
  * Documented counter column incr/descr.
 
-Sat, 01 Jun 2011 15:58:00 -0600 - Pavel Yaskevich
+pre. Sat, 01 Jun 2011 15:58:00 -0600 - Pavel Yaskevich
  * Updated to support ALTER (CASSANDRA-1709)
 
-Tue, 22 Mar 2011 18:10:28 -0700 - Eric Evans <eevans@rackspace.com>
+pre. Tue, 22 Mar 2011 18:10:28 -0700 - Eric Evans <eevans@rackspace.com>
  * Initial version, 1.0.0
