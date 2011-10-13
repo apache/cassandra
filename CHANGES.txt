@@ -7,6 +7,7 @@
  * (Hadoop) skip empty rows when slicing the entire row (CASSANDRA-2855)
  * Fix handling of tombstone by SSTableExport/Import (CASSANDRA-3357)
  * fix ColumnIndexer to use long offsets (CASSANDRA-3358)
+ * Display CLI version string on startup (CASSANDRA-3196)
 
 
 0.8.7
