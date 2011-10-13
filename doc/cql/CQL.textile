@@ -368,10 +368,10 @@ How column name/value terms are interpreted is determined by the configured type
 |uuid|The string @now@, to represent a type-1 (time-based) UUID with a date-time component based on the current time|
 |uuid|Numeric value representing milliseconds since epoch|
 |uuid|An "iso8601 timestamp":http://en.wikipedia.org/wiki/8601|
-|int|Integer value capable of fitting in 8 bytes (same as bigint)|
+|int|Integer value capable of fitting in 4 bytes|
 |bigint|Integer value capable of fitting in 8 bytes|
 |varint|Integer value of arbitrary size|
-|bytea|Hex-encoded strings (converted directly to the corresponding bytes)|
+|blob|Hex-encoded strings (converted directly to the corresponding bytes)|
 
 h1. Versioning
 
