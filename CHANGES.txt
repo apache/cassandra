@@ -1,6 +1,7 @@
 0.7.10
  * Fix divide by zero error in GCInspector (CASSANDRA-3164)
  * revert CASSANDRA-2388
+ * fix ColumnIndexer to use long offsets (CASSANDRA-3358)
 
 
 0.7.9
