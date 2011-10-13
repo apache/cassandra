@@ -165,9 +165,10 @@ JVM_OPTS="$JVM_OPTS -XX:+UseCMSInitiatingOccupancyOnly"
 # GC logging options -- uncomment to enable
 # JVM_OPTS="$JVM_OPTS -XX:+PrintGCDetails"
 # JVM_OPTS="$JVM_OPTS -XX:+PrintGCTimeStamps"
-# JVM_OPTS="$JVM_OPTS -XX:+PrintClassHistogram"
 # JVM_OPTS="$JVM_OPTS -XX:+PrintTenuringDistribution"
 # JVM_OPTS="$JVM_OPTS -XX:+PrintGCApplicationStoppedTime"
+# JVM_OPTS="$JVM_OPTS -XX:+PrintPromotionFailure"
+# JVM_OPTS="$JVM_OPTS -XX:PrintFLSStatistics=1"
 # JVM_OPTS="$JVM_OPTS -Xloggc:/var/log/cassandra/gc-`date +%s`.log"
 
 # uncomment to have Cassandra JVM listen for remote debuggers/profilers on port 1414
