@@ -10,6 +10,7 @@
  * (Hadoop) skip empty rows when slicing the entire row (CASSANDRA-2855)
  * Fix handling of tombstone by SSTableExport/Import (CASSANDRA-3357)
  * fix ColumnIndexer to use long offsets (CASSANDRA-3358)
+ * limit nodetool to 32MB of heap (CASSANDRA-3124)
 
 
 1.0.0-final
