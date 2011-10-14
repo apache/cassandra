@@ -1216,7 +1216,7 @@ public class CompactionManager implements CompactionManagerMBean
 
     public int getActiveCompactions()
     {
-        return executor.getActiveCount() + validationExecutor.getActiveCount();
+        return CompactionExecutor.compactions.size();
     }
 
     private static class CompactionExecutor extends DebuggableThreadPoolExecutor
