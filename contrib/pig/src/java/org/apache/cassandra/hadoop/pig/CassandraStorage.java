@@ -545,7 +545,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
             Cassandra.Client client = null;
             try
             {
-                client = createConnection(ConfigHelper.getInitialAddress(conf), ConfigHelper.getRpcPort(conf), true);
+                client = ConfigHelper.getClientFromAddressList(conf);
                 CfDef cfDef = null;
                 client.set_keyspace(keyspace);
                 KsDef ksDef = client.describe_keyspace(keyspace);
@@ -577,21 +577,6 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
                 throw new RuntimeException(e);
             }
         }
-    }
-
-    private static Cassandra.Client createConnection(String host, Integer port, boolean framed) throws IOException
-    {
-        TSocket socket = new TSocket(host, port);
-        TTransport trans = framed ? new TFramedTransport(socket) : socket;
-        try
-        {
-            trans.open();
-        }
-        catch (TTransportException e)
-        {
-            throw new IOException("unable to connect to server", e);
-        }
-        return new Cassandra.Client(new TBinaryProtocol(trans));
     }
 
     private static String cfdefToString(CfDef cfDef)
