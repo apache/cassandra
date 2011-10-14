@@ -12,11 +12,12 @@
  * (CQL) allow numeric keyspace names in USE statement (CASSANDRA-3350)
  * reduce network copies (CASSANDRA-3333)
  * (Hadoop) skip empty rows when slicing the entire row (CASSANDRA-2855)
- * Fix handling of tombstone by SSTableExport/Import (CASSANDRA-3357)
  * fix ColumnIndexer to use long offsets (CASSANDRA-3358)
  * Fix handling of tombstone by SSTableExport/Import (CASSANDRA-3357)
  * Only count compaction as active (for throttling) when they have
    successfully acquired the compaction lock (CASSANDRA-3344)
+ * limit nodetool to 32MB of heap (CASSANDRA-3124)
+ * (CQL) update parser to accept "timestamp" instead of "date" (CASSANDRA-3149)
 
 
 1.0.0-final

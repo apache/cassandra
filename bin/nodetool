@@ -55,8 +55,10 @@ case "`uname`" in
     ;;
 esac
 
-$JAVA -cp $CLASSPATH -Dstorage-config=$CASSANDRA_CONF \
-        -Dlog4j.configuration=log4j-tools.properties \
-        org.apache.cassandra.tools.NodeCmd $@
+$JAVA -cp $CLASSPATH \
+      -Xmx32m \
+      -Dlog4j.configuration=log4j-tools.properties \
+      -Dstorage-config=$CASSANDRA_CONF \
+      org.apache.cassandra.tools.NodeCmd $@
 
 # vi:ai sw=4 ts=4 tw=0 et

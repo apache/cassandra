@@ -436,7 +436,7 @@ dropColumnFamilyStatement returns [String cfam]
     ;
 
 comparatorType
-    : 'blob' | 'ascii' | 'text' | 'varchar' | 'int' | 'varint' | 'bigint' | 'uuid' | 'counter' | 'boolean' | 'date' | 'float' | 'double' | 'decimal'
+    : 'blob' | 'ascii' | 'text' | 'varchar' | 'int' | 'varint' | 'bigint' | 'uuid' | 'counter' | 'boolean' | 'timestamp' | 'float' | 'double' | 'decimal'
     ;
 
 term returns [Term item]
