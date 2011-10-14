@@ -15,6 +15,8 @@
  * (Hadoop) accept comma delimited lists of initial thrift connections
    (CASSANDRA-3185)
  * ColumnFamily min_compaction_threshold should be >= 2 (CASSANDRA-3342)
+ * (Pig) add 0.8+ types and key validation type in schema (CASSANDRA-3280)
+
 
 0.8.7
  * Kill server on wrapped OOME such as from FileChannel.map (CASSANDRA-3201)
