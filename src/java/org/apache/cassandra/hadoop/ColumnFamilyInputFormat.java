@@ -188,13 +188,17 @@ public class ColumnFamilyInputFormat extends InputFormat<ByteBuffer, SortedMap<B
         {
             ArrayList<InputSplit> splits = new ArrayList<InputSplit>();
             List<String> tokens = getSubSplits(keyspace, cfName, range, conf);
-
+            assert range.rpc_endpoints.size() == range.endpoints.size() : "rpc_endpoints size must match endpoints size";
             // turn the sub-ranges into InputSplits
             String[] endpoints = range.endpoints.toArray(new String[range.endpoints.size()]);
             // hadoop needs hostname, not ip
-            for (int i = 0; i < endpoints.length; i++)
+            int endpointIndex = 0;
+            for (String endpoint: range.rpc_endpoints)
             {
-                endpoints[i] = InetAddress.getByName(endpoints[i]).getHostName();
+                String endpoint_address = endpoint;
+		        if(endpoint_address == null || endpoint_address == "0.0.0.0")
+			        endpoint_address = range.endpoints.get(endpointIndex);
+		        endpoints[endpointIndex++] = InetAddress.getByName(endpoint_address).getHostName();
             }
 
             for (int i = 1; i < tokens.size(); i++)
@@ -210,7 +214,7 @@ public class ColumnFamilyInputFormat extends InputFormat<ByteBuffer, SortedMap<B
     private List<String> getSubSplits(String keyspace, String cfName, TokenRange range, Configuration conf) throws IOException
     {
         int splitsize = ConfigHelper.getInputSplitSize(conf);
-        for (String host : range.endpoints)
+        for (String host : range.rpc_endpoints)
         {
             try
             {

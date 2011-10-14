@@ -10,6 +10,8 @@
  * Display CLI version string on startup (CASSANDRA-3196)
  * Only count compaction as active (for throttling) when they have
    successfully acquired the compaction lock (CASSANDRA-3344)
+ * (Hadoop) make CFIF try rpc_address or fallback to listen_address
+   (CASSANDRA-3214)
 
 
 0.8.7
