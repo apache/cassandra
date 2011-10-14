@@ -14,7 +14,7 @@
    (CASSANDRA-3214)
  * (Hadoop) accept comma delimited lists of initial thrift connections
    (CASSANDRA-3185)
-
+ * ColumnFamily min_compaction_threshold should be >= 2 (CASSANDRA-3342)
 
 0.8.7
  * Kill server on wrapped OOME such as from FileChannel.map (CASSANDRA-3201)
