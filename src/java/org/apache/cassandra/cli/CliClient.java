@@ -1688,6 +1688,30 @@ public class CliClient
             colSb.append("]");
             writeAttrRaw(sb, false, "column_metadata", colSb.toString());
         }
+
+        if (cfDef.compression_options != null && !cfDef.compression_options.isEmpty())
+        {
+            StringBuilder compOptions = new StringBuilder();
+
+            compOptions.append("{");
+
+            int i = 0, size = cfDef.compression_options.size();
+
+            for (Map.Entry<String, String> entry : cfDef.compression_options.entrySet())
+            {
+                compOptions.append(CliUtils.quote(entry.getKey())).append(" : ").append(CliUtils.quote(entry.getValue()));
+
+                if (i != size - 1)
+                    compOptions.append(", ");
+
+                i++;
+            }
+
+            compOptions.append("}");
+
+            writeAttrRaw(sb, false, "compression_options", compOptions.toString());
+        }
+
         sb.append(";");
         sb.append(NEWLINE);
         sb.append(NEWLINE);
