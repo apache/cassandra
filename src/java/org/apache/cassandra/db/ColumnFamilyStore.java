@@ -256,7 +256,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         catch (Exception e)
         {
             // this shouldn't block anything.
-            logger.warn(e.getMessage(), e);
+            logger.warn("Failed unregistering mbean: " + mbeanName, e);
         }
     }
 
