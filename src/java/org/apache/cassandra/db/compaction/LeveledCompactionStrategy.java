@@ -154,7 +154,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
 
     public long getMaxSSTableSize()
     {
-        return maxSSTableSizeInMB * 1024 * 1024;
+        return maxSSTableSizeInMB * 1024L * 1024L;
     }
 
     public boolean isKeyExistenceExpensive(Set<? extends SSTable> sstablesToIgnore)
