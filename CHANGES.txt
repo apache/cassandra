@@ -16,6 +16,7 @@
  * Only count compaction as active (for throttling) when they have
    successfully acquired the compaction lock (CASSANDRA-3344)
  * Fix CLI `show schema` to include "compression_options" (CASSANDRA-3368)
+ * Snapshot to include manifest under LeveledCompactionStrategy (CASSANDRA-3359)
 
 1.0.0-final
  * close scrubbed sstable fd before deleting it (CASSANDRA-3318)

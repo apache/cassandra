@@ -589,7 +589,12 @@ public class Table
 
     public static String getSnapshotPath(String dataDirPath, String tableName, String snapshotName)
     {
-        return dataDirPath + File.separator + tableName + File.separator + SNAPSHOT_SUBDIR_NAME + File.separator + snapshotName;
+        return getSnapshotPath(dataDirPath + File.separator + tableName, snapshotName);
+    }
+
+    public static String getSnapshotPath(String tableDirectory, String snapshotName)
+    {
+        return tableDirectory + File.separator + SNAPSHOT_SUBDIR_NAME + File.separator + snapshotName;
     }
 
     public static Iterable<Table> all()
