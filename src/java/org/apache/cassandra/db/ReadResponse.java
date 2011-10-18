@@ -114,7 +114,6 @@ class ReadResponseSerializer implements IVersionedSerializer<ReadResponse>
     public long serializedSize(ReadResponse response, int version)
     {
         int size = DBConstants.intSize;
-        size += (response.isDigestQuery() ? response.digest() : ByteBufferUtil.EMPTY_BYTE_BUFFER).remaining();
         size += DBConstants.boolSize;
         if (response.isDigestQuery())
             size += response.digest().remaining();
