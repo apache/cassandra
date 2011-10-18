@@ -57,7 +57,12 @@ public class ClientState
     {
         reset();
     }
-    
+
+    public String getRawKeyspace()
+    {
+        return keyspace;
+    }
+
     public String getKeyspace() throws InvalidRequestException
     {
         if (keyspace == null)
@@ -149,6 +154,11 @@ public class ClientState
      * ColumnFamily and the current keyspace.
      */
     public void hasColumnFamilyAccess(String columnFamily, Permission perm) throws InvalidRequestException
+    {
+        hasColumnFamilyAccess(keyspace, columnFamily, perm);
+    }
+
+    public void hasColumnFamilyAccess(String keyspace, String columnFamily, Permission perm) throws InvalidRequestException
     {
         validateLogin();
         validateKeyspace();

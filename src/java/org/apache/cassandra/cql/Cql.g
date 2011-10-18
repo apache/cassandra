@@ -147,7 +147,7 @@ selectStatement returns [SelectStatement expr]
           ( s1=selectExpression                 { expression = s1; }
           | K_COUNT '(' s2=selectExpression ')' { expression = s2; isCountOp = true; }
           )
-          K_FROM columnFamily=( IDENT | STRING_LITERAL | INTEGER )
+          K_FROM (keyspace=(IDENT | STRING_LITERAL | INTEGER) '.')? columnFamily=( IDENT | STRING_LITERAL | INTEGER )
           ( K_USING K_CONSISTENCY K_LEVEL { cLevel = ConsistencyLevel.valueOf($K_LEVEL.text); } )?
           ( K_WHERE whereClause )?
           ( K_LIMIT rows=INTEGER { numRecords = Integer.parseInt($rows.text); } )?
@@ -155,6 +155,7 @@ selectStatement returns [SelectStatement expr]
       {
           return new SelectStatement(expression,
                                      isCountOp,
+                                     $keyspace.text,
                                      $columnFamily.text,
                                      cLevel,
                                      $whereClause.clause,

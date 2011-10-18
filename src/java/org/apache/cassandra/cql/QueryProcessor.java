@@ -499,7 +499,7 @@ public class QueryProcessor
         String keyspace = null;
         
         // Some statements won't have (or don't need) a keyspace (think USE, or CREATE).
-        if (StatementType.requiresKeyspace.contains(statement.type))
+        if (statement.type != StatementType.SELECT && StatementType.requiresKeyspace.contains(statement.type))
             keyspace = clientState.getKeyspace();
 
         CqlResult result = new CqlResult();
@@ -510,7 +510,20 @@ public class QueryProcessor
         {
             case SELECT:
                 SelectStatement select = (SelectStatement)statement.statement;
-                clientState.hasColumnFamilyAccess(select.getColumnFamily(), Permission.READ);
+
+                final String oldKeyspace = clientState.getRawKeyspace();
+
+                if (select.isSetKeyspace())
+                {
+                    keyspace = CliUtils.unescapeSQLString(select.getKeyspace());
+                    ThriftValidation.validateTable(keyspace);
+                }
+                else if (oldKeyspace == null)
+                    throw new InvalidRequestException("no keyspace has been specified");
+                else
+                    keyspace = oldKeyspace;
+
+                clientState.hasColumnFamilyAccess(keyspace, select.getColumnFamily(), Permission.READ);
                 metadata = validateColumnFamily(keyspace, select.getColumnFamily());
 
                 // need to do this in here because we need a CFMD.getKeyName()
