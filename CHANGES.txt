@@ -34,6 +34,8 @@
  * add bin\daemon to binary tarball for Windows service (CASSANDRA-3331)
  * Fix places where uncompressed size of sstables was use in place of the
    compressed one (CASSANDRA-3338)
+ * Fix hsha thrift server (CASSANDRA-3346)
+ * Make sure repair only stream needed sstables (CASSANDRA-3345)
 Fixes merged from 0.8 below:
  * Fix tool .bat files when CASSANDRA_HOME contains spaces (CASSANDRA-3258)
  * Force flush of status table when removing/updating token (CASSANDRA-3243)
