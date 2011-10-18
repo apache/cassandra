@@ -1,3 +1,13 @@
+1.1
+===
+
+Upgrading
+---------
+    - EACH_QUORUM ConsistencyLevel is only supported for writes and will now
+      throw an InvalidRequestException when used for reads.  (Previous
+      versions would silently perform a LOCAL_QUORUM read instead.)
+
+
 1.0
 ===
 

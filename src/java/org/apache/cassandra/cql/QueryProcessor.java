@@ -323,6 +323,8 @@ public class QueryProcessor
     /* Test for SELECT-specific taboos */
     private static void validateSelect(String keyspace, SelectStatement select) throws InvalidRequestException
     {
+        ThriftValidation.validateConsistencyLevel(keyspace, select.getConsistencyLevel(), RequestType.READ);
+
         // Finish key w/o start key (KEY < foo)
         if (!select.isKeyRange() && (select.getKeyFinish() != null))
             throw new InvalidRequestException("Key range clauses must include a start key (i.e. KEY > term)");
@@ -650,12 +652,14 @@ public class QueryProcessor
             case INSERT: // insert uses UpdateStatement
             case UPDATE:
                 UpdateStatement update = (UpdateStatement)statement.statement;
+                ThriftValidation.validateConsistencyLevel(keyspace, update.getConsistencyLevel(), RequestType.WRITE);
                 batchUpdate(clientState, Collections.singletonList(update), update.getConsistencyLevel());
                 result.type = CqlResultType.VOID;
                 return result;
                 
             case BATCH:
                 BatchStatement batch = (BatchStatement) statement.statement;
+                ThriftValidation.validateConsistencyLevel(keyspace, batch.getConsistencyLevel(), RequestType.WRITE);
 
                 if (batch.getTimeToLive() != 0)
                     throw new InvalidRequestException("Global TTL on the BATCH statement is not supported.");

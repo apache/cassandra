@@ -1,5 +1,6 @@
 1.1-dev
  * off-heap cache to use sun.misc.Unsafe instead of JNA (CASSANDRA-3271)
+ * EACH_QUORUM is only supported for writes (CASSANDRA-3272)
 
 
 1.0.1

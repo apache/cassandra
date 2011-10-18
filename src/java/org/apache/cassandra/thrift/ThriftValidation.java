@@ -87,16 +87,27 @@ public class ThriftValidation
     }
 
     // Don't check that the table exists, validateTable or validateColumnFamily must be called beforehand.
-    public static void validateConsistencyLevel(String table, ConsistencyLevel cl) throws InvalidRequestException
+    public static void validateConsistencyLevel(String table, ConsistencyLevel cl, RequestType requestType) throws InvalidRequestException
     {
         switch (cl)
         {
             case LOCAL_QUORUM:
+                requireNetworkTopologyStrategy(table, cl);
+                break;
             case EACH_QUORUM:
-                AbstractReplicationStrategy strategy = Table.open(table).getReplicationStrategy();
-                if (!(strategy instanceof NetworkTopologyStrategy))
-                    throw new InvalidRequestException("consistency level " + cl + " not compatible with replication strategy (" + strategy.getClass().getName() + ")");
+                requireNetworkTopologyStrategy(table, cl);
+                if (requestType == RequestType.READ)
+                    throw new InvalidRequestException("EACH_QUORUM ConsistencyLevel is only supported for writes");
+                break;
         }
+    }
+
+    private static void requireNetworkTopologyStrategy(String table, ConsistencyLevel cl) throws InvalidRequestException
+    {
+        AbstractReplicationStrategy strategy = Table.open(table).getReplicationStrategy();
+        if (!(strategy instanceof NetworkTopologyStrategy))
+            throw new InvalidRequestException(String.format("consistency level %s not compatible with replication strategy (%s)",
+                                                            cl, strategy.getClass().getName()));
     }
 
     public static CFMetaData validateColumnFamily(String tablename, String cfName, boolean isCommutativeOp) throws InvalidRequestException
