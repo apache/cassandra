@@ -19,6 +19,8 @@
  * Fix completely removing column metadata using CLI (CASSANDRA-3126)
  * (CQL) Fix internal application error specifying 'using consistency ...'
    in lower case (CASSANDRA-3366)
+ * CLI `describe cluster;` output should be on separate lines for separate versions
+   (CASSANDRA-3170)
 
 0.8.7
  * Kill server on wrapped OOME such as from FileChannel.map (CASSANDRA-3201)

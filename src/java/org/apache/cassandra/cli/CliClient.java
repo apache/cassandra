@@ -2041,7 +2041,7 @@ public class CliClient
 
             for (String version : versions.keySet())
             {
-                sessionState.out.println("\t" + version + ": " + versions.get(version));
+                sessionState.out.println(String.format("\t%s: %s%n", version, versions.get(version)));
             }
         }
         catch (Exception e)
