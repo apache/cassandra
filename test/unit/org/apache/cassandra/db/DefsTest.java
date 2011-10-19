@@ -339,7 +339,7 @@ public class DefsTest extends CleanupHelper
         DecoratedKey dk = Util.dk("key0");
         CFMetaData newCf = addTestCF("NewKeyspace1", "AddedStandard1", "A new cf for a new ks");
 
-        KSMetaData newKs = new KSMetaData(newCf.ksName, SimpleStrategy.class, KSMetaData.optsWithRF(5), newCf);
+        KSMetaData newKs = KSMetaData.testMetadata(newCf.ksName, SimpleStrategy.class, KSMetaData.optsWithRF(5), newCf);
         
         new AddKeyspace(newKs).apply();
         
@@ -437,7 +437,7 @@ public class DefsTest extends CleanupHelper
     {
         assert DatabaseDescriptor.getTableDefinition("EmptyKeyspace") == null;
         
-        KSMetaData newKs = new KSMetaData("EmptyKeyspace", SimpleStrategy.class, KSMetaData.optsWithRF(5));
+        KSMetaData newKs = KSMetaData.testMetadata("EmptyKeyspace", SimpleStrategy.class, KSMetaData.optsWithRF(5));
 
         new AddKeyspace(newKs).apply();
         assert DatabaseDescriptor.getTableDefinition("EmptyKeyspace") != null;
@@ -473,7 +473,7 @@ public class DefsTest extends CleanupHelper
     {
         // create a keyspace to serve as existing.
         CFMetaData cf = addTestCF("UpdatedKeyspace", "AddedStandard1", "A new cf for a new ks");
-        KSMetaData oldKs = new KSMetaData(cf.ksName, SimpleStrategy.class, KSMetaData.optsWithRF(5), cf);
+        KSMetaData oldKs = KSMetaData.testMetadata(cf.ksName, SimpleStrategy.class, KSMetaData.optsWithRF(5), cf);
         
         new AddKeyspace(oldKs).apply();
         
@@ -482,7 +482,7 @@ public class DefsTest extends CleanupHelper
         
         // anything with cf defs should fail.
         CFMetaData cf2 = addTestCF(cf.ksName, "AddedStandard2", "A new cf for a new ks");
-        KSMetaData newBadKs = new KSMetaData(cf.ksName, SimpleStrategy.class, KSMetaData.optsWithRF(4), cf2);
+        KSMetaData newBadKs = KSMetaData.testMetadata(cf.ksName, SimpleStrategy.class, KSMetaData.optsWithRF(4), cf2);
         try
         {
             new UpdateKeyspace(newBadKs).apply();
@@ -494,7 +494,7 @@ public class DefsTest extends CleanupHelper
         }
         
         // names should match.
-        KSMetaData newBadKs2 = new KSMetaData(cf.ksName + "trash", SimpleStrategy.class, KSMetaData.optsWithRF(4));
+        KSMetaData newBadKs2 = KSMetaData.testMetadata(cf.ksName + "trash", SimpleStrategy.class, KSMetaData.optsWithRF(4));
         try
         {
             new UpdateKeyspace(newBadKs2).apply();
@@ -505,7 +505,7 @@ public class DefsTest extends CleanupHelper
             // expected.
         }
         
-        KSMetaData newKs = new KSMetaData(cf.ksName, OldNetworkTopologyStrategy.class, KSMetaData.optsWithRF(1));
+        KSMetaData newKs = KSMetaData.testMetadata(cf.ksName, OldNetworkTopologyStrategy.class, KSMetaData.optsWithRF(1));
         new UpdateKeyspace(newKs).apply();
         
         KSMetaData newFetchedKs = DatabaseDescriptor.getKSMetaData(newKs.name);
@@ -518,7 +518,7 @@ public class DefsTest extends CleanupHelper
     {
         // create a keyspace with a cf to update.
         CFMetaData cf = addTestCF("UpdatedCfKs", "Standard1added", "A new cf that will be updated");
-        KSMetaData ksm = new KSMetaData(cf.ksName, SimpleStrategy.class, KSMetaData.optsWithRF(1), cf);
+        KSMetaData ksm = KSMetaData.testMetadata(cf.ksName, SimpleStrategy.class, KSMetaData.optsWithRF(1), cf);
         new AddKeyspace(ksm).apply();
         
         assert DatabaseDescriptor.getTableDefinition(cf.ksName) != null;

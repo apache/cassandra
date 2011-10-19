@@ -40,23 +40,6 @@ public final class KSMetaData
     private final Map<String, CFMetaData> cfMetaData;
     public final boolean durableWrites;
 
-    public KSMetaData(String name, Class<? extends AbstractReplicationStrategy> strategyClass, Map<String, String> strategyOptions, CFMetaData... cfDefs)
-    {
-        this(name, strategyClass, strategyOptions, true, cfDefs);
-    }
-
-    public KSMetaData(String name, Class<? extends AbstractReplicationStrategy> strategyClass, Map<String, String> strategyOptions, boolean durable_writes, CFMetaData... cfDefs)
-    {
-        this.name = name;
-        this.strategyClass = strategyClass == null ? NetworkTopologyStrategy.class : strategyClass;
-        this.strategyOptions = strategyOptions;
-        Map<String, CFMetaData> cfmap = new HashMap<String, CFMetaData>();
-        for (CFMetaData cfm : cfDefs)
-            cfmap.put(cfm.cfName, cfm);
-        this.cfMetaData = Collections.unmodifiableMap(cfmap);
-        this.durableWrites = durable_writes;
-    }
-
     private KSMetaData(String name, Class<? extends AbstractReplicationStrategy> strategyClass, Map<String, String> strategyOptions, boolean durableWrites, Iterable<CFMetaData> cfDefs)
     {
         this.name = name;
@@ -85,6 +68,15 @@ public final class KSMetaData
         return new KSMetaData(Table.SYSTEM_TABLE, LocalStrategy.class, optsWithRF(1), false, cfDefs);
     }
 
+    public static KSMetaData testMetadata(String name, Class<? extends AbstractReplicationStrategy> strategyClass, Map<String, String> strategyOptions, CFMetaData... cfDefs)
+    {
+        return new KSMetaData(name, strategyClass, strategyOptions, true, Arrays.asList(cfDefs));
+    }
+
+    public static KSMetaData testMetadataNotDurable(String name, Class<? extends AbstractReplicationStrategy> strategyClass, Map<String, String> strategyOptions, CFMetaData... cfDefs)
+    {
+        return new KSMetaData(name, strategyClass, strategyOptions, false, Arrays.asList(cfDefs));
+    }
 
     public static Map<String, String> forwardsCompatibleOptions(KsDef ks_def)
     {

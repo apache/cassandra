@@ -21,6 +21,9 @@
    in lower case (CASSANDRA-3366)
  * CLI `describe cluster;` output should be on separate lines for separate versions
    (CASSANDRA-3170)
+ * fix changing durable_writes keyspace option during CF creation
+   (CASSANDRA-3292)
+
 
 0.8.7
  * Kill server on wrapped OOME such as from FileChannel.map (CASSANDRA-3201)
