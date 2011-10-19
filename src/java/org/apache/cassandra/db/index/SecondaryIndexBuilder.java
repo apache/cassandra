@@ -29,8 +29,7 @@ import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.io.sstable.ReducingKeyIterator;
 
 /**
- * Manages building an entire index from column family data
- * Sent to compaction manager
+ * Manages building an entire index from column family data. Runs on to compaction manager.
  */
 public class SecondaryIndexBuilder implements  CompactionInfo.Holder
 {

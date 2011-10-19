@@ -97,8 +97,11 @@ public class SecondaryIndexManager
     
     
     /**
-     * Does a full rebuild of the indexes specified by columns from the sstables.
+     * Does a full, blocking rebuild of the indexes specified by columns from the sstables.
      * Does nothing if columns is empty.
+     *
+     * Caller must acquire and release references to the sstables used here.
+     *
      * @param sstables the data to build from
      * @param columns the list of columns to index
      * @throws IOException 
@@ -116,7 +119,7 @@ public class SecondaryIndexManager
         try
         {
             future.get();
-            flushIndexes();
+            flushIndexesBlocking();
         }
         catch (InterruptedException e)
         {
@@ -270,7 +273,7 @@ public class SecondaryIndexManager
      * @throws ExecutionException
      * @throws InterruptedException
      */
-    public void flushIndexes() throws IOException
+    public void flushIndexesBlocking() throws IOException
     {
         for (Map.Entry<ByteBuffer, SecondaryIndex> entry : indexesByColumn.entrySet())
             entry.getValue().forceBlockingFlush();

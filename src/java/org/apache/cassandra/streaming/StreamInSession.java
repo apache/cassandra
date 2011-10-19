@@ -126,18 +126,16 @@ public class StreamInSession
         if (files.isEmpty())
         {
             HashMap <ColumnFamilyStore, List<SSTableReader>> cfstores = new HashMap<ColumnFamilyStore, List<SSTableReader>>();
-            List<SSTableReader> referenced = new LinkedList<SSTableReader>();
             try
             {
                 for (SSTableReader sstable : readers)
                 {
                     assert sstable.getTableName().equals(table);
 
-                    // Acquiring the reference (for secondary index building) before adding it makes sure we don't have to care about races
+                    // Acquire the reference (for secondary index building) before submitting the index build,
+                    // so it can't get compacted out of existence in between
                     if (!sstable.acquireReference())
-                        throw new RuntimeException("We shouldn't fail acquiring a reference on a sstable that has just been transfered");
-
-                    referenced.add(sstable);
+                        throw new AssertionError("We shouldn't fail acquiring a reference on a sstable that has just been transfered");
 
                     ColumnFamilyStore cfs = Table.open(sstable.getTableName()).getColumnFamilyStore(sstable.getColumnFamilyName());
                     cfs.addSSTable(sstable);
@@ -155,7 +153,8 @@ public class StreamInSession
             }
             finally
             {
-                SSTableReader.releaseReferences(referenced);
+                for (List<SSTableReader> referenced : cfstores.values())
+                    SSTableReader.releaseReferences(referenced);
             }
 
             // send reply to source that we're done
