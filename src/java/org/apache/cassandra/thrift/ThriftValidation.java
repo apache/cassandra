@@ -720,16 +720,6 @@ public class ThriftValidation
                                                             max_compaction_threshold));
     }
 
-    public static void validateMemtableSettings(org.apache.cassandra.thrift.CfDef cf_def) throws ConfigurationException
-    {
-        if (cf_def.isSetMemtable_flush_after_mins())
-            DatabaseDescriptor.validateMemtableFlushPeriod(cf_def.memtable_flush_after_mins);
-        if (cf_def.isSetMemtable_throughput_in_mb())
-            DatabaseDescriptor.validateMemtableThroughput(cf_def.memtable_throughput_in_mb);
-        if (cf_def.isSetMemtable_operations_in_millions())
-            DatabaseDescriptor.validateMemtableOperations(cf_def.memtable_operations_in_millions);
-    }
-
     public static void validateKeyspaceNotYetExisting(String newKsName) throws InvalidRequestException
     {
         // keyspace names must be unique case-insensitively because the keyspace name becomes the directory
