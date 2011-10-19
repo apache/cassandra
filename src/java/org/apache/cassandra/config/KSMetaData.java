@@ -21,15 +21,16 @@ package org.apache.cassandra.config;
 import java.util.*;
 
 import org.apache.commons.lang.ObjectUtils;
+import org.apache.commons.lang.StringUtils;
 
 import org.apache.avro.util.Utf8;
+import org.apache.cassandra.db.Table;
 import org.apache.cassandra.io.SerDeUtils;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
+import org.apache.cassandra.locator.LocalStrategy;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.thrift.CfDef;
 import org.apache.cassandra.thrift.KsDef;
-
-import org.apache.commons.lang.StringUtils;
 
 public final class KSMetaData
 {
@@ -55,6 +56,35 @@ public final class KSMetaData
         this.cfMetaData = Collections.unmodifiableMap(cfmap);
         this.durableWrites = durable_writes;
     }
+
+    private KSMetaData(String name, Class<? extends AbstractReplicationStrategy> strategyClass, Map<String, String> strategyOptions, boolean durableWrites, Iterable<CFMetaData> cfDefs)
+    {
+        this.name = name;
+        this.strategyClass = strategyClass == null ? NetworkTopologyStrategy.class : strategyClass;
+        this.strategyOptions = strategyOptions;
+        Map<String, CFMetaData> cfmap = new HashMap<String, CFMetaData>();
+        for (CFMetaData cfm : cfDefs)
+            cfmap.put(cfm.cfName, cfm);
+        this.cfMetaData = Collections.unmodifiableMap(cfmap);
+        this.durableWrites = durableWrites;
+    }
+
+    public static KSMetaData cloneWith(KSMetaData ksm, Iterable<CFMetaData> cfDefs)
+    {
+        return new KSMetaData(ksm.name, ksm.strategyClass, ksm.strategyOptions, ksm.durableWrites, cfDefs);
+    }
+
+    public static KSMetaData systemKeyspace()
+    {
+        List<CFMetaData> cfDefs = Arrays.asList(CFMetaData.StatusCf,
+                                                CFMetaData.HintsCf,
+                                                CFMetaData.MigrationsCf,
+                                                CFMetaData.SchemaCf,
+                                                CFMetaData.IndexCf,
+                                                CFMetaData.NodeIdCf);
+        return new KSMetaData(Table.SYSTEM_TABLE, LocalStrategy.class, optsWithRF(1), false, cfDefs);
+    }
+
 
     public static Map<String, String> forwardsCompatibleOptions(KsDef ks_def)
     {
@@ -165,10 +195,10 @@ public final class KSMetaData
         maybeAddReplicationFactor(strategyOptions, ks.strategy_class.toString(), ks.replication_factor);
 
         int cfsz = ks.cf_defs.size();
-        CFMetaData[] cfMetaData = new CFMetaData[cfsz];
+        List<CFMetaData> cfMetaData = new ArrayList<CFMetaData>(cfsz);
         Iterator<org.apache.cassandra.db.migration.avro.CfDef> cfiter = ks.cf_defs.iterator();
         for (int i = 0; i < cfsz; i++)
-            cfMetaData[i] = CFMetaData.inflate(cfiter.next());
+            cfMetaData.add(CFMetaData.inflate(cfiter.next()));
 
         return new KSMetaData(ks.name.toString(), repStratClass, strategyOptions, ks.durable_writes, cfMetaData);
     }
@@ -192,7 +222,7 @@ public final class KSMetaData
                               AbstractReplicationStrategy.getClass(ksd.strategy_class),
                               forwardsCompatibleOptions(ksd),
                               ksd.durable_writes,
-                              cfDefs);
+                              Arrays.asList(cfDefs));
     }
 
     public static KsDef toThrift(KSMetaData ksm)

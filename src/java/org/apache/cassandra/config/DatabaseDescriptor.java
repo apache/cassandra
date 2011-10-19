@@ -18,7 +18,10 @@
 
 package org.apache.cassandra.config;
 
-import java.io.*;
+import java.io.File;
+import java.io.FileFilter;
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.InetAddress;
 import java.net.URL;
 import java.net.UnknownHostException;
@@ -388,15 +391,7 @@ public class DatabaseDescriptor
                 partitioner.getTokenFactory().validate(conf.initial_token);
 
             // Hardcoded system tables
-            KSMetaData systemMeta = new KSMetaData(Table.SYSTEM_TABLE,
-                                                   LocalStrategy.class,
-                                                   KSMetaData.optsWithRF(1),
-                                                   CFMetaData.StatusCf,
-                                                   CFMetaData.HintsCf,
-                                                   CFMetaData.MigrationsCf,
-                                                   CFMetaData.SchemaCf,
-                                                   CFMetaData.IndexCf,
-                                                   CFMetaData.NodeIdCf);
+            KSMetaData systemMeta = KSMetaData.systemKeyspace();
             CFMetaData.map(CFMetaData.StatusCf);
             CFMetaData.map(CFMetaData.HintsCf);
             CFMetaData.map(CFMetaData.MigrationsCf);

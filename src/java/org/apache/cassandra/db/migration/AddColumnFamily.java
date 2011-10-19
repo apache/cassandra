@@ -2,9 +2,9 @@ package org.apache.cassandra.db.migration;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+
+import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.Table;
@@ -67,9 +67,7 @@ public class AddColumnFamily extends Migration
     
     private KSMetaData makeNewKeyspaceDefinition(KSMetaData ksm)
     {
-        List<CFMetaData> newCfs = new ArrayList<CFMetaData>(ksm.cfMetaData().values());
-        newCfs.add(cfm);
-        return new KSMetaData(ksm.name, ksm.strategyClass, ksm.strategyOptions, newCfs.toArray(new CFMetaData[newCfs.size()]));
+        return KSMetaData.cloneWith(ksm, Iterables.concat(ksm.cfMetaData().values(), Collections.singleton(cfm)));
     }
     
     public void applyModels() throws IOException
