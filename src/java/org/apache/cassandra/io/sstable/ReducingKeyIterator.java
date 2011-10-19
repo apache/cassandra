@@ -30,6 +30,9 @@ import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.IMergeIterator;
 import org.apache.cassandra.utils.MergeIterator;
 
+/**
+ * Caller must acquire and release references to the sstables used here.
+ */
 public class ReducingKeyIterator implements CloseableIterator<DecoratedKey>
 {
     private final IMergeIterator<DecoratedKey,DecoratedKey> mi;

@@ -65,7 +65,7 @@ public class LeveledCompactionTask extends CompactionTask
     @Override
     protected boolean newSSTableSegmentThresholdReached(SSTableWriter writer, long position)
     {
-        return position > sstableSizeInMB * 1024 * 1024;
+        return position > sstableSizeInMB * 1024L * 1024L;
     }
 
     @Override

@@ -4,6 +4,8 @@
 
 
 1.0.1
+ * acquire references during index build to prevent delete problems
+   on Windows (CASSANDRA-3314)
  * describe_ring should include datacenter/topology information (CASSANDRA-2882)
  * Thrift sockets are not properly buffered (CASSANDRA-3261)
  * performance improvement for bytebufferutil compare function (CASSANDRA-3286)
@@ -19,6 +21,23 @@
    successfully acquired the compaction lock (CASSANDRA-3344)
  * limit nodetool to 32MB of heap (CASSANDRA-3124)
  * (CQL) update parser to accept "timestamp" instead of "date" (CASSANDRA-3149)
+ * Fix CLI `show schema` to include "compression_options" (CASSANDRA-3368)
+ * Snapshot to include manifest under LeveledCompactionStrategy (CASSANDRA-3359)
+ * (CQL) SELECT query should allow CF name to be qualified by keyspace (CASSANDRA-3130)
+ * Display CLI version string on startup (CASSANDRA-3196)
+ * (Hadoop) make CFIF try rpc_address or fallback to listen_address
+   (CASSANDRA-3214)
+ * (Hadoop) accept comma delimited lists of initial thrift connections
+   (CASSANDRA-3185)
+ * ColumnFamily min_compaction_threshold should be >= 2 (CASSANDRA-3342)
+ * (Pig) add 0.8+ types and key validation type in schema (CASSANDRA-3280)
+ * Fix completely removing column metadata using CLI (CASSANDRA-3126)
+ * (CQL) Fix internal application error specifying 'using consistency ...'
+   in lower case (CASSANDRA-3366)
+ * CLI `describe cluster;` output should be on separate lines for separate versions
+   (CASSANDRA-3170)
+ * fix changing durable_writes keyspace option during CF creation
+   (CASSANDRA-3292)
 
 
 1.0.0-final

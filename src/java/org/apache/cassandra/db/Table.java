@@ -372,16 +372,6 @@ public class Table
         columnFamilyStores.put(cfId, ColumnFamilyStore.createColumnFamilyStore(this, cfName));
     }
 
-    /** basically a combined drop and add */
-    public void renameCf(Integer cfId, String newName) throws IOException
-    {
-        assert columnFamilyStores.containsKey(cfId);
-        ColumnFamilyStore cfs = columnFamilyStores.remove(cfId);
-        unloadCf(cfs);
-        cfs.renameSSTables(newName);
-        initCf(cfId, newName);
-    }
-
     public Row getRow(QueryFilter filter) throws IOException
     {
         ColumnFamilyStore cfStore = getColumnFamilyStore(filter.getColumnFamilyName());
@@ -589,7 +579,12 @@ public class Table
 
     public static String getSnapshotPath(String dataDirPath, String tableName, String snapshotName)
     {
-        return dataDirPath + File.separator + tableName + File.separator + SNAPSHOT_SUBDIR_NAME + File.separator + snapshotName;
+        return getSnapshotPath(dataDirPath + File.separator + tableName, snapshotName);
+    }
+
+    public static String getSnapshotPath(String tableDirectory, String snapshotName)
+    {
+        return tableDirectory + File.separator + SNAPSHOT_SUBDIR_NAME + File.separator + snapshotName;
     }
 
     public static Iterable<Table> all()

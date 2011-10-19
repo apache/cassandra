@@ -772,7 +772,7 @@ public class CompactionManager implements CompactionManagerMBean
             }
 
             // flush to ensure we don't lose the tombstones on a restart, since they are not commitlog'd         
-            cfs.indexManager.flushIndexes();
+            cfs.indexManager.flushIndexesBlocking();
            
 
             cfs.replaceCompactedSSTables(Arrays.asList(sstable), results);

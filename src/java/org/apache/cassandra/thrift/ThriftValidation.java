@@ -702,19 +702,11 @@ public class ThriftValidation
     {
         if (cf_def.isSetMin_compaction_threshold() && cf_def.isSetMax_compaction_threshold())
         {
-            if ((cf_def.min_compaction_threshold > cf_def.max_compaction_threshold)
-                && cf_def.max_compaction_threshold != 0)
-            {
-                throw new ConfigurationException("min_compaction_threshold cannot be greater than max_compaction_threshold");
-            }
+            validateMinCompactionThreshold(cf_def.min_compaction_threshold, cf_def.max_compaction_threshold);
         }
         else if (cf_def.isSetMin_compaction_threshold())
         {
-            if (cf_def.min_compaction_threshold > CFMetaData.DEFAULT_MAX_COMPACTION_THRESHOLD)
-            {
-                throw new ConfigurationException(String.format("min_compaction_threshold cannot be greather than max_compaction_threshold (default %d)",
-                                                               CFMetaData.DEFAULT_MAX_COMPACTION_THRESHOLD));
-            }
+            validateMinCompactionThreshold(cf_def.min_compaction_threshold, CFMetaData.DEFAULT_MAX_COMPACTION_THRESHOLD);
         }
         else if (cf_def.isSetMax_compaction_threshold())
         {
@@ -727,6 +719,26 @@ public class ThriftValidation
         {
             //Defaults are valid.
         }
+    }
+
+    public static void validateMinCompactionThreshold(int min_compaction_threshold, int max_compaction_threshold) throws ConfigurationException
+    {
+        if (min_compaction_threshold <= 1)
+            throw new ConfigurationException("min_compaction_threshold cannot be less than 2.");
+
+        if (min_compaction_threshold > max_compaction_threshold && max_compaction_threshold != 0)
+            throw new ConfigurationException(String.format("min_compaction_threshold cannot be greater than max_compaction_threshold %d",
+                                                            max_compaction_threshold));
+    }
+
+    public static void validateMemtableSettings(org.apache.cassandra.thrift.CfDef cf_def) throws ConfigurationException
+    {
+        if (cf_def.isSetMemtable_flush_after_mins())
+            DatabaseDescriptor.validateMemtableFlushPeriod(cf_def.memtable_flush_after_mins);
+        if (cf_def.isSetMemtable_throughput_in_mb())
+            DatabaseDescriptor.validateMemtableThroughput(cf_def.memtable_throughput_in_mb);
+        if (cf_def.isSetMemtable_operations_in_millions())
+            DatabaseDescriptor.validateMemtableOperations(cf_def.memtable_operations_in_millions);
     }
 
     public static void validateKeyspaceNotYetExisting(String newKsName) throws InvalidRequestException

@@ -401,8 +401,8 @@ attrValue
 
 
 arrayConstruct 
-    : '[' (hashConstruct ','?)+ ']'
-        -> ^(ARRAY (hashConstruct)+)
+    : '[' (hashConstruct ','?)* ']'
+        -> ^(ARRAY (hashConstruct)*)
     ; 
 
 hashConstruct 

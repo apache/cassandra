@@ -158,6 +158,7 @@ public class CliTest extends CleanupHelper
         "drop column family cF8;",
         "create keyspace TESTIN;",
         "drop keyspace tesTIN;",
+        "update column family 123 with comparator=UTF8Type and column_metadata=[];",
         "drop column family 123;",
         "create column family myCF with column_type='Super' and comparator='UTF8Type' AND subcomparator='UTF8Type';",
         "assume myCF keys as utf8;",

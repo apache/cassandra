@@ -47,6 +47,8 @@ public class LeveledManifest
 {
     private static final Logger logger = LoggerFactory.getLogger(LeveledCompactionStrategy.class);
 
+    public static final String EXTENSION = ".json";
+
     /**
      * limit the number of L0 sstables we do at once, because compaction bloom filter creation
      * uses a pessimistic estimate of how many keys overlap (none), so we risk wasting memory
@@ -344,8 +346,8 @@ public class LeveledManifest
         File manifestFile = tryGetManifest(cfs);
         if (manifestFile == null)
             manifestFile = new File(new File(DatabaseDescriptor.getAllDataFileLocations()[0], cfs.table.name), cfs.columnFamily + ".json");
-        File oldFile = new File(manifestFile.getPath().replace(".json", "-old.json"));
-        File tmpFile = new File(manifestFile.getPath().replace(".json", "-tmp.json"));
+        File oldFile = new File(manifestFile.getPath().replace(EXTENSION, "-old.json"));
+        File tmpFile = new File(manifestFile.getPath().replace(EXTENSION, "-tmp.json"));
 
         JsonFactory f = new JsonFactory();
         try
@@ -387,7 +389,7 @@ public class LeveledManifest
     {
         for (String dir : DatabaseDescriptor.getAllDataFileLocations())
         {
-            File manifestFile = new File(new File(dir, cfs.table.name), cfs.columnFamily + ".json");
+            File manifestFile = new File(new File(dir, cfs.table.name), cfs.columnFamily + EXTENSION);
             if (manifestFile.exists())
             {
                 logger.debug("Found manifest at {}", manifestFile);

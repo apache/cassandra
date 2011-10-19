@@ -128,10 +128,14 @@ public class FileUtils
 
     public static void createDirectory(String directory) throws IOException
     {
-        File file = new File(directory);
-        if (!file.exists())
+        createDirectory(new File(directory));
+    }
+
+    public static void createDirectory(File directory) throws IOException
+    {
+        if (!directory.exists())
         {
-            if (!file.mkdirs())
+            if (!directory.mkdirs())
             {
                 throw new IOException("unable to mkdirs " + directory);
             }

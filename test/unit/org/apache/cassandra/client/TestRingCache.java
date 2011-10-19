@@ -23,16 +23,18 @@ import java.nio.ByteBuffer;
 import java.util.Collection;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.hadoop.ConfigHelper;
 import org.apache.cassandra.thrift.Cassandra;
 import org.apache.cassandra.thrift.Column;
 import org.apache.cassandra.thrift.ColumnParent;
 import org.apache.cassandra.thrift.ColumnPath;
 import org.apache.cassandra.thrift.ConsistencyLevel;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.commons.lang.StringUtils;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.transport.TFramedTransport;
 import org.apache.thrift.transport.TSocket;
-import org.apache.cassandra.utils.ByteBufferUtil;
 
 
 /**
@@ -42,11 +44,12 @@ public class TestRingCache
 {
     private RingCache ringCache;
     private Cassandra.Client thriftClient;
+    private Configuration conf;
 
     public TestRingCache(String keyspace) throws IOException
     {
-        String seed = DatabaseDescriptor.getSeeds().iterator().next().getHostAddress();
-    	ringCache = new RingCache(keyspace, DatabaseDescriptor.getPartitioner(), seed, DatabaseDescriptor.getRpcPort());
+        ConfigHelper.setOutputColumnFamily(conf, keyspace, "Standard1");
+    	ringCache = new RingCache(conf);
     }
     
     private void setup(String server, int port) throws Exception
@@ -58,6 +61,12 @@ public class TestRingCache
         Cassandra.Client cassandraClient = new Cassandra.Client(binaryProtocol);
         socket.open();
         thriftClient = cassandraClient;
+        String seed = DatabaseDescriptor.getSeeds().iterator().next().getHostAddress();
+        conf = new Configuration();
+        ConfigHelper.setPartitioner(conf, DatabaseDescriptor.getPartitioner().getClass().getName());
+        ConfigHelper.setInitialAddress(conf, seed);
+        ConfigHelper.setRpcPort(conf, Integer.toString(DatabaseDescriptor.getRpcPort()));
+
     }
 
     /**

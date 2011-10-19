@@ -18,7 +18,10 @@
 
 package org.apache.cassandra.config;
 
-import java.io.*;
+import java.io.File;
+import java.io.FileFilter;
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.InetAddress;
 import java.net.URL;
 import java.net.UnknownHostException;
@@ -34,18 +37,18 @@ import org.apache.cassandra.auth.IAuthority;
 import org.apache.cassandra.config.Config.RequestSchedulerId;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DefsTable;
-import org.apache.cassandra.db.SystemTable;
-import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.MmappedSegmentedFile;
-import org.apache.cassandra.locator.*;
+import org.apache.cassandra.locator.DynamicEndpointSnitch;
+import org.apache.cassandra.locator.EndpointSnitchInfo;
+import org.apache.cassandra.locator.IEndpointSnitch;
+import org.apache.cassandra.locator.SeedProvider;
 import org.apache.cassandra.scheduler.IRequestScheduler;
 import org.apache.cassandra.scheduler.NoScheduler;
 import org.apache.cassandra.thrift.CassandraDaemon;
 import org.apache.cassandra.utils.FBUtilities;
-
 import org.yaml.snakeyaml.Loader;
 import org.yaml.snakeyaml.TypeDescription;
 import org.yaml.snakeyaml.Yaml;
@@ -403,16 +406,7 @@ public class DatabaseDescriptor
                 partitioner.getTokenFactory().validate(conf.initial_token);
 
             // Hardcoded system tables
-            KSMetaData systemMeta = new KSMetaData(Table.SYSTEM_TABLE,
-                                                   LocalStrategy.class,
-                                                   KSMetaData.optsWithRF(1),
-                                                   CFMetaData.StatusCf,
-                                                   CFMetaData.HintsCf,
-                                                   CFMetaData.MigrationsCf,
-                                                   CFMetaData.SchemaCf,
-                                                   CFMetaData.IndexCf,
-                                                   CFMetaData.NodeIdCf,
-                                                   CFMetaData.VersionCf);
+            KSMetaData systemMeta = KSMetaData.systemKeyspace();
             Schema.instance.load(CFMetaData.StatusCf);
             Schema.instance.load(CFMetaData.HintsCf);
             Schema.instance.load(CFMetaData.MigrationsCf);

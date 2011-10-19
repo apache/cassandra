@@ -199,7 +199,7 @@ public class CompressionMetadata
             seek(dataLengthOffset
                  + 8 // size reserved for uncompressed data length
                  + 4 // size reserved for chunk count
-                 + (chunkIndex * 8));
+                 + (chunkIndex * 8L));
 
             try
             {
@@ -221,7 +221,7 @@ public class CompressionMetadata
             seek(dataLengthOffset
                  + 8 // size reserved for uncompressed data length
                  + 4 // size reserved for chunk count
-                 + (chunkIndex * 8));
+                 + (chunkIndex * 8L));
             getChannel().truncate(getFilePointer());
         }
     }

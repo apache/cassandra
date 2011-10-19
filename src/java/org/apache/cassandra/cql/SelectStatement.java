@@ -39,15 +39,17 @@ public class SelectStatement
     private final SelectExpression expression;
     private final boolean isCountOper;
     private final String columnFamily;
+    private final String keyspace;
     private final ConsistencyLevel cLevel;
     private final WhereClause clause;
     private final int numRecords;
     
-    public SelectStatement(SelectExpression expression, boolean isCountOper, String columnFamily,
+    public SelectStatement(SelectExpression expression, boolean isCountOper, String keyspace, String columnFamily,
             ConsistencyLevel cLevel, WhereClause clause, int numRecords)
     {
         this.expression = expression;
         this.isCountOper = isCountOper;
+        this.keyspace = keyspace;
         this.columnFamily = columnFamily;
         this.cLevel = cLevel;
         this.clause = (clause != null) ? clause : new WhereClause();
@@ -103,7 +105,17 @@ public class SelectStatement
     {
         return expression.getFinish();
     }
-    
+
+    public boolean isSetKeyspace()
+    {
+        return keyspace != null;
+    }
+
+    public String getKeyspace()
+    {
+        return keyspace;
+    }
+
     public String getColumnFamily()
     {
         return columnFamily;

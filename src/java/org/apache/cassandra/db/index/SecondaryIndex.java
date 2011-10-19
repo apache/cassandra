@@ -30,6 +30,7 @@ import org.apache.cassandra.db.SystemTable;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.index.keys.KeysIndex;
 import org.apache.cassandra.io.sstable.ReducingKeyIterator;
+import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
@@ -149,11 +150,11 @@ public abstract class SecondaryIndex
         
         for (ColumnDefinition cdef : columnDefs)
             columnNames.add(cdef.name);
-        
+
+        Collection<SSTableReader> sstables = baseCfs.markCurrentSSTablesReferenced();
         SecondaryIndexBuilder builder = new SecondaryIndexBuilder(baseCfs,
                                                                   columnNames,
-                                                                  new ReducingKeyIterator(baseCfs.getSSTables()));
-
+                                                                  new ReducingKeyIterator(sstables));
         Future<?> future = CompactionManager.instance.submitIndexBuild(builder);
         try
         {
@@ -178,6 +179,10 @@ public abstract class SecondaryIndex
         catch (ExecutionException e)
         {
             throw new IOException(e);
+        }
+        finally
+        {
+            SSTableReader.releaseReferences(sstables);
         }
         logger.info("Index build of " + getIndexName() + " complete");
     }

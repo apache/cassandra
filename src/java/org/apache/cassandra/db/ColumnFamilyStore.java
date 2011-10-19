@@ -32,6 +32,7 @@ import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
 import com.google.common.collect.Iterables;
+import org.apache.cassandra.db.compaction.LeveledManifest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -256,7 +257,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         catch (Exception e)
         {
             // this shouldn't block anything.
-            logger.warn(e.getMessage(), e);
+            logger.warn("Failed unregistering mbean: " + mbeanName, e);
         }
     }
 
@@ -561,8 +562,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
 
         logger.info("Loading new SSTable Set for " + table.name + "/" + columnFamily + ": " + sstables);
+        SSTableReader.acquireReferences(sstables);
         data.addSSTables(sstables); // this will call updateCacheSizes() for us
-
         logger.info("Requesting a full secondary index re-build for " + table.name + "/" + columnFamily);
         try
         {
@@ -571,6 +572,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         catch (IOException e)
         {
            throw new IOError(e);
+        }
+        finally
+        {
+            SSTableReader.releaseReferences(sstables);
         }
 
         logger.info("Setting up new generation: " + generation);
@@ -883,11 +888,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 return true;
         }
         return false;
-    }
-
-    public boolean isKeyExistenceExpensive(Set<? extends SSTable> sstablesToIgnore)
-    {
-        return compactionStrategy.isKeyExistenceExpensive(sstablesToIgnore);
     }
 
     /*
@@ -1394,28 +1394,39 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         for (ColumnFamilyStore cfs : concatWithIndexes())
         {
             DataTracker.View currentView = cfs.markCurrentViewReferenced();
+
             try
             {
                 for (SSTableReader ssTable : currentView.sstables)
                 {
-                    try
-                    {
-                        // mkdir
-                        File dataDirectory = ssTable.descriptor.directory.getParentFile();
-                        String snapshotDirectoryPath = Table.getSnapshotPath(dataDirectory.getAbsolutePath(), table.name, snapshotName);
-                        FileUtils.createDirectory(snapshotDirectoryPath);
+                    // mkdir
+                    File dataDirectory = ssTable.descriptor.directory.getParentFile();
+                    String snapshotDirectoryPath = Table.getSnapshotPath(dataDirectory.getAbsolutePath(), table.name, snapshotName);
+                    FileUtils.createDirectory(snapshotDirectoryPath);
 
-                        // hard links
-                        ssTable.createLinks(snapshotDirectoryPath);
-                        if (logger.isDebugEnabled())
-                            logger.debug("Snapshot for " + table + " keyspace data file " + ssTable.getFilename() +
-                                    " created in " + snapshotDirectoryPath);
-                    }
-                    catch (IOException e)
+                    // hard links
+                    ssTable.createLinks(snapshotDirectoryPath);
+                    if (logger.isDebugEnabled())
+                        logger.debug("Snapshot for " + table + " keyspace data file " + ssTable.getFilename() +
+                                     " created in " + snapshotDirectoryPath);
+                }
+
+                if (compactionStrategy instanceof LeveledCompactionStrategy)
+                {
+                    File manifest = LeveledManifest.tryGetManifest(cfs);
+
+                    if (manifest != null)
                     {
-                        throw new IOError(e);
+                        File snapshotDirectory = new File(Table.getSnapshotPath(manifest.getParent(), snapshotName));
+                        FileUtils.createDirectory(snapshotDirectory);
+
+                        CLibrary.createHardLink(manifest, new File(snapshotDirectory, manifest.getName()));
                     }
                 }
+            }
+            catch (IOException e)
+            {
+                throw new IOError(e);
             }
             finally
             {

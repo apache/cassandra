@@ -95,10 +95,7 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<Mutation>>
     ColumnFamilyRecordWriter(Configuration conf) throws IOException
     {
         this.conf = conf;
-        this.ringCache = new RingCache(ConfigHelper.getOutputKeyspace(conf),
-                                       ConfigHelper.getPartitioner(conf),
-                                       ConfigHelper.getInitialAddress(conf),
-                                       ConfigHelper.getRpcPort(conf));
+        this.ringCache = new RingCache(conf);
         this.queueSize = conf.getInt(ColumnFamilyOutputFormat.QUEUE_SIZE, 32 * Runtime.getRuntime().availableProcessors());
         this.clients = new HashMap<Range,RangeClient>();
         batchThreshold = conf.getLong(ColumnFamilyOutputFormat.BATCH_THRESHOLD, 32);

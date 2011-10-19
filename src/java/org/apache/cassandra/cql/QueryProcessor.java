@@ -73,11 +73,10 @@ public class QueryProcessor
 
     public static final String DEFAULT_KEY_NAME = bufferToString(CFMetaData.DEFAULT_KEY_NAME);
 
-    private static List<org.apache.cassandra.db.Row> getSlice(String keyspace, SelectStatement select)
+    private static List<org.apache.cassandra.db.Row> getSlice(CFMetaData metadata, SelectStatement select)
     throws InvalidRequestException, TimedOutException, UnavailableException
     {
         QueryPath queryPath = new QueryPath(select.getColumnFamily());
-        CFMetaData metadata = validateColumnFamily(keyspace, select.getColumnFamily());
         List<ReadCommand> commands = new ArrayList<ReadCommand>();
 
         // ...of a list of column names
@@ -91,13 +90,13 @@ public class QueryProcessor
                 ByteBuffer key = rawKey.getByteBuffer(metadata.getKeyValidator());
 
                 validateKey(key);
-                commands.add(new SliceByNamesReadCommand(keyspace, key, queryPath, columnNames));
+                commands.add(new SliceByNamesReadCommand(metadata.ksName, key, queryPath, columnNames));
             }
         }
         // ...a range (slice) of column names
         else
         {
-            AbstractType<?> comparator = select.getComparator(keyspace);
+            AbstractType<?> comparator = select.getComparator(metadata.ksName);
             ByteBuffer start = select.getColumnStart().getByteBuffer(comparator);
             ByteBuffer finish = select.getColumnFinish().getByteBuffer(comparator);
 
@@ -107,7 +106,7 @@ public class QueryProcessor
 
                 validateKey(key);
                 validateSliceRange(metadata, start, finish, select.isColumnsReversed());
-                commands.add(new SliceFromReadCommand(keyspace,
+                commands.add(new SliceFromReadCommand(metadata.ksName,
                                                       key,
                                                       queryPath,
                                                       start,
@@ -144,13 +143,13 @@ public class QueryProcessor
         return columnNames;
     }
 
-    private static List<org.apache.cassandra.db.Row> multiRangeSlice(String keyspace, SelectStatement select)
+    private static List<org.apache.cassandra.db.Row> multiRangeSlice(CFMetaData metadata, SelectStatement select)
     throws TimedOutException, UnavailableException, InvalidRequestException
     {
         List<org.apache.cassandra.db.Row> rows;
         IPartitioner<?> p = StorageService.getPartitioner();
 
-        AbstractType<?> keyType = Schema.instance.getCFMetaData(keyspace, select.getColumnFamily()).getKeyValidator();
+        AbstractType<?> keyType = Schema.instance.getCFMetaData(metadata.ksName, select.getColumnFamily()).getKeyValidator();
 
         ByteBuffer startKey = (select.getKeyStart() != null)
                                ? select.getKeyStart().getByteBuffer(keyType)
@@ -170,7 +169,6 @@ public class QueryProcessor
         }
         AbstractBounds bounds = new Bounds(startToken, finishToken);
         
-        CFMetaData metadata = validateColumnFamily(keyspace, select.getColumnFamily());
         // XXX: Our use of Thrift structs internally makes me Sad. :(
         SlicePredicate thriftSlicePredicate = slicePredicateFromSelect(select, metadata);
         validateSlicePredicate(metadata, thriftSlicePredicate);
@@ -181,7 +179,7 @@ public class QueryProcessor
 
         try
         {
-            rows = StorageProxy.getRangeSlice(new RangeSliceCommand(keyspace,
+            rows = StorageProxy.getRangeSlice(new RangeSliceCommand(metadata.ksName,
                                                                     select.getColumnFamily(),
                                                                     null,
                                                                     thriftSlicePredicate,
@@ -220,10 +218,9 @@ public class QueryProcessor
         return rows.subList(0, select.getNumRecords() < rows.size() ? select.getNumRecords() : rows.size());
     }
     
-    private static List<org.apache.cassandra.db.Row> getIndexedSlices(String keyspace, SelectStatement select)
+    private static List<org.apache.cassandra.db.Row> getIndexedSlices(CFMetaData metadata, SelectStatement select)
     throws TimedOutException, UnavailableException, InvalidRequestException
     {
-        CFMetaData metadata = validateColumnFamily(keyspace, select.getColumnFamily());
         // XXX: Our use of Thrift structs internally (still) makes me Sad. :~(
         SlicePredicate thriftSlicePredicate = slicePredicateFromSelect(select, metadata);
         validateSlicePredicate(metadata, thriftSlicePredicate);
@@ -233,21 +230,21 @@ public class QueryProcessor
         {
             // Left and right side of relational expression encoded according to comparator/validator.
             ByteBuffer entity = columnRelation.getEntity().getByteBuffer(metadata.comparator);
-            ByteBuffer value = columnRelation.getValue().getByteBuffer(select.getValueValidator(keyspace, entity));
+            ByteBuffer value = columnRelation.getValue().getByteBuffer(select.getValueValidator(metadata.ksName, entity));
             
             expressions.add(new IndexExpression(entity,
                                                 IndexOperator.valueOf(columnRelation.operator().toString()),
                                                 value));
         }
 
-        AbstractType<?> keyType = Schema.instance.getCFMetaData(keyspace, select.getColumnFamily()).getKeyValidator();
+        AbstractType<?> keyType = Schema.instance.getCFMetaData(metadata.ksName, select.getColumnFamily()).getKeyValidator();
         ByteBuffer startKey = (!select.isKeyRange()) ? (new Term()).getByteBuffer() : select.getKeyStart().getByteBuffer(keyType);
         IndexClause thriftIndexClause = new IndexClause(expressions, startKey, select.getNumRecords());
         
         List<org.apache.cassandra.db.Row> rows;
         try
         {
-            rows = StorageProxy.scan(keyspace,
+            rows = StorageProxy.scan(metadata.ksName,
                                      select.getColumnFamily(),
                                      thriftIndexClause,
                                      thriftSlicePredicate,
@@ -504,7 +501,7 @@ public class QueryProcessor
         String keyspace = null;
         
         // Some statements won't have (or don't need) a keyspace (think USE, or CREATE).
-        if (StatementType.requiresKeyspace.contains(statement.type))
+        if (statement.type != StatementType.SELECT && StatementType.requiresKeyspace.contains(statement.type))
             keyspace = clientState.getKeyspace();
 
         CqlResult result = new CqlResult();
@@ -515,7 +512,20 @@ public class QueryProcessor
         {
             case SELECT:
                 SelectStatement select = (SelectStatement)statement.statement;
-                clientState.hasColumnFamilyAccess(select.getColumnFamily(), Permission.READ);
+
+                final String oldKeyspace = clientState.getRawKeyspace();
+
+                if (select.isSetKeyspace())
+                {
+                    keyspace = CliUtils.unescapeSQLString(select.getKeyspace());
+                    ThriftValidation.validateTable(keyspace);
+                }
+                else if (oldKeyspace == null)
+                    throw new InvalidRequestException("no keyspace has been specified");
+                else
+                    keyspace = oldKeyspace;
+
+                clientState.hasColumnFamilyAccess(keyspace, select.getColumnFamily(), Permission.READ);
                 metadata = validateColumnFamily(keyspace, select.getColumnFamily());
 
                 // need to do this in here because we need a CFMD.getKeyName()
@@ -531,19 +541,19 @@ public class QueryProcessor
                 // By-key
                 if (!select.isKeyRange() && (select.getKeys().size() > 0))
                 {
-                    rows = getSlice(keyspace, select);
+                    rows = getSlice(metadata, select);
                 }
                 else
                 {
                     // Range query
                     if ((select.getKeyFinish() != null) || (select.getColumnRelations().size() == 0))
                     {
-                        rows = multiRangeSlice(keyspace, select);
+                        rows = multiRangeSlice(metadata, select);
                     }
                     // Index scan
                     else
                     {
-                        rows = getIndexedSlices(keyspace, select);
+                        rows = getIndexedSlices(metadata, select);
                     }
                 }
 

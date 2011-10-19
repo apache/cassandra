@@ -62,7 +62,7 @@ public class DropColumnFamily extends Migration
         List<CFMetaData> newCfs = new ArrayList<CFMetaData>(ksm.cfMetaData().values());
         newCfs.remove(cfm);
         assert newCfs.size() == ksm.cfMetaData().size() - 1;
-        return new KSMetaData(ksm.name, ksm.strategyClass, ksm.strategyOptions, newCfs.toArray(new CFMetaData[newCfs.size()]));
+        return KSMetaData.cloneWith(ksm, newCfs);
     }
 
     public void applyModels() throws IOException

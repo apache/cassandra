@@ -111,142 +111,141 @@ public class SchemaLoader
             "Column42"));
 
         // Keyspace 1
-        schema.add(new KSMetaData(ks1,
-                                  simple,
-                                  opts_rf1,
+        schema.add(KSMetaData.testMetadata(ks1,
+                                           simple,
+                                           opts_rf1,
 
-                                  // Column Families
-                                  standardCFMD(ks1, "Standard1"),
-                                  standardCFMD(ks1, "Standard2"),
-                                  standardCFMD(ks1, "Standard3"),
-                                  standardCFMD(ks1, "Standard4"),
-                                  standardCFMD(ks1, "StandardLong1"),
-                                  standardCFMD(ks1, "StandardLong2"),
-                                  new CFMetaData(ks1,
-                                                 "ValuesWithQuotes",
-                                                 st,
-                                                 BytesType.instance,
-                                                 null)
-                                                 .defaultValidator(UTF8Type.instance),
-                                  superCFMD(ks1, "Super1", LongType.instance),
-                                  superCFMD(ks1, "Super2", LongType.instance),
-                                  superCFMD(ks1, "Super3", LongType.instance),
-                                  superCFMD(ks1, "Super4", UTF8Type.instance),
-                                  superCFMD(ks1, "Super5", bytes),
-                                  indexCFMD(ks1, "Indexed1", true),
-                                  indexCFMD(ks1, "Indexed2", false),
-                                  new CFMetaData(ks1,
-                                                 "StandardInteger1",
-                                                 st,
-                                                 IntegerType.instance,
-                                                 null)
-                                                 .keyCacheSize(0),
-                                  new CFMetaData(ks1,
-                                                 "Counter1",
-                                                 st,
-                                                 bytes,
-                                                 null)
-                                                 .defaultValidator(CounterColumnType.instance)
-                                                 .mergeShardsChance(1.0),
-                                  new CFMetaData(ks1,
-                                                 "SuperCounter1",
-                                                 su,
-                                                 bytes,
-                                                 bytes)
-                                                 .defaultValidator(CounterColumnType.instance)
-                                                 .mergeShardsChance(1.0),
-                                  jdbcCFMD(ks1, "JdbcInteger", IntegerType.instance).columnMetadata(integerColumn),
-                                  jdbcCFMD(ks1, "JdbcUtf8", UTF8Type.instance).columnMetadata(utf8Column),
-                                  jdbcCFMD(ks1, "JdbcLong", LongType.instance),
-                                  jdbcCFMD(ks1, "JdbcBytes", bytes),
-                                  jdbcCFMD(ks1, "JdbcAscii", AsciiType.instance),
-                                  new CFMetaData(ks1,
-                                                 "StandardComposite",
-                                                 st,
-                                                 composite,
-                                                 null),
-                                  new CFMetaData(ks1,
-                                                 "StandardDynamicComposite",
-                                                 st,
-                                                 dynamicComposite,
-                                                 null)));
+                                           // Column Families
+                                           standardCFMD(ks1, "Standard1"),
+                                           standardCFMD(ks1, "Standard2"),
+                                           standardCFMD(ks1, "Standard3"),
+                                           standardCFMD(ks1, "Standard4"),
+                                           standardCFMD(ks1, "StandardLong1"),
+                                           standardCFMD(ks1, "StandardLong2"),
+                                           new CFMetaData(ks1,
+                                                          "ValuesWithQuotes",
+                                                          st,
+                                                          BytesType.instance,
+                                                          null)
+                                                   .defaultValidator(UTF8Type.instance),
+                                           superCFMD(ks1, "Super1", LongType.instance),
+                                           superCFMD(ks1, "Super2", LongType.instance),
+                                           superCFMD(ks1, "Super3", LongType.instance),
+                                           superCFMD(ks1, "Super4", UTF8Type.instance),
+                                           superCFMD(ks1, "Super5", bytes),
+                                           indexCFMD(ks1, "Indexed1", true),
+                                           indexCFMD(ks1, "Indexed2", false),
+                                           new CFMetaData(ks1,
+                                                          "StandardInteger1",
+                                                          st,
+                                                          IntegerType.instance,
+                                                          null)
+                                                   .keyCacheSize(0),
+                                           new CFMetaData(ks1,
+                                                          "Counter1",
+                                                          st,
+                                                          bytes,
+                                                          null)
+                                                   .defaultValidator(CounterColumnType.instance)
+                                                   .mergeShardsChance(1.0),
+                                           new CFMetaData(ks1,
+                                                          "SuperCounter1",
+                                                          su,
+                                                          bytes,
+                                                          bytes)
+                                                   .defaultValidator(CounterColumnType.instance)
+                                                   .mergeShardsChance(1.0),
+                                           jdbcCFMD(ks1, "JdbcInteger", IntegerType.instance).columnMetadata(integerColumn),
+                                           jdbcCFMD(ks1, "JdbcUtf8", UTF8Type.instance).columnMetadata(utf8Column),
+                                           jdbcCFMD(ks1, "JdbcLong", LongType.instance),
+                                           jdbcCFMD(ks1, "JdbcBytes", bytes),
+                                           jdbcCFMD(ks1, "JdbcAscii", AsciiType.instance),
+                                           new CFMetaData(ks1,
+                                                          "StandardComposite",
+                                                          st,
+                                                          composite,
+                                                          null),
+                                           new CFMetaData(ks1,
+                                                          "StandardDynamicComposite",
+                                                          st,
+                                                          dynamicComposite,
+                                                          null)));
 
         // Keyspace 2
-        schema.add(new KSMetaData(ks2,
-                                  simple,
-                                  opts_rf1,
+        schema.add(KSMetaData.testMetadata(ks2,
+                                           simple,
+                                           opts_rf1,
 
-                                  // Column Families
-                                  standardCFMD(ks2, "Standard1"),
-                                  standardCFMD(ks2, "Standard3"),
-                                  superCFMD(ks2, "Super3", bytes),
-                                  superCFMD(ks2, "Super4", TimeUUIDType.instance),
-                                  indexCFMD(ks2, "Indexed1", true)));
+                                           // Column Families
+                                           standardCFMD(ks2, "Standard1"),
+                                           standardCFMD(ks2, "Standard3"),
+                                           superCFMD(ks2, "Super3", bytes),
+                                           superCFMD(ks2, "Super4", TimeUUIDType.instance),
+                                           indexCFMD(ks2, "Indexed1", true)));
 
         // Keyspace 3
-        schema.add(new KSMetaData(ks3,
-                                  simple,
-                                  opts_rf5,
+        schema.add(KSMetaData.testMetadata(ks3,
+                                           simple,
+                                           opts_rf5,
 
-                                  // Column Families
-                                  standardCFMD(ks3, "Standard1"),
-                                  indexCFMD(ks3, "Indexed1", true)));
+                                           // Column Families
+                                           standardCFMD(ks3, "Standard1"),
+                                           indexCFMD(ks3, "Indexed1", true)));
 
         // Keyspace 4
-        schema.add(new KSMetaData(ks4,
-                                  simple,
-                                  opts_rf3,
+        schema.add(KSMetaData.testMetadata(ks4,
+                                           simple,
+                                           opts_rf3,
 
-                                  // Column Families
-                                  standardCFMD(ks4, "Standard1"),
-                                  standardCFMD(ks4, "Standard3"),
-                                  superCFMD(ks4, "Super3", bytes),
-                                  superCFMD(ks4, "Super4", TimeUUIDType.instance),
-                                  new CFMetaData(ks4,
-                                                 "Super5",
-                                                 su,
-                                                 TimeUUIDType.instance,
-                                                 bytes)
-                                                 .keyCacheSize(0)));
+                                           // Column Families
+                                           standardCFMD(ks4, "Standard1"),
+                                           standardCFMD(ks4, "Standard3"),
+                                           superCFMD(ks4, "Super3", bytes),
+                                           superCFMD(ks4, "Super4", TimeUUIDType.instance),
+                                           new CFMetaData(ks4,
+                                                          "Super5",
+                                                          su,
+                                                          TimeUUIDType.instance,
+                                                          bytes)
+                                                   .keyCacheSize(0)));
 
         // Keyspace 5
-        schema.add(new KSMetaData(ks5,
-                                  simple,
-                                  opts_rf2,
-                                  standardCFMD(ks5, "Standard1"),
-                                  standardCFMD(ks5, "Counter1")
-                                               .defaultValidator(CounterColumnType.instance)));
+        schema.add(KSMetaData.testMetadata(ks5,
+                                           simple,
+                                           opts_rf2,
+                                           standardCFMD(ks5, "Standard1"),
+                                           standardCFMD(ks5, "Counter1")
+                                                   .defaultValidator(CounterColumnType.instance)));
 
         // Keyspace 6
-        schema.add(new KSMetaData(ks6,
-                                  simple,
-                                  opts_rf1,
-                                  indexCFMD(ks6, "Indexed1", true)));
+        schema.add(KSMetaData.testMetadata(ks6,
+                                           simple,
+                                           opts_rf1,
+                                           indexCFMD(ks6, "Indexed1", true)));
 
         // KeyCacheSpace
-        schema.add(new KSMetaData(ks_kcs,
-                                  simple,
-                                  opts_rf1,
-                                  standardCFMD(ks_kcs, "Standard1")
-                                              .keyCacheSize(0.5),
-                                  standardCFMD(ks_kcs, "Standard2")
-                                              .keyCacheSize(1.0),
-                                  standardCFMD(ks_kcs, "Standard3")
-                                              .keyCacheSize(1.0)));
+        schema.add(KSMetaData.testMetadata(ks_kcs,
+                                           simple,
+                                           opts_rf1,
+                                           standardCFMD(ks_kcs, "Standard1")
+                                                   .keyCacheSize(0.5),
+                                           standardCFMD(ks_kcs, "Standard2")
+                                                   .keyCacheSize(1.0),
+                                           standardCFMD(ks_kcs, "Standard3")
+                                                   .keyCacheSize(1.0)));
 
         // RowCacheSpace
-        schema.add(new KSMetaData(ks_rcs,
-                                  simple,
-                                  opts_rf1,
-                                  standardCFMD(ks_rcs, "CFWithoutCache"),
-                                  standardCFMD(ks_rcs, "CachedCF")
-                                              .rowCacheSize(100)));
+        schema.add(KSMetaData.testMetadata(ks_rcs,
+                                           simple,
+                                           opts_rf1,
+                                           standardCFMD(ks_rcs, "CFWithoutCache"),
+                                           standardCFMD(ks_rcs, "CachedCF")
+                                                   .rowCacheSize(100)));
 
-        schema.add(new KSMetaData(ks_nocommit,
-                simple,
-                opts_rf1,
-                false,
-                standardCFMD(ks_nocommit, "Standard1")));
+        schema.add(KSMetaData.testMetadataNotDurable(ks_nocommit,
+                                                     simple,
+                                                     opts_rf1,
+                                                     standardCFMD(ks_nocommit, "Standard1")));
 
 
         if (Boolean.parseBoolean(System.getProperty("cassandra.test.compression", "false")))

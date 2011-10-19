@@ -19,9 +19,13 @@ package org.apache.cassandra.hadoop;
  * under the License.
  * 
  */
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.thrift.Cassandra;
 import org.apache.cassandra.thrift.KeyRange;
 import org.apache.cassandra.thrift.SlicePredicate;
 import org.apache.cassandra.thrift.TBinaryProtocol;
@@ -31,6 +35,13 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.thrift.TDeserializer;
 import org.apache.thrift.TException;
 import org.apache.thrift.TSerializer;
+import org.apache.thrift.transport.TFramedTransport;
+import org.apache.thrift.transport.TSocket;
+import org.apache.thrift.transport.TTransport;
+import org.apache.thrift.transport.TTransportException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 
 public class ConfigHelper
 {
@@ -54,6 +65,9 @@ public class ConfigHelper
     private static final String INITIAL_THRIFT_ADDRESS = "cassandra.thrift.address";
     private static final String READ_CONSISTENCY_LEVEL = "cassandra.consistencylevel.read";
     private static final String WRITE_CONSISTENCY_LEVEL = "cassandra.consistencylevel.write";
+    
+    private static final Logger logger = LoggerFactory.getLogger(ColumnFamilyInputFormat.class);
+
 
     /**
      * Set the keyspace and column family for the input of this job.
@@ -330,5 +344,51 @@ public class ConfigHelper
         {
             throw new RuntimeException(e);
         }
+    }
+    
+
+    public static Cassandra.Client getClientFromAddressList(Configuration conf) throws IOException
+    {
+        String[] addresses = ConfigHelper.getInitialAddress(conf).split(",");
+        Cassandra.Client client = null;
+        List<IOException> exceptions = new ArrayList<IOException>();
+        for (String address : addresses)
+        {
+            try
+            {
+                client = createConnection(address, ConfigHelper.getRpcPort(conf), true);
+                break;
+            }
+            catch (IOException ioe)
+            {
+                exceptions.add(ioe);
+            }
+        }
+        if (client == null)
+        {
+            logger.error("failed to connect to any initial addresses");
+            for (IOException ioe : exceptions)
+            {
+                logger.error("", ioe);
+            }
+            throw exceptions.get(exceptions.size() - 1);
+        }
+        return client;
+    }
+
+    public static Cassandra.Client createConnection(String host, Integer port, boolean framed)
+            throws IOException
+    {
+        TSocket socket = new TSocket(host, port);
+        TTransport trans = framed ? new TFramedTransport(socket) : socket;
+        try
+        {
+            trans.open();
+        }
+        catch (TTransportException e)
+        {
+            throw new IOException("unable to connect to server", e);
+        }
+        return new Cassandra.Client(new TBinaryProtocol(trans));
     }
 }

@@ -39,8 +39,6 @@ import org.apache.cassandra.db.migration.AddKeyspace;
 import org.apache.cassandra.db.migration.DropColumnFamily;
 import org.apache.cassandra.db.migration.DropKeyspace;
 import org.apache.cassandra.db.migration.Migration;
-import org.apache.cassandra.db.migration.RenameColumnFamily;
-import org.apache.cassandra.db.migration.RenameKeyspace;
 import org.apache.cassandra.db.migration.UpdateColumnFamily;
 import org.apache.cassandra.db.migration.UpdateKeyspace;
 import org.apache.cassandra.io.SerDeUtils;
@@ -207,24 +205,18 @@ public class DefsTest extends CleanupHelper
         UUID ver1 = m1.getVersion();
         assert Schema.instance.getVersion().equals(ver1);
         
-        // rename it.
-        Migration m2 = new RenameColumnFamily("Keyspace1", "MigrationCf_1", "MigrationCf_2");
-        m2.apply();
-        UUID ver2 = m2.getVersion();
-        assert Schema.instance.getVersion().equals(ver2);
-        
         // drop it.
-        Migration m3 = new DropColumnFamily("Keyspace1", "MigrationCf_2");
+        Migration m3 = new DropColumnFamily("Keyspace1", "MigrationCf_1");
         m3.apply();
         UUID ver3 = m3.getVersion();
         assert Schema.instance.getVersion().equals(ver3);
         
         // now lets load the older migrations to see if that code works.
         Collection<IColumn> serializedMigrations = Migration.getLocalMigrations(ver1, ver3);
-        assert serializedMigrations.size() == 3;
+        assert serializedMigrations.size() == 2;
         
         // test deserialization of the migrations.
-        Migration[] reconstituded = new Migration[3];
+        Migration[] reconstituded = new Migration[2];
         int i = 0;
         for (IColumn col : serializedMigrations)
         {
@@ -235,13 +227,11 @@ public class DefsTest extends CleanupHelper
         }
         
         assert m1.getClass().equals(reconstituded[0].getClass());
-        assert m2.getClass().equals(reconstituded[1].getClass());
-        assert m3.getClass().equals(reconstituded[2].getClass());
+        assert m3.getClass().equals(reconstituded[1].getClass());
         
         // verify that the row mutations are the same. rather than exposing the private fields, serialize and verify.
         assert m1.serialize().equals(reconstituded[0].serialize());
-        assert m2.serialize().equals(reconstituded[1].serialize());
-        assert m3.serialize().equals(reconstituded[2].serialize());
+        assert m3.serialize().equals(reconstituded[1].serialize());
     }
     
     @Test
@@ -336,60 +326,14 @@ public class DefsTest extends CleanupHelper
                 throw new AssertionError("undeleted file " + file);
         }
     }
-    
-    @Test
-    public void renameCf() throws ConfigurationException, IOException, ExecutionException, InterruptedException
-    {
-        DecoratedKey dk = Util.dk("key0");
-        final KSMetaData ks = Schema.instance.getTableDefinition("Keyspace2");
-        assert ks != null;
-        final CFMetaData oldCfm = ks.cfMetaData().get("Standard1");
-        assert oldCfm != null;
-        
-        // write some data, force a flush, then verify that files exist on disk.
-        RowMutation rm = new RowMutation(ks.name, dk.key);
-        for (int i = 0; i < 100; i++)
-            rm.add(new QueryPath(oldCfm.cfName, null, ByteBufferUtil.bytes(("col" + i))), ByteBufferUtil.bytes("anyvalue"), 1L);
-        rm.apply();
-        ColumnFamilyStore store = Table.open(oldCfm.ksName).getColumnFamilyStore(oldCfm.cfName);
-        assert store != null;
-        store.forceBlockingFlush();
-        int fileCount = DefsTable.getFiles(oldCfm.ksName, oldCfm.cfName).size();
-        assert fileCount > 0;
-        
-        final String cfName = "St4ndard1Replacement";
-        new RenameColumnFamily(oldCfm.ksName, oldCfm.cfName, cfName).apply();
 
-        assert !Schema.instance.getTableDefinition(ks.name).cfMetaData().containsKey(oldCfm.cfName);
-        assert Schema.instance.getTableDefinition(ks.name).cfMetaData().containsKey(cfName);
-        
-        // verify that new files are there.
-        assert DefsTable.getFiles(oldCfm.ksName, cfName).size() == fileCount;
-        
-        // do some reads.
-        store = Table.open(oldCfm.ksName).getColumnFamilyStore(cfName);
-        assert store != null;
-        ColumnFamily cfam = store.getColumnFamily(QueryFilter.getSliceFilter(dk, new QueryPath(cfName), ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 1000));
-        assert cfam.getSortedColumns().size() == 100; // should be good enough?
-        
-        // do some writes
-        rm = new RowMutation(ks.name, dk.key);
-        rm.add(new QueryPath(cfName, null, ByteBufferUtil.bytes("col5")), ByteBufferUtil.bytes("updated"), 2L);
-        rm.apply();
-        store.forceBlockingFlush();
-        
-        cfam = store.getColumnFamily(QueryFilter.getNamesFilter(dk, new QueryPath(cfName), ByteBufferUtil.bytes("col5")));
-        assert cfam.getColumnCount() == 1;
-        assert cfam.getColumn(ByteBufferUtil.bytes("col5")).value().equals( ByteBufferUtil.bytes("updated"));
-    }
-    
     @Test
     public void addNewKS() throws ConfigurationException, IOException, ExecutionException, InterruptedException
     {
         DecoratedKey dk = Util.dk("key0");
         CFMetaData newCf = addTestCF("NewKeyspace1", "AddedStandard1", "A new cf for a new ks");
 
-        KSMetaData newKs = new KSMetaData(newCf.ksName, SimpleStrategy.class, KSMetaData.optsWithRF(5), newCf);
+        KSMetaData newKs = KSMetaData.testMetadata(newCf.ksName, SimpleStrategy.class, KSMetaData.optsWithRF(5), newCf);
         
         new AddKeyspace(newKs).apply();
 
@@ -483,92 +427,11 @@ public class DefsTest extends CleanupHelper
     }
 
     @Test
-    public void renameKs() throws ConfigurationException, IOException, ExecutionException, InterruptedException
-    {
-        DecoratedKey dk = Util.dk("renameKs");
-        final KSMetaData oldKs = Schema.instance.getTableDefinition("Keyspace2");
-        assert oldKs != null;
-        final String cfName = "Standard3";
-        assert oldKs.cfMetaData().containsKey(cfName);
-        assert oldKs.cfMetaData().get(cfName).ksName.equals(oldKs.name);
-        
-        // write some data that we hope to read back later.
-        RowMutation rm = new RowMutation(oldKs.name, dk.key);
-        for (int i = 0; i < 10; i++)
-            rm.add(new QueryPath(cfName, null, ByteBufferUtil.bytes(("col" + i))), ByteBufferUtil.bytes("value"), 1L);
-        rm.apply();
-        ColumnFamilyStore store = Table.open(oldKs.name).getColumnFamilyStore(cfName);
-        assert store != null;
-        store.forceBlockingFlush();
-        assert DefsTable.getFiles(oldKs.name, cfName).size() > 0;
-        
-        final String newKsName = "RenamedKeyspace2";
-        new RenameKeyspace(oldKs.name, newKsName).apply();
-        KSMetaData newKs = Schema.instance.getTableDefinition(newKsName);
-
-        assert Schema.instance.getTableDefinition(oldKs.name) == null;
-        assert newKs != null;
-        assert newKs.name.equals(newKsName);
-        assert newKs.cfMetaData().containsKey(cfName);
-        assert newKs.cfMetaData().get(cfName).ksName.equals(newKsName);
-        assert DefsTable.getFiles(newKs.name, cfName).size() > 0;
-        
-        // read on old should fail.
-        // reads should fail too.
-        boolean threw = false;
-        try
-        {
-            Table.open(oldKs.name);
-        }
-        catch (Throwable th)
-        {
-            threw = true;
-        }
-        assert threw;
-        
-        // write on old should fail.
-        rm = new RowMutation(oldKs.name, ByteBufferUtil.bytes("any key will do"));
-        boolean success = true;
-        try
-        {
-            rm.add(new QueryPath(cfName, null, ByteBufferUtil.bytes("col0")), ByteBufferUtil.bytes("value0"), 1L);
-            rm.apply();
-        }
-        catch (Throwable th)
-        {
-            success = false;
-        }
-        assert !success : "This mutation should have failed since the CF/Table no longer exists.";
-        
-        // write on new should work.
-        rm = new RowMutation(newKsName, dk.key);
-        rm.add(new QueryPath(cfName, null, ByteBufferUtil.bytes("col0")), ByteBufferUtil.bytes("newvalue"), 2L);
-        rm.apply();
-        store = Table.open(newKs.name).getColumnFamilyStore(cfName);
-        assert store != null;
-        store.forceBlockingFlush();
-        
-        // read on new should work.
-        SortedSet<ByteBuffer> cols = new TreeSet<ByteBuffer>(BytesType.instance);
-        cols.add(ByteBufferUtil.bytes("col0"));
-        cols.add(ByteBufferUtil.bytes("col1"));
-        ColumnFamily cfam = store.getColumnFamily(QueryFilter.getNamesFilter(dk, new QueryPath(cfName), cols));
-        assert cfam.getColumnCount() == cols.size();
-        // tests new write.
-        
-        ByteBuffer val = cfam.getColumn(ByteBufferUtil.bytes("col0")).value();
-        assertEquals(ByteBufferUtil.string(val), "newvalue");
-        // tests old write.
-         val = cfam.getColumn(ByteBufferUtil.bytes("col1")).value();
-        assertEquals(ByteBufferUtil.string(val), "value");
-    }
-
-    @Test
     public void createEmptyKsAddNewCf() throws ConfigurationException, IOException, ExecutionException, InterruptedException
     {
         assert Schema.instance.getTableDefinition("EmptyKeyspace") == null;
         
-        KSMetaData newKs = new KSMetaData("EmptyKeyspace", SimpleStrategy.class, KSMetaData.optsWithRF(5));
+        KSMetaData newKs = KSMetaData.testMetadata("EmptyKeyspace", SimpleStrategy.class, KSMetaData.optsWithRF(5));
 
         new AddKeyspace(newKs).apply();
         assert Schema.instance.getTableDefinition("EmptyKeyspace") != null;
@@ -604,7 +467,7 @@ public class DefsTest extends CleanupHelper
     {
         // create a keyspace to serve as existing.
         CFMetaData cf = addTestCF("UpdatedKeyspace", "AddedStandard1", "A new cf for a new ks");
-        KSMetaData oldKs = new KSMetaData(cf.ksName, SimpleStrategy.class, KSMetaData.optsWithRF(5), cf);
+        KSMetaData oldKs = KSMetaData.testMetadata(cf.ksName, SimpleStrategy.class, KSMetaData.optsWithRF(5), cf);
         
         new AddKeyspace(oldKs).apply();
 
@@ -613,7 +476,7 @@ public class DefsTest extends CleanupHelper
         
         // anything with cf defs should fail.
         CFMetaData cf2 = addTestCF(cf.ksName, "AddedStandard2", "A new cf for a new ks");
-        KSMetaData newBadKs = new KSMetaData(cf.ksName, SimpleStrategy.class, KSMetaData.optsWithRF(4), cf2);
+        KSMetaData newBadKs = KSMetaData.testMetadata(cf.ksName, SimpleStrategy.class, KSMetaData.optsWithRF(4), cf2);
         try
         {
             new UpdateKeyspace(newBadKs).apply();
@@ -625,7 +488,7 @@ public class DefsTest extends CleanupHelper
         }
         
         // names should match.
-        KSMetaData newBadKs2 = new KSMetaData(cf.ksName + "trash", SimpleStrategy.class, KSMetaData.optsWithRF(4));
+        KSMetaData newBadKs2 = KSMetaData.testMetadata(cf.ksName + "trash", SimpleStrategy.class, KSMetaData.optsWithRF(4));
         try
         {
             new UpdateKeyspace(newBadKs2).apply();
@@ -636,7 +499,7 @@ public class DefsTest extends CleanupHelper
             // expected.
         }
         
-        KSMetaData newKs = new KSMetaData(cf.ksName, OldNetworkTopologyStrategy.class, KSMetaData.optsWithRF(1));
+        KSMetaData newKs = KSMetaData.testMetadata(cf.ksName, OldNetworkTopologyStrategy.class, KSMetaData.optsWithRF(1));
         new UpdateKeyspace(newKs).apply();
 
         KSMetaData newFetchedKs = Schema.instance.getKSMetaData(newKs.name);
@@ -649,7 +512,7 @@ public class DefsTest extends CleanupHelper
     {
         // create a keyspace with a cf to update.
         CFMetaData cf = addTestCF("UpdatedCfKs", "Standard1added", "A new cf that will be updated");
-        KSMetaData ksm = new KSMetaData(cf.ksName, SimpleStrategy.class, KSMetaData.optsWithRF(1), cf);
+        KSMetaData ksm = KSMetaData.testMetadata(cf.ksName, SimpleStrategy.class, KSMetaData.optsWithRF(1), cf);
         new AddKeyspace(ksm).apply();
 
         assert Schema.instance.getTableDefinition(cf.ksName) != null;
