@@ -212,7 +212,7 @@ public class RowMutation implements IMutation, MessageProducer
     {
         KSMetaData ksm = DatabaseDescriptor.getTableDefinition(getTable());
         
-        Table.open(table_).apply(this, ksm.isDurableWrites());
+        Table.open(table_).apply(this, ksm.durableWrites);
     }
 
     public void applyUnsafe() throws IOException
