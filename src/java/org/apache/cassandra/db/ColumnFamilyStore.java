@@ -562,8 +562,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
 
         logger.info("Loading new SSTable Set for " + table.name + "/" + columnFamily + ": " + sstables);
+        SSTableReader.acquireReferences(sstables);
         data.addSSTables(sstables); // this will call updateCacheSizes() for us
-
         logger.info("Requesting a full secondary index re-build for " + table.name + "/" + columnFamily);
         try
         {
@@ -572,6 +572,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         catch (IOException e)
         {
            throw new IOError(e);
+        }
+        finally
+        {
+            SSTableReader.releaseReferences(sstables);
         }
 
         logger.info("Setting up new generation: " + generation);
