@@ -23,6 +23,7 @@
    (CASSANDRA-3170)
  * fix changing durable_writes keyspace option during CF creation
    (CASSANDRA-3292)
+ * correct dropped messages logging (CASSANDRA-3377)
 
 
 0.8.7
