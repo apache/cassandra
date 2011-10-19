@@ -251,8 +251,8 @@ public class RowMutation implements IMutation, MessageProducer
     public void apply() throws IOException
     {
         KSMetaData ksm = Schema.instance.getTableDefinition(getTable());
-        
-        Table.open(table_).apply(this, ksm.isDurableWrites());
+
+        Table.open(table_).apply(this, ksm.durableWrites);
     }
 
     public void applyUnsafe() throws IOException

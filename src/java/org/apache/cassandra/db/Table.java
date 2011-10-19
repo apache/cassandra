@@ -372,16 +372,6 @@ public class Table
         columnFamilyStores.put(cfId, ColumnFamilyStore.createColumnFamilyStore(this, cfName));
     }
 
-    /** basically a combined drop and add */
-    public void renameCf(Integer cfId, String newName) throws IOException
-    {
-        assert columnFamilyStores.containsKey(cfId);
-        ColumnFamilyStore cfs = columnFamilyStores.remove(cfId);
-        unloadCf(cfs);
-        cfs.renameSSTables(newName);
-        initCf(cfId, newName);
-    }
-
     public Row getRow(QueryFilter filter) throws IOException
     {
         ColumnFamilyStore cfStore = getColumnFamilyStore(filter.getColumnFamilyName());

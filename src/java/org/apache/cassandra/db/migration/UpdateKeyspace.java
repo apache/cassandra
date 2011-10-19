@@ -49,7 +49,7 @@ public class UpdateKeyspace extends Migration
         if (oldKsm == null)
             throw new ConfigurationException(ksm.name + " cannot be updated because it doesn't exist.");
 
-        this.newKsm = new KSMetaData(ksm.name, ksm.strategyClass, ksm.strategyOptions, ksm.isDurableWrites(), oldKsm.cfMetaData().values().toArray(new CFMetaData[]{}));
+        this.newKsm = KSMetaData.cloneWith(ksm, oldKsm.cfMetaData().values());
         rm = makeDefinitionMutation(newKsm, oldKsm, newVersion);
     }
     

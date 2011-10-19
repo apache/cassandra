@@ -21,15 +21,16 @@ package org.apache.cassandra.config;
 import java.util.*;
 
 import org.apache.commons.lang.ObjectUtils;
+import org.apache.commons.lang.StringUtils;
 
 import org.apache.avro.util.Utf8;
+import org.apache.cassandra.db.Table;
 import org.apache.cassandra.io.SerDeUtils;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
+import org.apache.cassandra.locator.LocalStrategy;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.thrift.CfDef;
 import org.apache.cassandra.thrift.KsDef;
-
-import org.apache.commons.lang.StringUtils;
 
 public final class KSMetaData
 {
@@ -37,14 +38,9 @@ public final class KSMetaData
     public final Class<? extends AbstractReplicationStrategy> strategyClass;
     public final Map<String, String> strategyOptions;
     private final Map<String, CFMetaData> cfMetaData;
-    private boolean durable_writes;
+    public final boolean durableWrites;
 
-    public KSMetaData(String name, Class<? extends AbstractReplicationStrategy> strategyClass, Map<String, String> strategyOptions, CFMetaData... cfDefs)
-    {
-        this(name, strategyClass, strategyOptions, true, cfDefs);
-    }
-
-    public KSMetaData(String name, Class<? extends AbstractReplicationStrategy> strategyClass, Map<String, String> strategyOptions, boolean durable_writes, CFMetaData... cfDefs)
+    private KSMetaData(String name, Class<? extends AbstractReplicationStrategy> strategyClass, Map<String, String> strategyOptions, boolean durableWrites, Iterable<CFMetaData> cfDefs)
     {
         this.name = name;
         this.strategyClass = strategyClass == null ? NetworkTopologyStrategy.class : strategyClass;
@@ -53,19 +49,36 @@ public final class KSMetaData
         for (CFMetaData cfm : cfDefs)
             cfmap.put(cfm.cfName, cfm);
         this.cfMetaData = Collections.unmodifiableMap(cfmap);
-        this.durable_writes = durable_writes;
+        this.durableWrites = durableWrites;
     }
-    
-    public void setDurableWrites(boolean durable_writes)
+
+    public static KSMetaData cloneWith(KSMetaData ksm, Iterable<CFMetaData> cfDefs)
     {
-        this.durable_writes = durable_writes;
+        return new KSMetaData(ksm.name, ksm.strategyClass, ksm.strategyOptions, ksm.durableWrites, cfDefs);
     }
-    
-    public boolean isDurableWrites()
+
+    public static KSMetaData systemKeyspace()
     {
-        return durable_writes;
+        List<CFMetaData> cfDefs = Arrays.asList(CFMetaData.StatusCf,
+                                                CFMetaData.HintsCf,
+                                                CFMetaData.MigrationsCf,
+                                                CFMetaData.SchemaCf,
+                                                CFMetaData.IndexCf,
+                                                CFMetaData.NodeIdCf,
+                                                CFMetaData.VersionCf);
+        return new KSMetaData(Table.SYSTEM_TABLE, LocalStrategy.class, optsWithRF(1), false, cfDefs);
     }
-    
+
+    public static KSMetaData testMetadata(String name, Class<? extends AbstractReplicationStrategy> strategyClass, Map<String, String> strategyOptions, CFMetaData... cfDefs)
+    {
+        return new KSMetaData(name, strategyClass, strategyOptions, true, Arrays.asList(cfDefs));
+    }
+
+    public static KSMetaData testMetadataNotDurable(String name, Class<? extends AbstractReplicationStrategy> strategyClass, Map<String, String> strategyOptions, CFMetaData... cfDefs)
+    {
+        return new KSMetaData(name, strategyClass, strategyOptions, false, Arrays.asList(cfDefs));
+    }
+
     public static Map<String, String> forwardsCompatibleOptions(KsDef ks_def)
     {
         Map<String, String> options;
@@ -97,7 +110,7 @@ public final class KSMetaData
                 && ObjectUtils.equals(other.strategyClass, strategyClass)
                 && ObjectUtils.equals(other.strategyOptions, strategyOptions)
                 && other.cfMetaData.equals(cfMetaData)
-                && other.durable_writes == durable_writes;
+                && other.durableWrites == durableWrites;
     }
 
     public Map<String, CFMetaData> cfMetaData()
@@ -122,7 +135,7 @@ public final class KSMetaData
         for (CFMetaData cfm : cfMetaData.values())
             ks.cf_defs.add(cfm.toAvro());
         
-        ks.durable_writes = durable_writes;
+        ks.durable_writes = durableWrites;
         
         return ks;
     }
@@ -137,7 +150,7 @@ public final class KSMetaData
           .append("{")
           .append(StringUtils.join(cfMetaData.values(), ", "))
           .append("}")
-          .append(", durable_writes: ").append(durable_writes);
+          .append(", durable_writes: ").append(durableWrites);
         return sb.toString();
     }
 
@@ -174,10 +187,10 @@ public final class KSMetaData
         maybeAddReplicationFactor(strategyOptions, ks.strategy_class.toString(), ks.replication_factor);
 
         int cfsz = ks.cf_defs.size();
-        CFMetaData[] cfMetaData = new CFMetaData[cfsz];
+        List<CFMetaData> cfMetaData = new ArrayList<CFMetaData>(cfsz);
         Iterator<org.apache.cassandra.db.migration.avro.CfDef> cfiter = ks.cf_defs.iterator();
         for (int i = 0; i < cfsz; i++)
-            cfMetaData[i] = CFMetaData.fromAvro(cfiter.next());
+            cfMetaData.add(CFMetaData.fromAvro(cfiter.next()));
 
         return new KSMetaData(ks.name.toString(), repStratClass, strategyOptions, ks.durable_writes, cfMetaData);
     }
@@ -201,7 +214,7 @@ public final class KSMetaData
                               AbstractReplicationStrategy.getClass(ksd.strategy_class),
                               forwardsCompatibleOptions(ksd),
                               ksd.durable_writes,
-                              cfDefs);
+                              Arrays.asList(cfDefs));
     }
 
     public KsDef toThrift()
@@ -213,7 +226,7 @@ public final class KSMetaData
         ksdef.setStrategy_options(strategyOptions);
         if (strategyOptions != null && strategyOptions.containsKey("replication_factor"))
             ksdef.setReplication_factor(Integer.parseInt(strategyOptions.get("replication_factor")));
-        ksdef.setDurable_writes(durable_writes);
+        ksdef.setDurable_writes(durableWrites);
 
         return ksdef;
     }

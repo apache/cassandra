@@ -433,7 +433,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                 for (Table table : Table.all())
                 {
                     KSMetaData ksm = Schema.instance.getKSMetaData(table.name);
-                    if (!ksm.isDurableWrites())
+                    if (!ksm.durableWrites)
                     {
                         for (ColumnFamilyStore cfs : table.getColumnFamilyStores())
                         {
