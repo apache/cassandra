@@ -301,6 +301,8 @@ public abstract class TestBase
     protected List<InetAddress> endpointsForKey(InetAddress seed, ByteBuffer key, String keyspace)
         throws IOException
     {
+        Configuration conf = new Configuration();
+        
         RingCache ring = new RingCache(keyspace, new RandomPartitioner(), seed.getHostAddress(), 9160);
         List<InetAddress> privateendpoints = ring.getEndpoint(key);
         List<InetAddress> endpoints = new ArrayList<InetAddress>();

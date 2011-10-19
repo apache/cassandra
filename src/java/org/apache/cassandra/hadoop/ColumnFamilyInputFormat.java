@@ -24,15 +24,16 @@ package org.apache.cassandra.hadoop;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Random;
+import java.util.Set;
+import java.util.SortedMap;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-
-import org.apache.commons.lang.StringUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.dht.IPartitioner;
@@ -41,14 +42,16 @@ import org.apache.cassandra.thrift.Cassandra;
 import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.thrift.KeyRange;
 import org.apache.cassandra.thrift.TokenRange;
-import org.apache.cassandra.thrift.TBinaryProtocol;
+import org.apache.commons.lang.StringUtils;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.mapreduce.*;
+import org.apache.hadoop.mapreduce.InputFormat;
+import org.apache.hadoop.mapreduce.InputSplit;
+import org.apache.hadoop.mapreduce.JobContext;
+import org.apache.hadoop.mapreduce.RecordReader;
+import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.thrift.TException;
-import org.apache.thrift.transport.TFramedTransport;
-import org.apache.thrift.transport.TSocket;
-import org.apache.thrift.transport.TTransport;
-import org.apache.thrift.transport.TTransportException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Hadoop InputFormat allowing map/reduce against Cassandra rows within one ColumnFamily.
@@ -188,13 +191,17 @@ public class ColumnFamilyInputFormat extends InputFormat<ByteBuffer, SortedMap<B
         {
             ArrayList<InputSplit> splits = new ArrayList<InputSplit>();
             List<String> tokens = getSubSplits(keyspace, cfName, range, conf);
-
+            assert range.rpc_endpoints.size() == range.endpoints.size() : "rpc_endpoints size must match endpoints size";
             // turn the sub-ranges into InputSplits
             String[] endpoints = range.endpoints.toArray(new String[range.endpoints.size()]);
             // hadoop needs hostname, not ip
-            for (int i = 0; i < endpoints.length; i++)
+            int endpointIndex = 0;
+            for (String endpoint: range.rpc_endpoints)
             {
-                endpoints[i] = InetAddress.getByName(endpoints[i]).getHostName();
+                String endpoint_address = endpoint;
+		        if(endpoint_address == null || endpoint_address == "0.0.0.0")
+			        endpoint_address = range.endpoints.get(endpointIndex);
+		        endpoints[endpointIndex++] = InetAddress.getByName(endpoint_address).getHostName();
             }
 
             for (int i = 1; i < tokens.size(); i++)
@@ -210,11 +217,11 @@ public class ColumnFamilyInputFormat extends InputFormat<ByteBuffer, SortedMap<B
     private List<String> getSubSplits(String keyspace, String cfName, TokenRange range, Configuration conf) throws IOException
     {
         int splitsize = ConfigHelper.getInputSplitSize(conf);
-        for (String host : range.endpoints)
+        for (String host : range.rpc_endpoints)
         {
             try
             {
-                Cassandra.Client client = createConnection(host, ConfigHelper.getRpcPort(conf), true);
+                Cassandra.Client client = ConfigHelper.createConnection(host, ConfigHelper.getRpcPort(conf), true);
                 client.set_keyspace(keyspace);
                 return client.describe_splits(cfName, range.start_token, range.end_token, splitsize);
             }
@@ -234,47 +241,10 @@ public class ColumnFamilyInputFormat extends InputFormat<ByteBuffer, SortedMap<B
         throw new IOException("failed connecting to all endpoints " + StringUtils.join(range.endpoints, ","));
     }
 
-    private static Cassandra.Client createConnection(String host, Integer port, boolean framed) throws IOException
-    {
-        TSocket socket = new TSocket(host, port);
-        TTransport trans = framed ? new TFramedTransport(socket) : socket;
-        try
-        {
-            trans.open();
-        }
-        catch (TTransportException e)
-        {
-            throw new IOException("unable to connect to server", e);
-        }
-        return new Cassandra.Client(new TBinaryProtocol(trans));
-    }
 
     private List<TokenRange> getRangeMap(Configuration conf) throws IOException
     {
-        String[] addresses = ConfigHelper.getInitialAddress(conf).split(",");
-        Cassandra.Client client = null;
-        List<IOException> exceptions = new ArrayList<IOException>();
-        for (String address : addresses)
-        {
-            try
-            {
-                client = createConnection(address, ConfigHelper.getRpcPort(conf), true);
-                break;
-            }
-            catch (IOException ioe)
-            {
-                exceptions.add(ioe);
-            }
-        }
-        if (client == null)
-        {
-            logger.error("failed to connect to any initial addresses");
-            for (IOException ioe : exceptions)
-            {
-                logger.error("", ioe);
-            }
-            throw exceptions.get(exceptions.size() - 1);
-        }
+        Cassandra.Client client = ConfigHelper.getClientFromAddressList(conf);
 
         List<TokenRange> map;
         try
@@ -291,6 +261,8 @@ public class ColumnFamilyInputFormat extends InputFormat<ByteBuffer, SortedMap<B
         }
         return map;
     }
+
+
 
     public RecordReader<ByteBuffer, SortedMap<ByteBuffer, IColumn>> createRecordReader(InputSplit inputSplit, TaskAttemptContext taskAttemptContext) throws IOException, InterruptedException
     {

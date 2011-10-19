@@ -148,7 +148,7 @@ selectStatement returns [SelectStatement expr]
           | K_COUNT '(' s2=selectExpression ')' { expression = s2; isCountOp = true; }
           )
           K_FROM (keyspace=(IDENT | STRING_LITERAL | INTEGER) '.')? columnFamily=( IDENT | STRING_LITERAL | INTEGER )
-          ( K_USING K_CONSISTENCY K_LEVEL { cLevel = ConsistencyLevel.valueOf($K_LEVEL.text); } )?
+          ( K_USING K_CONSISTENCY K_LEVEL { cLevel = ConsistencyLevel.valueOf($K_LEVEL.text.toUpperCase()); } )?
           ( K_WHERE whereClause )?
           ( K_LIMIT rows=INTEGER { numRecords = Integer.parseInt($rows.text); } )?
           endStmnt
@@ -231,7 +231,7 @@ usingClauseDelete[Attributes attrs]
     ;
 
 usingClauseDeleteObjective[Attributes attrs]
-    : K_CONSISTENCY K_LEVEL  { attrs.setConsistencyLevel(ConsistencyLevel.valueOf($K_LEVEL.text)); }
+    : K_CONSISTENCY K_LEVEL  { attrs.setConsistencyLevel(ConsistencyLevel.valueOf($K_LEVEL.text.toUpperCase())); }
     | K_TIMESTAMP ts=INTEGER { attrs.setTimestamp(Long.valueOf($ts.text)); }
     ;
 

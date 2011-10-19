@@ -189,6 +189,7 @@ public class CliClient
     public void printBanner()
     {
         sessionState.out.println(getHelp().banner);
+        sessionState.out.println("Cassandra CLI version " + FBUtilities.getReleaseVersionString());
     }
 
     // Execute a CLI Statement 
