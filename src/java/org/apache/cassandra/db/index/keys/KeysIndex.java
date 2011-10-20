@@ -45,9 +45,8 @@ import org.slf4j.LoggerFactory;
 public class KeysIndex extends PerColumnSecondaryIndex
 {
     private static final Logger logger = LoggerFactory.getLogger(KeysIndex.class);
-    private ColumnFamilyStore indexedCfs;
-    private ColumnDefinition  columnDef;
-    
+    private ColumnFamilyStore indexCfs;
+
     public KeysIndex() 
     {
     }
@@ -55,11 +54,10 @@ public class KeysIndex extends PerColumnSecondaryIndex
     public void init()
     {
         assert baseCfs != null && columnDefs != null;
-        
-        columnDef = columnDefs.iterator().next();
-        
-        CFMetaData indexedCfMetadata = CFMetaData.newIndexMetadata(baseCfs.metadata, columnDef, indexComparator());
-        indexedCfs = ColumnFamilyStore.createColumnFamilyStore(baseCfs.table,
+
+        ColumnDefinition columnDef = columnDefs.iterator().next();
+        CFMetaData indexedCfMetadata = CFMetaData.newIndexMetadata(baseCfs.metadata, columnDef,indexComparator());
+        indexCfs = ColumnFamilyStore.createColumnFamilyStore(baseCfs.table,
                                                                indexedCfMetadata.cfName,
                                                                new LocalPartitioner(columnDef.getValidator()),
                                                                indexedCfMetadata);
@@ -80,9 +78,9 @@ public class KeysIndex extends PerColumnSecondaryIndex
             return;
         
         int localDeletionTime = (int) (System.currentTimeMillis() / 1000);
-        ColumnFamily cfi = ColumnFamily.create(indexedCfs.metadata);
+        ColumnFamily cfi = ColumnFamily.create(indexCfs.metadata);
         cfi.addTombstone(rowKey, localDeletionTime, column.timestamp());
-        indexedCfs.apply(valueKey, cfi);
+        indexCfs.apply(valueKey, cfi);
         if (logger.isDebugEnabled())
             logger.debug("removed index entry for cleaned-up value {}:{}", valueKey, cfi);
     }
@@ -90,7 +88,7 @@ public class KeysIndex extends PerColumnSecondaryIndex
     @Override
     public void insertColumn(DecoratedKey<?> valueKey, ByteBuffer rowKey, IColumn column)
     {
-        ColumnFamily cfi = ColumnFamily.create(indexedCfs.metadata);
+        ColumnFamily cfi = ColumnFamily.create(indexCfs.metadata);
         if (column instanceof ExpiringColumn)
         {
             ExpiringColumn ec = (ExpiringColumn)column;
@@ -103,7 +101,7 @@ public class KeysIndex extends PerColumnSecondaryIndex
         if (logger.isDebugEnabled())
             logger.debug("applying index row {}:{}", valueKey, cfi);
         
-        indexedCfs.apply(valueKey, cfi);
+        indexCfs.apply(valueKey, cfi);
     }
     
     @Override
@@ -115,8 +113,8 @@ public class KeysIndex extends PerColumnSecondaryIndex
     @Override
     public void removeIndex(ByteBuffer columnName) throws IOException
     {        
-        indexedCfs.removeAllSSTables();
-        indexedCfs.unregisterMBean();     
+        indexCfs.removeAllSSTables();
+        indexCfs.unregisterMBean();
     }
 
     @Override
@@ -124,7 +122,7 @@ public class KeysIndex extends PerColumnSecondaryIndex
     {       
         try
         {
-            indexedCfs.forceBlockingFlush();
+            indexCfs.forceBlockingFlush();
         } 
         catch (ExecutionException e)
         {
@@ -139,13 +137,13 @@ public class KeysIndex extends PerColumnSecondaryIndex
     @Override
     public void unregisterMbean()
     {
-        indexedCfs.unregisterMBean();        
+        indexCfs.unregisterMBean();
     }
 
     @Override
     public ColumnFamilyStore getUnderlyingCfs()
     {
-       return indexedCfs;
+       return indexCfs;
     }
 
     @Override
@@ -157,13 +155,13 @@ public class KeysIndex extends PerColumnSecondaryIndex
     @Override
     public String getIndexName()
     {
-        return indexedCfs.columnFamily;
+        return indexCfs.columnFamily;
     }
 
     @Override
     public void renameIndex(String newCfName) throws IOException
     {
-        indexedCfs.renameSSTables(indexedCfs.columnFamily.replace(baseCfs.columnFamily, newCfName));       
+        indexCfs.renameSSTables(indexCfs.columnFamily.replace(baseCfs.columnFamily, newCfName));
     }
 
     @Override

@@ -16,6 +16,12 @@
  * reduce network copies (CASSANDRA-3333, 3373)
  * (Hadoop) skip empty rows when slicing the entire row (CASSANDRA-2855)
  * fix ColumnIndexer to use long offsets (CASSANDRA-3358)
+ * Fix exception during PIG 'dump' (CASSANDRA-2810)
+ * Fix transposition in cfHistograms (CASSANDRA-3222)
+ * Allow using number as DC name when creating keyspace in CQL (CASSANDRA-3239)
+ * Force flush of system table after updating/removing a token (CASSANDRA-3243)
+ * Make Pig storage handle implements LoadMetadata (CASSANDRA-2777)
+ * Improved CLI exceptions (CASSANDRA-3312)
  * Fix handling of tombstone by SSTableExport/Import (CASSANDRA-3357)
  * Only count compaction as active (for throttling) when they have
    successfully acquired the compaction lock (CASSANDRA-3344)
@@ -40,6 +46,10 @@
    (CASSANDRA-3292)
  * fix Deflate compression when compression actually makes the data bigger
    (CASSANDRA-3370)
+ * avoid locking on update when no indexes are involved (CASSANDRA-3386)
+ * optimize UUIDGen to avoid lock contention on InetAddress.getLocalHost 
+   (CASSANDRA-3387)
+ * tolerate index being dropped mid-mutation (CASSANDRA-3334, 3313)
 
 
 1.0.0-final
@@ -63,6 +73,7 @@
 Fixes merged from 0.8 below:
  * Fix tool .bat files when CASSANDRA_HOME contains spaces (CASSANDRA-3258)
  * Force flush of status table when removing/updating token (CASSANDRA-3243)
+ * Evict gossip state immediately when a token is taken over by a new IP (CASSANDRA-3259)
  * Fix bug where the failure detector can take too long to mark a host
    down (CASSANDRA-3273)
  * (Hadoop) allow wrapping ranges in queries (CASSANDRA-3137)
@@ -73,12 +84,7 @@ Fixes merged from 0.8 below:
  * Nodetool no longer leaks threads and closes JMX connections (CASSANDRA-3309)
  * fix truncate allowing data to be replayed post-restart (CASSANDRA-3297)
  * Move SimpleAuthority and SimpleAuthenticator to examples (CASSANDRA-2922)
- * Fix exception during PIG 'dump' (CASSANDRA-2810)
- * Fix transposition in cfHistograms (CASSANDRA-3222)
- * Allow using number as DC name when creating keyspace in CQL (CASSANDRA-3239)
- * Force flush of system table after updating/removing a token (CASSANDRA-3243)
- * Make Pig storage handle implements LoadMetadata (CASSANDRA-2777)
- * Improved CLI exceptions (CASSANDRA-3312)
+ * Fix handling of tombstone by SSTableExport/Import (CASSANDRA-3357)
 
 
 1.0.0-rc2

@@ -33,6 +33,7 @@ import org.apache.cassandra.io.sstable.ReducingKeyIterator;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.thrift.IndexClause;
 import org.apache.cassandra.thrift.IndexExpression;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -153,20 +154,18 @@ public class SecondaryIndexManager
         if (index == null)
             return;
         
-        SystemTable.setIndexRemoved(baseCfs.metadata.ksName, index.getNameForSystemTable(column));
-        
-        index.removeIndex(column);
-        
         // Remove this column from from row level index map
         if (index instanceof PerRowSecondaryIndex)
         {
             index.removeColumnDef(column);
-            
+
             //If now columns left on this CF remove from row level lookup
             if (index.getColumnDefs().isEmpty())
                 rowLevelIndexMap.remove(index.getClass());
         }
-        
+
+        index.removeIndex(column);
+        SystemTable.setIndexRemoved(baseCfs.metadata.ksName, index.getNameForSystemTable(column));
     }
 
     /**
@@ -369,9 +368,13 @@ public class SecondaryIndexManager
                     continue;              
                 
                 SecondaryIndex index = getIndexForColumn(columnName);
-                assert index != null;               
-
-                //Update entire row if we encounter a row level index
+                if (index == null)
+                {
+                    logger.debug("Looks like index got dropped mid-update.  Skipping");
+                    continue;
+                }
+                
+                // Update entire row if we encounter a row level index
                 if (index instanceof PerRowSecondaryIndex)
                 {
                     if (appliedRowLevelIndexes == null)
@@ -397,9 +400,13 @@ public class SecondaryIndexManager
                 continue; // null column == row deletion
 
             SecondaryIndex index = getIndexForColumn(columnName);
-            assert index != null;
+            if (index == null)
+            {
+                logger.debug("index on {} removed; skipping remove-old for {}", columnName, ByteBufferUtil.bytesToHex(rowKey));
+                continue;
+            }
 
-            //Update entire row if we encounter a row level index
+            // Update entire row if we encounter a row level index
             if (index instanceof PerRowSecondaryIndex)
             {
                 if (appliedRowLevelIndexes == null)
@@ -448,8 +455,7 @@ public class SecondaryIndexManager
             else
             {
                 DecoratedKey<LocalToken> valueKey = getIndexKeyFor(column.name(), column.value());
-
-                ((PerColumnSecondaryIndex)index).deleteColumn(valueKey, key.key, column);
+                ((PerColumnSecondaryIndex) index).deleteColumn(valueKey, key.key, column);
             }
         }       
     }
