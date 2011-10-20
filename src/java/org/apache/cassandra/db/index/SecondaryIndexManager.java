@@ -367,8 +367,12 @@ public class SecondaryIndexManager
                     continue;              
                 
                 SecondaryIndex index = getIndexForColumn(columnName);
-                assert index != null;               
-
+                if (index == null)
+                {
+                    logger.debug("Looks like index got dropped mid-update.  Skipping");
+                    continue;
+                }
+                
                 // Update entire row if we encounter a row level index
                 if (index instanceof PerRowSecondaryIndex)
                 {
