@@ -38,6 +38,8 @@
    (CASSANDRA-3170)
  * fix changing durable_writes keyspace option during CF creation
    (CASSANDRA-3292)
+ * fix Deflate compression when compression actually makes the data bigger
+   (CASSANDRA-3370)
 
 
 1.0.0-final
