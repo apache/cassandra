@@ -76,7 +76,7 @@ public class DeflateCompressor implements ICompressor
         while (true)
         {
             offs += def.deflate(output.buffer, offs, output.buffer.length - offs);
-            if (def.needsInput())
+            if (def.finished())
             {
                 return offs - outputOffset;
             }
