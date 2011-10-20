@@ -46,7 +46,6 @@
  * optimize UUIDGen to avoid lock contention on InetAddress.getLocalHost 
    (CASSANDRA-3387)
 
-
 1.0.0-final
  * close scrubbed sstable fd before deleting it (CASSANDRA-3318)
  * fix bug preventing obsolete commitlog segments from being removed

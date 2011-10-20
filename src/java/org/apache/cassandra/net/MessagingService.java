@@ -603,7 +603,8 @@ public final class MessagingService implements MessagingServiceMBean
             if (recent > 0)
             {
                 logTpstats = true;
-                logger_.info("{} {} messages dropped in server lifetime", recent, verb);
+                logger_.info("{} {} messages dropped in last {}ms",
+                             new Object[] {recent, verb, LOG_DROPPED_INTERVAL_IN_MS});
                 lastDroppedInternal.put(verb, dropped.get());
             }
         }

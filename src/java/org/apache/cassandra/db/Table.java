@@ -448,7 +448,7 @@ public class Table
                     cfs.apply(key, cf);
 
                     // ignore full index memtables -- we flush those when the "master" one is full
-                    applyIndexUpdates(mutation.key(), cf, cfs, mutatedIndexedColumns, oldIndexedColumns);
+                    cfs.indexManager.applyIndexUpdates(mutation.key(), cf, mutatedIndexedColumns, oldIndexedColumns);
                 }
             }
         }
