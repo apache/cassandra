@@ -22,7 +22,6 @@ package org.apache.cassandra.utils;
 
 import java.io.*;
 import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
@@ -123,7 +122,7 @@ public class UUIDGen
     
     private static byte[] createTimeUUIDBytes(long msb)
     {
-        long lsb = instance.getClockSeqAndNode();
+        long lsb = instance.getClockSeqAndNode(FBUtilities.getLocalAddress());
         byte[] uuidBytes = new byte[16];
         
         for (int i = 0; i < 8; i++)
@@ -148,19 +147,7 @@ public class UUIDGen
             throw new IllegalArgumentException("incompatible with uuid version: "+uuid.version());
         return (uuid.timestamp() / 10000) - START_EPOCH;
     }
-    
-    private long getClockSeqAndNode()
-    {
-        try
-        {
-            return getClockSeqAndNode(InetAddress.getLocalHost());
-        }
-        catch (UnknownHostException e)
-        {
-            throw new RuntimeException(e);
-        }
-    }
-    
+
     // todo: could cache value if we assume node doesn't change.
     private long getClockSeqAndNode(InetAddress addr)
     {

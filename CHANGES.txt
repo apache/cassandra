@@ -43,6 +43,8 @@
  * fix Deflate compression when compression actually makes the data bigger
    (CASSANDRA-3370)
  * avoid locking on update when no indexes are involved (CASSANDRA-3386)
+ * optimize UUIDGen to avoid lock contention on InetAddress.getLocalHost 
+   (CASSANDRA-3387)
 
 
 1.0.0-final
