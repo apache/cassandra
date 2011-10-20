@@ -33,6 +33,7 @@ import org.apache.cassandra.io.sstable.ReducingKeyIterator;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.thrift.IndexClause;
 import org.apache.cassandra.thrift.IndexExpression;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -399,9 +400,13 @@ public class SecondaryIndexManager
                 continue; // null column == row deletion
 
             SecondaryIndex index = getIndexForColumn(columnName);
-            assert index != null;
+            if (index == null)
+            {
+                logger.debug("index on {} removed; skipping remove-old for {}", columnName, ByteBufferUtil.bytesToHex(rowKey));
+                continue;
+            }
 
-            //Update entire row if we encounter a row level index
+            // Update entire row if we encounter a row level index
             if (index instanceof PerRowSecondaryIndex)
             {
                 if (appliedRowLevelIndexes == null)

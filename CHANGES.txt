@@ -45,7 +45,7 @@
  * avoid locking on update when no indexes are involved (CASSANDRA-3386)
  * optimize UUIDGen to avoid lock contention on InetAddress.getLocalHost 
    (CASSANDRA-3387)
- * tolerate index being dropped mid-mutation (CASSANDRA-3334)
+ * tolerate index being dropped mid-mutation (CASSANDRA-3334, 3313)
 
 
 1.0.0-final
