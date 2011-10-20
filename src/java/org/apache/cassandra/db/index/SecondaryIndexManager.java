@@ -153,20 +153,18 @@ public class SecondaryIndexManager
         if (index == null)
             return;
         
-        SystemTable.setIndexRemoved(baseCfs.metadata.ksName, index.getNameForSystemTable(column));
-        
-        index.removeIndex(column);
-        
         // Remove this column from from row level index map
         if (index instanceof PerRowSecondaryIndex)
         {
             index.removeColumnDef(column);
-            
+
             //If now columns left on this CF remove from row level lookup
             if (index.getColumnDefs().isEmpty())
                 rowLevelIndexMap.remove(index.getClass());
         }
-        
+
+        index.removeIndex(column);
+        SystemTable.setIndexRemoved(baseCfs.metadata.ksName, index.getNameForSystemTable(column));
     }
 
     /**
@@ -371,7 +369,7 @@ public class SecondaryIndexManager
                 SecondaryIndex index = getIndexForColumn(columnName);
                 assert index != null;               
 
-                //Update entire row if we encounter a row level index
+                // Update entire row if we encounter a row level index
                 if (index instanceof PerRowSecondaryIndex)
                 {
                     if (appliedRowLevelIndexes == null)
@@ -448,8 +446,7 @@ public class SecondaryIndexManager
             else
             {
                 DecoratedKey<LocalToken> valueKey = getIndexKeyFor(column.name(), column.value());
-
-                ((PerColumnSecondaryIndex)index).deleteColumn(valueKey, key.key, column);
+                ((PerColumnSecondaryIndex) index).deleteColumn(valueKey, key.key, column);
             }
         }       
     }
