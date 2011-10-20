@@ -424,29 +424,34 @@ public class Table
                     }
                 }
 
+                // Sharding the lock is insufficient to avoid contention when there is a "hot" row, e.g., for
+                // hint writes when a node is down (keyed by target IP).  So it is worth special-casing the
+                // no-index case to avoid the synchronization.
+                if (mutatedIndexedColumns == null)
+                {
+                    Memtable fullMemtable = cfs.apply(key, cf);
+                    if (fullMemtable != null)
+                        memtablesToFlush = addFullMemtable(memtablesToFlush, fullMemtable);
+                    continue;
+                }
+                // else mutatedIndexedColumns != null
                 synchronized (indexLockFor(mutation.key()))
                 {
                     ColumnFamily oldIndexedColumns = null;
-                    if (mutatedIndexedColumns != null)
-                    {
-                        // with the raw data CF, we can just apply every update in any order and let
-                        // read-time resolution throw out obsolete versions, thus avoiding read-before-write.
-                        // but for indexed data we need to make sure that we're not creating index entries
-                        // for obsolete writes.
-                        oldIndexedColumns = readCurrentIndexedColumns(key, cfs, mutatedIndexedColumns);
-                        logger.debug("Pre-mutation index row is {}", oldIndexedColumns);
-                        ignoreObsoleteMutations(cf, mutatedIndexedColumns, oldIndexedColumns);
-                    }
+                    // with the raw data CF, we can just apply every update in any order and let
+                    // read-time resolution throw out obsolete versions, thus avoiding read-before-write.
+                    // but for indexed data we need to make sure that we're not creating index entries
+                    // for obsolete writes.
+                    oldIndexedColumns = readCurrentIndexedColumns(key, cfs, mutatedIndexedColumns);
+                    logger.debug("Pre-mutation index row is {}", oldIndexedColumns);
+                    ignoreObsoleteMutations(cf, mutatedIndexedColumns, oldIndexedColumns);
 
                     Memtable fullMemtable = cfs.apply(key, cf);
                     if (fullMemtable != null)
                         memtablesToFlush = addFullMemtable(memtablesToFlush, fullMemtable);
 
-                    if (mutatedIndexedColumns != null)
-                    {
-                        // ignore full index memtables -- we flush those when the "master" one is full
-                        applyIndexUpdates(mutation.key(), cf, cfs, mutatedIndexedColumns, oldIndexedColumns);
-                    }
+                    // ignore full index memtables -- we flush those when the "master" one is full
+                    applyIndexUpdates(mutation.key(), cf, cfs, mutatedIndexedColumns, oldIndexedColumns);
                 }
             }
         }

@@ -25,6 +25,8 @@
    (CASSANDRA-3292)
  * correct dropped messages logging (CASSANDRA-3377)
  * CLI `describe keyspace <ks>` to show "Row Cache Provider" (CASSANDRA-3384)
+ * avoid locking on update when no indexes are involved (CASSANDRA-3386)
+
 
 0.8.7
  * Kill server on wrapped OOME such as from FileChannel.map (CASSANDRA-3201)
