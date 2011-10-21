@@ -477,8 +477,10 @@ public class SSTableReader extends SSTable
                 // range are end inclusive so we use the previous index from what binarySearch give us
                 // since that will be the last index we will return
                 right = (right + 1) * -1;
-                if (right > 0)
-                    right--;
+                if (right == 0)
+                    // Means the first key is already stricly greater that the right bound
+                    continue;
+                right--;
             }
 
             if (left > right)
