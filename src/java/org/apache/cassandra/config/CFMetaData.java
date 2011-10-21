@@ -319,7 +319,7 @@ public final class CFMetaData
         cf.replicate_on_write = replicateOnWrite;
         cf.gc_grace_seconds = gcGraceSeconds;
         cf.default_validation_class = defaultValidator == null ? null : new Utf8(defaultValidator.toString());
-        cf.key_validation_class = new Utf8(keyValidator.getClass().getName());
+        cf.key_validation_class = new Utf8(keyValidator.toString());
         cf.min_compaction_threshold = minCompactionThreshold;
         cf.max_compaction_threshold = maxCompactionThreshold;
         cf.row_cache_save_period_in_seconds = rowCacheSavePeriodInSeconds;
