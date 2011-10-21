@@ -198,8 +198,6 @@ public class CompactionTask extends AbstractCompactionTask
                key.cacheKey(entry.getKey(), entry.getValue());
         }
 
-        CompactionManager.instance.submitBackground(cfs);
-
         long dTime = System.currentTimeMillis() - startTime;
         long startsize = SSTable.getTotalBytes(toCompact);
         long endsize = SSTable.getTotalBytes(sstables);
