@@ -46,6 +46,7 @@
  * optimize UUIDGen to avoid lock contention on InetAddress.getLocalHost 
    (CASSANDRA-3387)
  * tolerate index being dropped mid-mutation (CASSANDRA-3334, 3313)
+ * fix assertionError during repair with ordered partitioners (CASSANDRA-3369)
 
 
 1.0.0-final
