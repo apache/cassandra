@@ -28,6 +28,7 @@
  * avoid locking on update when no indexes are involved (CASSANDRA-3386)
  * fix assertionError during repair with ordered partitioners (CASSANDRA-3369)
  * correctly serialize key_validation_class for avro (CASSANDRA-3391)
+ * don't expire counter tombstone after streaming (CASSANDRA-3394)
 
 
 0.8.7

@@ -491,7 +491,7 @@ public class SSTableWriter extends SSTable
             long rows = 0L;
             DecoratedKey key;
 
-            CompactionController controller = new CompactionController(cfs, Collections.<SSTableReader>emptyList(), Integer.MAX_VALUE, true);
+            CompactionController controller = new CompactionController(cfs, Collections.<SSTableReader>emptyList(), Integer.MIN_VALUE, true);
             while (!dfile.isEOF())
             {
                 // read key
@@ -502,6 +502,9 @@ public class SSTableWriter extends SSTable
                 SSTableIdentityIterator iter = new SSTableIdentityIterator(cfs.metadata, dfile, key, dfile.getFilePointer(), dataSize, true);
 
                 AbstractCompactedRow row = controller.getCompactedRow(iter);
+                // We don't remove any tombstone, so we can't have an empty row here
+                assert !row.isEmpty();
+
                 updateCache(key, dataSize, row);
 
                 rowSizes.add(dataSize);
