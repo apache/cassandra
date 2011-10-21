@@ -51,6 +51,7 @@
    (CASSANDRA-3387)
  * tolerate index being dropped mid-mutation (CASSANDRA-3334, 3313)
  * fix assertionError during repair with ordered partitioners (CASSANDRA-3369)
+ * correctly serialize key_validation_class for avro (CASSANDRA-3391)
 
 
 1.0.0-final
