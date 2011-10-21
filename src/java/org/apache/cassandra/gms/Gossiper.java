@@ -541,15 +541,18 @@ public class Gossiper implements IFailureDetectionEventListener
             {
                 long duration = now - epState.getUpdateTimestamp();
 
-                if (StorageService.instance.getTokenMetadata().isMember(endpoint))
-                    epState.setHasToken(true);
                 // check if this is a fat client. fat clients are removed automatically from
                 // gosip after FatClientTimeout
                 if (!epState.hasToken() && !epState.isAlive() && !justRemovedEndpoints.containsKey(endpoint) && (duration > FatClientTimeout))
                 {
-                    logger.info("FatClient " + endpoint + " has been silent for " + FatClientTimeout + "ms, removing from gossip");
-                    removeEndpoint(endpoint); // will put it in justRemovedEndpoints to respect quarantine delay
-                    evictFromMembership(endpoint); // can get rid of the state immediately
+                    if (StorageService.instance.getTokenMetadata().isMember(endpoint))
+                        epState.setHasToken(true);
+                    else
+                    {
+                        logger.info("FatClient " + endpoint + " has been silent for " + FatClientTimeout + "ms, removing from gossip");
+                        removeEndpoint(endpoint); // will put it in justRemovedEndpoints to respect quarantine delay
+                        evictFromMembership(endpoint); // can get rid of the state immediately
+                    }
                 }
 
                 if ( !epState.isAlive() && (duration > aVeryLongTime) && (!StorageService.instance.getTokenMetadata().isMember(endpoint)))
@@ -728,7 +731,7 @@ public class Gossiper implements IFailureDetectionEventListener
      */
     private void handleMajorStateChange(InetAddress ep, EndpointState epState)
     {
-        if (epState.getApplicationState(ApplicationState.STATUS) != null && !isDeadState(epState.getApplicationState(ApplicationState.STATUS).value))
+        if (!isDeadState(epState))
         {
             if (endpointStateMap.get(ep) != null)
                 logger.info("Node {} has restarted, now UP again", ep);
@@ -743,7 +746,7 @@ public class Gossiper implements IFailureDetectionEventListener
         for (IEndpointStateChangeSubscriber subscriber : subscribers)
             subscriber.onRestart(ep, epState);
 
-        if (epState.getApplicationState(ApplicationState.STATUS) != null && !isDeadState(epState.getApplicationState(ApplicationState.STATUS).value))
+        if (!isDeadState(epState))
             markAlive(ep, epState);
         else
         {
@@ -755,8 +758,11 @@ public class Gossiper implements IFailureDetectionEventListener
             subscriber.onJoin(ep, epState);
     }
 
-    private Boolean isDeadState(String value)
+    private Boolean isDeadState(EndpointState epState)
     {
+        if (epState.getApplicationState(ApplicationState.STATUS) == null)
+            return false;
+        String value = epState.getApplicationState(ApplicationState.STATUS).value;
         String[] pieces = value.split(VersionedValue.DELIMITER_STR, -1);
         assert (pieces.length > 0);
         String state = pieces[0];

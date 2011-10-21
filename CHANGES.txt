@@ -29,6 +29,7 @@
  * fix assertionError during repair with ordered partitioners (CASSANDRA-3369)
  * correctly serialize key_validation_class for avro (CASSANDRA-3391)
  * don't expire counter tombstone after streaming (CASSANDRA-3394)
+ * prevent nodes that failed to join from hanging around forever (CASSANDRA-3351)
 
 
 0.8.7
