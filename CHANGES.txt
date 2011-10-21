@@ -21,6 +21,8 @@
  * CompactionManager is now responsible for checking for new candidates
    post-task execution, enabling more consistent leveled compaction 
    (CASSANDRA-3391)
+ * Cache HSHA threads (CASSANDRA-3372)
+
 Merged from 0.8:
  * (CQL) update grammar to require key clause in DELETE statement
    (CASSANDRA-3349)

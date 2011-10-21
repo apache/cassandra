@@ -24,6 +24,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.cassandra.service.AbstractCassandraDaemon;
@@ -191,9 +192,9 @@ public class CassandraDaemon extends org.apache.cassandra.service.AbstractCassan
                     // This is NIO selector service but the invocation will be Multi-Threaded with the Executor service.
                     ExecutorService executorService = new JMXEnabledThreadPoolExecutor(DatabaseDescriptor.getRpcMinThreads(),
                                                                                        DatabaseDescriptor.getRpcMaxThreads(),
-                                                                                       DatabaseDescriptor.getRpcTimeout(), 
-                                                                                       TimeUnit.MILLISECONDS,
-                                                                                       new LinkedBlockingQueue<Runnable>(), 
+                                                                                       60L, 
+                                                                                       TimeUnit.SECONDS,
+                                                                                       new SynchronousQueue<Runnable>(), 
                                                                                        new NamedThreadFactory("RPC-Thread"), "RPC-THREAD-POOL");
                     TNonblockingServer.Args serverArgs = new TNonblockingServer.Args(serverTransport).inputTransportFactory(inTransportFactory)
                                                                                        .outputTransportFactory(outTransportFactory)
