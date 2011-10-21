@@ -10,26 +10,33 @@
  * Thrift sockets are not properly buffered (CASSANDRA-3261)
  * performance improvement for bytebufferutil compare function (CASSANDRA-3286)
  * add system.versions ColumnFamily (CASSANDRA-3140)
- * (CQL) update grammar to require key clause in DELETE statement
-   (CASSANDRA-3349)
- * (CQL) allow numeric keyspace names in USE statement (CASSANDRA-3350)
  * reduce network copies (CASSANDRA-3333, 3373)
- * (Hadoop) skip empty rows when slicing the entire row (CASSANDRA-2855)
- * fix ColumnIndexer to use long offsets (CASSANDRA-3358)
- * Fix exception during PIG 'dump' (CASSANDRA-2810)
- * Fix transposition in cfHistograms (CASSANDRA-3222)
- * Allow using number as DC name when creating keyspace in CQL (CASSANDRA-3239)
- * Force flush of system table after updating/removing a token (CASSANDRA-3243)
- * Make Pig storage handle implements LoadMetadata (CASSANDRA-2777)
- * Improved CLI exceptions (CASSANDRA-3312)
- * Fix handling of tombstone by SSTableExport/Import (CASSANDRA-3357)
- * Only count compaction as active (for throttling) when they have
-   successfully acquired the compaction lock (CASSANDRA-3344)
  * limit nodetool to 32MB of heap (CASSANDRA-3124)
  * (CQL) update parser to accept "timestamp" instead of "date" (CASSANDRA-3149)
  * Fix CLI `show schema` to include "compression_options" (CASSANDRA-3368)
  * Snapshot to include manifest under LeveledCompactionStrategy (CASSANDRA-3359)
  * (CQL) SELECT query should allow CF name to be qualified by keyspace (CASSANDRA-3130)
+ * (CQL) Fix internal application error specifying 'using consistency ...'
+   in lower case (CASSANDRA-3366)
+ * fix Deflate compression when compression actually makes the data bigger
+   (CASSANDRA-3370)
+ * optimize UUIDGen to avoid lock contention on InetAddress.getLocalHost 
+   (CASSANDRA-3387)
+ * tolerate index being dropped mid-mutation (CASSANDRA-3334, 3313)
+ * CompactionManager is now responsible for checking for new candidates
+   post-task execution, enabling more consistent leveled compaction 
+   (CASSANDRA-3391)
+Merged from 0.8:
+ * (CQL) update grammar to require key clause in DELETE statement
+   (CASSANDRA-3349)
+ * (CQL) allow numeric keyspace names in USE statement (CASSANDRA-3350)
+ * (Hadoop) skip empty rows when slicing the entire row (CASSANDRA-2855)
+ * Fix handling of tombstone by SSTableExport/Import (CASSANDRA-3357)
+ * fix ColumnIndexer to use long offsets (CASSANDRA-3358)
+ * Improved CLI exceptions (CASSANDRA-3312)
+ * Fix handling of tombstone by SSTableExport/Import (CASSANDRA-3357)
+ * Only count compaction as active (for throttling) when they have
+   successfully acquired the compaction lock (CASSANDRA-3344)
  * Display CLI version string on startup (CASSANDRA-3196)
  * (Hadoop) make CFIF try rpc_address or fallback to listen_address
    (CASSANDRA-3214)
@@ -38,18 +45,11 @@
  * ColumnFamily min_compaction_threshold should be >= 2 (CASSANDRA-3342)
  * (Pig) add 0.8+ types and key validation type in schema (CASSANDRA-3280)
  * Fix completely removing column metadata using CLI (CASSANDRA-3126)
- * (CQL) Fix internal application error specifying 'using consistency ...'
-   in lower case (CASSANDRA-3366)
  * CLI `describe cluster;` output should be on separate lines for separate versions
    (CASSANDRA-3170)
  * fix changing durable_writes keyspace option during CF creation
    (CASSANDRA-3292)
- * fix Deflate compression when compression actually makes the data bigger
-   (CASSANDRA-3370)
  * avoid locking on update when no indexes are involved (CASSANDRA-3386)
- * optimize UUIDGen to avoid lock contention on InetAddress.getLocalHost 
-   (CASSANDRA-3387)
- * tolerate index being dropped mid-mutation (CASSANDRA-3334, 3313)
  * fix assertionError during repair with ordered partitioners (CASSANDRA-3369)
  * correctly serialize key_validation_class for avro (CASSANDRA-3391)
  * don't expire counter tombstone after streaming (CASSANDRA-3394)
@@ -73,7 +73,7 @@
    compressed one (CASSANDRA-3338)
  * Fix hsha thrift server (CASSANDRA-3346)
  * Make sure repair only stream needed sstables (CASSANDRA-3345)
-Fixes merged from 0.8 below:
+Merged from 0.8:
  * Fix tool .bat files when CASSANDRA_HOME contains spaces (CASSANDRA-3258)
  * Force flush of status table when removing/updating token (CASSANDRA-3243)
  * Evict gossip state immediately when a token is taken over by a new IP (CASSANDRA-3259)
@@ -82,12 +82,17 @@ Fixes merged from 0.8 below:
  * (Hadoop) allow wrapping ranges in queries (CASSANDRA-3137)
  * (Hadoop) check all interfaces for a match with split location
    before falling back to random replica (CASSANDRA-3211)
+ * (Hadoop) Make Pig storage handle implements LoadMetadata (CASSANDRA-2777)
+ * (Hadoop) Fix exception during PIG 'dump' (CASSANDRA-2810)
  * Fix stress COUNTER_GET option (CASSANDRA-3301)
  * Fix missing fields in CLI `show schema` output (CASSANDRA-3304)
  * Nodetool no longer leaks threads and closes JMX connections (CASSANDRA-3309)
  * fix truncate allowing data to be replayed post-restart (CASSANDRA-3297)
  * Move SimpleAuthority and SimpleAuthenticator to examples (CASSANDRA-2922)
  * Fix handling of tombstone by SSTableExport/Import (CASSANDRA-3357)
+ * Fix transposition in cfHistograms (CASSANDRA-3222)
+ * Allow using number as DC name when creating keyspace in CQL (CASSANDRA-3239)
+ * Force flush of system table after updating/removing a token (CASSANDRA-3243)
 
 
 1.0.0-rc2

@@ -121,7 +121,8 @@ public class CompactionManager implements CompactionManagerMBean
                         return 0;
 
                     AbstractCompactionStrategy strategy = cfs.getCompactionStrategy();
-                    for (AbstractCompactionTask task : strategy.getBackgroundTasks(getDefaultGcBefore(cfs)))
+                    List<AbstractCompactionTask> tasks = strategy.getBackgroundTasks(getDefaultGcBefore(cfs));
+                    for (AbstractCompactionTask task : tasks)
                     {
                         if (!task.markSSTablesForCompaction())
                             continue;
@@ -135,6 +136,10 @@ public class CompactionManager implements CompactionManagerMBean
                             task.unmarkSSTables();
                         }
                     }
+
+                    // newly created sstables might have made other compactions eligible
+                    if (!tasks.isEmpty())
+                        submitBackground(cfs);
                 }
                 finally 
                 {

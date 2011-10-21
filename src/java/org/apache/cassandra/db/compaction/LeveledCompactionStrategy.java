@@ -78,16 +78,6 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
         // override min/max for this strategy
         cfs.setMaximumCompactionThreshold(Integer.MAX_VALUE);
         cfs.setMinimumCompactionThreshold(1);
-
-        // TODO this is redundant wrt the kickoff in AbstractCompactionStrategy, once CASSANDRA-X is done
-        Runnable runnable = new Runnable()
-        {
-            public void run()
-            {
-                CompactionManager.instance.submitBackground(LeveledCompactionStrategy.this.cfs);
-            }
-        };
-        StorageService.optionalTasks.scheduleAtFixedRate(runnable, 5 * 60, 5, TimeUnit.SECONDS);
     }
 
     public void shutdown()
