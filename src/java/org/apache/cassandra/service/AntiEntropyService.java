@@ -281,7 +281,7 @@ public class AntiEntropyService
                 List<DecoratedKey> keys = new ArrayList<DecoratedKey>();
                 for (DecoratedKey sample : cfs.keySamples(request.range))
                 {
-                    assert request.range.contains(sample.token);
+                    assert request.range.contains(sample.token): "Token " + sample.token + " is not within range " + request.range;
                     keys.add(sample);
                 }
 

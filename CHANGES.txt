@@ -26,6 +26,7 @@
  * correct dropped messages logging (CASSANDRA-3377)
  * CLI `describe keyspace <ks>` to show "Row Cache Provider" (CASSANDRA-3384)
  * avoid locking on update when no indexes are involved (CASSANDRA-3386)
+ * fix assertionError during repair with ordered partitioners (CASSANDRA-3369)
 
 
 0.8.7
