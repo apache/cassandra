@@ -839,7 +839,7 @@ public final class CFMetaData
         def.memtable_throughput_in_mb = cfm.memtableThroughputInMb;
         def.memtable_operations_in_millions = cfm.memtableOperationsInMillions;
         def.merge_shards_chance = cfm.mergeShardsChance;
-        def.key_validation_class = cfm.keyValidator.getClass().getName();
+        def.key_validation_class = cfm.keyValidator.toString();
         def.key_alias = cfm.keyAlias;
         List<org.apache.cassandra.db.migration.avro.ColumnDef> column_meta = new ArrayList<org.apache.cassandra.db.migration.avro.ColumnDef>(cfm.column_metadata.size());
         for (ColumnDefinition cd : cfm.column_metadata.values())

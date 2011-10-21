@@ -27,6 +27,7 @@
  * CLI `describe keyspace <ks>` to show "Row Cache Provider" (CASSANDRA-3384)
  * avoid locking on update when no indexes are involved (CASSANDRA-3386)
  * fix assertionError during repair with ordered partitioners (CASSANDRA-3369)
+ * correctly serialize key_validation_class for avro (CASSANDRA-3391)
 
 
 0.8.7
