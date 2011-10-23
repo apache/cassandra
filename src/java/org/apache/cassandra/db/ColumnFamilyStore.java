@@ -1648,7 +1648,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             throw new AssertionError(e);
         }
         long truncatedAt = System.currentTimeMillis();
-        snapshot(Table.getTimestampedSnapshotName("before-truncate"));
+        snapshot(Table.getTimestampedSnapshotName(columnFamily));
 
         return CompactionManager.instance.submitTruncate(this, truncatedAt);
     }

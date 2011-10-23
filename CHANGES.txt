@@ -22,7 +22,8 @@
    post-task execution, enabling more consistent leveled compaction 
    (CASSANDRA-3391)
  * Cache HSHA threads (CASSANDRA-3372)
-
+ * use CF/KS names as snapshot prefix for drop + truncate operations
+   (CASSANDRA-2997)
 Merged from 0.8:
  * (CQL) update grammar to require key clause in DELETE statement
    (CASSANDRA-3349)
