@@ -1327,44 +1327,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      *  tombstones that are no longer relevant. */
     ColumnFamily filterColumnFamily(ColumnFamily cached, QueryFilter filter, int gcBefore)
     {
-        // special case slicing the entire row:
-        // we can skip the filter step entirely, and we can help out removeDeleted by re-caching the result
-        // if any tombstones have aged out since last time.  (This means that the row cache will treat gcBefore as
-        // max(gcBefore, all previous gcBefore), which is fine for correctness.)
-        //
-        // But, if the filter is asking for less columns than we have cached, we fall back to the slow path
-        // since we have to copy out a subset.
-        if (filter.filter instanceof SliceQueryFilter)
-        {
-            SliceQueryFilter sliceFilter = (SliceQueryFilter) filter.filter;
-            if (sliceFilter.start.remaining() == 0 && sliceFilter.finish.remaining() == 0)
-            {
-                if (cached.isSuper() && filter.path.superColumnName != null)
-                {
-                    // subcolumns from named supercolumn
-                    IColumn sc = cached.getColumn(filter.path.superColumnName);
-                    if (sc == null || sliceFilter.count >= sc.getSubColumns().size())
-                    {
-                        ColumnFamily cf = cached.cloneMeShallow();
-                        if (sc != null)
-                            cf.addColumn(sc);
-                        return removeDeleted(cf, gcBefore);
-                    }
-                }
-                else
-                {
-                    // top-level columns
-                    if (sliceFilter.count >= cached.getColumnCount())
-                    {
-                        removeDeletedColumnsOnly(cached, gcBefore);                    
-                        return removeDeletedCF(cached, gcBefore);
-                    }
-                }
-            }
-        }
-
+        ColumnFamily cf = cached.cloneMeShallow();
         IColumnIterator ci = filter.getMemtableColumnIterator(cached, null, getComparator());
-        ColumnFamily cf = ci.getColumnFamily().cloneMeShallow();
         filter.collectCollatedColumns(cf, ci, gcBefore);
         // TODO this is necessary because when we collate supercolumns together, we don't check
         // their subcolumns for relevance, so we need to do a second prune post facto here.
