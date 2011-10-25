@@ -766,6 +766,7 @@ public class AntiEntropyService
             private final Set<InetAddress> requestedEndpoints = new HashSet<InetAddress>();
             private final Map<InetAddress, MerkleTree> trees = new HashMap<InetAddress, MerkleTree>();
             private final Set<InetAddress> syncJobs = new HashSet<InetAddress>();
+            private final Condition requestsSent = new SimpleCondition();
 
             public RepairJob(String cfname)
             {
@@ -783,6 +784,8 @@ public class AntiEntropyService
                 // send requests to all nodes
                 for (InetAddress endpoint : requestedEndpoints)
                     AntiEntropyService.instance.request(getName(), endpoint, range, tablename, cfname);
+
+                requestsSent.signalAll();
             }
 
             /**
@@ -791,6 +794,16 @@ public class AntiEntropyService
              */
             public synchronized int addTree(TreeRequest request, MerkleTree tree)
             {
+                // Wait for all request to have been performed (see #3400)
+                try
+                {
+                    requestsSent.await();
+                }
+                catch (InterruptedException e)
+                {
+                    throw new AssertionError("Interrupted while waiting for requests to be sent");
+                }
+
                 assert request.cf.right.equals(cfname);
                 trees.put(request.endpoint, tree);
                 requestedEndpoints.remove(request.endpoint);
