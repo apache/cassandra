@@ -772,6 +772,7 @@ public class AntiEntropyService
             // once all responses are received, each tree is compared with each other, and differencer tasks
             // are submitted.  the job is done when all differencers are complete.
             private final Set<Differencer> remainingDifferencers = new HashSet<Differencer>();
+            private final Condition requestsSent = new SimpleCondition();
 
             public RepairJob(String cfname)
             {
@@ -791,6 +792,7 @@ public class AntiEntropyService
                     AntiEntropyService.instance.request(getName(), endpoint, range, tablename, cfname);
 
                 logger.info(String.format("[repair #%s] requests for merkle tree sent for %s (to %s)", getName(), cfname, remainingEndpoints));
+                requestsSent.signalAll();
             }
 
             /**
@@ -801,6 +803,16 @@ public class AntiEntropyService
              */
             public synchronized int addTree(TreeRequest request, MerkleTree tree)
             {
+                // Wait for all request to have been performed (see #3400)
+                try
+                {
+                    requestsSent.await();
+                }
+                catch (InterruptedException e)
+                {
+                    throw new AssertionError("Interrupted while waiting for requests to be sent");
+                }
+
                 assert request.cf.right.equals(cfname);
                 trees.add(new TreeResponse(request.endpoint, tree));
                 remainingEndpoints.remove(request.endpoint);

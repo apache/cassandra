@@ -54,6 +54,7 @@ Merged from 0.8:
  * prevent nodes that failed to join from hanging around forever 
    (CASSANDRA-3351)
  * remove incorrect optimization from slice read path (CASSANDRA-3390)
+ * Fix race in AntiEntropyService (CASSANDRA-3400)
 
 
 1.0.0-final
