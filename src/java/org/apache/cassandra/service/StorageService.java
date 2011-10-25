@@ -999,7 +999,6 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      */
     private void handleStateRemoving(InetAddress endpoint, String[] pieces)
     {
-        String state = pieces[0];
         assert (pieces.length > 0);
 
         if (endpoint.equals(FBUtilities.getBroadcastAddress()))
@@ -1017,6 +1016,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         }
         if (tokenMetadata_.isMember(endpoint))
         {
+            String state = pieces[0];
             Token removeToken = tokenMetadata_.getToken(endpoint);
 
             if (VersionedValue.REMOVED_TOKEN.equals(state))

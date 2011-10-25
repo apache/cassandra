@@ -693,7 +693,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     void notifyFailureDetector(InetAddress endpoint, EndpointState remoteEndpointState)
     {
-        IFailureDetector fd = FailureDetector.instance;
         EndpointState localEndpointState = endpointStateMap.get(endpoint);
         /*
          * If the local endpoint state exists then report to the FD only
@@ -701,6 +700,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         */
         if ( localEndpointState != null )
         {
+            IFailureDetector fd = FailureDetector.instance;
             int localGeneration = localEndpointState.getHeartBeatState().getGeneration();
             int remoteGeneration = remoteEndpointState.getHeartBeatState().getGeneration();
             if ( remoteGeneration > localGeneration )

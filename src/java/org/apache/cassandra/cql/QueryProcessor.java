@@ -336,10 +336,9 @@ public class QueryProcessor
         if (!select.isMultiKey() && select.getKeys().size() > 1)
             throw new InvalidRequestException("You cannot use more than one KEY = in a SELECT");
 
-        AbstractType<?> comparator = select.getComparator(keyspace);
-        
         if (select.getColumnRelations().size() > 0)
         {
+            AbstractType<?> comparator = select.getComparator(keyspace);
             Set<ByteBuffer> indexed = Table.open(keyspace).getColumnFamilyStore(select.getColumnFamily()).indexManager.getIndexedColumns();
             for (Relation relation : select.getColumnRelations())
             {

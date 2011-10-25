@@ -126,13 +126,17 @@ public class SSTableExport
 
         ByteBuffer name = ByteBufferUtil.clone(column.name());
         ByteBuffer value = ByteBufferUtil.clone(column.value());
-        AbstractType validator = cfMetaData.getValueValidator(name);
 
         serializedColumn.add(comparator.getString(name));
         if (column instanceof DeletedColumn)
+        {
             serializedColumn.add(ByteBufferUtil.bytesToHex(value));
+        }
         else
+        {
+            AbstractType validator = cfMetaData.getValueValidator(name);
             serializedColumn.add(validator.getString(value));
+        }
         serializedColumn.add(column.timestamp());
 
         if (column instanceof DeletedColumn)
