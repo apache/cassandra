@@ -96,10 +96,9 @@ public class SSTableImport
 
         public JsonColumn(T json, CFMetaData meta, boolean isSubColumn)
         {
-            AbstractType comparator = (isSubColumn) ? meta.subcolumnComparator : meta.comparator;
-
             if (json instanceof List)
             {
+                AbstractType comparator = (isSubColumn) ? meta.subcolumnComparator : meta.comparator;
                 List fields = (List<?>) json;
 
                 assert fields.size() >= 3 : "Column definition should have at least 3";

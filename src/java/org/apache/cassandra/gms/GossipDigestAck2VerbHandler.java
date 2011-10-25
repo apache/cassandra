@@ -39,9 +39,11 @@ public class GossipDigestAck2VerbHandler implements IVerbHandler
 
     public void doVerb(Message message, String id)
     {
-        InetAddress from = message.getFrom();
         if (logger_.isTraceEnabled())
+        {
+            InetAddress from = message.getFrom();
             logger_.trace("Received a GossipDigestAck2Message from {}", from);
+        }
 
         byte[] bytes = message.getMessageBody();
         DataInputStream dis = new DataInputStream( new FastByteArrayInputStream(bytes) );
