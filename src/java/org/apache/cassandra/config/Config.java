@@ -62,6 +62,7 @@ public class Config
     public Integer sliced_buffer_size_in_kb = 64;
     
     public Integer storage_port = 7000;
+    public Integer ssl_storage_port = 7001;
     public String listen_address;
     public String broadcast_address;
     

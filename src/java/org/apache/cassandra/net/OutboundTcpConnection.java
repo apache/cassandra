@@ -24,7 +24,6 @@ package org.apache.cassandra.net;
 import java.io.BufferedOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.net.InetAddress;
 import java.net.Socket;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -34,9 +33,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.EncryptionOptions;
-import org.apache.cassandra.gms.Gossiper;
-import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
@@ -51,23 +47,17 @@ public class OutboundTcpConnection extends Thread
                                                               MessagingService.version_);
 
     private static final int OPEN_RETRY_DELAY = 100; // ms between retries
-
-    private InetAddress endpoint;
     private final BlockingQueue<Pair<Message, String>> queue = new LinkedBlockingQueue<Pair<Message, String>>();
-    private DataOutputStream out;
+    private final OutboundTcpConnectionPool poolReference;    
 
+    private DataOutputStream out;
     private Socket socket;
     private long completedCount;
 
-    public OutboundTcpConnection(InetAddress remoteEp)
+    public OutboundTcpConnection(OutboundTcpConnectionPool pool)
     {
-        super("WRITE-" + remoteEp);
-        setEndPoint(remoteEp);        
-    }
-    
-    public void setEndPoint(InetAddress remoteEndPoint)
-    {
-        this.endpoint = remoteEndPoint;
+        super("WRITE-" + pool.endPoint());
+        this.poolReference = pool;
     }
 
     public void enqueue(Message message, String id)
@@ -131,7 +121,7 @@ public class OutboundTcpConnection extends Thread
         catch (IOException e)
         {
             if (logger.isDebugEnabled())
-                logger.debug("error writing to " + endpoint, e);
+                logger.debug("error writing to " + poolReference.endPoint(), e);
             disconnect();
         }
     }
@@ -185,7 +175,7 @@ public class OutboundTcpConnection extends Thread
             catch (IOException e)
             {
                 if (logger.isDebugEnabled())
-                    logger.debug("exception closing connection to " + endpoint, e);
+                    logger.debug("exception closing connection to " + poolReference.endPoint(), e);
             }
             out = null;
             socket = null;
@@ -210,22 +200,13 @@ public class OutboundTcpConnection extends Thread
     private boolean connect()
     {
         if (logger.isDebugEnabled())
-            logger.debug("attempting to connect to " + endpoint);
+            logger.debug("attempting to connect to " + poolReference.endPoint());
         long start = System.currentTimeMillis();
         while (System.currentTimeMillis() < start + DatabaseDescriptor.getRpcTimeout())
         {
             try
             {
-                // zero means 'bind on any available port.'
-                EncryptionOptions options = DatabaseDescriptor.getEncryptionOptions();
-                if (options != null && options.internode_encryption == EncryptionOptions.InternodeEncryption.all)
-                {
-                    socket = SSLFactory.getSocket(options, endpoint, DatabaseDescriptor.getStoragePort(), FBUtilities.getLocalAddress(), 0);
-                }
-                else {
-                    socket = new Socket(endpoint, DatabaseDescriptor.getStoragePort(), FBUtilities.getLocalAddress(), 0);
-                }
-
+                socket = poolReference.newSocket();
                 socket.setKeepAlive(true);
                 socket.setTcpNoDelay(true);
                 out = new DataOutputStream(new BufferedOutputStream(socket.getOutputStream(), 4096));
@@ -235,7 +216,7 @@ public class OutboundTcpConnection extends Thread
             {
                 socket = null;
                 if (logger.isTraceEnabled())
-                    logger.trace("unable to connect to " + endpoint, e);
+                    logger.trace("unable to connect to " + poolReference.endPoint(), e);
                 try
                 {
                     Thread.sleep(OPEN_RETRY_DELAY);

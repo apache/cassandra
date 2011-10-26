@@ -22,20 +22,16 @@ import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetAddress;
-import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.compress.CompressedRandomAccessReader;
 import org.apache.cassandra.io.util.RandomAccessReader;
-import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.Throttle;
 import org.apache.cassandra.utils.WrappedRunnable;
@@ -60,18 +56,15 @@ public class FileStreamTask extends WrappedRunnable
     private Socket socket;
     // socket's output stream
     private OutputStream output;
-    // system encryption options if any
-    private final EncryptionOptions encryptionOptions;
     // allocate buffer to use for transfers only once
     private final byte[] transferBuffer = new byte[CHUNK_SIZE];
     // outbound global throughput limiter
     private final Throttle throttle;
 
-    public FileStreamTask(StreamHeader header, InetAddress to, EncryptionOptions encryptionOptions)
+    public FileStreamTask(StreamHeader header, InetAddress to)
     {
         this.header = header;
         this.to = to;
-        this.encryptionOptions = encryptionOptions;
         this.throttle = new Throttle(toString(), new Throttle.ThroughputFunction()
         {
             /** @return Instantaneous throughput target in bytes per millisecond. */
@@ -198,13 +191,13 @@ public class FileStreamTask extends WrappedRunnable
      */
     private void connectAttempt() throws IOException
     {
-        bind();
         int attempts = 0;
         while (true)
         {
             try
             {
-                connect();
+                socket = MessagingService.instance().getConnectionPool(to).newSocket();
+                output = socket.getOutputStream();
                 break;
             }
             catch (IOException e)
@@ -224,22 +217,6 @@ public class FileStreamTask extends WrappedRunnable
                 }
             }
         }
-    }
-
-    protected void bind() throws IOException
-    {
-        socket = (encryptionOptions != null && encryptionOptions.internode_encryption == EncryptionOptions.InternodeEncryption.all)
-                    ? SSLFactory.getSocket(encryptionOptions)
-                    : new Socket();
-
-        // force local binding on correctly specified interface.
-        socket.bind(new InetSocketAddress(FBUtilities.getLocalAddress(), 0));
-    }
-
-    protected void connect() throws IOException
-    {
-        socket.connect(new InetSocketAddress(to, DatabaseDescriptor.getStoragePort()));
-        output = socket.getOutputStream();
     }
 
     protected void close() throws IOException
