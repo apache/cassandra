@@ -45,7 +45,7 @@ import org.codehaus.jackson.map.ObjectMapper;
 
 public class LeveledManifest
 {
-    private static final Logger logger = LoggerFactory.getLogger(LeveledCompactionStrategy.class);
+    private static final Logger logger = LoggerFactory.getLogger(LeveledManifest.class);
 
     public static final String EXTENSION = ".json";
 

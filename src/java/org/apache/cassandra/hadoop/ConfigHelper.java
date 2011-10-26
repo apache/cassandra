@@ -66,7 +66,7 @@ public class ConfigHelper
     private static final String READ_CONSISTENCY_LEVEL = "cassandra.consistencylevel.read";
     private static final String WRITE_CONSISTENCY_LEVEL = "cassandra.consistencylevel.write";
     
-    private static final Logger logger = LoggerFactory.getLogger(ColumnFamilyInputFormat.class);
+    private static final Logger logger = LoggerFactory.getLogger(ConfigHelper.class);
 
 
     /**
