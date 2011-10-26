@@ -344,8 +344,7 @@ struct Mutation {
 
 struct EndpointDetails {
 	1: string host,
-	2: i32 port,
-	3: string datacenter
+	2: string datacenter
 }
 
 /**
