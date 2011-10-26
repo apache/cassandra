@@ -109,7 +109,10 @@ public class SystemTable
         QueryFilter filter = QueryFilter.getNamesFilter(decorate(COOKIE_KEY), new QueryPath(STATUS_CF), upgradeMarker);
         ColumnFamily cf = table.getColumnFamilyStore(STATUS_CF).getColumnFamily(filter);
         if (cf != null)
+        {
+            logger.debug("Pre-1.0 hints already purged");
             return;
+        }
 
         // marker not found.  Snapshot + remove hints and add the marker
         ColumnFamilyStore hintsCfs = Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(HintedHandOffManager.HINTS_CF);
@@ -119,6 +122,7 @@ public class SystemTable
             hintsCfs.snapshot("old-hints");
             hintsCfs.removeAllSSTables();
         }
+        logger.debug("Marking pre-1.0 hints purged");
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, COOKIE_KEY);
         rm.add(new QueryPath(STATUS_CF, null, upgradeMarker), ByteBufferUtil.bytes("oh yes, they were purged"), System.currentTimeMillis());
         rm.apply();
