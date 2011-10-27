@@ -164,6 +164,10 @@ sliced_buffer_size_in_kb: 64
 # TCP port, for commands and data
 storage_port: 7000
 
+# SSL port, for encrypted communication.  Unused unless enabled in
+# encryption_options
+ssl_storage_port: 7001
+
 # Address to bind to and tell other Cassandra nodes to connect to. You
 # _must_ change this if you want multiple nodes to be able to
 # communicate!
@@ -403,7 +407,10 @@ index_interval: 128
 # users generate their own keys) TLS_RSA_WITH_AES_128_CBC_SHA as the cipher
 # suite for authentication, key exchange and encryption of the actual data transfers.
 # NOTE: No custom encryption options are enabled at the moment
-# The available internode options are : all, none
+# The available internode options are : all, none, dc, rack
+#
+# If set to dc cassandra will encrypt the traffic between the DCs
+# If set to rack cassandra will encrypt the traffic between the racks
 #
 # The passwords used in these options must match the passwords used when generating
 # the keystore and truststore.  For instructions on generating these files, see:

@@ -35,6 +35,8 @@ import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
 import com.google.common.base.Function;
+import com.google.common.collect.Lists;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -88,7 +90,7 @@ public final class MessagingService implements MessagingServiceMBean
     private static final Logger logger_ = LoggerFactory.getLogger(MessagingService.class);
     private static final int LOG_DROPPED_INTERVAL_IN_MS = 5000;
 
-    private SocketThread socketThread;
+    private List<SocketThread> socketThreads = Lists.newArrayList();
     private final SimpleCondition listenGate;
 
     /**
@@ -236,41 +238,45 @@ public final class MessagingService implements MessagingServiceMBean
      */
     public void listen(InetAddress localEp) throws IOException, ConfigurationException
     {
-        socketThread = new SocketThread(getServerSocket(localEp), "ACCEPT-" + localEp);
-        socketThread.start();
+        for (ServerSocket ss: getServerSocket(localEp))
+        {
+            SocketThread th = new SocketThread(ss, "ACCEPT-" + localEp);
+            th.start();
+            socketThreads.add(th);
+        }
         listenGate.signalAll();
     }
 
-    private ServerSocket getServerSocket(InetAddress localEp) throws IOException, ConfigurationException
+    private List<ServerSocket> getServerSocket(InetAddress localEp) throws IOException, ConfigurationException
     {
-        final ServerSocket ss;
-        if (DatabaseDescriptor.getEncryptionOptions() != null && DatabaseDescriptor.getEncryptionOptions().internode_encryption == EncryptionOptions.InternodeEncryption.all)
+       final List<ServerSocket> ss = new ArrayList<ServerSocket>();
+        if (DatabaseDescriptor.getEncryptionOptions() != null && DatabaseDescriptor.getEncryptionOptions().internode_encryption != EncryptionOptions.InternodeEncryption.none)
         {
-            ss = SSLFactory.getServerSocket(DatabaseDescriptor.getEncryptionOptions(), localEp, DatabaseDescriptor.getStoragePort());
+            ss.add(SSLFactory.getServerSocket(DatabaseDescriptor.getEncryptionOptions(), localEp, DatabaseDescriptor.getSSLStoragePort()));
             // setReuseAddress happens in the factory.
-            logger_.info("Starting Encrypted Messaging Service on port {}", DatabaseDescriptor.getStoragePort());
+            logger_.info("Starting Encrypted Messaging Service on SSL port {}", DatabaseDescriptor.getSSLStoragePort());
         }
-        else
+        
+        ServerSocketChannel serverChannel = ServerSocketChannel.open();
+        ServerSocket socket = serverChannel.socket();
+        socket.setReuseAddress(true);
+        InetSocketAddress address = new InetSocketAddress(localEp, DatabaseDescriptor.getStoragePort());
+        try
         {
-            ServerSocketChannel serverChannel = ServerSocketChannel.open();
-            ss = serverChannel.socket();
-            ss.setReuseAddress(true);
-            InetSocketAddress address = new InetSocketAddress(localEp, DatabaseDescriptor.getStoragePort());
-            try
-            {
-                ss.bind(address);
-            }
-            catch (BindException e)
-            {
-                if (e.getMessage().contains("in use"))
-                    throw new ConfigurationException(address + " is in use by another process.  Change listen_address:storage_port in cassandra.yaml to values that do not conflict with other services");
-                else if (e.getMessage().contains("Cannot assign requested address"))
-                    throw new ConfigurationException("Unable to bind to address " + address + ". Set listen_address in cassandra.yaml to an interface you can bind to, e.g., your private IP address on EC2");
-                else
-                    throw e;
-            }
-            logger_.info("Starting Messaging Service on {}", address);
+            socket.bind(address);
         }
+        catch (BindException e)
+        {
+            if (e.getMessage().contains("in use"))
+                throw new ConfigurationException(address + " is in use by another process.  Change listen_address:storage_port in cassandra.yaml to values that do not conflict with other services");
+            else if (e.getMessage().contains("Cannot assign requested address"))
+                throw new ConfigurationException("Unable to bind to address " + address
+                        + ". Set listen_address in cassandra.yaml to an interface you can bind to, e.g., your private IP address on EC2");
+            else
+                throw e;
+        }
+        logger_.info("Starting Messaging Service on port {}", DatabaseDescriptor.getStoragePort());
+        ss.add(socket);
         return ss;
     }
 
@@ -453,7 +459,7 @@ public final class MessagingService implements MessagingServiceMBean
     public void stream(StreamHeader header, InetAddress to)
     {
         /* Streaming asynchronously on streamExector_ threads. */
-        streamExecutor_.execute(new FileStreamTask(header, to, DatabaseDescriptor.getEncryptionOptions()));
+        streamExecutor_.execute(new FileStreamTask(header, to));
     }
 
     /** The count of active outbound stream tasks. */
@@ -485,7 +491,8 @@ public final class MessagingService implements MessagingServiceMBean
 
         try
         {
-            socketThread.close();
+            for (SocketThread th : socketThreads)
+                th.close();
         }
         catch (IOException e)
         {

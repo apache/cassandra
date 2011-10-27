@@ -805,29 +805,20 @@ public class CassandraServer implements Cassandra.Iface
             {
                 EndpointState eps = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
                 EndpointDetails details = new EndpointDetails();
-                // default to an unknown port since we
-                // don't seem to maintain that knowledge about remote endpoints.
-                details.port = -1;
 
                 if (endpoint.equals(FBUtilities.getBroadcastAddress()))
-                {
                     details.host = DatabaseDescriptor.getRpcAddress().getHostAddress();
-                    details.port = DatabaseDescriptor.getRpcPort();
-                }
                 else if (eps.getApplicationState(ApplicationState.RPC_ADDRESS) == null)
                     details.host = endpoint.getHostAddress();
                 else
                     details.host = eps.getApplicationState(ApplicationState.RPC_ADDRESS).value;
 
-                VersionedValue appStateDc = eps.getApplicationState(ApplicationState.DC);
-                if (appStateDc != null)
-                    details.datacenter = appStateDc.value;
+                details.datacenter = DatabaseDescriptor.getEndpointSnitch().getDatacenter(endpoint);
 
                 endpoints.add(details.host);
                 rpc_endpoints.add(StorageService.instance.getRpcaddress(endpoint));
 
-                if (details.port != -1 || details.datacenter != null)
-                    epDetails.add(details);
+                epDetails.add(details);
             }
 
             TokenRange tr = new TokenRange(tf.toString(range.left), tf.toString(range.right), endpoints)

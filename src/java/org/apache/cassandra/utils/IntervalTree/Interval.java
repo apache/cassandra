@@ -25,10 +25,9 @@ import com.google.common.collect.Ordering;
 
 public class Interval<T>
 {
-    public Comparable min;
-    public Comparable max;
+    public final Comparable min;
+    public final Comparable max;
     public final T Data;
-
 
     public Interval(Comparable min, Comparable max)
     {
@@ -62,22 +61,24 @@ public class Interval<T>
     }
 
 
-    public static Ordering<Interval> minOrdering = new Ordering<Interval>()
+    public static final Ordering<Interval> minOrdering = new Ordering<Interval>()
     {
-        @Override
         public int compare(Interval interval, Interval interval1)
         {
             return interval.min.compareTo(interval1.min);
         }
     };
 
-    public static Ordering<Interval> maxOrdering = new Ordering<Interval>()
+    public static final Ordering<Interval> maxOrdering = new Ordering<Interval>()
     {
-        @Override
         public int compare(Interval interval, Interval interval1)
         {
             return interval.max.compareTo(interval1.max);
         }
     };
 
+    public String toString()
+    {
+        return String.format("Interval(%s, %s)", min, max);
+    }
 }

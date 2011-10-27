@@ -916,7 +916,7 @@ public class StorageProxy implements StorageProxyMBean
             public void response(Message message)
             {
                 // record the response from the remote node.
-                logger.debug("Received schema check response from " + message.getFrom().getHostAddress());
+                logger.debug("Received schema check response from {}", message.getFrom().getHostAddress());
                 UUID theirVersion = UUID.fromString(new String(message.getMessageBody()));
                 versions.put(message.getFrom(), theirVersion);
                 latch.countDown();
@@ -947,7 +947,7 @@ public class StorageProxy implements StorageProxyMBean
             throw new AssertionError("This latch shouldn't have been interrupted.");
         }
 
-        logger.debug("My version is " + myVersion);
+        logger.debug("My version is {}", myVersion);
 
         // maps versions to hosts that are on that version.
         Map<String, List<String>> results = new HashMap<String, List<String>>();
@@ -967,14 +967,14 @@ public class StorageProxy implements StorageProxyMBean
 
         // we're done: the results map is ready to return to the client.  the rest is just debug logging:
         if (results.get(UNREACHABLE) != null)
-            logger.debug("Hosts not in agreement. Didn't get a response from everybody: " + StringUtils.join(results.get(UNREACHABLE), ","));
+            logger.debug("Hosts not in agreement. Didn't get a response from everybody: {}", StringUtils.join(results.get(UNREACHABLE), ","));
         for (Map.Entry<String, List<String>> entry : results.entrySet())
         {
             // check for version disagreement. log the hosts that don't agree.
             if (entry.getKey().equals(UNREACHABLE) || entry.getKey().equals(myVersion))
                 continue;
             for (String host : entry.getValue())
-                logger.debug("%s disagrees (%s)", host, entry.getKey());
+                logger.debug("{} disagrees ({})", host, entry.getKey());
         }
         if (results.size() == 1)
             logger.debug("Schemas are in agreement.");
@@ -992,7 +992,7 @@ public class StorageProxy implements StorageProxyMBean
         if (queryRange instanceof Bounds && queryRange.left.equals(queryRange.right) && !queryRange.left.equals(StorageService.getPartitioner().getMinimumToken()))
         {
             if (logger.isDebugEnabled())
-                logger.debug("restricted single token match for query " + queryRange);
+                logger.debug("restricted single token match for query {}", queryRange);
             return Collections.singletonList(queryRange);
         }
 
@@ -1016,7 +1016,7 @@ public class StorageProxy implements StorageProxyMBean
         if (remainder != null)
             ranges.add(remainder);
         if (logger.isDebugEnabled())
-            logger.debug("restricted ranges for query " + queryRange + " are " + ranges);
+            logger.debug("restricted ranges for query {} are {}", queryRange, ranges);
 
         return ranges;
     }
@@ -1103,7 +1103,7 @@ public class StorageProxy implements StorageProxyMBean
 
         Token leftToken = index_clause.start_key == null ? p.getMinimumToken() : p.getToken(index_clause.start_key);
         List<AbstractBounds> ranges = getRestrictedRanges(new Bounds(leftToken, p.getMinimumToken()));
-        logger.debug("scan ranges are " + StringUtils.join(ranges, ","));
+        logger.debug("scan ranges are {}", StringUtils.join(ranges, ","));
 
         // now scan until we have enough results
         List<Row> rows = new ArrayList<Row>(index_clause.count);
@@ -1130,7 +1130,7 @@ public class StorageProxy implements StorageProxyMBean
             {
                 MessagingService.instance().sendRR(producer, endpoint, handler);
                 if (logger.isDebugEnabled())
-                    logger.debug("reading " + command + " from " + endpoint);
+                    logger.debug("reading {} from {}", command, endpoint);
             }
 
             try

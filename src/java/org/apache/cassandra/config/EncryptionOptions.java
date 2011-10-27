@@ -33,6 +33,8 @@ public class EncryptionOptions
     public static enum InternodeEncryption
     {
         all,
-        none
+        none,
+        dc,
+        rack
     }
 }

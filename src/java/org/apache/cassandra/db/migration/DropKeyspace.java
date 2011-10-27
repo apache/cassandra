@@ -47,7 +47,7 @@ public class DropKeyspace extends Migration
 
     public void applyModels() throws IOException
     {
-        String snapshotName = Table.getTimestampedSnapshotName(null);
+        String snapshotName = Table.getTimestampedSnapshotName(name);
         CompactionManager.instance.getCompactionLock().lock();
         try
         {

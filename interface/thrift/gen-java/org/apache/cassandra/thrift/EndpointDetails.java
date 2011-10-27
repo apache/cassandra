@@ -46,18 +46,15 @@ public class EndpointDetails implements org.apache.thrift.TBase<EndpointDetails,
   private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct("EndpointDetails");
 
   private static final org.apache.thrift.protocol.TField HOST_FIELD_DESC = new org.apache.thrift.protocol.TField("host", org.apache.thrift.protocol.TType.STRING, (short)1);
-  private static final org.apache.thrift.protocol.TField PORT_FIELD_DESC = new org.apache.thrift.protocol.TField("port", org.apache.thrift.protocol.TType.I32, (short)2);
-  private static final org.apache.thrift.protocol.TField DATACENTER_FIELD_DESC = new org.apache.thrift.protocol.TField("datacenter", org.apache.thrift.protocol.TType.STRING, (short)3);
+  private static final org.apache.thrift.protocol.TField DATACENTER_FIELD_DESC = new org.apache.thrift.protocol.TField("datacenter", org.apache.thrift.protocol.TType.STRING, (short)2);
 
   public String host;
-  public int port;
   public String datacenter;
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
   public enum _Fields implements org.apache.thrift.TFieldIdEnum {
     HOST((short)1, "host"),
-    PORT((short)2, "port"),
-    DATACENTER((short)3, "datacenter");
+    DATACENTER((short)2, "datacenter");
 
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -74,9 +71,7 @@ public class EndpointDetails implements org.apache.thrift.TBase<EndpointDetails,
       switch(fieldId) {
         case 1: // HOST
           return HOST;
-        case 2: // PORT
-          return PORT;
-        case 3: // DATACENTER
+        case 2: // DATACENTER
           return DATACENTER;
         default:
           return null;
@@ -118,16 +113,12 @@ public class EndpointDetails implements org.apache.thrift.TBase<EndpointDetails,
   }
 
   // isset id assignments
-  private static final int __PORT_ISSET_ID = 0;
-  private BitSet __isset_bit_vector = new BitSet(1);
 
   public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
   static {
     Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
     tmpMap.put(_Fields.HOST, new org.apache.thrift.meta_data.FieldMetaData("host", org.apache.thrift.TFieldRequirementType.DEFAULT, 
         new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
-    tmpMap.put(_Fields.PORT, new org.apache.thrift.meta_data.FieldMetaData("port", org.apache.thrift.TFieldRequirementType.DEFAULT, 
-        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32)));
     tmpMap.put(_Fields.DATACENTER, new org.apache.thrift.meta_data.FieldMetaData("datacenter", org.apache.thrift.TFieldRequirementType.DEFAULT, 
         new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
     metaDataMap = Collections.unmodifiableMap(tmpMap);
@@ -139,13 +130,10 @@ public class EndpointDetails implements org.apache.thrift.TBase<EndpointDetails,
 
   public EndpointDetails(
     String host,
-    int port,
     String datacenter)
   {
     this();
     this.host = host;
-    this.port = port;
-    setPortIsSet(true);
     this.datacenter = datacenter;
   }
 
@@ -153,12 +141,9 @@ public class EndpointDetails implements org.apache.thrift.TBase<EndpointDetails,
    * Performs a deep copy on <i>other</i>.
    */
   public EndpointDetails(EndpointDetails other) {
-    __isset_bit_vector.clear();
-    __isset_bit_vector.or(other.__isset_bit_vector);
     if (other.isSetHost()) {
       this.host = other.host;
     }
-    this.port = other.port;
     if (other.isSetDatacenter()) {
       this.datacenter = other.datacenter;
     }
@@ -171,8 +156,6 @@ public class EndpointDetails implements org.apache.thrift.TBase<EndpointDetails,
   @Override
   public void clear() {
     this.host = null;
-    setPortIsSet(false);
-    this.port = 0;
     this.datacenter = null;
   }
 
@@ -198,29 +181,6 @@ public class EndpointDetails implements org.apache.thrift.TBase<EndpointDetails,
     if (!value) {
       this.host = null;
     }
-  }
-
-  public int getPort() {
-    return this.port;
-  }
-
-  public EndpointDetails setPort(int port) {
-    this.port = port;
-    setPortIsSet(true);
-    return this;
-  }
-
-  public void unsetPort() {
-    __isset_bit_vector.clear(__PORT_ISSET_ID);
-  }
-
-  /** Returns true if field port is set (has been assigned a value) and false otherwise */
-  public boolean isSetPort() {
-    return __isset_bit_vector.get(__PORT_ISSET_ID);
-  }
-
-  public void setPortIsSet(boolean value) {
-    __isset_bit_vector.set(__PORT_ISSET_ID, value);
   }
 
   public String getDatacenter() {
@@ -257,14 +217,6 @@ public class EndpointDetails implements org.apache.thrift.TBase<EndpointDetails,
       }
       break;
 
-    case PORT:
-      if (value == null) {
-        unsetPort();
-      } else {
-        setPort((Integer)value);
-      }
-      break;
-
     case DATACENTER:
       if (value == null) {
         unsetDatacenter();
@@ -280,9 +232,6 @@ public class EndpointDetails implements org.apache.thrift.TBase<EndpointDetails,
     switch (field) {
     case HOST:
       return getHost();
-
-    case PORT:
-      return new Integer(getPort());
 
     case DATACENTER:
       return getDatacenter();
@@ -300,8 +249,6 @@ public class EndpointDetails implements org.apache.thrift.TBase<EndpointDetails,
     switch (field) {
     case HOST:
       return isSetHost();
-    case PORT:
-      return isSetPort();
     case DATACENTER:
       return isSetDatacenter();
     }
@@ -330,15 +277,6 @@ public class EndpointDetails implements org.apache.thrift.TBase<EndpointDetails,
         return false;
     }
 
-    boolean this_present_port = true;
-    boolean that_present_port = true;
-    if (this_present_port || that_present_port) {
-      if (!(this_present_port && that_present_port))
-        return false;
-      if (this.port != that.port)
-        return false;
-    }
-
     boolean this_present_datacenter = true && this.isSetDatacenter();
     boolean that_present_datacenter = true && that.isSetDatacenter();
     if (this_present_datacenter || that_present_datacenter) {
@@ -359,11 +297,6 @@ public class EndpointDetails implements org.apache.thrift.TBase<EndpointDetails,
     builder.append(present_host);
     if (present_host)
       builder.append(host);
-
-    boolean present_port = true;
-    builder.append(present_port);
-    if (present_port)
-      builder.append(port);
 
     boolean present_datacenter = true && (isSetDatacenter());
     builder.append(present_datacenter);
@@ -387,16 +320,6 @@ public class EndpointDetails implements org.apache.thrift.TBase<EndpointDetails,
     }
     if (isSetHost()) {
       lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.host, typedOther.host);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-    }
-    lastComparison = Boolean.valueOf(isSetPort()).compareTo(typedOther.isSetPort());
-    if (lastComparison != 0) {
-      return lastComparison;
-    }
-    if (isSetPort()) {
-      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.port, typedOther.port);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -435,15 +358,7 @@ public class EndpointDetails implements org.apache.thrift.TBase<EndpointDetails,
             org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
-        case 2: // PORT
-          if (field.type == org.apache.thrift.protocol.TType.I32) {
-            this.port = iprot.readI32();
-            setPortIsSet(true);
-          } else { 
-            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
-          }
-          break;
-        case 3: // DATACENTER
+        case 2: // DATACENTER
           if (field.type == org.apache.thrift.protocol.TType.STRING) {
             this.datacenter = iprot.readString();
           } else { 
@@ -470,9 +385,6 @@ public class EndpointDetails implements org.apache.thrift.TBase<EndpointDetails,
       oprot.writeString(this.host);
       oprot.writeFieldEnd();
     }
-    oprot.writeFieldBegin(PORT_FIELD_DESC);
-    oprot.writeI32(this.port);
-    oprot.writeFieldEnd();
     if (this.datacenter != null) {
       oprot.writeFieldBegin(DATACENTER_FIELD_DESC);
       oprot.writeString(this.datacenter);
@@ -493,10 +405,6 @@ public class EndpointDetails implements org.apache.thrift.TBase<EndpointDetails,
     } else {
       sb.append(this.host);
     }
-    first = false;
-    if (!first) sb.append(", ");
-    sb.append("port:");
-    sb.append(this.port);
     first = false;
     if (!first) sb.append(", ");
     sb.append("datacenter:");
@@ -524,8 +432,6 @@ public class EndpointDetails implements org.apache.thrift.TBase<EndpointDetails,
 
   private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
     try {
-      // it doesn't seem like you should have to do this, but java serialization is wacky, and doesn't call the default constructor.
-      __isset_bit_vector = new BitSet(1);
       read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
     } catch (org.apache.thrift.TException te) {
       throw new java.io.IOException(te);

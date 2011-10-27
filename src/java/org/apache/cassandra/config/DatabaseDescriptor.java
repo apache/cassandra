@@ -632,6 +632,11 @@ public class DatabaseDescriptor
         return Integer.parseInt(System.getProperty("cassandra.storage_port", conf.storage_port.toString()));
     }
 
+    public static int getSSLStoragePort()
+    {
+        return Integer.parseInt(System.getProperty("cassandra.ssl_storage_port", conf.ssl_storage_port.toString()));
+    }
+
     public static int getRpcPort()
     {
         return Integer.parseInt(System.getProperty("cassandra.rpc_port", conf.rpc_port.toString()));

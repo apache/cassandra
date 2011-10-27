@@ -18,20 +18,32 @@
 
 package org.apache.cassandra.net;
 
+import java.io.IOException;
 import java.net.InetAddress;
+import java.net.Socket;
 
 import org.apache.cassandra.concurrent.Stage;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.locator.IEndpointSnitch;
+import org.apache.cassandra.security.SSLFactory;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class OutboundTcpConnectionPool
 {
+    private IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
+    // pointer for the real Address.
+    private final InetAddress id;
     public final OutboundTcpConnection cmdCon;
     public final OutboundTcpConnection ackCon;
+    // pointer to the reseted Address.
+    private InetAddress resetedEndpoint;
 
     OutboundTcpConnectionPool(InetAddress remoteEp)
     {
-        cmdCon = new OutboundTcpConnection(remoteEp);
+        id = remoteEp;
+        cmdCon = new OutboundTcpConnection(this);
         cmdCon.start();
-        ackCon = new OutboundTcpConnection(remoteEp);
+        ackCon = new OutboundTcpConnection(this);
         ackCon.start();
     }
 
@@ -55,9 +67,46 @@ public class OutboundTcpConnectionPool
     
     public void reset(InetAddress remoteEP)
     {
-        ackCon.setEndPoint(remoteEP);
-        ackCon.closeSocket();
-        cmdCon.setEndPoint(remoteEP);
-        cmdCon.closeSocket();
+        resetedEndpoint = remoteEP;
+        reset();
+    }
+    
+    public Socket newSocket() throws IOException
+    {
+        // zero means 'bind on any available port.'
+        if (isEncryptedChannel())
+        {
+            return SSLFactory.getSocket(DatabaseDescriptor.getEncryptionOptions(), endPoint(), DatabaseDescriptor.getSSLStoragePort(), FBUtilities.getLocalAddress(), 0);
+        }
+        else {
+            return new Socket(endPoint(), DatabaseDescriptor.getStoragePort(), FBUtilities.getLocalAddress(), 0);
+        }
+    }
+    
+    InetAddress endPoint()
+    {
+        return resetedEndpoint == null ? id : resetedEndpoint;
+    }
+    
+    boolean isEncryptedChannel()
+    {
+        switch (DatabaseDescriptor.getEncryptionOptions().internode_encryption)
+        {
+            case none:
+                return false; // if nothing needs to be encrypted then return immediately.
+            case all:
+                break;
+            case dc:
+                if (snitch.getDatacenter(id).equals(snitch.getDatacenter(FBUtilities.getBroadcastAddress())))
+                    return false;
+                break;
+            case rack:
+                // for rack then check if the DC's are the same.
+                if (snitch.getRack(id).equals(snitch.getRack(FBUtilities.getBroadcastAddress()))
+                        && snitch.getDatacenter(id).equals(snitch.getDatacenter(FBUtilities.getBroadcastAddress())))
+                    return false;
+                break;
+        }
+        return true;
     }
 }
