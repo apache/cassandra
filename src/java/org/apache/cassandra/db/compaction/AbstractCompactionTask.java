@@ -67,7 +67,10 @@ public abstract class AbstractCompactionTask
         Set<SSTableReader> marked = cfs.getDataTracker().markCompacting(sstables, min, max);
 
         if (marked == null || marked.isEmpty())
+        {
+            cancel();
             return false;
+        }
 
         this.sstables = marked;
         return true;
@@ -77,4 +80,8 @@ public abstract class AbstractCompactionTask
     {
         cfs.getDataTracker().unmarkCompacting(sstables);
     }
+
+    // Can be overriden for action that need to be performed if the task won't
+    // execute (if sstable can't be marked successfully)
+    protected void cancel() {}
 }

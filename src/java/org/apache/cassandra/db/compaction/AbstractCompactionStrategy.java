@@ -63,6 +63,11 @@ public abstract class AbstractCompactionStrategy
         StorageService.optionalTasks.schedule(runnable, 5 * 60, TimeUnit.SECONDS);
     }
 
+    public Map<String, String> getOptions()
+    {
+        return options;
+    }
+
     /**
      * Releases any resources if this strategy is shutdown (when the CFS is reloaded after a schema change).
      * Default is to do nothing.

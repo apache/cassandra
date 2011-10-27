@@ -26,6 +26,9 @@
  * CompactionManager is now responsible for checking for new candidates
    post-task execution, enabling more consistent leveled compaction 
    (CASSANDRA-3391)
+ * fix cassandra hanging on jsvc stop (CASSANDRA-3302)
+ * Avoid leveled compaction getting blocked on errors (CASSANDRA-3408)
+ * Make reloading the compaction strategy safe (CASSANDRA-3409)
 Merged from 0.8:
  * (CQL) update grammar to require key clause in DELETE statement
    (CASSANDRA-3349)
