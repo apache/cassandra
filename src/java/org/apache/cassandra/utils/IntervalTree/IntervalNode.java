@@ -24,10 +24,14 @@ package org.apache.cassandra.utils.IntervalTree;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import com.google.common.collect.ImmutableList;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class IntervalNode
 {
+    private static final Logger logger = LoggerFactory.getLogger(IntervalNode.class);
+
     Comparable v_pt;
     Comparable v_min;
     Comparable v_max;
@@ -38,6 +42,8 @@ public class IntervalNode
 
     public IntervalNode(List<Interval> toBisect)
     {
+        logger.debug("Creating IntervalNode from {}", toBisect);
+
         if (toBisect.size() > 0)
         {
             findMinMedianMax(toBisect);
