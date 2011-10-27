@@ -178,13 +178,30 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         if (!rowCacheKeysToSave.isModified())
             rowCacheKeysToSave = new DefaultInteger(metadata.getRowCacheKeysToSave());
 
-        compactionStrategy.shutdown();
-        compactionStrategy = metadata.createCompactionStrategyInstance(this);
+        maybeReloadCompactionStrategy();
 
         updateCacheSizes();
         scheduleCacheSaving(rowCacheSaveInSeconds.value(), keyCacheSaveInSeconds.value(), rowCacheKeysToSave.value());
 
         indexManager.reload();
+    }
+
+    private void maybeReloadCompactionStrategy()
+    {
+        // Check if there is a need for reloading
+        if (metadata.compactionStrategyClass.equals(compactionStrategy.getClass()) && metadata.compactionStrategyOptions.equals(compactionStrategy.getOptions()))
+            return;
+
+        CompactionManager.instance.getCompactionLock().lock();
+        try
+        {
+            compactionStrategy.shutdown();
+            compactionStrategy = metadata.createCompactionStrategyInstance(this);
+        }
+        finally
+        {
+            CompactionManager.instance.getCompactionLock().unlock();
+        }
     }
 
     private ColumnFamilyStore(Table table, String columnFamilyName, IPartitioner partitioner, int generation, CFMetaData metadata)
