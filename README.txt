@@ -38,10 +38,15 @@ Now that we're ready, let's start it up!
 
   * bin/cassandra -f
 
-(Running the startup script with the -f argument will cause Cassandra to
-remain in the foreground and log to standard out.  On windows, running
-it with the 'install' argument instead will install Cassandra as a
-Windows Service, and 'uninstall' will remove it.)
+Unix: Running the startup script with the -f argument will cause
+Cassandra to remain in the foreground and log to standard out.
+
+Windows: bin\cassandra.bat runs in the foreground by default.  To
+install Cassandra as a Windows service, download Procrun from
+http://commons.apache.org/daemon/procrun.html, set the PRUNSRV
+environment variable to the full path of prunsrv (e.g.,
+C:\procrun\prunsrv.exe), and run "bin\cassandra.bat install".
+Similarly, "uninstall" will remove the service.
 
 Now let's try to read and write some data using the command line client.
 

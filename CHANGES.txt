@@ -30,6 +30,8 @@
  * Make reloading the compaction strategy safe (CASSANDRA-3409)
  * ignore 0.8 hints even if compaction begins before we try to purge
    them (CASSANDRA-3385)
+ * remove procrun (bin\daemon) from Cassandra source tree and 
+   artifacts (CASSANDRA-3331)
 Merged from 0.8:
  * (CQL) update grammar to require key clause in DELETE statement
    (CASSANDRA-3349)
