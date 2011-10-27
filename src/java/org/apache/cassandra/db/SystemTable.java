@@ -118,9 +118,15 @@ public class SystemTable
         ColumnFamilyStore hintsCfs = Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(HintedHandOffManager.HINTS_CF);
         if (hintsCfs.getSSTables().size() > 0)
         {
-            logger.info("Possible old-format hints found. Snapshotting as 'old-hints' and purging");
-            hintsCfs.snapshot("old-hints");
-            hintsCfs.removeAllSSTables();
+            logger.info("Possible old-format hints found. Truncating");
+            try
+            {
+                hintsCfs.truncate();
+            }
+            catch (Exception e)
+            {
+                throw new RuntimeException(e);
+            }
         }
         logger.debug("Marking pre-1.0 hints purged");
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, COOKIE_KEY);

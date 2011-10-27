@@ -85,8 +85,12 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
 
     private static final Logger logger_ = LoggerFactory.getLogger(HintedHandOffManager.class);
     private static final int PAGE_SIZE = 1024;
-    private static final String SEPARATOR = "-";
     private static final int LARGE_NUMBER = 65536; // 64k nodes ought to be enough for anybody.
+
+    // in 0.8, subcolumns were KS-CF bytestrings, and the data was stored in the "normal" storage there.
+    // (so replay always consisted of sending an entire row,
+    // no matter how little was part of the mutation that created the hint.)
+    private static final String SEPARATOR_08 = "-";
 
     private final NonBlockingHashSet<InetAddress> queuedDeliveries = new NonBlockingHashSet<InetAddress>();
 
@@ -139,7 +143,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
     {
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, tokenBytes);
         rm.delete(new QueryPath(HINTS_CF, hintId), timestamp);
-        rm.apply();
+        rm.applyUnsafe(); // don't bother with commitlog since we're going to flush as soon as we're done with delivery
     }
 
     public void deleteHintsForEndpoint(final String ipOrHostname)
@@ -275,9 +279,20 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
             if (pagingFinished(hintColumnFamily, startColumn))
                 break;
 
+            page:
             for (IColumn hint : hintColumnFamily.getSortedColumns())
             {
                 startColumn = hint.name();
+                for (IColumn subColumn : hint.getSubColumns())
+                {
+                    // both 0.8 and 1.0 column names are UTF8 strings, so this check is safe
+                    if (ByteBufferUtil.string(subColumn.name()).contains(SEPARATOR_08))
+                    {
+                        logger_.debug("0.8-style hint found.  This should have been taken care of by purgeIncompatibleHints");
+                        deleteHint(tokenBytes, hint.name(), subColumn.timestamp());
+                        continue page;
+                    }
+                }
 
                 IColumn versionColumn = hint.getSubColumn(ByteBufferUtil.bytes("version"));
                 IColumn tableColumn = hint.getSubColumn(ByteBufferUtil.bytes("table"));
