@@ -26,6 +26,7 @@
    (CASSANDRA-2997)
  * Break bloom filters up to avoid heap fragmentation (CASSANDRA-2466)
  * fix cassandra hanging on jsvc stop (CASSANDRA-3302)
+ * Avoid leveled compaction getting blocked on errors (CASSANDRA-3408)
 Merged from 0.8:
  * (CQL) update grammar to require key clause in DELETE statement
    (CASSANDRA-3349)

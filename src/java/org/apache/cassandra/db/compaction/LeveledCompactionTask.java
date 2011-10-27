@@ -52,9 +52,15 @@ public class LeveledCompactionTask extends CompactionTask
     @Override
     public int execute(CompactionManager.CompactionExecutorStatsCollector collector) throws IOException
     {
-        int n = super.execute(collector);
-        latch.countDown();
-        return n;
+        try
+        {
+            int n = super.execute(collector);
+            return n;
+        }
+        finally
+        {
+            latch.countDown();
+        }
     }
 
     public boolean isDone()
@@ -78,5 +84,11 @@ public class LeveledCompactionTask extends CompactionTask
     protected boolean partialCompactionsAcceptable()
     {
         return false;
+    }
+
+    @Override
+    protected void cancel()
+    {
+        latch.countDown();
     }
 }
