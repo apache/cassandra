@@ -1,3 +1,18 @@
+1.0.1
+=====
+
+Upgrading
+---------
+    - If upgrading from a version prior to 1.0.0, please see the 1.0 Upgrading
+      section
+    - For running on Windows as a Service, procrun is no longer discributed
+      with Cassandra, see README.txt for more information on how to download
+      it if necessary.
+    - The name given to snapshots directories have been improved for human
+      readability. If you had scripts relying on it, you may need to update
+      them.
+
+
 1.0
 ===
 

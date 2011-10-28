@@ -32,6 +32,15 @@
    them (CASSANDRA-3385)
  * remove procrun (bin\daemon) from Cassandra source tree and 
    artifacts (CASSANDRA-3331)
+ * make cassandra compile under JDK7 (CASSANDRA-3275)
+ * remove dependency of clientutil.jar to FBUtilities (CASSANDRA-3299)
+ * avoid truncation errors by using long math on long values (CASSANDRA-3364)
+ * avoid clock drift on some Windows machine (CASSANDRA-3375)
+ * display cache provider in cli 'describe keyspace' command (CASSANDRA-3384)
+ * fix incomplete topology information in describe_ring (CASSANDRA-3403)
+ * expire dead gossip states based on time (CASSANDRA-2961)
+ * improve CompactionTask extensibility (CASSANDRA-3330)
+ * Allow one leveled compaction task to kick off another (CASSANDRA-3363)
 Merged from 0.8:
  * (CQL) update grammar to require key clause in DELETE statement
    (CASSANDRA-3349)
