@@ -85,10 +85,13 @@ public class ColumnFamilySerializer implements ISerializer<ColumnFamily>
             Collection<IColumn> columns = columnFamily.getSortedColumns();
             int count = columns.size();
             dos.writeInt(count);
+            int i = 0;
             for (IColumn column : columns)
             {
                 columnFamily.getColumnSerializer().serialize(column, dos);
+                i++;
             }
+            assert count == i: "CF size changed during serialization: was " + count + " initially but " + i + " written";
             return count;
         }
         catch (IOException e)
