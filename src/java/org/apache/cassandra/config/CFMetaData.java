@@ -882,6 +882,7 @@ public final class CFMetaData
         newDef.subcomparator_type = def.getSubcomparator_type();
         newDef.merge_shards_chance = def.getMerge_shards_chance();
         newDef.key_alias = def.key_alias;
+        newDef.row_cache_provider = def.row_cache_provider;
 
         List<org.apache.cassandra.db.migration.avro.ColumnDef> columnMeta = new ArrayList<org.apache.cassandra.db.migration.avro.ColumnDef>();
         if (def.isSetColumn_metadata())

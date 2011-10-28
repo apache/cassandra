@@ -33,6 +33,7 @@
    (CASSANDRA-3351)
  * remove incorrect optimization from slice read path (CASSANDRA-3390)
  * Fix race in AntiEntropyService (CASSANDRA-3400)
+ * fix updating CF row_cache_provider (CASSANDRA-3414)
 
 
 0.8.7
