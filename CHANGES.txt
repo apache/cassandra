@@ -1,3 +1,7 @@
+1.0.2
+ * "defragment" rows for name-based queries under STCS (CASSANDRA-2503)
+
+
 1.0.1
  * acquire references during index build to prevent delete problems
    on Windows (CASSANDRA-3314)
