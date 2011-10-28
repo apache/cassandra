@@ -201,7 +201,9 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     private boolean isClientMode;
     private boolean initialized;
     private volatile boolean joined = false;
-    private String operationMode;
+
+    private static enum Mode { NORMAL, CLIENT, JOINING, LEAVING, DECOMMISSIONED, MOVING, DRAINING, DRAINED }
+    private Mode operationMode;
 
     private volatile boolean efficientCrossDCWrites;
     private MigrationManager migrationManager = new MigrationManager();
@@ -224,7 +226,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         SystemTable.updateToken(token);
         tokenMetadata_.updateNormalToken(token, FBUtilities.getBroadcastAddress());
         Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS, valueFactory.normal(getLocalToken()));
-        setMode("Normal", false);
+        setMode(Mode.NORMAL, false);
     }
 
     public StorageService()
@@ -359,7 +361,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         initialized = true;
         isClientMode = true;
         logger_.info("Starting up client gossip");
-        setMode("Client", false);
+        setMode(Mode.CLIENT, false);
         Gossiper.instance.register(this);
         Gossiper.instance.start((int)(System.currentTimeMillis() / 1000)); // needed for node-ring gathering.
         MessagingService.instance().listen(FBUtilities.getLocalAddress());
@@ -500,7 +502,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                  || DatabaseDescriptor.getSeeds().contains(FBUtilities.getBroadcastAddress())
                  || !Schema.instance.getNonSystemTables().isEmpty()))
         {
-            setMode("Joining: waiting for ring and schema information", true);
+            setMode(Mode.JOINING, "waiting for ring and schema information", true);
             try
             {
                 Thread.sleep(delay);
@@ -519,7 +521,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                     String s = "This node is already a member of the token ring; bootstrap aborted. (If replacing a dead node, remove the old one from the ring first.)";
                     throw new UnsupportedOperationException(s);
                 }
-                setMode("Joining: getting bootstrap token", true);
+                setMode(Mode.JOINING, "getting bootstrap token", true);
                 token = BootStrapper.getBootstrapToken(tokenMetadata_, LoadBroadcaster.instance.getLoadInfo());
             }
             else
@@ -539,7 +541,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                 current = tokenMetadata_.getEndpoint(token);
                 if (null != current && Gossiper.instance.getEndpointStateForEndpoint(current).getUpdateTimestamp() > (System.currentTimeMillis() - delay))
                     throw new UnsupportedOperationException("Cannnot replace a token for a Live node... ");
-                setMode("Joining: Replacing a node with token: " + token, true);
+                setMode(Mode.JOINING, "Replacing a node with token: " + token, true);
             }
 
             bootstrap(token);
@@ -597,17 +599,24 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         return DatabaseDescriptor.getCompactionThroughputMbPerSec();
     }
 
-    public void setCompactionThroughputMbPerSec(int value) {
+    public void setCompactionThroughputMbPerSec(int value)
+    {
         DatabaseDescriptor.setCompactionThroughputMbPerSec(value);
     }
 
-    private void setMode(String m, boolean log)
+    private void setMode(Mode m, boolean log)
+    {
+        setMode(m, null, log);
+    }
+
+    private void setMode(Mode m, String msg, boolean log)
     {
         operationMode = m;
+        String logMsg = msg == null ? m.toString() : String.format("%s: %s", m, msg);
         if (log)
-            logger_.info(m);
+            logger_.info(logMsg);
         else
-            logger_.debug(m);
+            logger_.debug(logMsg);
     }
 
     private void bootstrap(Token token) throws IOException
@@ -618,7 +627,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         {
             // if not an existing token then bootstrap
             Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS, valueFactory.bootstrapping(token));
-            setMode("Joining: sleeping " + RING_DELAY + " ms for pending range setup", true);
+            setMode(Mode.JOINING, "sleeping " + RING_DELAY + " ms for pending range setup", true);
             try
             {
                 Thread.sleep(RING_DELAY);
@@ -633,7 +642,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             // Dont set any state for the node which is bootstrapping the existing token...
             tokenMetadata_.updateNormalToken(token, FBUtilities.getBroadcastAddress());
         }
-        setMode("Starting to bootstrap...", true);
+        setMode(Mode.JOINING, "Starting to bootstrap...", true);
         new BootStrapper(FBUtilities.getBroadcastAddress(), token, tokenMetadata_).bootstrap(); // handles token update
     }
 
@@ -1979,7 +1988,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         if (logger_.isDebugEnabled())
             logger_.debug("DECOMMISSIONING");
         startLeaving();
-        setMode("Leaving: sleeping " + RING_DELAY + " ms for pending range setup", true);
+        setMode(Mode.LEAVING, "sleeping " + RING_DELAY + " ms for pending range setup", true);
         Thread.sleep(RING_DELAY);
 
         Runnable finishLeaving = new Runnable()
@@ -1989,7 +1998,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                 Gossiper.instance.stop();
                 MessagingService.instance().shutdown();
                 StageManager.shutdownNow();
-                setMode("Decommissioned", true);
+                setMode(Mode.DECOMMISSIONED, true);
                 // let op be responsible for killing the process
             }
         };
@@ -2028,7 +2037,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             rangesToStream.put(table, rangesMM);
         }
 
-        setMode("Leaving: streaming data to other nodes", true);
+        setMode(Mode.LEAVING, "streaming data to other nodes", true);
 
         CountDownLatch latch = streamRanges(rangesToStream);
 
@@ -2162,7 +2171,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                 throw new RuntimeException("Sleep interrupted " + e.getMessage());
             }
 
-            setMode("Moving: fetching new ranges and streaming old ranges", true);
+            setMode(Mode.MOVING, "fetching new ranges and streaming old ranges", true);
 
             if (logger_.isDebugEnabled())
                 logger_.debug("[Move->STREAMING] Work Map: " + rangesToStreamByTable);
@@ -2366,7 +2375,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
     public String getOperationMode()
     {
-        return operationMode;
+        return operationMode.toString();
     }
 
     public String getDrainProgress()
@@ -2383,21 +2392,21 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             logger_.warn("Cannot drain node (did it already happen?)");
             return;
         }
-        setMode("Starting drain process", true);
+        setMode(Mode.DRAINING, "starting drain process", true);
         optionalTasks.shutdown();
         Gossiper.instance.stop();
-        setMode("Draining: shutting down MessageService", false);
+        setMode(Mode.DRAINING, "shutting down MessageService", false);
         MessagingService.instance().shutdown();
-        setMode("Draining: waiting for streaming", false);
+        setMode(Mode.DRAINING, "waiting for streaming", false);
         MessagingService.instance().waitForStreaming();
 
-        setMode("Draining: clearing mutation stage", false);
+        setMode(Mode.DRAINING, "clearing mutation stage", false);
         mutationStage.shutdown();
         mutationStage.awaitTermination(3600, TimeUnit.SECONDS);
 
         StorageProxy.instance.verifyNoHintsInProgress();
 
-        setMode("Draining: flushing column families", false);
+        setMode(Mode.DRAINING, "flushing column families", false);
         List<ColumnFamilyStore> cfses = new ArrayList<ColumnFamilyStore>();
         for (String tableName : Schema.instance.getNonSystemTables())
         {
@@ -2421,7 +2430,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         if (!tasks.awaitTermination(1, TimeUnit.MINUTES))
             logger_.warn("Miscellaneous task executor still busy after one minute; proceeding with shutdown");
 
-        setMode("Node is drained", true);
+        setMode(Mode.DRAINED, true);
     }
 
     // Never ever do this at home. Used by tests.
