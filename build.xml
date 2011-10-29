@@ -658,6 +658,19 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
       </propertyfile>
     </target>
 
+    <target name="test-run" depends="build"
+            description="Run in test mode.  Not for production use!">
+      <java classname="org.apache.cassandra.thrift.CassandraDaemon" fork="true">
+        <classpath>
+          <path refid="cassandra.classpath"/>  
+          <pathelement location="${test.conf}"/>
+        </classpath>
+        <jvmarg value="-Dstorage-config=${test.conf}"/>
+        <jvmarg value="-javaagent:${basedir}/lib/jamm-0.2.5.jar" />
+        <jvmarg value="-ea"/>
+      </java>
+    </target>
+
     <!--
         The build target builds all the .class files
     -->
