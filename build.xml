@@ -1316,6 +1316,10 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
              file="${build.dir}/${ant.project.name}-thrift-${version}-javadoc.jar"
              classifier="javadoc"/>
 
+    <!-- the cassandra-clientutil jar -->  
+    <install pomFile="${build.dir}/${ant.project.name}-clientutil-${version}.pom"
+             file="${build.dir}/${ant.project.name}-clientutil-${version}.jar"/>
+
     <!-- the cassandra-all jar -->
     <install pomFile="${build.dir}/${final.name}.pom"
              file="${build.dir}/${final.name}.jar"/>
@@ -1359,6 +1363,10 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
     <deploy pomFile="${build.dir}/${ant.project.name}-thrift-${version}.pom"
             file="${build.dir}/${ant.project.name}-thrift-${version}-javadoc.jar"
             classifier="javadoc"/>
+
+    <!-- the cassandra-clientutil jar -->  
+    <deploy pomFile="${build.dir}/${ant.project.name}-clientutil-${version}.pom"
+            file="${build.dir}/${ant.project.name}-clientutil-${version}.jar"/>
 
     <!-- the cassandra-all jar -->
     <deploy pomFile="${build.dir}/${final.name}.pom"
