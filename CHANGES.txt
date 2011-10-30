@@ -34,7 +34,7 @@
  * remove incorrect optimization from slice read path (CASSANDRA-3390)
  * Fix race in AntiEntropyService (CASSANDRA-3400)
  * fix updating CF row_cache_provider (CASSANDRA-3414)
-
+ * CFMetaData.convertToThrift method to set RowCacheProvider (CASSANDRA-3405)
 
 0.8.7
  * Kill server on wrapped OOME such as from FileChannel.map (CASSANDRA-3201)

@@ -796,6 +796,7 @@ public final class CFMetaData
         def.setMemtable_operations_in_millions(cfm.memtableOperationsInMillions);
         def.setMerge_shards_chance(cfm.mergeShardsChance);
         def.setKey_alias(cfm.getKeyName());
+        def.setRow_cache_provider(cfm.getRowCacheProvider().getClass().getName());
         List<org.apache.cassandra.thrift.ColumnDef> column_meta = new ArrayList< org.apache.cassandra.thrift.ColumnDef>(cfm.column_metadata.size());
         for (ColumnDefinition cd : cfm.column_metadata.values())
         {
