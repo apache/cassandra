@@ -396,7 +396,6 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
           <dependency groupId="log4j" artifactId="log4j" version="1.2.16" />
           <dependency groupId="org.apache.cassandra" artifactId="cassandra-all" version="${version}" />
           <dependency groupId="org.apache.cassandra" artifactId="cassandra-thrift" version="${version}" />
-          <dependency groupId="org.apache.cassandra" artifactId="cassandra-cql" version="${version}" />
         </dependencyManagement>
         <developer id="alakshman" name="Avinash Lakshman"/>
         <developer id="antelder" name="Anthony Elder"/>
@@ -515,23 +514,7 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
         <scm connection="${scm.connection}" developerConnection="${scm.developerConnection}" url="${scm.url}"/>
 	<dependency groupId="com.google.guava" artifactId="guava"/>
       </artifact:pom>
-      <artifact:pom id="cql-pom"
-                    artifactId="cassandra-cql"
-                    url="http://cassandra.apache.org"
-                    name="Apache Cassandra">
-        <parent groupId="org.apache.cassandra"
-                artifactId="cassandra-parent"
-                version="${version}"/>
-        <scm connection="${scm.connection}" developerConnection="${scm.developerConnection}" url="${scm.url}"/>
-        <dependency groupId="com.google.guava" artifactId="guava"/>
-        <dependency groupId="org.slf4j" artifactId="slf4j-api"/>
-        <dependency groupId="org.apache.thrift" artifactId="libthrift"/>
-        <dependency groupId="org.apache.cassandra" artifactId="cassandra-thrift"/>
-        <dependency groupId="org.apache.cassandra" artifactId="cassandra-all"/>
-        <!-- because cassandra-all uses log4j, and we need cassandra-all, consumers must use log4j, so force log4j version of slf4j -->
-        <dependency groupId="org.slf4j" artifactId="slf4j-log4j12" scope="runtime"/>
-      </artifact:pom>
-
+      
       <artifact:pom id="dist-pom"
                     artifactId="apache-cassandra"
                     packaging="pom"
