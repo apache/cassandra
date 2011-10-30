@@ -1,7 +1,7 @@
 1.0.2
  * "defragment" rows for name-based queries under STCS (CASSANDRA-2503)
  * cleanup usage of StorageService.setMode() (CASANDRA-3388)
-
+ * Add timing information to cassandra-cli GET/SET/LIST queries (CASSANDRA-3326)
 
 1.0.1
  * acquire references during index build to prevent delete problems

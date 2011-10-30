@@ -249,15 +249,16 @@ public class CliTest extends CleanupHelper
             }
             else if (statement.startsWith("set "))
             {
-                assertEquals(result, "Value inserted." + System.getProperty("line.separator"));
+                 assertTrue(result.contains("Value inserted."));
+                 assertTrue(result.contains("Elapsed time:"));
             }
             else if (statement.startsWith("incr "))
             {
-                assertEquals(result, "Value incremented." + System.getProperty("line.separator"));
+                 assertTrue(result.contains("Value incremented."));
             }
             else if (statement.startsWith("decr "))
             {
-                assertEquals(result, "Value decremented." + System.getProperty("line.separator"));
+                 assertTrue(result.contains("Value decremented."));
             }
             else if (statement.startsWith("get "))
             {
@@ -273,6 +274,7 @@ public class CliTest extends CleanupHelper
                 {
                     assertTrue(result.startsWith("=> (column=") || result.startsWith("Value was not found"));
                 }
+                assertTrue(result.contains("Elapsed time:"));
             }
             else if (statement.startsWith("truncate "))
             {
