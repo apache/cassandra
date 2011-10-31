@@ -27,6 +27,7 @@ import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.utils.BigLongArray;
 
 /**
  * Holds metadata about compressed file
@@ -35,7 +36,7 @@ public class CompressionMetadata
 {
     public final long dataLength;
     public final long compressedFileLength;
-    public final long[] chunkOffsets;
+    private final BigLongArray chunkOffsets;
     public final String indexFilePath;
     public final CompressionParameters parameters;
 
@@ -136,16 +137,16 @@ public class CompressionMetadata
      *
      * @throws java.io.IOException on any I/O error (except EOF).
      */
-    private long[] readChunkOffsets(DataInput input) throws IOException
+    private BigLongArray readChunkOffsets(DataInput input) throws IOException
     {
         int chunkCount = input.readInt();
-        long[] offsets = new long[chunkCount];
+        BigLongArray offsets = new BigLongArray(chunkCount);
 
-        for (int i = 0; i < offsets.length; i++)
+        for (int i = 0; i < chunkCount; i++)
         {
             try
             {
-                offsets[i] = input.readLong();
+                offsets.set(i, input.readLong());
             }
             catch (EOFException e)
             {
@@ -171,13 +172,13 @@ public class CompressionMetadata
         // position of the chunk
         int idx = (int) (position / parameters.chunkLength());
 
-        if (idx >= chunkOffsets.length)
+        if (idx >= chunkOffsets.size)
             throw new EOFException();
 
-        long chunkOffset = chunkOffsets[idx];
-        long nextChunkOffset = (idx + 1 == chunkOffsets.length)
+        long chunkOffset = chunkOffsets.get(idx);
+        long nextChunkOffset = (idx + 1 == chunkOffsets.size)
                                 ? compressedFileLength
-                                : chunkOffsets[idx + 1];
+                                : chunkOffsets.get(idx + 1);
 
         return new Chunk(chunkOffset, (int) (nextChunkOffset - chunkOffset - 4)); // "4" bytes reserved for checksum
     }

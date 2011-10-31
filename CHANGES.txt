@@ -4,7 +4,7 @@
  * Add timing information to cassandra-cli GET/SET/LIST queries (CASSANDRA-3326)
  * Cache for CompressionMetadata objects (CASSANDRA-3427)
  * synchronize BiMap of bootstrapping tokens (CASSANDRA-3417)
-
+ * Avoid large array allocation for compressed chunk offsets (CASSANDRA-3432)
 
 1.0.1
  * acquire references during index build to prevent delete problems
