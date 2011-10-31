@@ -47,14 +47,17 @@ public class EndpointDetails implements org.apache.thrift.TBase<EndpointDetails,
 
   private static final org.apache.thrift.protocol.TField HOST_FIELD_DESC = new org.apache.thrift.protocol.TField("host", org.apache.thrift.protocol.TType.STRING, (short)1);
   private static final org.apache.thrift.protocol.TField DATACENTER_FIELD_DESC = new org.apache.thrift.protocol.TField("datacenter", org.apache.thrift.protocol.TType.STRING, (short)2);
+  private static final org.apache.thrift.protocol.TField RACK_FIELD_DESC = new org.apache.thrift.protocol.TField("rack", org.apache.thrift.protocol.TType.STRING, (short)3);
 
   public String host;
   public String datacenter;
+  public String rack;
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
   public enum _Fields implements org.apache.thrift.TFieldIdEnum {
     HOST((short)1, "host"),
-    DATACENTER((short)2, "datacenter");
+    DATACENTER((short)2, "datacenter"),
+    RACK((short)3, "rack");
 
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -73,6 +76,8 @@ public class EndpointDetails implements org.apache.thrift.TBase<EndpointDetails,
           return HOST;
         case 2: // DATACENTER
           return DATACENTER;
+        case 3: // RACK
+          return RACK;
         default:
           return null;
       }
@@ -121,6 +126,8 @@ public class EndpointDetails implements org.apache.thrift.TBase<EndpointDetails,
         new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
     tmpMap.put(_Fields.DATACENTER, new org.apache.thrift.meta_data.FieldMetaData("datacenter", org.apache.thrift.TFieldRequirementType.DEFAULT, 
         new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
+    tmpMap.put(_Fields.RACK, new org.apache.thrift.meta_data.FieldMetaData("rack", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
     metaDataMap = Collections.unmodifiableMap(tmpMap);
     org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(EndpointDetails.class, metaDataMap);
   }
@@ -147,6 +154,9 @@ public class EndpointDetails implements org.apache.thrift.TBase<EndpointDetails,
     if (other.isSetDatacenter()) {
       this.datacenter = other.datacenter;
     }
+    if (other.isSetRack()) {
+      this.rack = other.rack;
+    }
   }
 
   public EndpointDetails deepCopy() {
@@ -157,6 +167,7 @@ public class EndpointDetails implements org.apache.thrift.TBase<EndpointDetails,
   public void clear() {
     this.host = null;
     this.datacenter = null;
+    this.rack = null;
   }
 
   public String getHost() {
@@ -207,6 +218,30 @@ public class EndpointDetails implements org.apache.thrift.TBase<EndpointDetails,
     }
   }
 
+  public String getRack() {
+    return this.rack;
+  }
+
+  public EndpointDetails setRack(String rack) {
+    this.rack = rack;
+    return this;
+  }
+
+  public void unsetRack() {
+    this.rack = null;
+  }
+
+  /** Returns true if field rack is set (has been assigned a value) and false otherwise */
+  public boolean isSetRack() {
+    return this.rack != null;
+  }
+
+  public void setRackIsSet(boolean value) {
+    if (!value) {
+      this.rack = null;
+    }
+  }
+
   public void setFieldValue(_Fields field, Object value) {
     switch (field) {
     case HOST:
@@ -225,6 +260,14 @@ public class EndpointDetails implements org.apache.thrift.TBase<EndpointDetails,
       }
       break;
 
+    case RACK:
+      if (value == null) {
+        unsetRack();
+      } else {
+        setRack((String)value);
+      }
+      break;
+
     }
   }
 
@@ -235,6 +278,9 @@ public class EndpointDetails implements org.apache.thrift.TBase<EndpointDetails,
 
     case DATACENTER:
       return getDatacenter();
+
+    case RACK:
+      return getRack();
 
     }
     throw new IllegalStateException();
@@ -251,6 +297,8 @@ public class EndpointDetails implements org.apache.thrift.TBase<EndpointDetails,
       return isSetHost();
     case DATACENTER:
       return isSetDatacenter();
+    case RACK:
+      return isSetRack();
     }
     throw new IllegalStateException();
   }
@@ -286,6 +334,15 @@ public class EndpointDetails implements org.apache.thrift.TBase<EndpointDetails,
         return false;
     }
 
+    boolean this_present_rack = true && this.isSetRack();
+    boolean that_present_rack = true && that.isSetRack();
+    if (this_present_rack || that_present_rack) {
+      if (!(this_present_rack && that_present_rack))
+        return false;
+      if (!this.rack.equals(that.rack))
+        return false;
+    }
+
     return true;
   }
 
@@ -302,6 +359,11 @@ public class EndpointDetails implements org.apache.thrift.TBase<EndpointDetails,
     builder.append(present_datacenter);
     if (present_datacenter)
       builder.append(datacenter);
+
+    boolean present_rack = true && (isSetRack());
+    builder.append(present_rack);
+    if (present_rack)
+      builder.append(rack);
 
     return builder.toHashCode();
   }
@@ -330,6 +392,16 @@ public class EndpointDetails implements org.apache.thrift.TBase<EndpointDetails,
     }
     if (isSetDatacenter()) {
       lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.datacenter, typedOther.datacenter);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
+    lastComparison = Boolean.valueOf(isSetRack()).compareTo(typedOther.isSetRack());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    if (isSetRack()) {
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.rack, typedOther.rack);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -365,6 +437,13 @@ public class EndpointDetails implements org.apache.thrift.TBase<EndpointDetails,
             org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
+        case 3: // RACK
+          if (field.type == org.apache.thrift.protocol.TType.STRING) {
+            this.rack = iprot.readString();
+          } else { 
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
         default:
           org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
       }
@@ -390,6 +469,13 @@ public class EndpointDetails implements org.apache.thrift.TBase<EndpointDetails,
       oprot.writeString(this.datacenter);
       oprot.writeFieldEnd();
     }
+    if (this.rack != null) {
+      if (isSetRack()) {
+        oprot.writeFieldBegin(RACK_FIELD_DESC);
+        oprot.writeString(this.rack);
+        oprot.writeFieldEnd();
+      }
+    }
     oprot.writeFieldStop();
     oprot.writeStructEnd();
   }
@@ -414,6 +500,16 @@ public class EndpointDetails implements org.apache.thrift.TBase<EndpointDetails,
       sb.append(this.datacenter);
     }
     first = false;
+    if (isSetRack()) {
+      if (!first) sb.append(", ");
+      sb.append("rack:");
+      if (this.rack == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.rack);
+      }
+      first = false;
+    }
     sb.append(")");
     return sb.toString();
   }

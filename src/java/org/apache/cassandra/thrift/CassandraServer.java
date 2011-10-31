@@ -806,14 +806,9 @@ public class CassandraServer implements Cassandra.Iface
                 EndpointState eps = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
                 EndpointDetails details = new EndpointDetails();
 
-                if (endpoint.equals(FBUtilities.getBroadcastAddress()))
-                    details.host = DatabaseDescriptor.getRpcAddress().getHostAddress();
-                else if (eps.getApplicationState(ApplicationState.RPC_ADDRESS) == null)
-                    details.host = endpoint.getHostAddress();
-                else
-                    details.host = eps.getApplicationState(ApplicationState.RPC_ADDRESS).value;
-
+                details.host = endpoint.getHostAddress();
                 details.datacenter = DatabaseDescriptor.getEndpointSnitch().getDatacenter(endpoint);
+                details.rack = DatabaseDescriptor.getEndpointSnitch().getRack(endpoint);
 
                 endpoints.add(details.host);
                 rpc_endpoints.add(StorageService.instance.getRpcaddress(endpoint));
