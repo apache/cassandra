@@ -82,7 +82,6 @@ Merged from 0.8:
  * Fix race in AntiEntropyService (CASSANDRA-3400)
  * allow encryption only between datacenters (CASSANDRA-2802)
 
-
 1.0.0-final
  * close scrubbed sstable fd before deleting it (CASSANDRA-3318)
  * fix bug preventing obsolete commitlog segments from being removed
