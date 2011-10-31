@@ -296,11 +296,6 @@ public class DataTracker
 
     private void replace(Collection<SSTableReader> oldSSTables, Iterable<SSTableReader> replacements)
     {
-        // removing sstables that are not marked compacting is a bug, since that means we could
-        // race with a compaction check
-        for (SSTableReader sstable : oldSSTables)
-            assert view.get().compacting.contains(sstable);
-
         if (!cfstore.isValid())
         {
             removeOldSSTablesSize(replacements);
