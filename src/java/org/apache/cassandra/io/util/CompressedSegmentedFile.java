@@ -52,7 +52,7 @@ public class CompressedSegmentedFile extends SegmentedFile
          */
         public SegmentedFile complete(String path)
         {
-            return new CompressedSegmentedFile(path, CompressedRandomAccessReader.metadata(path));
+            return new CompressedSegmentedFile(path, CompressionMetadata.get(path));
         }
     }
 

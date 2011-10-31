@@ -6,6 +6,9 @@
 
 1.0.2
  * "defragment" rows for name-based queries under STCS (CASSANDRA-2503)
+ * Add timing information to cassandra-cli GET/SET/LIST queries (CASSANDRA-3326)
+ * Cache for CompressionMetadata objects (CASSANDRA-3427)
+ * synchronize BiMap of bootstrapping tokens (CASSANDRA-3417)
 
 1.0.1
  * acquire references during index build to prevent delete problems
@@ -82,7 +85,6 @@ Merged from 0.8:
  * remove incorrect optimization from slice read path (CASSANDRA-3390)
  * Fix race in AntiEntropyService (CASSANDRA-3400)
  * allow encryption only between datacenters (CASSANDRA-2802)
-
 
 1.0.0-final
  * close scrubbed sstable fd before deleting it (CASSANDRA-3318)

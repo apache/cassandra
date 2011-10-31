@@ -23,8 +23,6 @@ import java.nio.channels.FileChannel;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
-import org.apache.cassandra.io.sstable.Component;
-import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -36,31 +34,9 @@ public class CompressedRandomAccessReader extends RandomAccessReader
 {
     private static final Logger logger = LoggerFactory.getLogger(CompressedRandomAccessReader.class);
 
-    /**
-     * Get metadata about given compressed file including uncompressed data length, chunk size
-     * and list of the chunk offsets of the compressed data.
-     *
-     * @param dataFilePath Path to the compressed file
-     *
-     * @return metadata about given compressed file.
-     */
-    public static CompressionMetadata metadata(String dataFilePath)
-    {
-        Descriptor desc = Descriptor.fromFilename(dataFilePath);
-
-        try
-        {
-            return new CompressionMetadata(desc.filenameFor(Component.COMPRESSION_INFO), new File(dataFilePath).length());
-        }
-        catch (IOException e)
-        {
-            throw new IOError(e);
-        }
-    }
-
     public static RandomAccessReader open(String dataFilePath, boolean skipIOCache) throws IOException
     {
-        return open(dataFilePath, metadata(dataFilePath), skipIOCache);
+        return open(dataFilePath, CompressionMetadata.get(dataFilePath), skipIOCache);
     }
 
     public static RandomAccessReader open(String dataFilePath, CompressionMetadata metadata) throws IOException

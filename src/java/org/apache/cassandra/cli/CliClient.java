@@ -196,7 +196,6 @@ public class CliClient
     public void executeCLIStatement(String statement) throws CharacterCodingException, TException, TimedOutException, NotFoundException, NoSuchFieldException, InvalidRequestException, UnavailableException, InstantiationException, IllegalAccessException, ClassNotFoundException, SchemaDisagreementException
     {
         Tree tree = CliCompiler.compileQuery(statement);
-
         try
         {
             switch (tree.getType())
@@ -298,7 +297,7 @@ public class CliClient
         }
         catch (SchemaDisagreementException e)
         {
-        	throw new RuntimeException("schema does not match across nodes, (try again later).", e);
+            throw new RuntimeException("schema does not match across nodes, (try again later).", e);
         }
     }
 
@@ -452,6 +451,7 @@ public class CliClient
             throws InvalidRequestException, UnavailableException, TimedOutException, TException, IllegalAccessException, NotFoundException, InstantiationException, NoSuchFieldException
     {
         
+        long startTime = System.currentTimeMillis();
         ColumnParent parent = new ColumnParent(columnFamily);
         if(superColumnName != null)
             parent.setSuper_column(superColumnName);
@@ -521,6 +521,7 @@ public class CliClient
         }
         
         sessionState.out.println("Returned " + columns.size() + " results.");
+        elapsedTime(startTime);
     }
 
     private AbstractType getFormatType(String compareWith)
@@ -554,7 +555,7 @@ public class CliClient
     {
         if (!CliMain.isConnected() || !hasKeySpace())
             return;
-
+        long startTime = System.currentTimeMillis();
         Tree columnFamilySpec = statement.getChild(0);
         String columnFamily = CliCompiler.getColumnFamily(columnFamilySpec, keyspacesMap.get(keySpace).cf_defs);
         ByteBuffer key = getKeyAsBytes(columnFamily, columnFamilySpec.getChild(1));
@@ -635,6 +636,7 @@ public class CliClient
         if (isCounterCF(cfDef))
         {
             doGetCounter(key, path);
+            elapsedTime(startTime);
             return;
         }
 
@@ -646,6 +648,7 @@ public class CliClient
         catch (NotFoundException e)
         {
             sessionState.out.println("Value was not found");
+            elapsedTime(startTime);
             return;
         }
 
@@ -682,6 +685,7 @@ public class CliClient
                                 valueAsString,
                                 column.timestamp,
                                 column.isSetTtl() ? String.format(", ttl=%d", column.getTtl()) : "");
+        elapsedTime(startTime);
     }
 
     private void doGetCounter(ByteBuffer key, ColumnPath path)
@@ -719,6 +723,8 @@ public class CliClient
     {
         if (!CliMain.isConnected() || !hasKeySpace())
             return;
+
+        long startTime = System.currentTimeMillis();
 
         IndexClause clause = new IndexClause();
         String columnFamily = CliCompiler.getColumnFamily(statement, keyspacesMap.get(keySpace).cf_defs);
@@ -802,6 +808,7 @@ public class CliClient
         {
             throw new RuntimeException(e);
         }
+        elapsedTime(startTime);
     }
 
     // Execute SET statement
@@ -811,6 +818,7 @@ public class CliClient
         if (!CliMain.isConnected() || !hasKeySpace())
             return;
         
+        long startTime = System.currentTimeMillis();
         // ^(NODE_COLUMN_ACCESS <cf> <key> <column>)
         Tree columnFamilySpec = statement.getChild(0);
         Tree keyTree = columnFamilySpec.getChild(1); // could be a function or regular text
@@ -890,6 +898,7 @@ public class CliClient
         // do the insert
         thriftClient.insert(getKeyAsBytes(columnFamily, keyTree), parent, columnToInsert, consistencyLevel);
         sessionState.out.println("Value inserted.");
+        elapsedTime(startTime);
     }
 
     // Execute INCR statement
@@ -1313,7 +1322,9 @@ public class CliClient
     {
         if (!CliMain.isConnected() || !hasKeySpace())
             return;
-        
+
+        long startTime = System.currentTimeMillis();
+
         // extract column family
         String columnFamily = CliCompiler.getColumnFamily(statement, keyspacesMap.get(keySpace).cf_defs);
 
@@ -1375,6 +1386,7 @@ public class CliClient
         ColumnParent columnParent = new ColumnParent(columnFamily);
         List<KeySlice> keySlices = thriftClient.get_range_slices(columnParent, predicate, range, consistencyLevel);
         printSliceList(columnFamilyDef, keySlices);
+        elapsedTime(startTime);
     }
 
     // DROP INDEX ON <CF>.<COLUMN>
@@ -2852,5 +2864,10 @@ public class CliClient
             return (getFormatType(defaultValidator) instanceof CounterColumnType);
         }
         return false;
+    }
+
+    private void elapsedTime(long startTime)
+    {
+        sessionState.out.println("Elapsed time: " + (System.currentTimeMillis() - startTime) + " msec(s).");
     }
 }
