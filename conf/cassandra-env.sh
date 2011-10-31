@@ -165,6 +165,7 @@ JVM_OPTS="$JVM_OPTS -XX:+UseCMSInitiatingOccupancyOnly"
 # GC logging options -- uncomment to enable
 # JVM_OPTS="$JVM_OPTS -XX:+PrintGCDetails"
 # JVM_OPTS="$JVM_OPTS -XX:+PrintGCTimeStamps"
+# JVM_OPTS="$JVM_OPTS -XX:+PrintHeapAtGC"
 # JVM_OPTS="$JVM_OPTS -XX:+PrintTenuringDistribution"
 # JVM_OPTS="$JVM_OPTS -XX:+PrintGCApplicationStoppedTime"
 # JVM_OPTS="$JVM_OPTS -XX:+PrintPromotionFailure"

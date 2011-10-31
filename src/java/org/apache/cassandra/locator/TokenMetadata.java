@@ -67,7 +67,7 @@ public class TokenMetadata
     // Finally, note that recording the tokens of joining nodes in bootstrapTokens also
     // means we can detect and reject the addition of multiple nodes at the same token
     // before one becomes part of the ring.
-    private BiMap<Token, InetAddress> bootstrapTokens = HashBiMap.create();
+    private BiMap<Token, InetAddress> bootstrapTokens = Maps.synchronizedBiMap(HashBiMap.<Token, InetAddress>create());
     // (don't need to record Token here since it's still part of tokenToEndpointMap until it's done leaving)
     private Set<InetAddress> leavingEndpoints = new HashSet<InetAddress>();
     // this is a cache of the calculation from {tokenToEndpointMap, bootstrapTokens, leavingEndpoints}
