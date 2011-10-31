@@ -623,6 +623,7 @@ public class DataTracker
         {
             ImmutableSet<SSTableReader> oldSet = ImmutableSet.copyOf(oldSSTables);
             int newSSTablesSize = sstables.size() - oldSSTables.size() + Iterables.size(replacements);
+            assert newSSTablesSize >= Iterables.size(replacements) : String.format("Incoherent new size %d replacing %s by %s in %s", newSSTablesSize, oldSSTables, replacements, this);
             List<SSTableReader> newSSTables = new ArrayList<SSTableReader>(newSSTablesSize);
             for (SSTableReader sstable : sstables)
             {
@@ -630,8 +631,14 @@ public class DataTracker
                     newSSTables.add(sstable);
             }
             Iterables.addAll(newSSTables, replacements);
-            assert newSSTables.size() == newSSTablesSize;
+            assert newSSTables.size() == newSSTablesSize : String.format("Expecting new size of %d, got %d while replacing %s by %s in %s", newSSTablesSize, newSSTables.size(), oldSSTables, replacements, this);
             return newSSTables;
+        }
+
+        @Override
+        public String toString()
+        {
+            return String.format("View(pending_count=%d, sstables=%s, compacting=%s)", memtablesPendingFlush.size(), sstables, compacting);
         }
     }
 }

@@ -19,6 +19,7 @@
  */
 package org.apache.cassandra.db;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
@@ -28,6 +29,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.columniterator.IColumnIterator;
 import org.apache.cassandra.db.columniterator.SimpleAbstractColumnIterator;
+import org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.marshal.CounterColumnType;
@@ -35,7 +37,6 @@ import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.CloseableIterator;
-import org.apache.cassandra.utils.IntervalTree.Interval;
 
 public class CollationController
 {
@@ -148,6 +149,21 @@ public class CollationController
             };
             ColumnFamily returnCF = container.cloneMeShallow();
             filter.collateColumns(returnCF, Collections.singletonList(toCollate), cfs.metadata.comparator, gcBefore);
+
+            // "hoist up" the requested data into a more recent sstable
+            if (sstablesIterated >= cfs.getMinimumCompactionThreshold() && cfs.getCompactionStrategy() instanceof SizeTieredCompactionStrategy)
+            {
+                RowMutation rm = new RowMutation(cfs.table.name, new Row(filter.key, returnCF));
+                try
+                {
+                    rm.applyUnsafe(); // skipping commitlog is fine since we're just de-fragmenting existing data
+                }
+                catch (IOException e)
+                {
+                    // log and allow the result to be returned
+                    logger.error("Error re-writing read results", e);
+                }
+            }
 
             // Caller is responsible for final removeDeletedCF.  This is important for cacheRow to work correctly:
             return returnCF;

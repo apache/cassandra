@@ -31,6 +31,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.io.IColumnSerializer;
+import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class ColumnSerializer implements IColumnSerializer
@@ -86,7 +87,16 @@ public class ColumnSerializer implements IColumnSerializer
     {
         ByteBuffer name = ByteBufferUtil.readWithShortLength(dis);
         if (name.remaining() <= 0)
-            throw new CorruptColumnException("invalid column name length " + name.remaining());
+        {
+            String format = "invalid column name length %d%s";
+            String details = "";
+            if (dis instanceof FileDataInput)
+            {
+                FileDataInput fdis = (FileDataInput)dis;
+                details = String.format(" (%s, %d bytes remaining)", fdis.getPath(), fdis.bytesRemaining());
+            }
+            throw new CorruptColumnException(String.format(format, name.remaining(), details));
+        }
 
         int b = dis.readUnsignedByte();
         if ((b & COUNTER_MASK) != 0)
