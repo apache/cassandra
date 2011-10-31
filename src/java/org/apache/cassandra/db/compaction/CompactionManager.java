@@ -1169,15 +1169,23 @@ public class CompactionManager implements CompactionManagerMBean
         {
             public void runMayThrow() throws InterruptedException, IOException
             {
-                for (ColumnFamilyStore cfs : main.concatWithIndexes())
+                compactionLock.writeLock().lock();
+                try
                 {
-                    List<SSTableReader> truncatedSSTables = new ArrayList<SSTableReader>();
-                    for (SSTableReader sstable : cfs.getSSTables())
+                    for (ColumnFamilyStore cfs : main.concatWithIndexes())
                     {
-                        if (!sstable.newSince(truncatedAt))
-                            truncatedSSTables.add(sstable);
+                        List<SSTableReader> truncatedSSTables = new ArrayList<SSTableReader>();
+                        for (SSTableReader sstable : cfs.getSSTables())
+                        {
+                            if (!sstable.newSince(truncatedAt))
+                                truncatedSSTables.add(sstable);
+                        }
+                        cfs.markCompacted(truncatedSSTables);
                     }
-                    cfs.markCompacted(truncatedSSTables);
+                }
+                finally
+                {
+                    compactionLock.writeLock().unlock();
                 }
 
                 main.invalidateRowCache();

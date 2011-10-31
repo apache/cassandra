@@ -1,3 +1,7 @@
+0.8.9
+ * acquire compactionlock during truncate (CASSANDRA-3399)
+
+
 0.8.8
  * fix truncate allowing data to be replayed post-restart (CASSANDRA-3297)
  * make iwriter final in IndexWriter to avoid NPE (CASSANDRA-2863)
