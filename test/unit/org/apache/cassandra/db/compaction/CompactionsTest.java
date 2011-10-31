@@ -39,7 +39,6 @@ import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 
 public class CompactionsTest extends CleanupHelper
 {
@@ -231,7 +230,7 @@ public class CompactionsTest extends CleanupHelper
         ColumnFamilyStore store = table.getColumnFamilyStore(cfname);
 
         // disable compaction while flushing
-        store.removeAllSSTables();
+        store.unreferenceSSTables();
         store.disableAutoCompaction();
 
         // Add test row

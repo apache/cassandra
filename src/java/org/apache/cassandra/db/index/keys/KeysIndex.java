@@ -45,7 +45,7 @@ import org.slf4j.LoggerFactory;
 public class KeysIndex extends PerColumnSecondaryIndex
 {
     private static final Logger logger = LoggerFactory.getLogger(KeysIndex.class);
-    private ColumnFamilyStore indexCfs;
+    private ColumnFamilyStore indexedCfs;
 
     public KeysIndex() 
     {
@@ -57,7 +57,7 @@ public class KeysIndex extends PerColumnSecondaryIndex
 
         ColumnDefinition columnDef = columnDefs.iterator().next();
         CFMetaData indexedCfMetadata = CFMetaData.newIndexMetadata(baseCfs.metadata, columnDef,indexComparator());
-        indexCfs = ColumnFamilyStore.createColumnFamilyStore(baseCfs.table,
+        indexedCfs = ColumnFamilyStore.createColumnFamilyStore(baseCfs.table,
                                                                indexedCfMetadata.cfName,
                                                                new LocalPartitioner(columnDef.getValidator()),
                                                                indexedCfMetadata);
@@ -78,9 +78,9 @@ public class KeysIndex extends PerColumnSecondaryIndex
             return;
         
         int localDeletionTime = (int) (System.currentTimeMillis() / 1000);
-        ColumnFamily cfi = ColumnFamily.create(indexCfs.metadata);
+        ColumnFamily cfi = ColumnFamily.create(indexedCfs.metadata);
         cfi.addTombstone(rowKey, localDeletionTime, column.timestamp());
-        indexCfs.apply(valueKey, cfi);
+        indexedCfs.apply(valueKey, cfi);
         if (logger.isDebugEnabled())
             logger.debug("removed index entry for cleaned-up value {}:{}", valueKey, cfi);
     }
@@ -88,7 +88,7 @@ public class KeysIndex extends PerColumnSecondaryIndex
     @Override
     public void insertColumn(DecoratedKey<?> valueKey, ByteBuffer rowKey, IColumn column)
     {
-        ColumnFamily cfi = ColumnFamily.create(indexCfs.metadata);
+        ColumnFamily cfi = ColumnFamily.create(indexedCfs.metadata);
         if (column instanceof ExpiringColumn)
         {
             ExpiringColumn ec = (ExpiringColumn)column;
@@ -101,7 +101,7 @@ public class KeysIndex extends PerColumnSecondaryIndex
         if (logger.isDebugEnabled())
             logger.debug("applying index row {}:{}", valueKey, cfi);
         
-        indexCfs.apply(valueKey, cfi);
+        indexedCfs.apply(valueKey, cfi);
     }
     
     @Override
@@ -113,8 +113,8 @@ public class KeysIndex extends PerColumnSecondaryIndex
     @Override
     public void removeIndex(ByteBuffer columnName) throws IOException
     {        
-        indexCfs.removeAllSSTables();
-        indexCfs.unregisterMBean();
+        indexedCfs.unreferenceSSTables();
+        indexedCfs.invalidate();
     }
 
     @Override
@@ -122,7 +122,7 @@ public class KeysIndex extends PerColumnSecondaryIndex
     {       
         try
         {
-            indexCfs.forceBlockingFlush();
+            indexedCfs.forceBlockingFlush();
         } 
         catch (ExecutionException e)
         {
@@ -135,15 +135,15 @@ public class KeysIndex extends PerColumnSecondaryIndex
     }
 
     @Override
-    public void unregisterMbean()
+    public void invalidate()
     {
-        indexCfs.unregisterMBean();
+        indexedCfs.invalidate();
     }
 
     @Override
     public ColumnFamilyStore getUnderlyingCfs()
     {
-       return indexCfs;
+       return indexedCfs;
     }
 
     @Override
@@ -155,13 +155,13 @@ public class KeysIndex extends PerColumnSecondaryIndex
     @Override
     public String getIndexName()
     {
-        return indexCfs.columnFamily;
+        return indexedCfs.columnFamily;
     }
 
     @Override
     public void renameIndex(String newCfName) throws IOException
     {
-        indexCfs.renameSSTables(indexCfs.columnFamily.replace(baseCfs.columnFamily, newCfName));
+        indexedCfs.renameSSTables(indexedCfs.columnFamily.replace(baseCfs.columnFamily, newCfName));
     }
 
     @Override

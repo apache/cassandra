@@ -244,7 +244,7 @@ public class SecondaryIndexManager
     public void unregisterMBeans()
     {
         for (Map.Entry<ByteBuffer, SecondaryIndex> entry : indexesByColumn.entrySet())
-            entry.getValue().unregisterMbean();
+            entry.getValue().invalidate();
     }
     
     /**

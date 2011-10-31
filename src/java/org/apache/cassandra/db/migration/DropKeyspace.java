@@ -48,41 +48,25 @@ public class DropKeyspace extends Migration
     public void applyModels() throws IOException
     {
         String snapshotName = Table.getTimestampedSnapshotName(name);
-        CompactionManager.instance.getCompactionLock().lock();
-        try
-        {
-            KSMetaData ksm = schema.getTableDefinition(name);
+        KSMetaData ksm = schema.getTableDefinition(name);
 
-            // remove all cfs from the table instance.
-            for (CFMetaData cfm : ksm.cfMetaData().values())
-            {
-                ColumnFamilyStore cfs = Table.open(ksm.name, schema).getColumnFamilyStore(cfm.cfName);
-                schema.purge(cfm);
-                if (!StorageService.instance.isClientMode())
-                {
-                    cfs.snapshot(snapshotName);
-                    cfs.flushLock.lock();
-                    try
-                    {
-                        Table.open(ksm.name, schema).dropCf(cfm.cfId);
-                    }
-                    finally
-                    {
-                        cfs.flushLock.unlock();
-                    }
-                }
-            }
-                            
-            // remove the table from the static instances.
-            Table table = Table.clear(ksm.name, schema);
-            assert table != null;
-            // reset defs.
-            schema.clearTableDefinition(ksm, newVersion);
-        }
-        finally
+        // remove all cfs from the table instance.
+        for (CFMetaData cfm : ksm.cfMetaData().values())
         {
-            CompactionManager.instance.getCompactionLock().unlock();
+            ColumnFamilyStore cfs = Table.open(ksm.name, schema).getColumnFamilyStore(cfm.cfName);
+            schema.purge(cfm);
+            if (!StorageService.instance.isClientMode())
+            {
+                cfs.snapshot(snapshotName);
+                Table.open(ksm.name, schema).dropCf(cfm.cfId);
+            }
         }
+
+        // remove the table from the static instances.
+        Table table = Table.clear(ksm.name, schema);
+        assert table != null;
+        // reset defs.
+        schema.clearTableDefinition(ksm, newVersion);
     }
     
     public void subdeflate(org.apache.cassandra.db.migration.avro.Migration mi)

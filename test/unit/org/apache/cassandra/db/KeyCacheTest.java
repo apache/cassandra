@@ -91,7 +91,7 @@ public class KeyCacheTest extends CleanupHelper
         assert store.getKeyCacheSize() == 0;
 
         // load the cache from disk
-        store.unregisterMBean(); // unregistering old MBean to test how key cache will be loaded
+        store.invalidate(); // unregistering old MBean to test how key cache will be loaded
         ColumnFamilyStore newStore = ColumnFamilyStore.createColumnFamilyStore(Table.open(TABLE1), COLUMN_FAMILY3);
         assert newStore.getKeyCacheSize() == 100;
 

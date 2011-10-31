@@ -29,7 +29,6 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
@@ -41,7 +40,6 @@ import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
-import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.io.sstable.SSTableDeletingTask;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
@@ -343,7 +341,7 @@ public class Table
             return;
         
         unloadCf(cfs);
-        cfs.removeAllSSTables();
+        cfs.unreferenceSSTables();
     }
     
     // disassociate a cfs from this table instance.
@@ -361,7 +359,7 @@ public class Table
         {
             throw new IOException(e);
         }
-        cfs.unregisterMBean();
+        cfs.invalidate();
     }
     
     /** adds a cf to internal structures, ends up creating disk files). */

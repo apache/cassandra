@@ -25,8 +25,6 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.regex.Pattern;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
@@ -99,7 +97,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public final CFMetaData metadata;
     public final IPartitioner partitioner;
     private final String mbeanName;
-    private boolean invalid = false;
+    private volatile boolean valid = true;
 
     /* Memtables and SSTables on disk for this column family */
     private final DataTracker data;
@@ -128,9 +126,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private volatile DefaultInteger rowCacheSaveInSeconds;
     private volatile DefaultInteger keyCacheSaveInSeconds;
     private volatile DefaultInteger rowCacheKeysToSave;
-
-    /** Lock to allow migrations to block all flushing, so we can be sure not to write orphaned data files */
-    public final Lock flushLock = new ReentrantLock();
 
     public static enum CacheType
     {
@@ -192,6 +187,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         if (metadata.compactionStrategyClass.equals(compactionStrategy.getClass()) && metadata.compactionStrategyOptions.equals(compactionStrategy.getOptions()))
             return;
 
+        // TODO is there a way to avoid locking here?
         CompactionManager.instance.getCompactionLock().lock();
         try
         {
@@ -258,12 +254,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
     }
 
-    // called when dropping or renaming a CF. Performs mbean housekeeping and invalidates CFS to other operations.
-    public void unregisterMBean()
+    /** call when dropping or renaming a CF. Performs mbean housekeeping and invalidates CFS to other operations */
+    public void invalidate()
     {
         try
         {
-            invalid = true;   
+            valid = false;
             MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
             ObjectName nameObj = new ObjectName(mbeanName);
             if (mbs.isRegistered(nameObj))
@@ -719,13 +715,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
     }
 
-    public boolean isDropped()
-    {
-        return isIndex()
-               ? Schema.instance.getCFMetaData(table.name, getParentColumnfamily()) == null
-               : Schema.instance.getCFMetaData(metadata.cfId) == null;
-    }
-
     public Future<?> forceFlush()
     {
         // during index build, 2ary index memtables can be dirty even if parent is not.  if so,
@@ -983,14 +972,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         CompactionManager.instance.submitBackground(this);
     }
 
-    public boolean isInvalid()
+    public boolean isValid()
     {
-        return invalid;
+        return valid;
     }
 
-    public void removeAllSSTables() throws IOException
+    public void unreferenceSSTables() throws IOException
     {
-        data.removeAllSSTables();
+        data.unreferenceSSTables();
         indexManager.removeAllIndexes();
     }
 

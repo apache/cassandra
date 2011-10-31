@@ -79,18 +79,7 @@ public class DropColumnFamily extends Migration
         if (!StorageService.instance.isClientMode())
         {
             cfs.snapshot(Table.getTimestampedSnapshotName(cfs.columnFamily));
-
-            CompactionManager.instance.getCompactionLock().lock();
-            cfs.flushLock.lock();
-            try
-            {
-                Table.open(ksm.name, schema).dropCf(cfm.cfId);
-            }
-            finally
-            {
-                cfs.flushLock.unlock();
-                CompactionManager.instance.getCompactionLock().unlock();
-            }
+            Table.open(ksm.name, schema).dropCf(cfm.cfId);
         }
     }
     

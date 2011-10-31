@@ -281,19 +281,8 @@ public class Memtable
         {
             public void runMayThrow() throws IOException
             {
-                cfs.flushLock.lock();
-                try
-                {
-                    if (!cfs.isDropped())
-                    {
-                        SSTableReader sstable = writeSortedContents(context);
-                        cfs.replaceFlushed(Memtable.this, sstable);
-                    }
-                }
-                finally
-                {
-                    cfs.flushLock.unlock();
-                }
+                SSTableReader sstable = writeSortedContents(context);
+                cfs.replaceFlushed(Memtable.this, sstable);
                 latch.countDown();
             }
         });

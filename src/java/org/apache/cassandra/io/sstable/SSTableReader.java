@@ -719,23 +719,28 @@ public class SSTableReader extends SSTable
      * Mark the sstable as compacted.
      * When calling this function, the caller must ensure that the SSTableReader is not referenced anywhere
      * except for threads holding a reference.
+     *
+     * @return true if the this is the first time the file was marked compacted.  With rare exceptions
+     * (see DataTracker.unmarkCompacted) calling this multiple times would be buggy.
      */
-    public void markCompacted()
+    public boolean markCompacted()
     {
         if (logger.isDebugEnabled())
             logger.debug("Marking " + getFilename() + " compacted");
+
+        if (isCompacted.getAndSet(true))
+            return false;
+
         try
         {
             if (!new File(descriptor.filenameFor(Component.COMPACTED_MARKER)).createNewFile())
-                throw new IOException("Unable to create compaction marker");
+                throw new IOException("Compaction marker already exists");
         }
         catch (IOException e)
         {
             throw new IOError(e);
         }
-
-        boolean alreadyCompacted = isCompacted.getAndSet(true);
-        assert !alreadyCompacted : this + " was already marked compacted";
+        return true;
     }
 
     /**

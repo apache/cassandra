@@ -134,7 +134,7 @@ public abstract class SecondaryIndex
     /**
      * Unregisters this index's mbean if one exists
      */
-    public abstract void unregisterMbean();
+    public abstract void invalidate();
     
     
     /**
