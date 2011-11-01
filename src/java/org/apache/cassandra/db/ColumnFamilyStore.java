@@ -1544,9 +1544,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * For testing.  no effort is made to clear historical memtables, nor for
      * thread safety
      */
-    void clearUnsafe()
+    public void clearUnsafe()
     {
-        data.init();
+        for (ColumnFamilyStore cfs : concatWithIndexes())
+            cfs.data.init();
     }
 
     /**

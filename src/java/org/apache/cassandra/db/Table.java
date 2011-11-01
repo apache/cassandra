@@ -514,7 +514,9 @@ public class Table
 
     public static void indexRow(DecoratedKey<?> key, ColumnFamilyStore cfs, SortedSet<ByteBuffer> indexedColumns)
     {
-        logger.debug("Indexing row {} ", key);
+        if (logger.isDebugEnabled())
+            logger.debug("Indexing row {} ", cfs.metadata.getKeyValidator().getString(key.key));
+
         switchLock.readLock().lock();
         try
         {

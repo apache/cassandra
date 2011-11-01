@@ -48,10 +48,15 @@ import org.apache.cassandra.utils.NodeId;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class StreamingTransferTest extends CleanupHelper
 {
+    private static final Logger logger = LoggerFactory.getLogger(StreamingTransferTest.class);
+
     public static final InetAddress LOCAL = FBUtilities.getBroadcastAddress();
 
     @BeforeClass
@@ -67,6 +72,7 @@ public class StreamingTransferTest extends CleanupHelper
     private List<String> createAndTransfer(Table table, ColumnFamilyStore cfs, Mutator mutator) throws Exception
     {
         // write a temporary SSTable, and unregister it
+        logger.debug("Mutating " + cfs.columnFamily);
         long timestamp = 1234;
         for (int i = 1; i <= 3; i++)
             mutator.mutate("key" + i, "col" + i, timestamp);
@@ -79,6 +85,7 @@ public class StreamingTransferTest extends CleanupHelper
         cfs.removeAllSSTables();
 
         // transfer the first and last key
+        logger.debug("Transferring " + cfs.columnFamily);
         int[] offs = new int[]{1, 3};
         IPartitioner p = StorageService.getPartitioner();
         List<Range> ranges = new ArrayList<Range>();
@@ -110,6 +117,8 @@ public class StreamingTransferTest extends CleanupHelper
         List<String> keys = new ArrayList<String>();
         for (int off : offs)
             keys.add("key" + off);
+
+        logger.debug("... everything looks good for " + cfs.columnFamily);
         return keys;
     }
 
@@ -129,6 +138,7 @@ public class StreamingTransferTest extends CleanupHelper
                 cf.addColumn(column(col, "v", timestamp));
                 cf.addColumn(new Column(ByteBufferUtil.bytes("birthdate"), ByteBufferUtil.bytes(val), timestamp));
                 rm.add(cf);
+                logger.debug("Applying row to transfer " + rm);
                 rm.apply();
             }
         });
