@@ -573,7 +573,7 @@ public class QueryProcessor
                 // otherwise create resultset from query results
                 result.schema = new CqlMetadata(new HashMap<ByteBuffer, String>(),
                                                 new HashMap<ByteBuffer, String>(),
-                                                metadata.comparator.toString(),
+                                                TypeParser.getShortName(metadata.comparator),
                                                 TypeParser.getShortName(metadata.getDefaultValidator()));
                 List<CqlRow> cqlRows = new ArrayList<CqlRow>();
                 for (org.apache.cassandra.db.Row row : rows)
