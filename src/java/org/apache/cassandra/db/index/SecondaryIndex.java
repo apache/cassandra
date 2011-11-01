@@ -115,7 +115,7 @@ public abstract class SecondaryIndex
      * Allow access to the underlying column family store if there is one
      * @return the underlying column family store or null
      */
-    public abstract ColumnFamilyStore getUnderlyingCfs();
+    public abstract ColumnFamilyStore getIndexCfs();
    
     
     /**
@@ -245,12 +245,12 @@ public abstract class SecondaryIndex
         return f;
     }
     
-    public ColumnFamilyStore getBaseCFStore()
+    public ColumnFamilyStore getBaseCfs()
     {
         return baseCfs;
     }
 
-    private void setBaseCfStore(ColumnFamilyStore baseCfs)
+    private void setBaseCfs(ColumnFamilyStore baseCfs)
     {
         this.baseCfs = baseCfs;
     }
@@ -313,7 +313,7 @@ public abstract class SecondaryIndex
         
         index.addColumnDef(cdef);
         index.validateOptions();
-        index.setBaseCfStore(baseCfs);
+        index.setBaseCfs(baseCfs);
         
         return index;
     }

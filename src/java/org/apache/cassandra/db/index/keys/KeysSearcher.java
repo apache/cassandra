@@ -58,7 +58,7 @@ public class KeysSearcher extends SecondaryIndexSearcher
             SecondaryIndex index = indexManager.getIndexForColumn(expression.column_name);
             if (index == null || (expression.op != IndexOperator.EQ))
                 continue;
-            int columns = index.getUnderlyingCfs().getMeanColumns();
+            int columns = index.getIndexCfs().getMeanColumns();
             if (columns < bestMeanCount)
             {
                 best = expression;
@@ -149,17 +149,17 @@ public class KeysSearcher extends SecondaryIndexSearcher
              * should be pretty close to `start_key`. */
             if (logger.isDebugEnabled())
                 logger.debug(String.format("Scanning index %s starting with %s",
-                                           expressionString(primary), index.getBaseCFStore().metadata.getKeyValidator().getString(startKey)));
+                                           expressionString(primary), index.getBaseCfs().metadata.getKeyValidator().getString(startKey)));
 
             // We shouldn't fetch only 1 row as this provides buggy paging in case the first row doesn't satisfy all clauses
             int count = Math.max(clause.count, 2);
             QueryFilter indexFilter = QueryFilter.getSliceFilter(indexKey,
-                                                                 new QueryPath(index.getUnderlyingCfs().getColumnFamilyName()),
+                                                                 new QueryPath(index.getIndexCfs().getColumnFamilyName()),
                                                                  startKey,
                                                                  ByteBufferUtil.EMPTY_BYTE_BUFFER,
                                                                  false,
                                                                  count);
-            ColumnFamily indexRow = index.getUnderlyingCfs().getColumnFamily(indexFilter);
+            ColumnFamily indexRow = index.getIndexCfs().getColumnFamily(indexFilter);
             logger.debug("fetched {}", indexRow);
             if (indexRow == null)
                 break;

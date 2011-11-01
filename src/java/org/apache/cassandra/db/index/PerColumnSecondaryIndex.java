@@ -56,7 +56,6 @@ public abstract class PerColumnSecondaryIndex extends SecondaryIndex
      */
     public abstract void updateColumn(DecoratedKey<?> valueKey, ByteBuffer rowKey, IColumn col) throws IOException;
     
-    @Override
     public String getNameForSystemTable(ByteBuffer column)
     {
         return getIndexName();   
