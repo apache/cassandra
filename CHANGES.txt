@@ -10,6 +10,9 @@
  * Cache for CompressionMetadata objects (CASSANDRA-3427)
  * synchronize BiMap of bootstrapping tokens (CASSANDRA-3417)
  * Avoid large array allocation for compressed chunk offsets (CASSANDRA-3432)
+Merged from 0.8:
+ * acquire compactionlock during truncate (CASSANDRA-3399)
+
 
 1.0.1
  * acquire references during index build to prevent delete problems
@@ -55,6 +58,8 @@
  * improve CompactionTask extensibility (CASSANDRA-3330)
  * Allow one leveled compaction task to kick off another (CASSANDRA-3363)
 Merged from 0.8:
+ * fix truncate allowing data to be replayed post-restart (CASSANDRA-3297)
+ * make iwriter final in IndexWriter to avoid NPE (CASSANDRA-2863)
  * (CQL) update grammar to require key clause in DELETE statement
    (CASSANDRA-3349)
  * (CQL) allow numeric keyspace names in USE statement (CASSANDRA-3350)
@@ -86,6 +91,7 @@ Merged from 0.8:
  * remove incorrect optimization from slice read path (CASSANDRA-3390)
  * Fix race in AntiEntropyService (CASSANDRA-3400)
  * allow encryption only between datacenters (CASSANDRA-2802)
+
 
 1.0.0-final
  * close scrubbed sstable fd before deleting it (CASSANDRA-3318)
