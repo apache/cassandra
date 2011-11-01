@@ -71,7 +71,6 @@ public class KeysIndex extends PerColumnSecondaryIndex
                : new LocalByPartionerType(StorageService.getPartitioner());
     }
 
-    @Override
     public void deleteColumn(DecoratedKey<?> valueKey, ByteBuffer rowKey, IColumn column)
     {
         if (column.isMarkedForDelete())
@@ -85,7 +84,6 @@ public class KeysIndex extends PerColumnSecondaryIndex
             logger.debug("removed index entry for cleaned-up value {}:{}", valueKey, cfi);
     }
 
-    @Override
     public void insertColumn(DecoratedKey<?> valueKey, ByteBuffer rowKey, IColumn column)
     {
         ColumnFamily cfi = ColumnFamily.create(indexCfs.metadata);
@@ -104,20 +102,17 @@ public class KeysIndex extends PerColumnSecondaryIndex
         indexCfs.apply(valueKey, cfi);
     }
     
-    @Override
     public void updateColumn(DecoratedKey<?> valueKey, ByteBuffer rowKey, IColumn col)
     {        
         insertColumn(valueKey, rowKey, col);        
     }
 
-    @Override
     public void removeIndex(ByteBuffer columnName) throws IOException
     {        
         indexCfs.removeAllSSTables();
         indexCfs.unregisterMBean();
     }
 
-    @Override
     public void forceBlockingFlush() throws IOException
     {       
         try
@@ -134,37 +129,31 @@ public class KeysIndex extends PerColumnSecondaryIndex
         }
     }
 
-    @Override
     public void unregisterMbean()
     {
         indexCfs.unregisterMBean();
     }
 
-    @Override
-    public ColumnFamilyStore getUnderlyingCfs()
+    public ColumnFamilyStore getIndexCfs()
     {
        return indexCfs;
     }
 
-    @Override
     public SecondaryIndexSearcher createSecondaryIndexSearcher(Set<ByteBuffer> columns)
     {
         return new KeysSearcher(baseCfs.indexManager, columns);
     }
 
-    @Override
     public String getIndexName()
     {
         return indexCfs.columnFamily;
     }
 
-    @Override
     public void renameIndex(String newCfName) throws IOException
     {
         indexCfs.renameSSTables(indexCfs.columnFamily.replace(baseCfs.columnFamily, newCfName));
     }
 
-    @Override
     public void validateOptions() throws ConfigurationException
     {
         // no options used

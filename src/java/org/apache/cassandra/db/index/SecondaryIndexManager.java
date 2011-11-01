@@ -319,7 +319,7 @@ public class SecondaryIndexManager
 
         for (Map.Entry<ByteBuffer, SecondaryIndex> entry : indexesByColumn.entrySet())
         {
-            ColumnFamilyStore cfs = entry.getValue().getUnderlyingCfs();
+            ColumnFamilyStore cfs = entry.getValue().getIndexCfs();
             
             if (cfs != null)
                 cfsList.add(cfs);        

@@ -53,7 +53,6 @@ import static org.apache.cassandra.Util.column;
 import static org.apache.cassandra.Util.getBytes;
 import static org.junit.Assert.assertNull;
 
-import org.junit.Assert;
 import org.junit.Test;
 
 public class ColumnFamilyStoreTest extends CleanupHelper
@@ -460,7 +459,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         Future<?> future = cfs.indexManager.addIndexedColumn(cd);
         future.get();
         // we had a bug (CASSANDRA-2244) where index would get created but not flushed -- check for that
-        assert cfs.indexManager.getIndexForColumn(cd.name).getUnderlyingCfs().getSSTables().size() > 0;
+        assert cfs.indexManager.getIndexForColumn(cd.name).getIndexCfs().getSSTables().size() > 0;
 
         queryBirthdate(table);
 

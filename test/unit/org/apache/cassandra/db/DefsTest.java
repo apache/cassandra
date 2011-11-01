@@ -656,7 +656,7 @@ public class DefsTest extends CleanupHelper
         rm.apply();
         ColumnFamilyStore cfs = Table.open("Keyspace6").getColumnFamilyStore("Indexed1");
         cfs.forceBlockingFlush();
-        ColumnFamilyStore indexedCfs = cfs.indexManager.getIndexForColumn(cfs.indexManager.getIndexedColumns().iterator().next()).getUnderlyingCfs();
+        ColumnFamilyStore indexedCfs = cfs.indexManager.getIndexForColumn(cfs.indexManager.getIndexedColumns().iterator().next()).getIndexCfs();
         Descriptor desc = indexedCfs.getSSTables().iterator().next().descriptor;
 
         // drop the index
