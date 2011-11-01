@@ -276,8 +276,9 @@ public class SchemaLoader
     private static CFMetaData indexCFMD(String ksName, String cfName, final Boolean withIdxType) throws ConfigurationException
     {
         return standardCFMD(ksName, cfName)
-                .columnMetadata(new HashMap<ByteBuffer, ColumnDefinition>()
-                    {{
+               .keyValidator(AsciiType.instance)
+               .columnMetadata(new HashMap<ByteBuffer, ColumnDefinition>()
+                   {{
                         ByteBuffer cName = ByteBuffer.wrap("birthdate".getBytes(Charsets.UTF_8));
                         IndexType keys = withIdxType ? IndexType.KEYS : null;
                         put(cName, new ColumnDefinition(cName, LongType.instance, keys, null, ByteBufferUtil.bytesToHex(cName)));

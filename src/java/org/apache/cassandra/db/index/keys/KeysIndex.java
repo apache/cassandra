@@ -56,19 +56,19 @@ public class KeysIndex extends PerColumnSecondaryIndex
         assert baseCfs != null && columnDefs != null;
 
         ColumnDefinition columnDef = columnDefs.iterator().next();
-        CFMetaData indexedCfMetadata = CFMetaData.newIndexMetadata(baseCfs.metadata, columnDef,indexComparator());
+        CFMetaData indexedCfMetadata = CFMetaData.newIndexMetadata(baseCfs.metadata, columnDef, indexComparator());
         indexedCfs = ColumnFamilyStore.createColumnFamilyStore(baseCfs.table,
-                                                               indexedCfMetadata.cfName,
-                                                               new LocalPartitioner(columnDef.getValidator()),
-                                                               indexedCfMetadata);
+                                                             indexedCfMetadata.cfName,
+                                                             new LocalPartitioner(columnDef.getValidator()),
+                                                             indexedCfMetadata);
     }
 
     public static AbstractType indexComparator()
     {
         IPartitioner rowPartitioner = StorageService.getPartitioner();
         return (rowPartitioner instanceof OrderPreservingPartitioner || rowPartitioner instanceof ByteOrderedPartitioner)
-                                        ? BytesType.instance
-                                        : new LocalByPartionerType(StorageService.getPartitioner());
+               ? BytesType.instance
+               : new LocalByPartionerType(StorageService.getPartitioner());
     }
 
     @Override
@@ -99,7 +99,7 @@ public class KeysIndex extends PerColumnSecondaryIndex
             cfi.addColumn(new Column(rowKey, ByteBufferUtil.EMPTY_BYTE_BUFFER, column.timestamp()));
         }
         if (logger.isDebugEnabled())
-            logger.debug("applying index row {}:{}", valueKey, cfi);
+            logger.debug("applying index row {} in {}", indexedCfs.metadata.getKeyValidator().getString(valueKey.key), cfi);
         
         indexedCfs.apply(valueKey, cfi);
     }
