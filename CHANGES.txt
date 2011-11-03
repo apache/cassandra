@@ -1,8 +1,3 @@
-0.8.9
- * acquire compactionlock during truncate (CASSANDRA-3399)
- * fix displaying cfdef entries for super columnfamilies (CASSANDRA-3415)
-
-
 0.8.8
  * fix truncate allowing data to be replayed post-restart (CASSANDRA-3297)
  * make iwriter final in IndexWriter to avoid NPE (CASSANDRA-2863)
@@ -40,6 +35,9 @@
  * Fix race in AntiEntropyService (CASSANDRA-3400)
  * fix updating CF row_cache_provider (CASSANDRA-3414)
  * CFMetaData.convertToThrift method to set RowCacheProvider (CASSANDRA-3405)
+ * acquire compactionlock during truncate (CASSANDRA-3399)
+ * fix displaying cfdef entries for super columnfamilies (CASSANDRA-3415)
+
 
 0.8.7
  * Kill server on wrapped OOME such as from FileChannel.map (CASSANDRA-3201)
