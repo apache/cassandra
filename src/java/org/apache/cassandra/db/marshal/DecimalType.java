@@ -35,6 +35,15 @@ public class DecimalType extends AbstractType<BigDecimal>
 
     public int compare(ByteBuffer bb0, ByteBuffer bb1)
     {
+        if (bb0.remaining() == 0)
+        {
+            return bb1.remaining() == 0 ? 0 : -1;
+        }
+        if (bb1.remaining() == 0)
+        {
+            return 1;
+        }
+        
         return compose(bb0).compareTo(compose(bb1));
     }
 

@@ -1740,9 +1740,9 @@ public class CliClient
     {
         sb.append(NEWLINE + TAB + TAB + "{");
 
-        final AbstractType comparator = getFormatType((cfDef.column_type == "Super")
-                                                        ? cfDef.subcomparator_type
-                                                        : cfDef.comparator_type);
+        final AbstractType comparator = getFormatType(cfDef.column_type.equals("Super")
+                                                      ? cfDef.subcomparator_type
+                                                      : cfDef.comparator_type);
         sb.append("column_name : '" + CliUtils.escapeSQLString(comparator.getString(colDef.name)) + "'," + NEWLINE);
         String validationClass = normaliseType(colDef.validation_class, "org.apache.cassandra.db.marshal");
         sb.append(TAB + TAB + "validation_class : " + CliUtils.escapeSQLString(validationClass));

@@ -86,12 +86,14 @@ public class JdbcDecimal extends AbstractJdbcType<BigDecimal>
     public BigDecimal compose(ByteBuffer bytes)
     {
         if (bytes == null) return null;
-        
+                
+        // do not consume the contents of the ByteBuffer
+        bytes = bytes.duplicate();
         int scale = bytes.getInt();
         byte[] bibytes = new byte[bytes.remaining()];
-        bytes.get(bibytes, 0, bytes.remaining());
+        bytes.get(bibytes);
+
         BigInteger bi = new BigInteger(bibytes);
-        
         return new BigDecimal(bi,scale);
     }
 }
