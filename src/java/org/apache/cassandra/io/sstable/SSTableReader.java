@@ -44,6 +44,7 @@ import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.*;
@@ -312,7 +313,7 @@ public class SSTableReader extends SSTable
     {
         boolean cacheLoading = keyCache != null && !keysToLoadInCache.isEmpty();
         SegmentedFile.Builder ibuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getIndexAccessMode());
-        SegmentedFile.Builder dbuilder = (components.contains(Component.COMPRESSION_INFO))
+        SegmentedFile.Builder dbuilder = compression
                                           ? SegmentedFile.getCompressedBuilder()
                                           : SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode());
 
@@ -397,6 +398,18 @@ public class SSTableReader extends SSTable
         {
             return indexSummary.getIndexPositions().get(index);
         }
+    }
+
+    /**
+     * Returns the compression metadata for this sstable.
+     * @throws IllegalStateException if the sstable is not compressed
+     */
+    public CompressionMetadata getCompressionMetadata()
+    {
+        if (!compression)
+            throw new IllegalStateException(this + " is not compressed");
+
+        return ((CompressedSegmentedFile)dfile).metadata;
     }
 
     /**
@@ -894,7 +907,7 @@ public class SSTableReader extends SSTable
     public RandomAccessReader openDataReader(boolean skipIOCache) throws IOException
     {
         return compression
-               ? CompressedRandomAccessReader.open(getFilename(), skipIOCache)
+               ? CompressedRandomAccessReader.open(getFilename(), getCompressionMetadata(), skipIOCache)
                : RandomAccessReader.open(new File(getFilename()), skipIOCache);
     }
 

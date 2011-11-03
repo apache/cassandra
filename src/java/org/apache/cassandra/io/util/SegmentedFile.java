@@ -26,6 +26,7 @@ import java.util.Iterator;
 import java.util.NoSuchElementException;
 
 import org.apache.cassandra.config.Config;
+import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.utils.Pair;
 
 /**

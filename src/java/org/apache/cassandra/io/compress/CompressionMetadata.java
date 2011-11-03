@@ -21,7 +21,6 @@ package org.apache.cassandra.io.compress;
 import java.io.*;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.io.sstable.Component;
@@ -41,43 +40,23 @@ public class CompressionMetadata
     public final CompressionParameters parameters;
 
     /**
-     * Caches instances of CompressionMetadata.
-     * Each metada holds the chunk offsets index, which is reasonably big for
-     * enough data, so it's an expensive structure. We thus only want one
-     * CompressionMetadata created for each sstable.
-     * Note that we could have a compressionMetadata field in SSTableReader,
-     * but CompressedSegmentFile.Builder needs it before the reader is
-     * created, so it's easier that way.
-     */
-    private final static Map<String, CompressionMetadata> cache = new ConcurrentHashMap<String, CompressionMetadata>();
-
-    /**
-     * Get metadata about given compressed file including uncompressed data length, chunk size
+     * Create metadata about given compressed file including uncompressed data length, chunk size
      * and list of the chunk offsets of the compressed data.
+     *
+     * This is an expensive operation! Don't create more than one for each
+     * sstable.
      *
      * @param dataFilePath Path to the compressed file
      *
      * @return metadata about given compressed file.
      */
-    public static CompressionMetadata get(String dataFilePath)
+    public static CompressionMetadata create(String dataFilePath)
     {
-        CompressionMetadata metadata = cache.get(dataFilePath);
-        if (metadata != null)
-            return metadata;
-
-        // We want this to be relatively fast, because it's called often (for each
-        // range query). On the side, we don't care too much if the initial
-        // creation is no thread-safe, because we'll call this when the
-        // SSTableReader is loaded/created, so we're pretty sure there won't
-        // be any contention. Besides, if we really do create two
-        // CompressionMetadata, it's not the end of the world, so we don't
-        // bother with synchronization
         Descriptor desc = Descriptor.fromFilename(dataFilePath);
+
         try
         {
-            metadata = new CompressionMetadata(desc.filenameFor(Component.COMPRESSION_INFO), new File(dataFilePath).length());
-            cache.put(dataFilePath, metadata);
-            return metadata;
+            return new CompressionMetadata(desc.filenameFor(Component.COMPRESSION_INFO), new File(dataFilePath).length());
         }
         catch (IOException e)
         {
@@ -85,7 +64,7 @@ public class CompressionMetadata
         }
     }
 
-    // This is package protected because of the tests. Don't use, use get() instead.
+    // This is package protected because of the tests.
     CompressionMetadata(String indexFilePath, long compressedLength) throws IOException
     {
         this.indexFilePath = indexFilePath;
