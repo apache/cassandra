@@ -5,10 +5,12 @@
  * Cache for CompressionMetadata objects (CASSANDRA-3427)
  * synchronize BiMap of bootstrapping tokens (CASSANDRA-3417)
  * Avoid large array allocation for compressed chunk offsets (CASSANDRA-3432)
+ * fix DecimalType bytebuffer marshalling (CASSANDRA-3421)
+ * fix bug that caused first column in per row indexes to be ignored 
+   (CASSANDRA-3441)
 Merged from 0.8:
  * acquire compactionlock during truncate (CASSANDRA-3399)
- * fix bug that caused first column in per row indexes to be ignored (CASSANDRA-3441)
- * fix DecimalType bytebuffer marshalling (CASSANDRA-3421)
+ * fix displaying cfdef entries for super columnfamilies (CASSANDRA-3415)
 
 
 1.0.1
