@@ -8,6 +8,8 @@
 Merged from 0.8:
  * acquire compactionlock during truncate (CASSANDRA-3399)
  * fix bug that caused first column in per row indexes to be ignored (CASSANDRA-3441)
+ * fix DecimalType bytebuffer marshalling (CASSANDRA-3421)
+
 
 1.0.1
  * acquire references during index build to prevent delete problems
