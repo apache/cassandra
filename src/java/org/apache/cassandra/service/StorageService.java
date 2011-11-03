@@ -1757,6 +1757,10 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         return AntiEntropyService.instance.submitRepairSession(range, tableName, names.toArray(new String[names.size()]));
     }
 
+    public void forceTerminateAllRepairSessions() {
+        AntiEntropyService.instance.terminateSessions();
+    }
+
     /* End of MBean interface methods */
 
     /**
