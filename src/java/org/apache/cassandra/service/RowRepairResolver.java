@@ -78,7 +78,8 @@ public class RowRepairResolver extends AbstractRowResolver
         if (versions.size() > 1)
         {
             resolved = resolveSuperset(versions);
-            logger.debug("versions merged to {}", resolved);
+            if (logger.isDebugEnabled())
+                logger.debug("versions merged");
             // resolved can be null even if versions doesn't have all nulls because of the call to removeDeleted in resolveSuperSet
             if (resolved != null)
                 maybeScheduleRepairs(resolved, table, key, versions, endpoints);
@@ -103,11 +104,7 @@ public class RowRepairResolver extends AbstractRowResolver
         {
             ColumnFamily diffCf = ColumnFamily.diff(versions.get(i), resolved);
             if (diffCf == null) // no repair needs to happen
-            {
-                if (logger.isDebugEnabled())
-                    logger.debug("{} has the most recent version", endpoints.get(i));
                 continue;
-            }
 
             // create and send the row mutation message based on the diff
             RowMutation rowMutation = new RowMutation(table, key.key);
@@ -121,8 +118,6 @@ public class RowRepairResolver extends AbstractRowResolver
             {
                 throw new IOError(e);
             }
-            if (logger.isDebugEnabled())
-                logger.debug("read repair sending {} to {}", rowMutation, endpoints.get(i));
             MessagingService.instance().sendOneWay(repairMessage, endpoints.get(i));
         }
     }
