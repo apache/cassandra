@@ -1,5 +1,6 @@
 0.8.9
  * acquire compactionlock during truncate (CASSANDRA-3399)
+ * fix displaying cfdef entries for super columnfamilies (CASSANDRA-3415)
 
 
 0.8.8
