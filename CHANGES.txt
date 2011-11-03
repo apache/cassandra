@@ -1,18 +1,20 @@
 1.1-dev
  * off-heap cache to use sun.misc.Unsafe instead of JNA (CASSANDRA-3271)
  * EACH_QUORUM is only supported for writes (CASSANDRA-3272)
- * cleanup usage of StorageService.setMode() (CASANDRA-3388)
  * replace compactionlock use in schema migration by checking CFS.isInvalidD
+
 
 1.0.2
  * "defragment" rows for name-based queries under STCS (CASSANDRA-2503)
  * Add timing information to cassandra-cli GET/SET/LIST queries (CASSANDRA-3326)
  * Cache for CompressionMetadata objects (CASSANDRA-3427)
+ * cleanup usage of StorageService.setMode() (CASANDRA-3388)
  * synchronize BiMap of bootstrapping tokens (CASSANDRA-3417)
  * Avoid large array allocation for compressed chunk offsets (CASSANDRA-3432)
  * fix DecimalType bytebuffer marshalling (CASSANDRA-3421)
  * fix bug that caused first column in per row indexes to be ignored 
    (CASSANDRA-3441)
+ * add JMX call to clean (failed) repair sessions (CASSANDRA-3316)
 Merged from 0.8:
  * acquire compactionlock during truncate (CASSANDRA-3399)
  * fix displaying cfdef entries for super columnfamilies (CASSANDRA-3415)

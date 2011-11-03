@@ -226,6 +226,8 @@ public interface StorageServiceMBean
      */
     public void forceTableRepairPrimaryRange(String tableName, String... columnFamilies) throws IOException;
 
+    public void forceTerminateAllRepairSessions();
+
     /**
      * transfer this node's data to other machines and remove it from service.
      */

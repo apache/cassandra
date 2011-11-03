@@ -125,6 +125,14 @@ public class AntiEntropyService
         return futureTask;
     }
 
+    public void terminateSessions()
+    {
+        for (RepairSession session : sessions.values())
+        {
+            session.forceShutdown();
+        }
+    }
+
     // for testing only. Create a session corresponding to a fake request and
     // add it to the sessions (avoid NPE in tests)
     RepairFuture submitArtificialRepairSession(TreeRequest req, String tablename, String... cfnames)
@@ -171,6 +179,9 @@ public class AntiEntropyService
             logger.warn("Got a merkle tree response for unknown repair session {}: either this node has been restarted since the session was started, or the session has been interrupted for an unknown reason. ", request.sessionid);
             return;
         }
+
+        if (session.terminated())
+            return;
 
         logger.info(String.format("[repair #%s] Received merkle tree for %s from %s", session.getName(), request.cf.right, request.endpoint));
 
@@ -598,6 +609,8 @@ public class AntiEntropyService
         private final SimpleCondition completed = new SimpleCondition();
         public final Condition differencingDone = new SimpleCondition();
 
+        private volatile boolean terminated = false;
+
         public RepairSession(TreeRequest req, String tablename, String... cfnames)
         {
             this(req.sessionid, req.range, tablename, cfnames);
@@ -697,12 +710,36 @@ public class AntiEntropyService
             {
                 FailureDetector.instance.unregisterFailureDetectionEventListener(this);
                 Gossiper.instance.unregister(this);
+                // mark this session as terminated
+                terminated = true;
                 AntiEntropyService.instance.sessions.remove(getName());
             }
         }
 
+        /**
+         * @return wheather this session is terminated
+         */
+        public boolean terminated()
+        {
+            return terminated;
+        }
+
+        /**
+         * clear all RepairJobs and terminate this session.
+         */
+        public void forceShutdown()
+        {
+            jobs.clear();
+            activeJobs.clear();
+            differencingDone.signalAll();
+            completed.signalAll();
+        }
+
         void completed(Differencer differencer)
         {
+            if (terminated)
+                return;
+
             logger.debug(String.format("[repair #%s] Repair completed between %s and %s on %s",
                                        getName(),
                                        differencer.r1.endpoint,
@@ -724,10 +761,7 @@ public class AntiEntropyService
             String errorMsg = String.format("Endpoint %s died", remote);
             exception = new IOException(errorMsg);
             // If a node failed, we stop everything (though there could still be some activity in the background)
-            jobs.clear();
-            activeJobs.clear();
-            differencingDone.signalAll();
-            completed.signalAll();
+            forceShutdown();
         }
 
         public void onJoin(InetAddress endpoint, EndpointState epState) {}
