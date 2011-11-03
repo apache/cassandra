@@ -34,11 +34,6 @@ public class CompressedRandomAccessReader extends RandomAccessReader
 {
     private static final Logger logger = LoggerFactory.getLogger(CompressedRandomAccessReader.class);
 
-    public static RandomAccessReader open(String dataFilePath, boolean skipIOCache) throws IOException
-    {
-        return open(dataFilePath, CompressionMetadata.get(dataFilePath), skipIOCache);
-    }
-
     public static RandomAccessReader open(String dataFilePath, CompressionMetadata metadata) throws IOException
     {
         return open(dataFilePath, metadata, false);

@@ -121,7 +121,7 @@ public class FileStreamTask extends WrappedRunnable
 
         // TODO just use a raw RandomAccessFile since we're managing our own buffer here
         RandomAccessReader file = (header.file.sstable.compression) // try to skip kernel page cache if possible
-                                ? CompressedRandomAccessReader.open(header.file.getFilename(), true)
+                                ? CompressedRandomAccessReader.open(header.file.getFilename(), header.file.sstable.getCompressionMetadata(), true)
                                 : RandomAccessReader.open(new File(header.file.getFilename()), true);
 
         // setting up data compression stream

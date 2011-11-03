@@ -26,7 +26,7 @@ import org.apache.cassandra.io.compress.CompressionMetadata;
 
 public class CompressedSegmentedFile extends SegmentedFile
 {
-    private final CompressionMetadata metadata;
+    public final CompressionMetadata metadata;
 
     public CompressedSegmentedFile(String path, CompressionMetadata metadata)
     {
@@ -52,7 +52,7 @@ public class CompressedSegmentedFile extends SegmentedFile
          */
         public SegmentedFile complete(String path)
         {
-            return new CompressedSegmentedFile(path, CompressionMetadata.get(path));
+            return new CompressedSegmentedFile(path, CompressionMetadata.create(path));
         }
     }
 
