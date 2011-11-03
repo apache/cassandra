@@ -37,6 +37,7 @@ public class SelectExpression
     
     private int numColumns = MAX_COLUMNS_DEFAULT;
     private boolean reverseColumns = false;
+    private boolean hasFirstSet;
     private final boolean wildcard;
     private Term start, finish;
     private List<Term> columns;
@@ -48,14 +49,17 @@ public class SelectExpression
      * @param finish the finishing column name
      * @param count the number of columns to limit the results to
      * @param reverse true to reverse column order
+     * @param wildcard determines weather this statement is wildcard
+     * @param firstSet determines weather "FIRST" keyword was set
      */
-    public SelectExpression(Term start, Term finish, int count, boolean reverse, boolean wildcard)
+    public SelectExpression(Term start, Term finish, int count, boolean reverse, boolean wildcard, boolean firstSet)
     {
         this.start = start;
         this.finish = finish;
         numColumns = count;
         reverseColumns = reverse;
         this.wildcard = wildcard;
+        hasFirstSet = firstSet;
     }
     
     /**
@@ -64,14 +68,16 @@ public class SelectExpression
      * @param first the first (possibly only) column name to select on.
      * @param count the number of columns to limit the results on
      * @param reverse true to reverse column order
+     * @param firstSet determines weather "FIRST" keyword was set
      */
-    public SelectExpression(Term first, int count, boolean reverse)
+    public SelectExpression(Term first, int count, boolean reverse, boolean firstSet)
     {
         wildcard = false;
         columns = new ArrayList<Term>();
         columns.add(first);
         numColumns = count;
         reverseColumns = reverse;
+        hasFirstSet = firstSet;
     }
     
     /**
@@ -112,6 +118,14 @@ public class SelectExpression
     public void setColumnsLimit(int limit)
     {
         numColumns = limit;
+    }
+
+    /**
+     * @return weather expression includes "FIRST" keyword
+     */
+    public boolean hasFirstSet()
+    {
+        return hasFirstSet;
     }
 
     public Term getStart()

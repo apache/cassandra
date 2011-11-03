@@ -169,13 +169,14 @@ selectExpression returns [SelectExpression expr]
     : {
           int count = 10000;
           boolean reversed = false;
+          boolean hasFirstSet = false;
       }
-      ( K_FIRST cols=INTEGER { count = Integer.parseInt($cols.text); } )?
+      ( K_FIRST { hasFirstSet = true; } cols=INTEGER { count = Integer.parseInt($cols.text); } )?
       ( K_REVERSED { reversed = true; } )?
-      ( first=term { $expr = new SelectExpression(first, count, reversed); }
+      ( first=term { $expr = new SelectExpression(first, count, reversed, hasFirstSet); }
             (',' next=term { $expr.and(next); })*
-      | start=term RANGEOP finish=term { $expr = new SelectExpression(start, finish, count, reversed, false); }
-      | '\*' { $expr = new SelectExpression(new Term(), new Term(), count, reversed, true); }
+      | start=term RANGEOP finish=term { $expr = new SelectExpression(start, finish, count, reversed, false, hasFirstSet); }
+      | '\*' { $expr = new SelectExpression(new Term(), new Term(), count, reversed, true, hasFirstSet); }
       )
     ;
 

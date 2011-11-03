@@ -587,7 +587,7 @@ public class QueryProcessor
                     List<Column> thriftColumns = new ArrayList<Column>();
                     if (select.isColumnRange())
                     {
-                        if (select.isWildcard())
+                        if (select.isFullWildcard())
                         {
                             // prepend key
                             thriftColumns.add(new Column(metadata.getKeyName()).setValue(row.key.key).setTimestamp(-1));

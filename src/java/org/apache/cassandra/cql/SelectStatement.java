@@ -90,7 +90,11 @@ public class SelectStatement
     {
         return expression.isWildcard();
     }
-    
+    public boolean isFullWildcard()
+    {
+        return expression.isWildcard() && !expression.hasFirstSet();
+    }
+
     public List<Term> getColumnNames()
     {
         return expression.getColumns();

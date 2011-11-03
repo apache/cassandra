@@ -2,7 +2,7 @@
  * off-heap cache to use sun.misc.Unsafe instead of JNA (CASSANDRA-3271)
  * EACH_QUORUM is only supported for writes (CASSANDRA-3272)
  * replace compactionlock use in schema migration by checking CFS.isInvalidD
-
+ * recognize that "SELECT first ... *" isn't really "SELECT *" (CASSANDRA-3445)
 
 1.0.2
  * "defragment" rows for name-based queries under STCS (CASSANDRA-2503)
