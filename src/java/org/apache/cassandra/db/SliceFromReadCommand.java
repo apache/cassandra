@@ -19,17 +19,25 @@ package org.apache.cassandra.db;
 
 import java.io.*;
 import java.nio.ByteBuffer;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Iterator;
 
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.service.RepairCallback;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.ColumnParent;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class SliceFromReadCommand extends ReadCommand
 {
+    static final Logger logger = LoggerFactory.getLogger(SliceFromReadCommand.class);
+
     public final ByteBuffer start, finish;
     public final boolean reversed;
     public final int count;
@@ -59,6 +67,64 @@ public class SliceFromReadCommand extends ReadCommand
     {
         DecoratedKey<?> dk = StorageService.getPartitioner().decorateKey(key);
         return table.getRow(QueryFilter.getSliceFilter(dk, queryPath, start, finish, reversed, count));
+    }
+
+    @Override
+    public ReadCommand maybeGenerateRetryCommand(RepairCallback handler, Row row)
+    {
+        int maxLiveColumns = handler.getMaxLiveColumns();
+        int liveColumnsInRow = row != null ? row.cf.getLiveColumnCount() : 0;
+
+        assert maxLiveColumns <= count;
+        if ((maxLiveColumns == count) && (liveColumnsInRow < count))
+        {
+            int retryCount = count + count - liveColumnsInRow;
+            return new RetriedSliceFromReadCommand(table, key, queryPath, start, finish, reversed, count, retryCount);
+        }
+
+        return null;
+    }
+
+    @Override
+    public void maybeTrim(Row row)
+    {
+        if ((row == null) || (row.cf == null))
+            return;
+
+        int liveColumnsInRow = row.cf.getLiveColumnCount();
+
+        if (liveColumnsInRow > getRequestedCount())
+        {
+            int columnsToTrim = liveColumnsInRow - getRequestedCount();
+
+            logger.debug("trimming {} live columns to the originally requested {}", row.cf.getLiveColumnCount(), getRequestedCount());
+
+            Collection<IColumn> columns;
+            if (reversed)
+                columns = row.cf.getSortedColumns();
+            else
+                columns = row.cf.getReverseSortedColumns();
+
+            Collection<ByteBuffer> toRemove = new HashSet<ByteBuffer>();
+
+            Iterator<IColumn> columnIterator = columns.iterator();
+            while (columnIterator.hasNext() && (toRemove.size() < columnsToTrim))
+            {
+                IColumn column = columnIterator.next();
+                if (column.isLive())
+                    toRemove.add(column.name());
+            }
+
+            for (ByteBuffer columnName : toRemove)
+            {
+                row.cf.remove(columnName);
+            }
+        }
+    }
+
+    protected int getRequestedCount()
+    {
+        return count;
     }
 
     @Override

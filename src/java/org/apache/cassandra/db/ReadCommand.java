@@ -31,6 +31,7 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageProducer;
 import org.apache.cassandra.service.IReadCommand;
+import org.apache.cassandra.service.RepairCallback;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -66,7 +67,7 @@ public abstract class ReadCommand implements MessageProducer, IReadCommand
         this.queryPath = queryPath;
         this.commandType = cmdType;
     }
-    
+
     public boolean isDigestQuery()
     {
         return isDigestQuery;
@@ -81,7 +82,7 @@ public abstract class ReadCommand implements MessageProducer, IReadCommand
     {
         return queryPath.columnFamilyName;
     }
-    
+
     public abstract ReadCommand copy();
 
     public abstract Row getRow(Table table) throws IOException;
@@ -94,6 +95,18 @@ public abstract class ReadCommand implements MessageProducer, IReadCommand
     public String getKeyspace()
     {
         return table;
+    }
+
+    // maybeGenerateRetryCommand is used to generate a retry for short reads
+    public ReadCommand maybeGenerateRetryCommand(RepairCallback handler, Row row)
+    {
+        return null;
+    }
+
+    // maybeTrim removes columns from a response that is too long
+    public void maybeTrim(Row row)
+    {
+        // noop
     }
 }
 
