@@ -125,6 +125,8 @@ public class SSTableLoader
             }
             Collection<Range> ranges = entry.getValue();
             StreamOutSession session = StreamOutSession.create(keyspace, remote, new CountDownCallback(future.latch, remote));
+            // transferSSTables assumes references have been acquired
+            SSTableReader.acquireReferences(sstables);
             StreamOut.transferSSTables(session, sstables, ranges, OperationType.BULK_LOAD);
             future.setPendings(remote, session.getFiles());
         }
