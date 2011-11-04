@@ -70,12 +70,14 @@ public class BulkLoader
                 ProgressIndicator indicator = new ProgressIndicator(future.getPendingFiles());
                 indicator.start();
                 System.out.println("");
+                boolean printEnd = false;
                 while (!future.isDone())
                 {
                     if (indicator.printProgress())
                     {
                         // We're done with streaming
                         System.out.println("\nWaiting for targets to rebuild indexes ...");
+                        printEnd = true;
                         future.get();
                         assert future.isDone();
                     }
@@ -84,6 +86,8 @@ public class BulkLoader
                         try { Thread.sleep(1000L); } catch (Exception e) {}
                     }
                 }
+                if (!printEnd)
+                    indicator.printProgress();
             }
 
             System.exit(0); // We need that to stop non daemonized threads
