@@ -57,7 +57,7 @@ public class SSTableMetadata
 
     private SSTableMetadata()
     {
-        this(defaultRowHistogram(), defaultColumnHistogram(), ReplayPosition.NONE);
+        this(defaultRowSizeHistogram(), defaultColumnCountHistogram(), ReplayPosition.NONE);
     }
 
     // when there is no max timestamp recorded, default to max long
@@ -104,13 +104,15 @@ public class SSTableMetadata
         return maxTimestamp;
     }
 
-    static EstimatedHistogram defaultColumnHistogram()
+    static EstimatedHistogram defaultColumnCountHistogram()
     {
+        // EH of 114 can track a max value of 2395318855, i.e., > 2B columns
         return new EstimatedHistogram(114);
     }
 
-    static EstimatedHistogram defaultRowHistogram()
+    static EstimatedHistogram defaultRowSizeHistogram()
     {
+        // EH of 150 can track a max value of 1697806495183, i.e., > 1.5PB
         return new EstimatedHistogram(150);
     }
 
@@ -123,8 +125,8 @@ public class SSTableMetadata
 
         private Collector()
         {
-            this.estimatedRowSize = defaultColumnHistogram();
-            this.estimatedColumnCount = defaultRowHistogram();
+            this.estimatedRowSize = defaultRowSizeHistogram();
+            this.estimatedColumnCount = defaultColumnCountHistogram();
             this.replayPosition = ReplayPosition.NONE;
             this.maxTimestamp = Long.MIN_VALUE;
         }
