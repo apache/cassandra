@@ -685,7 +685,10 @@ public class StorageProxy implements StorageProxyMBean
                     long startTime2 = System.currentTimeMillis();
                     Row row = handler.get();
                     if (row != null)
+                    {
+                        command.maybeTrim(row);
                         rows.add(row);
+                    }
 
                     if (logger.isDebugEnabled())
                         logger.debug("Read: " + (System.currentTimeMillis() - startTime2) + " ms.");
@@ -739,35 +742,21 @@ public class StorageProxy implements StorageProxyMBean
                         throw new AssertionError(e); // full data requested from each node here, no digests should be sent
                     }
 
-                    // retry short reads, otherwise add the row to our resultset
-                    if (command instanceof SliceFromReadCommand)
+                    ReadCommand retryCommand = command.maybeGenerateRetryCommand(handler, row);
+                    if (retryCommand != null)
                     {
-                        // short reads are only possible on SliceFromReadCommand
-                        SliceFromReadCommand sliceCommand = (SliceFromReadCommand) command;
-                        int maxLiveColumns = handler.getMaxLiveColumns();
-                        int liveColumnsInRow = row != null ? row.cf.getLiveColumnCount() : 0;
-
-                        assert maxLiveColumns <= sliceCommand.count;
-                        if ((maxLiveColumns == sliceCommand.count) && (liveColumnsInRow < sliceCommand.count))
-                        {
-                            logger.debug("detected short read: expected {} columns, but only resolved {} columns",
-                                         sliceCommand.count, liveColumnsInRow);
-
-                            int retryCount = sliceCommand.count + sliceCommand.count - liveColumnsInRow;
-                            SliceFromReadCommand retryCommand = new SliceFromReadCommand(command.table,
-                                                                                         command.key,
-                                                                                         command.queryPath,
-                                                                                         sliceCommand.start,
-                                                                                         sliceCommand.finish,
-                                                                                         sliceCommand.reversed,
-                                                                                         retryCount);
-                            if (commandsToRetry == Collections.EMPTY_LIST)
-                                commandsToRetry = new ArrayList<ReadCommand>();
-                            commandsToRetry.add(retryCommand);
-                            continue;
-                        }
+                        logger.debug("issuing retry for read command");
+                        if (commandsToRetry == Collections.EMPTY_LIST)
+                            commandsToRetry = new ArrayList<ReadCommand>();
+                        commandsToRetry.add(retryCommand);
+                        continue;
                     }
-                    rows.add(row);
+
+                    if (row != null)
+                    {
+                        command.maybeTrim(row);
+                        rows.add(row);
+                    }
                 }
             }
         } while (!commandsToRetry.isEmpty());
