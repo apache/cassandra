@@ -117,7 +117,7 @@ public class CompactionManager implements CompactionManagerMBean
                 compactionLock.readLock().lock();
                 try
                 {
-                    if (cfs.isInvalid())
+                    if (!cfs.isValid())
                         return 0;
 
                     AbstractCompactionStrategy strategy = cfs.getCompactionStrategy();
@@ -160,7 +160,7 @@ public class CompactionManager implements CompactionManagerMBean
                 compactionLock.writeLock().lock();
                 try 
                 {
-                    if (cfStore.isInvalid())
+                    if (!cfStore.isValid())
                         return this;
                     Collection<SSTableReader> tocleanup = cfStore.getDataTracker().markCompacting(cfStore.getSSTables(), 1, Integer.MAX_VALUE);
                     if (tocleanup == null || tocleanup.isEmpty())
@@ -206,7 +206,7 @@ public class CompactionManager implements CompactionManagerMBean
                 compactionLock.writeLock().lock();
                 try
                 {
-                    if (cfStore.isInvalid())
+                    if (!cfStore.isValid())
                         return this;
 
                     Collection<SSTableReader> toscrub = cfStore.getDataTracker().markCompacting(cfStore.getSSTables(), 1, Integer.MAX_VALUE);
@@ -258,7 +258,7 @@ public class CompactionManager implements CompactionManagerMBean
                 compactionLock.writeLock().lock();
                 try
                 {
-                    if (cfStore.isInvalid())
+                    if (!cfStore.isValid())
                         return this;
                     AbstractCompactionStrategy strategy = cfStore.getCompactionStrategy();
                     for (AbstractCompactionTask task : strategy.getMaximalTasks(gcBefore))
@@ -339,7 +339,7 @@ public class CompactionManager implements CompactionManagerMBean
                 compactionLock.readLock().lock();
                 try
                 {
-                    if (cfs.isInvalid())
+                    if (!cfs.isValid())
                         return this;
 
                     // look up the sstables now that we're on the compaction executor, so we don't try to re-compact
@@ -433,7 +433,7 @@ public class CompactionManager implements CompactionManagerMBean
                 compactionLock.readLock().lock();
                 try
                 {
-                    if (!cfStore.isInvalid())
+                    if (cfStore.isValid())
                         doValidationCompaction(cfStore, validator);
                     return this;
                 }
