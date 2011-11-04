@@ -1,3 +1,7 @@
+1.0.3
+ * (Hadoop) Fix empty row filtering (CASSANDRA-3450)
+
+
 1.0.2
  * "defragment" rows for name-based queries under STCS (CASSANDRA-2503)
  * cleanup usage of StorageService.setMode() (CASANDRA-3388)
@@ -94,7 +98,6 @@ Merged from 0.8:
  * remove incorrect optimization from slice read path (CASSANDRA-3390)
  * Fix race in AntiEntropyService (CASSANDRA-3400)
  * allow encryption only between datacenters (CASSANDRA-2802)
-
 
 1.0.0-final
  * close scrubbed sstable fd before deleting it (CASSANDRA-3318)
