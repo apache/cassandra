@@ -1,3 +1,16 @@
+1.0.2
+=====
+
+Upgrading
+---------
+    - Nothing specific to 1.0.2 but please see the 1.0 upgrading section if
+      upgrading from a version prior to 1.0.0
+
+Features
+--------
+    - Cassandra CLI queries now have timing information
+
+
 1.0.1
 =====
 
