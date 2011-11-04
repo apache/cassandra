@@ -15,7 +15,8 @@
  * fix bug that caused first column in per row indexes to be ignored 
    (CASSANDRA-3441)
  * add JMX call to clean (failed) repair sessions (CASSANDRA-3316)
- * Fix sstableloader reference acquisition bug (CASSANDRA-3438)
+ * fix sstableloader reference acquisition bug (CASSANDRA-3438)
+ * fix estimated row size regression (CASSANDRA-3451)
 Merged from 0.8:
  * acquire compactionlock during truncate (CASSANDRA-3399)
  * fix displaying cfdef entries for super columnfamilies (CASSANDRA-3415)
