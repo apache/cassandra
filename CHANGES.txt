@@ -37,7 +37,7 @@
  * CFMetaData.convertToThrift method to set RowCacheProvider (CASSANDRA-3405)
  * acquire compactionlock during truncate (CASSANDRA-3399)
  * fix displaying cfdef entries for super columnfamilies (CASSANDRA-3415)
-
+ * (Hadoop) Fix empty row filtering (CASSANDRA-3450)
 
 0.8.7
  * Kill server on wrapped OOME such as from FileChannel.map (CASSANDRA-3201)
