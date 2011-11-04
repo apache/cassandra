@@ -98,7 +98,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public final CFMetaData metadata;
     public final IPartitioner partitioner;
     private final String mbeanName;
-    private boolean valid = false;
+    private boolean valid = true;
 
     /* Memtables and SSTables on disk for this column family */
     private final DataTracker data;
