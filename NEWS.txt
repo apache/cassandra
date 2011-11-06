@@ -1,3 +1,15 @@
+GENERAL UPGRADING ADVICE FOR ANY VERSION
+========================================
+
+Snapshotting is fast (especially if you have JNA installed) and takes
+effectively zero disk space until you start compacting the live data
+files again.  Thus, best practice is to ALWAYS snapshot before any
+upgrade, just in case you need to roll back to the previous version.
+(Cassandra version X + 1 will always be able to read data files created
+by version X, but the inverse is not necessarily the case.)
+
+
+
 1.0.2
 =====
 
