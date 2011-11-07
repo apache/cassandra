@@ -674,6 +674,14 @@ public final class MessagingService implements MessagingServiceMBean
         return completedTasks;
     }
 
+    public Map<String, Long> getCommandDroppedTasks()
+    {
+        Map<String, Long> droppedTasks = new HashMap<String, Long>();
+        for (Map.Entry<InetAddress, OutboundTcpConnectionPool> entry : connectionManagers_.entrySet())
+            droppedTasks.put(entry.getKey().getHostAddress(), entry.getValue().cmdCon.getDroppedMessages());
+        return droppedTasks;
+    }
+
     public Map<String, Integer> getResponsePendingTasks()
     {
         Map<String, Integer> pendingTasks = new HashMap<String, Integer>();
