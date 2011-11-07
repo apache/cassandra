@@ -230,7 +230,7 @@ public class CompactionsTest extends CleanupHelper
         ColumnFamilyStore store = table.getColumnFamilyStore(cfname);
 
         // disable compaction while flushing
-        store.unreferenceSSTables();
+        store.clearUnsafe();
         store.disableAutoCompaction();
 
         // Add test row

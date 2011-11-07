@@ -239,24 +239,14 @@ public class SecondaryIndexManager
     }
 
     /**
-     * Remove all index MBeans
+     * Remove the index
      */
-    public void unregisterMBeans()
+    public void invalidate()
     {
         for (Map.Entry<ByteBuffer, SecondaryIndex> entry : indexesByColumn.entrySet())
             entry.getValue().invalidate();
     }
-    
-    /**
-     * Remove all underlying index data
-     * @throws IOException 
-     */
-    public void removeAllIndexes() throws IOException
-    {
-        for (Map.Entry<ByteBuffer, SecondaryIndex> entry : indexesByColumn.entrySet())
-            entry.getValue().removeIndex(entry.getKey());
-    }
-    
+
     /**
      * Rename all underlying index files
      * @param newCfName the new index Name

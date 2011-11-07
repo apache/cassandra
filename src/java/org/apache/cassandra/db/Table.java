@@ -341,7 +341,6 @@ public class Table
             return;
         
         unloadCf(cfs);
-        cfs.unreferenceSSTables();
     }
     
     // disassociate a cfs from this table instance.

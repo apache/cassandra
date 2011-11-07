@@ -79,9 +79,7 @@ public class StreamingTransferTest extends CleanupHelper
         Util.compactAll(cfs).get();
         assertEquals(1, cfs.getSSTables().size());
         SSTableReader sstable = cfs.getSSTables().iterator().next();
-        // We acquire a reference now, because removeAllSSTables will mark the sstable compacted, and we have work to do with it
-        sstable.acquireReference();
-        cfs.unreferenceSSTables();
+        cfs.clearUnsafe();
 
         // transfer the first and last key
         logger.debug("Transferring " + cfs.columnFamily);

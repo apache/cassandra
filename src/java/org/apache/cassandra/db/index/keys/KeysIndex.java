@@ -109,7 +109,6 @@ public class KeysIndex extends PerColumnSecondaryIndex
 
     public void removeIndex(ByteBuffer columnName) throws IOException
     {        
-        indexCfs.unreferenceSSTables();
         indexCfs.invalidate();
     }
 
