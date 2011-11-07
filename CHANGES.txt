@@ -4,6 +4,7 @@
  * replace compactionlock use in schema migration by checking CFS.isInvalidD
  * recognize that "SELECT first ... *" isn't really "SELECT *" (CASSANDRA-3445)
  * fix invalidate-related test failures (CASSANDRA-3437)
+ * add next-gen cqlsh to bin/
 Merged from 0.8:
  * Make counter shard merging thread safe (CASSANDRA-3178)
 
