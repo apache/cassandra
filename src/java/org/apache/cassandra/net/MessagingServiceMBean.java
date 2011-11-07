@@ -41,6 +41,11 @@ public interface MessagingServiceMBean
     public Map<String, Long> getCommandCompletedTasks();
 
     /**
+     * Dropped tasks for Command(Mutations, Read etc) TCP Connections
+     */
+    public Map<String, Long> getCommandDroppedTasks();
+
+    /**
      * Pending tasks for Response(GOSSIP & RESPONSE) TCP Connections
      */
     public Map<String, Integer> getResponsePendingTasks();
