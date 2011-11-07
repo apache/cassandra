@@ -853,6 +853,12 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
           <include name="**/*.thrift" />
         </fileset>
       </copy>
+      <copy todir="${dist.dir}/pylib">
+        <fileset dir="pylib">
+          <include name="**" />
+          <exclude name="**/*.pyc" />
+        </fileset>
+      </copy>
       <copy todir="${dist.dir}/">
         <fileset dir="${basedir}">
           <include name="*.txt" />

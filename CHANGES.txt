@@ -1,6 +1,7 @@
 1.0.3
  * (Hadoop) Fix empty row filtering (CASSANDRA-3450)
  * fix invalidate-related test failures (CASSANDRA-3437)
+ * add next-gen cqlsh to bin/
 Merged from 0.8:
  * Make counter shard merging thread safe (CASSANDRA-3178)
 

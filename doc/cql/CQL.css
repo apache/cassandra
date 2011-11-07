@@ -1,0 +1,27 @@
+/* Just a sample of some things that might be helpful in rendering CQL.html */
+
+pre.sample {
+  padding: 1ex;
+  border: 1px solid black;
+  background-color: #ffe0e0;
+}
+pre.syntax {
+  padding: 1ex;
+  border: 1px solid black;
+  background-color: #e0e0ff;
+}
+table {
+  width: 80%;
+  border-collapse: collapse;
+  border: 1px solid black;
+}
+td {
+  padding: 2px 1ex;
+  border: 1px solid black;
+}
+body {
+  background-color: white;
+}
+h2 {
+  margin-top: 3em;
+}
