@@ -1623,30 +1623,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return CompactionManager.instance.submitTruncate(this, truncatedAt);
     }
 
-    // if this errors out, we are in a world of hurt.
-    public void renameSSTables(String newCfName) throws IOException
-    {
-        // complete as much of the job as possible.  Don't let errors long the way prevent as much renaming as possible
-        // from happening.
-        IOException mostRecentProblem = null;
-        for (File existing : DefsTable.getFiles(table.name, columnFamily))
-        {
-            try
-            {
-                String newFileName = existing.getName().replaceFirst("\\w+-", newCfName + "-");
-                FileUtils.renameWithConfirm(existing, new File(existing.getParent(), newFileName));
-            }
-            catch (IOException ex)
-            {
-                mostRecentProblem = ex;
-            }
-        }
-        if (mostRecentProblem != null)
-            throw new IOException("One or more IOExceptions encountered while renaming files. Most recent problem is included.", mostRecentProblem);
-
-        indexManager.renameIndexes(newCfName);
-    }
-
     public long getBloomFilterFalsePositives()
     {
         return data.getBloomFilterFalsePositives();
