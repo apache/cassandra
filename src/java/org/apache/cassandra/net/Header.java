@@ -41,8 +41,10 @@ public class Header
         return serializer_;
     }
 
+    // "from" is the ultimate origin of this request (the coordinator), which in a multi-DC setup
+    // is not necessarily the same as the node that forwards us the request (see StorageProxy.sendMessages
+    // and RowMutationVerbHandler.forwardToLocalNodes)
     private final InetAddress from_;
-    // TODO STAGE can be determined from verb
     private final StorageService.Verb verb_;
     protected Map<String, byte[]> details_ = new Hashtable<String, byte[]>();
 
