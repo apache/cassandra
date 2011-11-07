@@ -2,16 +2,16 @@
  * add message expiration logic to OutboundTcpConnection (CASSANDRA-3005)
  * off-heap cache to use sun.misc.Unsafe instead of JNA (CASSANDRA-3271)
  * EACH_QUORUM is only supported for writes (CASSANDRA-3272)
- * replace compactionlock use in schema migration by checking CFS.isInvalidD
+ * replace compactionlock use in schema migration by checking CFS.isInvalid
  * recognize that "SELECT first ... *" isn't really "SELECT *" (CASSANDRA-3445)
- * fix invalidate-related test failures (CASSANDRA-3437)
- * add next-gen cqlsh to bin/
-Merged from 0.8:
- * Make counter shard merging thread safe (CASSANDRA-3178)
 
 
 1.0.3
  * (Hadoop) Fix empty row filtering (CASSANDRA-3450)
+ * fix invalidate-related test failures (CASSANDRA-3437)
+ * add next-gen cqlsh to bin/
+Merged from 0.8:
+ * Make counter shard merging thread safe (CASSANDRA-3178)
 
 
 1.0.2
