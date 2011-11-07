@@ -28,8 +28,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.regex.Pattern;
-import javax.management.MBeanServer;
-import javax.management.ObjectName;
+import javax.management.*;
 
 import com.google.common.collect.Iterables;
 import org.apache.cassandra.db.compaction.LeveledManifest;
@@ -54,6 +53,7 @@ import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.io.sstable.*;
+import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.IndexClause;
@@ -257,24 +257,29 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
     }
 
-    // called when dropping or renaming a CF. Performs mbean housekeeping and invalidates CFS to other operations.
-    public void unregisterMBean()
+    /** call when dropping or renaming a CF. Performs mbean housekeeping and invalidates CFS to other operations */
+    public void invalidate()
     {
         try
         {
             valid = false;
-            MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
-            ObjectName nameObj = new ObjectName(mbeanName);
-            if (mbs.isRegistered(nameObj))
-                mbs.unregisterMBean(nameObj);
-           
-            indexManager.unregisterMBeans();
+            unregisterMBean();
+            data.removeAllSSTables();
+            indexManager.invalidate();
         }
         catch (Exception e)
         {
             // this shouldn't block anything.
             logger.warn("Failed unregistering mbean: " + mbeanName, e);
         }
+    }
+
+    void unregisterMBean() throws MalformedObjectNameException, InstanceNotFoundException, MBeanRegistrationException
+    {
+        MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
+        ObjectName nameObj = new ObjectName(mbeanName);
+        if (mbs.isRegistered(nameObj))
+            mbs.unregisterMBean(nameObj);
     }
 
     public long getMinRowSize()
@@ -985,12 +990,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public boolean isValid()
     {
         return valid;
-    }
-
-    public void removeAllSSTables() throws IOException
-    {
-        data.removeAllSSTables();
-        indexManager.removeAllIndexes();
     }
 
     public long getMemtableColumnsCount()

@@ -132,9 +132,9 @@ public abstract class SecondaryIndex
     public abstract void renameIndex(String newCfName) throws IOException;
     
     /**
-     * Unregisters this index's mbean if one exists
+     * Remove the index and unregisters this index's mbean if one exists
      */
-    public abstract void unregisterMbean();
+    public abstract void invalidate();
     
     
     /**

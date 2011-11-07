@@ -28,7 +28,6 @@ import java.net.InetAddress;
 import java.util.*;
 
 import org.apache.cassandra.CleanupHelper;
-import org.apache.cassandra.Util;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.context.CounterContext;
@@ -80,9 +79,7 @@ public class StreamingTransferTest extends CleanupHelper
         Util.compactAll(cfs).get();
         assertEquals(1, cfs.getSSTables().size());
         SSTableReader sstable = cfs.getSSTables().iterator().next();
-        // We acquire a reference now, because removeAllSSTables will mark the sstable compacted, and we have work to do with it
-        sstable.acquireReference();
-        cfs.removeAllSSTables();
+        cfs.clearUnsafe();
 
         // transfer the first and last key
         logger.debug("Transferring " + cfs.columnFamily);

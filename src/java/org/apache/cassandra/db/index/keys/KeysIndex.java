@@ -109,8 +109,7 @@ public class KeysIndex extends PerColumnSecondaryIndex
 
     public void removeIndex(ByteBuffer columnName) throws IOException
     {        
-        indexCfs.removeAllSSTables();
-        indexCfs.unregisterMBean();
+        indexCfs.invalidate();
     }
 
     public void forceBlockingFlush() throws IOException
@@ -129,9 +128,9 @@ public class KeysIndex extends PerColumnSecondaryIndex
         }
     }
 
-    public void unregisterMbean()
+    public void invalidate()
     {
-        indexCfs.unregisterMBean();
+        indexCfs.invalidate();
     }
 
     public ColumnFamilyStore getIndexCfs()
