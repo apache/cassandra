@@ -399,4 +399,9 @@ public class Memtable implements Comparable<Memtable>, IFlushable
     {
         return System.currentTimeMillis() > creationTime + cfs.getMemtableFlushAfterMins() * 60 * 1000L;
     }
+
+    public long creationTime()
+    {
+        return creationTime;
+    }
 }

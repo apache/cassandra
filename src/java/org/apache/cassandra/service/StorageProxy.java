@@ -227,7 +227,7 @@ public class StorageProxy implements StorageProxyMBean
         return ss.getTokenMetadata().getWriteEndpoints(StorageService.getPartitioner().getToken(key), table, naturalEndpoints);
     }
 
-    private static void sendToHintedEndpoints(final RowMutation rm, Multimap<InetAddress, InetAddress> hintedEndpoints, IWriteResponseHandler responseHandler, String localDataCenter, ConsistencyLevel consistency_level)
+    public static void sendToHintedEndpoints(final RowMutation rm, Multimap<InetAddress, InetAddress> hintedEndpoints, IWriteResponseHandler responseHandler, String localDataCenter, ConsistencyLevel consistency_level)
     throws IOException
     {
         // Multimap that holds onto all the messages and addresses meant for a specific datacenter
@@ -1105,7 +1105,7 @@ public class StorageProxy implements StorageProxyMBean
         return !Gossiper.instance.getUnreachableMembers().isEmpty();
     }
 
-    private interface WritePerformer
+    public interface WritePerformer
     {
         public void apply(IMutation mutation, Multimap<InetAddress, InetAddress> hintedEndpoints, IWriteResponseHandler responseHandler, String localDataCenter, ConsistencyLevel consistency_level) throws IOException;
     }

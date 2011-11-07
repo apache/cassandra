@@ -57,14 +57,14 @@ public class PrecompactedRow extends AbstractCompactedRow
 
     public static ColumnFamily removeDeletedAndOldShards(DecoratedKey key, CompactionController controller, ColumnFamily cf)
     {
-        return removeDeletedAndOldShards(controller.shouldPurge(key), controller, cf);
+        return removeDeletedAndOldShards(key, controller.shouldPurge(key), controller, cf);
     }
 
-    public static ColumnFamily removeDeletedAndOldShards(boolean shouldPurge, CompactionController controller, ColumnFamily cf)
+    public static ColumnFamily removeDeletedAndOldShards(DecoratedKey key, boolean shouldPurge, CompactionController controller, ColumnFamily cf)
     {
         ColumnFamily compacted = shouldPurge ? ColumnFamilyStore.removeDeleted(cf, controller.gcBefore) : cf;
         if (shouldPurge && compacted != null && compacted.metadata().getDefaultValidator().isCommutative())
-            CounterColumn.removeOldShards(compacted, controller.gcBefore);
+            CounterColumn.mergeAndRemoveOldShards(key, compacted, controller.gcBefore, controller.mergeShardBefore);
         return compacted;
     }
 

@@ -106,7 +106,6 @@ public class CounterMutation implements IMutation
             if (row == null || row.cf == null)
                 continue;
 
-            row = mergeOldShards(readCommand.table, row);
             ColumnFamily cf = row.cf;
             if (cf.isSuper())
                 cf.retainAll(rowMutation.getColumnFamily(cf.metadata().cfId));
@@ -119,73 +118,6 @@ public class CounterMutation implements IMutation
     {
         QueryPath queryPath = new QueryPath(columnFamily.metadata().cfName);
         commands.add(new SliceByNamesReadCommand(table, key, queryPath, columnFamily.getColumnNames()));
-    }
-
-    private Row mergeOldShards(String table, Row row) throws IOException
-    {
-        ColumnFamily cf = row.cf;
-        // random check for merging to allow lessening the performance impact
-        if (cf.metadata().getMergeShardsChance() > FBUtilities.threadLocalRandom().nextDouble())
-        {
-            ColumnFamily merger = computeShardMerger(cf);
-            if (merger != null)
-            {
-                RowMutation localMutation = new RowMutation(table, row.key.key);
-                localMutation.add(merger);
-                localMutation.apply();
-
-                cf.addAll(merger);
-            }
-        }
-        return row;
-    }
-
-    private ColumnFamily computeShardMerger(ColumnFamily cf)
-    {
-        ColumnFamily merger = null;
-
-        // CF type: regular
-        if (!cf.isSuper())
-        {
-            for (IColumn column : cf.getSortedColumns())
-            {
-                if (!(column instanceof CounterColumn))
-                    continue;
-                IColumn c = ((CounterColumn)column).computeOldShardMerger();
-                if (c != null)
-                {
-                    if (merger == null)
-                        merger = cf.cloneMeShallow();
-                    merger.addColumn(c);
-                }
-            }
-        }
-        else // CF type: super
-        {
-            for (IColumn superColumn : cf.getSortedColumns())
-            {
-                IColumn mergerSuper = null;
-                for (IColumn column : superColumn.getSubColumns())
-                {
-                    if (!(column instanceof CounterColumn))
-                        continue;
-                    IColumn c = ((CounterColumn)column).computeOldShardMerger();
-                    if (c != null)
-                    {
-                        if (mergerSuper == null)
-                            mergerSuper = ((SuperColumn)superColumn).cloneMeShallow();
-                        mergerSuper.addColumn(c);
-                    }
-                }
-                if (mergerSuper != null)
-                {
-                    if (merger == null)
-                        merger = cf.cloneMeShallow();
-                    merger.addColumn(mergerSuper);
-                }
-            }
-        }
-        return merger;
     }
 
     public Message makeMutationMessage(int version) throws IOException

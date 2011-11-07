@@ -19,6 +19,7 @@ package org.apache.cassandra.db;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Collections;
 import java.util.List;
 
 import org.junit.Test;
@@ -87,6 +88,7 @@ public class CounterMutationTest extends CleanupHelper
     public void testRemoveOldShardFixCorrupted() throws IOException
     {
         CounterContext ctx = CounterContext.instance();
+        int now = (int) (System.currentTimeMillis() / 1000);
 
         // Check that corrupted context created prior to #2968 are fixed by removeOldShards
         NodeId id1 = NodeId.getLocalId();
@@ -96,19 +98,21 @@ public class CounterMutationTest extends CleanupHelper
         ContextState state = ContextState.allocate(3, 2);
         state.writeElement(NodeId.fromInt(1), 1, 4, false);
         state.writeElement(id1, 3, 2, true);
-        state.writeElement(id2, -System.currentTimeMillis(), 5, true); // corrupted!
+        state.writeElement(id2, -100, 5, true); // corrupted!
 
         assert ctx.total(state.context) == 11;
 
         try
         {
-            ctx.removeOldShards(state.context, Integer.MAX_VALUE);
+            ByteBuffer merger = ctx.computeOldShardMerger(state.context, Collections.<NodeId.NodeIdRecord>emptyList(), 0);
+            ctx.removeOldShards(ctx.merge(state.context, merger), now);
             fail("RemoveOldShards should throw an exception if the current id is non-sensical");
         }
         catch (RuntimeException e) {}
 
         NodeId.renewLocalId();
-        ByteBuffer cleaned = ctx.removeOldShards(state.context, Integer.MAX_VALUE);
+        ByteBuffer merger = ctx.computeOldShardMerger(state.context, Collections.<NodeId.NodeIdRecord>emptyList(), 0);
+        ByteBuffer cleaned = ctx.removeOldShards(ctx.merge(state.context, merger), now);
         assert ctx.total(cleaned) == 11;
 
         // Check it is not corrupted anymore

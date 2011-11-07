@@ -150,6 +150,8 @@ public final class CFMetaData
     private int memtableFlushAfterMins;               // default 60 
     private int memtableThroughputInMb;               // default based on heap size
     private double memtableOperationsInMillions;      // default based on throughput
+    // mergeShardsChance is now obsolete, but left here so as to not break
+    // thrift compatibility
     private double mergeShardsChance;                 // default 0.1, chance [0.0, 1.0] of merging old shards during replication
     private IRowCacheProvider rowCacheProvider;
     private ByteBuffer keyAlias;                      // default NULL

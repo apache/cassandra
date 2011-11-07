@@ -46,6 +46,7 @@ public class CompactionController
 
     public final boolean isMajor;
     public final int gcBefore;
+    public final int mergeShardBefore;
     private int throttleResolution;
 
     public CompactionController(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, int gcBefore, boolean forceDeserialize)
@@ -54,6 +55,11 @@ public class CompactionController
         this.cfs = cfs;
         this.sstables = new HashSet<SSTableReader>(sstables);
         this.gcBefore = gcBefore;
+        // If we merge an old NodeId id, we must make sure that no further increment for that id are in an active memtable.
+        // For that, we must make sure that this id was renewed before the creation of the oldest unflushed memtable. We
+        // add 5 minutes to be sure we're on the safe side in terms of thread safety (though we should be fine in our
+        // current 'stop all write during memtable switch' situation).
+        this.mergeShardBefore = (int) ((cfs.oldestUnflushedMemtable() + 5 * 3600) / 1000);
         this.forceDeserialize = forceDeserialize;
         isMajor = cfs.isCompleteSSTables(this.sstables);
         // how many rows we expect to compact in 100ms
