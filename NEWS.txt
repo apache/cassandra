@@ -6,6 +6,10 @@ Upgrading
     - EACH_QUORUM ConsistencyLevel is only supported for writes and will now
       throw an InvalidRequestException when used for reads.  (Previous
       versions would silently perform a LOCAL_QUORUM read instead.)
+    - ANY ConsistencyLevel is only supported for writes and will now
+      throw an InvalidRequestException when used for reads.  (Previous
+      versions would silently perform a ONE read for range queries;
+      single-row and multiget reads already rejected ANY.)
 
 
 1.0.1

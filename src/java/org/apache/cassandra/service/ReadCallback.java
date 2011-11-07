@@ -182,7 +182,6 @@ public class ReadCallback<T> implements IAsyncCallback
         switch (consistencyLevel)
         {
             case ONE:
-            case ANY:
                 return 1;
             case TWO:
                 return 2;

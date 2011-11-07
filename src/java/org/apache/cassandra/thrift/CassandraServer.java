@@ -120,11 +120,6 @@ public class CassandraServer implements Cassandra.Iface
         // TODO - Support multiple column families per row, right now row only contains 1 column family
         Map<DecoratedKey, ColumnFamily> columnFamilyKeyMap = new HashMap<DecoratedKey, ColumnFamily>();
 
-        if (consistency_level == ConsistencyLevel.ANY)
-        {
-            throw new InvalidRequestException("Consistency level any may not be applied to read operations");
-        }
-
         List<Row> rows;
         try
         {

@@ -91,6 +91,10 @@ public class ThriftValidation
     {
         switch (cl)
         {
+            case ANY:
+                if (requestType == RequestType.READ)
+                    throw new InvalidRequestException("ANY ConsistencyLevel is only supported for writes");
+                break;
             case LOCAL_QUORUM:
                 requireNetworkTopologyStrategy(table, cl);
                 break;
