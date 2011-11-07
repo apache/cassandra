@@ -362,54 +362,31 @@ public class CounterContextTest
         records.add(new NodeId.NodeIdRecord(id1, 2L));
         records.add(new NodeId.NodeIdRecord(id3, 4L));
 
-        // Destination of merge is a delta
-        ContextState ctx = ContextState.allocate(5, 2, allocator);
-        ctx.writeElement(id1, 1L, 1L);
+        ContextState ctx = ContextState.allocate(5, 3, allocator);
+        ctx.writeElement(id1, 1L, 1L, true);
         ctx.writeElement(NodeId.fromInt(2), 2L, 2L);
         ctx.writeElement(id3, 3L, 3L, true);
         ctx.writeElement(NodeId.fromInt(4), 6L, 3L);
         ctx.writeElement(NodeId.fromInt(5), 7L, 3L, true);
 
-        ByteBuffer merger = cc.computeOldShardMerger(ctx.context, records);
+        ByteBuffer merger = cc.computeOldShardMerger(ctx.context, records, Integer.MAX_VALUE);
+
         ContextState m = new ContextState(merger);
 
         assert m.getNodeId().equals(id1);
         assert m.getClock() <= -now;
-        assert m.getCount() == 0;
+        assert m.getCount() == -1L;
+        assert m.isDelta();
         m.moveToNext();
         assert m.getNodeId().equals(id3);
-        assert m.getClock() == 4L;
-        assert m.getCount() == 1L;
-        assert cc.total(ctx.context) == cc.total(cc.merge(ctx.context, merger, allocator));
-
-        // Source of merge is a delta
-        ctx = ContextState.allocate(4, 1, allocator);
-        ctx.writeElement(id1, 1L, 1L, true);
-        ctx.writeElement(NodeId.fromInt(2), 2L, 2L);
-        ctx.writeElement(id3, 3L, 3L);
-        ctx.writeElement(NodeId.fromInt(4), 6L, 3L);
-
-        merger = cc.computeOldShardMerger(ctx.context, records);
-        assert cc.total(ctx.context) == cc.total(cc.merge(ctx.context, merger, allocator));
-
-        // source and destination of merge are deltas
-        ctx = ContextState.allocate(4, 2, allocator);
-        ctx.writeElement(id1, 1L, 1L, true);
-        ctx.writeElement(NodeId.fromInt(2), 2L, 2L);
-        ctx.writeElement(id3, 3L, 3L, true);
-        ctx.writeElement(NodeId.fromInt(4), 6L, 3L);
-
-        merger = cc.computeOldShardMerger(ctx.context, records);
-        assert cc.total(ctx.context) == cc.total(cc.merge(ctx.context, merger, allocator));
-
-        // none of source and destination of merge are deltas
-        ctx = ContextState.allocate(4, 0, allocator);
-        ctx.writeElement(id1, 1L, 1L);
-        ctx.writeElement(NodeId.fromInt(2), 2L, 2L);
-        ctx.writeElement(id3, 3L, 3L);
-        ctx.writeElement(NodeId.fromInt(4), 6L, 3L);
-
-        merger = cc.computeOldShardMerger(ctx.context, records);
+        assert m.getClock() <= -now;
+        assert m.getCount() == -3L;
+        assert m.isDelta();
+        m.moveToNext();
+        assert m.getNodeId().equals(NodeId.getLocalId());
+        assert m.getClock() == 1L;
+        assert m.getCount() == 4L;
+        assert m.isDelta();
         assert cc.total(ctx.context) == cc.total(cc.merge(ctx.context, merger, allocator));
     }
 
@@ -430,28 +407,20 @@ public class CounterContextTest
         records.add(new NodeId.NodeIdRecord(id3, 4L));
         records.add(new NodeId.NodeIdRecord(id6, 10L));
 
-        ContextState ctx = ContextState.allocate(6, 2, allocator);
-        ctx.writeElement(id1, 1L, 1L);
+        ContextState ctx = ContextState.allocate(6, 3, allocator);
+        ctx.writeElement(id1, 1L, 1L, true);
         ctx.writeElement(NodeId.fromInt(2), 2L, 2L);
         ctx.writeElement(id3, 3L, 3L, true);
         ctx.writeElement(NodeId.fromInt(4), 6L, 3L);
         ctx.writeElement(NodeId.fromInt(5), 7L, 3L, true);
         ctx.writeElement(id6, 5L, 6L);
 
-        ByteBuffer merger = cc.computeOldShardMerger(ctx.context, records);
+        ByteBuffer merger = cc.computeOldShardMerger(ctx.context, records, Integer.MAX_VALUE);
         ByteBuffer merged = cc.merge(ctx.context, merger, allocator);
         assert cc.total(ctx.context) == cc.total(merged);
 
         ByteBuffer cleaned = cc.removeOldShards(merged, (int)(System.currentTimeMillis() / 1000) + 1);
         assert cc.total(ctx.context) == cc.total(cleaned);
-        assert cleaned.remaining() == ctx.context.remaining() - stepLength;
-
-        merger = cc.computeOldShardMerger(cleaned, records);
-        merged = cc.merge(cleaned, merger, allocator);
-        assert cc.total(ctx.context) == cc.total(merged);
-
-        cleaned = cc.removeOldShards(merged, (int)(System.currentTimeMillis() / 1000) + 1);
-        assert cc.total(ctx.context) == cc.total(cleaned);
-        assert cleaned.remaining() == ctx.context.remaining() - 2 * stepLength - 2;
+        assert cleaned.remaining() == ctx.context.remaining() - stepLength - 2;
     }
 }

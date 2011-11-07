@@ -3,6 +3,8 @@
  * EACH_QUORUM is only supported for writes (CASSANDRA-3272)
  * replace compactionlock use in schema migration by checking CFS.isInvalidD
  * recognize that "SELECT first ... *" isn't really "SELECT *" (CASSANDRA-3445)
+Merged from 0.8:
+ * Make counter shard merging thread safe (CASSANDRA-3178)
 
 1.0.2
  * "defragment" rows for name-based queries under STCS (CASSANDRA-2503)

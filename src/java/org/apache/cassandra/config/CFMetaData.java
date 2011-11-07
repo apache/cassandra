@@ -119,6 +119,8 @@ public final class CFMetaData
     private int rowCacheSavePeriodInSeconds;          // default 0 (off)
     private int keyCacheSavePeriodInSeconds;          // default 3600 (1 hour)
     private int rowCacheKeysToSave;                   // default max int (aka feature is off)
+    // mergeShardsChance is now obsolete, but left here so as to not break
+    // thrift compatibility
     private double mergeShardsChance;                 // default 0.1, chance [0.0, 1.0] of merging old shards during replication
     private IRowCacheProvider rowCacheProvider;
     private ByteBuffer keyAlias;                      // default NULL

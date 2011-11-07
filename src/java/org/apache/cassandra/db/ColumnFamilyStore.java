@@ -1904,4 +1904,16 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             this.memtables = memtables;
         }
     }
+
+    /**
+     * Returns the creation time of the oldest memtable not fully flushed yet.
+     */
+    public long oldestUnflushedMemtable()
+    {
+        DataTracker.View view = data.getView();
+        long oldest = view.memtable.creationTime();
+        for (Memtable memtable : view.memtablesPendingFlush)
+            oldest = Math.min(oldest, memtable.creationTime());
+        return oldest;
+    }
 }

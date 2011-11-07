@@ -222,7 +222,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements IIterabl
 
         protected IColumn getReduced()
         {
-            ColumnFamily purged = PrecompactedRow.removeDeletedAndOldShards(shouldPurge, controller, container);
+            ColumnFamily purged = PrecompactedRow.removeDeletedAndOldShards(key, shouldPurge, controller, container);
             if (purged == null || !purged.iterator().hasNext())
             {
                 container.clear();

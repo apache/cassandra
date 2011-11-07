@@ -76,12 +76,14 @@ public class Memtable
 
     private final ConcurrentNavigableMap<DecoratedKey, ColumnFamily> columnFamilies = new ConcurrentSkipListMap<DecoratedKey, ColumnFamily>();
     public final ColumnFamilyStore cfs;
+    private final long creationTime;
 
     private SlabAllocator allocator = new SlabAllocator();
 
     public Memtable(ColumnFamilyStore cfs)
     {
         this.cfs = cfs;
+        this.creationTime = System.currentTimeMillis();
 
         Callable<Set<Object>> provider = new Callable<Set<Object>>()
         {
@@ -396,5 +398,10 @@ public class Memtable
     void clearUnsafe()
     {
         columnFamilies.clear();
+    }
+
+    public long creationTime()
+    {
+        return creationTime;
     }
 }

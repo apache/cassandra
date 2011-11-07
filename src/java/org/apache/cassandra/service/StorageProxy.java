@@ -273,7 +273,7 @@ public class StorageProxy implements StorageProxyMBean
      *
      * @throws TimeoutException if the hints cannot be written/enqueued 
      */
-    private static void sendToHintedEndpoints(final RowMutation rm, 
+    public static void sendToHintedEndpoints(final RowMutation rm, 
                                               Collection<InetAddress> targets,
                                               IWriteResponseHandler responseHandler,
                                               String localDataCenter,
@@ -1226,7 +1226,7 @@ public class StorageProxy implements StorageProxyMBean
         return !Gossiper.instance.getUnreachableMembers().isEmpty();
     }
 
-    private interface WritePerformer
+    public interface WritePerformer
     {
         public void apply(IMutation mutation, Collection<InetAddress> targets, IWriteResponseHandler responseHandler, String localDataCenter, ConsistencyLevel consistency_level) throws IOException, TimeoutException;
     }
