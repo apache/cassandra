@@ -123,14 +123,7 @@ public abstract class SecondaryIndex
      * @param columnName the indexed column to remove
      */
     public abstract void removeIndex(ByteBuffer columnName) throws IOException;
-    
-    /**
-     * Renames the underlying index files to reflect the new CF name
-     * @param newCfName new column family name.
-     * @throws IOException on any I/O error.
-     */
-    public abstract void renameIndex(String newCfName) throws IOException;
-    
+
     /**
      * Remove the index and unregisters this index's mbean if one exists
      */

@@ -148,11 +148,6 @@ public class KeysIndex extends PerColumnSecondaryIndex
         return indexCfs.columnFamily;
     }
 
-    public void renameIndex(String newCfName) throws IOException
-    {
-        indexCfs.renameSSTables(indexCfs.columnFamily.replace(baseCfs.columnFamily, newCfName));
-    }
-
     public void validateOptions() throws ConfigurationException
     {
         // no options used

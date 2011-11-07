@@ -246,17 +246,7 @@ public class SecondaryIndexManager
         for (Map.Entry<ByteBuffer, SecondaryIndex> entry : indexesByColumn.entrySet())
             entry.getValue().invalidate();
     }
-        
-    /**
-     * Rename all underlying index files
-     * @param newCfName the new index Name
-     */
-    public void renameIndexes(String newCfName) throws IOException
-    {
-        for (Map.Entry<ByteBuffer, SecondaryIndex> entry : indexesByColumn.entrySet())
-            entry.getValue().renameIndex(newCfName);
-    }
-    
+
     /**
      * Flush all indexes to disk
      * @throws ExecutionException
