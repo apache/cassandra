@@ -27,7 +27,6 @@ import java.io.IOException;
 import java.net.Socket;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.commons.lang.ArrayUtils;
 import org.slf4j.Logger;
@@ -36,6 +35,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
 
 public class OutboundTcpConnection extends Thread
 {
@@ -47,18 +47,12 @@ public class OutboundTcpConnection extends Thread
                                                               MessagingService.version_);
 
     private static final int OPEN_RETRY_DELAY = 100; // ms between retries
-
-    // sending thread reads from "active" (one of queue1, queue2) until it is empty.
-    // then it swaps it with "backlog."
-    private volatile BlockingQueue<Entry> backlog = new LinkedBlockingQueue<Entry>();
-    private volatile BlockingQueue<Entry> active = new LinkedBlockingQueue<Entry>();
-
+    private final BlockingQueue<Pair<Message, String>> queue = new LinkedBlockingQueue<Pair<Message, String>>();
     private final OutboundTcpConnectionPool poolReference;    
 
     private DataOutputStream out;
     private Socket socket;
-    private volatile long completed;
-    private final AtomicLong dropped = new AtomicLong();
+    private long completedCount;
 
     public OutboundTcpConnection(OutboundTcpConnectionPool pool)
     {
@@ -68,10 +62,9 @@ public class OutboundTcpConnection extends Thread
 
     public void enqueue(Message message, String id)
     {
-        expireMessages();
         try
         {
-            backlog.put(new Entry(message, id, System.currentTimeMillis()));
+            queue.put(Pair.create(message, id));
         }
         catch (InterruptedException e)
         {
@@ -81,8 +74,7 @@ public class OutboundTcpConnection extends Thread
 
     void closeSocket()
     {
-        active.clear();
-        backlog.clear();
+        queue.clear();
         enqueue(CLOSE_SENTINEL, null);
     }
 
@@ -90,54 +82,30 @@ public class OutboundTcpConnection extends Thread
     {
         while (true)
         {
-            Entry entry = active.poll();
-            if (entry == null)
-            {
-                // exhausted the active queue.  switch to backlog, once there's something to process there
-                try
-                {
-                    entry = backlog.take();
-                }
-                catch (InterruptedException e)
-                {
-                    throw new AssertionError(e);
-                }
-
-                BlockingQueue<Entry> tmp = backlog;
-                backlog = active;
-                active = tmp;
-            }
-
-            Message m = entry.message;
-            String id = entry.id;
+            Pair<Message, String> pair = take();
+            Message m = pair.left;
+            String id = pair.right;
             if (m == CLOSE_SENTINEL)
             {
                 disconnect();
                 continue;
             }
-            if (entry.timestamp < System.currentTimeMillis() - DatabaseDescriptor.getRpcTimeout())
-                dropped.incrementAndGet();
-            else if (socket != null || connect())
+            if (socket != null || connect())
                 writeConnected(m, id);
             else
                 // clear out the queue, else gossip messages back up.
-                active.clear();
+                queue.clear();            
         }
     }
 
     public int getPendingMessages()
     {
-        return active.size() + backlog.size();
+        return queue.size();
     }
 
     public long getCompletedMesssages()
     {
-        return completed;
-    }
-
-    public long getDroppedMessages()
-    {
-        return dropped.get();
+        return completedCount;
     }
 
     private void writeConnected(Message message, String id)
@@ -145,8 +113,7 @@ public class OutboundTcpConnection extends Thread
         try
         {
             write(message, id, out);
-            completed++;
-            if (active.peek() == null)
+            if (queue.peek() == null)
             {
                 out.flush();
             }
@@ -215,6 +182,21 @@ public class OutboundTcpConnection extends Thread
         }
     }
 
+    private Pair<Message, String> take()
+    {
+        Pair<Message, String> pair;
+        try
+        {
+            pair = queue.take();
+            completedCount++;
+        }
+        catch (InterruptedException e)
+        {
+            throw new AssertionError(e);
+        }
+        return pair;
+    }
+
     private boolean connect()
     {
         if (logger.isDebugEnabled())
@@ -246,42 +228,5 @@ public class OutboundTcpConnection extends Thread
             }
         }
         return false;
-    }
-
-    private void expireMessages()
-    {
-        while (true)
-        {
-            Entry entry = backlog.peek();
-            if (entry == null || entry.timestamp >= System.currentTimeMillis() - DatabaseDescriptor.getRpcTimeout())
-                break;
-
-            Entry entry2 = backlog.poll();
-            if (entry2 != entry)
-            {
-                // sending thread switched queues.  add this entry (from the "new" backlog)
-                // at the end of the active queue, which keeps it in the same position relative to the other entries
-                // without having to contend with other clients for the head-of-backlog lock.
-                if (entry2 != null)
-                    active.add(entry2);
-                break;
-            }
-
-            dropped.incrementAndGet();
-        }
-    }
-
-    private static class Entry
-    {
-        final Message message;
-        final String id;
-        final long timestamp;
-
-        Entry(Message message, String id, long timestamp)
-        {
-            this.message = message;
-            this.id = id;
-            this.timestamp = timestamp;
-        }
     }
 }
