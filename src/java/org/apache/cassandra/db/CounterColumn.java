@@ -20,20 +20,29 @@ package org.apache.cassandra.db;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.net.InetAddress;
 import java.security.MessageDigest;
+import java.util.concurrent.TimeoutException;
+import java.util.Arrays;
+import java.util.Map;
+import java.util.Collection;
 
+import com.google.common.collect.Multimap;
 import org.apache.log4j.Logger;
 
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.context.IContext.ContextRelationship;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.utils.Allocator;
-import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.HeapAllocator;
-import org.apache.cassandra.utils.NodeId;
+import org.apache.cassandra.service.IWriteResponseHandler;
+import org.apache.cassandra.service.StorageProxy;
+import org.apache.cassandra.thrift.ConsistencyLevel;
+import org.apache.cassandra.thrift.UnavailableException;
+import org.apache.cassandra.utils.*;
 
 /**
  * A column that represents a partitioned counter.
@@ -236,9 +245,9 @@ public class CounterColumn extends Column
         return contextManager.hasNodeId(value(), id);
     }
 
-    public CounterColumn computeOldShardMerger()
+    private CounterColumn computeOldShardMerger(int mergeBefore)
     {
-        ByteBuffer bb = contextManager.computeOldShardMerger(value(), NodeId.getOldLocalNodeIds());
+        ByteBuffer bb = contextManager.computeOldShardMerger(value(), NodeId.getOldLocalNodeIds(), mergeBefore);
         if (bb == null)
             return null;
         else
@@ -256,17 +265,48 @@ public class CounterColumn extends Column
         }
     }
 
-    public static void removeOldShards(ColumnFamily cf, int gcBefore)
+    public static void mergeAndRemoveOldShards(DecoratedKey key, ColumnFamily cf, int gcBefore, int mergeBefore)
     {
+        mergeAndRemoveOldShards(key, cf, gcBefore, mergeBefore, true);
+    }
+
+    /**
+     * There is two phase to the removal of old shards.
+     * First phase: we merge the old shard value to the current shard and
+     * 'nulify' the old one. We then send the counter context with the old
+     * shard nulified to all other replica.
+     * Second phase: once an old shard has been nulified for longer than
+     * gc_grace (to be sure all other replica had been aware of the merge), we
+     * simply remove that old shard from the context (it's value is 0).
+     * This method does both phases.
+     * (Note that the sendToOtherReplica flag is here only to facilitate
+     * testing. It should be true in real code so use the method above
+     * preferably)
+     */
+    public static void mergeAndRemoveOldShards(DecoratedKey key, ColumnFamily cf, int gcBefore, int mergeBefore, boolean sendToOtherReplica)
+    {
+        ColumnFamily remoteMerger = null;
         if (!cf.isSuper())
         {
             for (IColumn c : cf)
             {
                 if (!(c instanceof CounterColumn))
                     continue;
-                CounterColumn cleaned = ((CounterColumn) c).removeOldShards(gcBefore);
-                if (cleaned != c)
-                    cf.replace(c, cleaned);
+                CounterColumn cc = (CounterColumn) c;
+                CounterColumn shardMerger = cc.computeOldShardMerger(mergeBefore);
+                CounterColumn merged = cc;
+                if (shardMerger != null)
+                {
+                    merged = (CounterColumn) cc.reconcile(shardMerger);
+                    if (remoteMerger == null)
+                        remoteMerger = cf.cloneMeShallow();
+                    remoteMerger.addColumn(merged);
+                }
+                CounterColumn cleaned = merged.removeOldShards(gcBefore);
+                if (cleaned != cc)
+                {
+                    cf.replace(cc, cleaned);
+                }
             }
         }
         else
@@ -278,10 +318,32 @@ public class CounterColumn extends Column
                 {
                     if (!(subColumn instanceof CounterColumn))
                         continue;
-                    CounterColumn cleaned = ((CounterColumn) subColumn).removeOldShards(gcBefore);
+                    CounterColumn cc = (CounterColumn) subColumn;
+                    CounterColumn shardMerger = cc.computeOldShardMerger(mergeBefore);
+                    CounterColumn merged = cc;
+                    if (shardMerger != null)
+                    {
+                        merged = (CounterColumn) cc.reconcile(shardMerger);
+                        if (remoteMerger == null)
+                            remoteMerger = cf.cloneMeShallow();
+                        remoteMerger.addColumn(c.name(), merged);
+                    }
+                    CounterColumn cleaned = merged.removeOldShards(gcBefore);
                     if (cleaned != subColumn)
                         c.replace(subColumn, cleaned);
                 }
+            }
+        }
+
+        if (remoteMerger != null && sendToOtherReplica)
+        {
+            try
+            {
+                sendToOtherReplica(key, remoteMerger);
+            }
+            catch (Exception e)
+            {
+                logger.error("Error while sending shard merger mutation to remote endpoints", e);
             }
         }
     }
@@ -289,5 +351,28 @@ public class CounterColumn extends Column
     public IColumn markDeltaToBeCleared()
     {
         return new CounterColumn(name, contextManager.markDeltaToBeCleared(value), timestamp, timestampOfLastDelete);
+    }
+
+    private static void sendToOtherReplica(DecoratedKey key, ColumnFamily cf) throws UnavailableException, TimeoutException, IOException
+    {
+        RowMutation rm = new RowMutation(cf.metadata().ksName, key.key);
+        rm.add(cf);
+
+        final InetAddress local = FBUtilities.getBroadcastAddress();
+        String localDataCenter = DatabaseDescriptor.getEndpointSnitch().getDatacenter(local);
+
+        StorageProxy.performWrite(rm, ConsistencyLevel.ANY, localDataCenter, new StorageProxy.WritePerformer()
+        {
+            public void apply(IMutation mutation, Collection<InetAddress> targets, IWriteResponseHandler responseHandler, String localDataCenter, ConsistencyLevel consistency_level) throws IOException, TimeoutException
+            {
+                // We should only send to the remote replica, not the local one
+                targets.remove(local);
+                // Fake local response to be a good lad but we won't wait on the responseHandler
+                responseHandler.response(null);
+                StorageProxy.sendToHintedEndpoints((RowMutation) mutation, targets, responseHandler, localDataCenter, consistency_level);
+            }
+        });
+
+        // we don't wait for answers
     }
 }

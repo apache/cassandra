@@ -1,5 +1,7 @@
 1.0.3
  * (Hadoop) Fix empty row filtering (CASSANDRA-3450)
+Merged from 0.8:
+ * Make counter shard merging thread safe (CASSANDRA-3178)
 
 
 1.0.2
