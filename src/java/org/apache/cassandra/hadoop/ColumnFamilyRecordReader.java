@@ -235,50 +235,55 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
             {
                 startToken = split.getStartToken();
             } 
-            else if (startToken.equals(split.getEndToken()))
-            {
-                rows = null;
-                return;
-            }
-            
-            KeyRange keyRange = new KeyRange(batchRowCount)
-                                .setStart_token(startToken)
-                                .setEnd_token(split.getEndToken());
-            try
-            {
-                rows = client.get_range_slices(new ColumnParent(cfName),
-                                               predicate,
-                                               keyRange,
-                                               consistencyLevel);
-                  
-                // nothing new? reached the end
-                if (rows.isEmpty())
+
+            // The removal of empty CF rows could result in an empty List<KeySlice> rows.
+            // Keep trying until we return on reaching the end of the range or rows is nonEmpty.
+            while (rows == null || rows.isEmpty()) {
+                if (startToken.equals(split.getEndToken()))
                 {
                     rows = null;
                     return;
                 }
 
-                // Pre-compute the last row key, before removing empty rows
-                ByteBuffer lastRowKey = rows.get(rows.size() - 1).key;
-
-                // only remove empty rows if the slice predicate is empty
-                if (isPredicateEmpty(predicate))
+                KeyRange keyRange = new KeyRange(batchRowCount)
+                                    .setStart_token(startToken)
+                                    .setEnd_token(split.getEndToken());
+                try
                 {
-                    Iterator<KeySlice> rowsIterator = rows.iterator();
-                    while (rowsIterator.hasNext())
-                        if (rowsIterator.next().columns.isEmpty())
-                            rowsIterator.remove();
-                }
-                
-                // reset to iterate through the new batch
-                i = 0;
+                    rows = client.get_range_slices(new ColumnParent(cfName),
+                                                   predicate,
+                                                   keyRange,
+                                                   consistencyLevel);
 
-                // prepare for the next slice to be read
-                startToken = partitioner.getTokenFactory().toString(partitioner.getToken(lastRowKey));
-            }
-            catch (Exception e)
-            {
-                throw new RuntimeException(e);
+                    // nothing new? reached the end
+                    if (rows.isEmpty())
+                    {
+                        rows = null;
+                        return;
+                    }
+
+                    // Pre-compute the last row key, before removing empty rows
+                    ByteBuffer lastRowKey = rows.get(rows.size() - 1).key;
+
+                    // only remove empty rows if the slice predicate is empty
+                    if (isPredicateEmpty(predicate))
+                    {
+                        Iterator<KeySlice> rowsIterator = rows.iterator();
+                        while (rowsIterator.hasNext())
+                            if (rowsIterator.next().columns.isEmpty())
+                                rowsIterator.remove();
+                    }
+
+                    // reset to iterate through the new batch
+                    i = 0;
+
+                    // prepare for the next slice to be read
+                    startToken = partitioner.getTokenFactory().toString(partitioner.getToken(lastRowKey));
+                }
+                catch (Exception e)
+                {
+                    throw new RuntimeException(e);
+                }
             }
         }
 
@@ -354,8 +359,10 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
     {
         if (predicate != null)
             if (predicate.isSetSlice_range())
-                if (predicate.getSlice_range().getStart() != null && predicate.getSlice_range().getFinish() != null)
+            {
+                if (predicate.getSlice_range().getStart() != null || predicate.getSlice_range().getFinish() != null)
                 return false;
+            }
             else if (predicate.isSetColumn_names())
                 return false;
 

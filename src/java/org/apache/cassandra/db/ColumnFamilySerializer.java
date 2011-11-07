@@ -158,18 +158,4 @@ public class ColumnFamilySerializer implements ISerializer<ColumnFamily>
     {
         return cf == null ? DBConstants.boolSize : cf.serializedSize();
     }
-
-    /**
-     * Observes columns in a single row, without adding them to the column family.
-     */
-    public void observeColumnsInSSTable(CFMetaData cfm, RandomAccessFile dis, SSTableMetadata.Collector sstableMetadataCollector) throws IOException
-    {
-        int size = dis.readInt();
-        sstableMetadataCollector.addColumnCount(size);
-        for (int i = 0; i < size; ++i)
-        {
-            IColumn column = cfm.getColumnSerializer().deserialize(dis);
-            sstableMetadataCollector.updateMaxTimestamp(column.maxTimestamp());
-        }
-    }
 }

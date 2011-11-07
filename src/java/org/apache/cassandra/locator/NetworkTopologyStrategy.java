@@ -51,8 +51,8 @@ import org.apache.cassandra.utils.FBUtilities;
  */
 public class NetworkTopologyStrategy extends AbstractReplicationStrategy
 {
-    private IEndpointSnitch snitch;
-    private Map<String, Integer> datacenters;
+    private final IEndpointSnitch snitch;
+    private final Map<String, Integer> datacenters;
     private static final Logger logger = LoggerFactory.getLogger(NetworkTopologyStrategy.class);
 
     public NetworkTopologyStrategy(String table, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions) throws ConfigurationException
