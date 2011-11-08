@@ -51,6 +51,7 @@ import static junit.framework.Assert.assertEquals;
 import static junit.framework.Assert.assertTrue;
 import static org.apache.cassandra.Util.column;
 import static org.apache.cassandra.Util.getBytes;
+import static org.apache.cassandra.db.TableTest.assertColumns;
 import static org.junit.Assert.assertNull;
 
 import org.junit.Test;
@@ -575,14 +576,14 @@ public class ColumnFamilyStoreTest extends CleanupHelper
     {
         RowMutation rm = new RowMutation(cfs.table.name, key.key);
         ColumnFamily cf = ColumnFamily.create(cfs.table.name, cfs.getColumnFamilyName());
-        SuperColumn sc = new SuperColumn(scfName, LongType.instance);
+        SuperColumn sc = new SuperColumn(scfName, cfs.metadata.subcolumnComparator);
         for (Column col : cols)
             sc.addColumn(col);
         cf.addColumn(sc);
         rm.add(cf);
         rm.apply();
     }
-    
+
     private static void putColsStandard(ColumnFamilyStore cfs, DecoratedKey key, Column... cols) throws Throwable
     {
         RowMutation rm = new RowMutation(cfs.table.name, key.key);
@@ -678,5 +679,29 @@ public class ColumnFamilyStoreTest extends CleanupHelper
             for (Component c : new Component[]{ Component.DATA, Component.PRIMARY_INDEX, Component.FILTER, Component.STATS })
                 assertTrue("can not find backedup file:" + desc.filenameFor(c), new File(desc.filenameFor(c)).exists());
         }
+    }
+    
+    @Test
+    public void testSuperSliceByNamesCommandOn() throws Throwable
+    {
+        String tableName = "Keyspace1";
+        String cfName= "Super4";
+        ByteBuffer superColName = ByteBufferUtil.bytes("HerpDerp");
+        DecoratedKey key = Util.dk("multiget-slice-resurrection");
+        Table table = Table.open(tableName);
+        ColumnFamilyStore cfs = table.getColumnFamilyStore(cfName);
+
+        // Initially create a SC with 1 subcolumn
+        putColsSuper(cfs, key, superColName, new Column(ByteBufferUtil.bytes("c1"), ByteBufferUtil.bytes("a"), 1));
+        cfs.forceBlockingFlush();
+
+        // Add another column
+        putColsSuper(cfs, key, superColName, new Column(ByteBufferUtil.bytes("c2"), ByteBufferUtil.bytes("b"), 2));
+
+        // Test fetching the supercolumn by name
+        SliceByNamesReadCommand cmd = new SliceByNamesReadCommand(tableName, key.key, new QueryPath(cfName), Collections.singletonList(superColName));
+        ColumnFamily cf = cmd.getRow(table).cf;
+        SuperColumn superColumn = (SuperColumn) cf.getColumn(superColName);
+        assertColumns(superColumn, "c1", "c2");
     }
 }
