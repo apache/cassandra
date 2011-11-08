@@ -92,7 +92,7 @@ public class KeyCacheTest extends CleanupHelper
 
         // load the cache from disk.  unregister the old mbean so we can recreate a new CFS object.
         // but don't invalidate() the old CFS, which would nuke the data we want to try to load
-        store.unregisterMBean(); // unregistering old MBean to test how key cache will be loaded
+        store.unregisterMBean();
         ColumnFamilyStore newStore = ColumnFamilyStore.createColumnFamilyStore(Table.open(TABLE1), COLUMN_FAMILY3);
         assertEquals(100, newStore.getKeyCacheSize());
 
