@@ -133,6 +133,7 @@ public class SchemaLoader
                                            superCFMD(ks1, "Super3", LongType.instance),
                                            superCFMD(ks1, "Super4", UTF8Type.instance),
                                            superCFMD(ks1, "Super5", bytes),
+                                           superCFMD(ks1, "Super6", LexicalUUIDType.instance, UTF8Type.instance),
                                            indexCFMD(ks1, "Indexed1", true),
                                            indexCFMD(ks1, "Indexed2", false),
                                            new CFMetaData(ks1,
@@ -271,7 +272,11 @@ public class SchemaLoader
     }
     private static CFMetaData superCFMD(String ksName, String cfName, AbstractType subcc)
     {
-        return new CFMetaData(ksName, cfName, ColumnFamilyType.Super, BytesType.instance, subcc).keyCacheSize(0);
+        return superCFMD(ksName, cfName, BytesType.instance, subcc).keyCacheSize(0);
+    }
+    private static CFMetaData superCFMD(String ksName, String cfName, AbstractType cc, AbstractType subcc)
+    {
+        return new CFMetaData(ksName, cfName, ColumnFamilyType.Super, cc, subcc).keyCacheSize(0);
     }
     private static CFMetaData indexCFMD(String ksName, String cfName, final Boolean withIdxType) throws ConfigurationException
     {
