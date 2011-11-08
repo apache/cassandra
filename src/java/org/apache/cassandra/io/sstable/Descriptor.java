@@ -48,7 +48,7 @@ public class Descriptor
     // f (0.7.0): switched bloom filter implementations in data component
     // g (0.8): tracks flushed-at context in metadata component
     // h (1.0): tracks max client timestamp in metadata component
-    public static final String CURRENT_VERSION = "h";
+    public static final String CURRENT_VERSION = "i";
 
     public final File directory;
     public final String version;
@@ -110,6 +110,11 @@ public class Descriptor
     public boolean hasReplayPosition()
     {
         return version.compareTo("g") >= 0;
+    }
+
+    public boolean hasCompressionRatio()
+    {
+        return version.compareTo("i") >= 0;
     }
 
     public String filenameFor(Component component)

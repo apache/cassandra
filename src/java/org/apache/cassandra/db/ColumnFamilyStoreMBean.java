@@ -213,6 +213,7 @@ public interface ColumnFamilyStoreMBean
 
     public long[] getEstimatedRowSizeHistogram();
     public long[] getEstimatedColumnCountHistogram();
+    public double getCompressionRatio();
 
     /**
      * Returns a list of the names of the built column indexes for current store

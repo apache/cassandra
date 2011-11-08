@@ -489,6 +489,8 @@ public class NodeCmd
                 outs.println("\t\tCompacted row minimum size: " + cfstore.getMinRowSize());
                 outs.println("\t\tCompacted row maximum size: " + cfstore.getMaxRowSize());
                 outs.println("\t\tCompacted row mean size: " + cfstore.getMeanRowSize());
+                if (cfstore.getCompressionRatio() != 0)
+                    outs.println("\t\tSSTable Compression Ratio: " + cfstore.getCompressionRatio());
 
                 outs.println("");
             }
