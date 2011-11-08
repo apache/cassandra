@@ -98,7 +98,7 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
         batchRowCount = ConfigHelper.getRangeBatchSize(conf);
         cfName = ConfigHelper.getInputColumnFamily(conf);
         consistencyLevel = ConsistencyLevel.valueOf(ConfigHelper.getReadConsistencyLevel(conf));
-
+        
         
         keyspace = ConfigHelper.getInputKeyspace(conf);
         
@@ -257,24 +257,14 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
                     rows = null;
                     return;
                 }
-
-                // Pre-compute the last row key, before removing empty rows
-                ByteBuffer lastRowKey = rows.get(rows.size() - 1).key;
-
-                // only remove empty rows if the slice predicate is empty
-                if (isPredicateEmpty(predicate))
-                {
-                    Iterator<KeySlice> rowsIterator = rows.iterator();
-                    while (rowsIterator.hasNext())
-                        if (rowsIterator.next().columns.isEmpty())
-                            rowsIterator.remove();
-                }
-                
-                // reset to iterate through the new batch
+                               
+                // reset to iterate through this new batch
                 i = 0;
-
+                
                 // prepare for the next slice to be read
-                startToken = partitioner.getTokenFactory().toString(partitioner.getToken(lastRowKey));
+                KeySlice lastRow = rows.get(rows.size() - 1);
+                ByteBuffer rowkey = lastRow.key;
+                startToken = partitioner.getTokenFactory().toString(partitioner.getToken(rowkey));
             }
             catch (Exception e)
             {
@@ -348,17 +338,5 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
                 sc.addColumn(unthriftifyCounter(column));
             return sc;
         }
-    }
-
-    private boolean isPredicateEmpty(SlicePredicate predicate)
-    {
-        if (predicate != null)
-            if (predicate.isSetSlice_range())
-                if (predicate.getSlice_range().getStart() != null && predicate.getSlice_range().getFinish() != null)
-                return false;
-            else if (predicate.isSetColumn_names())
-                return false;
-
-        return true;
     }
 }

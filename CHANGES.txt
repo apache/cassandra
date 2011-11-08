@@ -4,7 +4,6 @@
  * (CQL) update grammar to require key clause in DELETE statement
    (CASSANDRA-3349)
  * (CQL) allow numeric keyspace names in USE statement (CASSANDRA-3350)
- * (Hadoop) skip empty rows when slicing the entire row (CASSANDRA-2855)
  * Fix handling of tombstone by SSTableExport/Import (CASSANDRA-3357)
  * fix ColumnIndexer to use long offsets (CASSANDRA-3358)
  * Display CLI version string on startup (CASSANDRA-3196)
