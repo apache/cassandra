@@ -580,10 +580,6 @@ public class QueryProcessor
                 List<CqlRow> cqlRows = new ArrayList<CqlRow>();
                 for (org.apache.cassandra.db.Row row : rows)
                 {
-                    /// No results for this row
-                    if (row.cf == null)
-                        continue;
-
                     List<Column> thriftColumns = new ArrayList<Column>();
                     if (select.isColumnRange())
                     {
@@ -596,16 +592,19 @@ public class QueryProcessor
                         }
 
                         // preserve comparator order
-                        for (IColumn c : row.cf.getSortedColumns())
+                        if (row.cf != null)
                         {
-                            if (c.isMarkedForDelete())
-                                continue;
+                            for (IColumn c : row.cf.getSortedColumns())
+                            {
+                                if (c.isMarkedForDelete())
+                                    continue;
 
-                            ColumnDefinition cd = metadata.getColumnDefinition(c.name());
-                            if (cd != null)
-                                result.schema.value_types.put(c.name(), TypeParser.getShortName(cd.getValidator()));
+                                ColumnDefinition cd = metadata.getColumnDefinition(c.name());
+                                if (cd != null)
+                                    result.schema.value_types.put(c.name(), TypeParser.getShortName(cd.getValidator()));
 
-                            thriftColumns.add(thriftify(c));
+                                thriftColumns.add(thriftify(c));
+                            }
                         }
                     }
                     else
