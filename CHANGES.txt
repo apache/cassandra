@@ -2,6 +2,7 @@
  * (Hadoop) Fix empty row filtering (CASSANDRA-3450)
  * fix invalidate-related test failures (CASSANDRA-3437)
  * add next-gen cqlsh to bin/
+ * (CQL) fix handling of rows with no columns (CASSANDRA-3424)
 Merged from 0.8:
  * Make counter shard merging thread safe (CASSANDRA-3178)
 
