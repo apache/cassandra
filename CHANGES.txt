@@ -1,11 +1,15 @@
 1.0.3
- * (Hadoop) Fix empty row filtering (CASSANDRA-3450)
  * fix invalidate-related test failures (CASSANDRA-3437)
  * add next-gen cqlsh to bin/
  * (CQL) fix handling of rows with no columns (CASSANDRA-3424)
 Merged from 0.8:
  * Make counter shard merging thread safe (CASSANDRA-3178)
-
+ * fix updating CF row_cache_provider (CASSANDRA-3414)
+ * CFMetaData.convertToThrift method to set RowCacheProvider (CASSANDRA-3405)
+ * acquire compactionlock during truncate (CASSANDRA-3399)
+ * fix displaying cfdef entries for super columnfamilies (CASSANDRA-3415)
+ * Make counter shard merging thread safe (CASSANDRA-3178)
+ * Revert CASSANDRA-2855
 
 1.0.2
  * "defragment" rows for name-based queries under STCS (CASSANDRA-2503)
@@ -24,7 +28,6 @@ Merged from 0.8:
 Merged from 0.8:
  * acquire compactionlock during truncate (CASSANDRA-3399)
  * fix displaying cfdef entries for super columnfamilies (CASSANDRA-3415)
-
 
 1.0.1
  * acquire references during index build to prevent delete problems
@@ -69,6 +72,7 @@ Merged from 0.8:
  * expire dead gossip states based on time (CASSANDRA-2961)
  * improve CompactionTask extensibility (CASSANDRA-3330)
  * Allow one leveled compaction task to kick off another (CASSANDRA-3363)
+ * allow encryption only between datacenters (CASSANDRA-2802)
 Merged from 0.8:
  * fix truncate allowing data to be replayed post-restart (CASSANDRA-3297)
  * make iwriter final in IndexWriter to avoid NPE (CASSANDRA-2863)
@@ -102,7 +106,6 @@ Merged from 0.8:
    (CASSANDRA-3351)
  * remove incorrect optimization from slice read path (CASSANDRA-3390)
  * Fix race in AntiEntropyService (CASSANDRA-3400)
- * allow encryption only between datacenters (CASSANDRA-2802)
 
 1.0.0-final
  * close scrubbed sstable fd before deleting it (CASSANDRA-3318)
@@ -122,27 +125,6 @@ Merged from 0.8:
    compressed one (CASSANDRA-3338)
  * Fix hsha thrift server (CASSANDRA-3346)
  * Make sure repair only stream needed sstables (CASSANDRA-3345)
-Merged from 0.8:
- * Fix tool .bat files when CASSANDRA_HOME contains spaces (CASSANDRA-3258)
- * Force flush of status table when removing/updating token (CASSANDRA-3243)
- * Evict gossip state immediately when a token is taken over by a new IP (CASSANDRA-3259)
- * Fix bug where the failure detector can take too long to mark a host
-   down (CASSANDRA-3273)
- * (Hadoop) allow wrapping ranges in queries (CASSANDRA-3137)
- * (Hadoop) check all interfaces for a match with split location
-   before falling back to random replica (CASSANDRA-3211)
- * (Hadoop) Make Pig storage handle implements LoadMetadata (CASSANDRA-2777)
- * (Hadoop) Fix exception during PIG 'dump' (CASSANDRA-2810)
- * Fix stress COUNTER_GET option (CASSANDRA-3301)
- * Fix missing fields in CLI `show schema` output (CASSANDRA-3304)
- * Nodetool no longer leaks threads and closes JMX connections (CASSANDRA-3309)
- * fix truncate allowing data to be replayed post-restart (CASSANDRA-3297)
- * Move SimpleAuthority and SimpleAuthenticator to examples (CASSANDRA-2922)
- * Fix handling of tombstone by SSTableExport/Import (CASSANDRA-3357)
- * Fix transposition in cfHistograms (CASSANDRA-3222)
- * Allow using number as DC name when creating keyspace in CQL (CASSANDRA-3239)
- * Force flush of system table after updating/removing a token (CASSANDRA-3243)
-
 
 1.0.0-rc2
  * Log a meaningful warning when a node receives a message for a repair session
@@ -166,7 +148,6 @@ Merged from 0.8:
  * Evict gossip state immediately when a token is taken over by a new IP 
    (CASSANDRA-3259)
 
-
 1.0.0-rc1
  * Update CQL to generate microsecond timestamps by default (CASSANDRA-3227)
  * Fix counting CFMetadata towards Memtable liveRatio (CASSANDRA-3023)
@@ -187,8 +168,7 @@ Merged from 0.8:
  * Don't allow any cache loading exceptions to halt startup (CASSANDRA-3218)
  * Fix sstableloader --ignores option (CASSANDRA-3247)
  * File descriptor limit increased in packaging (CASSANDRA-3206)
- * Fix deadlock in commit log during flush (CASSANDRA-3253)
- 
+ * Fix deadlock in commit log during flush (CASSANDRA-3253) 
 
 1.0.0-beta1
  * removed binarymemtable (CASSANDRA-2692)
@@ -276,6 +256,40 @@ Merged from 0.8:
  * Pluggable compaction strategy (CASSANDRA-1610)
  * Add new broadcast_address config option (CASSANDRA-2491)
 
+0.8.7
+ * Kill server on wrapped OOME such as from FileChannel.map (CASSANDRA-3201)
+ * Allow using quotes in "USE <keyspace>;" CLI command (CASSANDRA-3208)
+ * Log message when a full repair operation completes (CASSANDRA-3207)
+ * Don't allow any cache loading exceptions to halt startup (CASSANDRA-3218)
+ * Fix sstableloader --ignores option (CASSANDRA-3247)
+ * File descriptor limit increased in packaging (CASSANDRA-3206)
+ * Log a meaningfull warning when a node receive a message for a repair session
+   that doesn't exist anymore (CASSANDRA-3256)
+ * Fix FD leak when internode encryption is enabled (CASSANDRA-3257)
+ * FBUtilities.hexToBytes(String) to throw NumberFormatException when string
+   contains non-hex characters (CASSANDRA-3231)
+ * Keep SimpleSnitch proximity ordering unchanged from what the Strategy
+   generates, as intended (CASSANDRA-3262)
+ * remove Scrub from compactionstats when finished (CASSANDRA-3255)
+ * Fix tool .bat files when CASSANDRA_HOME contains spaces (CASSANDRA-3258)
+ * Force flush of status table when removing/updating token (CASSANDRA-3243)
+ * Evict gossip state immediately when a token is taken over by a new IP (CASSANDRA-3259)
+ * Fix bug where the failure detector can take too long to mark a host
+   down (CASSANDRA-3273)
+ * (Hadoop) allow wrapping ranges in queries (CASSANDRA-3137)
+ * (Hadoop) check all interfaces for a match with split location
+   before falling back to random replica (CASSANDRA-3211)
+ * (Hadoop) Make Pig storage handle implements LoadMetadata (CASSANDRA-2777)
+ * (Hadoop) Fix exception during PIG 'dump' (CASSANDRA-2810)
+ * Fix stress COUNTER_GET option (CASSANDRA-3301)
+ * Fix missing fields in CLI `show schema` output (CASSANDRA-3304)
+ * Nodetool no longer leaks threads and closes JMX connections (CASSANDRA-3309)
+ * fix truncate allowing data to be replayed post-restart (CASSANDRA-3297)
+ * Move SimpleAuthority and SimpleAuthenticator to examples (CASSANDRA-2922)
+ * Fix handling of tombstone by SSTableExport/Import (CASSANDRA-3357)
+ * Fix transposition in cfHistograms (CASSANDRA-3222)
+ * Allow using number as DC name when creating keyspace in CQL (CASSANDRA-3239)
+ * Force flush of system table after updating/removing a token (CASSANDRA-3243)
 
 0.8.6
  * revert CASSANDRA-2388
