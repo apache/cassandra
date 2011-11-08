@@ -2,7 +2,8 @@
  * add message expiration logic to OutboundTcpConnection (CASSANDRA-3005)
  * off-heap cache to use sun.misc.Unsafe instead of JNA (CASSANDRA-3271)
  * EACH_QUORUM is only supported for writes (CASSANDRA-3272)
- * replace compactionlock use in schema migration by checking CFS.isInvalid
+ * replace compactionlock use in schema migration by checking CFS.isValid
+   (CASSANDRA-3116)
  * recognize that "SELECT first ... *" isn't really "SELECT *" (CASSANDRA-3445)
 
 
