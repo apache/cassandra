@@ -624,6 +624,9 @@ public class QueryProcessor
                                 continue;
                             }
 
+                            if (row.cf == null)
+                                continue;
+
                             ByteBuffer name;
                             try
                             {
