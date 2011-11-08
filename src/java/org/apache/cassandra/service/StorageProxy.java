@@ -306,7 +306,7 @@ public class StorageProxy implements StorageProxyMBean
                 // from previous loop iterations
                 message.removeHeader(RowMutation.FORWARD_HEADER);
 
-                if (dataCenter.equals(localDataCenter) || StorageService.instance.useEfficientCrossDCWrites())
+                if (dataCenter.equals(localDataCenter))
                 {
                     // direct writes to local DC or old Cassadra versions
                     for (InetAddress destination : messages.getValue())

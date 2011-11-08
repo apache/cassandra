@@ -194,7 +194,6 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     private volatile boolean joined = false;
     private String operationMode;
 
-    private volatile boolean efficientCrossDCWrites;
     private MigrationManager migrationManager = new MigrationManager();
 
     /* Used for tracking drain progress */
@@ -726,9 +725,6 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     {
         switch (state)
         {
-            case RELEASE_VERSION:
-                updateEfficientCrossDCWriteMode();
-                break;
             case STATUS:
                 String apStateValue = value.value;
                 String[] pieces = apStateValue.split(VersionedValue.DELIMITER_STR, -1);
@@ -749,25 +745,6 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                 else if (moveName.equals(VersionedValue.STATUS_MOVING))
                     handleStateMoving(endpoint, pieces);
         }
-    }
-
-    /**
-     * We can remove this in 0.8, since mixing 0.7.0 with 0.8 is not supported (0.7.1 is required)
-     */
-    private void updateEfficientCrossDCWriteMode()
-    {
-        for (Map.Entry<InetAddress, EndpointState> entry : Gossiper.instance.getEndpointStates())
-        {
-            VersionedValue version = entry.getValue().getApplicationState(ApplicationState.RELEASE_VERSION);
-
-            // no version means it's old code that doesn't gossip version, < 0.7.1.
-            if (version == null)
-            {
-                efficientCrossDCWrites = false;
-                return;
-            }
-        }
-        efficientCrossDCWrites = true;
     }
 
     /**
@@ -2385,11 +2362,6 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
         if (oldSnitch instanceof DynamicEndpointSnitch)
             ((DynamicEndpointSnitch)oldSnitch).unregisterMBean();
-    }
-
-    public boolean useEfficientCrossDCWrites()
-    {
-        return efficientCrossDCWrites;
     }
 
     /**

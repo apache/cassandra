@@ -37,6 +37,7 @@
  * acquire compactionlock during truncate (CASSANDRA-3399)
  * fix displaying cfdef entries for super columnfamilies (CASSANDRA-3415)
  * Make counter shard merging thread safe (CASSANDRA-3178)
+ * Fix bug preventing the use of efficient cross-DC writes (CASSANDRA-3472)
 
 
 0.8.7
