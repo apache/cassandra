@@ -542,17 +542,10 @@ public class TableTest extends CleanupHelper
 
         String[] columnNames1 = names.toArray(new String[0]);
         String[] la = L.toArray(new String[columns.size()]);
-        StringBuffer lasb = new StringBuffer();
-        for (String l: la)
-        {
-            lasb.append(l);
-            lasb.append(", ");
-        }
 
         assert Arrays.equals(la, columnNames1)
-                : String.format("Columns [%s(as string: %s)])] is not expected [%s]",
+                : String.format("Columns [%s])] is not expected [%s]",
                                 ((container == null) ? "" : container.getComparator().getColumnsString(columns)),
-                                lasb.toString(),
                                 StringUtils.join(columnNames1, ","));
     }
 
@@ -573,6 +566,4 @@ public class TableTest extends CleanupHelper
         assertEquals(0, ByteBufferUtil.compareUnsigned(column.value(), ByteBufferUtil.bytes(value)));
         assertEquals(timestamp, column.timestamp());
     }
-
-
 }

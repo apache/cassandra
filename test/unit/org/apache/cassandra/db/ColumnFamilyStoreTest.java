@@ -35,6 +35,7 @@ import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.marshal.LongType;
+import org.apache.cassandra.db.marshal.LexicalUUIDType;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.io.sstable.Component;
@@ -51,6 +52,7 @@ import static junit.framework.Assert.assertEquals;
 import static junit.framework.Assert.assertTrue;
 import static org.apache.cassandra.Util.column;
 import static org.apache.cassandra.Util.getBytes;
+import static org.apache.cassandra.db.TableTest.assertColumns;
 import static org.junit.Assert.assertNull;
 
 import org.junit.Test;
@@ -575,14 +577,14 @@ public class ColumnFamilyStoreTest extends CleanupHelper
     {
         RowMutation rm = new RowMutation(cfs.table.name, key.key);
         ColumnFamily cf = ColumnFamily.create(cfs.table.name, cfs.getColumnFamilyName());
-        SuperColumn sc = new SuperColumn(scfName, LongType.instance);
+        SuperColumn sc = new SuperColumn(scfName, cfs.metadata.subcolumnComparator);
         for (Column col : cols)
             sc.addColumn(col);
         cf.addColumn(sc);
         rm.add(cf);
         rm.apply();
     }
-    
+
     private static void putColsStandard(ColumnFamilyStore cfs, DecoratedKey key, Column... cols) throws Throwable
     {
         RowMutation rm = new RowMutation(cfs.table.name, key.key);
@@ -678,5 +680,61 @@ public class ColumnFamilyStoreTest extends CleanupHelper
             for (Component c : new Component[]{ Component.DATA, Component.PRIMARY_INDEX, Component.FILTER, Component.STATS })
                 assertTrue("can not find backedup file:" + desc.filenameFor(c), new File(desc.filenameFor(c)).exists());
         }
+    }
+    
+    @Test
+    public void testSuperSliceByNamesCommand() throws Throwable
+    {
+        String tableName = "Keyspace1";
+        String cfName= "Super4";
+        ByteBuffer superColName = ByteBufferUtil.bytes("HerpDerp");
+        DecoratedKey key = Util.dk("multiget-slice-resurrection");
+        Table table = Table.open(tableName);
+        ColumnFamilyStore cfs = table.getColumnFamilyStore(cfName);
+
+        // Initially create a SC with 1 subcolumn
+        putColsSuper(cfs, key, superColName, new Column(ByteBufferUtil.bytes("c1"), ByteBufferUtil.bytes("a"), 1));
+        cfs.forceBlockingFlush();
+
+        // Add another column
+        putColsSuper(cfs, key, superColName, new Column(ByteBufferUtil.bytes("c2"), ByteBufferUtil.bytes("b"), 2));
+
+        // Test fetching the supercolumn by name
+        SliceByNamesReadCommand cmd = new SliceByNamesReadCommand(tableName, key.key, new QueryPath(cfName), Collections.singletonList(superColName));
+        ColumnFamily cf = cmd.getRow(table).cf;
+        SuperColumn superColumn = (SuperColumn) cf.getColumn(superColName);
+        assertColumns(superColumn, "c1", "c2");
+    }
+    
+    // CASSANDRA-3467.  the key here is that supercolumn and subcolumn comparators are different
+    @Test
+    public void testSliceByNamesCommandOnUUIDTypeSCF() throws Throwable
+    {
+        String tableName = "Keyspace1";
+        String cfName = "Super6";
+        ByteBuffer superColName = LexicalUUIDType.instance.fromString("a4ed3562-0e8e-4b41-bdfd-c45a2774682d");
+        Table table = Table.open(tableName);
+        ColumnFamilyStore cfs = table.getColumnFamilyStore(cfName);
+        DecoratedKey key = Util.dk("slice-get-uuid-type");
+
+        // Insert a row with one supercolumn and multiple subcolumns
+        putColsSuper(cfs, key, superColName, new Column(ByteBufferUtil.bytes("a"), ByteBufferUtil.bytes("A"), 1),
+                                             new Column(ByteBufferUtil.bytes("b"), ByteBufferUtil.bytes("B"), 1));
+
+        // Get the entire supercolumn like normal 
+        IColumn columnGet = cfs.getColumnFamily(QueryFilter.getIdentityFilter(key, new QueryPath(cfName, superColName))).getColumn(superColName);
+        assertEquals(ByteBufferUtil.bytes("A"), columnGet.getSubColumn(ByteBufferUtil.bytes("a")).value());
+        assertEquals(ByteBufferUtil.bytes("B"), columnGet.getSubColumn(ByteBufferUtil.bytes("b")).value());
+
+        // Now do the SliceByNamesCommand on the supercolumn, passing both subcolumns in as columns to get 
+        ArrayList<ByteBuffer> sliceColNames = new ArrayList<ByteBuffer>();
+        sliceColNames.add(ByteBufferUtil.bytes("a"));
+        sliceColNames.add(ByteBufferUtil.bytes("b"));
+        SliceByNamesReadCommand cmd = new SliceByNamesReadCommand(tableName, key.key, new QueryPath(cfName, superColName), sliceColNames);
+        IColumn columnSliced = cmd.getRow(table).cf.getColumn(superColName);
+
+        // Make sure the slice returns the same as the straight get 
+        assertEquals(ByteBufferUtil.bytes("A"), columnSliced.getSubColumn(ByteBufferUtil.bytes("a")).value());
+        assertEquals(ByteBufferUtil.bytes("B"), columnSliced.getSubColumn(ByteBufferUtil.bytes("b")).value());
     }
 }

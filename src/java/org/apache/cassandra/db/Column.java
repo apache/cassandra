@@ -104,11 +104,6 @@ public class Column implements IColumn
         return timestamp;
     }
 
-    public long minTimestamp()
-    {
-        return timestamp;
-    }
-
     public boolean isMarkedForDelete()
     {
         return false;

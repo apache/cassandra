@@ -10,6 +10,8 @@
  * fix invalidate-related test failures (CASSANDRA-3437)
  * add next-gen cqlsh to bin/
  * (CQL) fix handling of rows with no columns (CASSANDRA-3424, 3473)
+ * fix querying supercolumns by name returning only a subset of
+   subcolumns or old subcolumn versions (CASSANDRA-3446)
 Merged from 0.8:
  * Make counter shard merging thread safe (CASSANDRA-3178)
  * fix updating CF row_cache_provider (CASSANDRA-3414)
@@ -19,6 +21,7 @@ Merged from 0.8:
  * Make counter shard merging thread safe (CASSANDRA-3178)
  * Revert CASSANDRA-2855
  * Fix bug preventing the use of efficient cross-DC writes (CASSANDRA-3472)
+
 
 1.0.2
  * "defragment" rows for name-based queries under STCS (CASSANDRA-2503)

@@ -30,13 +30,15 @@ import org.junit.Test;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.db.filter.QueryPath;
 import static org.apache.cassandra.Util.column;
+import static org.junit.Assert.assertEquals;
+
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.HeapAllocator;
 
 
 public class ColumnFamilyTest extends SchemaLoader
 {
-    // TODO test SuperColumns
+    // TODO test SuperColumns more
 
     @Test
     public void testSingleColumn() throws IOException
@@ -145,5 +147,35 @@ public class ColumnFamilyTest extends SchemaLoader
         assert cf_result.getColumn(ByteBufferUtil.bytes("col3")).value().equals(val2);
         cf_result.addColumn(QueryPath.column(ByteBufferUtil.bytes("col3")), ByteBufferUtil.bytes("z"), 2);
         assert cf_result.getColumn(ByteBufferUtil.bytes("col3")).value().equals(ByteBufferUtil.bytes("z"));
+    }
+
+    private void testSuperColumnResolution(ISortedColumns.Factory factory)
+    {
+        ColumnFamilyStore cfs = Table.open("Keyspace1").getColumnFamilyStore("Super1");
+        ColumnFamily cf = ColumnFamily.create(cfs.metadata, factory);
+        ByteBuffer superColumnName = ByteBufferUtil.bytes("sc");
+        ByteBuffer subColumnName = ByteBufferUtil.bytes(1L);
+
+        Column first = new Column(subColumnName, ByteBufferUtil.bytes("one"), 1L);
+        Column second = new Column(subColumnName, ByteBufferUtil.bytes("two"), 2L);
+
+        cf.addColumn(superColumnName, first);
+
+        // resolve older + new
+        cf.addColumn(superColumnName, second);
+        assertEquals(second, cf.getColumn(superColumnName).getSubColumn(subColumnName));
+
+        // resolve new + older
+        cf.addColumn(superColumnName, first);
+        assertEquals(second, cf.getColumn(superColumnName).getSubColumn(subColumnName));
+    }
+
+    @Test
+    public void testSuperColumnResolution()
+    {
+        testSuperColumnResolution(TreeMapBackedSortedColumns.factory());
+        testSuperColumnResolution(ThreadSafeSortedColumns.factory());
+        // array-sorted does allow conflict resolution IF it is the last column.  Bit of an edge case.
+        testSuperColumnResolution(ArrayBackedSortedColumns.factory());
     }
 }

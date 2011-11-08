@@ -84,13 +84,21 @@ public class TreeMapBackedSortedColumns extends TreeMap<ByteBuffer, IColumn> imp
     public void addColumn(IColumn column, Allocator allocator)
     {
         ByteBuffer name = column.name();
+        // this is a slightly unusual way to structure this; a more natural way is shown in ThreadSafeSortedColumns,
+        // but TreeMap lacks putAbsent.  Rather than split it into a "get, then put" check, we do it as follows,
+        // which saves the extra "get" in the no-conflict case [for both normal and super columns],
+        // in exchange for a re-put in the SuperColumn case.
         IColumn oldColumn = put(name, column);
         if (oldColumn != null)
         {
             if (oldColumn instanceof SuperColumn)
             {
                 assert column instanceof SuperColumn;
+                // since oldColumn is where we've been accumulating results, it's usually going to be faster to
+                // add the new one to the old, then place old back in the Map, rather than copy the old contents
+                // into the new Map entry.
                 ((SuperColumn) oldColumn).putColumn((SuperColumn)column, allocator);
+                put(name,  oldColumn);
             }
             else
             {
