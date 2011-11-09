@@ -49,6 +49,25 @@ public class DescriptorTest
         assertKeyspace("Keyspace11", dirPath);
     }
 
+    @Test
+    public void testVersion()
+    {
+        // letter only
+        Descriptor desc = Descriptor.fromFilename(new File("Keyspace1"), "Standard1-h-1-Data.db").left;
+        assert "h".equals(desc.version);
+        assert desc.tracksMaxTimestamp;
+
+        // multiple letters
+        desc = Descriptor.fromFilename(new File("Keyspace1"), "Standard1-ha-1-Data.db").left;
+        assert "ha".equals(desc.version);
+        assert desc.tracksMaxTimestamp;
+
+        // hypothetical two-letter g version
+        desc = Descriptor.fromFilename(new File("Keyspace1"), "Standard1-gz-1-Data.db").left;
+        assert "gz".equals(desc.version);
+        assert !desc.tracksMaxTimestamp;
+    }
+
     private void assertKeyspace(String expectedKsName, String dirPath) {
         File dir = new File(dirPath);
         dir.deleteOnExit();

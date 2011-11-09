@@ -51,6 +51,7 @@ public class Descriptor
     public static final String CURRENT_VERSION = "h";
 
     public final File directory;
+    /** version has the following format: <code>[a-z]+</code> */
     public final String version;
     public final String ksname;
     public final String cfname;
@@ -242,16 +243,12 @@ public class Descriptor
 
     /**
      * @param ver SSTable version
-     * @return True if the given version string is not empty, and
-     * contains all lowercase letters, as defined by java.lang.Character.
+     * @return True if the given version string matches the format.
+     * @see #version
      */
     static boolean versionValidate(String ver)
     {
-        if (ver.length() < 1) return false;
-        for (char ch : ver.toCharArray())
-            if (!Character.isLetter(ch) || !Character.isLowerCase(ch))
-                return false;
-        return true;
+        return ver != null && ver.matches("[a-z]+");
     }
 
     public boolean isFromTheFuture()
