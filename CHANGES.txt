@@ -14,6 +14,7 @@ Merged from 0.8:
  * Revert CASSANDRA-2855
  * Fix bug preventing the use of efficient cross-DC writes (CASSANDRA-3472)
  * Report compression ratio in CFSMBean (CASSANDRA-3393)
+ * `describe ring` command for CLI (CASSANDRA-3220)
 
 1.0.2
  * "defragment" rows for name-based queries under STCS (CASSANDRA-2503)

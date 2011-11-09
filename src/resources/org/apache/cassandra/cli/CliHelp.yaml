@@ -40,6 +40,7 @@ help: |
     create keyspace         Add a keyspace to the cluster.
     del                     Delete a column, super column or row.
     decr                    Decrements a counter column.
+    describe ring           Describe the token range information.
     describe cluster        Describe the cluster configuration.
     describe                Describe a keyspace and it's column families or column family in current keyspace.
     drop column family      Remove a column family and it's data.
@@ -132,6 +133,18 @@ commands:
         describe; - Describes current authenticated keyspace
         describe <keyspace>; - Describe this keyspace
         describe <column_family>; - Describe the colum family in the current authenticated keyspace
+    - name: NODE_DESCRIBE_RING
+      help: |
+        describe ring <keyspace>;
+
+        Describes the token range settings for the named keyspace.
+
+        Optional Parameters:
+        - keyspace: Name of the keyspace to describe.
+
+        Examples:
+        describe ring; - Describes the token range settings for the current authenticated keyspace
+        describe <keyspace>; - Describe the token range settings for this keyspace
     - name:
       help: |
         describe cluster;
