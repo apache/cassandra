@@ -37,9 +37,7 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.compress.CompressedSequentialWriter;
 import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.BloomFilter;
-import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.*;
 
 public class SSTableWriter extends SSTable
 {
@@ -66,6 +64,10 @@ public class SSTableWriter extends SSTable
         Set<Component> components = new HashSet<Component>(Arrays.asList(Component.DATA, Component.FILTER, Component.PRIMARY_INDEX, Component.STATS));
         if (metadata.compressionParameters().sstableCompressor != null)
             components.add(Component.COMPRESSION_INFO);
+        else
+            // it would feel safer to actually add this component later in maybeWriteDigest(),
+            // but the components are unmodifiable after construction
+            components.add(Component.DIGEST);
         return components;
     }
 
@@ -93,6 +95,7 @@ public class SSTableWriter extends SSTable
         {
             dbuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode());
             dataFile = SequentialWriter.open(new File(getFilename()), true);
+            dataFile.setComputeDigest();
         }
 
         this.sstableMetadataCollector = sstableMetadataCollector;
@@ -299,6 +302,7 @@ public class SSTableWriter extends SSTable
         // write sstable statistics
         SSTableMetadata sstableMetadata = sstableMetadataCollector.finalizeMetadata();
         writeMetadata(descriptor, sstableMetadata);
+        maybeWriteDigest();
 
         // remove the 'tmp' marker from all components
         final Descriptor newdesc = rename(descriptor, components);
@@ -321,6 +325,21 @@ public class SSTableWriter extends SSTable
         iwriter = null;
         dbuilder = null;
         return sstable;
+    }
+
+    private void maybeWriteDigest() throws IOException
+    {
+        byte[] digest = dataFile.digest();
+        if (digest == null)
+            return;
+
+        SequentialWriter out = SequentialWriter.open(new File(descriptor.filenameFor(SSTable.COMPONENT_DIGEST)), true);
+        // Writting output compatible with sha1sum
+        Descriptor newdesc = descriptor.asTemporary(false);
+        String[] tmp = newdesc.filenameFor(SSTable.COMPONENT_DATA).split(new Character(File.separatorChar).toString());
+        String dataFileName = tmp[tmp.length - 1];
+        out.write(String.format("%s  %s", Hex.bytesToHex(digest), dataFileName).getBytes());
+        out.close();
     }
 
     private static void writeMetadata(Descriptor desc, SSTableMetadata sstableMetadata) throws IOException

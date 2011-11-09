@@ -58,6 +58,7 @@ public abstract class SSTable
     public static final String COMPONENT_INDEX = Component.Type.PRIMARY_INDEX.repr;
     public static final String COMPONENT_FILTER = Component.Type.FILTER.repr;
     public static final String COMPONENT_STATS = Component.Type.STATS.repr;
+    public static final String COMPONENT_DIGEST = Component.Type.DIGEST.repr;
 
     public static final String TEMPFILE_MARKER = "tmp";
 
