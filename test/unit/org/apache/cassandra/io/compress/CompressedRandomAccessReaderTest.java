@@ -24,7 +24,6 @@ import java.util.concurrent.Callable;
 
 import org.junit.Test;
 
-import org.apache.cassandra.io.sstable.SSTableMetadata;
 import org.apache.cassandra.io.util.*;
 
 import static org.junit.Assert.assertEquals;
@@ -55,9 +54,8 @@ public class CompressedRandomAccessReaderTest
 
         try
         {
-            SSTableMetadata.Collector sstableMetadataCollector = SSTableMetadata.createCollector().replayPosition(null);
             SequentialWriter writer = compressed
-                ? new CompressedSequentialWriter(f, filename + ".metadata", false, new CompressionParameters(SnappyCompressor.instance), sstableMetadataCollector)
+                ? new CompressedSequentialWriter(f, filename + ".metadata", false, new CompressionParameters(SnappyCompressor.instance))
                 : new SequentialWriter(f, CompressionParameters.DEFAULT_CHUNK_LENGTH, false);
 
             writer.write("The quick ".getBytes());
@@ -105,8 +103,8 @@ public class CompressedRandomAccessReaderTest
 
         File metadata = new File(file.getPath() + ".meta");
         metadata.deleteOnExit();
-        SSTableMetadata.Collector sstableMetadataCollector = SSTableMetadata.createCollector().replayPosition(null);
-        SequentialWriter writer = new CompressedSequentialWriter(file, metadata.getPath(), false, new CompressionParameters(SnappyCompressor.instance), sstableMetadataCollector);
+
+        SequentialWriter writer = new CompressedSequentialWriter(file, metadata.getPath(), false, new CompressionParameters(SnappyCompressor.instance));
 
         writer.write(CONTENT.getBytes());
         writer.close();

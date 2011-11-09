@@ -53,7 +53,6 @@ public class SSTableMetadata
     protected final EstimatedHistogram estimatedColumnCount;
     protected final ReplayPosition replayPosition;
     protected final long maxTimestamp;
-    protected final double compressionRatio;
     public static final SSTableMetadataSerializer serializer = new SSTableMetadataSerializer();
 
     private SSTableMetadata()
@@ -64,16 +63,15 @@ public class SSTableMetadata
     // when there is no max timestamp recorded, default to max long
     private SSTableMetadata(EstimatedHistogram rowSizes, EstimatedHistogram columnCounts, ReplayPosition replayPosition)
     {
-        this(rowSizes, columnCounts, replayPosition, Long.MAX_VALUE, Double.MIN_VALUE);
+        this(rowSizes, columnCounts, replayPosition, Long.MAX_VALUE);
     }
 
-    private SSTableMetadata(EstimatedHistogram rowSizes, EstimatedHistogram columnCounts, ReplayPosition replayPosition, long maxTimestamp, double cr)
+    private SSTableMetadata(EstimatedHistogram rowSizes, EstimatedHistogram columnCounts, ReplayPosition replayPosition, long maxTimestamp)
     {
         this.estimatedRowSize = rowSizes;
         this.estimatedColumnCount = columnCounts;
         this.replayPosition = replayPosition;
         this.maxTimestamp = maxTimestamp;
-        this.compressionRatio = cr;
     }
 
     public static SSTableMetadata createDefaultInstance()
@@ -106,11 +104,6 @@ public class SSTableMetadata
         return maxTimestamp;
     }
 
-    public double getCompressionRatio()
-    {
-        return compressionRatio;
-    }
-
     static EstimatedHistogram defaultColumnCountHistogram()
     {
         // EH of 114 can track a max value of 2395318855, i.e., > 2B columns
@@ -129,7 +122,6 @@ public class SSTableMetadata
         protected EstimatedHistogram estimatedColumnCount;
         protected ReplayPosition replayPosition;
         protected long maxTimestamp;
-        protected double compressionRatio;
 
         private Collector()
         {
@@ -137,7 +129,6 @@ public class SSTableMetadata
             this.estimatedColumnCount = defaultColumnCountHistogram();
             this.replayPosition = ReplayPosition.NONE;
             this.maxTimestamp = Long.MIN_VALUE;
-            this.compressionRatio = Double.MIN_VALUE;
         }
 
         public void addRowSize(long rowSize)
@@ -150,15 +141,6 @@ public class SSTableMetadata
             estimatedColumnCount.add(columnCount);
         }
 
-        /**
-         * Ratio is compressed/uncompressed and it is
-         * if you have 1.x then compression isn't helping
-         */
-        public void addCompressionRatio(long compressed, long uncompressed)
-        {
-            compressionRatio = (double) compressed/uncompressed;
-        }
-
         public void updateMaxTimestamp(long potentialMax)
         {
             maxTimestamp = Math.max(maxTimestamp, potentialMax);
@@ -166,7 +148,7 @@ public class SSTableMetadata
 
         public SSTableMetadata finalizeMetadata()
         {
-            return new SSTableMetadata(estimatedRowSize, estimatedColumnCount, replayPosition, maxTimestamp, compressionRatio);
+            return new SSTableMetadata(estimatedRowSize, estimatedColumnCount, replayPosition, maxTimestamp);
         }
 
         public Collector estimatedRowSize(EstimatedHistogram estimatedRowSize)
@@ -198,7 +180,6 @@ public class SSTableMetadata
             EstimatedHistogram.serializer.serialize(sstableStats.getEstimatedColumnCount(), dos);
             ReplayPosition.serializer.serialize(sstableStats.getReplayPosition(), dos);
             dos.writeLong(sstableStats.getMaxTimestamp());
-            dos.writeDouble(sstableStats.getCompressionRatio());
         }
 
         public SSTableMetadata deserialize(Descriptor descriptor) throws IOException
@@ -224,14 +205,8 @@ public class SSTableMetadata
                 ReplayPosition replayPosition = descriptor.hasReplayPosition()
                                               ? ReplayPosition.serializer.deserialize(dis)
                                               : ReplayPosition.NONE;
-                long maxTimestamp = Long.MAX_VALUE;
-                double compressionRatio = Double.MIN_VALUE;
-                if (descriptor.hasCompressionRatio())
-                {
-                    maxTimestamp = dis.readLong();
-                    compressionRatio = dis.readDouble();
-                }
-                return new SSTableMetadata(rowSizes, columnCounts, replayPosition, maxTimestamp, compressionRatio);
+
+                return new SSTableMetadata(rowSizes, columnCounts, replayPosition);
             }
             finally
             {
@@ -245,7 +220,7 @@ public class SSTableMetadata
             EstimatedHistogram columnCounts = EstimatedHistogram.serializer.deserialize(dis);
             ReplayPosition replayPosition = ReplayPosition.serializer.deserialize(dis);
             long maxTimestamp = dis.readLong();
-            return new SSTableMetadata(rowSizes, columnCounts, replayPosition, maxTimestamp, Double.MIN_VALUE);
+            return new SSTableMetadata(rowSizes, columnCounts, replayPosition, maxTimestamp);
         }
 
         public long serializedSize(SSTableMetadata object)
