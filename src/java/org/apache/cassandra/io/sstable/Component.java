@@ -54,7 +54,9 @@ public class Component
         // statistical metadata about the content of the sstable
         STATS("Statistics.db"),
         // a bitmap secondary index: many of these may exist per sstable
-        BITMAP_INDEX("Bitidx.db");
+        BITMAP_INDEX("Bitidx.db"),
+        // holds sha1 sum of the data file (to be checked by sha1sum)
+        DIGEST("Digest.sha1");
 
         final String repr;
         Type(String repr)
@@ -78,6 +80,7 @@ public class Component
     public final static Component COMPACTED_MARKER = new Component(Type.COMPACTED_MARKER, -1);
     public final static Component COMPRESSION_INFO = new Component(Type.COMPRESSION_INFO, -1);
     public final static Component STATS = new Component(Type.STATS, -1);
+    public final static Component DIGEST = new Component(Type.DIGEST, -1);
 
     public final Type type;
     public final int id;
@@ -108,6 +111,7 @@ public class Component
             case COMPACTED_MARKER:
             case COMPRESSION_INFO:
             case STATS:
+            case DIGEST:
                 return type.repr;
             case BITMAP_INDEX:
                 return String.format("%d%c%s", id, separator, type.repr);
@@ -145,6 +149,7 @@ public class Component
             case COMPACTED_MARKER:  component = Component.COMPACTED_MARKER; break;
             case COMPRESSION_INFO:  component = Component.COMPRESSION_INFO; break;
             case STATS:             component = Component.STATS;            break;
+            case DIGEST:            component = Component.DIGEST;           break;
             case BITMAP_INDEX:
                  component = new Component(type, id);
                  break;

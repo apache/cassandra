@@ -20,6 +20,8 @@ package org.apache.cassandra.io.util;
 
 import java.io.*;
 import java.nio.channels.ClosedChannelException;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 
 import org.apache.cassandra.utils.CLibrary;
 
@@ -47,6 +49,7 @@ public class SequentialWriter extends OutputStream
     private long ioCacheStartOffset = 0, bytesSinceCacheFlush = 0;
 
     public final DataOutputStream stream;
+    private MessageDigest digest;
 
     public SequentialWriter(File file, int bufferSize, boolean skipIOCache) throws IOException
     {
@@ -199,6 +202,8 @@ public class SequentialWriter extends OutputStream
     protected void flushData() throws IOException
     {
         out.write(buffer, 0, validBufferBytes);
+        if (digest != null)
+            digest.update(buffer, 0, validBufferBytes);
     }
 
     public long getFilePointer()
@@ -283,6 +288,41 @@ public class SequentialWriter extends OutputStream
             CLibrary.trySkipCache(fd, 0, 0);
 
         out.close();
+    }
+
+    /**
+     * Turn on digest computation on this writer.
+     * This can only be called before any data is written to this write,
+     * otherwise an IllegalStateException is thrown.
+     */
+    public void setComputeDigest()
+    {
+        if (current != 0)
+            throw new IllegalStateException();
+
+        try
+        {
+            digest = MessageDigest.getInstance("SHA-1");
+        }
+        catch (NoSuchAlgorithmException e)
+        {
+            // SHA-1 is standard in java 6
+            throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * Return the digest associated to this file or null if no digest was
+     * created.
+     * This can only be called once the file is fully created, i.e. after
+     * close() has been called. Otherwise an IllegalStateException is thrown.
+     */
+    public byte[] digest()
+    {
+        if (buffer != null)
+            throw new IllegalStateException();
+
+        return digest == null ? null : digest.digest();
     }
 
     /**
