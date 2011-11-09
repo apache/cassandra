@@ -63,7 +63,8 @@ public class Descriptor
     public final boolean hasEncodedKeys;
     public final boolean isLatestVersion;
     public final boolean usesOldBloomFilter;
-    public final boolean usesHistogramAndReplayPositionStatsFile;
+    public final boolean metadataIncludesReplayPosition;
+    public final boolean tracksMaxTimestamp;
 
     public enum TempState
     {
@@ -103,13 +104,9 @@ public class Descriptor
         hasIntRowSize = version.compareTo("d") < 0;
         hasEncodedKeys = version.compareTo("e") < 0;
         usesOldBloomFilter = version.compareTo("f") < 0;
-        usesHistogramAndReplayPositionStatsFile = version.compareTo("h") < 0;
+        metadataIncludesReplayPosition = version.compareTo("g") >= 0;
+        tracksMaxTimestamp = version.compareTo("h") >= 0;
         isLatestVersion = version.compareTo(CURRENT_VERSION) == 0;
-    }
-
-    public boolean hasReplayPosition()
-    {
-        return version.compareTo("g") >= 0;
     }
 
     public String filenameFor(Component component)
