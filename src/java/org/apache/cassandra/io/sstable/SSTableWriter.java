@@ -89,7 +89,8 @@ public class SSTableWriter extends SSTable
             dataFile = CompressedSequentialWriter.open(getFilename(),
                                                        descriptor.filenameFor(Component.COMPRESSION_INFO),
                                                        true,
-                                                       metadata.compressionParameters());
+                                                       metadata.compressionParameters(),
+                                                       sstableMetadataCollector);
         }
         else
         {

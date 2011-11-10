@@ -7,6 +7,7 @@
  * automatically compute sha1 sum for uncompressed data files (CASSANDRA-3456)
  * fix reading metadata/statistics component for version < h (CASSANDRA-3474)
  * add sstable forward-compatibility (CASSANDRA-3478)
+ * report compression ratio in CFSMBean (CASSANDRA-3393)
 Merged from 0.8:
  * Make counter shard merging thread safe (CASSANDRA-3178)
  * fix updating CF row_cache_provider (CASSANDRA-3414)
@@ -17,7 +18,6 @@ Merged from 0.8:
  * Revert CASSANDRA-2855
  * Fix bug preventing the use of efficient cross-DC writes (CASSANDRA-3472)
  * `describe ring` command for CLI (CASSANDRA-3220)
-
 
 1.0.2
  * "defragment" rows for name-based queries under STCS (CASSANDRA-2503)
