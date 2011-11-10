@@ -37,6 +37,7 @@ Merged from 0.8:
  * acquire compactionlock during truncate (CASSANDRA-3399)
  * fix displaying cfdef entries for super columnfamilies (CASSANDRA-3415)
 
+
 1.0.1
  * acquire references during index build to prevent delete problems
    on Windows (CASSANDRA-3314)
@@ -115,6 +116,7 @@ Merged from 0.8:
  * remove incorrect optimization from slice read path (CASSANDRA-3390)
  * Fix race in AntiEntropyService (CASSANDRA-3400)
 
+
 1.0.0-final
  * close scrubbed sstable fd before deleting it (CASSANDRA-3318)
  * fix bug preventing obsolete commitlog segments from being removed
@@ -133,6 +135,7 @@ Merged from 0.8:
    compressed one (CASSANDRA-3338)
  * Fix hsha thrift server (CASSANDRA-3346)
  * Make sure repair only stream needed sstables (CASSANDRA-3345)
+
 
 1.0.0-rc2
  * Log a meaningful warning when a node receives a message for a repair session
@@ -156,6 +159,7 @@ Merged from 0.8:
  * Evict gossip state immediately when a token is taken over by a new IP 
    (CASSANDRA-3259)
 
+
 1.0.0-rc1
  * Update CQL to generate microsecond timestamps by default (CASSANDRA-3227)
  * Fix counting CFMetadata towards Memtable liveRatio (CASSANDRA-3023)
@@ -177,6 +181,7 @@ Merged from 0.8:
  * Fix sstableloader --ignores option (CASSANDRA-3247)
  * File descriptor limit increased in packaging (CASSANDRA-3206)
  * Fix deadlock in commit log during flush (CASSANDRA-3253) 
+
 
 1.0.0-beta1
  * removed binarymemtable (CASSANDRA-2692)
@@ -264,6 +269,7 @@ Merged from 0.8:
  * Pluggable compaction strategy (CASSANDRA-1610)
  * Add new broadcast_address config option (CASSANDRA-2491)
 
+
 0.8.7
  * Kill server on wrapped OOME such as from FileChannel.map (CASSANDRA-3201)
  * Allow using quotes in "USE <keyspace>;" CLI command (CASSANDRA-3208)
@@ -298,6 +304,7 @@ Merged from 0.8:
  * Fix transposition in cfHistograms (CASSANDRA-3222)
  * Allow using number as DC name when creating keyspace in CQL (CASSANDRA-3239)
  * Force flush of system table after updating/removing a token (CASSANDRA-3243)
+
 
 0.8.6
  * revert CASSANDRA-2388
