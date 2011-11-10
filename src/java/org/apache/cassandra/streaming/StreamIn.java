@@ -82,6 +82,9 @@ public class StreamIn
     {
         /* Create a local sstable for each remote sstable */
         Descriptor remotedesc = remote.desc;
+        if (!remotedesc.isStreamCompatible())
+            throw new UnsupportedOperationException(String.format("SSTable %s is not compatible with current version %s",
+                                                                  remote.getFilename(), Descriptor.CURRENT_VERSION));
 
         // new local sstable
         Table table = Table.open(remotedesc.ksname);

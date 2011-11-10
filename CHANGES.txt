@@ -6,6 +6,7 @@
    subcolumns or old subcolumn versions (CASSANDRA-3446)
  * automatically compute sha1 sum for uncompressed data files (CASSANDRA-3456)
  * fix reading metadata/statistics component for version < h (CASSANDRA-3474)
+ * add sstable forward-compatibility (CASSANDRA-3478)
 Merged from 0.8:
  * Make counter shard merging thread safe (CASSANDRA-3178)
  * fix updating CF row_cache_provider (CASSANDRA-3414)

@@ -324,11 +324,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 if (!desc.cfname.equals(columnFamily))
                     continue;
                 generations.add(desc.generation);
-                if (desc.isFromTheFuture())
-                {
-                    throw new RuntimeException(String.format("Can't open sstables from the future! Current version %s, found file: %s",
+                if (!desc.isCompatible())
+                    throw new RuntimeException(String.format("Can't open incompatible SSTable! Current version %s, found file: %s",
                                                              Descriptor.CURRENT_VERSION, desc));
-                }
             }
         }
         Collections.sort(generations);
@@ -551,8 +549,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             if (!descriptor.cfname.equals(columnFamily))
                 continue;
 
-            if (descriptor.isFromTheFuture())
-                throw new RuntimeException(String.format("Can't open sstables from the future! Current version %s, found file: %s",
+            if (!descriptor.isCompatible())
+                throw new RuntimeException(String.format("Can't open incompatible SSTable! Current version %s, found file: %s",
                                                          Descriptor.CURRENT_VERSION,
                                                          descriptor));
 
