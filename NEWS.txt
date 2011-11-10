@@ -1,3 +1,11 @@
+0.8.8
+=====
+
+Upgrading
+---------
+    - Nothing specific to 0.8.8
+
+
 0.8.7
 =====
 
