@@ -70,7 +70,7 @@ public class ColumnSerializer implements IColumnSerializer
 
     public Column deserialize(DataInput dis) throws IOException
     {
-        return deserialize(dis, false);
+        return deserialize(dis, Flag.LOCAL);
     }
 
     /*
@@ -78,12 +78,12 @@ public class ColumnSerializer implements IColumnSerializer
      * deserialize comes from a remote host. If it does, then we must clear
      * the delta.
      */
-    public Column deserialize(DataInput dis, boolean fromRemote) throws IOException
+    public Column deserialize(DataInput dis, IColumnSerializer.Flag flag) throws IOException
     {
-        return deserialize(dis, fromRemote, (int) (System.currentTimeMillis() / 1000));
+        return deserialize(dis, flag, (int) (System.currentTimeMillis() / 1000));
     }
 
-    public Column deserialize(DataInput dis, boolean fromRemote, int expireBefore) throws IOException
+    public Column deserialize(DataInput dis, IColumnSerializer.Flag flag, int expireBefore) throws IOException
     {
         ByteBuffer name = ByteBufferUtil.readWithShortLength(dis);
         if (name.remaining() <= 0)
@@ -104,7 +104,7 @@ public class ColumnSerializer implements IColumnSerializer
             long timestampOfLastDelete = dis.readLong();
             long ts = dis.readLong();
             ByteBuffer value = ByteBufferUtil.readWithLength(dis);
-            return CounterColumn.create(name, value, ts, timestampOfLastDelete, fromRemote);
+            return CounterColumn.create(name, value, ts, timestampOfLastDelete, flag);
         }
         else if ((b & EXPIRATION_MASK) != 0)
         {
@@ -112,7 +112,7 @@ public class ColumnSerializer implements IColumnSerializer
             int expiration = dis.readInt();
             long ts = dis.readLong();
             ByteBuffer value = ByteBufferUtil.readWithLength(dis);
-            return ExpiringColumn.create(name, value, ts, ttl, expiration, expireBefore);
+            return ExpiringColumn.create(name, value, ts, ttl, expiration, expireBefore, flag);
         }
         else
         {

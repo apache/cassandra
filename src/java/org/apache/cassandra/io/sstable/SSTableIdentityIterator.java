@@ -30,6 +30,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.ICountableColumnIterator;
 import org.apache.cassandra.db.marshal.MarshalException;
+import org.apache.cassandra.io.IColumnSerializer;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.utils.BytesReadTracker;
 
@@ -41,7 +42,7 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
     private final DataInput input;
     private final long dataStart;
     public final long dataSize;
-    public final boolean fromRemote;
+    public final IColumnSerializer.Flag flag;
 
     private final ColumnFamily columnFamily;
     private final int columnCount;
@@ -82,17 +83,17 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
     public SSTableIdentityIterator(SSTableReader sstable, RandomAccessReader file, DecoratedKey<?> key, long dataStart, long dataSize, boolean checkData)
     throws IOException
     {
-        this(sstable.metadata, file, key, dataStart, dataSize, checkData, sstable, false);
+        this(sstable.metadata, file, key, dataStart, dataSize, checkData, sstable, IColumnSerializer.Flag.LOCAL);
     }
 
-    public SSTableIdentityIterator(CFMetaData metadata, DataInput file, DecoratedKey<?> key, long dataStart, long dataSize, boolean fromRemote)
+    public SSTableIdentityIterator(CFMetaData metadata, DataInput file, DecoratedKey<?> key, long dataStart, long dataSize, IColumnSerializer.Flag flag)
     throws IOException
     {
-        this(metadata, file, key, dataStart, dataSize, false, null, fromRemote);
+        this(metadata, file, key, dataStart, dataSize, false, null, flag);
     }
 
     // sstable may be null *if* deserializeRowHeader is false
-    private SSTableIdentityIterator(CFMetaData metadata, DataInput input, DecoratedKey<?> key, long dataStart, long dataSize, boolean checkData, SSTableReader sstable, boolean fromRemote)
+    private SSTableIdentityIterator(CFMetaData metadata, DataInput input, DecoratedKey<?> key, long dataStart, long dataSize, boolean checkData, SSTableReader sstable, IColumnSerializer.Flag flag)
     throws IOException
     {
         this.input = input;
@@ -101,7 +102,7 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
         this.dataStart = dataStart;
         this.dataSize = dataSize;
         this.expireBefore = (int)(System.currentTimeMillis() / 1000);
-        this.fromRemote = fromRemote;
+        this.flag = flag;
         this.validateColumns = checkData;
 
         try
@@ -173,7 +174,7 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
     {
         try
         {
-            IColumn column = columnFamily.getColumnSerializer().deserialize(inputWithTracker, fromRemote, expireBefore);
+            IColumn column = columnFamily.getColumnSerializer().deserialize(inputWithTracker, flag, expireBefore);
             if (validateColumns)
                 column.validateFields(columnFamily.metadata());
             return column;
@@ -228,7 +229,7 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
         assert inputWithTracker.getBytesRead() == headerSize();
         ColumnFamily cf = columnFamily.cloneMeShallow(ArrayBackedSortedColumns.factory(), false);
         // since we already read column count, just pass that value and continue deserialization
-        ColumnFamily.serializer().deserializeColumns(inputWithTracker, cf, columnCount, fromRemote);
+        ColumnFamily.serializer().deserializeColumns(inputWithTracker, cf, columnCount, flag);
         if (validateColumns)
         {
             try

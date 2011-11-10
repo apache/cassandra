@@ -8,6 +8,7 @@
  * fix reading metadata/statistics component for version < h (CASSANDRA-3474)
  * add sstable forward-compatibility (CASSANDRA-3478)
  * report compression ratio in CFSMBean (CASSANDRA-3393)
+ * fix incorrect size exception during streaming of counters (CASSANDRA-3481)
 Merged from 0.8:
  * Make counter shard merging thread safe (CASSANDRA-3178)
  * fix updating CF row_cache_provider (CASSANDRA-3414)

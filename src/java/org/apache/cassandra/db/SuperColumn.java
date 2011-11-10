@@ -336,15 +336,15 @@ class SuperColumnSerializer implements IColumnSerializer
 
     public IColumn deserialize(DataInput dis) throws IOException
     {
-        return deserialize(dis, false);
+        return deserialize(dis, IColumnSerializer.Flag.LOCAL);
     }
 
-    public IColumn deserialize(DataInput dis, boolean fromRemote) throws IOException
+    public IColumn deserialize(DataInput dis, IColumnSerializer.Flag flag) throws IOException
     {
-        return deserialize(dis, fromRemote, (int)(System.currentTimeMillis() / 1000));
+        return deserialize(dis, flag, (int)(System.currentTimeMillis() / 1000));
     }
 
-    public IColumn deserialize(DataInput dis, boolean fromRemote, int expireBefore) throws IOException
+    public IColumn deserialize(DataInput dis, IColumnSerializer.Flag flag, int expireBefore) throws IOException
     {
         ByteBuffer name = ByteBufferUtil.readWithShortLength(dis);
         int localDeleteTime = dis.readInt();
@@ -357,7 +357,7 @@ class SuperColumnSerializer implements IColumnSerializer
         /* read the number of columns */
         int size = dis.readInt();
         ColumnSerializer serializer = Column.serializer();
-        ColumnSortedMap preSortedMap = new ColumnSortedMap(comparator, serializer, dis, size, fromRemote, expireBefore);
+        ColumnSortedMap preSortedMap = new ColumnSortedMap(comparator, serializer, dis, size, flag, expireBefore);
         SuperColumn superColumn = new SuperColumn(name, ThreadSafeSortedColumns.factory().fromSorted(preSortedMap, false));
         superColumn.delete(localDeleteTime, markedForDeleteAt);
         return superColumn;

@@ -21,6 +21,7 @@ package org.apache.cassandra.db;
 import java.io.*;
 import java.nio.ByteBuffer;
 
+import org.apache.cassandra.io.IColumnSerializer;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -105,7 +106,7 @@ class ReadResponseSerializer implements IVersionedSerializer<ReadResponse>
         if (!isDigest)
         {
             // This is coming from a remote host
-            row = Row.serializer().deserialize(dis, version, true, ArrayBackedSortedColumns.factory());
+            row = Row.serializer().deserialize(dis, version, IColumnSerializer.Flag.FROM_REMOTE, ArrayBackedSortedColumns.factory());
         }
 
         return isDigest ? new ReadResponse(ByteBuffer.wrap(digest)) : new ReadResponse(row);

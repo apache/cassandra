@@ -32,6 +32,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.io.IColumnSerializer;
 import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.sstable.SSTableMetadata;
 
@@ -114,10 +115,10 @@ public class ColumnFamilySerializer implements ISerializer<ColumnFamily>
 
     public ColumnFamily deserialize(DataInput dis) throws IOException
     {
-        return deserialize(dis, false, ThreadSafeSortedColumns.factory());
+        return deserialize(dis, IColumnSerializer.Flag.LOCAL, ThreadSafeSortedColumns.factory());
     }
 
-    public ColumnFamily deserialize(DataInput dis, boolean fromRemote, ISortedColumns.Factory factory) throws IOException
+    public ColumnFamily deserialize(DataInput dis, IColumnSerializer.Flag flag, ISortedColumns.Factory factory) throws IOException
     {
         if (!dis.readBoolean())
             return null;
@@ -128,22 +129,22 @@ public class ColumnFamilySerializer implements ISerializer<ColumnFamily>
             throw new UnserializableColumnFamilyException("Couldn't find cfId=" + cfId, cfId);
         ColumnFamily cf = ColumnFamily.create(cfId, factory);
         deserializeFromSSTableNoColumns(cf, dis);
-        deserializeColumns(dis, cf, fromRemote);
+        deserializeColumns(dis, cf, flag);
         return cf;
     }
 
-    public void deserializeColumns(DataInput dis, ColumnFamily cf, boolean fromRemote) throws IOException
+    public void deserializeColumns(DataInput dis, ColumnFamily cf, IColumnSerializer.Flag flag) throws IOException
     {
         int size = dis.readInt();
-        deserializeColumns(dis, cf, size, fromRemote);
+        deserializeColumns(dis, cf, size, flag);
     }
 
     /* column count is already read from DataInput */
-    public void deserializeColumns(DataInput dis, ColumnFamily cf, int size, boolean fromRemote) throws IOException
+    public void deserializeColumns(DataInput dis, ColumnFamily cf, int size, IColumnSerializer.Flag flag) throws IOException
     {
         for (int i = 0; i < size; ++i)
         {
-            IColumn column = cf.getColumnSerializer().deserialize(dis, fromRemote, (int) (System.currentTimeMillis() / 1000));
+            IColumn column = cf.getColumnSerializer().deserialize(dis, flag, (int) (System.currentTimeMillis() / 1000));
             cf.addColumn(column);
         }
     }

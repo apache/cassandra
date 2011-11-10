@@ -31,6 +31,7 @@ import java.util.Map.Entry;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ColumnSerializer;
 import org.apache.cassandra.db.IColumn;
+import org.apache.cassandra.io.IColumnSerializer;
 
 /**
  * Facade over a DataInput that contains IColumns in sorted order.
@@ -43,16 +44,16 @@ public class ColumnSortedMap implements SortedMap<ByteBuffer, IColumn>
     private final DataInput dis;
     private final Comparator<ByteBuffer> comparator;
     private final int length;
-    private final boolean fromRemote;
+    private final IColumnSerializer.Flag flag;
     private final int expireBefore;
 
-    public ColumnSortedMap(Comparator<ByteBuffer> comparator, ColumnSerializer serializer, DataInput dis, int length, boolean fromRemote, int expireBefore)
+    public ColumnSortedMap(Comparator<ByteBuffer> comparator, ColumnSerializer serializer, DataInput dis, int length, IColumnSerializer.Flag flag, int expireBefore)
     {
         this.comparator = comparator;
         this.serializer = serializer;
         this.dis = dis;
         this.length = length;
-        this.fromRemote = fromRemote;
+        this.flag = flag;
         this.expireBefore = expireBefore;
     }
 
@@ -143,7 +144,7 @@ public class ColumnSortedMap implements SortedMap<ByteBuffer, IColumn>
 
     public Set<Map.Entry<ByteBuffer, IColumn>> entrySet()
     {
-        return new ColumnSet(serializer, dis, length, fromRemote, expireBefore);
+        return new ColumnSet(serializer, dis, length, flag, expireBefore);
     }
 }
 
@@ -152,15 +153,15 @@ class ColumnSet implements Set<Map.Entry<ByteBuffer, IColumn>>
     private final ColumnSerializer serializer;
     private final DataInput dis;
     private final int length;
-    private boolean fromRemote;
+    private IColumnSerializer.Flag flag;
     private final int expireBefore;
 
-    public ColumnSet(ColumnSerializer serializer, DataInput dis, int length, boolean fromRemote, int expireBefore)
+    public ColumnSet(ColumnSerializer serializer, DataInput dis, int length, IColumnSerializer.Flag flag, int expireBefore)
     {
         this.serializer = serializer;
         this.dis = dis;
         this.length = length;
-        this.fromRemote = fromRemote;
+        this.flag = flag;
         this.expireBefore = expireBefore;
     }
 
@@ -181,7 +182,7 @@ class ColumnSet implements Set<Map.Entry<ByteBuffer, IColumn>>
 
     public Iterator<Entry<ByteBuffer, IColumn>> iterator()
     {
-        return new ColumnIterator(serializer, dis, length, fromRemote, expireBefore);
+        return new ColumnIterator(serializer, dis, length, flag, expireBefore);
     }
 
     public Object[] toArray()
@@ -234,16 +235,16 @@ class ColumnIterator implements Iterator<Map.Entry<ByteBuffer, IColumn>>
     private final ColumnSerializer serializer;
     private final DataInput dis;
     private final int length;
-    private final boolean fromRemote;
+    private final IColumnSerializer.Flag flag;
     private int count = 0;
     private final int expireBefore;
 
-    public ColumnIterator(ColumnSerializer serializer, DataInput dis, int length, boolean fromRemote, int expireBefore)
+    public ColumnIterator(ColumnSerializer serializer, DataInput dis, int length, IColumnSerializer.Flag flag, int expireBefore)
     {
         this.dis = dis;
         this.serializer = serializer;
         this.length = length;
-        this.fromRemote = fromRemote;
+        this.flag = flag;
         this.expireBefore = expireBefore;
     }
 
@@ -252,7 +253,7 @@ class ColumnIterator implements Iterator<Map.Entry<ByteBuffer, IColumn>>
         try
         {
             count++;
-            return serializer.deserialize(dis, fromRemote, expireBefore);
+            return serializer.deserialize(dis, flag, expireBefore);
         }
         catch (IOException e)
         {
