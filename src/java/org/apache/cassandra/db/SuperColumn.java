@@ -443,10 +443,6 @@ class SuperColumnSerializer implements IColumnSerializer
         ColumnSerializer serializer = Column.serializer();
         ColumnSortedMap preSortedMap = new ColumnSortedMap(comparator, serializer, dis, interner, size, fromRemote, expireBefore);
         SuperColumn superColumn = new SuperColumn(name, new ConcurrentSkipListMap<ByteBuffer,IColumn>(preSortedMap));
-        if (localDeleteTime != Integer.MIN_VALUE && localDeleteTime <= 0)
-        {
-            throw new IOException("Invalid localDeleteTime read: " + localDeleteTime);
-        }
         superColumn.markForDeleteAt(localDeleteTime, markedForDeleteAt);
         return superColumn;
     }
