@@ -113,7 +113,7 @@ public class IncomingTcpConnection extends Thread
                 header = input.readInt();
                 assert isStream == (MessagingService.getBits(header, 3, 1) == 1) : "Connections cannot change type: " + isStream;
                 version = MessagingService.getBits(header, 15, 8);
-                logger.debug("Version is now {}", version);
+                logger.trace("Version is now {}", version);
                 receiveMessage(input, version);
             }
         } 

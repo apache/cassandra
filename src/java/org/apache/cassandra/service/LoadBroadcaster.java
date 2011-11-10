@@ -64,7 +64,10 @@ public class LoadBroadcaster implements IEndpointStateChangeSubscriber
 
     public void onRestart(InetAddress endpoint, EndpointState state) {}
 
-    public void onRemove(InetAddress endpoint) {}
+    public void onRemove(InetAddress endpoint)
+    {
+        loadInfo_.remove(endpoint);
+    }
 
     public Map<InetAddress, Double> getLoadInfo()
     {
