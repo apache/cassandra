@@ -41,6 +41,7 @@ import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
+import org.apache.commons.lang.ArrayUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.InputSplit;
 import org.apache.hadoop.mapreduce.RecordReader;
@@ -55,6 +56,7 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
     private RowIterator iter;
     private Pair<ByteBuffer, SortedMap<ByteBuffer, IColumn>> currentRow;
     private SlicePredicate predicate;
+    private boolean isEmptyPredicate;
     private int totalRowCount; // total number of rows to fetch
     private int batchRowCount; // fetch this many per batch
     private String cfName;
@@ -89,11 +91,33 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
         return ((float)iter.rowsRead()) / totalRowCount;
     }
     
+    static boolean isEmptyPredicate(SlicePredicate predicate)
+    {
+        if (predicate == null)
+            return true;
+              
+        if (predicate.isSetColumn_names() && predicate.getSlice_range() == null)
+            return false;
+        
+        if (predicate.getSlice_range() == null)
+            return true;
+        
+        byte[] start  = predicate.getSlice_range().getStart();
+        byte[] finish = predicate.getSlice_range().getFinish(); 
+        if ( (start == null || start == ArrayUtils.EMPTY_BYTE_ARRAY) &&
+             (finish == null || finish == ArrayUtils.EMPTY_BYTE_ARRAY) )
+            return true;
+        
+        
+        return false;       
+    }
+    
     public void initialize(InputSplit split, TaskAttemptContext context) throws IOException
     {
         this.split = (ColumnFamilySplit) split;
         Configuration conf = context.getConfiguration();
         predicate = ConfigHelper.getInputSlicePredicate(conf);
+        isEmptyPredicate = isEmptyPredicate(predicate);
         totalRowCount = ConfigHelper.getInputSplitSize(conf);
         batchRowCount = ConfigHelper.getRangeBatchSize(conf);
         cfName = ConfigHelper.getInputColumnFamily(conf);
@@ -237,6 +261,7 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
             } 
             else if (startToken.equals(split.getEndToken()))
             {
+                // reached end of the split
                 rows = null;
                 return;
             }
@@ -257,14 +282,37 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
                     rows = null;
                     return;
                 }
-                               
-                // reset to iterate through this new batch
-                i = 0;
                 
                 // prepare for the next slice to be read
                 KeySlice lastRow = rows.get(rows.size() - 1);
                 ByteBuffer rowkey = lastRow.key;
                 startToken = partitioner.getTokenFactory().toString(partitioner.getToken(rowkey));
+                
+                // remove ghosts when fetching all columns
+                if (isEmptyPredicate)
+                {
+                    Iterator<KeySlice> it = rows.iterator();
+                    
+                    while(it.hasNext())
+                    {
+                        KeySlice ks = it.next();
+                        
+                        if (ks.getColumnsSize() == 0)
+                        {
+                           it.remove();
+                        }
+                    }
+                
+                    // all ghosts, spooky
+                    if (rows.isEmpty())
+                    {
+                        maybeInit();
+                        return;
+                    }
+                }
+                
+                // reset to iterate through this new batch
+                i = 0;             
             }
             catch (Exception e)
             {

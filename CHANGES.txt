@@ -38,6 +38,7 @@
  * fix displaying cfdef entries for super columnfamilies (CASSANDRA-3415)
  * Make counter shard merging thread safe (CASSANDRA-3178)
  * Fix bug preventing the use of efficient cross-DC writes (CASSANDRA-3472)
+ * (Hadoop) skip empty rows when entire row is requested, redux (CASSANDRA-2855)
 
 
 0.8.7
