@@ -359,10 +359,6 @@ class SuperColumnSerializer implements IColumnSerializer
         ColumnSerializer serializer = Column.serializer();
         ColumnSortedMap preSortedMap = new ColumnSortedMap(comparator, serializer, dis, size, fromRemote, expireBefore);
         SuperColumn superColumn = new SuperColumn(name, ThreadSafeSortedColumns.factory().fromSorted(preSortedMap, false));
-        if (localDeleteTime != Integer.MIN_VALUE && localDeleteTime <= 0)
-        {
-            throw new IOException("Invalid localDeleteTime read: " + localDeleteTime);
-        }
         superColumn.delete(localDeleteTime, markedForDeleteAt);
         return superColumn;
     }
