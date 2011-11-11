@@ -1782,7 +1782,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return data.getEstimatedColumnCountHistogram();
     }
 
-    @Override
     public double getCompressionRatio()
     {
         return data.getCompressionRatio();
@@ -1904,5 +1903,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         for (Memtable memtable : view.memtablesPendingFlush)
             oldest = Math.min(oldest, memtable.creationTime());
         return oldest;
+    }
+
+    public boolean isEmpty()
+    {
+        DataTracker.View view = data.getView();
+        return view.sstables.isEmpty() && view.memtable.getOperations() == 0 && view.memtablesPendingFlush.isEmpty();
     }
 }
