@@ -56,7 +56,7 @@ public class Descriptor
     // f (0.7.0): switched bloom filter implementations in data component
     // g (0.8): tracks flushed-at context in metadata component
     // h (1.0): tracks max client timestamp in metadata component
-    public static final String CURRENT_VERSION = "h";
+    public static final String CURRENT_VERSION = "hb";
 
     public final File directory;
     /** version has the following format: <code>[a-z]+</code> */
@@ -74,6 +74,7 @@ public class Descriptor
     public final boolean usesOldBloomFilter;
     public final boolean metadataIncludesReplayPosition;
     public final boolean tracksMaxTimestamp;
+    public final boolean hasCompressionRatio;
 
     public enum TempState
     {
@@ -115,6 +116,7 @@ public class Descriptor
         usesOldBloomFilter = version.compareTo("f") < 0;
         metadataIncludesReplayPosition = version.compareTo("g") >= 0;
         tracksMaxTimestamp = version.compareTo("h") >= 0;
+        hasCompressionRatio = version.compareTo("hb") >= 0;
         isLatestVersion = version.compareTo(CURRENT_VERSION) == 0;
     }
 

@@ -412,6 +412,21 @@ public class DataTracker
         return histogram;
     }
 
+    public double getCompressionRatio()
+    {
+        double sum = 0;
+        int total = 0;
+        for (SSTableReader sstable : getSSTables())
+        {
+            if (sstable.getCompressionRatio() != Double.MIN_VALUE)
+            {
+                sum += sstable.getCompressionRatio();
+                total++;
+            }
+        }
+        return total != 0 ? (double)sum/total: 0;
+    }
+
     public long getMinRowSize()
     {
         long min = 0;

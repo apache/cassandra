@@ -83,19 +83,13 @@ public class StreamingTransferTest extends CleanupHelper
 
         // transfer the first and last key
         logger.debug("Transferring " + cfs.columnFamily);
-        int[] offs = new int[]{1, 3};
-        IPartitioner p = StorageService.getPartitioner();
-        List<Range> ranges = new ArrayList<Range>();
-        ranges.add(new Range(p.getMinimumToken(), p.getToken(ByteBufferUtil.bytes("key1"))));
-        ranges.add(new Range(p.getToken(ByteBufferUtil.bytes("key2")), p.getMinimumToken()));
-        StreamOutSession session = StreamOutSession.create(table.name, LOCAL, null);
-        StreamOut.transferSSTables(session, Arrays.asList(sstable), ranges, OperationType.BOOTSTRAP);
-        session.await();
+        transfer(table, sstable);
 
         // confirm that a single SSTable was transferred and registered
         assertEquals(1, cfs.getSSTables().size());
 
         // and that the index and filter were properly recovered
+        int[] offs = new int[]{1, 3};
         List<Row> rows = Util.getRangeSlice(cfs);
         assertEquals(offs.length, rows.size());
         for (int i = 0; i < offs.length; i++)
@@ -117,6 +111,17 @@ public class StreamingTransferTest extends CleanupHelper
 
         logger.debug("... everything looks good for " + cfs.columnFamily);
         return keys;
+    }
+
+    private void transfer(Table table, SSTableReader sstable) throws Exception
+    {
+        IPartitioner p = StorageService.getPartitioner();
+        List<Range> ranges = new ArrayList<Range>();
+        ranges.add(new Range(p.getMinimumToken(), p.getToken(ByteBufferUtil.bytes("key1"))));
+        ranges.add(new Range(p.getToken(ByteBufferUtil.bytes("key2")), p.getMinimumToken()));
+        StreamOutSession session = StreamOutSession.create(table.name, LOCAL, null);
+        StreamOut.transferSSTables(session, Arrays.asList(sstable), ranges, OperationType.BOOTSTRAP);
+        session.await();
     }
 
     @Test
@@ -222,6 +227,12 @@ public class StreamingTransferTest extends CleanupHelper
             .write(cleanedEntries);
         SSTableReader streamed = cfs.getSSTables().iterator().next();
         SSTableUtils.assertContentEquals(cleaned, streamed);
+
+        // Retransfer the file, making sure it is now idempotent (see CASSANDRA-3481)
+        cfs.clearUnsafe();
+        transfer(table, streamed);
+        SSTableReader restreamed = cfs.getSSTables().iterator().next();
+        SSTableUtils.assertContentEquals(streamed, restreamed);
     }
 
     @Test
@@ -320,7 +331,7 @@ public class StreamingTransferTest extends CleanupHelper
             assertEquals(entry.getKey(), rows.get(0).key);
         }
     }
- 
+
     public interface Mutator
     {
         public void mutate(String key, String col, long timestamp) throws Exception;

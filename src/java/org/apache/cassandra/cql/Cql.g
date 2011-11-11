@@ -59,6 +59,13 @@ options {
         if (recognitionErrors.size() > 0)
             throw new InvalidRequestException(recognitionErrors.get((recognitionErrors.size()-1)));
     }
+
+    // used by UPDATE of the counter columns to validate if '-' was supplied by user
+    public void validateMinusSupplied(Object op, final Term value, IntStream stream) throws MissingTokenException
+    {
+        if (op == null && Long.parseLong(value.getText()) > 0)
+            throw new MissingTokenException(102, stream, value);
+    }
 }
 
 @lexer::header {
@@ -455,10 +462,16 @@ termPair[Map<Term, Term> columns]
     :   key=term '=' value=term { columns.put(key, value); }
     ;
 
+intTerm returns [Term integer]
+    : t=INTEGER { $integer = new Term($t.text, $t.type); }
+    ;
+
 termPairWithOperation[Map<Term, Operation> columns]
     : key=term '=' (value=term { columns.put(key, new Operation(value)); }
-		    | c=term ( '+' v=term { columns.put(key, new Operation(c, org.apache.cassandra.cql.Operation.OperationType.PLUS, v)); }
-                            | '-' v=term { columns.put(key, new Operation(c, org.apache.cassandra.cql.Operation.OperationType.MINUS, v)); } ))
+		               | c=term ( '+'  v=term { columns.put(key, new Operation(c, org.apache.cassandra.cql.Operation.OperationType.PLUS, v)); }
+                            | op='-'? v=intTerm
+                                  { validateMinusSupplied(op, v, input);
+                                    columns.put(key, new Operation(c, org.apache.cassandra.cql.Operation.OperationType.MINUS, v)); } ))
     ;
 
 // Note: ranges are inclusive so >= and >, and < and <= all have the same semantics.  

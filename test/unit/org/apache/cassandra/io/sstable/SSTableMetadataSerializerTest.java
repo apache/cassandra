@@ -22,6 +22,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.ByteArrayInputStream;
 import java.io.DataOutputStream;
 import java.io.DataInputStream;
+import java.io.File;
 import java.io.IOException;
 
 import org.junit.Test;
@@ -58,7 +59,8 @@ public class SSTableMetadataSerializerTest
 
         ByteArrayInputStream byteInput = new ByteArrayInputStream(byteOutput.toByteArray());
         DataInputStream dis = new DataInputStream(byteInput);
-        SSTableMetadata stats = SSTableMetadata.serializer.deserialize(dis, true, true);
+        Descriptor desc = new Descriptor(Descriptor.CURRENT_VERSION, new File("."), "", "", 0, false);
+        SSTableMetadata stats = SSTableMetadata.serializer.deserialize(dis, desc);
 
         assert stats.getEstimatedRowSize().equals(originalMetadata.getEstimatedRowSize());
         assert stats.getEstimatedRowSize().equals(rowSizes);

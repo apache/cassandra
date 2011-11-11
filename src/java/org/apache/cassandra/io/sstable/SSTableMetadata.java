@@ -51,19 +51,21 @@ public class SSTableMetadata
     protected final EstimatedHistogram estimatedColumnCount;
     protected final ReplayPosition replayPosition;
     protected final long maxTimestamp;
+    protected final double compressionRatio;
     public static final SSTableMetadataSerializer serializer = new SSTableMetadataSerializer();
 
     private SSTableMetadata()
     {
-        this(defaultRowSizeHistogram(), defaultColumnCountHistogram(), ReplayPosition.NONE, Long.MIN_VALUE);
+        this(defaultRowSizeHistogram(), defaultColumnCountHistogram(), ReplayPosition.NONE, Long.MIN_VALUE, Double.MIN_VALUE);
     }
 
-    private SSTableMetadata(EstimatedHistogram rowSizes, EstimatedHistogram columnCounts, ReplayPosition replayPosition, long maxTimestamp)
+    private SSTableMetadata(EstimatedHistogram rowSizes, EstimatedHistogram columnCounts, ReplayPosition replayPosition, long maxTimestamp, double cr)
     {
         this.estimatedRowSize = rowSizes;
         this.estimatedColumnCount = columnCounts;
         this.replayPosition = replayPosition;
         this.maxTimestamp = maxTimestamp;
+        this.compressionRatio = cr;
     }
 
     public static SSTableMetadata createDefaultInstance()
@@ -96,6 +98,11 @@ public class SSTableMetadata
         return maxTimestamp;
     }
 
+    public double getCompressionRatio()
+    {
+        return compressionRatio;
+    }
+
     static EstimatedHistogram defaultColumnCountHistogram()
     {
         // EH of 114 can track a max value of 2395318855, i.e., > 2B columns
@@ -114,6 +121,7 @@ public class SSTableMetadata
         protected EstimatedHistogram estimatedColumnCount;
         protected ReplayPosition replayPosition;
         protected long maxTimestamp;
+        protected double compressionRatio;
 
         private Collector()
         {
@@ -121,6 +129,7 @@ public class SSTableMetadata
             this.estimatedColumnCount = defaultColumnCountHistogram();
             this.replayPosition = ReplayPosition.NONE;
             this.maxTimestamp = Long.MIN_VALUE;
+            this.compressionRatio = Double.MIN_VALUE;
         }
 
         public void addRowSize(long rowSize)
@@ -133,6 +142,15 @@ public class SSTableMetadata
             estimatedColumnCount.add(columnCount);
         }
 
+        /**
+         * Ratio is compressed/uncompressed and it is
+         * if you have 1.x then compression isn't helping 
+         */
+        public void addCompressionRatio(long compressed, long uncompressed)
+        {
+            compressionRatio = (double) compressed/uncompressed;
+        }
+        
         public void updateMaxTimestamp(long potentialMax)
         {
             maxTimestamp = Math.max(maxTimestamp, potentialMax);
@@ -140,7 +158,7 @@ public class SSTableMetadata
 
         public SSTableMetadata finalizeMetadata()
         {
-            return new SSTableMetadata(estimatedRowSize, estimatedColumnCount, replayPosition, maxTimestamp);
+            return new SSTableMetadata(estimatedRowSize, estimatedColumnCount, replayPosition, maxTimestamp, compressionRatio);
         }
 
         public Collector estimatedRowSize(EstimatedHistogram estimatedRowSize)
@@ -172,6 +190,7 @@ public class SSTableMetadata
             EstimatedHistogram.serializer.serialize(sstableStats.getEstimatedColumnCount(), dos);
             ReplayPosition.serializer.serialize(sstableStats.getReplayPosition(), dos);
             dos.writeLong(sstableStats.getMaxTimestamp());
+            dos.writeDouble(sstableStats.getCompressionRatio());
         }
 
         public SSTableMetadata deserialize(Descriptor descriptor) throws IOException
@@ -187,7 +206,7 @@ public class SSTableMetadata
             DataInputStream dis = new DataInputStream(new BufferedInputStream(new FileInputStream(statsFile)));
             try
             {
-                return deserialize(dis, descriptor.metadataIncludesReplayPosition, descriptor.tracksMaxTimestamp);
+                return deserialize(dis, descriptor);
             }
             finally
             {
@@ -195,16 +214,18 @@ public class SSTableMetadata
             }
         }
 
-        public SSTableMetadata deserialize(DataInputStream dis, boolean includesReplayPosition, boolean tracksMaxTimestamp) throws IOException
+        public SSTableMetadata deserialize(DataInputStream dis, Descriptor desc) throws IOException
         {
             EstimatedHistogram rowSizes = EstimatedHistogram.serializer.deserialize(dis);
             EstimatedHistogram columnCounts = EstimatedHistogram.serializer.deserialize(dis);
-            ReplayPosition replayPosition = includesReplayPosition
+            ReplayPosition replayPosition = desc.metadataIncludesReplayPosition
                                           ? ReplayPosition.serializer.deserialize(dis)
                                           : ReplayPosition.NONE;
-            long maxTimestamp = tracksMaxTimestamp ? dis.readLong() : Long.MIN_VALUE;
-
-            return new SSTableMetadata(rowSizes, columnCounts, replayPosition, maxTimestamp);
+            long maxTimestamp = desc.tracksMaxTimestamp ? dis.readLong() : Long.MIN_VALUE;
+            double compressionRatio = desc.hasCompressionRatio
+                                        ? dis.readDouble()
+                                        : Double.MIN_VALUE;
+            return new SSTableMetadata(rowSizes, columnCounts, replayPosition, maxTimestamp, compressionRatio);
         }
     }
 }

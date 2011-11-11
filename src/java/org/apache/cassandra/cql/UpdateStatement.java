@@ -220,7 +220,7 @@ public class UpdateStatement extends AbstractModification
 
                     if (op.type == OperationType.MINUS)
                     {
-                        value *= -1;
+                        if (value > 0) value *= -1;
                     }
                 }
                 catch (NumberFormatException e)

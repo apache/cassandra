@@ -1772,6 +1772,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return data.getEstimatedColumnCountHistogram();
     }
 
+    @Override
+    public double getCompressionRatio()
+    {
+        return data.getCompressionRatio();
+    }
+    
     /** true if this CFS contains secondary index data */
     public boolean isIndex()
     {

@@ -899,6 +899,11 @@ public class SSTableReader extends SSTable
         return sstableMetadata.getEstimatedColumnCount();
     }
 
+    public double getCompressionRatio()
+    {
+        return sstableMetadata.getCompressionRatio();
+    }
+
     public ReplayPosition getReplayPosition()
     {
         return sstableMetadata.getReplayPosition();

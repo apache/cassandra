@@ -23,14 +23,15 @@ import java.io.IOException;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
+import org.apache.cassandra.io.sstable.SSTableMetadata.Collector;
 import org.apache.cassandra.io.util.FileMark;
 import org.apache.cassandra.io.util.SequentialWriter;
 
 public class CompressedSequentialWriter extends SequentialWriter
 {
-    public static SequentialWriter open(String dataFilePath, String indexFilePath, boolean skipIOCache, CompressionParameters parameters) throws IOException
+    public static SequentialWriter open(String dataFilePath, String indexFilePath, boolean skipIOCache, CompressionParameters parameters, Collector sstableMetadataCollector) throws IOException
     {
-        return new CompressedSequentialWriter(new File(dataFilePath), indexFilePath, skipIOCache, parameters);
+        return new CompressedSequentialWriter(new File(dataFilePath), indexFilePath, skipIOCache, parameters, sstableMetadataCollector);
     }
 
     // holds offset in the file where current chunk should be written
@@ -49,7 +50,11 @@ public class CompressedSequentialWriter extends SequentialWriter
 
     private final Checksum checksum = new CRC32();
 
-    public CompressedSequentialWriter(File file, String indexFilePath, boolean skipIOCache, CompressionParameters parameters) throws IOException
+    private long originalSize = 0, compressedSize = 0;
+
+    private Collector sstableMetadataCollector;
+    
+    public CompressedSequentialWriter(File file, String indexFilePath, boolean skipIOCache, CompressionParameters parameters, Collector sstableMetadataCollector) throws IOException
     {
         super(file, parameters.chunkLength(), skipIOCache);
         this.compressor = parameters.sstableCompressor;
@@ -60,6 +65,7 @@ public class CompressedSequentialWriter extends SequentialWriter
         /* Index File (-CompressionInfo.db component) and it's header */
         metadataWriter = new CompressionMetadata.Writer(indexFilePath);
         metadataWriter.writeHeader(parameters);
+        this.sstableMetadataCollector = sstableMetadataCollector;
     }
 
     @Override
@@ -82,6 +88,9 @@ public class CompressedSequentialWriter extends SequentialWriter
         // compressing data with buffer re-use
         int compressedLength = compressor.compress(buffer, 0, validBufferBytes, compressed, 0);
 
+        originalSize += validBufferBytes;
+        compressedSize += compressedLength;
+        
         // update checksum
         checksum.update(buffer, 0, validBufferBytes);
 
@@ -179,7 +188,7 @@ public class CompressedSequentialWriter extends SequentialWriter
             return; // already closed
 
         super.close();
-
+        sstableMetadataCollector.addCompressionRatio(compressedSize, originalSize);
         metadataWriter.finalizeHeader(current, chunkCount);
         metadataWriter.close();
     }
