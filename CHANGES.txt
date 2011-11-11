@@ -19,6 +19,7 @@
  * report compression ratio in CFSMBean (CASSANDRA-3393)
  * fix incorrect size exception during streaming of counters (CASSANDRA-3481)
  * (CQL) fix for counter decrement syntax (CASSANDRA-3418)
+ * Fix race introduced by CASSANDRA-2503 (CASSANDRA-3482)
 Merged from 0.8:
  * Make counter shard merging thread safe (CASSANDRA-3178)
  * fix updating CF row_cache_provider (CASSANDRA-3414)

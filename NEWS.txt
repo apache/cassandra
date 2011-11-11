@@ -23,6 +23,22 @@ Upgrading
       single-row and multiget reads already rejected ANY.)
 
 
+1.0.3
+=====
+
+Upgrading
+---------
+    - Nothing specific to 1.0.3 but please see the 1.0 upgrading section if
+      upgrading from a version prior to 1.0.0
+
+Features
+--------
+    - For non compressed sstables (compressed sstable already include more
+      fine grained checsums), a sha1 for the full sstable is now automatically
+      created (in a fix with suffix -Digest.sha1). It can be used to check the
+      sstable integrity with sha1sum.
+
+
 1.0.2
 =====
 
