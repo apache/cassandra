@@ -22,6 +22,7 @@ package org.apache.cassandra.io.sstable;
 import java.io.*;
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.regex.Pattern;
 
 import com.google.common.collect.Sets;
 
@@ -339,7 +340,7 @@ public class SSTableWriter extends SSTable
         SequentialWriter out = SequentialWriter.open(new File(descriptor.filenameFor(SSTable.COMPONENT_DIGEST)), true);
         // Writting output compatible with sha1sum
         Descriptor newdesc = descriptor.asTemporary(false);
-        String[] tmp = newdesc.filenameFor(SSTable.COMPONENT_DATA).split(new Character(File.separatorChar).toString());
+        String[] tmp = newdesc.filenameFor(SSTable.COMPONENT_DATA).split(Pattern.quote(File.separator));
         String dataFileName = tmp[tmp.length - 1];
         out.write(String.format("%s  %s", Hex.bytesToHex(digest), dataFileName).getBytes());
         out.close();
