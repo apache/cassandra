@@ -154,7 +154,7 @@ public class CollationController
             // "hoist up" the requested data into a more recent sstable
             if (sstablesIterated >= cfs.getMinimumCompactionThreshold() && cfs.getCompactionStrategy() instanceof SizeTieredCompactionStrategy)
             {
-                RowMutation rm = new RowMutation(cfs.table.name, new Row(filter.key, returnCF));
+                RowMutation rm = new RowMutation(cfs.table.name, new Row(filter.key, returnCF.cloneMe()));
                 try
                 {
                     rm.applyUnsafe(); // skipping commitlog is fine since we're just de-fragmenting existing data
