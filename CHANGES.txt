@@ -1,6 +1,6 @@
 1.0.3
  * fix invalidate-related test failures (CASSANDRA-3437)
- * add next-gen cqlsh to bin/
+ * add next-gen cqlsh to bin/ (CASSANDRA-3188, 3131)
  * (CQL) fix handling of rows with no columns (CASSANDRA-3424, 3473)
  * fix querying supercolumns by name returning only a subset of
    subcolumns or old subcolumn versions (CASSANDRA-3446)
