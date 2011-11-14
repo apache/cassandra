@@ -80,23 +80,25 @@ public class ByteBufferUtil
     {
         assert o1 != null;
         assert o2 != null;
+        if (o1 == o2)
+            return 0;
 
         if (o1.hasArray() && o2.hasArray())
         {         
             return FBUtilities.compareUnsigned(o1.array(), o2.array(), o1.position() + o1.arrayOffset(),
                     o2.position() + o2.arrayOffset(), o1.remaining(), o2.remaining());
         }
-        
-        int minLength = Math.min(o1.remaining(), o2.remaining());
-        for (int x = 0, i = o1.position(), j = o2.position(); x < minLength; x++, i++, j++)
-        {
-            if (o1.get(i) == o2.get(j))
-                continue;
-            // compare non-equal bytes as unsigned
-            return (o1.get(i) & 0xFF) < (o2.get(j) & 0xFF) ? -1 : 1;
-        }
 
-        return (o1.remaining() == o2.remaining()) ? 0 : ((o1.remaining() < o2.remaining()) ? -1 : 1);
+        int end1 = o1.position() + o1.remaining();
+        int end2 = o2.position() + o2.remaining();
+        for (int i = o1.position(), j = o2.position(); i < end1 && j < end2; i++, j++)
+        {
+            int a = (o1.get(i) & 0xff);
+            int b = (o2.get(j) & 0xff);
+            if (a != b)
+                return a - b;
+        }
+        return o1.remaining() - o2.remaining();
     }
     
     public static int compare(byte[] o1, ByteBuffer o2)

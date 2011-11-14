@@ -288,22 +288,7 @@ public class FBUtilities
 
     public static int compareUnsigned(byte[] bytes1, byte[] bytes2, int offset1, int offset2, int len1, int len2)
     {
-        if (bytes1 == null)
-        {
-            return bytes2 == null ? 0 : -1;
-        }
-        if (bytes2 == null) return 1;
-
-        int minLength = Math.min(len1, len2);
-        for (int x = 0, i = offset1, j = offset2; x < minLength; x++, i++, j++)
-        {
-            if (bytes1[i] == bytes2[j])
-                continue;
-            // compare non-equal bytes as unsigned
-            return (bytes1[i] & 0xFF) < (bytes2[j] & 0xFF) ? -1 : 1;
-        }
-        if (len1 == len2) return 0;
-        else return (len1 < len2) ? -1 : 1;
+        return FastByteComparisons.compareTo(bytes1, offset1, len1, bytes2, offset2, len2);
     }
   
     /**

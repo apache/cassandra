@@ -5,6 +5,7 @@
  * replace compactionlock use in schema migration by checking CFS.isValid
    (CASSANDRA-3116)
  * recognize that "SELECT first ... *" isn't really "SELECT *" (CASSANDRA-3445)
+ * Use faster bytes comparison (CASSANDRA-3434)
 
 
 1.0.3

@@ -308,8 +308,8 @@ public class RangeTest
         Token t4 = new BytesToken(new byte[] { 1,2,3 });
         Token t5 = new BytesToken(new byte[] { 4,5,6,7 });
 
-        assert Range.compare(t4, t5) == -1;
-        assert Range.compare(t5, t4) == 1;
+        assert Range.compare(t4, t5) < 0;
+        assert Range.compare(t5, t4) > 0;
         assert Range.compare(t1, t4) == 0;
     }
 
