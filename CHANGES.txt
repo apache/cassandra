@@ -1,10 +1,7 @@
-1.0.4
- * revert name-based query defragmentation aka CASSANDRA-2503 (CASSANDRA-3491)
-
-
 1.0.3
+ * revert name-based query defragmentation aka CASSANDRA-2503 (CASSANDRA-3491)
  * fix invalidate-related test failures (CASSANDRA-3437)
- * add next-gen cqlsh to bin/ (CASSANDRA-3188, 3131)
+ * add next-gen cqlsh to bin/ (CASSANDRA-3188, 3131, 3493)
  * (CQL) fix handling of rows with no columns (CASSANDRA-3424, 3473)
  * fix querying supercolumns by name returning only a subset of
    subcolumns or old subcolumn versions (CASSANDRA-3446)
