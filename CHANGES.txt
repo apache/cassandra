@@ -1,3 +1,7 @@
+1.0.4
+ * revert name-based query defragmentation aka CASSANDRA-2503 (CASSANDRA-3491)
+
+
 1.0.3
  * fix invalidate-related test failures (CASSANDRA-3437)
  * add next-gen cqlsh to bin/ (CASSANDRA-3188, 3131)
