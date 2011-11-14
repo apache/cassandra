@@ -18,8 +18,6 @@
 # Help file for online commands in Yaml.
 
 banner: |
-    Welcome to the Cassandra CLI.
-
     Type 'help;' or '?' for help.
     Type 'quit;' or 'exit;' to quit.
 
