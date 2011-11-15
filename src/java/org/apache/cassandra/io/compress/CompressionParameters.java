@@ -137,6 +137,9 @@ public class CompressionParameters
         return compressionOptions;
     }
 
+    /**
+     * Parse the chunk length (in KB) and returns it as bytes.
+     */
     private static Integer parseChunkLength(String chLength) throws ConfigurationException
     {
         if (chLength == null)
@@ -144,7 +147,7 @@ public class CompressionParameters
 
         try
         {
-            return Integer.parseInt(chLength);
+            return 1024 * Integer.parseInt(chLength);
         }
         catch (NumberFormatException e)
         {
