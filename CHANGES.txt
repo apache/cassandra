@@ -22,6 +22,7 @@
  * (CQL) fix for counter decrement syntax (CASSANDRA-3418)
  * Fix race introduced by CASSANDRA-2503 (CASSANDRA-3482)
  * Avoid reschuling compactions when no compaction was executed (CASSANDRA-3483)
+ * fix handling of the chunk_length_kb compression options (CASSANDRA-3492)
 Merged from 0.8:
  * Make counter shard merging thread safe (CASSANDRA-3178)
  * fix updating CF row_cache_provider (CASSANDRA-3414)
