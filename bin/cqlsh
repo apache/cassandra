@@ -49,10 +49,10 @@ except ImportError:
 
 try:
     import cql
-except ImportError:
+except ImportError, e:
     sys.stderr.write("\nPython CQL driver not installed, or not on PYTHONPATH.\n")
     sys.stderr.write('You might try "easy_install cql".\n\n')
-    sys.exit(1)
+    sys.exit(str(e))
 
 import cql.decoders
 from cql.cursor import _COUNT_DESCRIPTION, _VOID_DESCRIPTION
@@ -211,19 +211,17 @@ class Shell(cmd.Cmd):
 
         self.current_keyspace = None
 
-        if sys.stdin.isatty():
-            self.prompt = Shell.default_prompt
-        else:
-            self.prompt = ""
-
         self.statement = StringIO()
         self.color = color
         self.in_comment = False
         self.schema_overrides = {}
 
-        if os.isatty(0):
+        if sys.stdin.isatty():
+            self.prompt = Shell.default_prompt
             self.report_connection()
             self.printout('Use HELP for help.')
+        else:
+            self.prompt = ""
 
     def report_connection(self):
         self.show_host()
@@ -1421,6 +1419,23 @@ def option_with_default(cparser_getter, section, option, default=None):
     except ConfigParser.Error:
         return default
 
+def should_use_color():
+    if not sys.stdin.isatty():
+        return False
+    if os.environ.get('TERM', 'dumb') == 'dumb':
+        return False
+    try:
+        import subprocess
+        p = subprocess.Popen(['tput', 'colors'], stdout=subprocess.PIPE)
+        stdout, _ = p.communicate()
+        if int(stdout.strip()) < 8:
+            return False
+    except (OSError, ImportError):
+        # oh well, we tried. at least we know there's a $TERM and it's
+        # not "dumb".
+        pass
+    return True
+
 def read_options(cmdlineargs, environment):
     configs = ConfigParser.SafeConfigParser()
     configs.read(CONFIG_FILE)
@@ -1432,7 +1447,7 @@ def read_options(cmdlineargs, environment):
     optvalues.color = option_with_default(configs.getboolean, 'ui', 'color')
     if optvalues.color is None:
         # default yes if tty
-        optvalues.color = bool(os.isatty(0))
+        optvalues.color = should_use_color()
     optvalues.debug = False
 
     (options, arguments) = parser.parse_args(cmdlineargs, values=optvalues)

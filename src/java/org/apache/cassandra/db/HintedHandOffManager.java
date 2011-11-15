@@ -230,7 +230,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
     private void deliverHintsToEndpoint(InetAddress endpoint) throws IOException, DigestMismatchException, InvalidRequestException, TimeoutException, InterruptedException
     {
         ColumnFamilyStore hintStore = Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(HINTS_CF);
-        if (hintStore.getSSTables().isEmpty())
+        if (hintStore.isEmpty())
             return; // nothing to do, don't confuse users by logging a no-op handoff
 
         try
@@ -289,7 +289,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                     if (ByteBufferUtil.string(subColumn.name()).contains(SEPARATOR_08))
                     {
                         logger_.debug("0.8-style hint found.  This should have been taken care of by purgeIncompatibleHints");
-                        deleteHint(tokenBytes, hint.name(), subColumn.timestamp());
+                        deleteHint(tokenBytes, hint.name(), hint.maxTimestamp());
                         continue page;
                     }
                 }
@@ -307,7 +307,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
 
                 if (sendMutation(endpoint, rm))
                 {
-                    deleteHint(tokenBytes, hint.name(), versionColumn.timestamp());
+                    deleteHint(tokenBytes, hint.name(), hint.maxTimestamp());
                     rowsReplayed++;
                 }
                 else

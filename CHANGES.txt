@@ -9,8 +9,9 @@
 
 
 1.0.3
+ * revert name-based query defragmentation aka CASSANDRA-2503 (CASSANDRA-3491)
  * fix invalidate-related test failures (CASSANDRA-3437)
- * add next-gen cqlsh to bin/
+ * add next-gen cqlsh to bin/ (CASSANDRA-3188, 3131, 3493)
  * (CQL) fix handling of rows with no columns (CASSANDRA-3424, 3473)
  * fix querying supercolumns by name returning only a subset of
    subcolumns or old subcolumn versions (CASSANDRA-3446)
@@ -21,7 +22,8 @@
  * fix incorrect size exception during streaming of counters (CASSANDRA-3481)
  * (CQL) fix for counter decrement syntax (CASSANDRA-3418)
  * Fix race introduced by CASSANDRA-2503 (CASSANDRA-3482)
- * Avoid reschuling compactions when no compaction was executed (CASSANDRA-3483)
+ * Fix incomplete deletion of delivered hints (CASSANDRA-3466)
+ * Avoid reschuling compactions when no compaction was executed (CASSANDRA-3484)
  * fix handling of the chunk_length_kb compression options (CASSANDRA-3492)
 Merged from 0.8:
  * Make counter shard merging thread safe (CASSANDRA-3178)

@@ -189,7 +189,7 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
 <star> ::=          "*" ;
 <range> ::=         ".." ;
 <endtoken> ::=      ";" ;
-<op> ::=            /[=,().]/ ;
+<op> ::=            /[-+=,().]/ ;
 <cmp> ::=           /[<>]=?/ ;
 
 <unclosedString>  ::= /'([^']|'')*/ ;
@@ -267,7 +267,7 @@ syntax_rules += r'''
 <selectWhereClause> ::= <relation> ("AND" <relation>)*
                       | keyname=<colname> "IN" "(" <term> ("," <term>)* ")"
                       ;
-<relation> ::= [rel_lhs]=<colname> ("=" | "<" | ">" | "<=" | ">=") <term>
+<relation> ::= [rel_lhs]=<colname> ("=" | "<" | ">" | "<=" | ">=") <colname>
              ;
 <whatToSelect> ::= colname=<colname> ("," colname=<colname>)*
                  | ("FIRST" <integer>)? "REVERSED"? (rangestart=<colname> ".." rangeend=<colname>
@@ -358,8 +358,8 @@ syntax_rules += r'''
                         "SET" <assignment> ( "," <assignment> )*
                         "WHERE" <updateWhereClause>
                     ;
-<assignment> ::= updatecol=<colname> "=" update_rhs=<term>
-                                         ( counterop=( "+" | "-" ) <term> )?
+<assignment> ::= updatecol=<colname> "=" update_rhs=<colname>
+                                         ( counterop=( "+" | "-"? ) <integer> )?
                ;
 <updateWhereClause> ::= updatefiltercol=<colname> "=" <term>
                       | updatefilterkey=<colname> filter_in="IN" "(" <term> ( "," <term> )* ")"
