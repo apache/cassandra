@@ -1,6 +1,7 @@
 1.0.4
  * fix "liveSize" stat when sstables are removed (CASSANDRA-3496)
  * add bloom filter FP rates to nodetool cfstats (CASSANDRA-3347)
+ * record partitioner in sstable metadata component (CASSANDRA-3393)
 
 
 1.0.3
