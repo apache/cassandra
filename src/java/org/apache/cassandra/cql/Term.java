@@ -54,6 +54,12 @@ public class Term
         this.text = text == null ? "" : text;
         this.type = type;
     }
+
+    public Term(long value, TermType type)
+    {
+        this.text = String.valueOf(value);
+        this.type = type;
+    }
     
     protected Term()
     {

@@ -470,6 +470,7 @@ termPairWithOperation[Map<Term, Operation> columns]
 		               | c=term ( '+'  v=term { columns.put(key, new Operation(c, org.apache.cassandra.cql.Operation.OperationType.PLUS, v)); }
                             | op='-'? v=intTerm
                                   { validateMinusSupplied(op, v, input);
+                                    if (op != null) v = new Term(-(Long.valueOf(v.getText())), v.getType());
                                     columns.put(key, new Operation(c, org.apache.cassandra.cql.Operation.OperationType.MINUS, v)); } ))
     ;
 
