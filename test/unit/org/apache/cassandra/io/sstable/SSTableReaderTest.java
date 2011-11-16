@@ -148,6 +148,9 @@ public class SSTableReaderTest extends CleanupHelper
             rm.apply();
         }
         store.forceBlockingFlush();
+
+        store.clearUnsafe();
+        store.loadNewSSTables();
         assert store.getMaxRowSize() != 0;
     }
 
