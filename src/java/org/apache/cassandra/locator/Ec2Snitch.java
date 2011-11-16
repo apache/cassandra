@@ -44,6 +44,8 @@ public class Ec2Snitch extends AbstractNetworkTopologySnitch
 {
     protected static Logger logger = LoggerFactory.getLogger(Ec2Snitch.class);
     protected static final String ZONE_NAME_QUERY_URL = "http://169.254.169.254/latest/meta-data/placement/availability-zone";
+    private static final String DEFAULT_DC = "UNKNOWN-DC";
+    private static final String DEFAULT_RACK = "UNKNOWN-RACK";
     protected String ec2zone;
     protected String ec2region;
 
@@ -83,14 +85,20 @@ public class Ec2Snitch extends AbstractNetworkTopologySnitch
     {
         if (endpoint.equals(FBUtilities.getLocalAddress()))
             return ec2zone;
-        return Gossiper.instance.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.RACK).value;
+        EndpointState state = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
+        if (null == state || null == state.getApplicationState(ApplicationState.RACK))
+            return DEFAULT_RACK;
+        return state.getApplicationState(ApplicationState.RACK).value;
     }
 
     public String getDatacenter(InetAddress endpoint)
     {
         if (endpoint.equals(FBUtilities.getLocalAddress()))
             return ec2region;
-        return Gossiper.instance.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.DC).value;
+        EndpointState state = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
+        if (null == state || null == state.getApplicationState(ApplicationState.DC))
+            return DEFAULT_DC;
+        return state.getApplicationState(ApplicationState.DC).value;
     }
 
     @Override
