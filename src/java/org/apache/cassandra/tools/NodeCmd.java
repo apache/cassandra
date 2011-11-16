@@ -461,6 +461,8 @@ public class NodeCmd
                 outs.println("\t\tWrite Count: " + cfstore.getWriteCount());
                 outs.println("\t\tWrite Latency: " + String.format("%01.3f", cfstore.getRecentWriteLatencyMicros() / 1000) + " ms.");
                 outs.println("\t\tPending Tasks: " + cfstore.getPendingTasks());
+                outs.println("\t\tBloom Filter False Postives: " + cfstore.getBloomFilterFalsePositives());
+                outs.println("\t\tBloom Filter False Ratio: " + String.format("%01.5f", cfstore.getRecentBloomFilterFalseRatio()));
 
                 InstrumentingCacheMBean keyCacheMBean = probe.getKeyCacheMBean(tableName, cfstore.getColumnFamilyName());
                 if (keyCacheMBean.getCapacity() > 0)

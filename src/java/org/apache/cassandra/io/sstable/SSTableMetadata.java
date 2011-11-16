@@ -29,6 +29,7 @@ import java.io.IOException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.EstimatedHistogram;
@@ -40,6 +41,8 @@ import org.apache.cassandra.utils.EstimatedHistogram;
  *  - estimated column count histogram
  *  - replay position
  *  - max column timestamp
+ *  - compression ratio
+ *  - partitioner
  *
  * An SSTableMetadata should be instantiated via the Collector, openFromDescriptor()
  * or createDefaultInstance()
@@ -52,20 +55,27 @@ public class SSTableMetadata
     protected final ReplayPosition replayPosition;
     protected final long maxTimestamp;
     protected final double compressionRatio;
+    protected final String partitioner;
     public static final SSTableMetadataSerializer serializer = new SSTableMetadataSerializer();
 
     private SSTableMetadata()
     {
-        this(defaultRowSizeHistogram(), defaultColumnCountHistogram(), ReplayPosition.NONE, Long.MIN_VALUE, Double.MIN_VALUE);
+        this(defaultRowSizeHistogram(),
+             defaultColumnCountHistogram(),
+             ReplayPosition.NONE,
+             Long.MIN_VALUE,
+             Double.MIN_VALUE,
+             DatabaseDescriptor.getPartitioner().getClass().getCanonicalName());
     }
 
-    private SSTableMetadata(EstimatedHistogram rowSizes, EstimatedHistogram columnCounts, ReplayPosition replayPosition, long maxTimestamp, double cr)
+    private SSTableMetadata(EstimatedHistogram rowSizes, EstimatedHistogram columnCounts, ReplayPosition replayPosition, long maxTimestamp, double cr, String partitioner)
     {
         this.estimatedRowSize = rowSizes;
         this.estimatedColumnCount = columnCounts;
         this.replayPosition = replayPosition;
         this.maxTimestamp = maxTimestamp;
         this.compressionRatio = cr;
+        this.partitioner = partitioner;
     }
 
     public static SSTableMetadata createDefaultInstance()
@@ -101,6 +111,11 @@ public class SSTableMetadata
     public double getCompressionRatio()
     {
         return compressionRatio;
+    }
+
+    public String getPartitioner()
+    {
+        return partitioner;
     }
 
     static EstimatedHistogram defaultColumnCountHistogram()
@@ -158,7 +173,12 @@ public class SSTableMetadata
 
         public SSTableMetadata finalizeMetadata()
         {
-            return new SSTableMetadata(estimatedRowSize, estimatedColumnCount, replayPosition, maxTimestamp, compressionRatio);
+            return new SSTableMetadata(estimatedRowSize,
+                                       estimatedColumnCount,
+                                       replayPosition,
+                                       maxTimestamp,
+                                       compressionRatio,
+                                       DatabaseDescriptor.getPartitioner().getClass().getCanonicalName());
         }
 
         public Collector estimatedRowSize(EstimatedHistogram estimatedRowSize)
@@ -191,6 +211,7 @@ public class SSTableMetadata
             ReplayPosition.serializer.serialize(sstableStats.getReplayPosition(), dos);
             dos.writeLong(sstableStats.getMaxTimestamp());
             dos.writeDouble(sstableStats.getCompressionRatio());
+            dos.writeUTF(sstableStats.getPartitioner());
         }
 
         public SSTableMetadata deserialize(Descriptor descriptor) throws IOException
@@ -223,9 +244,12 @@ public class SSTableMetadata
                                           : ReplayPosition.NONE;
             long maxTimestamp = desc.tracksMaxTimestamp ? dis.readLong() : Long.MIN_VALUE;
             double compressionRatio = desc.hasCompressionRatio
-                                        ? dis.readDouble()
-                                        : Double.MIN_VALUE;
-            return new SSTableMetadata(rowSizes, columnCounts, replayPosition, maxTimestamp, compressionRatio);
+                                    ? dis.readDouble()
+                                    : Double.MIN_VALUE;
+            String partitioner = desc.hasPartitioner
+                               ? dis.readUTF()
+                               : DatabaseDescriptor.getPartitioner().getClass().getCanonicalName();
+            return new SSTableMetadata(rowSizes, columnCounts, replayPosition, maxTimestamp, compressionRatio, partitioner);
         }
     }
 }

@@ -8,6 +8,12 @@
  * Use faster bytes comparison (CASSANDRA-3434)
 
 
+1.0.4
+ * fix "liveSize" stat when sstables are removed (CASSANDRA-3496)
+ * add bloom filter FP rates to nodetool cfstats (CASSANDRA-3347)
+ * record partitioner in sstable metadata component (CASSANDRA-3407)
+
+
 1.0.3
  * revert name-based query defragmentation aka CASSANDRA-2503 (CASSANDRA-3491)
  * fix invalidate-related test failures (CASSANDRA-3437)
@@ -36,6 +42,7 @@ Merged from 0.8:
  * Fix bug preventing the use of efficient cross-DC writes (CASSANDRA-3472)
  * `describe ring` command for CLI (CASSANDRA-3220)
  * (Hadoop) skip empty rows when entire row is requested, redux (CASSANDRA-2855)
+
 
 1.0.2
  * "defragment" rows for name-based queries under STCS (CASSANDRA-2503)

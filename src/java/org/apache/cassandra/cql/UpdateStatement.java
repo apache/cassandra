@@ -217,11 +217,6 @@ public class UpdateStatement extends AbstractModification
                 try
                 {
                     value = Long.parseLong(op.b.getText());
-
-                    if (op.type == OperationType.MINUS)
-                    {
-                        if (value > 0) value *= -1;
-                    }
                 }
                 catch (NumberFormatException e)
                 {

@@ -344,11 +344,10 @@ public class DataTracker
             if (logger.isDebugEnabled())
                 logger.debug(String.format("removing %s from list of files tracked for %s.%s",
                             sstable.descriptor, cfstore.table.name, cfstore.getColumnFamilyName()));
+            liveSize.addAndGet(-sstable.bytesOnDisk());
             boolean firstToCompact = sstable.markCompacted();
             assert firstToCompact : sstable + " was already marked compacted";
-
             sstable.releaseReference();
-            liveSize.addAndGet(-sstable.bytesOnDisk());
         }
     }
 
