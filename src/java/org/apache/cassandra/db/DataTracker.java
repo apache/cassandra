@@ -298,9 +298,9 @@ public class DataTracker
             if (logger.isDebugEnabled())
                 logger.debug(String.format("removing %s from list of files tracked for %s.%s",
                             sstable.descriptor, cfstore.table.name, cfstore.getColumnFamilyName()));
+            liveSize.addAndGet(-sstable.bytesOnDisk());
             sstable.markCompacted();
             sstable.releaseReference();
-            liveSize.addAndGet(-sstable.bytesOnDisk());
         }
     }
 
