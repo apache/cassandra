@@ -9,6 +9,18 @@ upgrade, just in case you need to roll back to the previous version.
 by version X, but the inverse is not necessarily the case.)
 
 
+1.0.4
+=====
+
+Features
+--------
+    - A new upgradesstables command has been added to nodetool. It is very
+      similar to scrub but without the ability to discard corrupted rows (and
+      as a consequence it does not snapshot automatically before). This new
+      command is to be prefered to scrub in all cases where sstables should be
+      rewritten to the current format for upgrade purposes.
+
+
 1.0.3
 =====
 

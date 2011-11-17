@@ -82,7 +82,7 @@ public class NodeCmd
         SETCACHECAPACITY, GETCOMPACTIONTHRESHOLD, SETCOMPACTIONTHRESHOLD, NETSTATS, CFHISTOGRAMS,
         COMPACTIONSTATS, DISABLEGOSSIP, ENABLEGOSSIP, INVALIDATEKEYCACHE, INVALIDATEROWCACHE,
         DISABLETHRIFT, ENABLETHRIFT, STATUSTHRIFT, JOIN, SETCOMPACTIONTHROUGHPUT, GETENDPOINTS,
-        REFRESH, GOSSIPINFO
+        REFRESH, GOSSIPINFO, UPGRADESSTABLES
     }
 
     
@@ -125,6 +125,7 @@ public class NodeCmd
         addCmdHelp(header, "cleanup [keyspace] [cfnames]", "Run cleanup on one or more column family");
         addCmdHelp(header, "compact [keyspace] [cfnames]", "Force a (major) compaction on one or more column family");
         addCmdHelp(header, "scrub [keyspace] [cfnames]", "Scrub (rebuild sstables for) one or more column family");
+        addCmdHelp(header, "upgradesstables [keyspace] [cfnames]", "Scrub (rebuild sstables for) one or more column family");
         addCmdHelp(header, "invalidatekeycache [keyspace] [cfnames]", "Invalidate the key cache of one or more column family");
         addCmdHelp(header, "invalidaterowcache [keyspace] [cfnames]", "Invalidate the key cache of one or more column family");
         addCmdHelp(header, "getcompactionthreshold <keyspace> <cfname>", "Print min and max compaction thresholds for a given column family");
@@ -672,6 +673,7 @@ public class NodeCmd
                 case REPAIR  :
                 case FLUSH   :
                 case SCRUB   :
+                case UPGRADESSTABLES   :
                 case INVALIDATEKEYCACHE :
                 case INVALIDATEROWCACHE :
                     optionalKSandCFs(command, cmd, arguments, probe);
@@ -834,6 +836,10 @@ public class NodeCmd
                 case SCRUB :
                     try { probe.scrub(keyspace, columnFamilies); }
                     catch (ExecutionException ee) { err(ee, "Error occured while scrubbing keyspace " + keyspace); }
+                    break;
+                case UPGRADESSTABLES :
+                    try { probe.upgradeSSTables(keyspace, columnFamilies); }
+                    catch (ExecutionException ee) { err(ee, "Error occured while upgrading the sstables for keyspace " + keyspace); }
                     break;
                 default:
                     throw new RuntimeException("Unreachable code.");

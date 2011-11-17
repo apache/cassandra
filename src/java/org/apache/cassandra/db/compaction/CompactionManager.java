@@ -153,19 +153,24 @@ public class CompactionManager implements CompactionManagerMBean
         return executor.submit(callable);
     }
 
-    public void performCleanup(final ColumnFamilyStore cfStore, final NodeId.OneShotRenewer renewer) throws InterruptedException, ExecutionException
+    private static interface AllSSTablesOperation
+    {
+        public void perform(ColumnFamilyStore store, Collection<SSTableReader> sstables) throws IOException;
+    }
+
+    private void performAllSSTableOperation(final ColumnFamilyStore cfStore, final AllSSTablesOperation operation) throws InterruptedException, ExecutionException
     {
         Callable<Object> runnable = new Callable<Object>()
         {
             public Object call() throws IOException
             {
                 compactionLock.writeLock().lock();
-                try 
+                try
                 {
                     if (!cfStore.isValid())
                         return this;
-                    Collection<SSTableReader> tocleanup = cfStore.getDataTracker().markCompacting(cfStore.getSSTables(), 1, Integer.MAX_VALUE);
-                    if (tocleanup == null || tocleanup.isEmpty())
+                    Collection<SSTableReader> sstables = cfStore.getDataTracker().markCompacting(cfStore.getSSTables(), 1, Integer.MAX_VALUE);
+                    if (sstables == null || sstables.isEmpty())
                         return this;
                     try
                     {
@@ -174,7 +179,7 @@ public class CompactionManager implements CompactionManagerMBean
                         compactionLock.writeLock().unlock();
                         try
                         {
-                            doCleanupCompaction(cfStore, tocleanup, renewer);
+                            operation.perform(cfStore, sstables);
                         }
                         finally
                         {
@@ -183,7 +188,7 @@ public class CompactionManager implements CompactionManagerMBean
                     }
                     finally
                     {
-                        cfStore.getDataTracker().unmarkCompacting(tocleanup);
+                        cfStore.getDataTracker().unmarkCompacting(sstables);
                     }
                     return this;
                 }
@@ -198,51 +203,44 @@ public class CompactionManager implements CompactionManagerMBean
         executor.submit(runnable).get();
     }
 
-    public void performScrub(final ColumnFamilyStore cfStore) throws InterruptedException, ExecutionException
+    public void performScrub(ColumnFamilyStore cfStore) throws InterruptedException, ExecutionException
     {
-        Callable<Object> runnable = new Callable<Object>()
+        performAllSSTableOperation(cfStore, new AllSSTablesOperation()
         {
-            public Object call() throws IOException
+            public void perform(ColumnFamilyStore store, Collection<SSTableReader> sstables) throws IOException
             {
-                // acquire the write lock to schedule all sstables
-                compactionLock.writeLock().lock();
-                try
-                {
-                    if (!cfStore.isValid())
-                        return this;
+                doScrub(store, sstables);
+            }
+        });
+    }
 
-                    Collection<SSTableReader> toscrub = cfStore.getDataTracker().markCompacting(cfStore.getSSTables(), 1, Integer.MAX_VALUE);
-                    if (toscrub == null || toscrub.isEmpty())
-                        return this;
-                    try
-                    {
-                        // downgrade the lock acquisition
-                        compactionLock.readLock().lock();
-                        compactionLock.writeLock().unlock();
-                        try
-                        {
-                            doScrub(cfStore, toscrub);
-                        }
-                        finally
-                        {
-                            compactionLock.readLock().unlock();
-                        }
-                    }
-                    finally
-                    {
-                        cfStore.getDataTracker().unmarkCompacting(toscrub);
-                    }
-                    return this;
-                }
-                finally
+    public void performSSTableRewrite(ColumnFamilyStore cfStore) throws InterruptedException, ExecutionException
+    {
+        performAllSSTableOperation(cfStore, new AllSSTablesOperation()
+        {
+            public void perform(ColumnFamilyStore cfs, Collection<SSTableReader> sstables) throws IOException
+            {
+                assert !cfs.isIndex();
+                for (final SSTableReader sstable : sstables)
                 {
-                    // we probably already downgraded
-                    if (compactionLock.writeLock().isHeldByCurrentThread())
-                        compactionLock.writeLock().unlock();
+                    // SSTables are marked by the caller
+                    CompactionTask task = new CompactionTask(cfs, Collections.singletonList(sstable), Integer.MAX_VALUE);
+                    task.isUserDefined(true);
+                    task.execute(executor);
                 }
             }
-        };
-        executor.submit(runnable).get();
+        });
+    }
+
+    public void performCleanup(ColumnFamilyStore cfStore, final NodeId.OneShotRenewer renewer) throws InterruptedException, ExecutionException
+    {
+        performAllSSTableOperation(cfStore, new AllSSTablesOperation()
+        {
+            public void perform(ColumnFamilyStore store, Collection<SSTableReader> sstables) throws IOException
+            {
+                doCleanupCompaction(store, sstables, renewer);
+            }
+        });
     }
 
     public void performMaximal(final ColumnFamilyStore cfStore) throws InterruptedException, ExecutionException

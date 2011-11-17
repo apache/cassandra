@@ -969,6 +969,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         CompactionManager.instance.performScrub(ColumnFamilyStore.this);
     }
 
+    public void sstablesRewrite() throws ExecutionException, InterruptedException
+    {
+        CompactionManager.instance.performSSTableRewrite(ColumnFamilyStore.this);
+    }
+
     public void markCompacted(Collection<SSTableReader> sstables)
     {
         data.markCompacted(sstables);

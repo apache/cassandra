@@ -1516,6 +1516,12 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             cfStore.scrub();
     }
 
+    public void upgradeSSTables(String tableName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException
+    {
+        for (ColumnFamilyStore cfStore : getValidColumnFamilies(tableName, columnFamilies))
+            cfStore.sstablesRewrite();
+    }
+
     public void forceTableCompaction(String tableName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException
     {
         for (ColumnFamilyStore cfStore : getValidColumnFamilies(tableName, columnFamilies))
