@@ -182,6 +182,11 @@ public class NodeProbe
         ssProxy.scrub(tableName, columnFamilies);
     }
 
+    public void upgradeSSTables(String tableName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException
+    {
+        ssProxy.upgradeSSTables(tableName, columnFamilies);
+    }
+
     public void forceTableCompaction(String tableName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException
     {
         ssProxy.forceTableCompaction(tableName, columnFamilies);
