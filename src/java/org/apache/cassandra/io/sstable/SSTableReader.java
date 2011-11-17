@@ -139,7 +139,7 @@ public class SSTableReader extends SSTable
 
         // check if sstable is created using same partitioner as this node
         String partitionerName = partitioner.getClass().getCanonicalName();
-        if (!partitionerName.equals(sstableMetadata.getPartitioner()))
+        if (!partitionerName.equals(sstableMetadata.partitioner))
             throw new RuntimeException(String.format("Cannot open %s because partitioner does not match %s",
                                                      descriptor, partitionerName));
 
@@ -892,27 +892,27 @@ public class SSTableReader extends SSTable
 
     public EstimatedHistogram getEstimatedRowSize()
     {
-        return sstableMetadata.getEstimatedRowSize();
+        return sstableMetadata.estimatedRowSize;
     }
 
     public EstimatedHistogram getEstimatedColumnCount()
     {
-        return sstableMetadata.getEstimatedColumnCount();
+        return sstableMetadata.estimatedColumnCount;
     }
 
     public double getCompressionRatio()
     {
-        return sstableMetadata.getCompressionRatio();
+        return sstableMetadata.compressionRatio;
     }
 
     public ReplayPosition getReplayPosition()
     {
-        return sstableMetadata.getReplayPosition();
+        return sstableMetadata.replayPosition;
     }
 
     public long getMaxTimestamp()
     {
-        return sstableMetadata.getMaxTimestamp();
+        return sstableMetadata.maxTimestamp;
     }
 
     public RandomAccessReader openDataReader(boolean skipIOCache) throws IOException

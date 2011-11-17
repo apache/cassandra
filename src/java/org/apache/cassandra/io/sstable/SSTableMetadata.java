@@ -50,13 +50,15 @@ import org.apache.cassandra.utils.EstimatedHistogram;
 public class SSTableMetadata
 {
     private static Logger logger = LoggerFactory.getLogger(SSTableMetadata.class);
-    protected final EstimatedHistogram estimatedRowSize;
-    protected final EstimatedHistogram estimatedColumnCount;
-    protected final ReplayPosition replayPosition;
-    protected final long maxTimestamp;
-    protected final double compressionRatio;
-    protected final String partitioner;
+
     public static final SSTableMetadataSerializer serializer = new SSTableMetadataSerializer();
+
+    public final EstimatedHistogram estimatedRowSize;
+    public final EstimatedHistogram estimatedColumnCount;
+    public final ReplayPosition replayPosition;
+    public final long maxTimestamp;
+    public final double compressionRatio;
+    public final String partitioner;
 
     private SSTableMetadata()
     {
@@ -86,36 +88,6 @@ public class SSTableMetadata
     public static Collector createCollector()
     {
         return new Collector();
-    }
-
-    public EstimatedHistogram getEstimatedRowSize()
-    {
-        return estimatedRowSize;
-    }
-
-    public EstimatedHistogram getEstimatedColumnCount()
-    {
-        return estimatedColumnCount;
-    }
-
-    public ReplayPosition getReplayPosition()
-    {
-        return replayPosition;
-    }
-
-    public long getMaxTimestamp()
-    {
-        return maxTimestamp;
-    }
-
-    public double getCompressionRatio()
-    {
-        return compressionRatio;
-    }
-
-    public String getPartitioner()
-    {
-        return partitioner;
     }
 
     static EstimatedHistogram defaultColumnCountHistogram()
@@ -206,12 +178,12 @@ public class SSTableMetadata
 
         public void serialize(SSTableMetadata sstableStats, DataOutput dos) throws IOException
         {
-            EstimatedHistogram.serializer.serialize(sstableStats.getEstimatedRowSize(), dos);
-            EstimatedHistogram.serializer.serialize(sstableStats.getEstimatedColumnCount(), dos);
-            ReplayPosition.serializer.serialize(sstableStats.getReplayPosition(), dos);
-            dos.writeLong(sstableStats.getMaxTimestamp());
-            dos.writeDouble(sstableStats.getCompressionRatio());
-            dos.writeUTF(sstableStats.getPartitioner());
+            EstimatedHistogram.serializer.serialize(sstableStats.estimatedRowSize, dos);
+            EstimatedHistogram.serializer.serialize(sstableStats.estimatedColumnCount, dos);
+            ReplayPosition.serializer.serialize(sstableStats.replayPosition, dos);
+            dos.writeLong(sstableStats.maxTimestamp);
+            dos.writeDouble(sstableStats.compressionRatio);
+            dos.writeUTF(sstableStats.partitioner);
         }
 
         public SSTableMetadata deserialize(Descriptor descriptor) throws IOException
