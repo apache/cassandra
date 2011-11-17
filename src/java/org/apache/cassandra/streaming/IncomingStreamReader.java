@@ -19,6 +19,7 @@
 package org.apache.cassandra.streaming;
 
 import java.io.*;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.util.Collections;
@@ -56,8 +57,9 @@ public class IncomingStreamReader
     public IncomingStreamReader(StreamHeader header, Socket socket) throws IOException
     {
         this.socket = socket;
-        InetSocketAddress remoteAddress = (InetSocketAddress)socket.getRemoteSocketAddress();
-        session = StreamInSession.get(remoteAddress.getAddress(), header.sessionId);
+        InetAddress host = header.broadcastAddress != null ? header.broadcastAddress
+                           : ((InetSocketAddress)socket.getRemoteSocketAddress()).getAddress();
+        session = StreamInSession.get(host, header.sessionId);
         session.addFiles(header.pendingFiles);
         // set the current file we are streaming so progress shows up in jmx
         session.setCurrentFile(header.file);

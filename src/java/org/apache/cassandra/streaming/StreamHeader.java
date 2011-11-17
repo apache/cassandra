@@ -22,12 +22,16 @@ package org.apache.cassandra.streaming;
  */
 
 import java.io.*;
+import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.net.CompactEndpointSerializationHelper;
+import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class StreamHeader
 {
@@ -54,6 +58,9 @@ public class StreamHeader
     /** files to add to the session */
     public final Collection<PendingFile> pendingFiles;
 
+    /** Address of the sender **/
+    public final InetAddress broadcastAddress;
+
     public StreamHeader(String table, long sessionId, PendingFile file)
     {
         this(table, sessionId, file, Collections.<PendingFile>emptyList());
@@ -61,10 +68,16 @@ public class StreamHeader
 
     public StreamHeader(String table, long sessionId, PendingFile first, Collection<PendingFile> pendingFiles)
     {
+        this(table, sessionId, first, pendingFiles, FBUtilities.getBroadcastAddress());
+    }
+    
+    public StreamHeader(String table, long sessionId, PendingFile first, Collection<PendingFile> pendingFiles, InetAddress broadcastAddress)
+    {
         this.table = table;
         this.sessionId  = sessionId;
         this.file = first;
         this.pendingFiles = pendingFiles;
+        this.broadcastAddress = broadcastAddress;
     }
 
     private static class StreamHeaderSerializer implements IVersionedSerializer<StreamHeader>
@@ -79,6 +92,7 @@ public class StreamHeader
             {
                 PendingFile.serializer().serialize(file, dos, version);
             }
+            CompactEndpointSerializationHelper.serialize(sh.broadcastAddress, dos);
         }
 
         public StreamHeader deserialize(DataInput dis, int version) throws IOException
@@ -93,8 +107,10 @@ public class StreamHeader
             {
                 pendingFiles.add(PendingFile.serializer().deserialize(dis, version));
             }
-
-            return new StreamHeader(table, sessionId, file, pendingFiles);
+            InetAddress bca = null;
+            if (version > MessagingService.VERSION_10)
+                bca = CompactEndpointSerializationHelper.deserialize(dis);
+            return new StreamHeader(table, sessionId, file, pendingFiles, bca);
         }
 
         public long serializedSize(StreamHeader streamHeader, int version)
