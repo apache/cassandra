@@ -79,8 +79,7 @@ public class ConsistencyLevelTest extends CleanupHelper
 
             for (ConsistencyLevel c : ConsistencyLevel.values())
             {
-
-                if (c == ConsistencyLevel.EACH_QUORUM || c == ConsistencyLevel.LOCAL_QUORUM)
+                if (c == ConsistencyLevel.EACH_QUORUM || c == ConsistencyLevel.LOCAL_QUORUM) // not supported by simplestrategy
                     continue;
 
                 for (int i = 0; i < replicationFactor; i++)
@@ -107,10 +106,10 @@ public class ConsistencyLevelTest extends CleanupHelper
                         }
                     };
                     RowRepairResolver resolver = new RowRepairResolver(table, ByteBufferUtil.bytes("foo"));
-                    ReadCallback<Row> readHandler = StorageProxy.getReadCallback(resolver, command, c, hostsInUse);
+                    ReadCallback<Row> readHandler;
 
                     boolean isWriteUnavailable = false;
-                    boolean isReadUnavailable = false;
+                    boolean isReadUnavailable = c == ConsistencyLevel.ANY;
                     try
                     {
                         writeHandler.assureSufficientLiveNodes();
@@ -120,13 +119,17 @@ public class ConsistencyLevelTest extends CleanupHelper
                         isWriteUnavailable = true;
                     }
 
-                    try
+                    if (!isReadUnavailable)
                     {
-                        readHandler.assureSufficientLiveNodes();
-                    }
-                    catch (UnavailableException e)
-                    {
-                        isReadUnavailable = true;
+                        readHandler = StorageProxy.getReadCallback(resolver, command, c, hostsInUse);
+                        try
+                        {
+                            readHandler.assureSufficientLiveNodes();
+                        }
+                        catch (UnavailableException e)
+                        {
+                            isReadUnavailable = true;
+                        }
                     }
 
                     //these should always match (in this kind of test)
@@ -189,5 +192,4 @@ public class ConsistencyLevelTest extends CleanupHelper
                 new SimpleSnitch(),
                 ksmd.strategyOptions);
     }
-
 }
