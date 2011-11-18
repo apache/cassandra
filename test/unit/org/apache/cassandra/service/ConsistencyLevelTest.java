@@ -132,10 +132,6 @@ public class ConsistencyLevelTest extends CleanupHelper
                         }
                     }
 
-                    //these should always match (in this kind of test)
-                    assertTrue(String.format("Node Alive: %d - CL: %s - isWriteUnavailable: %b - isReadUnavailable: %b", hostsInUse.size(), c, isWriteUnavailable, isReadUnavailable),
-                               isWriteUnavailable == isReadUnavailable);
-
                     switch (c)
                     {
                         case ALL:
