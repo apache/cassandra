@@ -39,6 +39,7 @@ import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class CompactionsTest extends CleanupHelper
 {
@@ -140,20 +141,16 @@ public class CompactionsTest extends CleanupHelper
         store.setMaximumCompactionThreshold(4);
 
         // loop submitting parallel compactions until they all return 0
-        while (true)
+        do
         {
-            ArrayList<Future<Integer>> compactions = new ArrayList<Future<Integer>>();
+            ArrayList<Future<?>> compactions = new ArrayList<Future<?>>();
             for (int i = 0; i < 10; i++)
                 compactions.add(CompactionManager.instance.submitBackground(store));
             // another compaction attempt will be launched in the background by
             // each completing compaction: not much we can do to control them here
-            boolean progress = false;
-            for (Future<Integer> compaction : compactions)
-               if (compaction.get() > 0)
-                   progress = true;
-            if (!progress)
-                break;
-        }
+            FBUtilities.waitOnFutures(compactions);
+        } while (CompactionManager.instance.getPendingTasks() > 0 || CompactionManager.instance.getActiveCompactions() > 0);
+
         if (store.getSSTables().size() > 1)
         {
             CompactionManager.instance.performMaximal(store);

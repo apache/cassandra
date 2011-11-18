@@ -75,18 +75,17 @@ public abstract class AbstractCompactionStrategy
     public void shutdown() { }
 
     /**
-     * @return a list of compaction tasks that should run in the background to get the sstable
-     * count down to desired parameters. Will not be null, but may be empty.
+     * @return the next background/minor compaction task to run; null if nothing to do.
      * @param gcBefore throw away tombstones older than this
      */
-    public abstract List<AbstractCompactionTask> getBackgroundTasks(final int gcBefore);
+    public abstract AbstractCompactionTask getNextBackgroundTask(final int gcBefore);
 
     /**
-     * @return a list of compaction tasks that should be run to compact this columnfamilystore
-     * as much as possible.  Will not be null, but may be empty.
+     * @return a compaction task that should be run to compact this columnfamilystore
+     * as much as possible.  Null if nothing to do.
      * @param gcBefore throw away tombstones older than this
      */
-    public abstract List<AbstractCompactionTask> getMaximalTasks(final int gcBefore);
+    public abstract AbstractCompactionTask getMaximalTask(final int gcBefore);
 
     /**
      * @return a compaction task corresponding to the requested sstables.

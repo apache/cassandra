@@ -80,6 +80,11 @@ public class DataTracker
         return view.get().sstables;
     }
 
+    public Set<SSTableReader> getUncompactingSSTables()
+    {
+        return view.get().nonCompactingSStables();
+    }
+
     public View getView()
     {
         return view.get();
@@ -276,7 +281,7 @@ public class DataTracker
         do
         {
             currentView = view.get();
-            notCompacting = Sets.difference(ImmutableSet.copyOf(currentView.sstables), currentView.compacting);
+            notCompacting = currentView.nonCompactingSStables();
             newView = currentView.replace(notCompacting, Collections.<SSTableReader>emptySet());
         }
         while (!view.compareAndSet(currentView, newView));
@@ -574,6 +579,11 @@ public class DataTracker
             this.sstables = sstables;
             this.compacting = compacting;
             this.intervalTree = intervalTree;
+        }
+
+        public Sets.SetView<SSTableReader> nonCompactingSStables()
+        {
+            return Sets.difference(ImmutableSet.copyOf(sstables), compacting);
         }
 
         private IntervalTree buildIntervalTree(List<SSTableReader> sstables)

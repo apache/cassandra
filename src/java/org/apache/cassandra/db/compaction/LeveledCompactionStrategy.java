@@ -22,7 +22,6 @@ package org.apache.cassandra.db.compaction;
 
 
 import java.util.*;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import com.google.common.collect.ImmutableSet;
@@ -37,7 +36,6 @@ import org.apache.cassandra.notifications.INotification;
 import org.apache.cassandra.notifications.INotificationConsumer;
 import org.apache.cassandra.notifications.SSTableAddedNotification;
 import org.apache.cassandra.notifications.SSTableListChangedNotification;
-import org.apache.cassandra.service.StorageService;
 
 public class LeveledCompactionStrategy extends AbstractCompactionStrategy implements INotificationConsumer
 {
@@ -91,31 +89,31 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
         return manifest.getLevelSize(i);
     }
 
-    public List<AbstractCompactionTask> getBackgroundTasks(int gcBefore)
+    public AbstractCompactionTask getNextBackgroundTask(int gcBefore)
     {
         LeveledCompactionTask currentTask = task.get();
         if (currentTask != null && !currentTask.isDone())
         {
             logger.debug("Compaction still in progress for {}", this);
-            return Collections.emptyList();
+            return null;
         }
 
         Collection<SSTableReader> sstables = manifest.getCompactionCandidates();
         if (sstables.isEmpty())
         {
             logger.debug("No compaction necessary for {}", this);
-            return Collections.emptyList();
+            return null;
         }
 
         LeveledCompactionTask newTask = new LeveledCompactionTask(cfs, sstables, gcBefore, this.maxSSTableSizeInMB);
         return task.compareAndSet(currentTask, newTask)
-               ? Collections.<AbstractCompactionTask>singletonList(newTask)
-               : Collections.<AbstractCompactionTask>emptyList();
+               ? newTask
+               : null;
     }
 
-    public List<AbstractCompactionTask> getMaximalTasks(int gcBefore)
+    public AbstractCompactionTask getMaximalTask(int gcBefore)
     {
-        return getBackgroundTasks(gcBefore);
+        return getNextBackgroundTask(gcBefore);
     }
 
     public AbstractCompactionTask getUserDefinedTask(Collection<SSTableReader> sstables, int gcBefore)

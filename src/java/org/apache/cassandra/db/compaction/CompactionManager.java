@@ -107,46 +107,37 @@ public class CompactionManager implements CompactionManagerMBean
      * It's okay to over-call (within reason) since the compactions are single-threaded,
      * and if a call is unnecessary, it will just be no-oped in the bucketing phase.
      */
-    public Future<Integer> submitBackground(final ColumnFamilyStore cfs)
+    public Future<?> submitBackground(final ColumnFamilyStore cfs)
     {
-        Callable<Integer> callable = new Callable<Integer>()
+        Runnable runnable = new WrappedRunnable()
         {
-            public Integer call() throws IOException
+            protected void runMayThrow() throws IOException
             {
                 compactionLock.readLock().lock();
                 try
                 {
-                    boolean taskExecuted = false;
                     AbstractCompactionStrategy strategy = cfs.getCompactionStrategy();
-                    List<AbstractCompactionTask> tasks = strategy.getBackgroundTasks(getDefaultGcBefore(cfs));
-                    for (AbstractCompactionTask task : tasks)
+                    AbstractCompactionTask task = strategy.getNextBackgroundTask(getDefaultGcBefore(cfs));
+                    if (task == null || !task.markSSTablesForCompaction())
+                        return;
+
+                    try
                     {
-                        if (!task.markSSTablesForCompaction())
-                            continue;
-
-                        taskExecuted = true;
-                        try
-                        {
-                            task.execute(executor);
-                        }
-                        finally
-                        {
-                            task.unmarkSSTables();
-                        }
+                        task.execute(executor);
                     }
-
-                    // newly created sstables might have made other compactions eligible
-                    if (taskExecuted)
-                        submitBackground(cfs);
+                    finally
+                    {
+                        task.unmarkSSTables();
+                    }
+                    submitBackground(cfs);
                 }
                 finally 
                 {
                     compactionLock.readLock().unlock();
                 }
-                return 0;
             }
         };
-        return executor.submit(callable);
+        return executor.submit(runnable);
     }
 
     private static interface AllSSTablesOperation
@@ -242,39 +233,38 @@ public class CompactionManager implements CompactionManagerMBean
         submitMaximal(cfStore, getDefaultGcBefore(cfStore)).get();
     }
 
-    public Future<Object> submitMaximal(final ColumnFamilyStore cfStore, final int gcBefore)
+    public Future<?> submitMaximal(final ColumnFamilyStore cfStore, final int gcBefore)
     {
-        Callable<Object> callable = new Callable<Object>()
+        Runnable runnable = new WrappedRunnable()
         {
-            public Object call() throws IOException
+            protected void runMayThrow() throws IOException
             {
                 // acquire the write lock long enough to schedule all sstables
                 compactionLock.writeLock().lock();
                 try
                 {
-                    AbstractCompactionStrategy strategy = cfStore.getCompactionStrategy();
-                    for (AbstractCompactionTask task : strategy.getMaximalTasks(gcBefore))
+                    AbstractCompactionTask task = cfStore.getCompactionStrategy().getMaximalTask(gcBefore);
+                    if (task == null)
+                        return;
+                    if (!task.markSSTablesForCompaction(0, Integer.MAX_VALUE))
+                        return;
+                    try
                     {
-                        if (!task.markSSTablesForCompaction(0, Integer.MAX_VALUE))
-                            return this;
+                        // downgrade the lock acquisition
+                        compactionLock.readLock().lock();
+                        compactionLock.writeLock().unlock();
                         try
                         {
-                            // downgrade the lock acquisition
-                            compactionLock.readLock().lock();
-                            compactionLock.writeLock().unlock();
-                            try
-                            {
-                                return task.execute(executor);
-                            }
-                            finally
-                            {
-                                compactionLock.readLock().unlock();
-                            }
+                            task.execute(executor);
                         }
                         finally
                         {
-                            task.unmarkSSTables();
+                            compactionLock.readLock().unlock();
                         }
+                    }
+                    finally
+                    {
+                        task.unmarkSSTables();
                     }
                 }
                 finally
@@ -283,10 +273,9 @@ public class CompactionManager implements CompactionManagerMBean
                     if (compactionLock.writeLock().isHeldByCurrentThread())
                         compactionLock.writeLock().unlock();
                 }
-                return this;
             }
         };
-        return executor.submit(callable);
+        return executor.submit(runnable);
     }
 
     public void forceUserDefinedCompaction(String ksname, String dataFiles)
@@ -322,11 +311,11 @@ public class CompactionManager implements CompactionManagerMBean
         submitUserDefined(cfs, descriptors, getDefaultGcBefore(cfs));
     }
 
-    public Future<Object> submitUserDefined(final ColumnFamilyStore cfs, final Collection<Descriptor> dataFiles, final int gcBefore)
+    public Future<?> submitUserDefined(final ColumnFamilyStore cfs, final Collection<Descriptor> dataFiles, final int gcBefore)
     {
-        Callable<Object> callable = new Callable<Object>()
+        Runnable runnable = new WrappedRunnable()
         {
-            public Object call() throws IOException
+            protected void runMayThrow() throws IOException
             {
                 compactionLock.readLock().lock();
                 try
@@ -379,8 +368,6 @@ public class CompactionManager implements CompactionManagerMBean
                     {
                         SSTableReader.releaseReferences(sstables);
                     }
-
-                    return this;
                 }
                 finally
                 {
@@ -388,7 +375,7 @@ public class CompactionManager implements CompactionManagerMBean
                 }
             }
         };
-        return executor.submit(callable);
+        return executor.submit(runnable);
     }
 
     // This acquire a reference on the sstable

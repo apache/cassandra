@@ -1036,6 +1036,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return data.getSSTables();
     }
 
+    public Set<SSTableReader> getUncompactingSSTables()
+    {
+        return data.getUncompactingSSTables();
+    }
+
     public long[] getRecentSSTablesPerReadHistogram()
     {
         return recentSSTablesPerRead.getBuckets(true);

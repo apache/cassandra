@@ -46,17 +46,18 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
        minSSTableSize = (null != optionValue) ? Long.parseLong(optionValue) : DEFAULT_MIN_SSTABLE_SIZE;
     }
 
-    public List<AbstractCompactionTask> getBackgroundTasks(final int gcBefore)
+    public AbstractCompactionTask getNextBackgroundTask(final int gcBefore)
     {
         if (cfs.isCompactionDisabled())
         {
             logger.debug("Compaction is currently disabled.");
-            return Collections.<AbstractCompactionTask>emptyList();
+            return null;
         }
 
-        List<AbstractCompactionTask> tasks = new LinkedList<AbstractCompactionTask>();
-        List<List<SSTableReader>> buckets = getBuckets(createSSTableAndLengthPairs(cfs.getSSTables()), minSSTableSize);
+        List<List<SSTableReader>> buckets = getBuckets(createSSTableAndLengthPairs(cfs.getUncompactingSSTables()), minSSTableSize);
+        updateEstimatedCompactionsByTasks(buckets);
 
+        List<List<SSTableReader>> prunedBuckets = new ArrayList<List<SSTableReader>>();
         for (List<SSTableReader> bucket : buckets)
         {
             if (bucket.size() < cfs.getMinimumCompactionThreshold())
@@ -69,19 +70,38 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
                     return o1.descriptor.generation - o2.descriptor.generation;
                 }
             });
-            tasks.add(new CompactionTask(cfs, bucket.subList(0, Math.min(bucket.size(), cfs.getMaximumCompactionThreshold())), gcBefore));
+            prunedBuckets.add(bucket.subList(0, Math.min(bucket.size(), cfs.getMaximumCompactionThreshold())));
         }
 
-        updateEstimatedCompactionsByTasks(tasks);
-        return tasks;
+        if (prunedBuckets.isEmpty())
+            return null;
+
+        List<SSTableReader> smallestBucket = Collections.min(prunedBuckets, new Comparator<List<SSTableReader>>()
+        {
+            public int compare(List<SSTableReader> o1, List<SSTableReader> o2)
+            {
+                long n = avgSize(o1) - avgSize(o2);
+                if (n < 0)
+                    return -1;
+                if (n > 0)
+                    return 1;
+                return 0;
+            }
+
+            private long avgSize(List<SSTableReader> sstables)
+            {
+                long n = 0;
+                for (SSTableReader sstable : sstables)
+                    n += sstable.bytesOnDisk();
+                return n / sstables.size();
+            }
+        });
+        return new CompactionTask(cfs, smallestBucket, gcBefore);
     }
 
-    public List<AbstractCompactionTask> getMaximalTasks(final int gcBefore)
+    public AbstractCompactionTask getMaximalTask(final int gcBefore)
     {
-        List<AbstractCompactionTask> tasks = new LinkedList<AbstractCompactionTask>();
-        if (!cfs.getSSTables().isEmpty())
-            tasks.add(new CompactionTask(cfs, cfs.getSSTables(), gcBefore));
-        return tasks;
+        return cfs.getSSTables().isEmpty() ? null : new CompactionTask(cfs, cfs.getSSTables(), gcBefore);
     }
 
     public AbstractCompactionTask getUserDefinedTask(Collection<SSTableReader> sstables, final int gcBefore)
@@ -158,17 +178,13 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
         return new LinkedList<List<T>>(buckets.keySet());
     }
 
-    private void updateEstimatedCompactionsByTasks(List<AbstractCompactionTask> tasks)
+    private void updateEstimatedCompactionsByTasks(List<List<SSTableReader>> tasks)
     {
         int n = 0;
-        for (AbstractCompactionTask task: tasks)
+        for (List<SSTableReader> bucket: tasks)
         {
-            if (!(task instanceof CompactionTask))
-                continue;
-
-            Collection<SSTableReader> sstablesToBeCompacted = task.getSSTables();
-            if (sstablesToBeCompacted.size() >= cfs.getMinimumCompactionThreshold())
-                n += Math.ceil((double)sstablesToBeCompacted.size() / cfs.getMaximumCompactionThreshold());
+            if (bucket.size() >= cfs.getMinimumCompactionThreshold())
+                n += Math.ceil((double)bucket.size() / cfs.getMaximumCompactionThreshold());
         }
         estimatedRemainingTasks = n;
     }
