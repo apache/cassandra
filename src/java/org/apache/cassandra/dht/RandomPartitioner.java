@@ -38,6 +38,7 @@ public class RandomPartitioner implements IPartitioner<BigIntegerToken>
 {
     public static final BigInteger ZERO = new BigInteger("0");
     public static final BigIntegerToken MINIMUM = new BigIntegerToken("-1");
+    public static final BigInteger MAXIMUM = new BigInteger("2").pow(127);
 
     private static final byte DELIMITER_BYTE = ":".getBytes()[0];
 
@@ -118,7 +119,11 @@ public class RandomPartitioner implements IPartitioner<BigIntegerToken>
         {
             try
             {
-                new BigInteger(token);
+                BigInteger i = new BigInteger(token);
+                if (i.compareTo(ZERO) < 0)
+                    throw new ConfigurationException("Token must be >= 0");
+                if (i.compareTo(MAXIMUM) > 0)
+                    throw new ConfigurationException("Token must be <= 2**127");
             }
             catch (NumberFormatException e)
             {
@@ -163,7 +168,7 @@ public class RandomPartitioner implements IPartitioner<BigIntegerToken>
         // n-case
         else {
             // NOTE: All divisions must take place in BigDecimals, and all modulo operators must take place in BigIntegers.
-            final BigInteger ri = new BigInteger("2").pow(127);                             //  (used for addition later)
+            final BigInteger ri = MAXIMUM(127);                             //  (used for addition later)
             final BigDecimal r  = new BigDecimal(ri);                                       // The entire range, 2**127
             Token start = (Token)i.next(); BigInteger ti = ((BigIntegerToken)start).token;  // The first token and its value
             Token t; BigInteger tim1 = ti;                                                  // The last token and its value (after loop)

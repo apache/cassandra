@@ -102,8 +102,7 @@ public class MerkleTreeTest
     {
         if (i == -1)
             return new BigIntegerToken(new BigInteger("-1"));
-        BigInteger md5_max = new BigInteger("2").pow(127);
-        BigInteger bint = md5_max.divide(TOKEN_SCALE).multiply(new BigInteger(""+i));
+        BigInteger bint = RandomPartitioner.MAXIMUM.divide(TOKEN_SCALE).multiply(new BigInteger(""+i));
         return new BigIntegerToken(bint);
     }
 
