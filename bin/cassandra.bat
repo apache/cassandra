@@ -15,6 +15,7 @@
 @REM  limitations under the License.
 
 @echo off
+if "%OS%" == "Windows_NT" setlocal
 
 set ARG=%1
 set INSTALL="INSTALL"
