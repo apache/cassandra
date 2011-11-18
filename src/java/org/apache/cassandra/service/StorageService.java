@@ -1463,24 +1463,42 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         return stringify(Gossiper.instance.getUnreachableMembers());
     }
 
+    private static String getCanonicalPath(String filename)
+    {
+        try
+        {
+            return new File(filename).getCanonicalPath();
+        }
+        catch (IOException e)
+        {
+            throw new IOError(e);
+        }
+    }
+
     public String[] getAllDataFileLocations()
     {
-        return DatabaseDescriptor.getAllDataFileLocations();
+        String[] locations = DatabaseDescriptor.getAllDataFileLocations();
+        for (int i = 0; i < locations.length; i++)
+            locations[i] = getCanonicalPath(locations[i]);
+        return locations;
     }
 
     public String[] getAllDataFileLocationsForTable(String table)
     {
-        return DatabaseDescriptor.getAllDataFileLocationsForTable(table);
+        String[] locations = DatabaseDescriptor.getAllDataFileLocationsForTable(table);
+        for (int i = 0; i < locations.length; i++)
+            locations[i] = getCanonicalPath(locations[i]);
+        return locations;
     }
 
     public String getCommitLogLocation()
     {
-        return DatabaseDescriptor.getCommitLogLocation();
+        return getCanonicalPath(DatabaseDescriptor.getCommitLogLocation());
     }
 
     public String getSavedCachesLocation()
     {
-        return DatabaseDescriptor.getSavedCachesLocation();
+        return getCanonicalPath(DatabaseDescriptor.getSavedCachesLocation());
     }
 
     private List<String> stringify(Iterable<InetAddress> endpoints)
