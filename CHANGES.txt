@@ -1,4 +1,5 @@
 1.0.4
+ * canonicalize paths exposed through JMX (CASSANDRA-3504)
  * fix "liveSize" stat when sstables are removed (CASSANDRA-3496)
  * add bloom filter FP rates to nodetool cfstats (CASSANDRA-3347)
  * record partitioner in sstable metadata component (CASSANDRA-3407)
