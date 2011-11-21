@@ -67,7 +67,7 @@ public class CliOptions
         // options without argument
         options.addOption("B",  BATCH_OPTION,   "enabled batch mode (suppress output; errors are fatal)");
         options.addOption(null, UNFRAME_OPTION, "use cassandra server's unframed transport");
-        options.addOption(null, DEBUG_OPTION,   "display stack traces");
+        options.addOption(null, DEBUG_OPTION,   "display stack-traces (NOTE: We print strack-traces in the places where it makes sense even without --debug)");
         options.addOption("?",  HELP_OPTION,    "usage help");
         options.addOption("v",  VERBOSE_OPTION, "verbose output when using batch mode");
     }

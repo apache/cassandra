@@ -81,8 +81,7 @@ public class CliMain
         }
         catch (Exception e)
         {
-            if (sessionState.debug)
-                e.printStackTrace();
+            e.printStackTrace(sessionState.err);
 
             String error = (e.getCause() == null) ? e.getMessage() : e.getCause().getMessage();
             throw new RuntimeException("Exception connecting to " + server + "/" + port + ". Reason: " + error + ".");
@@ -161,8 +160,7 @@ public class CliMain
         {
             sessionState.err.println("Exception retrieving information about the cassandra node, check you have connected to the thrift port.");
 
-            if (sessionState.debug)
-                e.printStackTrace();
+            e.printStackTrace(sessionState.err);
 
             return;
         }
@@ -228,10 +226,8 @@ public class CliMain
             String message = (e.getCause() == null) ? e.getMessage() : e.getCause().getMessage();
             sessionState.err.println(errorTemplate + message);
 
-            if (sessionState.debug)
-            {
+            if (!(e instanceof RuntimeException))
                 e.printStackTrace(sessionState.err);
-            }
 
             if (sessionState.batch || sessionState.inFileMode())
             {
