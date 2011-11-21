@@ -1482,7 +1482,7 @@ public class CliClient
             sessionState.err.println(e.getWhy());
 
             if (sessionState.debug)
-                e.printStackTrace();
+                e.printStackTrace(sessionState.err);
         }
     }
 
@@ -1956,8 +1956,8 @@ public class CliClient
         catch (TException e) 
         {
             if (sessionState.debug)
-                e.printStackTrace();
-            
+                e.printStackTrace(sessionState.err);
+
             sessionState.err.println("Login failure. Did you specify 'keyspace', 'username' and 'password'?");
         }
     }

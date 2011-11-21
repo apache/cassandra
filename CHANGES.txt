@@ -10,11 +10,13 @@
 
 
 1.0.4
+ * enforce RP tokens 0..2**127 (CASSANDRA-3501)
+ * canonicalize paths exposed through JMX (CASSANDRA-3504)
  * fix "liveSize" stat when sstables are removed (CASSANDRA-3496)
  * add bloom filter FP rates to nodetool cfstats (CASSANDRA-3347)
  * record partitioner in sstable metadata component (CASSANDRA-3407)
  * add new upgradesstables nodetool command (CASSANDRA-3406)
-
+ * skip --debug requirement to see common exceptions in CLI (CASSANDRA-3508)
 
 1.0.3
  * revert name-based query defragmentation aka CASSANDRA-2503 (CASSANDRA-3491)
@@ -31,7 +33,8 @@
  * (CQL) fix for counter decrement syntax (CASSANDRA-3418)
  * Fix race introduced by CASSANDRA-2503 (CASSANDRA-3482)
  * Fix incomplete deletion of delivered hints (CASSANDRA-3466)
- * Avoid reschuling compactions when no compaction was executed (CASSANDRA-3484)
+ * Avoid rescheduling compactions when no compaction was executed 
+   (CASSANDRA-3484)
  * fix handling of the chunk_length_kb compression options (CASSANDRA-3492)
 Merged from 0.8:
  * Make counter shard merging thread safe (CASSANDRA-3178)

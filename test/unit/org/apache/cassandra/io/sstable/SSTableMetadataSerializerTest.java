@@ -28,7 +28,6 @@ import java.io.IOException;
 import org.junit.Test;
 
 import org.apache.cassandra.db.commitlog.ReplayPosition;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.EstimatedHistogram;
 
 public class SSTableMetadataSerializerTest
@@ -62,13 +61,13 @@ public class SSTableMetadataSerializerTest
         Descriptor desc = new Descriptor(Descriptor.CURRENT_VERSION, new File("."), "", "", 0, false);
         SSTableMetadata stats = SSTableMetadata.serializer.deserialize(dis, desc);
 
-        assert stats.getEstimatedRowSize().equals(originalMetadata.getEstimatedRowSize());
-        assert stats.getEstimatedRowSize().equals(rowSizes);
-        assert stats.getEstimatedColumnCount().equals(originalMetadata.getEstimatedColumnCount());
-        assert stats.getEstimatedColumnCount().equals(columnCounts);
-        assert stats.getReplayPosition().equals(originalMetadata.getReplayPosition());
-        assert stats.getReplayPosition().equals(rp);
-        assert stats.getMaxTimestamp() == maxTimestamp;
-        assert stats.getMaxTimestamp() == originalMetadata.getMaxTimestamp();
+        assert stats.estimatedRowSize.equals(originalMetadata.estimatedRowSize);
+        assert stats.estimatedRowSize.equals(rowSizes);
+        assert stats.estimatedColumnCount.equals(originalMetadata.estimatedColumnCount);
+        assert stats.estimatedColumnCount.equals(columnCounts);
+        assert stats.replayPosition.equals(originalMetadata.replayPosition);
+        assert stats.replayPosition.equals(rp);
+        assert stats.maxTimestamp == maxTimestamp;
+        assert stats.maxTimestamp == originalMetadata.maxTimestamp;
     }
 }
