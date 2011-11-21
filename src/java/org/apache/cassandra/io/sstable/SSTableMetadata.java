@@ -104,20 +104,11 @@ public class SSTableMetadata
 
     public static class Collector
     {
-        protected EstimatedHistogram estimatedRowSize;
-        protected EstimatedHistogram estimatedColumnCount;
-        protected ReplayPosition replayPosition;
-        protected long maxTimestamp;
-        protected double compressionRatio;
-
-        private Collector()
-        {
-            this.estimatedRowSize = defaultRowSizeHistogram();
-            this.estimatedColumnCount = defaultColumnCountHistogram();
-            this.replayPosition = ReplayPosition.NONE;
-            this.maxTimestamp = Long.MIN_VALUE;
-            this.compressionRatio = Double.MIN_VALUE;
-        }
+        protected EstimatedHistogram estimatedRowSize = defaultRowSizeHistogram();
+        protected EstimatedHistogram estimatedColumnCount = defaultColumnCountHistogram();
+        protected ReplayPosition replayPosition = ReplayPosition.NONE;
+        protected long maxTimestamp = Long.MIN_VALUE;
+        protected double compressionRatio = Double.MIN_VALUE;
 
         public void addRowSize(long rowSize)
         {
