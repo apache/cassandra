@@ -168,7 +168,7 @@ public class RandomPartitioner implements IPartitioner<BigIntegerToken>
         // n-case
         else {
             // NOTE: All divisions must take place in BigDecimals, and all modulo operators must take place in BigIntegers.
-            final BigInteger ri = MAXIMUM(127);                             //  (used for addition later)
+            final BigInteger ri = MAXIMUM;                                                  //  (used for addition later)
             final BigDecimal r  = new BigDecimal(ri);                                       // The entire range, 2**127
             Token start = (Token)i.next(); BigInteger ti = ((BigIntegerToken)start).token;  // The first token and its value
             Token t; BigInteger tim1 = ti;                                                  // The last token and its value (after loop)
