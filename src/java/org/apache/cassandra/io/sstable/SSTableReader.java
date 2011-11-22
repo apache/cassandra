@@ -154,12 +154,13 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
     public static SSTableReader open(Descriptor descriptor, Set<Component> components, Set<DecoratedKey> savedKeys, DataTracker tracker, CFMetaData metadata, IPartitioner partitioner) throws IOException
     {
         assert partitioner != null;
+        logger.info("Opening " + descriptor);
+
         // Minimum components without which we can't do anything
         assert components.contains(Component.DATA);
         assert components.contains(Component.PRIMARY_INDEX);
 
         long start = System.currentTimeMillis();
-        logger.info("Opening " + descriptor);
 
         EstimatedHistogram rowSizes;
         EstimatedHistogram columnCounts;
