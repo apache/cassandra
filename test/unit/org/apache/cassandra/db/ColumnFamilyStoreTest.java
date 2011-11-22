@@ -41,6 +41,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableReader;
+import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -736,5 +737,39 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         // Make sure the slice returns the same as the straight get 
         assertEquals(ByteBufferUtil.bytes("A"), columnSliced.getSubColumn(ByteBufferUtil.bytes("a")).value());
         assertEquals(ByteBufferUtil.bytes("B"), columnSliced.getSubColumn(ByteBufferUtil.bytes("b")).value());
+    }
+
+    @Test
+    public void testSliceByNamesCommandOldMetatada() throws Throwable
+    {
+        String tableName = "Keyspace1";
+        String cfName= "Standard1";
+        DecoratedKey key = Util.dk("slice-name-old-metadata");
+        ByteBuffer cname = ByteBufferUtil.bytes("c1");
+        Table table = Table.open(tableName);
+        ColumnFamilyStore cfs = table.getColumnFamilyStore(cfName);
+        cfs.clearUnsafe();
+
+        // Create a column a 'high timestamp'
+        putColsStandard(cfs, key, new Column(cname, ByteBufferUtil.bytes("a"), 2));
+        cfs.forceBlockingFlush();
+
+        // Nuke the metadata and reload that sstable
+        Collection<SSTableReader> ssTables = cfs.getSSTables();
+        assertEquals(1, ssTables.size());
+        cfs.clearUnsafe();
+        assertEquals(0, cfs.getSSTables().size());
+
+        new File(ssTables.iterator().next().descriptor.filenameFor(SSTable.COMPONENT_STATS)).delete();
+        cfs.loadNewSSTables();
+
+        // Add another column with a lower timestamp
+        putColsStandard(cfs, key, new Column(cname, ByteBufferUtil.bytes("b"), 1));
+
+        // Test fetching the column by name returns the first column
+        SliceByNamesReadCommand cmd = new SliceByNamesReadCommand(tableName, key.key, new QueryPath(cfName), Collections.singletonList(cname));
+        ColumnFamily cf = cmd.getRow(table).cf;
+        Column column = (Column) cf.getColumn(cname);
+        assert column.value().equals(ByteBufferUtil.bytes("a")) : "expecting a, got " + ByteBufferUtil.string(column.value());
     }
 }

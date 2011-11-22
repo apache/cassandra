@@ -160,8 +160,14 @@ public class SSTableWriter extends SSTable
         long dataSize = row.write(dataFile.stream);
         assert dataSize == dataFile.getFilePointer() - (dataStart + 8)
                 : "incorrect row data size " + dataSize + " written to " + dataFile.getPath() + "; correct is " + (dataFile.getFilePointer() - (dataStart + 8));
-        // max timestamp is not collected here, because we want to avoid deserializing an EchoedRow
-        // instead, it is collected when calling ColumnFamilyStore.createCompactionWriter
+        /*
+         * The max timestamp is not always collected here (more precisely, row.maxTimestamp() may return Long.MIN_VALUE),
+         * to avoid deserializing an EchoedRow.
+         * This is the reason why it is collected first when calling ColumnFamilyStore.createCompactionWriter
+         * However, for old sstables without timestamp, we still want to update the timestamp (and we know
+         * that in this case we will not use EchoedRow, since CompactionControler.needsDeserialize() will be true).
+        */
+        sstableMetadataCollector.updateMaxTimestamp(row.maxTimestamp());
         sstableMetadataCollector.addRowSize(dataFile.getFilePointer() - currentPosition);
         sstableMetadataCollector.addColumnCount(row.columnCount());
         afterAppend(row.key, currentPosition);

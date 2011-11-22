@@ -73,6 +73,6 @@ public class EchoedRow extends AbstractCompactedRow
 
     public long maxTimestamp()
     {
-        throw new UnsupportedOperationException();
+        return Long.MIN_VALUE;
     }
 }
