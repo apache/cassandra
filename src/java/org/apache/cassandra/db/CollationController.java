@@ -170,7 +170,8 @@ public class CollationController
         AbstractColumnContainer container = filter.path.superColumnName == null
                                           ? returnCF
                                           : (SuperColumn) returnCF.getColumn(filter.path.superColumnName);
-        if (container == null)
+        // MIN_VALUE means we don't know any information
+        if (container == null || sstableTimestamp == Long.MIN_VALUE)
             return;
 
         for (Iterator<ByteBuffer> iterator = ((NamesQueryFilter) filter.filter).columns.iterator(); iterator.hasNext(); )

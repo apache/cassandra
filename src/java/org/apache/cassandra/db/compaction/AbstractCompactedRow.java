@@ -69,7 +69,9 @@ public abstract class AbstractCompactedRow
     public abstract int columnCount();
 
     /**
-     * @return the max column timestamp in the row
+     * @return the max column timestamp in the row or Long.MIN_VALUE if
+     * computing this value would require extra effort we're not willing to
+     * make.
      */
     public abstract long maxTimestamp();
 }
