@@ -22,6 +22,7 @@ import java.io.*;
 import java.lang.management.ManagementFactory;
 import java.net.InetAddress;
 import java.util.*;
+import java.util.concurrent.CopyOnWriteArrayList;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
@@ -47,7 +48,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
     private static int phiConvictThreshold_;
 
     private Map<InetAddress, ArrivalWindow> arrivalSamples_ = new Hashtable<InetAddress, ArrivalWindow>();
-    private List<IFailureDetectionEventListener> fdEvntListeners_ = new ArrayList<IFailureDetectionEventListener>();
+    private List<IFailureDetectionEventListener> fdEvntListeners_ = new CopyOnWriteArrayList<IFailureDetectionEventListener>();
     
     public FailureDetector()
     {
