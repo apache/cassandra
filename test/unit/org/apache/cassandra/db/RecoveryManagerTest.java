@@ -36,7 +36,7 @@ public class RecoveryManagerTest extends CleanupHelper
 {
     @Test
     public void testNothingToRecover() throws IOException {
-        CommitLog.recover();
+        CommitLog.instance.recover();
     }
 
     @Test
@@ -65,7 +65,7 @@ public class RecoveryManagerTest extends CleanupHelper
         table2.getColumnFamilyStore("Standard3").clearUnsafe();
 
         CommitLog.instance.resetUnsafe(); // disassociate segments from live CL
-        CommitLog.recover();
+        CommitLog.instance.recover();
 
         assertColumns(Util.getColumnFamily(table1, dk, "Standard1"), "col1");
         assertColumns(Util.getColumnFamily(table2, dk, "Standard3"), "col2");
@@ -92,7 +92,7 @@ public class RecoveryManagerTest extends CleanupHelper
         table1.getColumnFamilyStore("Counter1").clearUnsafe();
 
         CommitLog.instance.resetUnsafe(); // disassociate segments from live CL
-        CommitLog.recover();
+        CommitLog.instance.recover();
 
         cf = Util.getColumnFamily(table1, dk, "Counter1");
 

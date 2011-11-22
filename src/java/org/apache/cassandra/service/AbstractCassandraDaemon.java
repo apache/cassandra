@@ -193,7 +193,7 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
         }
 
         // replay the log if necessary
-        CommitLog.recover();
+        CommitLog.instance.recover();
 
         // check to see if CL.recovery modified the lastMigrationId. if it did, we need to re apply migrations. this isn't
         // the same as merely reloading the schema (which wouldn't perform file deletion after a DROP). The solution

@@ -21,6 +21,12 @@ Upgrading
       throw an InvalidRequestException when used for reads.  (Previous
       versions would silently perform a ONE read for range queries;
       single-row and multiget reads already rejected ANY.)
+    - The largest mutation batch accepted by the commitlog is now 128MB.  
+      (In practice, batches larger than ~10MB always caused poor
+      performance due to load volatility and GC promotion failures.)
+      Larger batches will continue to be accepted but will not be
+      durable.  Consider setting durable_writes=false if you really
+      want to use such large batches.
 
 
 1.0.4

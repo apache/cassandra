@@ -366,7 +366,7 @@ public class RowMutation implements IMutation, MessageProducer
         }
 
         // We need to deserialize at least once for counters to cleanup the delta
-        if (!hasCounters)
+        if (!hasCounters && version == MessagingService.version_)
             rm.preserializedBuffers.put(version, raw);
         return rm;
     }

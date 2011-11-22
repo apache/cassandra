@@ -23,53 +23,115 @@ package org.apache.cassandra.db.commitlog;
 import java.io.File;
 import java.io.IOError;
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
+import java.io.RandomAccessFile;
+import java.nio.channels.FileChannel;
+import java.nio.MappedByteBuffer;
+import java.util.Collection;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.CRC32;
-import java.util.zip.Checksum;
+import java.util.HashMap;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.io.util.SequentialWriter;
-import org.apache.cassandra.net.MessagingService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.ColumnFamily;
 
+/*
+ * A single commit log file on disk. Manages creation of the file and writing row mutations to disk,
+ * as well as tracking the last mutation position of any "dirty" CFs covered by the segment file. Segment
+ * files are initially allocated to a fixed size and can grow to accomidate a larger value if necessary.
+ */
 public class CommitLogSegment
 {
     private static final Logger logger = LoggerFactory.getLogger(CommitLogSegment.class);
-    private static Pattern COMMIT_LOG_FILE_PATTERN = Pattern.compile("CommitLog-(\\d+).log");
+
+    private static final String FILENAME_PREFIX = "CommitLog-";
+    private static final String FILENAME_EXTENSION = ".log";
+    private static Pattern COMMIT_LOG_FILE_PATTERN = Pattern.compile(FILENAME_PREFIX + "(\\d+)" + FILENAME_EXTENSION);
+
+    // The commit log entry overhead in bytes (int: length + long: head checksum + long: tail checksum)
+    static final int ENTRY_OVERHEAD_SIZE = 4 + 8 + 8;
+
+    // cache which cf is dirty in this segment to avoid having to lookup all ReplayPositions to decide if we can delete this segment
+    private final HashMap<Integer, Integer> cfLastWrite = new HashMap<Integer, Integer>();
 
     public final long id;
-    private final SequentialWriter logWriter;
-    private long finalSize = -1;
 
-    // cache which cf is dirty in this segment to avoid having to lookup all ReplayPositions to decide if we could delete this segment
-    public final Map<Integer, Integer> cfLastWrite = new HashMap<Integer, Integer>();
+    private File logFile;
+    private RandomAccessFile logFileAccessor;
 
-    public CommitLogSegment()
+    private boolean needsSync = false;
+
+    private final MappedByteBuffer buffer;
+    private boolean closed;
+
+    /**
+     * @return a newly minted segment file
+     */
+    public static CommitLogSegment freshSegment()
     {
-        id = System.currentTimeMillis();
-        String logFile = DatabaseDescriptor.getCommitLogLocation() + File.separator + "CommitLog-" + id + ".log";
-        logger.info("Creating new commitlog segment " + logFile);
+        return new CommitLogSegment(null);
+    }
+
+    /**
+     * Constructs a new segment file.
+     *
+     * @param filePath  if not null, recycles the existing file by renaming it and truncating it to CommitLog.SEGMENT_SIZE.
+     */
+    CommitLogSegment(String filePath)
+    {
+        id = System.nanoTime();
+        logFile = new File(DatabaseDescriptor.getCommitLogLocation(), FILENAME_PREFIX + id + FILENAME_EXTENSION);
+        boolean isCreating = true;
 
         try
         {
-            logWriter = createWriter(logFile);
+            if (filePath != null)
+            {
+                File oldFile = new File(filePath);
+
+                if (oldFile.exists())
+                {
+                    logger.debug("Re-using discarded CommitLog segment for " + id + " from " + filePath);
+                    oldFile.renameTo(logFile);
+                    isCreating = false;
+                }
+            }
+
+            // Open the initial the segment file
+            logFileAccessor = new RandomAccessFile(logFile, "rw");
+
+            if (isCreating)
+            {
+                logger.debug("Creating new commit log segment " + logFile.getPath());
+            }
+
+            // Map the segment, extending or truncating it to the standard segment size
+            logFileAccessor.setLength(CommitLog.SEGMENT_SIZE);
+
+            buffer = logFileAccessor.getChannel().map(FileChannel.MapMode.READ_WRITE, (long) 0, (long) CommitLog.SEGMENT_SIZE);
+            buffer.putInt(CommitLog.END_OF_SEGMENT_MARKER);
+            buffer.position(0);
         }
         catch (IOException e)
         {
             throw new IOError(e);
-        }
+        } 
     }
 
-    // assume filename is a 'possibleCommitLogFile()'
+    /**
+     * Extracts the commit log ID from filename
+     *
+     * @param   filename  the filename of the commit log file
+     * @returns the extracted commit log ID
+     */
     public static long idFromFilename(String filename)
     {
         Matcher matcher = COMMIT_LOG_FILE_PATTERN.matcher(filename);
@@ -86,86 +148,24 @@ public class CommitLogSegment
         }
     }
 
+    /**
+     * @param   filename  the filename to check
+     * @returns true if filename could be a commit log based on it's filename
+     */
     public static boolean possibleCommitLogFile(String filename)
     {
         return COMMIT_LOG_FILE_PATTERN.matcher(filename).matches();
     }
 
-    private static SequentialWriter createWriter(String file) throws IOException
+    /**
+     * Completely discards a segment file by deleting it. (Potentially blocking operation)
+     */
+    public void discard()
     {
-        return SequentialWriter.open(new File(file), true);
-    }
-
-    public ReplayPosition write(RowMutation rowMutation) throws IOException
-    {
-        ReplayPosition cLogCtx = getContext();
-
+        close();
         try
         {
-            for (ColumnFamily columnFamily : rowMutation.getColumnFamilies())
-            {
-                // check for null cfm in case a cl write goes through after the cf is
-                // defined but before a new segment is created.
-                CFMetaData cfm = Schema.instance.getCFMetaData(columnFamily.id());
-                if (cfm == null)
-                {
-                    logger.error("Attempted to write commit log entry for unrecognized column family: " + columnFamily.id());
-                }
-                else
-                {
-                    turnOn(cfm.cfId, cLogCtx.position);
-                }
-            }
-
-            // write mutation, w/ checksum on the size and data
-            Checksum checksum = new CRC32();
-            byte[] serializedRow = rowMutation.getSerializedBuffer(MessagingService.version_);
-            checksum.update(serializedRow.length);
-            logWriter.stream.writeInt(serializedRow.length);
-            logWriter.stream.writeLong(checksum.getValue());
-            logWriter.write(serializedRow);
-            checksum.update(serializedRow, 0, serializedRow.length);
-            logWriter.stream.writeLong(checksum.getValue());
-
-            return cLogCtx;
-        }
-        catch (IOException e)
-        {
-            logWriter.truncate(cLogCtx.position);
-            throw e;
-        }
-    }
-
-    public void sync() throws IOException
-    {
-        logWriter.sync();
-    }
-
-    public ReplayPosition getContext()
-    {
-        long position = logWriter.getFilePointer();
-        assert position <= Integer.MAX_VALUE;
-        return new ReplayPosition(id, (int) position);
-    }
-
-    public String getPath()
-    {
-        return logWriter.getPath();
-    }
-
-    public String getName()
-    {
-        return logWriter.getPath().substring(logWriter.getPath().lastIndexOf(File.separator) + 1);
-    }
-
-    public long length()
-    {
-        if (finalSize >= 0)
-            return finalSize;
-        
-        try
-        {
-            return logWriter.length();
+            FileUtils.deleteWithConfirm(logFile);
         }
         catch (IOException e)
         {
@@ -173,15 +173,126 @@ public class CommitLogSegment
         }
     }
 
+    /**
+     * Recycle processes an unneeded segment file for reuse.
+     * 
+     * @return a new CommitLogSegment representing the newly reusable segment.
+     */
+    public void recycle()
+    {
+        // writes an end-of-segment marker at the very beginning of the file and closes it
+        buffer.position(0);
+        buffer.putInt(CommitLog.END_OF_SEGMENT_MARKER);
+        buffer.position(0);
+        needsSync = true;
+    }
+
+    /**
+     * @return true if there is room to write() @param mutation to this segment
+     */
+    public boolean hasCapacityFor(RowMutation mutation)
+    {
+        long totalSize = RowMutation.serializer().serializedSize(mutation, MessagingService.version_) + ENTRY_OVERHEAD_SIZE;
+        return totalSize <= buffer.remaining();
+    }
+
+    /**
+     * mark all of the column families we're modifying as dirty at this position
+     */
+    private void markDirty(RowMutation rowMutation, ReplayPosition repPos)
+    {
+        for (ColumnFamily columnFamily : rowMutation.getColumnFamilies())
+        {
+            // check for null cfm in case a cl write goes through after the cf is
+            // defined but before a new segment is created.
+            CFMetaData cfm = Schema.instance.getCFMetaData(columnFamily.id());
+            if (cfm == null)
+            {
+                logger.error("Attempted to write commit log entry for unrecognized column family: " + columnFamily.id());
+            }
+            else
+            {
+                markCFDirty(cfm.cfId, repPos.position);
+            }
+        }
+    }
+
+   /**
+     * Appends a row mutation onto the commit log.  Requres that hasCapacityFor has already been checked.
+     *
+     * @param   rowMutation   the mutation to append to the commit log. 
+     * @return  the position of the appended mutation
+     */
+    public ReplayPosition write(RowMutation rowMutation) throws IOException
+    {
+        assert !closed;
+        ReplayPosition repPos = getContext();
+        markDirty(rowMutation, repPos);
+
+        CRC32 checksum = new CRC32();
+        byte[] serializedRow = rowMutation.getSerializedBuffer(MessagingService.version_);
+
+        checksum.update(serializedRow.length);
+        buffer.putInt(serializedRow.length);
+        buffer.putLong(checksum.getValue());
+
+        buffer.put(serializedRow);
+        checksum.update(serializedRow);
+        buffer.putLong(checksum.getValue());
+
+        // writes end of segment marker and rewinds back to position where it starts
+        buffer.putInt(CommitLog.END_OF_SEGMENT_MARKER);
+        buffer.position(buffer.position() - CommitLog.END_OF_SEGMENT_MARKER_SIZE);
+
+        needsSync = true;
+        return repPos;
+    }
+
+    /**
+     * Forces a disk flush for this segment file.
+     */
+    public void sync() throws IOException
+    {
+        buffer.force();
+        needsSync = false;
+    }
+
+    /**
+     * @return the current ReplayPosition for this log segment
+     */
+    public ReplayPosition getContext()
+    {
+        return new ReplayPosition(id, buffer.position());
+    }
+
+    /**
+     * @return the file path to this segment
+     */
+    public String getPath()
+    {
+        return logFile.getPath();
+    }
+
+    /**
+     * @return the file name of this segment
+     */
+    public String getName()
+    {
+        return logFile.getName();
+    }
+
+    /**
+     * Close the segment file.
+     */
     public void close()
     {
-        if (finalSize >= 0)
+        if (closed)
             return;
 
         try
         {
-            finalSize = logWriter.length();
-            logWriter.close();
+            logFileAccessor.close();
+            closed = true;
         }
         catch (IOException e)
         {
@@ -189,29 +300,72 @@ public class CommitLogSegment
         }
     }
 
-    void turnOn(Integer cfId, Integer position)
+    /**
+     * Records the CF as dirty at a certain position.
+     *
+     * @param cfId      the column family ID that is now dirty
+     * @param position  the position the last write for this CF was written at
+     */
+    private void markCFDirty(Integer cfId, Integer position)
     {
         cfLastWrite.put(cfId, position);
     }
 
     /**
-     * Turn the dirty bit off only if there has been no write since the flush
-     * position was grabbed.
+     * Marks the ColumnFamily specified by cfId as clean for this log segment. If the
+     * given context argument is contained in this file, it will only mark the CF as
+     * clean if no newer writes have taken place.
+     *
+     * @param cfId    the column family ID that is now clean
+     * @param context the optional clean offset
      */
-    void turnOffIfNotWritten(Integer cfId, Integer flushPosition)
+    public void markClean(Integer cfId, ReplayPosition context)
     {
         Integer lastWritten = cfLastWrite.get(cfId);
-        if (lastWritten == null || lastWritten < flushPosition)
+
+        if (lastWritten != null && (!contains(context) || lastWritten < context.position))
+        {
             cfLastWrite.remove(cfId);
+        }
     }
 
-    void turnOff(Integer cfId)
+    /**
+     * @return a collection of dirty CFIDs for this segment file.
+     */
+    public Collection<Integer> getDirtyCFIDs()
     {
-        cfLastWrite.remove(cfId);
+        return cfLastWrite.keySet();
+    }
+
+    /**
+     * @return true if this segment is unused and safe to recycle or delete
+     */
+    public boolean isUnused()
+    {
+        return cfLastWrite.isEmpty();
+    }
+
+    /**
+     * @return true if this segment file has unflushed writes
+     */
+    public boolean needsSync()
+    {
+        return needsSync;
+    }
+
+    /**
+     * Check to see if a certain ReplayPosition is contained by this segment file.
+     *
+     * @param   context the replay position to be checked 
+     * @return  true if the replay position is contained by this segment file.
+     */
+    public boolean contains(ReplayPosition context)
+    {
+        return context.segment == id;
     }
 
     // For debugging, not fast
-    String dirtyString()
+    public String dirtyString()
     {
         StringBuilder sb = new StringBuilder();
         for (Integer cfId : cfLastWrite.keySet())
@@ -222,14 +376,21 @@ public class CommitLogSegment
         return sb.toString();
     }
 
-    boolean isSafeToDelete()
-    {
-        return cfLastWrite.isEmpty();
-    }
-
     @Override
     public String toString()
     {
-        return "CommitLogSegment(" + logWriter.getPath() + ')';
+        return "CommitLogSegment(" + getPath() + ')';
+    }
+
+    public int position()
+    {
+        try
+        {
+            return (int) logFileAccessor.getFilePointer();
+        }
+        catch (IOException e)
+        {
+            throw new IOError(e);
+        }
     }
 }

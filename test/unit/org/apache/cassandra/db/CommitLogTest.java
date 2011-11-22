@@ -28,8 +28,9 @@ import org.junit.Test;
 
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.db.commitlog.CommitLogSegment;
 import org.apache.cassandra.db.filter.QueryPath;
-import org.apache.cassandra.utils.Pair;
+
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
 public class CommitLogTest extends CleanupHelper
@@ -37,7 +38,7 @@ public class CommitLogTest extends CleanupHelper
     @Test
     public void testRecoveryWithEmptyLog() throws Exception
     {
-        CommitLog.recover(new File[] {tmpFile()});
+        CommitLog.instance.recover(new File[]{ tmpFile() });
     }
 
     @Test
@@ -109,13 +110,13 @@ public class CommitLogTest extends CleanupHelper
         rm2.add(new QueryPath("Standard2", null, bytes("c1")), ByteBuffer.allocate(4), 0);
         CommitLog.instance.add(rm2);
 
-        assert CommitLog.instance.segmentsCount() == 2 : "Expecting 2 segments, got " + CommitLog.instance.segmentsCount();
+        assert CommitLog.instance.activeSegments() == 2 : "Expecting 2 segments, got " + CommitLog.instance.activeSegments();
 
         int cfid2 = rm2.getColumnFamilyIds().iterator().next();
         CommitLog.instance.discardCompletedSegments(cfid2, CommitLog.instance.getContext());
 
         // Assert we still have both our segment
-        assert CommitLog.instance.segmentsCount() == 2 : "Expecting 2 segments, got " + CommitLog.instance.segmentsCount();
+        assert CommitLog.instance.activeSegments() == 2 : "Expecting 2 segments, got " + CommitLog.instance.activeSegments();
     }
 
     @Test
@@ -130,21 +131,22 @@ public class CommitLogTest extends CleanupHelper
         CommitLog.instance.add(rm);
         CommitLog.instance.add(rm);
 
-        assert CommitLog.instance.segmentsCount() == 1 : "Expecting 1 segment, got " + CommitLog.instance.segmentsCount();
+        assert CommitLog.instance.activeSegments() == 1 : "Expecting 1 segment, got " + CommitLog.instance.activeSegments();
 
         // "Flush": this won't delete anything
         int cfid1 = rm.getColumnFamilyIds().iterator().next();
         CommitLog.instance.discardCompletedSegments(cfid1, CommitLog.instance.getContext());
 
-        assert CommitLog.instance.segmentsCount() == 1 : "Expecting 1 segment, got " + CommitLog.instance.segmentsCount();
+        assert CommitLog.instance.activeSegments() == 1 : "Expecting 1 segment, got " + CommitLog.instance.activeSegments();
 
-        // Adding new mutation on another CF so that a new segment is created
+        // Adding new mutation on another CF, large enough (including CL entry overhead) that a new segment is created
         RowMutation rm2 = new RowMutation("Keyspace1", bytes("k"));
         rm2.add(new QueryPath("Standard2", null, bytes("c1")), ByteBuffer.allocate(64 * 1024 * 1024), 0);
         CommitLog.instance.add(rm2);
+        // also forces a new segment, since each entry-with-overhead is just over half the CL size
         CommitLog.instance.add(rm2);
 
-        assert CommitLog.instance.segmentsCount() == 2 : "Expecting 2 segments, got " + CommitLog.instance.segmentsCount();
+        assert CommitLog.instance.activeSegments() == 3 : "Expecting 3 segments, got " + CommitLog.instance.activeSegments();
 
 
         // "Flush" second cf: The first segment should be deleted since we
@@ -154,7 +156,7 @@ public class CommitLogTest extends CleanupHelper
         CommitLog.instance.discardCompletedSegments(cfid2, CommitLog.instance.getContext());
 
         // Assert we still have both our segment
-        assert CommitLog.instance.segmentsCount() == 1 : "Expecting 1 segment, got " + CommitLog.instance.segmentsCount();
+        assert CommitLog.instance.activeSegments() == 1 : "Expecting 1 segment, got " + CommitLog.instance.activeSegments();
     }
 
     protected void testRecoveryWithBadSizeArgument(int size, int dataSize) throws Exception
@@ -189,6 +191,6 @@ public class CommitLogTest extends CleanupHelper
         OutputStream lout = new FileOutputStream(logFile);
         lout.write(logData);
         //statics make it annoying to test things correctly
-        CommitLog.recover(new File[] {logFile}); //CASSANDRA-1119 / CASSANDRA-1179 throw on failure*/
+        CommitLog.instance.recover(new File[]{ logFile }); //CASSANDRA-1119 / CASSANDRA-1179 throw on failure*/
     }
 }

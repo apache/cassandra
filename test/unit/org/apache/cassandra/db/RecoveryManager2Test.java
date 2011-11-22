@@ -64,7 +64,7 @@ public class RecoveryManager2Test extends CleanupHelper
         // replay the commit log (nothing on Standard1 should be replayed since everything was flushed, so only the row on Standard2
         // will be replayed)
         CommitLog.instance.resetUnsafe();
-        int replayed = CommitLog.recover();
+        int replayed = CommitLog.instance.recover();
         assert replayed == 1 : "Expecting only 1 replayed mutation, got " + replayed;
     }
 
