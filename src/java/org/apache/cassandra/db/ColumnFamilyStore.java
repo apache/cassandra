@@ -804,8 +804,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         if (cf.getColumnCount() == 0 && cf.getLocalDeletionTime() <= gcBefore)
             return null;
 
-        // If there is non deleted columns, we still need to reset the column family
-        // deletion times since gc_grace seconds had elapsed
         cf.maybeResetDeletionTimes(gcBefore);
         return cf;
     }
@@ -882,8 +880,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
             else
             {
-                // If there is non deleted columns, we still need to reset the column family
-                // deletion times since gc_grace seconds had elapsed
                 c.maybeResetDeletionTimes(gcBefore);
             }
         }
