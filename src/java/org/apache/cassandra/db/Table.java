@@ -376,12 +376,17 @@ public class Table
         return new Row(filter.key, columnFamily);
     }
 
+    public void apply(RowMutation mutation, boolean writeCommitLog) throws IOException
+    {
+        apply(mutation, writeCommitLog, true);
+    }
+
     /**
      * This method adds the row to the Commit Log associated with this table.
      * Once this happens the data associated with the individual column families
      * is also written to the column family store's memtable.
     */
-    public void apply(RowMutation mutation, boolean writeCommitLog) throws IOException
+    public void apply(RowMutation mutation, boolean writeCommitLog, boolean updateIndexes) throws IOException
     {
         if (logger.isDebugEnabled())
             logger.debug("applying mutation of row {}", ByteBufferUtil.bytesToHex(mutation.key()));
@@ -404,21 +409,24 @@ public class Table
                 }
 
                 SortedSet<ByteBuffer> mutatedIndexedColumns = null;
-                for (ByteBuffer column : cfs.indexManager.getIndexedColumns())
+                if (updateIndexes)
                 {
-                    if (cf.getColumnNames().contains(column) || cf.isMarkedForDelete())
+                    for (ByteBuffer column : cfs.indexManager.getIndexedColumns())
                     {
-                        if (mutatedIndexedColumns == null)
-                            mutatedIndexedColumns = new TreeSet<ByteBuffer>();
-                        mutatedIndexedColumns.add(column);
-                        if (logger.isDebugEnabled())
+                        if (cf.getColumnNames().contains(column) || cf.isMarkedForDelete())
                         {
-                            // can't actually use validator to print value here, because we overload value
-                            // for deletion timestamp as well (which may not be a well-formed value for the column type)
-                            ByteBuffer value = cf.getColumn(column) == null ? null : cf.getColumn(column).value(); // may be null on row-level deletion
-                            logger.debug(String.format("mutating indexed column %s value %s",
-                                                       cf.getComparator().getString(column),
-                                                       value == null ? "null" : ByteBufferUtil.bytesToHex(value)));
+                            if (mutatedIndexedColumns == null)
+                                mutatedIndexedColumns = new TreeSet<ByteBuffer>();
+                            mutatedIndexedColumns.add(column);
+                            if (logger.isDebugEnabled())
+                            {
+                                // can't actually use validator to print value here, because we overload value
+                                // for deletion timestamp as well (which may not be a well-formed value for the column type)
+                                ByteBuffer value = cf.getColumn(column) == null ? null : cf.getColumn(column).value(); // may be null on row-level deletion
+                                logger.debug(String.format("mutating indexed column %s value %s",
+                                                           cf.getComparator().getString(column),
+                                                           value == null ? "null" : ByteBufferUtil.bytesToHex(value)));
+                            }
                         }
                     }
                 }
@@ -453,7 +461,6 @@ public class Table
         {
             switchLock.readLock().unlock();
         }
-
     }
 
     private static void ignoreObsoleteMutations(ColumnFamily cf, SortedSet<ByteBuffer> mutatedIndexedColumns, ColumnFamily oldIndexedColumns)

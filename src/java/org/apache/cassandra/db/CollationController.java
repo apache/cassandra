@@ -151,6 +151,24 @@ public class CollationController
             ColumnFamily returnCF = container.cloneMeShallow();
             filter.collateColumns(returnCF, Collections.singletonList(toCollate), cfs.metadata.comparator, gcBefore);
             
+            // "hoist up" the requested data into a more recent sstable
+            if (!cfs.isCompactionDisabled()
+                && cfs.getMinimumCompactionThreshold() > 0
+                && cfs.getCompactionStrategy() instanceof SizeTieredCompactionStrategy)
+            {
+                RowMutation rm = new RowMutation(cfs.table.name, new Row(filter.key, returnCF.cloneMe()));
+                try
+                {
+                    // skipping commitlog and index updates is fine since we're just de-fragmenting existing data
+                    Table.open(rm.getTable()).apply(rm, false, false);
+                }
+                catch (IOException e)
+                {
+                    // log and allow the result to be returned
+                    logger.error("Error re-writing read results", e);
+                }
+            }
+
             // Caller is responsible for final removeDeletedCF.  This is important for cacheRow to work correctly:
             return returnCF;
         }
