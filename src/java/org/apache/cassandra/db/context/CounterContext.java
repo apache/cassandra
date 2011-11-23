@@ -628,6 +628,7 @@ public class CounterContext implements IContext
         int hlength = headerLength(context);
         ContextState state = new ContextState(context, hlength);
         int removedShards = 0;
+        int removedDelta = 0;
         while (state.hasRemaining())
         {
             long clock = state.getClock();
@@ -655,7 +656,11 @@ public class CounterContext implements IContext
                 }
 
                 if (-((int)(clock / 1000)) < gcBefore)
+                {
                     removedShards++;
+                    if (state.isDelta())
+                        removedDelta++;
+                }
             }
             state.moveToNext();
         }
@@ -663,9 +668,9 @@ public class CounterContext implements IContext
         if (removedShards == 0)
             return context;
 
-
-        int removedHeaderSize = removedShards * HEADER_ELT_LENGTH;
-        int newSize = context.remaining() - removedHeaderSize - (removedShards * STEP_LENGTH);
+        int removedHeaderSize = removedDelta * HEADER_ELT_LENGTH;
+        int removedBodySize = removedShards * STEP_LENGTH;
+        int newSize = context.remaining() - removedHeaderSize - removedBodySize;
         int newHlength = hlength - removedHeaderSize;
         ByteBuffer cleanedContext = ByteBuffer.allocate(newSize);
         cleanedContext.putShort(cleanedContext.position(), (short) ((newHlength - HEADER_SIZE_LENGTH) / HEADER_ELT_LENGTH));
@@ -675,10 +680,11 @@ public class CounterContext implements IContext
         while (state.hasRemaining())
         {
             long clock = state.getClock();
-            if (!(clock < 0 && state.getCount() == 0))
+            if (clock >= 0 || state.getCount() != 0 || -((int)(clock / 1000)) >= gcBefore)
             {
                 state.copyTo(cleaned);
             }
+
             state.moveToNext();
         }
         return cleanedContext;

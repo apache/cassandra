@@ -381,4 +381,81 @@ public class CounterContextTest
         assert cc.total(ctx.context) == cc.total(cleaned);
         assert cleaned.remaining() == ctx.context.remaining() - stepLength - 2;
     }
+
+    @Test
+    public void testRemoveOldShardsNotAllExpiring()
+    {
+        runRemoveOldShardsNotAllExpiring(HeapAllocator.instance);
+        runRemoveOldShardsNotAllExpiring(bumpedSlab());
+    }
+
+    private void runRemoveOldShardsNotAllExpiring(Allocator allocator)
+    {
+        NodeId id1 = NodeId.fromInt(1);
+        NodeId id3 = NodeId.fromInt(3);
+        NodeId id6 = NodeId.fromInt(6);
+        List<NodeId.NodeIdRecord> records = new ArrayList<NodeId.NodeIdRecord>();
+        records.add(new NodeId.NodeIdRecord(id1, 2L));
+        records.add(new NodeId.NodeIdRecord(id3, 4L));
+        records.add(new NodeId.NodeIdRecord(id6, 10L));
+
+        ContextState ctx = ContextState.allocate(6, 3, allocator);
+        ctx.writeElement(id1, 0L, 1L, true);
+        ctx.writeElement(NodeId.fromInt(2), 0L, 2L);
+        ctx.writeElement(id3, 0L, 3L, true);
+        ctx.writeElement(NodeId.fromInt(4), 0L, 3L);
+        ctx.writeElement(NodeId.fromInt(5), 0L, 3L, true);
+        ctx.writeElement(id6, 0L, 6L);
+
+        int timeFirstMerge = (int)(System.currentTimeMillis() / 1000);
+
+        // First, only merge the first id
+        ByteBuffer merger = cc.computeOldShardMerger(ctx.context, records, 3L);
+        ByteBuffer merged = cc.merge(ctx.context, merger, allocator);
+        assert cc.total(ctx.context) == cc.total(merged);
+
+        try
+        {
+            Thread.sleep(2000);
+        }
+        catch (InterruptedException e)
+        {
+            throw new AssertionError();
+        }
+
+        // merge the second one
+        ByteBuffer merger2 = cc.computeOldShardMerger(merged, records, 7L);
+        ByteBuffer merged2 = cc.merge(merged, merger2, allocator);
+        assert cc.total(ctx.context) == cc.total(merged2);
+
+        ByteBuffer cleaned = cc.removeOldShards(merged2, timeFirstMerge + 1);
+        assert cc.total(ctx.context) == cc.total(cleaned);
+        assert cleaned.remaining() == ctx.context.remaining();
+
+        // We should have cleaned id1 but not id3
+        ContextState m = new ContextState(cleaned);
+        m.moveToNext();
+        assert m.getNodeId().equals(id3);
+
+    }
+
+    @Test
+    public void testRemoveNotDeltaOldShards()
+    {
+        runRemoveNotDeltaOldShards(HeapAllocator.instance);
+        runRemoveNotDeltaOldShards(bumpedSlab());
+    }
+
+    private void runRemoveNotDeltaOldShards(Allocator allocator)
+    {
+        ContextState ctx = ContextState.allocate(4, 1, allocator);
+        ctx.writeElement(NodeId.fromInt(1), 1L, 1L, true);
+        ctx.writeElement(NodeId.fromInt(2), -System.currentTimeMillis(), 0L);
+        ctx.writeElement(NodeId.fromInt(3), -System.currentTimeMillis(), 0L);
+        ctx.writeElement(NodeId.fromInt(4), -System.currentTimeMillis(), 0L);
+
+        ByteBuffer cleaned = cc.removeOldShards(ctx.context, (int)(System.currentTimeMillis() / 1000) + 1);
+        assert cc.total(ctx.context) == cc.total(cleaned);
+        assert cleaned.remaining() == ctx.context.remaining() - 3 * stepLength;
+    }
 }

@@ -36,7 +36,7 @@
  * CFMetaData.convertToThrift method to set RowCacheProvider (CASSANDRA-3405)
  * acquire compactionlock during truncate (CASSANDRA-3399)
  * fix displaying cfdef entries for super columnfamilies (CASSANDRA-3415)
- * Make counter shard merging thread safe (CASSANDRA-3178)
+ * Make counter shard merging thread safe (CASSANDRA-3178, -3514)
  * Fix bug preventing the use of efficient cross-DC writes (CASSANDRA-3472)
  * (Hadoop) skip empty rows when entire row is requested, redux (CASSANDRA-2855)
  * fix concurrence issue in the FailureDetector (CASSANDRA-3519)
