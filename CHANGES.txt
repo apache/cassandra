@@ -11,7 +11,6 @@
 Merged from 0.8:
  * fix concurrence issue in the FailureDetector (CASSANDRA-3519)
  * fix array out of bounds error in counter shard removal (CASSANDRA-3514)
-Merged from 0.8:
  * avoid dropping tombstones when they might still be needed to shadow
    data in a different sstable (CASSANDRA-2786)
 
