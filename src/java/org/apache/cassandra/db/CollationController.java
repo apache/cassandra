@@ -152,8 +152,8 @@ public class CollationController
             filter.collateColumns(returnCF, Collections.singletonList(toCollate), cfs.metadata.comparator, gcBefore);
             
             // "hoist up" the requested data into a more recent sstable
-            if (!cfs.isCompactionDisabled()
-                && cfs.getMinimumCompactionThreshold() > 0
+            if (sstablesIterated > cfs.getMinimumCompactionThreshold()
+                && !cfs.isCompactionDisabled()
                 && cfs.getCompactionStrategy() instanceof SizeTieredCompactionStrategy)
             {
                 RowMutation rm = new RowMutation(cfs.table.name, new Row(filter.key, returnCF.cloneMe()));
