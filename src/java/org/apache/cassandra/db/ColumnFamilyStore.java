@@ -1652,7 +1652,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return data.getRecentBloomFilterFalseRatio();
     }
 
-
+    public long getBloomFilterDiskSpaceUsed()
+    {
+        long total = 0;
+        for (SSTableReader sst : getSSTables())
+            total += sst.getBloomFilterSerializedSize();
+        return total;
+    }
 
     @Override
     public String toString()

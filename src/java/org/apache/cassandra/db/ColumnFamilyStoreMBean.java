@@ -184,6 +184,8 @@ public interface ColumnFamilyStoreMBean
 
     public double getRecentBloomFilterFalseRatio();
 
+    public long getBloomFilterDiskSpaceUsed();
+
     /**
      * Gets the minimum number of sstables in queue before compaction kicks off
      */

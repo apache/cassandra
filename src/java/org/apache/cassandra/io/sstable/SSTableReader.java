@@ -431,6 +431,14 @@ public class SSTableReader extends SSTable
       return bf;
     }
 
+    public long getBloomFilterSerializedSize()
+    {
+        if (descriptor.usesOldBloomFilter)
+            return LegacyBloomFilter.serializer().serializedSize((LegacyBloomFilter) bf);
+        else
+            return BloomFilter.serializer().serializedSize((BloomFilter) bf);
+    }
+
     /**
      * @return An estimate of the number of keys in this SSTable.
      */
