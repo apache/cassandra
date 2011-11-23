@@ -21,6 +21,7 @@
  * fix incorrect query results due to invalid max timestamp (CASSANDRA-3510)
 Merged from 0.8:
  * fix concurrence issue in the FailureDetector (CASSANDRA-3519)
+ * fix array out of bounds error in counter shard removal (CASSANDRA-3514)
 
 1.0.3
  * revert name-based query defragmentation aka CASSANDRA-2503 (CASSANDRA-3491)
