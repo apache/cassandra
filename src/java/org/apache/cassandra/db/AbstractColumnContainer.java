@@ -89,6 +89,11 @@ public abstract class AbstractColumnContainer implements IColumnContainer, IIter
         return columns.getComparator();
     }
 
+    /**
+     * Drops expired row-level tombstones.  Normally, these are dropped once the row no longer exists, but
+     * if new columns are inserted into the row post-deletion, they can keep the row tombstone alive indefinitely,
+     * with non-intuitive results.  See https://issues.apache.org/jira/browse/CASSANDRA-2317
+     */
     public void maybeResetDeletionTimes(int gcBefore)
     {
         while (true)
@@ -97,9 +102,11 @@ public abstract class AbstractColumnContainer implements IColumnContainer, IIter
             // Stop if either we don't need to change the deletion info (it's
             // still MIN_VALUE or not expired yet) or we've succesfully changed it
             if (current.localDeletionTime == Integer.MIN_VALUE
-             || current.localDeletionTime > gcBefore
-             || deletionInfo.compareAndSet(current, new DeletionInfo()))
+                || current.localDeletionTime > gcBefore
+                || deletionInfo.compareAndSet(current, new DeletionInfo()))
+            {
                 break;
+            }
         }
     }
 

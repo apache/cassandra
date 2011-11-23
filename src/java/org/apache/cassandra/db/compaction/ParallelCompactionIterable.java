@@ -109,7 +109,7 @@ public class ParallelCompactionIterable extends AbstractCompactionIterable
             {
                 compactedRow = container.future == null
                              ? container.row
-                             : new PrecompactedRow(container.key, controller, container.future.get());
+                             : new PrecompactedRow(container.key, container.future.get());
             }
             catch (InterruptedException e)
             {
