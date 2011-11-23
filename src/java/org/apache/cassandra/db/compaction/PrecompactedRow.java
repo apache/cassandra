@@ -45,14 +45,12 @@ public class PrecompactedRow extends AbstractCompactedRow
     private static Logger logger = LoggerFactory.getLogger(PrecompactedRow.class);
 
     private final ColumnFamily compactedCf;
-    private final int gcBefore;
 
     // For testing purposes
     public PrecompactedRow(DecoratedKey key, ColumnFamily compacted)
     {
         super(key);
         this.compactedCf = compacted;
-        this.gcBefore = Integer.MAX_VALUE;
     }
 
     public static ColumnFamily removeDeletedAndOldShards(DecoratedKey key, CompactionController controller, ColumnFamily cf)
@@ -71,7 +69,6 @@ public class PrecompactedRow extends AbstractCompactedRow
     public PrecompactedRow(CompactionController controller, List<SSTableIdentityIterator> rows)
     {
         super(rows.get(0).getKey());
-        gcBefore = controller.gcBefore;
         compactedCf = removeDeletedAndOldShards(rows.get(0).getKey(), controller, merge(rows));
     }
 
@@ -133,7 +130,7 @@ public class PrecompactedRow extends AbstractCompactedRow
 
     public boolean isEmpty()
     {
-        return compactedCf == null || ColumnFamilyStore.removeDeletedCF(compactedCf, gcBefore) == null;
+        return compactedCf == null;
     }
 
     public int columnCount()

@@ -213,15 +213,18 @@ public class CompactionsTest extends CleanupHelper
     public void testDontPurgeAccidentaly() throws IOException, ExecutionException, InterruptedException
     {
         // Testing with and without forcing deserialization. Without deserialization, EchoedRow will be used.
-        testDontPurgeAccidentaly("test1", false);
-        testDontPurgeAccidentaly("test2", true);
+        testDontPurgeAccidentaly("test1", "Super5", false);
+        testDontPurgeAccidentaly("test2", "Super5", true);
+
+        // Use CF with gc_grace=0, see last bug of CASSANDRA-2786
+        testDontPurgeAccidentaly("test1", "SuperDirectGC", false);
+        testDontPurgeAccidentaly("test2", "SuperDirectGC", true);
     }
 
-    private void testDontPurgeAccidentaly(String k, boolean forceDeserialize) throws IOException, ExecutionException, InterruptedException
+    private void testDontPurgeAccidentaly(String k, String cfname, boolean forceDeserialize) throws IOException, ExecutionException, InterruptedException
     {
         // This test catches the regression of CASSANDRA-2786
         Table table = Table.open(TABLE1);
-        String cfname = "Super5";
         ColumnFamilyStore store = table.getColumnFamilyStore(cfname);
 
         // disable compaction while flushing
@@ -247,7 +250,7 @@ public class CompactionsTest extends CleanupHelper
         rm.apply();
 
         ColumnFamily cf = store.getColumnFamily(filter);
-        assert cf.isEmpty() : "should be empty: " + cf;
+        assert cf == null || cf.isEmpty() : "should be empty: " + cf;
 
         store.forceBlockingFlush();
 
@@ -261,6 +264,6 @@ public class CompactionsTest extends CleanupHelper
         CompactionManager.instance.doCompactionWithoutSizeEstimation(store, toCompact, (int) (System.currentTimeMillis() / 1000) - store.metadata.getGcGraceSeconds(), location, forceDeserialize);
 
         cf = store.getColumnFamily(filter);
-        assert cf.isEmpty() : "should be empty: " + cf;
+        assert cf == null || cf.isEmpty() : "should be empty: " + cf;
     }
 }

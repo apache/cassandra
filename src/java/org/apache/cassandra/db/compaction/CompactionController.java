@@ -31,7 +31,6 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.EchoedRow;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
 import org.apache.cassandra.io.sstable.SSTableReader;
-import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
  * Manage compaction options.
@@ -87,6 +86,10 @@ public class CompactionController
         return cfs.columnFamily;
     }
 
+    /**
+     * @return true if it's okay to drop tombstones for the given row, i.e., if we know all the verisons of the row
+     * are included in the compaction set
+     */
     public boolean shouldPurge(DecoratedKey key)
     {
         return isMajor || !cfs.isKeyInRemainingSSTables(key, sstables);
@@ -131,7 +134,7 @@ public class CompactionController
     public AbstractCompactedRow getCompactedRow(List<SSTableIdentityIterator> rows)
     {
         if (rows.size() == 1 && !needDeserialize() && !shouldPurge(rows.get(0).getKey()))
-            return new EchoedRow(this, rows.get(0));
+            return new EchoedRow(rows.get(0));
 
         long rowSize = 0;
         for (SSTableIdentityIterator row : rows)

@@ -1,4 +1,6 @@
 0.8.8
+ * avoid dropping tombstones when they might still be needed to shadow
+   data in a different sstable (CASSANDRA-2786)
  * fix truncate allowing data to be replayed post-restart (CASSANDRA-3297)
  * make iwriter final in IndexWriter to avoid NPE (CASSANDRA-2863)
  * (CQL) update grammar to require key clause in DELETE statement
