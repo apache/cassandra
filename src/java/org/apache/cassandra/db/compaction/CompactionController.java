@@ -72,6 +72,10 @@ public class CompactionController
         return cfs.columnFamily;
     }
 
+    /**
+     * @return true if it's okay to drop tombstones for the given row, i.e., if we know all the verisons of the row
+     * are included in the compaction set
+     */
     public boolean shouldPurge(DecoratedKey key)
     {
         return !cfs.isKeyInRemainingSSTables(key, sstables);
@@ -120,7 +124,7 @@ public class CompactionController
             && (rowSize > DatabaseDescriptor.getInMemoryCompactionLimit() || !keyExistenceIsExpensive)
             && !shouldPurge(rows.get(0).getKey()))
         {
-            return new EchoedRow(this, rows.get(0));
+            return new EchoedRow(rows.get(0));
         }
 
         if (rowSize > DatabaseDescriptor.getInMemoryCompactionLimit())

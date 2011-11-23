@@ -156,6 +156,7 @@ public class SchemaLoader
                                                           bytes)
                                                    .defaultValidator(CounterColumnType.instance)
                                                    .mergeShardsChance(1.0),
+                                           superCFMD(ks1, "SuperDirectGC", BytesType.instance).gcGraceSeconds(0),
                                            jdbcCFMD(ks1, "JdbcInteger", IntegerType.instance).columnMetadata(integerColumn),
                                            jdbcCFMD(ks1, "JdbcUtf8", UTF8Type.instance).columnMetadata(utf8Column),
                                            jdbcCFMD(ks1, "JdbcLong", LongType.instance),

@@ -36,13 +36,11 @@ import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
 public class EchoedRow extends AbstractCompactedRow
 {
     private final SSTableIdentityIterator row;
-    private final int gcBefore;
 
-    public EchoedRow(CompactionController controller, SSTableIdentityIterator row)
+    public EchoedRow(SSTableIdentityIterator row)
     {
         super(row.getKey());
         this.row = row;
-        this.gcBefore = controller.gcBefore;
         // Reset SSTableIdentityIterator because we have not guarantee the filePointer hasn't moved since the Iterator was built
         row.reset();
     }
@@ -63,7 +61,8 @@ public class EchoedRow extends AbstractCompactedRow
 
     public boolean isEmpty()
     {
-        return !row.hasNext() && ColumnFamilyStore.removeDeletedCF(row.getColumnFamily(), gcBefore) == null;
+        // never okay to purge a EchoedRow -- if it were, we'd need to deserialize instead of echoing
+        return false;
     }
 
     public int columnCount()
