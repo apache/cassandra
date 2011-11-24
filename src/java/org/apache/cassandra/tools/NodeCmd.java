@@ -464,6 +464,7 @@ public class NodeCmd
                 outs.println("\t\tPending Tasks: " + cfstore.getPendingTasks());
                 outs.println("\t\tBloom Filter False Postives: " + cfstore.getBloomFilterFalsePositives());
                 outs.println("\t\tBloom Filter False Ratio: " + String.format("%01.5f", cfstore.getRecentBloomFilterFalseRatio()));
+                outs.println("\t\tBloom Filter Space Used: " + cfstore.getBloomFilterDiskSpaceUsed());
 
                 InstrumentingCacheMBean keyCacheMBean = probe.getKeyCacheMBean(tableName, cfstore.getColumnFamilyName());
                 if (keyCacheMBean.getCapacity() > 0)

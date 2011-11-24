@@ -30,12 +30,11 @@ import java.util.concurrent.atomic.AtomicLong;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
+import com.google.common.base.Function;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Iterables;
+import com.google.common.collect.MapMaker;
 import com.google.common.collect.Multimap;
-
-import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.net.*;
 import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
@@ -45,6 +44,7 @@ import org.apache.cassandra.concurrent.CreationTimeAwareFuture;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.dht.AbstractBounds;
@@ -59,10 +59,7 @@ import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.net.*;
 import org.apache.cassandra.thrift.*;
-import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.LatencyTracker;
-import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.*;
 
 
 public class StorageProxy implements StorageProxyMBean
@@ -86,7 +83,14 @@ public class StorageProxy implements StorageProxyMBean
     private static volatile boolean hintedHandoffEnabled = DatabaseDescriptor.hintedHandoffEnabled();
     private static volatile int maxHintWindow = DatabaseDescriptor.getMaxHintWindow();
     private static volatile int maxHintsInProgress = 1024 * Runtime.getRuntime().availableProcessors();
-    private static final AtomicInteger hintsInProgress = new AtomicInteger();
+    private static final AtomicInteger totalHintsInProgress = new AtomicInteger();
+    private static final Map<InetAddress, AtomicInteger> hintsInProgress = new MapMaker().concurrencyLevel(1).makeComputingMap(new Function<InetAddress, AtomicInteger>()
+    {
+        public AtomicInteger apply(InetAddress inetAddress)
+        {
+            return new AtomicInteger(0);
+        }
+    });
     private static final AtomicLong totalHints = new AtomicLong();
 
     private StorageProxy() {}
@@ -286,10 +290,19 @@ public class StorageProxy implements StorageProxyMBean
 
         for (InetAddress destination : targets)
         {
+            // avoid OOMing due to excess hints.  we need to do this check even for "live" nodes, since we can
+            // still generate hints for those if it's overloaded or simply dead but not yet known-to-be-dead.
+            // The idea is that if we have over maxHintsInProgress hints in flight, this is probably due to
+            // a small number of nodes causing problems, so we should avoid shutting down writes completely to
+            // healthy nodes.  Any node with no hintsInProgress is considered healthy.
+            if (totalHintsInProgress.get() > maxHintsInProgress
+                && (hintsInProgress.get(destination).get() > 0 && shouldHint(destination)))
+            {
+                throw new TimeoutException();
+            }
+
             if (FailureDetector.instance.isAlive(destination))
             {
-                String dc = DatabaseDescriptor.getEndpointSnitch().getDatacenter(destination);
-
                 if (destination.equals(FBUtilities.getBroadcastAddress()) && OPTIMIZE_LOCAL_REQUESTS)
                 {
                     insertLocal(rm, responseHandler);
@@ -300,6 +313,7 @@ public class StorageProxy implements StorageProxyMBean
                     if (logger.isDebugEnabled())
                         logger.debug("insert writing key " + ByteBufferUtil.bytesToHex(rm.key()) + " to " + destination);
 
+                    String dc = DatabaseDescriptor.getEndpointSnitch().getDatacenter(destination);
                     Multimap<Message, InetAddress> messages = dcMessages.get(dc);
                     if (messages == null)
                     {
@@ -314,11 +328,6 @@ public class StorageProxy implements StorageProxyMBean
             {
                 if (!shouldHint(destination))
                     continue;
-
-                // Avoid OOMing from hints waiting to be written.  (Unlike ordinary mutations, hint
-                // not eligible to drop if we fall behind.)
-                if (hintsInProgress.get() > maxHintsInProgress)
-                    throw new TimeoutException();
 
                 // Schedule a local hint and let the handler know it needs to wait for the hint to complete too
                 Future<Void> hintfuture = scheduleLocalHint(rm, destination, responseHandler, consistency_level);
@@ -337,12 +346,13 @@ public class StorageProxy implements StorageProxyMBean
     {
         // Hint of itself doesn't make sense.
         assert !target.equals(FBUtilities.getBroadcastAddress()) : target;
-        hintsInProgress.incrementAndGet();
+        totalHintsInProgress.incrementAndGet();
+        final AtomicInteger targetHints = hintsInProgress.get(target);
+        targetHints.incrementAndGet();
 
-        Runnable runnable = new Runnable()
+        Runnable runnable = new WrappedRunnable()
         {
-
-            public void run()
+            public void runMayThrow() throws IOException
             {
                 if (logger.isDebugEnabled())
                     logger.debug("Adding hint for " + target);
@@ -360,14 +370,10 @@ public class StorageProxy implements StorageProxyMBean
                     if (responseHandler != null && consistencyLevel == ConsistencyLevel.ANY)
                         responseHandler.response(null);
                 }
-                catch (IOException e)
-                {
-                    throw new RuntimeException(e);
-                }
                 finally
                 {
-                    // Decrement the current hint in the execution after the task is done.
-                    hintsInProgress.decrementAndGet();
+                    totalHintsInProgress.decrementAndGet();
+                    targetHints.decrementAndGet();
                 }
             }
         };
@@ -730,6 +736,8 @@ public class StorageProxy implements StorageProxyMBean
                 {
                     ReadCommand command = repairCommands.get(i);
                     RepairCallback handler = repairResponseHandlers.get(i);
+                    // wait for the repair writes to be acknowledged, to minimize impact on any replica that's
+                    // behind on writes in case the out-of-sync row is read multiple times in quick succession
                     FBUtilities.waitOnFutures(handler.resolver.repairResults, DatabaseDescriptor.getRpcTimeout());
 
                     Row row;
@@ -1279,7 +1287,7 @@ public class StorageProxy implements StorageProxyMBean
 
     public int getHintsInProgress()
     {
-        return hintsInProgress.get();
+        return totalHintsInProgress.get();
     }
 
     public void verifyNoHintsInProgress()
