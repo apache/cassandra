@@ -49,13 +49,13 @@ public class Schema
     private final AtomicInteger cfIdGen = new AtomicInteger(MIN_CF_ID);
 
     /* metadata map for faster table lookup */
-    private final Map<String, KSMetaData> tables;
+    private final Map<String, KSMetaData> tables = new NonBlockingHashMap<String, KSMetaData>();
 
     /* Table objects, one per keyspace. Only one instance should ever exist for any given keyspace. */
-    private final Map<String, Table> tableInstances;
+    private final Map<String, Table> tableInstances = new NonBlockingHashMap<String, Table>();
 
     /* metadata map for faster ColumnFamily lookup */
-    private final BiMap<Pair<String, String>, Integer> cfIdMap;
+    private final BiMap<Pair<String, String>, Integer> cfIdMap = HashBiMap.create();
 
     private volatile UUID version;
 
@@ -65,9 +65,6 @@ public class Schema
      */
     public Schema(UUID initialVersion)
     {
-        tables = new HashMap<String, KSMetaData>();
-        tableInstances = new NonBlockingHashMap<String, Table>();
-        cfIdMap = HashBiMap.create();
         version = initialVersion;
     }
 
