@@ -263,10 +263,10 @@ public class RowMutation implements IMutation, MessageProducer
 
     public Message getMessage(Integer version) throws IOException
     {
-        return makeRowMutationMessage(StorageService.Verb.MUTATION, version);
+        return getMessage(StorageService.Verb.MUTATION, version);
     }
 
-    public Message makeRowMutationMessage(StorageService.Verb verb, int version) throws IOException
+    public Message getMessage(StorageService.Verb verb, int version) throws IOException
     {
         return new Message(FBUtilities.getBroadcastAddress(), verb, getSerializedBuffer(version), version);
     }

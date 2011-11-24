@@ -27,7 +27,6 @@ import java.nio.channels.AsynchronousCloseException;
 import java.nio.channels.ServerSocketChannel;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -36,7 +35,6 @@ import javax.management.ObjectName;
 
 import com.google.common.base.Function;
 import com.google.common.collect.Lists;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -170,9 +168,16 @@ public final class MessagingService implements MessagingServiceMBean
 
                 if (expiredCallbackInfo.shouldHint())
                 {
-                    // Trigger hints for expired mutation message.
                     assert expiredCallbackInfo.message != null;
-                    scheduleMutationHint(expiredCallbackInfo.message, expiredCallbackInfo.target);
+                    try
+                    {
+                        RowMutation rm = RowMutation.fromBytes(expiredCallbackInfo.message.getMessageBody(), expiredCallbackInfo.message.getVersion());
+                        return StorageProxy.scheduleLocalHint(rm, expiredCallbackInfo.target, null, null);
+                    }
+                    catch (IOException e)
+                    {
+                        logger_.error("Unable to deserialize mutation when writting hint for: " + expiredCallbackInfo.target);
+                    }
                 }
 
                 return null;
@@ -190,21 +195,6 @@ public final class MessagingService implements MessagingServiceMBean
         {
             throw new RuntimeException(e);
         }
-    }
-
-
-    private Future<?> scheduleMutationHint(Message mutationMessage, InetAddress mutationTarget)
-    {
-        try
-        {
-            RowMutation rm = RowMutation.fromBytes(mutationMessage.getMessageBody(), mutationMessage.getVersion());
-            return StorageProxy.scheduleLocalHint(rm, mutationTarget, null, null);
-        }
-        catch (IOException e)
-        {
-            logger_.error("Unable to deserialize mutation when writting hint for: " + mutationTarget);
-        }
-        return null;
     }
 
     /**

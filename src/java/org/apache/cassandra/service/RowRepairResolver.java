@@ -124,7 +124,10 @@ public class RowRepairResolver extends AbstractRowResolver
             Message repairMessage;
             try
             {
-                repairMessage = rowMutation.getMessage(Gossiper.instance.getVersion(endpoints.get(i)));
+                // use a separate verb here because we don't want these to be get the white glove hint-
+                // on-timeout behavior that a "real" mutation gets
+                repairMessage = rowMutation.getMessage(StorageService.Verb.READ_REPAIR,
+                                                       Gossiper.instance.getVersion(endpoints.get(i)));
             }
             catch (IOException e)
             {
