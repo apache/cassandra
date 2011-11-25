@@ -118,9 +118,12 @@ public class OutboundTcpConnection extends Thread
                 out.flush();
             }
         }
-        catch (IOException e)
+        catch (Exception e)
         {
-            if (logger.isDebugEnabled())
+            // Non IO exceptions is likely a programming error so let's not silence it
+            if (!(e instanceof IOException))
+                logger.error("error writing to " + poolReference.endPoint(), e);
+            else if (logger.isDebugEnabled())
                 logger.debug("error writing to " + poolReference.endPoint(), e);
             disconnect();
         }
