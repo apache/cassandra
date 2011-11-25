@@ -12,6 +12,11 @@ by version X, but the inverse is not necessarily the case.)
 1.0.4
 =====
 
+Upgrading
+---------
+    - Nothing specific to 1.0.4 but please see the 1.0 upgrading section if
+      upgrading from a version prior to 1.0.0
+
 Features
 --------
     - A new upgradesstables command has been added to nodetool. It is very
@@ -19,6 +24,12 @@ Features
       as a consequence it does not snapshot automatically before). This new
       command is to be prefered to scrub in all cases where sstables should be
       rewritten to the current format for upgrade purposes.
+
+JMX
+---
+    - The path for the data, commit log and saved cache directories exposed
+      through JMX
+    - The in-memory bloom filter sizes are now exposed through JMX
 
 
 1.0.3
