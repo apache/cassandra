@@ -1197,7 +1197,7 @@ class TestMutations(ThriftTester):
         assert len(kspaces) == 3, kspaces # ['Keyspace2', 'Keyspace1', 'system']
 
         sysks = client.describe_keyspace("system")
-        assert sysks == kspaces[2]
+        assert sysks in kspaces
 
         ks1 = client.describe_keyspace("Keyspace1")
         assert ks1.strategy_options['replication_factor'] == '1', ks1.strategy_options
