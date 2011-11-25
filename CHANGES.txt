@@ -11,6 +11,7 @@
  * skip --debug requirement to see common exceptions in CLI (CASSANDRA-3508)
  * fix incorrect query results due to invalid max timestamp (CASSANDRA-3510)
  * fix ConcurrentModificationException in Table.all() (CASSANDRA-3529)
+ * make sstableloader recognize compressed sstables (CASSANDRA-3521)
 Merged from 0.8:
  * fix concurrence issue in the FailureDetector (CASSANDRA-3519)
  * fix array out of bounds error in counter shard removal (CASSANDRA-3514)

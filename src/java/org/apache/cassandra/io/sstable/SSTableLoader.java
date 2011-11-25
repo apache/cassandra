@@ -79,6 +79,8 @@ public class SSTableLoader
                 Set<Component> components = new HashSet<Component>();
                 components.add(Component.DATA);
                 components.add(Component.PRIMARY_INDEX);
+                if (new File(desc.filenameFor(Component.COMPRESSION_INFO)).exists())
+                    components.add(Component.COMPRESSION_INFO);
 
                 try
                 {
