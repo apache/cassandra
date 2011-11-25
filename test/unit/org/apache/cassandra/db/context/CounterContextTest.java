@@ -385,12 +385,6 @@ public class CounterContextTest
     @Test
     public void testRemoveOldShardsNotAllExpiring()
     {
-        runRemoveOldShardsNotAllExpiring(HeapAllocator.instance);
-        runRemoveOldShardsNotAllExpiring(bumpedSlab());
-    }
-
-    private void runRemoveOldShardsNotAllExpiring(Allocator allocator)
-    {
         NodeId id1 = NodeId.fromInt(1);
         NodeId id3 = NodeId.fromInt(3);
         NodeId id6 = NodeId.fromInt(6);
@@ -399,7 +393,7 @@ public class CounterContextTest
         records.add(new NodeId.NodeIdRecord(id3, 4L));
         records.add(new NodeId.NodeIdRecord(id6, 10L));
 
-        ContextState ctx = ContextState.allocate(6, 3, allocator);
+        ContextState ctx = ContextState.allocate(6, 3);
         ctx.writeElement(id1, 0L, 1L, true);
         ctx.writeElement(NodeId.fromInt(2), 0L, 2L);
         ctx.writeElement(id3, 0L, 3L, true);
@@ -411,7 +405,7 @@ public class CounterContextTest
 
         // First, only merge the first id
         ByteBuffer merger = cc.computeOldShardMerger(ctx.context, records, 3L);
-        ByteBuffer merged = cc.merge(ctx.context, merger, allocator);
+        ByteBuffer merged = cc.merge(ctx.context, merger);
         assert cc.total(ctx.context) == cc.total(merged);
 
         try
@@ -425,7 +419,7 @@ public class CounterContextTest
 
         // merge the second one
         ByteBuffer merger2 = cc.computeOldShardMerger(merged, records, 7L);
-        ByteBuffer merged2 = cc.merge(merged, merger2, allocator);
+        ByteBuffer merged2 = cc.merge(merged, merger2);
         assert cc.total(ctx.context) == cc.total(merged2);
 
         ByteBuffer cleaned = cc.removeOldShards(merged2, timeFirstMerge + 1);
@@ -442,13 +436,7 @@ public class CounterContextTest
     @Test
     public void testRemoveNotDeltaOldShards()
     {
-        runRemoveNotDeltaOldShards(HeapAllocator.instance);
-        runRemoveNotDeltaOldShards(bumpedSlab());
-    }
-
-    private void runRemoveNotDeltaOldShards(Allocator allocator)
-    {
-        ContextState ctx = ContextState.allocate(4, 1, allocator);
+        ContextState ctx = ContextState.allocate(4, 1);
         ctx.writeElement(NodeId.fromInt(1), 1L, 1L, true);
         ctx.writeElement(NodeId.fromInt(2), -System.currentTimeMillis(), 0L);
         ctx.writeElement(NodeId.fromInt(3), -System.currentTimeMillis(), 0L);
