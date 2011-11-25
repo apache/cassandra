@@ -66,14 +66,14 @@ public class Message
         return header_.getDetail(key);
     }
     
-    public Message withHeaderAdded(String key, byte[] value)
+    public void setHeader(String key, byte[] value)
     {
-        return new Message(header_.withDetailsAdded(key, value), body_, version);
+        header_.setDetail(key, value);
     }
     
-    public Message withHeaderRemoved(String key)
+    public void removeHeader(String key)
     {
-        return new Message(header_.withDetailsRemoved(key), body_, version);
+        header_.removeDetail(key);
     }
 
     public byte[] getMessageBody()

@@ -22,7 +22,6 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.InetAddress;
-import java.util.Collections;
 import java.util.Hashtable;
 import java.util.Map;
 import java.util.Set;
@@ -30,9 +29,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.service.StorageService;
-
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Maps;
 
 public class Header
 {
@@ -51,21 +47,21 @@ public class Header
     private final InetAddress from_;
     // TODO STAGE can be determined from verb
     private final StorageService.Verb verb_;
-    protected final Map<String, byte[]> details_;
+    protected Map<String, byte[]> details_ = new Hashtable<String, byte[]>();
 
     Header(InetAddress from, StorageService.Verb verb)
-    {
-        this(from, verb, Collections.<String, byte[]>emptyMap());
-    }
-
-    Header(InetAddress from, StorageService.Verb verb, Map<String, byte[]> details)
     {
         assert from != null;
         assert verb != null;
 
         from_ = from;
         verb_ = verb;
-        details_ = ImmutableMap.copyOf(details);
+    }
+
+    Header(InetAddress from, StorageService.Verb verb, Map<String, byte[]> details)
+    {
+        this(from, verb);
+        details_ = details;
     }
 
     InetAddress getFrom()
@@ -83,20 +79,14 @@ public class Header
         return details_.get(key);
     }
 
-    Header withDetailsAdded(String key, byte[] value)
+    void setDetail(String key, byte[] value)
     {
-        Map<String, byte[]> detailsCopy = Maps.newHashMap(details_);
-        detailsCopy.put(key, value);
-        return new Header(from_, verb_, detailsCopy);
+        details_.put(key, value);
     }
 
-    Header withDetailsRemoved(String key)
+    void removeDetail(String key)
     {
-        if (!details_.containsKey(key))
-            return this;
-        Map<String, byte[]> detailsCopy = Maps.newHashMap(details_);
-        detailsCopy.remove(key);
-        return new Header(from_, verb_, detailsCopy);
+        details_.remove(key);
     }
 }
 

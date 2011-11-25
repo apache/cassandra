@@ -86,7 +86,7 @@ public class RowMutationVerbHandler implements IVerbHandler
     private void forwardToLocalNodes(Message message, byte[] forwardBytes) throws UnknownHostException
     {
         // remove fwds from message to avoid infinite loop
-        Message messageCopy = message.withHeaderRemoved(RowMutation.FORWARD_HEADER);
+        message.removeHeader(RowMutation.FORWARD_HEADER);
 
         int bytesPerInetAddress = FBUtilities.getLocalAddress().getAddress().length;
         assert forwardBytes.length >= bytesPerInetAddress;
@@ -106,7 +106,7 @@ public class RowMutationVerbHandler implements IVerbHandler
 
             // Send the original message to the address specified by the FORWARD_HINT
             // Let the response go back to the coordinator
-            MessagingService.instance().sendOneWay(messageCopy, address);
+            MessagingService.instance().sendOneWay(message, address);
 
             offset += bytesPerInetAddress;
         }
