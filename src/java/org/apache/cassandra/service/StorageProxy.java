@@ -397,7 +397,7 @@ public class StorageProxy implements StorageProxyMBean
                 Message message = messages.getKey();
                 // a single message object is used for unhinted writes, so clean out any forwards
                 // from previous loop iterations
-                message.removeHeader(RowMutation.FORWARD_HEADER);
+                message = message.withHeaderRemoved(RowMutation.FORWARD_HEADER);
 
                 if (dataCenter.equals(localDataCenter))
                 {
@@ -411,21 +411,14 @@ public class StorageProxy implements StorageProxyMBean
                     Iterator<InetAddress> iter = messages.getValue().iterator();
                     InetAddress target = iter.next();
                     // Add all the other destinations of the same message as a header in the primary message.
+                    FastByteArrayOutputStream bos = new FastByteArrayOutputStream();
+                    DataOutputStream dos = new DataOutputStream(bos);
                     while (iter.hasNext())
                     {
                         InetAddress destination = iter.next();
-                        // group all nodes in this DC as forward headers on the primary message
-                        FastByteArrayOutputStream bos = new FastByteArrayOutputStream();
-                        DataOutputStream dos = new DataOutputStream(bos);
-
-                        // append to older addresses
-                        byte[] previousHints = message.getHeader(RowMutation.FORWARD_HEADER);
-                        if (previousHints != null)
-                            dos.write(previousHints);
-
                         dos.write(destination.getAddress());
-                        message.setHeader(RowMutation.FORWARD_HEADER, bos.toByteArray());
                     }
+                    message = message.withHeaderAdded(RowMutation.FORWARD_HEADER, bos.toByteArray());
                     // send the combined message + forward headers
                     MessagingService.instance().sendRR(message, target, handler);
                 }

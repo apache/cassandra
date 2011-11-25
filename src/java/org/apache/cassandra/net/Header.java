@@ -20,12 +20,16 @@ package org.apache.cassandra.net;
 
 import java.io.*;
 import java.net.InetAddress;
+import java.util.Collections;
 import java.util.Hashtable;
 import java.util.Map;
 
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
+
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Maps;
 
 public class Header
 {
@@ -46,21 +50,21 @@ public class Header
     // and RowMutationVerbHandler.forwardToLocalNodes)
     private final InetAddress from_;
     private final StorageService.Verb verb_;
-    protected Map<String, byte[]> details_ = new Hashtable<String, byte[]>();
+    protected final Map<String, byte[]> details_;
 
     Header(InetAddress from, StorageService.Verb verb)
+    {
+        this(from, verb, Collections.<String, byte[]>emptyMap());
+    }
+
+    Header(InetAddress from, StorageService.Verb verb, Map<String, byte[]> details)
     {
         assert from != null;
         assert verb != null;
 
         from_ = from;
         verb_ = verb;
-    }
-
-    Header(InetAddress from, StorageService.Verb verb, Map<String, byte[]> details)
-    {
-        this(from, verb);
-        details_ = details;
+        details_ = ImmutableMap.copyOf(details);
     }
 
     InetAddress getFrom()
@@ -78,14 +82,20 @@ public class Header
         return details_.get(key);
     }
 
-    void setDetail(String key, byte[] value)
+    Header withDetailsAdded(String key, byte[] value)
     {
-        details_.put(key, value);
+        Map<String, byte[]> detailsCopy = Maps.newHashMap(details_);
+        detailsCopy.put(key, value);
+        return new Header(from_, verb_, detailsCopy);
     }
 
-    void removeDetail(String key)
+    Header withDetailsRemoved(String key)
     {
-        details_.remove(key);
+        if (!details_.containsKey(key))
+            return this;
+        Map<String, byte[]> detailsCopy = Maps.newHashMap(details_);
+        detailsCopy.remove(key);
+        return new Header(from_, verb_, detailsCopy);
     }
 
     public int serializedSize()

@@ -18,20 +18,16 @@
 
 package org.apache.cassandra.db;
 
-import java.io.DataInputStream;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.nio.ByteBuffer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
 
@@ -69,7 +65,7 @@ public class RowMutationVerbHandler implements IVerbHandler
     private void forwardToLocalNodes(Message message, byte[] forwardBytes) throws UnknownHostException
     {
         // remove fwds from message to avoid infinite loop
-        message.removeHeader(RowMutation.FORWARD_HEADER);
+        Message messageCopy = message.withHeaderRemoved(RowMutation.FORWARD_HEADER);
 
         int bytesPerInetAddress = FBUtilities.getBroadcastAddress().getAddress().length;
         assert forwardBytes.length >= bytesPerInetAddress;
@@ -89,7 +85,7 @@ public class RowMutationVerbHandler implements IVerbHandler
 
             // Send the original message to the address specified by the FORWARD_HINT
             // Let the response go back to the coordinator
-            MessagingService.instance().sendOneWay(message, address);
+            MessagingService.instance().sendOneWay(messageCopy, address);
 
             offset += bytesPerInetAddress;
         }
