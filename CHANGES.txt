@@ -25,6 +25,7 @@
  * fix incorrect query results due to invalid max timestamp (CASSANDRA-3510)
  * make sstableloader recognize compressed sstables (CASSANDRA-3521)
  * avoids race in OutboundTcpConnection in multi-DC setups (CASSANDRA-3530)
+ * use SETLOCAL in cassandra.bat (CASANDRA-3506)
 Merged from 0.8:
  * fix concurrence issue in the FailureDetector (CASSANDRA-3519)
  * fix array out of bounds error in counter shard removal (CASSANDRA-3514)
