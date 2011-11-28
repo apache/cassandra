@@ -404,12 +404,11 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             public void runMayThrow() throws ExecutionException, InterruptedException, IOException
             {
                 ThreadPoolExecutor mutationStage = StageManager.getStage(Stage.MUTATION);
-                if (!mutationStage.isShutdown())
-                {
-                    mutationStage.shutdown();
-                    mutationStage.awaitTermination(1, TimeUnit.SECONDS);
-                    CommitLog.instance.shutdownBlocking();
-                }
+                if (mutationStage.isShutdown())
+                    return; // drained already
+
+                mutationStage.shutdown();
+                mutationStage.awaitTermination(1, TimeUnit.SECONDS);
 
                 List<Future<?>> flushes = new ArrayList<Future<?>>();
                 for (Table table : Table.all())
@@ -426,6 +425,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                     }
                 }
                 FBUtilities.waitOnFutures(flushes);
+
+                CommitLog.instance.shutdownBlocking();
             }
         });
         Runtime.getRuntime().addShutdownHook(drainOnShutdown);

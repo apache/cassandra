@@ -42,6 +42,7 @@
  * Fix bug preventing the use of efficient cross-DC writes (CASSANDRA-3472)
  * (Hadoop) skip empty rows when entire row is requested, redux (CASSANDRA-2855)
  * fix concurrence issue in the FailureDetector (CASSANDRA-3519)
+ * shutdown CL after having flushed non-durable CF (CASSANDRA-3520)
 
 
 0.8.7
