@@ -66,7 +66,7 @@ public final class KSMetaData
                                                 CFMetaData.IndexCf,
                                                 CFMetaData.NodeIdCf,
                                                 CFMetaData.VersionCf);
-        return new KSMetaData(Table.SYSTEM_TABLE, LocalStrategy.class, optsWithRF(1), false, cfDefs);
+        return new KSMetaData(Table.SYSTEM_TABLE, LocalStrategy.class, optsWithRF(1), true, cfDefs);
     }
 
     public static KSMetaData testMetadata(String name, Class<? extends AbstractReplicationStrategy> strategyClass, Map<String, String> strategyOptions, CFMetaData... cfDefs)
