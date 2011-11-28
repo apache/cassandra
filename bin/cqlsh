@@ -183,7 +183,9 @@ def complete_assume_col(ctxt, cqlsh):
     ks = cql_dequote(ks) if ks is not None else None
     cf = cql_dequote(ctxt.get_binding('cf'))
     cfdef = cqlsh.get_columnfamily(cf, ksname=ks)
-    return map(maybe_cql_escape, [cm.name for cm in cfdef.column_metadata])
+    cols = [cm.name for cm in cfdef.column_metadata]
+    cols.append(cfdef.key_alias or 'KEY')
+    return map(maybe_cql_escape, cols)
 
 class NoKeyspaceError(Exception):
     pass
@@ -466,8 +468,11 @@ class Shell(cmd.Cmd):
           HELP SELECT_LIMIT
           HELP CONSISTENCYLEVEL
         """
+        ksname = parsed.get_binding('selectks')
+        if ksname is not None:
+            ksname = cql_dequote(ksname)
         cfname = cql_dequote(parsed.get_binding('selectsource'))
-        decoder = self.determine_decoder_for(cfname)
+        decoder = self.determine_decoder_for(cfname, ksname=ksname)
         self.perform_statement_as_tokens(parsed.matched, decoder=decoder)
 
     def perform_statement_as_tokens(self, tokens, decoder=None):
@@ -501,8 +506,10 @@ class Shell(cmd.Cmd):
             self.print_result()
         return True
 
-    def determine_decoder_for(self, cfname):
-        schema = self.schema_overrides.get((self.current_keyspace, cfname), None)
+    def determine_decoder_for(self, cfname, ksname=None):
+        if ksname is None:
+            ksname = self.current_keyspace
+        schema = self.schema_overrides.get((ksname, cfname), None)
         if schema:
             def use_my_schema_decoder(real_schema):
                 return cql.decoders.SchemaDecoder(schema.join(real_schema))
