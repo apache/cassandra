@@ -51,7 +51,10 @@ import org.apache.thrift.transport.TFramedTransport;
 import org.apache.thrift.transport.TSocket;
 
 public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap<ByteBuffer, IColumn>>
+    implements org.apache.hadoop.mapred.RecordReader<ByteBuffer, SortedMap<ByteBuffer, IColumn>>
 {
+    public static final int CASSANDRA_HADOOP_MAX_KEY_SIZE_DEFAULT = 8192;
+
     private ColumnFamilySplit split;
     private RowIterator iter;
     private Pair<ByteBuffer, SortedMap<ByteBuffer, IColumn>> currentRow;
@@ -64,6 +67,18 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
     private TSocket socket;
     private Cassandra.Client client;
     private ConsistencyLevel consistencyLevel;
+    private int keyBufferSize = 8192;
+
+    public ColumnFamilyRecordReader()
+    {
+        this(ColumnFamilyRecordReader.CASSANDRA_HADOOP_MAX_KEY_SIZE_DEFAULT);
+    }
+
+    public ColumnFamilyRecordReader(int keyBufferSize)
+    {
+        super();
+        this.keyBufferSize = keyBufferSize;
+    }
 
     public void close() 
     {
@@ -386,5 +401,42 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
                 sc.addColumn(unthriftifyCounter(column));
             return sc;
         }
+    }
+
+
+    // Because the old Hadoop API wants us to write to the key and value
+    // and the new asks for them, we need to copy the output of the new API
+    // to the old. Thus, expect a small performance hit.
+    // And obviously this wouldn't work for wide rows. But since ColumnFamilyInputFormat
+    // and ColumnFamilyRecordReader don't support them, it should be fine for now.
+    public boolean next(ByteBuffer key, SortedMap<ByteBuffer, IColumn> value) throws IOException
+    {
+        if (this.nextKeyValue())
+        {
+            key.clear();
+            key.put(this.getCurrentKey());
+            key.rewind();
+
+            value.clear();
+            value.putAll(this.getCurrentValue());
+
+            return true;
+        }
+        return false;
+    }
+
+    public ByteBuffer createKey()
+    {
+        return ByteBuffer.wrap(new byte[this.keyBufferSize]);
+    }
+
+    public SortedMap<ByteBuffer, IColumn> createValue()
+    {
+        return new TreeMap<ByteBuffer, IColumn>();
+    }
+
+    public long getPos() throws IOException
+    {
+        return (long)iter.rowsRead();
     }
 }
