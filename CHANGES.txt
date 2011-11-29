@@ -1,6 +1,6 @@
 1.0.5
  * add command to stop compactions (CASSANDRA-1740)
-
+ * filter out unavailable cipher suites when using encryption (CASSANDRA-3178)
 
 1.0.4
  * fix self-hinting of timed out read repair updates and make hinted handoff
