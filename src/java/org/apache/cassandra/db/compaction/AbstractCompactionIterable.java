@@ -35,7 +35,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.Throttle;
 
-public abstract class AbstractCompactionIterable implements Iterable<AbstractCompactedRow>, CompactionInfo.Holder
+public abstract class AbstractCompactionIterable extends CompactionInfo.Holder implements Iterable<AbstractCompactedRow>
 {
     private static Logger logger = LoggerFactory.getLogger(AbstractCompactionIterable.class);
 

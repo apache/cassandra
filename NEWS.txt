@@ -29,6 +29,17 @@ Upgrading
       want to use such large batches.
 
 
+1.0.5
+=====
+
+JMX
+---
+    - A command has been added to stop running compaction. It is available
+      through JMX and through nodetool stop <type> (see the nodetool help for
+      details). Please note that stopped compaction are terminated and cannot
+      be restarted afterwards.
+
+
 1.0.4
 =====
 
