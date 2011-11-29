@@ -62,6 +62,7 @@ public class SystemTable
     private static final ByteBuffer TOKEN = ByteBufferUtil.bytes("Token");
     private static final ByteBuffer GENERATION = ByteBufferUtil.bytes("Generation");
     private static final ByteBuffer CLUSTERNAME = ByteBufferUtil.bytes("ClusterName");
+    private static final ByteBuffer PARTITIONER = ByteBufferUtil.bytes("Partioner");
     private static final ByteBuffer CURRENT_LOCAL_NODE_ID_KEY = ByteBufferUtil.bytes("CurrentLocal");
     private static final ByteBuffer ALL_LOCAL_NODE_ID_KEY = ByteBufferUtil.bytes("Local");
 
@@ -246,7 +247,7 @@ public class SystemTable
      * One of three things will happen if you try to read the system table:
      * 1. files are present and you can read them: great
      * 2. no files are there: great (new node is assumed)
-     * 3. files are present but you can't read them: bad
+     * 3. files are present but you can't read them: bad (suspect that the partitioner was changed).
      * @throws ConfigurationException
      */
     public static void checkHealth() throws ConfigurationException, IOException
@@ -259,26 +260,28 @@ public class SystemTable
         catch (AssertionError err)
         {
             // this happens when a user switches from OPP to RP.
-            ConfigurationException ex = new ConfigurationException("Could not read system table!");
+            ConfigurationException ex = new ConfigurationException("Could not read system table. Did you change partitioners?");
             ex.initCause(err);
             throw ex;
         }
         
         SortedSet<ByteBuffer> cols = new TreeSet<ByteBuffer>(BytesType.instance);
+        cols.add(PARTITIONER);
         cols.add(CLUSTERNAME);
         QueryFilter filter = QueryFilter.getNamesFilter(decorate(LOCATION_KEY), new QueryPath(STATUS_CF), cols);
         ColumnFamily cf = table.getColumnFamilyStore(STATUS_CF).getColumnFamily(filter);
         
         if (cf == null)
         {
-            // this is a brand new node
+            // this is either a brand new node (there will be no files), or the partitioner was changed from RP to OPP.
             ColumnFamilyStore cfs = table.getColumnFamilyStore(STATUS_CF);
             if (!cfs.getSSTables().isEmpty())
-                throw new ConfigurationException("Found system table files, but they couldn't be loaded!");
+                throw new ConfigurationException("Found system table files, but they couldn't be loaded. Did you change the partitioner?");
 
             // no system files.  this is a new node.
             RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, LOCATION_KEY);
             cf = ColumnFamily.create(Table.SYSTEM_TABLE, SystemTable.STATUS_CF);
+            cf.addColumn(new Column(PARTITIONER, ByteBufferUtil.bytes(DatabaseDescriptor.getPartitioner().getClass().getName()), FBUtilities.timestampMicros()));
             cf.addColumn(new Column(CLUSTERNAME, ByteBufferUtil.bytes(DatabaseDescriptor.getClusterName()), FBUtilities.timestampMicros()));
             rm.add(cf);
             rm.apply();
@@ -287,8 +290,12 @@ public class SystemTable
         }
         
         
+        IColumn partitionerCol = cf.getColumn(PARTITIONER);
         IColumn clusterCol = cf.getColumn(CLUSTERNAME);
+        assert partitionerCol != null;
         assert clusterCol != null;
+        if (!DatabaseDescriptor.getPartitioner().getClass().getName().equals(ByteBufferUtil.string(partitionerCol.value())))
+            throw new ConfigurationException("Detected partitioner mismatch! Did you change the partitioner?");
         String savedClusterName = ByteBufferUtil.string(clusterCol.value());
         if (!DatabaseDescriptor.getClusterName().equals(savedClusterName))
             throw new ConfigurationException("Saved cluster name " + savedClusterName + " != configured name " + DatabaseDescriptor.getClusterName());

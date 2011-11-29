@@ -1,3 +1,6 @@
+1.0.5
+  * revert CASSANDRA-3407 (see CASSANDRA-3540)
+
 1.0.4
  * fix self-hinting of timed out read repair updates and make hinted handoff
    less prone to OOMing a coordinator (CASSANDRA-3440)
