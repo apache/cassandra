@@ -411,14 +411,17 @@ public class StorageProxy implements StorageProxyMBean
                     Iterator<InetAddress> iter = messages.getValue().iterator();
                     InetAddress target = iter.next();
                     // Add all the other destinations of the same message as a header in the primary message.
-                    FastByteArrayOutputStream bos = new FastByteArrayOutputStream();
-                    DataOutputStream dos = new DataOutputStream(bos);
-                    while (iter.hasNext())
+                    if (iter.hasNext())
                     {
-                        InetAddress destination = iter.next();
-                        dos.write(destination.getAddress());
+                        FastByteArrayOutputStream bos = new FastByteArrayOutputStream();
+                        DataOutputStream dos = new DataOutputStream(bos);
+                        while (iter.hasNext())
+                        {
+                            InetAddress destination = iter.next();
+                            dos.write(destination.getAddress());
+                        }
+                        message = message.withHeaderAdded(RowMutation.FORWARD_HEADER, bos.toByteArray());
                     }
-                    message = message.withHeaderAdded(RowMutation.FORWARD_HEADER, bos.toByteArray());
                     // send the combined message + forward headers
                     MessagingService.instance().sendRR(message, target, handler);
                 }
