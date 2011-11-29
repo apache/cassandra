@@ -1,5 +1,6 @@
 1.0.5
   * revert CASSANDRA-3407 (see CASSANDRA-3540)
+  * fix assertion error while forwarding writes to local nodes (CASSANDRA-3539)
 
 1.0.4
  * fix self-hinting of timed out read repair updates and make hinted handoff
