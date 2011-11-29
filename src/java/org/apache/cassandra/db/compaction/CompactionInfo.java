@@ -24,7 +24,6 @@ import java.io.Serializable;
 public final class CompactionInfo implements Serializable
 {
     private static final long serialVersionUID = 3695381572726744816L;
-
     private final int id;
     private final String ksname;
     private final String cfname;
@@ -87,8 +86,19 @@ public final class CompactionInfo implements Serializable
         return buff.append(')').toString();
     }
 
-    public interface Holder
+    public static abstract class Holder
     {
-        public CompactionInfo getCompactionInfo();
+        private volatile boolean isStopped = false;
+        public abstract CompactionInfo getCompactionInfo();
+
+        public void stop()
+        {
+            isStopped = true;
+        }
+
+        public boolean isStopped()
+        {
+            return isStopped;
+        }
     }
 }

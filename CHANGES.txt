@@ -1,3 +1,7 @@
+1.0.5
+ * add command to stop compactions (CASSANDRA-1740)
+
+
 1.0.4
  * fix self-hinting of timed out read repair updates and make hinted handoff
    less prone to OOMing a coordinator (CASSANDRA-3440)

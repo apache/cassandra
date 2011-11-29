@@ -37,6 +37,7 @@ import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.compaction.CompactionInfo.Holder;
 import org.apache.cassandra.db.index.SecondaryIndexBuilder;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.io.sstable.*;
@@ -510,6 +511,8 @@ public class CompactionManager implements CompactionManagerMBean
 
             while (!dataFile.isEOF())
             {
+                if (scrubInfo.isStopped())
+                    throw new UserInterruptedException(scrubInfo.getCompactionInfo());
                 long rowStart = dataFile.getFilePointer();
                 if (logger.isDebugEnabled())
                     logger.debug("Reading row at " + rowStart);
@@ -712,6 +715,8 @@ public class CompactionManager implements CompactionManagerMBean
             {
                 while (scanner.hasNext())
                 {
+                    if (ci.isStopped())
+                        throw new UserInterruptedException(ci.getCompactionInfo());
                     SSTableIdentityIterator row = (SSTableIdentityIterator) scanner.next();
                     if (Range.isTokenInRanges(row.getKey().token, ranges))
                     {
@@ -829,6 +834,8 @@ public class CompactionManager implements CompactionManagerMBean
             validator.prepare(cfs);
             while (nni.hasNext())
             {
+                if (ci.isStopped())
+                    throw new UserInterruptedException(ci.getCompactionInfo());
                 AbstractCompactedRow row = nni.next();
                 validator.add(row);
             }
@@ -1096,7 +1103,7 @@ public class CompactionManager implements CompactionManagerMBean
         }
     }
 
-    private static class CleanupInfo implements CompactionInfo.Holder
+    private static class CleanupInfo extends CompactionInfo.Holder
     {
         private final SSTableReader sstable;
         private final SSTableScanner scanner;
@@ -1124,7 +1131,7 @@ public class CompactionManager implements CompactionManagerMBean
         }
     }
 
-    private static class ScrubInfo implements CompactionInfo.Holder
+    private static class ScrubInfo extends CompactionInfo.Holder
     {
         private final RandomAccessReader dataFile;
         private final SSTableReader sstable;
@@ -1149,6 +1156,16 @@ public class CompactionManager implements CompactionManagerMBean
             {
                 throw new RuntimeException();
             }
+        }
+    }
+
+    public void stopCompaction(String type)
+    {
+        OperationType operation = OperationType.valueOf(type);
+        for (Holder holder : CompactionExecutor.getCompactions())
+        {
+            if (holder.getCompactionInfo().getTaskType() == operation)
+                holder.stop();
         }
     }
 }

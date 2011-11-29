@@ -616,6 +616,11 @@ public class NodeProbe
     {
         return fdProxy.getAllEndpointStates();
     }
+
+    public void stop(String string)
+    {
+        compactionProxy.stopCompaction(string);
+    }
 }
 
 class ColumnFamilyStoreMBeanIterator implements Iterator<Map.Entry<String, ColumnFamilyStoreMBean>>

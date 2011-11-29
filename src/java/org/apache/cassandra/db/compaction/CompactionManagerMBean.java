@@ -45,4 +45,17 @@ public interface CompactionManagerMBean
      * @param dataFiles a comma separated list of sstable filename to compact
      */
     public void forceUserDefinedCompaction(String ksname, String dataFiles);
+
+    /**
+     * Stop all running compaction-like tasks having the provided {@code type}.
+     * @param type the type of compaction to stop. Can be one of:
+     *   - COMPACTION
+     *   - VALIDATION
+     *   - KEY_CACHE_SAVE
+     *   - ROW_CACHE_SAVE
+     *   - CLEANUP
+     *   - SCRUB
+     *   - INDEX_BUILD
+     */
+    public void stopCompaction(String type);
 }
