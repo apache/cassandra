@@ -3,6 +3,8 @@
  * filter out unavailable cipher suites when using encryption (CASSANDRA-3178)
  * (HADOOP) add old-style api support for CFIF and CFRR (CASSANDRA-2799)
  * Support TimeUUIDType column names in Stress.java tool (CASSANDRA-3541)
+ * (CQL) INSERT/UPDATE/DELETE/TRUNCATE commands should allow CF names to
+   be qualified by keyspace (CASSANDRA-3419)
 
 
 1.0.5

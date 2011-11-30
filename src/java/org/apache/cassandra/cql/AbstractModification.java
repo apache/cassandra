@@ -31,24 +31,31 @@ public abstract class AbstractModification
 {
     public static final ConsistencyLevel defaultConsistency = ConsistencyLevel.ONE;
 
+    protected final String keyspace;
     protected final String columnFamily;
     protected final ConsistencyLevel cLevel;
     protected final Long timestamp;
     protected final int timeToLive;
     protected final String keyName;
 
-    public AbstractModification(String columnFamily, String keyAlias, Attributes attrs)
+    public AbstractModification(String keyspace, String columnFamily, String keyAlias, Attributes attrs)
     {
-        this(columnFamily, keyAlias, attrs.getConsistencyLevel(), attrs.getTimestamp(), attrs.getTimeToLive());
+        this(keyspace, columnFamily, keyAlias, attrs.getConsistencyLevel(), attrs.getTimestamp(), attrs.getTimeToLive());
     }
 
-    public AbstractModification(String columnFamily, String keyAlias, ConsistencyLevel cLevel, Long timestamp, int timeToLive)
+    public AbstractModification(String keyspace, String columnFamily, String keyAlias, ConsistencyLevel cLevel, Long timestamp, int timeToLive)
     {
+        this.keyspace = keyspace;
         this.columnFamily = columnFamily;
         this.cLevel = cLevel;
         this.timestamp = timestamp;
         this.timeToLive = timeToLive;
         this.keyName = keyAlias.toUpperCase();
+    }
+
+    public String getKeyspace()
+    {
+        return keyspace;
     }
 
     public String getColumnFamily()
