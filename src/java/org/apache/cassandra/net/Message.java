@@ -30,7 +30,7 @@ public class Message
     private final byte[] body_;
     private final transient int version;
 
-    Message(Header header, byte[] body, int version)
+    public Message(Header header, byte[] body, int version)
     {
         assert header != null;
         assert body != null;

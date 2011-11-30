@@ -18,9 +18,7 @@
 
 package org.apache.cassandra.streaming;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.OutputStream;
+import java.io.*;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.nio.ByteBuffer;
@@ -30,7 +28,11 @@ import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.compress.CompressedRandomAccessReader;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.net.Header;
+import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.OutboundTcpConnection;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.Throttle;
@@ -54,12 +56,15 @@ public class FileStreamTask extends WrappedRunnable
 
     // communication socket
     private Socket socket;
-    // socket's output stream
+    // socket's output/input stream
     private OutputStream output;
+    private OutputStream compressedoutput;
+    private DataInputStream input;
     // allocate buffer to use for transfers only once
     private final byte[] transferBuffer = new byte[CHUNK_SIZE];
     // outbound global throughput limiter
     private final Throttle throttle;
+    private final StreamReplyVerbHandler handler = new StreamReplyVerbHandler();
 
     public FileStreamTask(StreamHeader header, InetAddress to)
     {
@@ -89,6 +94,12 @@ public class FileStreamTask extends WrappedRunnable
             // successfully connected: stream.
             // (at this point, if we fail, it is the receiver's job to re-request)
             stream();
+            if (StreamOutSession.get(to, header.sessionId).getFiles().size() == 0)
+            {
+                // we are the last of our kind, receive the final confirmation before closing
+                receiveReply();
+                logger.info("Finished streaming session to {}", to);
+            }
         }
         finally
         {
@@ -125,7 +136,7 @@ public class FileStreamTask extends WrappedRunnable
                                 : RandomAccessReader.open(new File(header.file.getFilename()), true);
 
         // setting up data compression stream
-        output = new LZFOutputStream(output);
+        compressedoutput = new LZFOutputStream(output);
 
         try
         {
@@ -149,17 +160,38 @@ public class FileStreamTask extends WrappedRunnable
                 }
 
                 // make sure that current section is send
-                output.flush();
+                compressedoutput.flush();
 
                 if (logger.isDebugEnabled())
                     logger.debug("Bytes transferred " + bytesTransferred + "/" + header.file.size);
             }
+            // receive reply confirmation
+            receiveReply();
         }
         finally
         {
             // no matter what happens close file
             FileUtils.closeQuietly(file);
         }
+    }
+
+    private void receiveReply() throws IOException
+    {
+        MessagingService.validateMagic(input.readInt());
+        int msheader = input.readInt();
+        assert MessagingService.getBits(msheader, 3, 1) == 0 : "Stream received before stream reply";
+        int version = MessagingService.getBits(msheader, 15, 8);
+
+        int totalSize = input.readInt();
+        String id = input.readUTF();
+        Header header = Header.serializer().deserialize(input, version);
+
+        int bodySize = input.readInt();
+        byte[] body = new byte[bodySize];
+        input.readFully(body);
+        Message message = new Message(header, body, version);
+        assert message.getVerb() == StorageService.Verb.STREAM_REPLY : "Non-reply message received on stream socket";
+        handler.doVerb(message, id);
     }
 
     /**
@@ -178,7 +210,7 @@ public class FileStreamTask extends WrappedRunnable
         int toTransfer = (int) Math.min(CHUNK_SIZE, length - bytesTransferred);
 
         reader.readFully(transferBuffer, 0, toTransfer);
-        output.write(transferBuffer, 0, toTransfer);
+        compressedoutput.write(transferBuffer, 0, toTransfer);
         throttle.throttleDelta(toTransfer);
 
         return toTransfer;
@@ -198,6 +230,7 @@ public class FileStreamTask extends WrappedRunnable
             {
                 socket = MessagingService.instance().getConnectionPool(to).newSocket();
                 output = socket.getOutputStream();
+                input = new DataInputStream(socket.getInputStream());
                 break;
             }
             catch (IOException e)

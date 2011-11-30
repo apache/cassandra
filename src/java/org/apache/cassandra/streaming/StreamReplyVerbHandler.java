@@ -55,6 +55,7 @@ public class StreamReplyVerbHandler implements IVerbHandler
             switch (reply.action)
             {
                 case FILE_FINISHED:
+                    logger.info("Successfully sent {} to {}", reply.file, message.getFrom());
                     session.validateCurrentFile(reply.file);
                     session.startNext();
                     break;

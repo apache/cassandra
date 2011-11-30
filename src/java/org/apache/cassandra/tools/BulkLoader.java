@@ -28,9 +28,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.sstable.SSTableLoader;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.PendingFile;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.FBUtilities;
@@ -52,13 +50,15 @@ public class BulkLoader
     private static final String HELP_OPTION  = "help";
     private static final String NOPROGRESS_OPTION  = "no-progress";
     private static final String IGNORE_NODES_OPTION  = "ignore";
+    private static final String INITIAL_HOST_ADDRESS_OPTION = "nodes";
+    private static final String RPC_PORT_OPTION = "port";
 
     public static void main(String args[]) throws IOException
     {
         LoaderOptions options = LoaderOptions.parseArgs(args);
         try
         {
-            SSTableLoader loader = new SSTableLoader(options.directory, new ExternalClient(options), options);
+            SSTableLoader loader = new SSTableLoader(options.directory, new ExternalClient(options, options.hosts, options.rpcPort), options);
             SSTableLoader.LoaderFuture future = loader.stream(options.ignores);
 
             if (options.noProgress)
@@ -171,38 +171,34 @@ public class BulkLoader
     {
         private final Map<String, Set<String>> knownCfs = new HashMap<String, Set<String>>();
         private final SSTableLoader.OutputHandler outputHandler;
+        private Set<InetAddress> hosts = new HashSet<InetAddress>();
+        private int rpcPort;
 
-        public ExternalClient(SSTableLoader.OutputHandler outputHandler)
+        public ExternalClient(SSTableLoader.OutputHandler outputHandler, Set<InetAddress> hosts, int port)
         {
             super();
             this.outputHandler = outputHandler;
+            this.hosts = hosts;
+            this.rpcPort = port;
         }
 
         public void init(String keyspace)
         {
-            outputHandler.output(String.format("Starting client (and waiting %d seconds for gossip) ...", StorageService.RING_DELAY / 1000));
-            try
+            Iterator<InetAddress> hostiter = hosts.iterator();
+            while (hostiter.hasNext())
             {
-                // Init gossip
-                StorageService.instance.initClient();
-
-                Set<InetAddress> hosts = Gossiper.instance.getLiveMembers();
-                hosts.remove(FBUtilities.getBroadcastAddress());
-                if (hosts.isEmpty())
-                    throw new IllegalStateException("Cannot load any sstable, no live member found in the cluster");
-
-                // Query endpoint to ranges map and schemas from thrift
-                String host = hosts.iterator().next().toString().substring(1);
-                int port = DatabaseDescriptor.getRpcPort();
-
-                Cassandra.Client client = createThriftClient(host, port);
-                List<TokenRange> tokenRanges = client.describe_ring(keyspace);
-                List<KsDef> ksDefs = client.describe_keyspaces();
-
-                Token.TokenFactory tkFactory = StorageService.getPartitioner().getTokenFactory();
-
                 try
                 {
+
+                    // Query endpoint to ranges map and schemas from thrift
+                    InetAddress host = hostiter.next();
+                    Cassandra.Client client = createThriftClient(host.getHostAddress(), rpcPort);
+                    List<TokenRange> tokenRanges = client.describe_ring(keyspace);
+                    List<KsDef> ksDefs = client.describe_keyspaces();
+
+                    setPartitioner(client.describe_partitioner());
+                    Token.TokenFactory tkFactory = getPartitioner().getTokenFactory();
+
                     for (TokenRange tr : tokenRanges)
                     {
                         Range range = new Range(tkFactory.fromString(tr.start_token), tkFactory.fromString(tr.end_token));
@@ -211,30 +207,22 @@ public class BulkLoader
                             addRangeForEndpoint(range, InetAddress.getByName(ep));
                         }
                     }
-                }
-                catch (UnknownHostException e)
-                {
-                    throw new RuntimeException("Got an unknow host from describe_ring()", e);
-                }
 
-                for (KsDef ksDef : ksDefs)
+                    for (KsDef ksDef : ksDefs)
+                    {
+                        Set<String> cfs = new HashSet<String>();
+                        for (CfDef cfDef : ksDef.cf_defs)
+                            cfs.add(cfDef.name);
+                        knownCfs.put(ksDef.name, cfs);
+                    }
+                    break;
+                }
+                catch (Exception e)
                 {
-                    Set<String> cfs = new HashSet<String>();
-                    for (CfDef cfDef : ksDef.cf_defs)
-                        cfs.add(cfDef.name);
-                    knownCfs.put(ksDef.name, cfs);
+                    if (!hostiter.hasNext())
+                        throw new RuntimeException("Could not retrieve endpoint ranges: ", e);
                 }
             }
-            catch (Exception e)
-            {
-                throw new RuntimeException(e);
-            }
-        }
-
-        @Override
-        public void stop()
-        {
-            StorageService.instance.stopClient();
         }
 
         public boolean validateColumnFamily(String keyspace, String cfName)
@@ -260,7 +248,9 @@ public class BulkLoader
         public boolean debug;
         public boolean verbose;
         public boolean noProgress;
+        public int rpcPort = 9160;
 
+        public Set<InetAddress> hosts = new HashSet<InetAddress>();
         public Set<InetAddress> ignores = new HashSet<InetAddress>();
 
         LoaderOptions(File directory)
@@ -311,6 +301,32 @@ public class BulkLoader
                 opts.debug = cmd.hasOption(DEBUG_OPTION);
                 opts.verbose = cmd.hasOption(VERBOSE_OPTION);
                 opts.noProgress = cmd.hasOption(NOPROGRESS_OPTION);
+
+                if (cmd.hasOption(RPC_PORT_OPTION))
+                    opts.rpcPort = Integer.valueOf(cmd.getOptionValue(RPC_PORT_OPTION));
+
+                if (cmd.hasOption(INITIAL_HOST_ADDRESS_OPTION))
+                {
+                    String[] nodes = cmd.getOptionValue(INITIAL_HOST_ADDRESS_OPTION).split(",");
+                    try
+                    {
+                        for (String node : nodes)
+                        {
+                            opts.hosts.add(InetAddress.getByName(node.trim()));
+                        }
+                    }
+                    catch (UnknownHostException e)
+                    {
+                        errorMsg("Unknown host: " + e.getMessage(), options);
+                    }
+
+                }
+                else
+                {
+                    System.err.println("Initial hosts must be specified (-d)");
+                    printUsage(options);
+                    System.exit(1);
+                }
 
                 if (cmd.hasOption(IGNORE_NODES_OPTION))
                 {
@@ -363,6 +379,8 @@ public class BulkLoader
             options.addOption("h",  HELP_OPTION,         "display this help message");
             options.addOption(null, NOPROGRESS_OPTION,   "don't display progress");
             options.addOption("i",  IGNORE_NODES_OPTION, "NODES", "don't stream to this (comma separated) list of nodes");
+            options.addOption("d",  INITIAL_HOST_ADDRESS_OPTION, "initial hosts", "try to connect to these hosts (comma separated) initially for ring information");
+            options.addOption("p",  RPC_PORT_OPTION, "rpc port", "port used for rpc (default 9160)");
             return options;
         }
 

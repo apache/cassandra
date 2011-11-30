@@ -162,7 +162,7 @@ public class OutboundTcpConnection extends Thread
         }
     }
 
-    static void write(Message message, String id, DataOutputStream out) throws IOException
+    public static void write(Message message, String id, DataOutputStream out) throws IOException
     {
         /*
          Setting up the protocol header. This is 4 bytes long

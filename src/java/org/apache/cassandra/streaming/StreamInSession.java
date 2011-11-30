@@ -18,8 +18,10 @@
 
 package org.apache.cassandra.streaming;
 
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.InetAddress;
+import java.net.Socket;
 import java.util.*;
 import java.util.concurrent.ConcurrentMap;
 
@@ -27,7 +29,8 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.sstable.SSTableReader;
-import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.OutboundTcpConnection;
 import org.apache.cassandra.utils.Pair;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
@@ -49,6 +52,7 @@ public class StreamInSession
     private String table;
     private final List<SSTableReader> readers = new ArrayList<SSTableReader>();
     private PendingFile current;
+    private Socket socket;
 
     private StreamInSession(Pair<InetAddress, Long> context, Runnable callback)
     {
@@ -89,6 +93,11 @@ public class StreamInSession
         this.table = table;
     }
 
+    public void setSocket(Socket socket)
+    {
+        this.socket = socket;
+    }
+
     public void addFiles(Collection<PendingFile> files)
     {
         for (PendingFile file : files)
@@ -111,15 +120,22 @@ public class StreamInSession
             current = null;
         StreamReply reply = new StreamReply(remoteFile.getFilename(), getSessionId(), StreamReply.Status.FILE_FINISHED);
         // send a StreamStatus message telling the source node it can delete this file
-        MessagingService.instance().sendOneWay(reply.getMessage(Gossiper.instance.getVersion(getHost())), getHost());
+        sendMessage(reply.getMessage(Gossiper.instance.getVersion(getHost())));
+        logger.debug("ack {} sent for {}", reply, remoteFile);
     }
 
     public void retry(PendingFile remoteFile) throws IOException
     {
         StreamReply reply = new StreamReply(remoteFile.getFilename(), getSessionId(), StreamReply.Status.FILE_RETRY);
         logger.info("Streaming of file {} from {} failed: requesting a retry.", remoteFile, this);
-        MessagingService.instance().sendOneWay(reply.getMessage(Gossiper.instance.getVersion(getHost())), getHost());
+        sendMessage(reply.getMessage(Gossiper.instance.getVersion(getHost())));
     }
+
+    public void sendMessage(Message message) throws IOException
+    {
+        OutboundTcpConnection.write(message, String.valueOf(getSessionId()), new DataOutputStream(socket.getOutputStream()));
+    }
+
 
     public void closeIfFinished() throws IOException
     {
@@ -160,7 +176,14 @@ public class StreamInSession
             // send reply to source that we're done
             StreamReply reply = new StreamReply("", getSessionId(), StreamReply.Status.SESSION_FINISHED);
             logger.info("Finished streaming session {} from {}", getSessionId(), getHost());
-            MessagingService.instance().sendOneWay(reply.getMessage(Gossiper.instance.getVersion(getHost())), getHost());
+            try
+            {
+                OutboundTcpConnection.write(reply.getMessage(Gossiper.instance.getVersion(getHost())), context.right.toString(), new DataOutputStream(socket.getOutputStream()));
+            }
+            finally
+            {
+                socket.close();
+            }
 
             if (callback != null)
                 callback.run();

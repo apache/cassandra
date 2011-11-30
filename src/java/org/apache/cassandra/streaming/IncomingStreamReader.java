@@ -60,6 +60,8 @@ public class IncomingStreamReader
         InetAddress host = header.broadcastAddress != null ? header.broadcastAddress
                            : ((InetSocketAddress)socket.getRemoteSocketAddress()).getAddress();
         session = StreamInSession.get(host, header.sessionId);
+        session.setSocket(socket);
+
         session.addFiles(header.pendingFiles);
         // set the current file we are streaming so progress shows up in jmx
         session.setCurrentFile(header.file);
@@ -88,18 +90,13 @@ public class IncomingStreamReader
             try
             {
                 reader = streamIn(dis, localFile, remoteFile);
+                session.finished(remoteFile, reader);
             }
             catch (IOException ex)
             {
                 retry();
                 throw ex;
             }
-            finally
-            {
-                dis.close();
-            }
-
-            session.finished(remoteFile, reader);
         }
 
         session.closeIfFinished();
@@ -169,6 +166,7 @@ public class IncomingStreamReader
         session.retry(remoteFile);
 
         /* Delete the orphaned file. */
-        FileUtils.deleteWithConfirm(new File(localFile.getFilename()));
+        if (new File(localFile.getFilename()).isFile())
+            FileUtils.deleteWithConfirm(new File(localFile.getFilename()));
     }
 }

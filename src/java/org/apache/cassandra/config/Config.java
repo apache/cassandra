@@ -109,7 +109,7 @@ public class Config
     public RequestSchedulerId request_scheduler_id;
     public RequestSchedulerOptions request_scheduler_options;
 
-    public EncryptionOptions encryption_options;
+    public EncryptionOptions encryption_options = new EncryptionOptions();
 
     public Integer index_interval = 128;
 

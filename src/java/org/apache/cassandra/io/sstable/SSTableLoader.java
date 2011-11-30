@@ -27,9 +27,11 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.*;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
 /**
@@ -84,7 +86,7 @@ public class SSTableLoader
 
                 try
                 {
-                    sstables.add(SSTableReader.open(desc, components, null, StorageService.getPartitioner()));
+                    sstables.add(SSTableReader.open(desc, components, null, client.getPartitioner()));
                 }
                 catch (IOException e)
                 {
@@ -227,15 +229,15 @@ public class SSTableLoader
     public static abstract class Client
     {
         private final Map<InetAddress, Collection<Range>> endpointToRanges = new HashMap<InetAddress, Collection<Range>>();
+        private IPartitioner partitioner;
 
         /**
          * Initialize the client.
          * Perform any step necessary so that after the call to the this
          * method:
-         *   * StorageService is correctly initialized (so that gossip and
-         *     messaging service is too)
+         *   * partitioner is initialized
          *   * getEndpointToRangesMap() returns a correct map
-         * This method is guaranted to be called before any other method of a
+         * This method is guaranteed to be called before any other method of a
          * client.
          */
         public abstract void init(String keyspace);
@@ -254,6 +256,16 @@ public class SSTableLoader
         public Map<InetAddress, Collection<Range>> getEndpointToRangesMap()
         {
             return endpointToRanges;
+        }
+
+        protected void setPartitioner(String partclass) throws ConfigurationException
+        {
+            this.partitioner = FBUtilities.newPartitioner(partclass);
+        }
+
+        public IPartitioner getPartitioner()
+        {
+            return partitioner;
         }
 
         protected void addRangeForEndpoint(Range range, InetAddress endpoint)

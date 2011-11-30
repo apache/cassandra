@@ -107,30 +107,38 @@ public class DatabaseDescriptor
 
         return url;
     }
+
+    public static void initDefaultsOnly()
+    {
+        conf = new Config();
+    }
     
     static
     {
         try
         {
-            URL url = getStorageConfigURL();
-            logger.info("Loading settings from " + url);
-
-            InputStream input = null;
-            try
+            // only load yaml if conf wasn't already set
+            if (conf == null)
             {
-                input = url.openStream();
+                URL url = getStorageConfigURL();
+                logger.info("Loading settings from " + url);
+                InputStream input = null;
+                try
+                {
+                    input = url.openStream();
+                }
+                catch (IOException e)
+                {
+                    // getStorageConfigURL should have ruled this out
+                    throw new AssertionError(e);
+                }
+                org.yaml.snakeyaml.constructor.Constructor constructor = new org.yaml.snakeyaml.constructor.Constructor(Config.class);
+                TypeDescription seedDesc = new TypeDescription(SeedProviderDef.class);
+                seedDesc.putMapPropertyType("parameters", String.class, String.class);
+                constructor.addTypeDescription(seedDesc);
+                Yaml yaml = new Yaml(new Loader(constructor));
+                conf = (Config)yaml.load(input);
             }
-            catch (IOException e)
-            {
-                // getStorageConfigURL should have ruled this out
-                throw new AssertionError(e);
-            }
-            org.yaml.snakeyaml.constructor.Constructor constructor = new org.yaml.snakeyaml.constructor.Constructor(Config.class);
-            TypeDescription seedDesc = new TypeDescription(SeedProviderDef.class);
-            seedDesc.putMapPropertyType("parameters", String.class, String.class);
-            constructor.addTypeDescription(seedDesc);
-            Yaml yaml = new Yaml(new Loader(constructor));
-            conf = (Config)yaml.load(input);
             
             if (conf.commitlog_sync == null)
             {

@@ -40,7 +40,7 @@ public class Header
         serializer_ = new HeaderSerializer();        
     }
     
-    static IVersionedSerializer<Header> serializer()
+    public static IVersionedSerializer<Header> serializer()
     {
         return serializer_;
     }

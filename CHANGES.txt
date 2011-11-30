@@ -9,6 +9,8 @@
    (CASSANDRA-3116)
  * recognize that "SELECT first ... *" isn't really "SELECT *" (CASSANDRA-3445)
  * Use faster bytes comparison (CASSANDRA-3434)
+ * Bulk loader is no longer a fat client, (HADOOP) bulk load output format
+   (CASSANDRA-3045)
 
 
 1.0.5
