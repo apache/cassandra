@@ -27,11 +27,14 @@ import java.util.Random;
 
 import static com.google.common.base.Charsets.UTF_8;
 
+import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.stress.Session;
 import org.apache.cassandra.stress.Stress;
 import org.apache.cassandra.thrift.Cassandra;
 import org.apache.cassandra.thrift.InvalidRequestException;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.UUIDGen;
 
 public abstract class Operation
 {
@@ -198,6 +201,13 @@ public abstract class Operation
             result.append(str);
 
         return result.toString();
+    }
+
+    protected ByteBuffer columnName(int index, boolean timeUUIDComparator)
+    {
+        return timeUUIDComparator
+                ? TimeUUIDType.instance.decompose(UUIDGen.makeType1UUIDFromHost(Session.getLocalAddress()))
+                : ByteBufferUtil.bytes(String.format("C%d", index));
     }
 
     protected String getExceptionMessage(Exception e)
