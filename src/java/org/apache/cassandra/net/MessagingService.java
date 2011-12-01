@@ -240,7 +240,7 @@ public final class MessagingService implements MessagingServiceMBean
     private List<ServerSocket> getServerSocket(InetAddress localEp) throws IOException, ConfigurationException
     {
        final List<ServerSocket> ss = new ArrayList<ServerSocket>();
-        if (DatabaseDescriptor.getEncryptionOptions() != null && DatabaseDescriptor.getEncryptionOptions().internode_encryption != EncryptionOptions.InternodeEncryption.none)
+        if (DatabaseDescriptor.getEncryptionOptions().internode_encryption != EncryptionOptions.InternodeEncryption.none)
         {
             ss.add(SSLFactory.getServerSocket(DatabaseDescriptor.getEncryptionOptions(), localEp, DatabaseDescriptor.getSSLStoragePort()));
             // setReuseAddress happens in the factory.
