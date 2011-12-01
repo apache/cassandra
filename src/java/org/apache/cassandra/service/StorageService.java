@@ -453,7 +453,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                 if (!tasks.awaitTermination(1, TimeUnit.MINUTES))
                     logger_.warn("Miscellaneous task executor still busy after one minute; proceeding with shutdown");
             }
-        });
+        }, "StorageServiceShutdownHook");
         Runtime.getRuntime().addShutdownHook(drainOnShutdown);
 
         if (Boolean.parseBoolean(System.getProperty("cassandra.join_ring", "true")))
