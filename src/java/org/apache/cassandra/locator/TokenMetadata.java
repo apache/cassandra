@@ -71,7 +71,7 @@ public class TokenMetadata
     // (don't need to record Token here since it's still part of tokenToEndpointMap until it's done leaving)
     private Set<InetAddress> leavingEndpoints = new HashSet<InetAddress>();
     // this is a cache of the calculation from {tokenToEndpointMap, bootstrapTokens, leavingEndpoints}
-    private ConcurrentMap<String, Multimap<Range, InetAddress>> pendingRanges = new ConcurrentHashMap<String, Multimap<Range, InetAddress>>();
+    private ConcurrentMap<String, Multimap<Range<Token>, InetAddress>> pendingRanges = new ConcurrentHashMap<String, Multimap<Range<Token>, InetAddress>>();
 
     // nodes which are migrating to the new tokens in the ring
     private Set<Pair<Token, InetAddress>> movingEndpoints = new HashSet<Pair<Token, InetAddress>>();
@@ -108,7 +108,7 @@ public class TokenMetadata
     public int pendingRangeChanges(InetAddress source)
     {
         int n = 0;
-        Range sourceRange = getPrimaryRangeFor(getToken(source));
+        Range<Token> sourceRange = getPrimaryRangeFor(getToken(source));
         for (Token token : bootstrapTokens.keySet())
             if (sourceRange.contains(token))
                 n++;
@@ -423,9 +423,9 @@ public class TokenMetadata
         }
     }
 
-    public Range getPrimaryRangeFor(Token right)
+    public Range<Token> getPrimaryRangeFor(Token right)
     {
-        return new Range(getPredecessor(right), right);
+        return new Range<Token>(getPredecessor(right), right);
     }
 
     public ArrayList<Token> sortedTokens()
@@ -441,13 +441,13 @@ public class TokenMetadata
         }
     }
 
-    private Multimap<Range, InetAddress> getPendingRangesMM(String table)
+    private Multimap<Range<Token>, InetAddress> getPendingRangesMM(String table)
     {
-        Multimap<Range, InetAddress> map = pendingRanges.get(table);
+        Multimap<Range<Token>, InetAddress> map = pendingRanges.get(table);
         if (map == null)
         {
             map = HashMultimap.create();
-            Multimap<Range, InetAddress> priorMap = pendingRanges.putIfAbsent(table, map);
+            Multimap<Range<Token>, InetAddress> priorMap = pendingRanges.putIfAbsent(table, map);
             if (priorMap != null)
                 map = priorMap;
         }
@@ -455,15 +455,15 @@ public class TokenMetadata
     }
 
     /** a mutable map may be returned but caller should not modify it */
-    public Map<Range, Collection<InetAddress>> getPendingRanges(String table)
+    public Map<Range<Token>, Collection<InetAddress>> getPendingRanges(String table)
     {
         return getPendingRangesMM(table).asMap();
     }
 
-    public List<Range> getPendingRanges(String table, InetAddress endpoint)
+    public List<Range<Token>> getPendingRanges(String table, InetAddress endpoint)
     {
-        List<Range> ranges = new ArrayList<Range>();
-        for (Map.Entry<Range, InetAddress> entry : getPendingRangesMM(table).entries())
+        List<Range<Token>> ranges = new ArrayList<Range<Token>>();
+        for (Map.Entry<Range<Token>, InetAddress> entry : getPendingRangesMM(table).entries())
         {
             if (entry.getValue().equals(endpoint))
             {
@@ -473,7 +473,7 @@ public class TokenMetadata
         return ranges;
     }
 
-    public void setPendingRanges(String table, Multimap<Range, InetAddress> rangeMap)
+    public void setPendingRanges(String table, Multimap<Range<Token>, InetAddress> rangeMap)
     {
         pendingRanges.put(table, rangeMap);
     }
@@ -545,7 +545,7 @@ public class TokenMetadata
             return includeMin ? Iterators.singletonIterator(StorageService.getPartitioner().getMinimumToken())
                               : Iterators.<Token>emptyIterator();
 
-        final boolean insertMin = (includeMin && !ring.get(0).equals(StorageService.getPartitioner().getMinimumToken())) ? true : false;
+        final boolean insertMin = (includeMin && !ring.get(0).isMinimum()) ? true : false;
         final int startIndex = firstTokenIndex(ring, start, insertMin);
         return new AbstractIterator<Token>()
         {
@@ -647,9 +647,9 @@ public class TokenMetadata
     {
         StringBuilder sb = new StringBuilder();
 
-        for (Map.Entry<String, Multimap<Range, InetAddress>> entry : pendingRanges.entrySet())
+        for (Map.Entry<String, Multimap<Range<Token>, InetAddress>> entry : pendingRanges.entrySet())
         {
-            for (Map.Entry<Range, InetAddress> rmap : entry.getValue().entries())
+            for (Map.Entry<Range<Token>, InetAddress> rmap : entry.getValue().entries())
             {
                 sb.append(rmap.getValue() + ":" + rmap.getKey());
                 sb.append(System.getProperty("line.separator"));
@@ -689,13 +689,13 @@ public class TokenMetadata
      */
     public Collection<InetAddress> getWriteEndpoints(Token token, String table, Collection<InetAddress> naturalEndpoints)
     {
-        Map<Range, Collection<InetAddress>> ranges = getPendingRanges(table);
+        Map<Range<Token>, Collection<InetAddress>> ranges = getPendingRanges(table);
         if (ranges.isEmpty())
             return naturalEndpoints;
 
         Set<InetAddress> endpoints = new HashSet<InetAddress>(naturalEndpoints);
 
-        for (Map.Entry<Range, Collection<InetAddress>> entry : ranges.entrySet())
+        for (Map.Entry<Range<Token>, Collection<InetAddress>> entry : ranges.entrySet())
         {
             if (entry.getKey().contains(token))
             {

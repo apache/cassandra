@@ -25,6 +25,7 @@ import java.util.Iterator;
 
 import org.apache.cassandra.db.columniterator.IColumnIterator;
 import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.utils.Pair;
 
 /**
@@ -35,7 +36,7 @@ public class SSTableBoundedScanner extends SSTableScanner
     private final Iterator<Pair<Long, Long>> rangeIterator;
     private Pair<Long, Long> currentRange;
 
-    SSTableBoundedScanner(SSTableReader sstable, boolean skipCache, Range range)
+    SSTableBoundedScanner(SSTableReader sstable, boolean skipCache, Range<Token> range)
     {
         super(sstable, skipCache);
         this.rangeIterator = sstable.getPositionsForRanges(Collections.singletonList(range)).iterator();

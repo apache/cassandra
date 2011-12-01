@@ -23,6 +23,7 @@ import java.util.Comparator;
 
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.dht.RingPosition;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -35,9 +36,9 @@ import org.apache.cassandra.utils.ByteBufferUtil;
  * if this matters, you can subclass RP to use a stronger hash, or use a non-lossy tokenization scheme (as in the
  * OrderPreservingPartitioner classes).
  */
-public class DecoratedKey<T extends Token> implements Comparable<DecoratedKey>
+public class DecoratedKey<T extends Token> extends RowPosition
 {
-    private static IPartitioner partitioner = StorageService.getPartitioner();
+    private static final IPartitioner partitioner = StorageService.getPartitioner();
 
     public static final Comparator<DecoratedKey> comparator = new Comparator<DecoratedKey>()
     {
@@ -52,8 +53,7 @@ public class DecoratedKey<T extends Token> implements Comparable<DecoratedKey>
 
     public DecoratedKey(T token, ByteBuffer key)
     {
-        super();
-        assert token != null;
+        assert token != null && key != null && key.remaining() > 0;
         this.token = token;
         this.key = key;
     }
@@ -61,7 +61,7 @@ public class DecoratedKey<T extends Token> implements Comparable<DecoratedKey>
     @Override
     public int hashCode()
     {
-        return token.hashCode();
+        return key.hashCode(); // hash of key is enough
     }
 
     @Override
@@ -69,23 +69,37 @@ public class DecoratedKey<T extends Token> implements Comparable<DecoratedKey>
     {
         if (this == obj)
             return true;
-        if (obj == null)
-            return false;
-        if (getClass() != obj.getClass())
+        if (obj == null || this.getClass() != obj.getClass())
             return false;
 
-        DecoratedKey other = (DecoratedKey) obj;
-        return token.equals(other.token);
+        DecoratedKey other = (DecoratedKey)obj;
+
+        return ByteBufferUtil.compareUnsigned(key, other.key) == 0; // we compare faster than BB.equals for array backed BB
     }
 
-    public int compareTo(DecoratedKey other)
+    public int compareTo(RowPosition pos)
     {
-        return token.compareTo(other.token);
+        if (this == pos)
+            return 0;
+
+        // delegate to Token.KeyBound if needed
+        if (!(pos instanceof DecoratedKey))
+            return -pos.compareTo(this);
+
+        DecoratedKey otherKey = (DecoratedKey) pos;
+        int cmp = token.compareTo(otherKey.getToken());
+        return cmp == 0 ? ByteBufferUtil.compareUnsigned(key, otherKey.key) : cmp;
     }
 
-    public boolean isEmpty()
+    public boolean isMinimum(IPartitioner partitioner)
     {
-        return token.equals(partitioner.getMinimumToken());
+        // A DecoratedKey can never be the minimum position on the ring
+        return false;
+    }
+
+    public RowPosition.Kind kind()
+    {
+        return RowPosition.Kind.ROW_KEY;
     }
 
     @Override
@@ -93,5 +107,10 @@ public class DecoratedKey<T extends Token> implements Comparable<DecoratedKey>
     {
         String keystring = key == null ? "null" : ByteBufferUtil.bytesToHex(key);
         return "DecoratedKey(" + token + ", " + keystring + ")";
+    }
+
+    public T getToken()
+    {
+        return token;
     }
 }

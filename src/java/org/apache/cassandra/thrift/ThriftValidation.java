@@ -498,7 +498,7 @@ public class ThriftValidation
             IPartitioner p = StorageService.getPartitioner();
             Token startToken = p.getToken(range.start_key);
             Token endToken = p.getToken(range.end_key);
-            if (startToken.compareTo(endToken) > 0 && !endToken.equals(p.getMinimumToken()))
+            if (startToken.compareTo(endToken) > 0 && !endToken.isMinimum(p))
             {
                 if (p instanceof RandomPartitioner)
                     throw new InvalidRequestException("start key's md5 sorts after end key's md5.  this is not allowed; you probably should not specify end key at all, under RandomPartitioner");

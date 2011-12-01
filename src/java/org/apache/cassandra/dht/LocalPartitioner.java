@@ -28,7 +28,7 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-public class LocalPartitioner implements IPartitioner<LocalToken>
+public class LocalPartitioner extends AbstractPartitioner<LocalToken>
 {
     private final AbstractType comparator;
 

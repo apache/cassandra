@@ -71,7 +71,7 @@ public class MerkleTree implements Serializable
      * the request so we can add it back post-deserialization (as for the
      * partitioner).
      */
-    public transient Range fullRange;
+    public transient Range<Token> fullRange;
 
     private transient IPartitioner partitioner;
 
@@ -131,7 +131,7 @@ public class MerkleTree implements Serializable
      *        of the key space covered by each subrange of a fully populated tree.
      * @param maxsize The maximum number of subranges in the tree.
      */
-    public MerkleTree(IPartitioner partitioner, Range range, byte hashdepth, long maxsize)
+    public MerkleTree(IPartitioner partitioner, Range<Token> range, byte hashdepth, long maxsize)
     {
         assert hashdepth < Byte.MAX_VALUE;
         this.fullRange = range;
@@ -359,11 +359,11 @@ public class MerkleTree implements Serializable
      * @return Null if any subrange of the range is invalid, or if the exact
      *         range cannot be calculated using this tree.
      */
-    public byte[] hash(Range range)
+    public byte[] hash(Range<Token> range)
     {
         try
         {
-            return hashHelper(root, new Range(fullRange.left, fullRange.right), range);
+            return hashHelper(root, new Range<Token>(fullRange.left, fullRange.right), range);
         }
         catch (StopRecursion e)
         {
@@ -374,7 +374,7 @@ public class MerkleTree implements Serializable
     /**
      * @throws StopRecursion If no match could be found for the range.
      */
-    private byte[] hashHelper(Hashable hashable, Range active, Range range) throws StopRecursion
+    private byte[] hashHelper(Hashable hashable, Range<Token> active, Range<Token> range) throws StopRecursion
     {
         if (hashable instanceof Leaf)
         {
@@ -386,8 +386,8 @@ public class MerkleTree implements Serializable
         // else: node.
         
         Inner node = (Inner)hashable;
-        Range leftactive = new Range(active.left, node.token);
-        Range rightactive = new Range(node.token, active.right);
+        Range<Token> leftactive = new Range<Token>(active.left, node.token);
+        Range<Token> rightactive = new Range<Token>(node.token, active.right);
 
         if (range.contains(active))
         {
@@ -495,7 +495,7 @@ public class MerkleTree implements Serializable
      * will allow someone to modify the hash. Alternatively, a TreeRange
      * may be created with a null tree, indicating that it is read only.
      */
-    public static class TreeRange extends Range
+    public static class TreeRange extends Range<Token>
     {
         public static final long serialVersionUID = 1L;
         private final MerkleTree tree;

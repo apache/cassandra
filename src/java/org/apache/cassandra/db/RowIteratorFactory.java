@@ -58,8 +58,8 @@ public class RowIteratorFactory
      */
     public static CloseableIterator<Row> getIterator(final Iterable<Memtable> memtables,
                                           final Collection<SSTableReader> sstables,
-                                          final DecoratedKey startWith,
-                                          final DecoratedKey stopAt,
+                                          final RowPosition startWith,
+                                          final RowPosition stopAt,
                                           final QueryFilter filter,
                                           final AbstractType comparator,
                                           final ColumnFamilyStore cfs)
@@ -73,7 +73,7 @@ public class RowIteratorFactory
             public boolean apply(IColumnIterator row)
             {
                 return startWith.compareTo(row.getKey()) <= 0
-                       && (stopAt.isEmpty() || row.getKey().compareTo(stopAt) <= 0);
+                       && (stopAt.isMinimum() || row.getKey().compareTo(stopAt) <= 0);
             }
         };
 

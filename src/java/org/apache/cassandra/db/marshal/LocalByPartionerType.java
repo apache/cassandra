@@ -23,6 +23,7 @@ import java.nio.ByteBuffer;
 
 import org.apache.commons.lang.NotImplementedException;
 
+import org.apache.cassandra.db.RowPosition;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -60,7 +61,8 @@ public class LocalByPartionerType<T extends Token> extends AbstractType<ByteBuff
 
     public int compare(ByteBuffer o1, ByteBuffer o2)
     {
-        return partitioner.decorateKey(o1).compareTo(partitioner.decorateKey(o2));
+        // o1 and o2 can be empty so we need to use RowPosition, not DecoratedKey
+        return RowPosition.forKey(o1, partitioner).compareTo(RowPosition.forKey(o2, partitioner));
     }
 
     public void validate(ByteBuffer bytes) throws MarshalException

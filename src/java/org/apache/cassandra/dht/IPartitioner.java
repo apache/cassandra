@@ -84,4 +84,6 @@ public interface IPartitioner<T extends Token>
      * @return the mapping from 'token' to 'percentage of the ring owned by that token'.
      */
     public Map<Token, Float> describeOwnership(List<Token> sortedTokens);
+
+    public <T extends RingPosition> T minValue(Class<T> klass);
 }

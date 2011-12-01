@@ -33,6 +33,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableReader;
@@ -80,7 +81,7 @@ public class StreamOut
     /**
      * Stream the given ranges to the target endpoint from each CF in the given keyspace.
     */
-    public static void transferRanges(InetAddress target, Table table, Collection<Range> ranges, Runnable callback, OperationType type)
+    public static void transferRanges(InetAddress target, Table table, Collection<Range<Token>> ranges, Runnable callback, OperationType type)
     {
         StreamOutSession session = StreamOutSession.create(table.name, target, callback);
         transferRanges(session, table.getColumnFamilyStores(), ranges, type);
@@ -107,7 +108,7 @@ public class StreamOut
     /**
      * Stream the given ranges to the target endpoint from each of the given CFs.
     */
-    public static void transferRanges(StreamOutSession session, Iterable<ColumnFamilyStore> cfses, Collection<Range> ranges, OperationType type)
+    public static void transferRanges(StreamOutSession session, Iterable<ColumnFamilyStore> cfses, Collection<Range<Token>> ranges, OperationType type)
     {
         assert ranges.size() > 0;
 
@@ -131,7 +132,7 @@ public class StreamOut
      * Low-level transfer of matching portions of a group of sstables from a single table to the target endpoint.
      * You should probably call transferRanges instead. This moreover assumes that references have been acquired on the sstables.
      */
-    public static void transferSSTables(StreamOutSession session, Iterable<SSTableReader> sstables, Collection<Range> ranges, OperationType type) throws IOException
+    public static void transferSSTables(StreamOutSession session, Iterable<SSTableReader> sstables, Collection<Range<Token>> ranges, OperationType type) throws IOException
     {
         List<PendingFile> pending = createPendingFiles(sstables, ranges, type);
 
@@ -142,7 +143,7 @@ public class StreamOut
     }
 
     // called prior to sending anything.
-    private static List<PendingFile> createPendingFiles(Iterable<SSTableReader> sstables, Collection<Range> ranges, OperationType type)
+    private static List<PendingFile> createPendingFiles(Iterable<SSTableReader> sstables, Collection<Range<Token>> ranges, OperationType type)
     {
         List<PendingFile> pending = new ArrayList<PendingFile>();
         for (SSTableReader sstable : sstables)

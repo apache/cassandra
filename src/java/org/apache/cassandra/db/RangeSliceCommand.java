@@ -41,6 +41,7 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 
 import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.FastByteArrayInputStream;
@@ -67,15 +68,15 @@ public class RangeSliceCommand implements MessageProducer, IReadCommand
 
     public final SlicePredicate predicate;
 
-    public final AbstractBounds range;
+    public final AbstractBounds<RowPosition> range;
     public final int max_keys;
 
-    public RangeSliceCommand(String keyspace, ColumnParent column_parent, SlicePredicate predicate, AbstractBounds range, int max_keys)
+    public RangeSliceCommand(String keyspace, ColumnParent column_parent, SlicePredicate predicate, AbstractBounds<RowPosition> range, int max_keys)
     {
         this(keyspace, column_parent.getColumn_family(), column_parent.super_column, predicate, range, max_keys);
     }
 
-    public RangeSliceCommand(String keyspace, String column_family, ByteBuffer super_column, SlicePredicate predicate, AbstractBounds range, int max_keys)
+    public RangeSliceCommand(String keyspace, String column_family, ByteBuffer super_column, SlicePredicate predicate, AbstractBounds<RowPosition> range, int max_keys)
     {
         this.keyspace = keyspace;
         this.column_family = column_family;
@@ -133,7 +134,7 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
 
         TSerializer ser = new TSerializer(new TBinaryProtocol.Factory());
         FBUtilities.serialize(ser, sliceCommand.predicate, dos);
-        AbstractBounds.serializer().serialize(sliceCommand.range, dos);
+        AbstractBounds.serializer().serialize(sliceCommand.range, dos, version);
         dos.writeInt(sliceCommand.max_keys);
     }
 
@@ -154,8 +155,8 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
         TDeserializer dser = new TDeserializer(new TBinaryProtocol.Factory());
         SlicePredicate pred = new SlicePredicate();
         FBUtilities.deserialize(dser, pred, dis);
+        AbstractBounds<RowPosition> range = AbstractBounds.serializer().deserialize(dis, version).toRowBounds();
 
-        AbstractBounds range = AbstractBounds.serializer().deserialize(dis);
         int max_keys = dis.readInt();
         return new RangeSliceCommand(keyspace, column_family, super_column, pred, range, max_keys);
     }

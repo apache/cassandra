@@ -1228,7 +1228,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public ViewFragment markReferenced(DecoratedKey key)
     {
-        assert !key.isEmpty();
+        assert !key.isMinimum();
         DataTracker.View view;
         List<SSTableReader> sstables;
         while (true)
@@ -1246,7 +1246,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * @return a ViewFragment containing the sstables and memtables that may need to be merged
      * for rows between @param startWith and @param stopAt, inclusive, according to the interval tree
      */
-    public ViewFragment markReferenced(DecoratedKey startWith, DecoratedKey stopAt)
+    public ViewFragment markReferenced(RowPosition startWith, RowPosition stopAt)
     {
         DataTracker.View view;
         List<SSTableReader> sstables;
@@ -1255,7 +1255,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             view = data.getView();
             // startAt == minimum is ok, but stopAt == minimum is confusing because all IntervalTree deals with
             // is Comparable, so it won't know to special-case that.
-            Comparable stopInTree = stopAt.isEmpty() ? view.intervalTree.max() : stopAt;
+            Comparable stopInTree = stopAt.isMinimum() ? view.intervalTree.max() : stopAt;
             sstables = view.intervalTree.search(new Interval(startWith, stopInTree));
             if (SSTableReader.acquireReferences(sstables))
                 break;
@@ -1282,15 +1282,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
       * @param columnFilter description of the columns we're interested in for each row
       * @return true if we found all keys we were looking for, otherwise false
      */
-    public List<Row> getRangeSlice(ByteBuffer superColumn, final AbstractBounds range, int maxResults, IFilter columnFilter)
+    public List<Row> getRangeSlice(ByteBuffer superColumn, final AbstractBounds<RowPosition> range, int maxResults, IFilter columnFilter)
     throws ExecutionException, InterruptedException
     {
         assert range instanceof Bounds
-               || (!((Range)range).isWrapAround() || range.right.equals(StorageService.getPartitioner().getMinimumToken()))
+               || !((Range)range).isWrapAround() || range.right.isMinimum()
                : range;
 
-        DecoratedKey startWith = new DecoratedKey(range.left, null);
-        DecoratedKey stopAt = new DecoratedKey(range.right, null);
+        RowPosition startWith = range.left;
+        RowPosition stopAt = range.right;
 
         QueryFilter filter = new QueryFilter(null, new QueryPath(columnFamily, superColumn, null), columnFilter);
         int gcBefore = (int)(System.currentTimeMillis() / 1000) - metadata.getGcGraceSeconds();
@@ -1311,7 +1311,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     Row current = iterator.next();
                     DecoratedKey key = current.key;
 
-                    if (!stopAt.isEmpty() && stopAt.compareTo(key) < 0)
+                    if (!stopAt.isMinimum() && stopAt.compareTo(key) < 0)
                         return rows;
 
                     // skip first one
@@ -1352,7 +1352,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return rows;
     }
 
-    public List<Row> search(IndexClause clause, AbstractBounds range, IFilter dataFilter)
+    public List<Row> search(IndexClause clause, AbstractBounds<RowPosition> range, IFilter dataFilter)
     {
         return indexManager.search(clause, range, dataFilter);
     }
@@ -1520,7 +1520,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return Iterables.concat(samples);
     }
 
-    public Iterable<DecoratedKey> keySamples(Range range)
+    public Iterable<DecoratedKey> keySamples(Range<Token> range)
     {
         Collection<SSTableReader> sstables = getSSTables();
         Iterable<DecoratedKey>[] samples = new Iterable[sstables.size()];

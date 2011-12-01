@@ -28,6 +28,7 @@ import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.dht.BytesToken;
 import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableReader;
@@ -146,9 +147,9 @@ public class SerializationsTest extends AbstractSerializationsTester
     
     private void testStreamRequestMessageWrite() throws IOException
     {
-        Collection<Range> ranges = new ArrayList<Range>();
+        Collection<Range<Token>> ranges = new ArrayList<Range<Token>>();
         for (int i = 0; i < 5; i++)
-            ranges.add(new Range(new BytesToken(ByteBufferUtil.bytes(Integer.toString(10*i))), new BytesToken(ByteBufferUtil.bytes(Integer.toString(10*i+5)))));
+            ranges.add(new Range<Token>(new BytesToken(ByteBufferUtil.bytes(Integer.toString(10*i))), new BytesToken(ByteBufferUtil.bytes(Integer.toString(10*i+5)))));
         List<ColumnFamilyStore> stores = Collections.singletonList(Table.open("Keyspace1").getColumnFamilyStore("Standard1"));
         StreamRequestMessage msg0 = new StreamRequestMessage(FBUtilities.getBroadcastAddress(), ranges, "Keyspace1", stores, 123L, OperationType.RESTORE_REPLICA_COUNT);
         StreamRequestMessage msg1 = new StreamRequestMessage(FBUtilities.getBroadcastAddress(), makePendingFile(true, 100, OperationType.BOOTSTRAP), 124L);

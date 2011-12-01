@@ -56,6 +56,16 @@ public class Util
         return StorageService.getPartitioner().decorateKey(ByteBufferUtil.bytes(key));
     }
 
+    public static RowPosition rp(String key)
+    {
+        return rp(key, StorageService.getPartitioner());
+    }
+
+    public static RowPosition rp(String key, IPartitioner partitioner)
+    {
+        return RowPosition.forKey(ByteBufferUtil.bytes(key), partitioner);
+    }
+
     public static Column column(String name, String value, long timestamp)
     {
         return new Column(ByteBufferUtil.bytes(name), ByteBufferUtil.bytes(value), timestamp);
@@ -74,19 +84,19 @@ public class Util
         return StorageService.getPartitioner().getToken(ByteBufferUtil.bytes(key));
     }
 
-    public static Range range(String left, String right)
+    public static Range<RowPosition> range(String left, String right)
     {
-        return new Range(token(left), token(right));
+        return new Range<RowPosition>(rp(left), rp(right));
     }
 
-    public static Range range(IPartitioner p, String left, String right)
+    public static Range<RowPosition> range(IPartitioner p, String left, String right)
     {
-        return new Range(p.getToken(ByteBufferUtil.bytes(left)), p.getToken(ByteBufferUtil.bytes(right)));
+        return new Range<RowPosition>(rp(left, p), rp(right, p));
     }
 
-    public static Bounds bounds(String left, String right)
+    public static Bounds<RowPosition> bounds(String left, String right)
     {
-        return new Bounds(token(left), token(right));
+        return new Bounds<RowPosition>(rp(left), rp(right));
     }
 
     public static void addMutation(RowMutation rm, String columnFamilyName, String superColumnName, long columnName, String value, long timestamp)
@@ -121,7 +131,7 @@ public class Util
     {
         Token min = StorageService.getPartitioner().getMinimumToken();
         return cfs.getRangeSlice(superColumn,
-                                 new Bounds(min, min),
+                                 new Bounds<Token>(min, min).toRowBounds(),
                                  10000,
                                  new IdentityQueryFilter());
     }

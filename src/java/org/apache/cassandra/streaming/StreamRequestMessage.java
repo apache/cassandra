@@ -31,6 +31,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.FastByteArrayOutputStream;
 import org.apache.cassandra.net.CompactEndpointSerializationHelper;
@@ -67,12 +68,12 @@ class StreamRequestMessage implements MessageProducer
     protected final PendingFile file;
     
     // if these are specified, file shoud not be.
-    protected final Collection<Range> ranges;
+    protected final Collection<Range<Token>> ranges;
     protected final String table;
     protected final Iterable<ColumnFamilyStore> columnFamilies;
     protected final OperationType type;
 
-    StreamRequestMessage(InetAddress target, Collection<Range> ranges, String table, Iterable<ColumnFamilyStore> columnFamilies, long sessionId, OperationType type)
+    StreamRequestMessage(InetAddress target, Collection<Range<Token>> ranges, String table, Iterable<ColumnFamilyStore> columnFamilies, long sessionId, OperationType type)
     {
         this.target = target;
         this.ranges = ranges;
@@ -120,7 +121,7 @@ class StreamRequestMessage implements MessageProducer
             sb.append("@");
             sb.append(target);
             sb.append("------->");
-            for ( Range range : ranges )
+            for ( Range<Token> range : ranges )
             {
                 sb.append(range);
                 sb.append(" ");
@@ -150,9 +151,9 @@ class StreamRequestMessage implements MessageProducer
                 dos.writeBoolean(false);
                 dos.writeUTF(srm.table);
                 dos.writeInt(srm.ranges.size());
-                for (Range range : srm.ranges)
+                for (Range<Token> range : srm.ranges)
                 {
-                    AbstractBounds.serializer().serialize(range, dos);
+                    AbstractBounds.serializer().serialize(range, dos, version);
                 }
 
                 if (version > MessagingService.VERSION_07)
@@ -181,10 +182,10 @@ class StreamRequestMessage implements MessageProducer
             {
                 String table = dis.readUTF();
                 int size = dis.readInt();
-                List<Range> ranges = (size == 0) ? null : new ArrayList<Range>();
+                List<Range<Token>> ranges = (size == 0) ? null : new ArrayList<Range<Token>>();
                 for( int i = 0; i < size; ++i )
                 {
-                    ranges.add((Range) AbstractBounds.serializer().deserialize(dis));
+                    ranges.add((Range<Token>) AbstractBounds.serializer().deserialize(dis, version).toTokenBounds());
                 }
                 OperationType type = OperationType.RESTORE_REPLICA_COUNT;
                 if (version > MessagingService.VERSION_07)

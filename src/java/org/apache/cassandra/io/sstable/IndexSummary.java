@@ -26,6 +26,7 @@ import java.util.List;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.RowPosition;
 
 /**
  * Two approaches to building an IndexSummary:
@@ -86,10 +87,12 @@ public class IndexSummary
      */
     public static final class KeyPosition implements Comparable<KeyPosition>
     {
-        public final DecoratedKey<?> key;
+        // We allow RowPosition for the purpose of being able to select keys given a token, but the index
+        // should only contain true user provided keys, i.e. DecoratedKey, which is enforced by addEntry.
+        public final RowPosition key;
         public final long indexPosition;
 
-        public KeyPosition(DecoratedKey<?> key, long indexPosition)
+        public KeyPosition(RowPosition key, long indexPosition)
         {
             this.key = key;
             this.indexPosition = indexPosition;

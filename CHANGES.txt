@@ -11,6 +11,7 @@
  * Use faster bytes comparison (CASSANDRA-3434)
  * Bulk loader is no longer a fat client, (HADOOP) bulk load output format
    (CASSANDRA-3045)
+ * remove assumption that keys and token are in bijection (CASSANDRA-1034)
 
 
 1.0.5

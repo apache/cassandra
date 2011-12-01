@@ -23,21 +23,23 @@ import static java.util.Arrays.asList;
 
 import org.junit.Test;
 
+import org.apache.cassandra.db.RowPosition;
+import org.apache.cassandra.dht.RingPosition;
 import static org.apache.cassandra.Util.range;
 import static org.apache.cassandra.Util.bounds;
 
 public class AbstractBoundsTest
 {
-    private void assertNormalize(List<? extends AbstractBounds> input, List<? extends AbstractBounds> expected)
+    private <T extends RingPosition> void assertNormalize(List<? extends AbstractBounds<T>> input, List<? extends AbstractBounds<T>> expected)
     {
-        List<AbstractBounds> result = AbstractBounds.normalize(input);
+        List<AbstractBounds<T>> result = AbstractBounds.normalize(input);
         assert result.equals(expected) : "Expecting " + expected + " but got " + result;
     }
 
     @Test
     public void testNormalizeNoop()
     {
-        List<? extends AbstractBounds> l;
+        List<? extends AbstractBounds<RowPosition>> l;
 
         l = asList(range("1", "3"), range("4", "5"));
         assert AbstractBounds.normalize(l).equals(l);
@@ -49,7 +51,7 @@ public class AbstractBoundsTest
     @Test
     public void testNormalizeSimpleOverlap()
     {
-        List<? extends AbstractBounds> input, expected;
+        List<? extends AbstractBounds<RowPosition>> input, expected;
 
         input = asList(range("1", "4"), range("3", "5"));
         expected = asList(range("1", "5"));
@@ -75,7 +77,7 @@ public class AbstractBoundsTest
     @Test
     public void testNormalizeSort()
     {
-        List<? extends AbstractBounds> input, expected;
+        List<? extends AbstractBounds<RowPosition>> input, expected;
 
         input = asList(range("4", "5"), range("1", "3"));
         expected = asList(range("1", "3"), range("4", "5"));
@@ -89,7 +91,7 @@ public class AbstractBoundsTest
     @Test
     public void testNormalizeUnwrap()
     {
-        List<? extends AbstractBounds> input, expected;
+        List<? extends AbstractBounds<RowPosition>> input, expected;
 
         input = asList(range("9", "2"));
         expected = asList(range("", "2"), range("9", ""));
@@ -101,7 +103,7 @@ public class AbstractBoundsTest
     @Test
     public void testNormalizeComplex()
     {
-        List<? extends AbstractBounds> input, expected;
+        List<? extends AbstractBounds<RowPosition>> input, expected;
 
         input = asList(range("8", "2"), range("7", "9"), range("4", "5"));
         expected = asList(range("", "2"), range("4", "5"), range("7", ""));

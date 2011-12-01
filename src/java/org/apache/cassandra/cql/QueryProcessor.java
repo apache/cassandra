@@ -45,7 +45,6 @@ import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.db.migration.*;
 import org.apache.cassandra.dht.*;
-import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
@@ -151,23 +150,23 @@ public class QueryProcessor
 
         AbstractType<?> keyType = Schema.instance.getCFMetaData(metadata.ksName, select.getColumnFamily()).getKeyValidator();
 
-        ByteBuffer startKey = (select.getKeyStart() != null)
-                               ? select.getKeyStart().getByteBuffer(keyType)
-                               : (new Term()).getByteBuffer();
+        ByteBuffer startKeyBytes = (select.getKeyStart() != null)
+                                   ? select.getKeyStart().getByteBuffer(keyType)
+                                   : (new Term()).getByteBuffer();
 
-        ByteBuffer finishKey = (select.getKeyFinish() != null)
-                                ? select.getKeyFinish().getByteBuffer(keyType)
-                                : (new Term()).getByteBuffer();
+        ByteBuffer finishKeyBytes = (select.getKeyFinish() != null)
+                                    ? select.getKeyFinish().getByteBuffer(keyType)
+                                    : (new Term()).getByteBuffer();
 
-        Token startToken = p.getToken(startKey), finishToken = p.getToken(finishKey);
-        if (startToken.compareTo(finishToken) > 0 && !finishToken.equals(p.getMinimumToken()))
+        RowPosition startKey = p.decorateKey(startKeyBytes), finishKey = p.decorateKey(finishKeyBytes);
+        if (startKey.compareTo(finishKey) > 0 && !finishKey.isMinimum(p))
         {
             if (p instanceof RandomPartitioner)
-                throw new InvalidRequestException("Start key's md5 sorts after end key's md5. This is not allowed; you probably should not specify end key at all, under RandomPartitioner");
+                throw new InvalidRequestException("Start key sorts after end key. This is not allowed; you probably should not specify end key at all, under RandomPartitioner");
             else
                 throw new InvalidRequestException("Start key must sort before (or equal to) finish key in your partitioner!");
         }
-        AbstractBounds bounds = new Bounds(startToken, finishToken);
+        AbstractBounds<RowPosition> bounds = new Bounds<RowPosition>(startKey, finishKey);
         
         // XXX: Our use of Thrift structs internally makes me Sad. :(
         SlicePredicate thriftSlicePredicate = slicePredicateFromSelect(select, metadata);

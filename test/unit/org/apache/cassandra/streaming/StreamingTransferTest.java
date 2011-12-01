@@ -36,6 +36,7 @@ import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.SSTableUtils;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.service.StorageService;
@@ -116,9 +117,9 @@ public class StreamingTransferTest extends CleanupHelper
     private void transfer(Table table, SSTableReader sstable) throws Exception
     {
         IPartitioner p = StorageService.getPartitioner();
-        List<Range> ranges = new ArrayList<Range>();
-        ranges.add(new Range(p.getMinimumToken(), p.getToken(ByteBufferUtil.bytes("key1"))));
-        ranges.add(new Range(p.getToken(ByteBufferUtil.bytes("key2")), p.getMinimumToken()));
+        List<Range<Token>> ranges = new ArrayList<Range<Token>>();
+        ranges.add(new Range<Token>(p.getMinimumToken(), p.getToken(ByteBufferUtil.bytes("key1"))));
+        ranges.add(new Range<Token>(p.getToken(ByteBufferUtil.bytes("key2")), p.getMinimumToken()));
         StreamOutSession session = StreamOutSession.create(table.name, LOCAL, null);
         StreamOut.transferSSTables(session, Arrays.asList(sstable), ranges, OperationType.BOOTSTRAP);
         session.await();
@@ -155,7 +156,7 @@ public class StreamingTransferTest extends CleanupHelper
                                                        ByteBufferUtil.bytes(val));
             IndexClause clause = new IndexClause(Arrays.asList(expr), ByteBufferUtil.EMPTY_BYTE_BUFFER, 100);
             IFilter filter = new IdentityQueryFilter();
-            Range range = new Range(p.getMinimumToken(), p.getMinimumToken());
+            Range<RowPosition> range = Util.range("", "");
             List<Row> rows = cfs.search(clause, range, filter);
             assertEquals(1, rows.size());
             assert rows.get(0).key.key.equals(ByteBufferUtil.bytes(key));
@@ -255,9 +256,9 @@ public class StreamingTransferTest extends CleanupHelper
 
         // transfer the first and last key
         IPartitioner p = StorageService.getPartitioner();
-        List<Range> ranges = new ArrayList<Range>();
-        ranges.add(new Range(p.getMinimumToken(), p.getToken(ByteBufferUtil.bytes("test"))));
-        ranges.add(new Range(p.getToken(ByteBufferUtil.bytes("transfer2")), p.getMinimumToken()));
+        List<Range<Token>> ranges = new ArrayList<Range<Token>>();
+        ranges.add(new Range<Token>(p.getMinimumToken(), p.getToken(ByteBufferUtil.bytes("test"))));
+        ranges.add(new Range<Token>(p.getToken(ByteBufferUtil.bytes("transfer2")), p.getMinimumToken()));
         // Acquiring references, transferSSTables needs it
         sstable.acquireReference();
         sstable2.acquireReference();
@@ -308,10 +309,10 @@ public class StreamingTransferTest extends CleanupHelper
         Map.Entry<DecoratedKey,String> first = keys.firstEntry();
         Map.Entry<DecoratedKey,String> last = keys.lastEntry();
         Map.Entry<DecoratedKey,String> secondtolast = keys.lowerEntry(last.getKey());
-        List<Range> ranges = new ArrayList<Range>();
-        ranges.add(new Range(p.getMinimumToken(), first.getKey().token));
+        List<Range<Token>> ranges = new ArrayList<Range<Token>>();
+        ranges.add(new Range<Token>(p.getMinimumToken(), first.getKey().token));
         // the left hand side of the range is exclusive, so we transfer from the second-to-last token
-        ranges.add(new Range(secondtolast.getKey().token, p.getMinimumToken()));
+        ranges.add(new Range<Token>(secondtolast.getKey().token, p.getMinimumToken()));
 
         // Acquiring references, transferSSTables needs it
         if (!SSTableReader.acquireReferences(ssTableReaders))

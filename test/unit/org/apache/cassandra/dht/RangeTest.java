@@ -300,17 +300,17 @@ public class RangeTest
         Token t2 = new BytesToken(ByteBuffer.wrap(new byte[] { 1,2,3 }));
         Token t3 = new BytesToken(ByteBuffer.wrap(new byte[]{1, 2, 3, 4}));
 
-        assert Range.compare(t1, t2) == 0;
-        assert Range.compare(t1, t3) == -1;
-        assert Range.compare(t3, t1) == 1;
-        assert Range.compare(t1, t1) == 0;
+        assert t1.compareTo(t2) == 0;
+        assert t1.compareTo(t3) < 0;
+        assert t3.compareTo(t1) > 0;
+        assert t1.compareTo(t1) == 0;
 
         Token t4 = new BytesToken(new byte[] { 1,2,3 });
         Token t5 = new BytesToken(new byte[] { 4,5,6,7 });
 
-        assert Range.compare(t4, t5) < 0;
-        assert Range.compare(t5, t4) > 0;
-        assert Range.compare(t1, t4) == 0;
+        assert t4.compareTo(t5) < 0;
+        assert t5.compareTo(t4) > 0;
+        assert t1.compareTo(t4) == 0;
     }
 
     private Range makeRange(String token1, String token2)

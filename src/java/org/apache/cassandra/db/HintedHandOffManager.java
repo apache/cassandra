@@ -402,8 +402,8 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
 
         // From keys "" to ""...
         IPartitioner<?> partitioner = StorageService.getPartitioner();
-        ByteBuffer empty = ByteBufferUtil.EMPTY_BYTE_BUFFER;
-        Range range = new Range(partitioner.getToken(empty), partitioner.getToken(empty));
+        RowPosition minPos = partitioner.getMinimumToken().minKeyBound();
+        Range<RowPosition> range = new Range<RowPosition>(minPos, minPos);
 
         // Get a bunch of rows!
         List<Row> rows;

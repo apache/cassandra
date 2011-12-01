@@ -50,6 +50,7 @@ import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.RingPosition;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.Gossiper;
@@ -259,8 +260,9 @@ public class StorageProxy implements StorageProxyMBean
     private static Collection<InetAddress> getWriteEndpoints(String table, ByteBuffer key)
     {
         StorageService ss = StorageService.instance;
-        List<InetAddress> naturalEndpoints = ss.getNaturalEndpoints(table, key);
-        return ss.getTokenMetadata().getWriteEndpoints(StorageService.getPartitioner().getToken(key), table, naturalEndpoints);
+        Token tk = StorageService.getPartitioner().getToken(key);
+        List<InetAddress> naturalEndpoints = ss.getNaturalEndpoints(table, tk);
+        return ss.getTokenMetadata().getWriteEndpoints(tk, table, naturalEndpoints);
     }
 
     /**
@@ -817,8 +819,8 @@ public class StorageProxy implements StorageProxyMBean
         try
         {
             rows = new ArrayList<Row>(command.max_keys);
-            List<AbstractBounds> ranges = getRestrictedRanges(command.range);
-            for (AbstractBounds range : ranges)
+            List<AbstractBounds<RowPosition>> ranges = getRestrictedRanges(command.range);
+            for (AbstractBounds<RowPosition> range : ranges)
             {
                 List<InetAddress> liveEndpoints = StorageService.instance.getLiveNaturalEndpoints(command.keyspace, range.right);
                 DatabaseDescriptor.getEndpointSnitch().sortByProximity(FBUtilities.getBroadcastAddress(), liveEndpoints);
@@ -979,10 +981,10 @@ public class StorageProxy implements StorageProxyMBean
      * Compute all ranges we're going to query, in sorted order. Nodes can be replica destinations for many ranges,
      * so we need to restrict each scan to the specific range we want, or else we'd get duplicate results.
      */
-    static List<AbstractBounds> getRestrictedRanges(final AbstractBounds queryRange)
+    static <T extends RingPosition> List<AbstractBounds<T>> getRestrictedRanges(final AbstractBounds<T> queryRange)
     {
         // special case for bounds containing exactly 1 (non-minimum) token
-        if (queryRange instanceof Bounds && queryRange.left.equals(queryRange.right) && !queryRange.left.equals(StorageService.getPartitioner().getMinimumToken()))
+        if (queryRange instanceof Bounds && queryRange.left.equals(queryRange.right) && !queryRange.left.isMinimum(StorageService.getPartitioner()))
         {
             if (logger.isDebugEnabled())
                 logger.debug("restricted single token match for query {}", queryRange);
@@ -991,17 +993,28 @@ public class StorageProxy implements StorageProxyMBean
 
         TokenMetadata tokenMetadata = StorageService.instance.getTokenMetadata();
 
-        List<AbstractBounds> ranges = new ArrayList<AbstractBounds>();
+        List<AbstractBounds<T>> ranges = new ArrayList<AbstractBounds<T>>();
         // divide the queryRange into pieces delimited by the ring and minimum tokens
-        Iterator<Token> ringIter = TokenMetadata.ringIterator(tokenMetadata.sortedTokens(), queryRange.left, true);
-        AbstractBounds remainder = queryRange;
+        Iterator<Token> ringIter = TokenMetadata.ringIterator(tokenMetadata.sortedTokens(), queryRange.left.getToken(), true);
+        AbstractBounds<T> remainder = queryRange;
         while (ringIter.hasNext())
         {
             Token token = ringIter.next();
-            if (remainder == null || !(remainder.left.equals(token) || remainder.contains(token)))
+            /*
+             * remainder can be a range/bounds of token _or_ keys and we want to split it with a token:
+             *   - if remainder is tokens, then we'll just split using the provided token.
+             *   - if reaminer is keys, we want to split using token.upperBoundKey. For instance, if remainder
+             *     is [DK(10, 'foo'), DK(20, 'bar')], and we have 3 nodes with tokens 0, 15, 30. We want to
+             *     split remainder to A=[DK(10, 'foo'), 15] and B=(15, DK(20, 'bar')]. But since we can't mix
+             *     tokens and keys at the same time in a range, we uses 15.upperBoundKey() to have A include all
+             *     keys having 15 as token and B include none of those (since that is what our node owns).
+             * asSplitValue() abstracts that choice.
+             */
+            T splitValue = (T)token.asSplitValue(queryRange.left.getClass());
+            if (remainder == null || !(remainder.left.equals(splitValue) || remainder.contains(splitValue)))
                 // no more splits
                 break;
-            Pair<AbstractBounds,AbstractBounds> splits = remainder.split(token);
+            Pair<AbstractBounds<T>,AbstractBounds<T>> splits = remainder.split(splitValue);
             if (splits.left != null)
                 ranges.add(splits.left);
             remainder = splits.right;
@@ -1094,13 +1107,13 @@ public class StorageProxy implements StorageProxyMBean
     {
         IPartitioner p = StorageService.getPartitioner();
 
-        Token leftToken = index_clause.start_key == null ? p.getMinimumToken() : p.getToken(index_clause.start_key);
-        List<AbstractBounds> ranges = getRestrictedRanges(new Bounds(leftToken, p.getMinimumToken()));
+        RowPosition leftPos = RowPosition.forKey(index_clause.start_key, p);
+        List<AbstractBounds<RowPosition>> ranges = getRestrictedRanges(new Bounds<RowPosition>(leftPos, p.getMinimumToken().minKeyBound()));
         logger.debug("scan ranges are {}", StringUtils.join(ranges, ","));
 
         // now scan until we have enough results
         List<Row> rows = new ArrayList<Row>(index_clause.count);
-        for (AbstractBounds range : ranges)
+        for (AbstractBounds<RowPosition> range : ranges)
         {
             List<InetAddress> liveEndpoints = StorageService.instance.getLiveNaturalEndpoints(keyspace, range.right);
             DatabaseDescriptor.getEndpointSnitch().sortByProximity(FBUtilities.getBroadcastAddress(), liveEndpoints);

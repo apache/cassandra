@@ -85,7 +85,7 @@ public class KeysSearcher extends SecondaryIndexSearcher
     }
     
     @Override
-    public List<Row> search(IndexClause clause, AbstractBounds range, IFilter dataFilter)
+    public List<Row> search(IndexClause clause, AbstractBounds<RowPosition> range, IFilter dataFilter)
     {
         // Start with the most-restrictive indexed clause, then apply remaining clauses
         // to each row matching that clause.
@@ -181,9 +181,9 @@ public class KeysSearcher extends SecondaryIndexSearcher
                     logger.debug("fetching {}",column.name());
 
                 DecoratedKey dk = baseCfs.partitioner.decorateKey(dataKey);
-                if (!range.right.equals(baseCfs.partitioner.getMinimumToken()) && range.right.compareTo(dk.token) < 0)
+                if (!range.right.isMinimum(baseCfs.partitioner) && range.right.compareTo(dk) < 0)
                     break outer;
-                if (!range.contains(dk.token) || dataKey.equals(lastDataKey))
+                if (!range.contains(dk) || dataKey.equals(lastDataKey))
                     continue;
 
                 // get the row columns requested, and additional columns for the expressions if necessary

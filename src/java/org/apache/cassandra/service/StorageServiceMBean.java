@@ -116,7 +116,7 @@ public interface StorageServiceMBean
      *
      * @return mapping of ranges to end points
      */
-    public Map<Range, List<String>> getRangeToEndpointMap(String keyspace);
+    public Map<Range<Token>, List<String>> getRangeToEndpointMap(String keyspace);
 
     /**
      * Retrieve a map of range to rpc addresses that describe the ring topology
@@ -124,14 +124,14 @@ public interface StorageServiceMBean
      *
      * @return mapping of ranges to rpc addresses
      */
-    public Map<Range, List<String>> getRangeToRpcaddressMap(String keyspace);
+    public Map<Range<Token>, List<String>> getRangeToRpcaddressMap(String keyspace);
 
     /**
      * Retrieve a map of pending ranges to endpoints that describe the ring topology
      * @param keyspace the keyspace to get the pending range map for.
      * @return a map of pending ranges to endpoints
      */
-    public Map<Range, List<String>> getPendingRangeToEndpointMap(String keyspace);
+    public Map<Range<Token>, List<String>> getPendingRangeToEndpointMap(String keyspace);
 
     /**
      * Retrieve a map of tokens to endpoints, including the bootstrapping

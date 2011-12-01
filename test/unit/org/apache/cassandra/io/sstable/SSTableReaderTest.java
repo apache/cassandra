@@ -72,15 +72,15 @@ public class SSTableReaderTest extends CleanupHelper
         store.forceBlockingFlush();
         CompactionManager.instance.performMaximal(store);
 
-        List<Range> ranges = new ArrayList<Range>();
+        List<Range<Token>> ranges = new ArrayList<Range<Token>>();
         // 1 key
-        ranges.add(new Range(t(0), t(1)));
+        ranges.add(new Range<Token>(t(0), t(1)));
         // 2 keys
-        ranges.add(new Range(t(2), t(4)));
+        ranges.add(new Range<Token>(t(2), t(4)));
         // wrapping range from key to end
-        ranges.add(new Range(t(6), StorageService.getPartitioner().getMinimumToken()));
+        ranges.add(new Range<Token>(t(6), StorageService.getPartitioner().getMinimumToken()));
         // empty range (should be ignored)
-        ranges.add(new Range(t(9), t(91)));
+        ranges.add(new Range<Token>(t(9), t(91)));
 
         // confirm that positions increase continuously
         SSTableReader sstable = store.getSSTables().iterator().next();
@@ -188,9 +188,9 @@ public class SSTableReaderTest extends CleanupHelper
         assert p.right == p7;
     }
 
-    private List<Range> makeRanges(Token left, Token right)
+    private List<Range<Token>> makeRanges(Token left, Token right)
     {
-        return Arrays.asList(new Range[]{ new Range(left, right) });
+        return Arrays.<Range<Token>>asList(new Range[]{ new Range<Token>(left, right) });
     }
 
     private DecoratedKey k(int i)

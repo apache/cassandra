@@ -82,7 +82,7 @@ public class BootStrapperTest extends CleanupHelper
             assert bootstrapSource.equals(addrs[i]) : String.format("expected %s but got %s for %d", addrs[i], bootstrapSource, i);
             assert !ss.getTokenMetadata().getBootstrapTokens().containsValue(bootstrapSource);
             
-            Range range = ss.getPrimaryRangeForEndpoint(bootstrapSource);
+            Range<Token> range = ss.getPrimaryRangeForEndpoint(bootstrapSource);
             Token token = StorageService.getPartitioner().midpoint(range.left, range.right);
             assert range.contains(token);
             ss.onChange(bootstrapAddrs[i], ApplicationState.STATUS, StorageService.instance.valueFactory.bootstrapping(token));
@@ -100,7 +100,7 @@ public class BootStrapperTest extends CleanupHelper
         }
         
         // indicate that one of the nodes is done. see if the node it was bootstrapping from is still available.
-        Range range = ss.getPrimaryRangeForEndpoint(addrs[2]);
+        Range<Token> range = ss.getPrimaryRangeForEndpoint(addrs[2]);
         Token token = StorageService.getPartitioner().midpoint(range.left, range.right);
         ss.onChange(bootstrapAddrs[2], ApplicationState.STATUS, StorageService.instance.valueFactory.normal(token));
         load.put(bootstrapAddrs[2], 0d);
@@ -131,7 +131,7 @@ public class BootStrapperTest extends CleanupHelper
         assert five.equals(source) : five + " != " + source;
 
         InetAddress myEndpoint = InetAddress.getByName("127.0.0.1");
-        Range range5 = ss.getPrimaryRangeForEndpoint(five);
+        Range<Token> range5 = ss.getPrimaryRangeForEndpoint(five);
         Token fakeToken = StorageService.getPartitioner().midpoint(range5.left, range5.right);
         assert range5.contains(fakeToken);
         ss.onChange(myEndpoint, ApplicationState.STATUS, StorageService.instance.valueFactory.bootstrapping(fakeToken));
@@ -165,10 +165,10 @@ public class BootStrapperTest extends CleanupHelper
         TokenMetadata tmd = ss.getTokenMetadata();
         assertEquals(numOldNodes, tmd.sortedTokens().size());
         BootStrapper b = new BootStrapper(myEndpoint, myToken, tmd);
-        Multimap<Range, InetAddress> res = b.getRangesWithSources(table);
+        Multimap<Range<Token>, InetAddress> res = b.getRangesWithSources(table);
         
         int transferCount = 0;
-        for (Map.Entry<Range, Collection<InetAddress>> e : res.asMap().entrySet())
+        for (Map.Entry<Range<Token>, Collection<InetAddress>> e : res.asMap().entrySet())
         {
             assert e.getValue() != null && e.getValue().size() > 0 : StringUtils.join(e.getValue(), ", ");
             transferCount++;
@@ -189,7 +189,7 @@ public class BootStrapperTest extends CleanupHelper
             public void remove(InetAddress ep) { throw new UnsupportedOperationException(); }
             public void clear(InetAddress ep) { throw new UnsupportedOperationException(); }
         };
-        Multimap<InetAddress, Range> temp = BootStrapper.getWorkMap(res, mockFailureDetector);
+        Multimap<InetAddress, Range<Token>> temp = BootStrapper.getWorkMap(res, mockFailureDetector);
         // there isn't any point in testing the size of these collections for any specific size.  When a random partitioner
         // is used, they will vary.
         assert temp.keySet().size() > 0;

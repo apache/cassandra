@@ -28,6 +28,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.RowPosition;
 import org.apache.cassandra.db.columniterator.IColumnIterator;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.io.util.RandomAccessReader;
@@ -84,7 +85,7 @@ public class SSTableScanner implements CloseableIterator<IColumnIterator>
         file.close();
     }
 
-    public void seekTo(DecoratedKey<?> seekKey)
+    public void seekTo(RowPosition seekKey)
     {
         try
         {

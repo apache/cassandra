@@ -65,7 +65,7 @@ public abstract class PartitionerTestCase<T extends Token>
     private void assertMidpoint(Token left, Token right, Random rand, int depth)
     {
         Token mid = partitioner.midpoint(left, right);
-        assert new Range(left, right).contains(mid)
+        assert new Range<Token>(left, right).contains(mid)
                 : "For " + left + "," + right + ": range did not contain mid:" + mid;
         if (depth < 1)
             return;

@@ -34,6 +34,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
@@ -298,10 +299,10 @@ public class LeveledManifest
         List<SSTableReader> overlapped = new ArrayList<SSTableReader>();
         overlapped.add(sstable);
 
-        Range promotedRange = new Range(sstable.first.token, sstable.last.token);
+        Range<Token> promotedRange = new Range<Token>(sstable.first.token, sstable.last.token);
         for (SSTableReader candidate : candidates)
         {
-            Range candidateRange = new Range(candidate.first.token, candidate.last.token);
+            Range<Token> candidateRange = new Range<Token>(candidate.first.token, candidate.last.token);
             if (candidateRange.intersects(promotedRange))
                 overlapped.add(candidate);
         }

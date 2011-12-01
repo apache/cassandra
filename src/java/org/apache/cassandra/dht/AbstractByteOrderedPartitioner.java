@@ -32,7 +32,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Hex;
 import org.apache.cassandra.utils.Pair;
 
-public abstract class AbstractByteOrderedPartitioner implements IPartitioner<BytesToken>
+public abstract class AbstractByteOrderedPartitioner extends AbstractPartitioner<BytesToken>
 {
     public static final BytesToken MINIMUM = new BytesToken(ArrayUtils.EMPTY_BYTE_ARRAY);
 
@@ -180,14 +180,14 @@ public abstract class AbstractByteOrderedPartitioner implements IPartitioner<Byt
     {
         // allTokens will contain the count and be returned, sorted_ranges is shorthand for token<->token math.
         Map<Token, Float> allTokens = new HashMap<Token, Float>();
-        List<Range> sortedRanges = new ArrayList<Range>();
+        List<Range<Token>> sortedRanges = new ArrayList<Range<Token>>();
 
         // this initializes the counts to 0 and calcs the ranges in order.
         Token lastToken = sortedTokens.get(sortedTokens.size() - 1);
         for (Token node : sortedTokens)
         {
             allTokens.put(node, new Float(0.0));
-            sortedRanges.add(new Range(lastToken, node));
+            sortedRanges.add(new Range<Token>(lastToken, node));
             lastToken = node;
         }
 
@@ -195,7 +195,7 @@ public abstract class AbstractByteOrderedPartitioner implements IPartitioner<Byt
         {
             for (CFMetaData cfmd : Schema.instance.getKSMetaData(ks).cfMetaData().values())
             {
-                for (Range r : sortedRanges)
+                for (Range<Token> r : sortedRanges)
                 {
                     // Looping over every KS:CF:Range, get the splits size and add it to the count
                     allTokens.put(r.right, allTokens.get(r.right) + StorageService.instance.getSplits(ks, cfmd.cfName, r, 1).size());

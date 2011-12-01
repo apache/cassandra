@@ -87,6 +87,5 @@ public abstract class SecondaryIndexSearcher
         return new NamesQueryFilter(columns);
     }
     
-    
-    public abstract List<Row> search(IndexClause clause, AbstractBounds range, IFilter dataFilter);
+    public abstract List<Row> search(IndexClause clause, AbstractBounds<RowPosition> range, IFilter dataFilter);
 }

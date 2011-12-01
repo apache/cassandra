@@ -28,6 +28,7 @@ import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageSerializer;
 import org.apache.cassandra.net.MessagingService;
@@ -65,7 +66,7 @@ public class SerializationsTest extends AbstractSerializationsTester
         SlicePredicate nonEmptyRangePred = new SlicePredicate();
         nonEmptyRangePred.slice_range = nonEmptySliceRange;
         IPartitioner part = StorageService.getPartitioner();
-        AbstractBounds bounds = new Range(part.getRandomToken(), part.getRandomToken());
+        AbstractBounds<RowPosition> bounds = new Range<Token>(part.getRandomToken(), part.getRandomToken()).toRowBounds();
         
         Message namesCmd = new RangeSliceCommand(Statics.KS, "Standard1", null, namesPred, bounds, 100).getMessage(MessagingService.version_);
         Message emptyRangeCmd = new RangeSliceCommand(Statics.KS, "Standard1", null, emptyRangePred, bounds, 100).getMessage(MessagingService.version_);

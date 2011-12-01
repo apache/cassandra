@@ -490,7 +490,7 @@ public class SecondaryIndexManager
      * @param dataFilter the column range to restrict to
      * @return found indexed rows
      */
-    public List<Row> search(IndexClause clause, AbstractBounds range, IFilter dataFilter)
+    public List<Row> search(IndexClause clause, AbstractBounds<RowPosition> range, IFilter dataFilter)
     {
         List<SecondaryIndexSearcher> indexSearchers = getIndexSearchersForQuery(clause);
                

@@ -80,13 +80,13 @@ public class BootStrapper
         if (logger.isDebugEnabled())
             logger.debug("Beginning bootstrap process");
 
-        final Multimap<String, Map.Entry<InetAddress, Collection<Range>>> rangesToFetch = HashMultimap.create();
+        final Multimap<String, Map.Entry<InetAddress, Collection<Range<Token>>>> rangesToFetch = HashMultimap.create();
 
         int requests = 0;
         for (String table : Schema.instance.getNonSystemTables())
         {
-            Map<InetAddress, Collection<Range>> workMap = getWorkMap(getRangesWithSources(table)).asMap();
-            for (Map.Entry<InetAddress, Collection<Range>> entry : workMap.entrySet())
+            Map<InetAddress, Collection<Range<Token>>> workMap = getWorkMap(getRangesWithSources(table)).asMap();
+            for (Map.Entry<InetAddress, Collection<Range<Token>>> entry : workMap.entrySet())
             {
                 requests++;
                 rangesToFetch.put(table, entry);
@@ -97,9 +97,10 @@ public class BootStrapper
         for (final String table : rangesToFetch.keySet())
         {
             /* Send messages to respective folks to stream data over to me */
-            for (Map.Entry<InetAddress, Collection<Range>> entry : rangesToFetch.get(table))
+            for (Map.Entry<InetAddress, Collection<Range<Token>>> entry : rangesToFetch.get(table))
             {
                 final InetAddress source = entry.getKey();
+                Collection<Range<Token>> ranges = entry.getValue();
                 final Runnable callback = new Runnable()
                 {
                     public void run()
@@ -111,8 +112,8 @@ public class BootStrapper
                     }
                 };
                 if (logger.isDebugEnabled())
-                    logger.debug("Bootstrapping from " + source + " ranges " + StringUtils.join(entry.getValue(), ", "));
-                StreamIn.requestRanges(source, table, entry.getValue(), callback, OperationType.BOOTSTRAP);
+                    logger.debug("Bootstrapping from " + source + " ranges " + StringUtils.join(ranges, ", "));
+                StreamIn.requestRanges(source, table, ranges, callback, OperationType.BOOTSTRAP);
             }
         }
 
@@ -197,17 +198,17 @@ public class BootStrapper
     }
 
     /** get potential sources for each range, ordered by proximity (as determined by EndpointSnitch) */
-    Multimap<Range, InetAddress> getRangesWithSources(String table)
+    Multimap<Range<Token>, InetAddress> getRangesWithSources(String table)
     {
         assert tokenMetadata.sortedTokens().size() > 0;
         final AbstractReplicationStrategy strat = Table.open(table).getReplicationStrategy();
-        Collection<Range> myRanges = strat.getPendingAddressRanges(tokenMetadata, token, address);
+        Collection<Range<Token>> myRanges = strat.getPendingAddressRanges(tokenMetadata, token, address);
 
-        Multimap<Range, InetAddress> myRangeAddresses = ArrayListMultimap.create();
-        Multimap<Range, InetAddress> rangeAddresses = strat.getRangeAddresses(tokenMetadata);
-        for (Range myRange : myRanges)
+        Multimap<Range<Token>, InetAddress> myRangeAddresses = ArrayListMultimap.create();
+        Multimap<Range<Token>, InetAddress> rangeAddresses = strat.getRangeAddresses(tokenMetadata);
+        for (Range<Token> myRange : myRanges)
         {
-            for (Range range : rangeAddresses.keySet())
+            for (Range<Token> range : rangeAddresses.keySet())
             {
                 if (range.contains(myRange))
                 {
@@ -243,21 +244,21 @@ public class BootStrapper
         throw new RuntimeException("Bootstrap failed, could not obtain token from: " + maxEndpoint);
     }
 
-    public static Multimap<InetAddress, Range> getWorkMap(Multimap<Range, InetAddress> rangesWithSourceTarget)
+    public static Multimap<InetAddress, Range<Token>> getWorkMap(Multimap<Range<Token>, InetAddress> rangesWithSourceTarget)
     {
         return getWorkMap(rangesWithSourceTarget, FailureDetector.instance);
     }
 
-    static Multimap<InetAddress, Range> getWorkMap(Multimap<Range, InetAddress> rangesWithSourceTarget, IFailureDetector failureDetector)
+    static Multimap<InetAddress, Range<Token>> getWorkMap(Multimap<Range<Token>, InetAddress> rangesWithSourceTarget, IFailureDetector failureDetector)
     {
         /*
          * Map whose key is the source node and the value is a map whose key is the
          * target and value is the list of ranges to be sent to it.
         */
-        Multimap<InetAddress, Range> sources = ArrayListMultimap.create();
+        Multimap<InetAddress, Range<Token>> sources = ArrayListMultimap.create();
 
         // TODO look for contiguous ranges and map them to the same source
-        for (Range range : rangesWithSourceTarget.keySet())
+        for (Range<Token> range : rangesWithSourceTarget.keySet())
         {
             for (InetAddress source : rangesWithSourceTarget.get(range))
             {

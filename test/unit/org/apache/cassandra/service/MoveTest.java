@@ -184,35 +184,35 @@ public class MoveTest extends CleanupHelper
         *  }
         */
 
-        Multimap<InetAddress, Range> keyspace1ranges = tableStrategyMap.get("Keyspace1").getAddressRanges();
-        Collection<Range> ranges1 = keyspace1ranges.get(InetAddress.getByName("127.0.0.1"));
+        Multimap<InetAddress, Range<Token>> keyspace1ranges = tableStrategyMap.get("Keyspace1").getAddressRanges();
+        Collection<Range<Token>> ranges1 = keyspace1ranges.get(InetAddress.getByName("127.0.0.1"));
         assertEquals(collectionSize(ranges1), 1);
         assertTrue(ranges1.iterator().next().equals(generateRange(92, 0)));
-        Collection<Range> ranges2 = keyspace1ranges.get(InetAddress.getByName("127.0.0.2"));
+        Collection<Range<Token>> ranges2 = keyspace1ranges.get(InetAddress.getByName("127.0.0.2"));
         assertEquals(collectionSize(ranges2), 1);
         assertTrue(ranges2.iterator().next().equals(generateRange(0, 10)));
-        Collection<Range> ranges3 = keyspace1ranges.get(InetAddress.getByName("127.0.0.3"));
+        Collection<Range<Token>> ranges3 = keyspace1ranges.get(InetAddress.getByName("127.0.0.3"));
         assertEquals(collectionSize(ranges3), 1);
         assertTrue(ranges3.iterator().next().equals(generateRange(10, 20)));
-        Collection<Range> ranges4 = keyspace1ranges.get(InetAddress.getByName("127.0.0.4"));
+        Collection<Range<Token>> ranges4 = keyspace1ranges.get(InetAddress.getByName("127.0.0.4"));
         assertEquals(collectionSize(ranges4), 1);
         assertTrue(ranges4.iterator().next().equals(generateRange(20, 30)));
-        Collection<Range> ranges5 = keyspace1ranges.get(InetAddress.getByName("127.0.0.5"));
+        Collection<Range<Token>> ranges5 = keyspace1ranges.get(InetAddress.getByName("127.0.0.5"));
         assertEquals(collectionSize(ranges5), 1);
         assertTrue(ranges5.iterator().next().equals(generateRange(30, 40)));
-        Collection<Range> ranges6 = keyspace1ranges.get(InetAddress.getByName("127.0.0.6"));
+        Collection<Range<Token>> ranges6 = keyspace1ranges.get(InetAddress.getByName("127.0.0.6"));
         assertEquals(collectionSize(ranges6), 1);
         assertTrue(ranges6.iterator().next().equals(generateRange(40, 50)));
-        Collection<Range> ranges7 = keyspace1ranges.get(InetAddress.getByName("127.0.0.7"));
+        Collection<Range<Token>> ranges7 = keyspace1ranges.get(InetAddress.getByName("127.0.0.7"));
         assertEquals(collectionSize(ranges7), 1);
         assertTrue(ranges7.iterator().next().equals(generateRange(50, 62)));
-        Collection<Range> ranges8 = keyspace1ranges.get(InetAddress.getByName("127.0.0.8"));
+        Collection<Range<Token>> ranges8 = keyspace1ranges.get(InetAddress.getByName("127.0.0.8"));
         assertEquals(collectionSize(ranges8), 1);
         assertTrue(ranges8.iterator().next().equals(generateRange(62, 70)));
-        Collection<Range> ranges9 = keyspace1ranges.get(InetAddress.getByName("127.0.0.9"));
+        Collection<Range<Token>> ranges9 = keyspace1ranges.get(InetAddress.getByName("127.0.0.9"));
         assertEquals(collectionSize(ranges9), 1);
         assertTrue(ranges9.iterator().next().equals(generateRange(70, 82)));
-        Collection<Range> ranges10 = keyspace1ranges.get(InetAddress.getByName("127.0.0.10"));
+        Collection<Range<Token>> ranges10 = keyspace1ranges.get(InetAddress.getByName("127.0.0.10"));
         assertEquals(collectionSize(ranges10), 1);
         assertTrue(ranges10.iterator().next().equals(generateRange(82, 92)));
 
@@ -233,7 +233,7 @@ public class MoveTest extends CleanupHelper
         * }
         */
 
-        Multimap<InetAddress, Range> keyspace3ranges = tableStrategyMap.get("Keyspace3").getAddressRanges();
+        Multimap<InetAddress, Range<Token>> keyspace3ranges = tableStrategyMap.get("Keyspace3").getAddressRanges();
         ranges1 = keyspace3ranges.get(InetAddress.getByName("127.0.0.1"));
         assertEquals(collectionSize(ranges1), 5);
         assertTrue(ranges1.equals(generateRanges(92, 0, 70, 82, 50, 62, 82, 92, 62, 70)));
@@ -281,7 +281,7 @@ public class MoveTest extends CleanupHelper
          *      /127.0.0.10=[(70,82], (82,92], (62,70]]
          *  }
          */
-        Multimap<InetAddress, Range> keyspace4ranges = tableStrategyMap.get("Keyspace4").getAddressRanges();
+        Multimap<InetAddress, Range<Token>> keyspace4ranges = tableStrategyMap.get("Keyspace4").getAddressRanges();
         ranges1 = keyspace4ranges.get(InetAddress.getByName("127.0.0.1"));
         assertEquals(collectionSize(ranges1), 3);
         assertTrue(ranges1.equals(generateRanges(92, 0, 70, 82, 82, 92)));
@@ -535,12 +535,12 @@ public class MoveTest extends CleanupHelper
         return count;
     }
 
-    private Collection<Range> generateRanges(int... rangePairs)
+    private Collection<Range<Token>> generateRanges(int... rangePairs)
     {
         if (rangePairs.length % 2 == 1)
             throw new RuntimeException("generateRanges argument count should be even");
 
-        Set<Range> ranges = new HashSet<Range>();
+        Set<Range<Token>> ranges = new HashSet<Range<Token>>();
 
         for (int i = 0; i < rangePairs.length; i+=2)
         {
@@ -550,8 +550,8 @@ public class MoveTest extends CleanupHelper
         return ranges;
     }
 
-    private Range generateRange(int left, int right)
+    private Range<Token> generateRange(int left, int right)
     {
-        return new Range(new BigIntegerToken(String.valueOf(left)), new BigIntegerToken(String.valueOf(right)));
+        return new Range<Token>(new BigIntegerToken(String.valueOf(left)), new BigIntegerToken(String.valueOf(right)));
     }
 }

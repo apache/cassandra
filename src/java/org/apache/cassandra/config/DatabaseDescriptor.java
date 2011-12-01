@@ -580,6 +580,12 @@ public class DatabaseDescriptor
     {
         return partitioner;
     }
+
+    /* For tests ONLY, don't use otherwise or all hell will break loose */
+    public static void setPartitioner(IPartitioner newPartitioner)
+    {
+        partitioner = newPartitioner;
+    }
     
     public static IEndpointSnitch getEndpointSnitch()
     {

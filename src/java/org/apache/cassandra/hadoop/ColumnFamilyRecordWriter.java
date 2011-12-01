@@ -31,6 +31,7 @@ import java.util.concurrent.TimeUnit;
 
 import org.apache.cassandra.client.RingCache;
 import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
@@ -119,7 +120,7 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<Mutation>>
     @Override
     public void write(ByteBuffer keybuff, List<Mutation> value) throws IOException
     {
-        Range range = ringCache.getRange(keybuff);
+        Range<Token> range = ringCache.getRange(keybuff);
 
         // get the client for the given range, or create a new one
         RangeClient client = clients.get(range);

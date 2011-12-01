@@ -40,6 +40,7 @@ import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.dht.BytesToken;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.service.StorageService;
@@ -118,7 +119,7 @@ public class CleanupTest extends CleanupHelper
         IndexClause clause = new IndexClause(Arrays.asList(expr), ByteBufferUtil.EMPTY_BYTE_BUFFER, Integer.MAX_VALUE);
         IFilter filter = new IdentityQueryFilter();
         IPartitioner p = StorageService.getPartitioner();
-        Range range = new Range(p.getMinimumToken(), p.getMinimumToken());
+        Range<RowPosition> range = Util.range("", "");
         rows = table.getColumnFamilyStore(CF1).search(clause, range, filter);
         assertEquals(LOOPS, rows.size());
 
@@ -134,7 +135,7 @@ public class CleanupTest extends CleanupHelper
         CompactionManager.instance.performCleanup(cfs, new NodeId.OneShotRenewer());
 
         // row data should be gone
-        rows = cfs.getRangeSlice(null, Util.range("", ""), 1000, new IdentityQueryFilter());
+        rows = cfs.getRangeSlice(null, range, 1000, new IdentityQueryFilter());
         assertEquals(0, rows.size());
 
         // not only should it be gone but there should be no data on disk, not even tombstones

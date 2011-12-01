@@ -74,7 +74,10 @@ public class Memtable
     private final AtomicLong currentThroughput = new AtomicLong(0);
     private final AtomicLong currentOperations = new AtomicLong(0);
 
-    private final ConcurrentNavigableMap<DecoratedKey, ColumnFamily> columnFamilies = new ConcurrentSkipListMap<DecoratedKey, ColumnFamily>();
+    // We index the memtable by RowPosition only for the purpose of being able
+    // to select key range using Token.KeyBound. However put() ensures that we
+    // actually only store DecoratedKey.
+    private final ConcurrentNavigableMap<RowPosition, ColumnFamily> columnFamilies = new ConcurrentSkipListMap<RowPosition, ColumnFamily>();
     public final ColumnFamilyStore cfs;
     private final long creationTime;
 
@@ -157,7 +160,7 @@ public class Memtable
                 // So to reduce the memory overhead of doing a measurement, we break it up to row-at-a-time.
                 long deepSize = meter.measure(columnFamilies);
                 int objects = 0;
-                for (Map.Entry<DecoratedKey, ColumnFamily> entry : columnFamilies.entrySet())
+                for (Map.Entry<RowPosition, ColumnFamily> entry : columnFamilies.entrySet())
                 {
                     deepSize += meter.measureDeep(entry.getKey()) + meter.measureDeep(entry.getValue());
                     objects += entry.getValue().getColumnCount();
@@ -225,7 +228,7 @@ public class Memtable
     {
         StringBuilder builder = new StringBuilder();
         builder.append("{");
-        for (Map.Entry<DecoratedKey, ColumnFamily> entry : columnFamilies.entrySet())
+        for (Map.Entry<RowPosition, ColumnFamily> entry : columnFamilies.entrySet())
         {
             builder.append(entry.getKey()).append(": ").append(entry.getValue()).append(", ");
         }
@@ -239,8 +242,12 @@ public class Memtable
         logger.info("Writing " + this);
 
         long keySize = 0;
-        for (DecoratedKey key : columnFamilies.keySet())
-            keySize += key.key.remaining();
+        for (RowPosition key : columnFamilies.keySet())
+        {
+            //  make sure we don't write non-sensical keys
+            assert key instanceof DecoratedKey;
+            keySize += ((DecoratedKey)key).key.remaining();
+        }
         long estimatedSize = (long) ((keySize // index entries
                                       + keySize // keys in data file
                                       + currentThroughput.get()) // data
@@ -252,7 +259,7 @@ public class Memtable
         {
             // (we can't clear out the map as-we-go to free up memory,
             //  since the memtable is being used for queries in the "pending flush" category)
-            for (Map.Entry<DecoratedKey, ColumnFamily> entry : columnFamilies.entrySet())
+            for (Map.Entry<RowPosition, ColumnFamily> entry : columnFamilies.entrySet())
             {
                 ColumnFamily cf = entry.getValue();
                 if (cf.isMarkedForDelete())
@@ -263,7 +270,7 @@ public class Memtable
                     // is a CF level tombstone to ensure the delete makes it into an SSTable.
                     ColumnFamilyStore.removeDeletedColumnsOnly(cf, Integer.MIN_VALUE);
                 }
-                writer.append(entry.getKey(), cf);
+                writer.append((DecoratedKey)entry.getKey(), cf);
             }
 
             ssTable = writer.closeAndOpenReader();
@@ -300,9 +307,30 @@ public class Memtable
      * @param startWith Include data in the result from and including this key and to the end of the memtable
      * @return An iterator of entries with the data from the start key 
      */
-    public Iterator<Map.Entry<DecoratedKey, ColumnFamily>> getEntryIterator(DecoratedKey startWith)
+    public Iterator<Map.Entry<DecoratedKey, ColumnFamily>> getEntryIterator(final RowPosition startWith)
     {
-        return columnFamilies.tailMap(startWith).entrySet().iterator();
+        return new Iterator<Map.Entry<DecoratedKey, ColumnFamily>>()
+        {
+            private Iterator<Map.Entry<RowPosition, ColumnFamily>> iter = columnFamilies.tailMap(startWith).entrySet().iterator();
+
+            public boolean hasNext()
+            {
+                return iter.hasNext();
+            }
+
+            public Map.Entry<DecoratedKey, ColumnFamily> next()
+            {
+                Map.Entry<RowPosition, ColumnFamily> entry = iter.next();
+                // Actual stored key should be true DecoratedKey
+                assert entry.getKey() instanceof DecoratedKey;
+                return (Map.Entry<DecoratedKey, ColumnFamily>)(Object)entry; // yes, it's ugly
+            }
+
+            public void remove()
+            {
+                iter.remove();
+            }
+        };
     }
 
     public boolean isClean()

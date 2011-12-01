@@ -40,6 +40,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.CompactionInfo.Holder;
 import org.apache.cassandra.db.index.SecondaryIndexBuilder;
 import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
@@ -650,7 +651,7 @@ public class CompactionManager implements CompactionManagerMBean
     {
         assert !cfs.isIndex();
         Table table = cfs.table;
-        Collection<Range> ranges = StorageService.instance.getLocalRanges(table.name);
+        Collection<Range<Token>> ranges = StorageService.instance.getLocalRanges(table.name);
         boolean isCommutative = cfs.metadata.getDefaultValidator().isCommutative();
         if (ranges.isEmpty())
         {
@@ -693,7 +694,7 @@ public class CompactionManager implements CompactionManagerMBean
                     if (ci.isStopped())
                         throw new UserInterruptedException(ci.getCompactionInfo());
                     SSTableIdentityIterator row = (SSTableIdentityIterator) scanner.next();
-                    if (Range.isTokenInRanges(row.getKey().token, ranges))
+                    if (Range.isInRanges(row.getKey().token, ranges))
                     {
                         AbstractCompactedRow compactedRow = controller.getCompactedRow(row);
                         if (compactedRow.isEmpty())
@@ -944,14 +945,14 @@ public class CompactionManager implements CompactionManagerMBean
 
     private static class ValidationCompactionIterable extends CompactionIterable
     {
-        public ValidationCompactionIterable(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, Range range) throws IOException
+        public ValidationCompactionIterable(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, Range<Token> range) throws IOException
         {
             super(OperationType.VALIDATION,
                   getScanners(sstables, range),
                   new CompactionController(cfs, sstables, getDefaultGcBefore(cfs), true));
         }
 
-        protected static List<SSTableScanner> getScanners(Iterable<SSTableReader> sstables, Range range) throws IOException
+        protected static List<SSTableScanner> getScanners(Iterable<SSTableReader> sstables, Range<Token> range) throws IOException
         {
             ArrayList<SSTableScanner> scanners = new ArrayList<SSTableScanner>();
             for (SSTableReader sstable : sstables)

@@ -191,7 +191,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         IndexClause clause = new IndexClause(Arrays.asList(expr), ByteBufferUtil.EMPTY_BYTE_BUFFER, 100);
         IFilter filter = new IdentityQueryFilter();
         IPartitioner p = StorageService.getPartitioner();
-        Range range = new Range(p.getMinimumToken(), p.getMinimumToken());
+        Range<RowPosition> range = Util.range("", "");
         List<Row> rows = Table.open("Keyspace1").getColumnFamilyStore("Indexed1").indexManager.search(clause, range, filter);
 
         assert rows != null;
@@ -260,7 +260,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         IndexClause clause = new IndexClause(Arrays.asList(expr, expr2), ByteBufferUtil.EMPTY_BYTE_BUFFER, 100);
         IFilter filter = new IdentityQueryFilter();
         IPartitioner p = StorageService.getPartitioner();
-        Range range = new Range(p.getMinimumToken(), p.getMinimumToken());
+        Range<RowPosition> range = Util.range("", "");
         List<Row> rows = Table.open("Keyspace1").getColumnFamilyStore("Indexed1").search(clause, range, filter);
 
         assert rows != null;
@@ -286,7 +286,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         IndexClause clause = new IndexClause(Arrays.asList(expr), ByteBufferUtil.EMPTY_BYTE_BUFFER, 100);
         IFilter filter = new IdentityQueryFilter();
         IPartitioner p = StorageService.getPartitioner();
-        Range range = new Range(p.getMinimumToken(), p.getMinimumToken());
+        Range<RowPosition> range = Util.range("", "");
         List<Row> rows = cfs.search(clause, range, filter);
         assert rows.size() == 1 : StringUtils.join(rows, ",");
         String key = ByteBufferUtil.string(rows.get(0).key.key);
@@ -385,7 +385,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         IndexClause clause = new IndexClause(Arrays.asList(expr), ByteBufferUtil.EMPTY_BYTE_BUFFER, 100);
         IFilter filter = new IdentityQueryFilter();
         IPartitioner p = StorageService.getPartitioner();
-        Range range = new Range(p.getMinimumToken(), p.getMinimumToken());
+        Range<RowPosition> range = Util.range("", "");
         List<Row> rows = table.getColumnFamilyStore("Indexed1").search(clause, range, filter);
         assert rows.size() == 0;
 
@@ -438,7 +438,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         IndexClause clause = new IndexClause(Arrays.asList(new IndexExpression[]{ expr1, expr2 }), ByteBufferUtil.EMPTY_BYTE_BUFFER, 1);
         IFilter filter = new IdentityQueryFilter();
         IPartitioner p = StorageService.getPartitioner();
-        Range range = new Range(p.getMinimumToken(), p.getMinimumToken());
+        Range<RowPosition> range = Util.range("", "");
         List<Row> rows = Table.open("Keyspace1").getColumnFamilyStore("Indexed1").search(clause, range, filter);
 
         assert rows != null;
@@ -483,10 +483,23 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         IndexClause clause = new IndexClause(Arrays.asList(expr), ByteBufferUtil.EMPTY_BYTE_BUFFER, 100);
         IFilter filter = new IdentityQueryFilter();
         IPartitioner p = StorageService.getPartitioner();
-        Range range = new Range(p.getMinimumToken(), p.getMinimumToken());
-        List<Row> rows = table.getColumnFamilyStore("Indexed2").search(clause, range, filter);
+        List<Row> rows = table.getColumnFamilyStore("Indexed2").search(clause, Util.range("", ""), filter);
         assert rows.size() == 1 : StringUtils.join(rows, ",");
         assertEquals("k1", ByteBufferUtil.string(rows.get(0).key.key));
+    }
+
+    @Test
+    public void testInclusiveBounds() throws IOException, ExecutionException, InterruptedException
+    {
+        ColumnFamilyStore cfs = insertKey1Key2();
+
+        IPartitioner p = StorageService.getPartitioner();
+        List<Row> result = cfs.getRangeSlice(ByteBufferUtil.EMPTY_BYTE_BUFFER,
+                                             Util.bounds("key1", "key2"),
+                                             10,
+                                             new NamesQueryFilter(ByteBufferUtil.bytes("asdf")));
+        assertEquals(2, result.size());
+        assert result.get(0).key.key.equals(ByteBufferUtil.bytes("key1"));
     }
 
     @Test

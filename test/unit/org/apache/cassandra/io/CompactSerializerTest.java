@@ -43,6 +43,7 @@ public class CompactSerializerTest extends CleanupHelper
     {
         expectedClassNames = new HashSet<String>();
         expectedClassNames.add("RangeSliceCommandSerializer");
+        expectedClassNames.add("IndexScanCommandSerializer");
         expectedClassNames.add("ReadCommandSerializer");
         expectedClassNames.add("ReadResponseSerializer");
         expectedClassNames.add("RowSerializer");
@@ -68,6 +69,7 @@ public class CompactSerializerTest extends CleanupHelper
         expectedClassNames.add("CounterMutationSerializer");
         expectedClassNames.add("HashableSerializer");
         expectedClassNames.add("StreamingRepairTaskSerializer");
+        expectedClassNames.add("AbstractBoundsSerializer");
         
         discoveredClassNames = new ArrayList<String>();
         String cp = System.getProperty("java.class.path");

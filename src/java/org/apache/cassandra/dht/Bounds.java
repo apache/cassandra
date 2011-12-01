@@ -24,48 +24,69 @@ package org.apache.cassandra.dht;
 import java.util.Collections;
 import java.util.List;
 
+import org.apache.cassandra.db.RowPosition;
 import org.apache.cassandra.service.StorageService;
 
-public class Bounds extends AbstractBounds
+public class Bounds<T extends RingPosition> extends AbstractBounds<T>
 {
-    public Bounds(Token left, Token right)
+    public Bounds(T left, T right)
     {
         this(left, right, StorageService.getPartitioner());
     }
 
-    Bounds(Token left, Token right, IPartitioner partitioner)
+    Bounds(T left, T right, IPartitioner partitioner)
     {
         super(left, right, partitioner);
         // unlike a Range, a Bounds may not wrap
-        assert left.compareTo(right) <= 0 || right.equals(partitioner.getMinimumToken()) : "[" + left + "," + right + "]";
+        assert left.compareTo(right) <= 0 || right.isMinimum(partitioner) : "[" + left + "," + right + "]";
     }
 
-    public boolean contains(Token token)
+    public boolean contains(T position)
     {
-        return Range.contains(left, right, token) || left.equals(token);
+        return Range.contains(left, right, position) || left.equals(position);
     }
 
-    public AbstractBounds createFrom(Token token)
+    public AbstractBounds<T> createFrom(T position)
     {
-        return new Bounds(left, token, partitioner);
+        return new Bounds<T>(left, position, partitioner);
     }
 
-    public List<AbstractBounds> unwrap()
+    public List<? extends AbstractBounds<T>> unwrap()
     {
         // Bounds objects never wrap
-        return Collections.<AbstractBounds>singletonList(this);
+        return Collections.<AbstractBounds<T>>singletonList(this);
     }
 
+    @Override
     public boolean equals(Object o)
     {
         if (!(o instanceof Bounds))
             return false;
-        Bounds rhs = (Bounds)o;
+        Bounds<T> rhs = (Bounds<T>)o;
         return left.equals(rhs.left) && right.equals(rhs.right);
     }
 
+    @Override
     public String toString()
     {
         return "[" + left + "," + right + "]";
+    }
+
+    /**
+     * Compute a bounds of keys corresponding to a given bounds of token.
+     */
+    public static Bounds<RowPosition> makeRowBounds(Token left, Token right, IPartitioner partitioner)
+    {
+        return new Bounds<RowPosition>(left.minKeyBound(partitioner), right.maxKeyBound(partitioner), partitioner);
+    }
+
+    public AbstractBounds<RowPosition> toRowBounds()
+    {
+        return (left instanceof Token) ? makeRowBounds((Token)left, (Token)right, partitioner) : (Bounds<RowPosition>)this;
+    }
+
+    public AbstractBounds<Token> toTokenBounds()
+    {
+        return (left instanceof RowPosition) ? new Bounds<Token>(((RowPosition)left).getToken(), ((RowPosition)right).getToken(), partitioner) : (Bounds<Token>)this;
     }
 }

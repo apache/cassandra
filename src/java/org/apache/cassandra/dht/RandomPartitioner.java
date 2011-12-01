@@ -34,7 +34,7 @@ import org.apache.cassandra.utils.Pair;
 /**
  * This class generates a BigIntegerToken using MD5 hash.
  */
-public class RandomPartitioner implements IPartitioner<BigIntegerToken>
+public class RandomPartitioner extends AbstractPartitioner<BigIntegerToken>
 {
     public static final BigInteger ZERO = new BigInteger("0");
     public static final BigIntegerToken MINIMUM = new BigIntegerToken("-1");

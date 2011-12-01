@@ -42,7 +42,7 @@ public class SerializationsTest extends AbstractSerializationsTester
 {
     private static MessageSerializer messageSerializer = new MessageSerializer();
 
-    public static Range FULL_RANGE = new Range(StorageService.getPartitioner().getMinimumToken(), StorageService.getPartitioner().getMinimumToken());
+    public static Range<Token> FULL_RANGE = new Range<Token>(StorageService.getPartitioner().getMinimumToken(), StorageService.getPartitioner().getMinimumToken());
 
     private void testTreeRequestWrite() throws IOException
     {

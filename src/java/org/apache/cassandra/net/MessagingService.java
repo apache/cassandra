@@ -67,7 +67,8 @@ public final class MessagingService implements MessagingServiceMBean
     public static final int VERSION_07 = 1;
     public static final int VERSION_080 = 2;
     public static final int VERSION_10 = 3;
-    public static final int version_ = VERSION_10;
+    public static final int VERSION_11 = 4;
+    public static final int version_ = VERSION_11;
 
     static SerializerType serializerType_ = SerializerType.BINARY;
 

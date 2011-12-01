@@ -41,6 +41,7 @@ import org.apache.cassandra.db.Table;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.*;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.FastByteArrayInputStream;
@@ -118,7 +119,7 @@ public class AntiEntropyService
     /**
      * Requests repairs for the given table and column families, and blocks until all repairs have been completed.
      */
-    public RepairFuture submitRepairSession(Range range, String tablename, String... cfnames)
+    public RepairFuture submitRepairSession(Range<Token> range, String tablename, String... cfnames)
     {
         RepairFuture futureTask = new RepairSession(range, tablename, cfnames).getFuture();
         executor.execute(futureTask);
@@ -145,10 +146,10 @@ public class AntiEntropyService
     /**
      * Return all of the neighbors with whom we share data.
      */
-    static Set<InetAddress> getNeighbors(String table, Range range)
+    static Set<InetAddress> getNeighbors(String table, Range<Token> range)
     {
         StorageService ss = StorageService.instance;
-        Map<Range, List<InetAddress>> replicaSets = ss.getRangeToAddressMap(table);
+        Map<Range<Token>, List<InetAddress>> replicaSets = ss.getRangeToAddressMap(table);
         if (!replicaSets.containsKey(range))
             return Collections.emptySet();
         Set<InetAddress> neighbors = new HashSet<InetAddress>(replicaSets.get(range));
@@ -209,7 +210,7 @@ public class AntiEntropyService
     /**
      * Requests a tree from the given node, and returns the request that was sent.
      */
-    TreeRequest request(String sessionid, InetAddress remote, Range range, String ksname, String cfname)
+    TreeRequest request(String sessionid, InetAddress remote, Range<Token> range, String ksname, String cfname)
     {
         TreeRequest request = new TreeRequest(sessionid, remote, range, new CFPair(ksname, cfname));
         MessagingService.instance().sendOneWay(TreeRequestVerbHandler.makeVerb(request, Gossiper.instance.getVersion(remote)), remote);
@@ -429,7 +430,7 @@ public class AntiEntropyService
             dos.writeUTF(request.cf.left);
             dos.writeUTF(request.cf.right);
             if (version > MessagingService.VERSION_07)
-                AbstractBounds.serializer().serialize(request.range, dos);
+                AbstractBounds.serializer().serialize(request.range, dos, version);
         }
 
         public TreeRequest deserialize(DataInput dis, int version) throws IOException
@@ -437,11 +438,11 @@ public class AntiEntropyService
             String sessId = dis.readUTF();
             InetAddress endpoint = CompactEndpointSerializationHelper.deserialize(dis);
             CFPair cfpair = new CFPair(dis.readUTF(), dis.readUTF());
-            Range range;
+            Range<Token> range;
             if (version > MessagingService.VERSION_07)
-                range = (Range) AbstractBounds.serializer().deserialize(dis);
+                range = (Range<Token>) AbstractBounds.serializer().deserialize(dis, version);
             else
-                range = new Range(StorageService.getPartitioner().getMinimumToken(), StorageService.getPartitioner().getMinimumToken());
+                range = new Range<Token>(StorageService.getPartitioner().getMinimumToken(), StorageService.getPartitioner().getMinimumToken());
 
             return new TreeRequest(sessId, endpoint, range, cfpair);
         }
@@ -555,10 +556,10 @@ public class AntiEntropyService
     {
         public final String sessionid;
         public final InetAddress endpoint;
-        public final Range range;
+        public final Range<Token> range;
         public final CFPair cf;
 
-        public TreeRequest(String sessionid, InetAddress endpoint, Range range, CFPair cf)
+        public TreeRequest(String sessionid, InetAddress endpoint, Range<Token> range, CFPair cf)
         {
             this.sessionid = sessionid;
             this.endpoint = endpoint;
@@ -598,7 +599,7 @@ public class AntiEntropyService
         private final String sessionName;
         private final String tablename;
         private final String[] cfnames;
-        private final Range range;
+        private final Range<Token> range;
         private volatile Exception exception;
         private final AtomicBoolean isFailed = new AtomicBoolean(false);
 
@@ -617,12 +618,12 @@ public class AntiEntropyService
             AntiEntropyService.instance.sessions.put(getName(), this);
         }
 
-        public RepairSession(Range range, String tablename, String... cfnames)
+        public RepairSession(Range<Token> range, String tablename, String... cfnames)
         {
             this(UUIDGen.makeType1UUIDFromHost(FBUtilities.getBroadcastAddress()).toString(), range, tablename, cfnames);
         }
 
-        private RepairSession(String id, Range range, String tablename, String[] cfnames)
+        private RepairSession(String id, Range<Token> range, String tablename, String[] cfnames)
         {
             this.sessionName = id;
             this.tablename = tablename;
@@ -895,14 +896,14 @@ public class AntiEntropyService
             public final String cfname;
             public final TreeResponse r1;
             public final TreeResponse r2;
-            public List<Range> differences;
+            public List<Range<Token>> differences;
 
             Differencer(String cfname, TreeResponse r1, TreeResponse r2)
             {
                 this.cfname = cfname;
                 this.r1 = r1;
                 this.r2 = r2;
-                this.differences = new ArrayList<Range>();
+                this.differences = new ArrayList<Range<Token>>();
             }
 
             /**

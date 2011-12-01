@@ -180,12 +180,12 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         return instance.partitioner;
     }
 
-    public Collection<Range> getLocalRanges(String table)
+    public Collection<Range<Token>> getLocalRanges(String table)
     {
         return getRangesForEndpoint(table, FBUtilities.getBroadcastAddress());
     }
 
-    public Range getLocalPrimaryRange()
+    public Range<Token> getLocalPrimaryRange()
     {
         return getPrimaryRangeForEndpoint(FBUtilities.getBroadcastAddress());
     }
@@ -660,11 +660,11 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      * @param keyspace
      * @return
      */
-    public Map<Range, List<String>> getRangeToEndpointMap(String keyspace)
+    public Map<Range<Token>, List<String>> getRangeToEndpointMap(String keyspace)
     {
         /* All the ranges for the tokens */
-        Map<Range, List<String>> map = new HashMap<Range, List<String>>();
-        for (Map.Entry<Range,List<InetAddress>> entry : getRangeToAddressMap(keyspace).entrySet())
+        Map<Range<Token>, List<String>> map = new HashMap<Range<Token>, List<String>>();
+        for (Map.Entry<Range<Token>,List<InetAddress>> entry : getRangeToAddressMap(keyspace).entrySet())
         {
             map.put(entry.getKey(), stringify(entry.getValue()));
         }
@@ -691,11 +691,11 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      * @param keyspace
      * @return
      */
-    public Map<Range, List<String>> getRangeToRpcaddressMap(String keyspace)
+    public Map<Range<Token>, List<String>> getRangeToRpcaddressMap(String keyspace)
     {
         /* All the ranges for the tokens */
-        Map<Range, List<String>> map = new HashMap<Range, List<String>>();
-        for (Map.Entry<Range,List<InetAddress>> entry : getRangeToAddressMap(keyspace).entrySet())
+        Map<Range<Token>, List<String>> map = new HashMap<Range<Token>, List<String>>();
+        for (Map.Entry<Range<Token>, List<InetAddress>> entry : getRangeToAddressMap(keyspace).entrySet())
         {
             List<String> rpcaddrs = new ArrayList<String>();
             for (InetAddress endpoint: entry.getValue())
@@ -707,15 +707,15 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         return map;
     }
 
-    public Map<Range, List<String>> getPendingRangeToEndpointMap(String keyspace)
+    public Map<Range<Token>, List<String>> getPendingRangeToEndpointMap(String keyspace)
     {
         // some people just want to get a visual representation of things. Allow null and set it to the first
         // non-system table.
         if (keyspace == null)
             keyspace = Schema.instance.getNonSystemTables().get(0);
 
-        Map<Range, List<String>> map = new HashMap<Range, List<String>>();
-        for (Map.Entry<Range, Collection<InetAddress>> entry : tokenMetadata_.getPendingRanges(keyspace).entrySet())
+        Map<Range<Token>, List<String>> map = new HashMap<Range<Token>, List<String>>();
+        for (Map.Entry<Range<Token>, Collection<InetAddress>> entry : tokenMetadata_.getPendingRanges(keyspace).entrySet())
         {
             List<InetAddress> l = new ArrayList<InetAddress>(entry.getValue());
             map.put(entry.getKey(), stringify(l));
@@ -723,14 +723,14 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         return map;
     }
 
-    public Map<Range, List<InetAddress>> getRangeToAddressMap(String keyspace)
+    public Map<Range<Token>, List<InetAddress>> getRangeToAddressMap(String keyspace)
     {
         // some people just want to get a visual representation of things. Allow null and set it to the first
         // non-system table.
         if (keyspace == null)
             keyspace = Schema.instance.getNonSystemTables().get(0);
 
-        List<Range> ranges = getAllRanges(tokenMetadata_.sortedTokens());
+        List<Range<Token>> ranges = getAllRanges(tokenMetadata_.sortedTokens());
         return constructRangeToEndpointMap(keyspace, ranges);
     }
 
@@ -751,10 +751,10 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      * @param ranges
      * @return mapping of ranges to the replicas responsible for them.
     */
-    private Map<Range, List<InetAddress>> constructRangeToEndpointMap(String keyspace, List<Range> ranges)
+    private Map<Range<Token>, List<InetAddress>> constructRangeToEndpointMap(String keyspace, List<Range<Token>> ranges)
     {
-        Map<Range, List<InetAddress>> rangeToEndpointMap = new HashMap<Range, List<InetAddress>>();
-        for (Range range : ranges)
+        Map<Range<Token>, List<InetAddress>> rangeToEndpointMap = new HashMap<Range<Token>, List<InetAddress>>();
+        for (Range<Token> range : ranges)
         {
             rangeToEndpointMap.put(range, Table.open(keyspace).getReplicationStrategy().getNaturalEndpoints(range.right));
         }
@@ -1098,7 +1098,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     public static void calculatePendingRanges(AbstractReplicationStrategy strategy, String table)
     {
         TokenMetadata tm = StorageService.instance.getTokenMetadata();
-        Multimap<Range, InetAddress> pendingRanges = HashMultimap.create();
+        Multimap<Range<Token>, InetAddress> pendingRanges = HashMultimap.create();
         Map<Token, InetAddress> bootstrapTokens = tm.getBootstrapTokens();
         Set<InetAddress> leavingEndpoints = tm.getLeavingEndpoints();
 
@@ -1110,19 +1110,19 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             return;
         }
 
-        Multimap<InetAddress, Range> addressRanges = strategy.getAddressRanges();
+        Multimap<InetAddress, Range<Token>> addressRanges = strategy.getAddressRanges();
 
         // Copy of metadata reflecting the situation after all leave operations are finished.
         TokenMetadata allLeftMetadata = tm.cloneAfterAllLeft();
 
         // get all ranges that will be affected by leaving nodes
-        Set<Range> affectedRanges = new HashSet<Range>();
+        Set<Range<Token>> affectedRanges = new HashSet<Range<Token>>();
         for (InetAddress endpoint : leavingEndpoints)
             affectedRanges.addAll(addressRanges.get(endpoint));
 
         // for each of those ranges, find what new nodes will be responsible for the range when
         // all leaving nodes are gone.
-        for (Range range : affectedRanges)
+        for (Range<Token> range : affectedRanges)
         {
             Set<InetAddress> currentEndpoints = ImmutableSet.copyOf(strategy.calculateNaturalEndpoints(range.right, tm));
             Set<InetAddress> newEndpoints = ImmutableSet.copyOf(strategy.calculateNaturalEndpoints(range.right, allLeftMetadata));
@@ -1139,7 +1139,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             InetAddress endpoint = entry.getValue();
 
             allLeftMetadata.updateNormalToken(entry.getKey(), endpoint);
-            for (Range range : strategy.getAddressRanges(allLeftMetadata).get(endpoint))
+            for (Range<Token> range : strategy.getAddressRanges(allLeftMetadata).get(endpoint))
                 pendingRanges.put(range, endpoint);
             allLeftMetadata.removeEndpoint(endpoint);
         }
@@ -1156,7 +1156,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             //  moving.left is a new token of the endpoint
             allLeftMetadata.updateNormalToken(moving.left, endpoint);
 
-            for (Range range : strategy.getAddressRanges(allLeftMetadata).get(endpoint))
+            for (Range<Token> range : strategy.getAddressRanges(allLeftMetadata).get(endpoint))
             {
                 pendingRanges.put(range, endpoint);
             }
@@ -1177,15 +1177,15 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      * @param ranges the ranges to find sources for
      * @return multimap of addresses to ranges the address is responsible for
      */
-    private Multimap<InetAddress, Range> getNewSourceRanges(String table, Set<Range> ranges)
+    private Multimap<InetAddress, Range<Token>> getNewSourceRanges(String table, Set<Range<Token>> ranges) 
     {
         InetAddress myAddress = FBUtilities.getBroadcastAddress();
-        Multimap<Range, InetAddress> rangeAddresses = Table.open(table).getReplicationStrategy().getRangeAddresses(tokenMetadata_);
-        Multimap<InetAddress, Range> sourceRanges = HashMultimap.create();
+        Multimap<Range<Token>, InetAddress> rangeAddresses = Table.open(table).getReplicationStrategy().getRangeAddresses(tokenMetadata_);
+        Multimap<InetAddress, Range<Token>> sourceRanges = HashMultimap.create();
         IFailureDetector failureDetector = FailureDetector.instance;
 
         // find alive sources for our new ranges
-        for (Range range : ranges)
+        for (Range<Token> range : ranges)
         {
             Collection<InetAddress> possibleRanges = rangeAddresses.get(range);
             IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
@@ -1246,21 +1246,21 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     private void restoreReplicaCount(InetAddress endpoint, final InetAddress notifyEndpoint)
     {
         final Multimap<InetAddress, String> fetchSources = HashMultimap.create();
-        Multimap<String, Map.Entry<InetAddress, Collection<Range>>> rangesToFetch = HashMultimap.create();
+        Multimap<String, Map.Entry<InetAddress, Collection<Range<Token>>>> rangesToFetch = HashMultimap.create();
 
         final InetAddress myAddress = FBUtilities.getBroadcastAddress();
 
         for (String table : Schema.instance.getNonSystemTables())
         {
-            Multimap<Range, InetAddress> changedRanges = getChangedRangesForLeaving(table, endpoint);
-            Set<Range> myNewRanges = new HashSet<Range>();
-            for (Map.Entry<Range, InetAddress> entry : changedRanges.entries())
+            Multimap<Range<Token>, InetAddress> changedRanges = getChangedRangesForLeaving(table, endpoint); 
+            Set<Range<Token>> myNewRanges = new HashSet<Range<Token>>();
+            for (Map.Entry<Range<Token>, InetAddress> entry : changedRanges.entries())
             {
                 if (entry.getValue().equals(myAddress))
                     myNewRanges.add(entry.getKey());
             }
-            Multimap<InetAddress, Range> sourceRanges = getNewSourceRanges(table, myNewRanges);
-            for (Map.Entry<InetAddress, Collection<Range>> entry : sourceRanges.asMap().entrySet())
+            Multimap<InetAddress, Range<Token>> sourceRanges = getNewSourceRanges(table, myNewRanges);
+            for (Map.Entry<InetAddress, Collection<Range<Token>>> entry : sourceRanges.asMap().entrySet())
             {
                 fetchSources.put(entry.getKey(), table);
                 rangesToFetch.put(table, entry);
@@ -1269,10 +1269,10 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
         for (final String table : rangesToFetch.keySet())
         {
-            for (Map.Entry<InetAddress, Collection<Range>> entry : rangesToFetch.get(table))
+            for (Map.Entry<InetAddress, Collection<Range<Token>>> entry : rangesToFetch.get(table))
             {
                 final InetAddress source = entry.getKey();
-                Collection<Range> ranges = entry.getValue();
+                Collection<Range<Token>> ranges = entry.getValue();
                 final Runnable callback = new Runnable()
                 {
                     public void run()
@@ -1293,18 +1293,18 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     }
 
     // needs to be modified to accept either a table or ARS.
-    private Multimap<Range, InetAddress> getChangedRangesForLeaving(String table, InetAddress endpoint)
+    private Multimap<Range<Token>, InetAddress> getChangedRangesForLeaving(String table, InetAddress endpoint)
     {
         // First get all ranges the leaving endpoint is responsible for
-        Collection<Range> ranges = getRangesForEndpoint(table, endpoint);
+        Collection<Range<Token>> ranges = getRangesForEndpoint(table, endpoint);
 
         if (logger_.isDebugEnabled())
             logger_.debug("Node " + endpoint + " ranges [" + StringUtils.join(ranges, ", ") + "]");
 
-        Map<Range, List<InetAddress>> currentReplicaEndpoints = new HashMap<Range, List<InetAddress>>();
+        Map<Range<Token>, List<InetAddress>> currentReplicaEndpoints = new HashMap<Range<Token>, List<InetAddress>>();
 
         // Find (for each range) all nodes that store replicas for these ranges as well
-        for (Range range : ranges)
+        for (Range<Token> range : ranges)
             currentReplicaEndpoints.put(range, Table.open(table).getReplicationStrategy().calculateNaturalEndpoints(range.right, tokenMetadata_));
 
         TokenMetadata temp = tokenMetadata_.cloneAfterAllLeft();
@@ -1314,14 +1314,14 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         if (temp.isMember(endpoint))
             temp.removeEndpoint(endpoint);
 
-        Multimap<Range, InetAddress> changedRanges = HashMultimap.create();
+        Multimap<Range<Token>, InetAddress> changedRanges = HashMultimap.create();
 
         // Go through the ranges and for each range check who will be
         // storing replicas for these ranges when the leaving endpoint
         // is gone. Whoever is present in newReplicaEndpoints list, but
         // not in the currentReplicaEndpoints list, will be needing the
         // range.
-        for (Range range : ranges)
+        for (Range<Token> range : ranges)
         {
             Collection<InetAddress> newReplicaEndpoints = Table.open(table).getReplicationStrategy().calculateNaturalEndpoints(range.right, temp);
             newReplicaEndpoints.removeAll(currentReplicaEndpoints.get(range));
@@ -1688,12 +1688,12 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             return;
 
 
-        Collection<Range> ranges = getLocalRanges(tableName);
+        Collection<Range<Token>> ranges = getLocalRanges(tableName);
         int cmd = nextRepairCommand.incrementAndGet();
         logger_.info("Starting repair command #{}, repairing {} ranges.", cmd, ranges.size());
 
         List<AntiEntropyService.RepairFuture> futures = new ArrayList<AntiEntropyService.RepairFuture>(ranges.size());
-        for (Range range : ranges)
+        for (Range<Token> range : ranges)
         {
             AntiEntropyService.RepairFuture future = forceTableRepair(range, tableName, columnFamilies);
             futures.add(future);
@@ -1747,7 +1747,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         }
     }
 
-    public AntiEntropyService.RepairFuture forceTableRepair(final Range range, final String tableName, final String... columnFamilies) throws IOException
+    public AntiEntropyService.RepairFuture forceTableRepair(final Range<Token> range, final String tableName, final String... columnFamilies) throws IOException
     {
         ArrayList<String> names = new ArrayList<String>();
         for (ColumnFamilyStore cfStore : getValidColumnFamilies(tableName, columnFamilies))
@@ -1789,7 +1789,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      * @param ep endpoint we are interested in.
      * @return range for the specified endpoint.
      */
-    public Range getPrimaryRangeForEndpoint(InetAddress ep)
+    public Range<Token> getPrimaryRangeForEndpoint(InetAddress ep)
     {
         return tokenMetadata_.getPrimaryRangeFor(tokenMetadata_.getToken(ep));
     }
@@ -1799,7 +1799,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      * @param ep endpoint we are interested in.
      * @return ranges for the specified endpoint.
      */
-    Collection<Range> getRangesForEndpoint(String table, InetAddress ep)
+    Collection<Range<Token>> getRangesForEndpoint(String table, InetAddress ep)
     {
         return Table.open(table).getReplicationStrategy().getAddressRanges().get(ep);
     }
@@ -1810,21 +1810,21 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      * ranges.
      * @return ranges in sorted order
     */
-    public List<Range> getAllRanges(List<Token> sortedTokens)
+    public List<Range<Token>> getAllRanges(List<Token> sortedTokens)
     {
         if (logger_.isDebugEnabled())
             logger_.debug("computing ranges for " + StringUtils.join(sortedTokens, ", "));
 
         if (sortedTokens.isEmpty())
             return Collections.emptyList();
-        List<Range> ranges = new ArrayList<Range>();
+        List<Range<Token>> ranges = new ArrayList<Range<Token>>();
         int size = sortedTokens.size();
         for (int i = 1; i < size; ++i)
         {
-            Range range = new Range(sortedTokens.get(i - 1), sortedTokens.get(i));
+            Range<Token> range = new Range<Token>(sortedTokens.get(i - 1), sortedTokens.get(i));
             ranges.add(range);
         }
-        Range range = new Range(sortedTokens.get(size - 1), sortedTokens.get(0));
+        Range<Token> range = new Range<Token>(sortedTokens.get(size - 1), sortedTokens.get(0));
         ranges.add(range);
 
         return ranges;
@@ -1854,12 +1854,12 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      * This method returns the N endpoints that are responsible for storing the
      * specified key i.e for replication.
      *
-     * @param token - token for which we need to find the endpoint return value -
+     * @param position - position for which we need to find the endpoint return value -
      * the endpoint responsible for this token
      */
-    public List<InetAddress> getNaturalEndpoints(String table, Token token)
+    public List<InetAddress> getNaturalEndpoints(String table, RingPosition pos)
     {
-        return Table.open(table).getReplicationStrategy().getNaturalEndpoints(token);
+        return Table.open(table).getReplicationStrategy().getNaturalEndpoints(pos);
     }
 
     /**
@@ -1871,13 +1871,13 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      */
     public List<InetAddress> getLiveNaturalEndpoints(String table, ByteBuffer key)
     {
-        return getLiveNaturalEndpoints(table, partitioner.getToken(key));
+        return getLiveNaturalEndpoints(table, partitioner.decorateKey(key));
     }
 
-    public List<InetAddress> getLiveNaturalEndpoints(String table, Token token)
+    public List<InetAddress> getLiveNaturalEndpoints(String table, RingPosition pos)
     {
         List<InetAddress> liveEps = new ArrayList<InetAddress>();
-        List<InetAddress> endpoints = Table.open(table).getReplicationStrategy().getNaturalEndpoints(token);
+        List<InetAddress> endpoints = Table.open(table).getReplicationStrategy().getNaturalEndpoints(pos);
 
         for (InetAddress endpoint : endpoints)
         {
@@ -1898,7 +1898,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     /**
      * @return list of Tokens (_not_ keys!) breaking up the data this node is responsible for into pieces of roughly keysPerSplit
      */
-    public List<Token> getSplits(String table, String cfName, Range range, int keysPerSplit)
+    public List<Token> getSplits(String table, String cfName, Range<Token> range, int keysPerSplit)
     {
         List<Token> tokens = new ArrayList<Token>();
         // we use the actual Range token for the first and last brackets of the splits to ensure correctness
@@ -1931,7 +1931,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     /** return a token to which if a node bootstraps it will get about 1/2 of this node's range */
     public Token getBootstrapToken()
     {
-        Range range = getLocalPrimaryRange();
+        Range<Token> range = getLocalPrimaryRange();
         List<DecoratedKey> keys = new ArrayList<DecoratedKey>();
         for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
         {
@@ -2030,11 +2030,11 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
     private void unbootstrap(final Runnable onFinish)
     {
-        Map<String, Multimap<Range, InetAddress>> rangesToStream = new HashMap<String, Multimap<Range, InetAddress>>();
+        Map<String, Multimap<Range<Token>, InetAddress>> rangesToStream = new HashMap<String, Multimap<Range<Token>, InetAddress>>();
 
         for (final String table : Schema.instance.getNonSystemTables())
         {
-            Multimap<Range, InetAddress> rangesMM = getChangedRangesForLeaving(table, FBUtilities.getBroadcastAddress());
+            Multimap<Range<Token>, InetAddress> rangesMM = getChangedRangesForLeaving(table, FBUtilities.getBroadcastAddress());
 
             if (logger_.isDebugEnabled())
                 logger_.debug("Ranges needing transfer are [" + StringUtils.join(rangesMM.keySet(), ",") + "]");
@@ -2100,8 +2100,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
         IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
 
-        Map<String, Multimap<InetAddress, Range>> rangesToFetch = new HashMap<String, Multimap<InetAddress, Range>>();
-        Map<String, Multimap<Range, InetAddress>> rangesToStreamByTable = new HashMap<String, Multimap<Range, InetAddress>>();
+        Map<String, Multimap<InetAddress, Range<Token>>> rangesToFetch = new HashMap<String, Multimap<InetAddress, Range<Token>>>();
+        Map<String, Multimap<Range<Token>, InetAddress>> rangesToStreamByTable = new HashMap<String, Multimap<Range<Token>, InetAddress>>();
 
         TokenMetadata tokenMetaClone = tokenMetadata_.cloneAfterAllSettled();
 
@@ -2113,25 +2113,25 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             AbstractReplicationStrategy strategy = Table.open(table).getReplicationStrategy();
 
             // getting collection of the currently used ranges by this keyspace
-            Collection<Range> currentRanges = getRangesForEndpoint(table, localAddress);
+            Collection<Range<Token>> currentRanges = getRangesForEndpoint(table, localAddress);
             // collection of ranges which this node will serve after move to the new token
-            Collection<Range> updatedRanges = strategy.getPendingAddressRanges(tokenMetadata_, newToken, localAddress);
+            Collection<Range<Token>> updatedRanges = strategy.getPendingAddressRanges(tokenMetadata_, newToken, localAddress);
 
             // ring ranges and endpoints associated with them
             // this used to determine what nodes should we ping about range data
-            Multimap<Range, InetAddress> rangeAddresses = strategy.getRangeAddresses(tokenMetadata_);
+            Multimap<Range<Token>, InetAddress> rangeAddresses = strategy.getRangeAddresses(tokenMetadata_);
 
             // calculated parts of the ranges to request/stream from/to nodes in the ring
-            Pair<Set<Range>, Set<Range>> rangesPerTable = calculateStreamAndFetchRanges(currentRanges, updatedRanges);
+            Pair<Set<Range<Token>>, Set<Range<Token>>> rangesPerTable = calculateStreamAndFetchRanges(currentRanges, updatedRanges);
 
             /**
              * In this loop we are going through all ranges "to fetch" and determining
              * nodes in the ring responsible for data we are interested in
              */
-            Multimap<Range, InetAddress> rangesToFetchWithPreferredEndpoints = ArrayListMultimap.create();
-            for (Range toFetch : rangesPerTable.right)
+            Multimap<Range<Token>, InetAddress> rangesToFetchWithPreferredEndpoints = ArrayListMultimap.create();
+            for (Range<Token> toFetch : rangesPerTable.right)
             {
-                for (Range range : rangeAddresses.keySet())
+                for (Range<Token> range : rangeAddresses.keySet())
                 {
                     if (range.contains(toFetch))
                     {
@@ -2144,9 +2144,9 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
             // calculating endpoints to stream current ranges to if needed
             // in some situations node will handle current ranges as part of the new ranges
-            Multimap<Range, InetAddress> rangeWithEndpoints = HashMultimap.create();
+            Multimap<Range<Token>, InetAddress> rangeWithEndpoints = HashMultimap.create();
 
-            for (Range toStream : rangesPerTable.left)
+            for (Range<Token> toStream : rangesPerTable.left)
             {
                 Set<InetAddress> currentEndpoints = ImmutableSet.copyOf(strategy.calculateNaturalEndpoints(toStream.right, tokenMetadata_));
                 Set<InetAddress> newEndpoints = ImmutableSet.copyOf(strategy.calculateNaturalEndpoints(toStream.right, tokenMetaClone));
@@ -2156,7 +2156,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             // associating table with range-to-endpoints map
             rangesToStreamByTable.put(table, rangeWithEndpoints);
 
-            Multimap<InetAddress, Range> workMap = BootStrapper.getWorkMap(rangesToFetchWithPreferredEndpoints);
+            Multimap<InetAddress, Range<Token>> workMap = BootStrapper.getWorkMap(rangesToFetchWithPreferredEndpoints);
             rangesToFetch.put(table, workMap);
 
             if (logger_.isDebugEnabled())
@@ -2287,7 +2287,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
             // get all ranges that change ownership (that is, a node needs
             // to take responsibility for new range)
-            Multimap<Range, InetAddress> changedRanges = getChangedRangesForLeaving(table, endpoint);
+            Multimap<Range<Token>, InetAddress> changedRanges = getChangedRangesForLeaving(table, endpoint);
             IFailureDetector failureDetector = FailureDetector.instance;
             for (InetAddress ep : changedRanges.values())
             {
@@ -2548,12 +2548,12 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      * @param rangesToStreamByTable tables and data ranges with endpoints included for each
      * @return latch to count down
      */
-    private CountDownLatch streamRanges(final Map<String, Multimap<Range, InetAddress>> rangesToStreamByTable)
+    private CountDownLatch streamRanges(final Map<String, Multimap<Range<Token>, InetAddress>> rangesToStreamByTable)
     {
         final CountDownLatch latch = new CountDownLatch(rangesToStreamByTable.keySet().size());
         for (final String table : rangesToStreamByTable.keySet())
         {
-            Multimap<Range, InetAddress> rangesWithEndpoints = rangesToStreamByTable.get(table);
+            Multimap<Range<Token>, InetAddress> rangesWithEndpoints = rangesToStreamByTable.get(table);
 
             if (rangesWithEndpoints.isEmpty())
             {
@@ -2561,11 +2561,11 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                 continue;
             }
 
-            final Set<Map.Entry<Range, InetAddress>> pending = new HashSet<Map.Entry<Range, InetAddress>>(rangesWithEndpoints.entries());
+            final Set<Map.Entry<Range<Token>, InetAddress>> pending = new HashSet<Map.Entry<Range<Token>, InetAddress>>(rangesWithEndpoints.entries());
 
-            for (final Map.Entry<Range, InetAddress> entry : rangesWithEndpoints.entries())
+            for (final Map.Entry<Range<Token>, InetAddress> entry : rangesWithEndpoints.entries())
             {
-                final Range range = entry.getKey();
+                final Range<Token> range = entry.getKey();
                 final InetAddress newEndpoint = entry.getValue();
 
                 final Runnable callback = new Runnable()
@@ -2600,12 +2600,12 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      * @param ranges ranges to fetch as map of the preferred address and range collection
      * @return latch to count down
      */
-    private CountDownLatch requestRanges(final Map<String, Multimap<InetAddress, Range>> ranges)
+    private CountDownLatch requestRanges(final Map<String, Multimap<InetAddress, Range<Token>>> ranges)
     {
         final CountDownLatch latch = new CountDownLatch(ranges.keySet().size());
         for (final String table : ranges.keySet())
         {
-            Multimap<InetAddress, Range> endpointWithRanges = ranges.get(table);
+            Multimap<InetAddress, Range<Token>> endpointWithRanges = ranges.get(table);
 
             if (endpointWithRanges.isEmpty())
             {
@@ -2618,7 +2618,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             // Send messages to respective folks to stream data over to me
             for (final InetAddress source: endpointWithRanges.keySet())
             {
-                Collection<Range> toFetch = endpointWithRanges.get(source);
+                Collection<Range<Token>> toFetch = endpointWithRanges.get(source);
 
                 final Runnable callback = new Runnable()
                 {
@@ -2642,7 +2642,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     }
 
     // see calculateStreamAndFetchRanges(Iterator, Iterator) for description
-    private Pair<Set<Range>, Set<Range>> calculateStreamAndFetchRanges(Collection<Range> current, Collection<Range> updated)
+    private Pair<Set<Range<Token>>, Set<Range<Token>>> calculateStreamAndFetchRanges(Collection<Range<Token>> current, Collection<Range<Token>> updated)
     {
         return calculateStreamAndFetchRanges(current.iterator(), updated.iterator());
     }
@@ -2655,15 +2655,15 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      * @param updated collection of the ranges after token is changed
      * @return pair of ranges to stream/fetch for given current and updated range collections
      */
-    private Pair<Set<Range>, Set<Range>> calculateStreamAndFetchRanges(Iterator<Range> current, Iterator<Range> updated)
+    private Pair<Set<Range<Token>>, Set<Range<Token>>> calculateStreamAndFetchRanges(Iterator<Range<Token>> current, Iterator<Range<Token>> updated)
     {
-        Set<Range> toStream = new HashSet<Range>();
-        Set<Range> toFetch  = new HashSet<Range>();
+        Set<Range<Token>> toStream = new HashSet<Range<Token>>();
+        Set<Range<Token>> toFetch  = new HashSet<Range<Token>>();
 
         while (current.hasNext() && updated.hasNext())
         {
-            Range r1 = current.next();
-            Range r2 = updated.next();
+            Range<Token> r1 = current.next();
+            Range<Token> r2 = updated.next();
 
             // if ranges intersect we need to fetch only missing part
             if (r1.intersects(r2))
@@ -2676,14 +2676,14 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                 if (!r2.contains(r1))
                 {
                     // (A, B] & (C, D]
-                    if (Range.compare(r1.left, r2.left) < 0) // if A < C
+                    if (r1.left.compareTo(r2.left) < 0) // if A < C
                     {
-                        toStream.add(new Range(r1.left, r2.left)); // seed (A, C]
+                        toStream.add(new Range<Token>(r1.left, r2.left)); // seed (A, C]
                     }
 
-                    if (Range.compare(r1.right, r2.right) > 0) // if B > D
+                    if (r1.right.compareTo(r2.right) > 0) // if B > D
                     {
-                        toStream.add(new Range(r2.right, r1.right)); // seed (D, B]
+                        toStream.add(new Range<Token>(r2.right, r1.right)); // seed (D, B]
                     }
                 }
             }
@@ -2694,7 +2694,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             }
         }
 
-        return new Pair<Set<Range>, Set<Range>>(toStream, toFetch);
+        return new Pair<Set<Range<Token>>, Set<Range<Token>>>(toStream, toFetch);
     }
 
     public void bulkLoad(String directory)
@@ -2708,9 +2708,9 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         {
             public void init(String keyspace)
             {
-                for (Map.Entry<Range, List<InetAddress>> entry : StorageService.instance.getRangeToAddressMap(keyspace).entrySet())
+                for (Map.Entry<Range<Token>, List<InetAddress>> entry : StorageService.instance.getRangeToAddressMap(keyspace).entrySet())
                 {
-                    Range range = entry.getKey();
+                    Range<Token> range = entry.getKey();
                     for (InetAddress endpoint : entry.getValue())
                         addRangeForEndpoint(range, endpoint);
                 }

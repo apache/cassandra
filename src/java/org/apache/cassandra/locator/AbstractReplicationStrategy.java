@@ -30,6 +30,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.RingPosition;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.DatacenterSyncWriteResponseHandler;
 import org.apache.cassandra.service.DatacenterWriteResponseHandler;
@@ -83,14 +84,15 @@ public abstract class AbstractReplicationStrategy
     }
 
     /**
-     * get the (possibly cached) endpoints that should store the given Token
+     * get the (possibly cached) endpoints that should store the given Token.
      * Note that while the endpoints are conceptually a Set (no duplicates will be included),
      * we return a List to avoid an extra allocation when sorting by proximity later
      * @param searchToken the token the natural endpoints are requested for
      * @return a copy of the natural endpoints for the given token
      */
-    public ArrayList<InetAddress> getNaturalEndpoints(Token searchToken)
+    public ArrayList<InetAddress> getNaturalEndpoints(RingPosition searchPosition)
     {
+        Token searchToken = searchPosition.getToken();
         Token keyToken = TokenMetadata.firstToken(tokenMetadata.sortedTokens(), searchToken);
         ArrayList<InetAddress> endpoints = getCachedEndpoints(keyToken);
         if (endpoints == null)
@@ -142,13 +144,13 @@ public abstract class AbstractReplicationStrategy
      * (fixing this would probably require merging tokenmetadata into replicationstrategy,
      * so we could cache/invalidate cleanly.)
      */
-    public Multimap<InetAddress, Range> getAddressRanges(TokenMetadata metadata)
+    public Multimap<InetAddress, Range<Token>> getAddressRanges(TokenMetadata metadata)
     {
-        Multimap<InetAddress, Range> map = HashMultimap.create();
+        Multimap<InetAddress, Range<Token>> map = HashMultimap.create();
 
         for (Token token : metadata.sortedTokens())
         {
-            Range range = metadata.getPrimaryRangeFor(token);
+            Range<Token> range = metadata.getPrimaryRangeFor(token);
             for (InetAddress ep : calculateNaturalEndpoints(token, metadata))
             {
                 map.put(ep, range);
@@ -158,13 +160,13 @@ public abstract class AbstractReplicationStrategy
         return map;
     }
 
-    public Multimap<Range, InetAddress> getRangeAddresses(TokenMetadata metadata)
+    public Multimap<Range<Token>, InetAddress> getRangeAddresses(TokenMetadata metadata)
     {
-        Multimap<Range, InetAddress> map = HashMultimap.create();
+        Multimap<Range<Token>, InetAddress> map = HashMultimap.create();
 
         for (Token token : metadata.sortedTokens())
         {
-            Range range = metadata.getPrimaryRangeFor(token);
+            Range<Token> range = metadata.getPrimaryRangeFor(token);
             for (InetAddress ep : calculateNaturalEndpoints(token, metadata))
             {
                 map.put(range, ep);
@@ -174,12 +176,12 @@ public abstract class AbstractReplicationStrategy
         return map;
     }
 
-    public Multimap<InetAddress, Range> getAddressRanges()
+    public Multimap<InetAddress, Range<Token>> getAddressRanges()
     {
         return getAddressRanges(tokenMetadata);
     }
 
-    public Collection<Range> getPendingAddressRanges(TokenMetadata metadata, Token pendingToken, InetAddress pendingAddress)
+    public Collection<Range<Token>> getPendingAddressRanges(TokenMetadata metadata, Token pendingToken, InetAddress pendingAddress)
     {
         TokenMetadata temp = metadata.cloneOnlyTokenMap();
         temp.updateNormalToken(pendingToken, pendingAddress);

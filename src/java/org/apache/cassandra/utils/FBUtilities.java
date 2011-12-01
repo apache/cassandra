@@ -398,7 +398,7 @@ public class FBUtilities
         }
     }
 
-    public static void sortSampledKeys(List<DecoratedKey> keys, Range range)
+    public static void sortSampledKeys(List<DecoratedKey> keys, Range<Token> range)
     {
         if (range.left.compareTo(range.right) >= 0)
         {

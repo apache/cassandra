@@ -32,6 +32,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.sstable.SSTableReader;
@@ -61,10 +62,10 @@ public class StreamingRepairTask implements Runnable
 
     private final String tableName;
     private final String cfName;
-    private final Collection<Range> ranges;
+    private final Collection<Range<Token>> ranges;
     private final Runnable callback;
 
-    private StreamingRepairTask(UUID id, InetAddress owner, InetAddress src, InetAddress dst, String tableName, String cfName, Collection<Range> ranges, Runnable callback)
+    private StreamingRepairTask(UUID id, InetAddress owner, InetAddress src, InetAddress dst, String tableName, String cfName, Collection<Range<Token>> ranges, Runnable callback)
     {
         this.id = id;
         this.owner = owner;
@@ -76,7 +77,7 @@ public class StreamingRepairTask implements Runnable
         this.callback = callback;
     }
 
-    public static StreamingRepairTask create(InetAddress ep1, InetAddress ep2, String tableName, String cfName, Collection<Range> ranges, Runnable callback)
+    public static StreamingRepairTask create(InetAddress ep1, InetAddress ep2, String tableName, String cfName, Collection<Range<Token>> ranges, Runnable callback)
     {
         InetAddress local = FBUtilities.getBroadcastAddress();
         UUID id = UUIDGen.makeType1UUIDFromHost(local);
@@ -278,9 +279,9 @@ public class StreamingRepairTask implements Runnable
             dos.writeUTF(task.tableName);
             dos.writeUTF(task.cfName);
             dos.writeInt(task.ranges.size());
-            for (Range range : task.ranges)
+            for (Range<Token> range : task.ranges)
             {
-                AbstractBounds.serializer().serialize(range, dos);
+                AbstractBounds.serializer().serialize(range, dos, version);
             }
             // We don't serialize the callback on purpose
         }
@@ -294,10 +295,10 @@ public class StreamingRepairTask implements Runnable
             String tableName = dis.readUTF();
             String cfName = dis.readUTF();
             int rangesCount = dis.readInt();
-            List<Range> ranges = new ArrayList<Range>(rangesCount);
+            List<Range<Token>> ranges = new ArrayList<Range<Token>>(rangesCount);
             for (int i = 0; i < rangesCount; ++i)
             {
-                ranges.add((Range) AbstractBounds.serializer().deserialize(dis));
+                ranges.add((Range<Token>) AbstractBounds.serializer().deserialize(dis, version).toTokenBounds());
             }
             return new StreamingRepairTask(id, owner, src, dst, tableName, cfName, ranges, makeReplyingCallback(owner, id));
         }

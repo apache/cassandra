@@ -59,7 +59,7 @@ public abstract class AntiEntropyServiceTestAbstract extends CleanupHelper
     public ColumnFamilyStore store;
     public InetAddress LOCAL, REMOTE;
 
-    public Range local_range;
+    public Range<Token> local_range;
 
     private boolean initialized;
 
@@ -140,7 +140,7 @@ public abstract class AntiEntropyServiceTestAbstract extends CleanupHelper
 
         // confirm that the tree was validated
         Token min = validator.tree.partitioner().getMinimumToken();
-        assert null != validator.tree.hash(new Range(min, min));
+        assert null != validator.tree.hash(new Range<Token>(min, min));
     }
 
     @Test
@@ -166,9 +166,9 @@ public abstract class AntiEntropyServiceTestAbstract extends CleanupHelper
         // generate rf+1 nodes, and ensure that all nodes are returned
         Set<InetAddress> expected = addTokens(1 + Table.open(tablename).getReplicationStrategy().getReplicationFactor());
         expected.remove(FBUtilities.getBroadcastAddress());
-        Collection<Range> ranges = StorageService.instance.getLocalRanges(tablename);
+        Collection<Range<Token>> ranges = StorageService.instance.getLocalRanges(tablename);
         Set<InetAddress> neighbors = new HashSet<InetAddress>();
-        for (Range range : ranges)
+        for (Range<Token> range : ranges)
         {
             neighbors.addAll(AntiEntropyService.getNeighbors(tablename, range));
         }
@@ -184,14 +184,14 @@ public abstract class AntiEntropyServiceTestAbstract extends CleanupHelper
         addTokens(2 * Table.open(tablename).getReplicationStrategy().getReplicationFactor());
         AbstractReplicationStrategy ars = Table.open(tablename).getReplicationStrategy();
         Set<InetAddress> expected = new HashSet<InetAddress>();
-        for (Range replicaRange : ars.getAddressRanges().get(FBUtilities.getBroadcastAddress()))
+        for (Range<Token> replicaRange : ars.getAddressRanges().get(FBUtilities.getBroadcastAddress()))
         {
             expected.addAll(ars.getRangeAddresses(tmd).get(replicaRange));
         }
         expected.remove(FBUtilities.getBroadcastAddress());
-        Collection<Range> ranges = StorageService.instance.getLocalRanges(tablename);
+        Collection<Range<Token>> ranges = StorageService.instance.getLocalRanges(tablename);
         Set<InetAddress> neighbors = new HashSet<InetAddress>();
-        for (Range range : ranges)
+        for (Range<Token> range : ranges)
         {
             neighbors.addAll(AntiEntropyService.getNeighbors(tablename, range));
         }

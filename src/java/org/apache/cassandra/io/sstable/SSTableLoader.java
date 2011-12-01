@@ -30,6 +30,7 @@ import java.util.concurrent.TimeUnit;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.streaming.*;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
@@ -114,12 +115,12 @@ public class SSTableLoader
             return new LoaderFuture(0);
         }
 
-        Map<InetAddress, Collection<Range>> endpointToRanges = client.getEndpointToRangesMap();
+        Map<InetAddress, Collection<Range<Token>>> endpointToRanges = client.getEndpointToRangesMap();
         outputHandler.output(String.format("Streaming revelant part of %sto %s", names(sstables), endpointToRanges.keySet()));
 
         // There will be one streaming session by endpoint
         LoaderFuture future = new LoaderFuture(endpointToRanges.size());
-        for (Map.Entry<InetAddress, Collection<Range>> entry : endpointToRanges.entrySet())
+        for (Map.Entry<InetAddress, Collection<Range<Token>>> entry : endpointToRanges.entrySet())
         {
             InetAddress remote = entry.getKey();
             if (toIgnore.contains(remote))
@@ -127,7 +128,7 @@ public class SSTableLoader
                 future.latch.countDown();
                 continue;
             }
-            Collection<Range> ranges = entry.getValue();
+            Collection<Range<Token>> ranges = entry.getValue();
             StreamOutSession session = StreamOutSession.create(keyspace, remote, new CountDownCallback(future.latch, remote));
             // transferSSTables assumes references have been acquired
             SSTableReader.acquireReferences(sstables);
@@ -228,7 +229,7 @@ public class SSTableLoader
 
     public static abstract class Client
     {
-        private final Map<InetAddress, Collection<Range>> endpointToRanges = new HashMap<InetAddress, Collection<Range>>();
+        private final Map<InetAddress, Collection<Range<Token>>> endpointToRanges = new HashMap<InetAddress, Collection<Range<Token>>>();
         private IPartitioner partitioner;
 
         /**
@@ -253,7 +254,7 @@ public class SSTableLoader
          */
         public abstract boolean validateColumnFamily(String keyspace, String cfName);
 
-        public Map<InetAddress, Collection<Range>> getEndpointToRangesMap()
+        public Map<InetAddress, Collection<Range<Token>>> getEndpointToRangesMap()
         {
             return endpointToRanges;
         }
@@ -268,12 +269,12 @@ public class SSTableLoader
             return partitioner;
         }
 
-        protected void addRangeForEndpoint(Range range, InetAddress endpoint)
+        protected void addRangeForEndpoint(Range<Token> range, InetAddress endpoint)
         {
-            Collection<Range> ranges = endpointToRanges.get(endpoint);
+            Collection<Range<Token>> ranges = endpointToRanges.get(endpoint);
             if (ranges == null)
             {
-                ranges = new HashSet<Range>();
+                ranges = new HashSet<Range<Token>>();
                 endpointToRanges.put(endpoint, ranges);
             }
             ranges.add(range);
