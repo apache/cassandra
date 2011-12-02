@@ -12,6 +12,7 @@
  * Bulk loader is no longer a fat client, (HADOOP) bulk load output format
    (CASSANDRA-3045)
  * remove assumption that keys and token are in bijection (CASSANDRA-1034)
+ * always remove endpoints from delevery queue in HH (CASSANDRA-3546)
 
 
 1.0.5
