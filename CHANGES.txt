@@ -13,6 +13,7 @@
    (CASSANDRA-3045)
  * remove assumption that keys and token are in bijection (CASSANDRA-1034)
  * always remove endpoints from delevery queue in HH (CASSANDRA-3546)
+ * fix race between cf flush and its 2ndary indexes flush (CASSANDRA-3547)
 
 
 1.0.5

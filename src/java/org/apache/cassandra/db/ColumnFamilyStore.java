@@ -666,7 +666,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
 
             assert getMemtableThreadSafe() == oldMemtable;
-            oldMemtable.freeze();
             final ReplayPosition ctx = writeCommitLog ? CommitLog.instance.getContext() : ReplayPosition.NONE;
             logger.debug("flush position is {}", ctx);
 
@@ -675,8 +674,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             // don't assume that this.memtable is dirty; forceFlush can bring us here during index build even if it is not
             for (ColumnFamilyStore cfs : concatWithIndexes())
             {
-                if (!cfs.getMemtableThreadSafe().isClean())
+                Memtable mt = cfs.getMemtableThreadSafe();
+                if (!mt.isClean() && !mt.isFrozen())
+                {
+                    // We need to freeze indexes too because they can be concurrently flushed too (#3547)
+                    mt.freeze();
                     icc.add(cfs);
+                }
             }
             final CountDownLatch latch = new CountDownLatch(icc.size());
             for (ColumnFamilyStore cfs : icc)
@@ -685,11 +689,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 logger.info("Enqueuing flush of {}", memtable);
                 memtable.flushAndSignal(latch, flushWriter, ctx);
             }
-
-            // we marked our memtable as frozen as part of the concurrency control,
-            // so even if there was nothing to flush we need to switch it out
-            if (!icc.contains(this))
-                data.renewMemtable();
 
             if (memtableSwitchCount == Integer.MAX_VALUE)
                 memtableSwitchCount = 0;
