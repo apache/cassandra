@@ -230,11 +230,11 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
     private void deliverHintsToEndpoint(InetAddress endpoint) throws IOException, DigestMismatchException, InvalidRequestException, TimeoutException, InterruptedException
     {
         ColumnFamilyStore hintStore = Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(HINTS_CF);
-        if (hintStore.isEmpty())
-            return; // nothing to do, don't confuse users by logging a no-op handoff
-
         try
         {
+            if (hintStore.isEmpty())
+                return; // nothing to do, don't confuse users by logging a no-op handoff
+
             logger_.debug("Checking remote({}) schema before delivering hints", endpoint);
             int waited = waitForSchemaAgreement(endpoint);
             // sleep a random amount to stagger handoff delivery from different replicas.

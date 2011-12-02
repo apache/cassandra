@@ -5,6 +5,7 @@
  * Support TimeUUIDType column names in Stress.java tool (CASSANDRA-3541)
  * (CQL) INSERT/UPDATE/DELETE/TRUNCATE commands should allow CF names to
    be qualified by keyspace (CASSANDRA-3419)
+ * always remove endpoints from delevery queue in HH (CASSANDRA-3546)
 
 
 1.0.5
