@@ -783,10 +783,12 @@ public class QueryProcessor
                 CreateColumnFamilyStatement createCf = (CreateColumnFamilyStatement)statement.statement;
                 clientState.hasColumnFamilySchemaAccess(Permission.WRITE);
                 validateSchemaAgreement();
-                
+                CFMetaData cfmd = createCf.getCFMetaData(keyspace);
+                ThriftValidation.validateCfDef(cfmd.toThrift(), null);
+
                 try
                 {
-                    applyMigrationOnStage(new AddColumnFamily(createCf.getCFMetaData(keyspace)));
+                    applyMigrationOnStage(new AddColumnFamily(cfmd));
                 }
                 catch (ConfigurationException e)
                 {

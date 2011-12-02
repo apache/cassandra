@@ -587,7 +587,7 @@ public class ThriftValidation
                     if (cf_def.key_alias.equals(columnDef.name))
                         throw new InvalidRequestException("Invalid column name: "
                                                           + AsciiType.instance.compose(cf_def.key_alias)
-                                                          + ", because it equals to the key_alias.");
+                                                          + ", because it equals the key_alias");
                 }
             }
 

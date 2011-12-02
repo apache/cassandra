@@ -12,6 +12,7 @@
  * fix default value validation usage in CLI SET command (CASSANDRA-3553)
  * Optimize componentsFor method for compaction and startup time
    (CASSANDRA-3532)
+ * (CQL) Proper ColumnFamily metadata validation on CREATE COLUMNFAMILY (CASSANDRA-3565)
 Merged from 0.8:
  * use cannonical host for local node in nodetool info (CASSANDRA-3556)
 
