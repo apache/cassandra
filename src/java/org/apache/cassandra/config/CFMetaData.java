@@ -39,7 +39,6 @@ import org.apache.cassandra.io.compress.CompressionParameters;
 import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.cache.ConcurrentLinkedHashCacheProvider;
 import org.apache.cassandra.cache.SerializingCacheProvider;
-import org.apache.cassandra.utils.CLibrary;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -218,7 +217,7 @@ public final class CFMetaData
 
         try
         {
-            compactionStrategyClass = createCompactionSrategy(DEFAULT_COMPACTION_STRATEGY_CLASS);
+            compactionStrategyClass = createCompactionStrategy(DEFAULT_COMPACTION_STRATEGY_CLASS);
         }
         catch (ConfigurationException e)
         {
@@ -409,7 +408,7 @@ public final class CFMetaData
         {
             try
             {
-                newCFMD.compactionStrategyClass = createCompactionSrategy(cf.compaction_strategy.toString());
+                newCFMD.compactionStrategyClass = createCompactionStrategy(cf.compaction_strategy.toString());
             }
             catch (ConfigurationException e)
             {
@@ -676,7 +675,7 @@ public final class CFMetaData
         if (cf_def.isSetKey_alias()) { newCFMD.keyAlias(cf_def.key_alias); }
         if (cf_def.isSetKey_validation_class()) { newCFMD.keyValidator(TypeParser.parse(cf_def.key_validation_class)); }
         if (cf_def.isSetCompaction_strategy())
-            newCFMD.compactionStrategyClass = createCompactionSrategy(cf_def.compaction_strategy);
+            newCFMD.compactionStrategyClass = createCompactionStrategy(cf_def.compaction_strategy);
         if (cf_def.isSetCompaction_strategy_options())
             newCFMD.compactionStrategyOptions(new HashMap<String, String>(cf_def.compaction_strategy_options));
 
@@ -784,7 +783,7 @@ public final class CFMetaData
         }
 
         if (cf_def.compaction_strategy != null)
-            compactionStrategyClass = createCompactionSrategy(cf_def.compaction_strategy.toString());
+            compactionStrategyClass = createCompactionStrategy(cf_def.compaction_strategy.toString());
 
         if (null != cf_def.compaction_strategy_options)
         {
@@ -798,7 +797,7 @@ public final class CFMetaData
         logger.debug("application result is {}", this);
     }
 
-    public static Class<? extends AbstractCompactionStrategy> createCompactionSrategy(String className) throws ConfigurationException
+    public static Class<? extends AbstractCompactionStrategy> createCompactionStrategy(String className) throws ConfigurationException
     {
         className = className.contains(".") ? className : "org.apache.cassandra.db.compaction." + className;
         try

@@ -316,7 +316,7 @@ public class Session implements Serializable
                 try
                 {
                     // validate compaction strategy class
-                    CFMetaData.createCompactionSrategy(compactionStrategy);
+                    CFMetaData.createCompactionStrategy(compactionStrategy);
                 }
                 catch (ConfigurationException e)
                 {
