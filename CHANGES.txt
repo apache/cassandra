@@ -10,6 +10,9 @@
  * fix race between cf flush and its 2ndary indexes flush (CASSANDRA-3547)
  * fix potential race in AES when a repair fails (CASSANDRA-3548)
  * fix default value validation usage in CLI SET command (CASSANDRA-3553)
+Merged from 0.8:
+ * use cannonical host for local node in nodetool info (CASSANDRA-3556)
+
 
 1.0.5
  * revert CASSANDRA-3407 (see CASSANDRA-3540)
