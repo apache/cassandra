@@ -130,19 +130,23 @@ public class CommitLog implements CommitLogMBean
             }
         });
 
+        int replayed = 0;
         if (files.length == 0)
         {
             logger.info("No commitlog files found; skipping replay");
-            return 0;
         }
-        
-        Arrays.sort(files, new FileUtils.FileComparator());
-        logger.info("Replaying " + StringUtils.join(files, ", "));
-        int replayed = recover(files);
-        logger.info("Log replay complete, " + replayed + " replayed mutations");
+        else
+        {
+            Arrays.sort(files, new FileUtils.FileComparator());
+            logger.info("Replaying " + StringUtils.join(files, ", "));
+            replayed = recover(files);
+            logger.info("Log replay complete, " + replayed + " replayed mutations");
 
-        for (File f : files)
-            CommitLog.instance.allocator.recycleSegment(f);
+            for (File f : files)
+                CommitLog.instance.allocator.recycleSegment(f);
+        }
+
+        allocator.enableReserveSegmentCreation();
         return replayed;
     }
 
@@ -347,8 +351,6 @@ public class CommitLog implements CommitLogMBean
         for (Table table : tablesRecovered)
             futures.addAll(table.flush());
         FBUtilities.waitOnFutures(futures);
-
-        allocator.enableReserveSegmentCreation();
 
         return replayedCount.get();
     }

@@ -1,6 +1,6 @@
 1.1-dev
  * "defragment" rows for name-based queries under STCS, again (CASSANDRA-2503)
- * Recycle commitlog segments for improved performance (CASSANDRA-3411)
+ * Recycle commitlog segments for improved performance (CASSANDRA-3411, 3543)
  * update size-tiered compaction to prioritize small tiers (CASSANDRA-2407)
  * add message expiration logic to OutboundTcpConnection (CASSANDRA-3005)
  * off-heap cache to use sun.misc.Unsafe instead of JNA (CASSANDRA-3271)
