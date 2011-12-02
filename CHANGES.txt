@@ -7,6 +7,7 @@
    be qualified by keyspace (CASSANDRA-3419)
  * always remove endpoints from delevery queue in HH (CASSANDRA-3546)
  * fix race between cf flush and its 2ndary indexes flush (CASSANDRA-3547)
+ * fix potential race in AES when a repair fails (CASSANDRA-3548)
 
 
 1.0.5

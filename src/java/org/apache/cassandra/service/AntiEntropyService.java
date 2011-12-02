@@ -180,13 +180,14 @@ public class AntiEntropyService
             return;
         }
 
-        if (session.terminated())
+        RepairSession.RepairJob job = session.jobs.peek();
+        if (job == null)
+        {
+            assert session.terminated();
             return;
+        }
 
         logger.info(String.format("[repair #%s] Received merkle tree for %s from %s", session.getName(), request.cf.right, request.endpoint));
-
-        RepairSession.RepairJob job = session.jobs.peek();
-        assert job != null : "A repair should have at least some jobs scheduled";
 
         if (job.addTree(request, tree) == 0)
         {
@@ -704,14 +705,14 @@ public class AntiEntropyService
             }
             catch (InterruptedException e)
             {
-                throw new RuntimeException("Interrupted while waiting for repair: repair will continue in the background.");
+                throw new RuntimeException("Interrupted while waiting for repair.");
             }
             finally
             {
+                // mark this session as terminated
+                terminate();
                 FailureDetector.instance.unregisterFailureDetectionEventListener(this);
                 Gossiper.instance.unregister(this);
-                // mark this session as terminated
-                terminated = true;
                 AntiEntropyService.instance.sessions.remove(getName());
             }
         }
@@ -724,28 +725,36 @@ public class AntiEntropyService
             return terminated;
         }
 
+        public void terminate()
+        {
+            terminated = true;
+            jobs.clear();
+            activeJobs.clear();
+        }
+
         /**
          * clear all RepairJobs and terminate this session.
          */
         public void forceShutdown()
         {
-            jobs.clear();
-            activeJobs.clear();
             differencingDone.signalAll();
             completed.signalAll();
         }
 
         void completed(Differencer differencer)
         {
-            if (terminated)
-                return;
-
             logger.debug(String.format("[repair #%s] Repair completed between %s and %s on %s",
                                        getName(),
                                        differencer.r1.endpoint,
                                        differencer.r2.endpoint,
                                        differencer.cfname));
             RepairJob job = activeJobs.get(differencer.cfname);
+            if (job == null)
+            {
+                assert terminated;
+                return;
+            }
+
             if (job.completedSynchronization(differencer))
             {
                 activeJobs.remove(differencer.cfname);
