@@ -178,11 +178,15 @@ public class StreamInSession
             logger.info("Finished streaming session {} from {}", getSessionId(), getHost());
             try
             {
-                OutboundTcpConnection.write(reply.getMessage(Gossiper.instance.getVersion(getHost())), context.right.toString(), new DataOutputStream(socket.getOutputStream()));
+                if (socket != null)
+                    OutboundTcpConnection.write(reply.getMessage(Gossiper.instance.getVersion(getHost())), context.right.toString(), new DataOutputStream(socket.getOutputStream()));
+                else
+                    logger.debug("No socket to reply to {} with!", getHost());
             }
             finally
             {
-                socket.close();
+                if (socket != null)
+                    socket.close();
             }
 
             if (callback != null)
