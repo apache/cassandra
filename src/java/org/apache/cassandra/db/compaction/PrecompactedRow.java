@@ -64,9 +64,10 @@ public class PrecompactedRow extends AbstractCompactedRow
 
         if (cf.hasExpiredTombstones(controller.gcBefore))
             shouldPurge = controller.shouldPurge(key);
-        ColumnFamily compacted = shouldPurge != null && shouldPurge
-                               ? ColumnFamilyStore.removeDeleted(cf, controller.gcBefore)
-                               : cf;
+        // We should only gc tombstone if shouldPurge == true. But otherwise,
+        // it is still ok to collect column that shadowed by their (deleted)
+        // container, which removeDeleted(cf, Integer.MAX_VALUE) will do
+        ColumnFamily compacted = ColumnFamilyStore.removeDeleted(cf, shouldPurge != null && shouldPurge ? controller.gcBefore : Integer.MIN_VALUE);
 
         if (compacted != null && compacted.metadata().getDefaultValidator().isCommutative())
         {
@@ -81,7 +82,8 @@ public class PrecompactedRow extends AbstractCompactedRow
 
     public static ColumnFamily removeDeletedAndOldShards(DecoratedKey key, boolean shouldPurge, CompactionController controller, ColumnFamily cf)
     {
-        ColumnFamily compacted = shouldPurge ? ColumnFamilyStore.removeDeleted(cf, controller.gcBefore) : cf;
+        // See comment in preceding method
+        ColumnFamily compacted = ColumnFamilyStore.removeDeleted(cf, shouldPurge ? controller.gcBefore : Integer.MIN_VALUE);
         if (shouldPurge && compacted != null && compacted.metadata().getDefaultValidator().isCommutative())
             CounterColumn.mergeAndRemoveOldShards(key, compacted, controller.gcBefore, controller.mergeShardBefore);
         return compacted;

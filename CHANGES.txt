@@ -15,6 +15,8 @@
  * always remove endpoints from delevery queue in HH (CASSANDRA-3546)
  * fix race between cf flush and its 2ndary indexes flush (CASSANDRA-3547)
  * fix potential race in AES when a repair fails (CASSANDRA-3548)
+ * Remove columns shadowed by a deleted container even when we cannot purge
+   (CASSANDRA-3538)
 
 
 1.0.5
