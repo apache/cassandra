@@ -20,6 +20,25 @@
    (CASSANDRA-3538)
 
 
+1.0.6
+ * fix adding to leveled manifest after streaming (CASSANDRA-3536)
+ * add command to stop compactions (CASSANDRA-1740)
+ * filter out unavailable cipher suites when using encryption (CASSANDRA-3178)
+ * (HADOOP) add old-style api support for CFIF and CFRR (CASSANDRA-2799)
+ * Support TimeUUIDType column names in Stress.java tool (CASSANDRA-3541)
+ * (CQL) INSERT/UPDATE/DELETE/TRUNCATE commands should allow CF names to
+   be qualified by keyspace (CASSANDRA-3419)
+ * always remove endpoints from delevery queue in HH (CASSANDRA-3546)
+ * fix race between cf flush and its 2ndary indexes flush (CASSANDRA-3547)
+ * fix potential race in AES when a repair fails (CASSANDRA-3548)
+ * fix default value validation usage in CLI SET command (CASSANDRA-3553)
+ * Optimize componentsFor method for compaction and startup time
+   (CASSANDRA-3532)
+ * (CQL) Proper ColumnFamily metadata validation on CREATE COLUMNFAMILY (CASSANDRA-3565)
+Merged from 0.8: 
+ * use cannonical host for local node in nodetool info (CASSANDRA-3556)
+
+
 1.0.5
  * add command to stop compactions (CASSANDRA-1740)
  * fix assertion error when forwarding to local nodes (CASSANDRA-3539)
@@ -40,12 +59,13 @@
  * make sstableloader recognize compressed sstables (CASSANDRA-3521)
  * avoids race in OutboundTcpConnection in multi-DC setups (CASSANDRA-3530)
  * use SETLOCAL in cassandra.bat (CASANDRA-3506)
+ * fix ConcurrentModificationException in Table.all() (CASSANDRA-3529)
 Merged from 0.8:
  * fix concurrence issue in the FailureDetector (CASSANDRA-3519)
  * fix array out of bounds error in counter shard removal (CASSANDRA-3514)
  * avoid dropping tombstones when they might still be needed to shadow
    data in a different sstable (CASSANDRA-2786)
- * fix ConcurrentModificationException in Table.all() (CASSANDRA-3529)
+
 
 1.0.3
  * revert name-based query defragmentation aka CASSANDRA-2503 (CASSANDRA-3491)
