@@ -54,6 +54,7 @@ import org.apache.cassandra.service.StorageServiceMBean;
 import org.apache.cassandra.streaming.StreamingService;
 import org.apache.cassandra.streaming.StreamingServiceMBean;
 import org.apache.cassandra.thrift.UnavailableException;
+import org.apache.cassandra.utils.Pair;
 
 /**
  * JMX client operations for Cassandra.
@@ -518,11 +519,29 @@ public class NodeProbe
         return cfsProxy;
     }
 
+    public String getEndpoint()
+    {
+        // Try to find the endpoint using the local token, doing so in a crazy manner
+        // to maintain backwards compatibility with the MBean interface
+        String stringToken = ssProxy.getToken();
+        Map<Token, String> tokenToEndpoint = ssProxy.getTokenToEndpointMap();
+
+        for (Map.Entry<Token, String> pair : tokenToEndpoint.entrySet())
+        {
+            if (pair.getKey().toString().equals(stringToken))
+            {
+                return pair.getValue();
+            }
+        }
+
+        throw new AssertionError("Could not find myself in the endpoint list, something is very wrong!");
+    }
+
     public String getDataCenter()
     {
         try
         {
-            return getEndpointSnitchInfoProxy().getDatacenter(host);
+            return getEndpointSnitchInfoProxy().getDatacenter(getEndpoint());
         }
         catch (UnknownHostException e)
         {
@@ -534,7 +553,7 @@ public class NodeProbe
     {
         try
         {
-            return getEndpointSnitchInfoProxy().getRack(host);
+            return getEndpointSnitchInfoProxy().getRack(getEndpoint());
         }
         catch (UnknownHostException e)
         {

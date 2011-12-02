@@ -1,3 +1,7 @@
+0.8.9
+ * use cannonical host for local node in nodetool info (CASSANDRA-3556)
+
+
 0.8.8
  * avoid dropping tombstones when they might still be needed to shadow
    data in a different sstable (CASSANDRA-2786)
