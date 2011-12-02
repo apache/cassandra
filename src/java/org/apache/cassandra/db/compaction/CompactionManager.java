@@ -937,7 +937,8 @@ public class CompactionManager implements CompactionManagerMBean
                             if (!sstable.newSince(truncatedAt))
                                 truncatedSSTables.add(sstable);
                         }
-                        cfs.markCompacted(truncatedSSTables);
+                        if (!truncatedSSTables.isEmpty())
+                            cfs.markCompacted(truncatedSSTables);
                     }
                 }
                 finally
