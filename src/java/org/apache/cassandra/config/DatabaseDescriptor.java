@@ -996,9 +996,14 @@ public class DatabaseDescriptor
             throw new ConfigurationException("memtable_operations_in_millions must be less than " + Long.MAX_VALUE / 1024 * 1024);
     }
 
-    public static boolean incrementalBackupsEnabled()
+    public static boolean isIncrementalBackupsEnabled()
     {
         return conf.incremental_backups;
+    }
+
+    public static void setIncrementalBackupsEnabled(boolean value)
+    {
+        conf.incremental_backups = value;
     }
 
     public static int getFlushQueueSize()

@@ -342,6 +342,9 @@ public interface StorageServiceMBean
     public int getCompactionThroughputMbPerSec();
     public void setCompactionThroughputMbPerSec(int value);
 
+    public boolean isIncrementalBackupsEnabled();
+    public void setIncrementalBackupsEnabled(boolean value);
+
     public void bulkLoad(String directory);
 
     public void rescheduleFailedDeletions();

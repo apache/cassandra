@@ -163,7 +163,7 @@ public class DataTracker
 
     public void incrementallyBackup(final SSTableReader sstable)
     {
-        if (!DatabaseDescriptor.incrementalBackupsEnabled())
+        if (!DatabaseDescriptor.isIncrementalBackupsEnabled())
             return;
 
         Runnable runnable = new WrappedRunnable()

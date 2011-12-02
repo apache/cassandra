@@ -603,6 +603,16 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         DatabaseDescriptor.setCompactionThroughputMbPerSec(value);
     }
 
+    public boolean isIncrementalBackupsEnabled()
+    {
+        return DatabaseDescriptor.isIncrementalBackupsEnabled();
+    }
+
+    public void setIncrementalBackupsEnabled(boolean value)
+    {
+        DatabaseDescriptor.setIncrementalBackupsEnabled(value);
+    }
+
     private void setMode(Mode m, boolean log)
     {
         setMode(m, null, log);
