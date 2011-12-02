@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import com.google.common.collect.Sets;
 import org.junit.Test;
 
 import org.apache.cassandra.CleanupHelper;
@@ -75,12 +76,10 @@ public class SSTableTest extends CleanupHelper
         ssTable = SSTableReader.open(ssTable.descriptor); // read the index from disk
         verifyMany(ssTable, map);
 
-        Set<Component> live = SSTable.componentsFor(ssTable.descriptor, Descriptor.TempState.LIVE);
-        assert !live.isEmpty() : "SSTable has live components";
-        Set<Component> all = SSTable.componentsFor(ssTable.descriptor, Descriptor.TempState.ANY);
-        assert live.equals(all) : "live components same as all components";
-        all.removeAll(live);
-        assert all.isEmpty() : "SSTable has no temp components";
+        Set<Component> live = SSTable.componentsFor(ssTable.descriptor);
+        assert !live.isEmpty() : "SSTable has no live components";
+        Set<Component> temp = SSTable.componentsFor(ssTable.descriptor.asTemporary(true));
+        assert temp.isEmpty() : "SSTable has unexpected temp components";
     }
 
     private void verifyMany(SSTableReader sstable, Map<ByteBuffer, ByteBuffer> map) throws IOException

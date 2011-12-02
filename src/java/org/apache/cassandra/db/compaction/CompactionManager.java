@@ -632,10 +632,14 @@ public class CompactionManager implements CompactionManagerMBean
             if (writer.getFilePointer() > 0)
                 newSstable = writer.closeAndOpenReader(sstable.maxDataAge);
         }
-        finally
+        catch (Exception e)
         {
             if (writer != null)
-                writer.cleanupIfNecessary();
+                writer.abort();
+            throw FBUtilities.unchecked(e);
+        }
+        finally
+        {
             FileUtils.closeQuietly(dataFile);
             FileUtils.closeQuietly(indexFile);
 
@@ -759,12 +763,16 @@ public class CompactionManager implements CompactionManagerMBean
                 if (writer != null)
                     newSstable = writer.closeAndOpenReader(sstable.maxDataAge);
             }
+            catch (Exception e)
+            {
+                if (writer != null)
+                    writer.abort();
+                throw FBUtilities.unchecked(e);
+            }
             finally
             {
                 scanner.close();
                 executor.finishCompaction(ci);
-                if (writer != null)
-                    writer.cleanupIfNecessary();
                 executor.finishCompaction(ci);
             }
 

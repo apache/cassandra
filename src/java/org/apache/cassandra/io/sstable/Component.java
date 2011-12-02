@@ -53,8 +53,6 @@ public class Component
         COMPRESSION_INFO("CompressionInfo.db"),
         // statistical metadata about the content of the sstable
         STATS("Statistics.db"),
-        // a bitmap secondary index: many of these may exist per sstable
-        BITMAP_INDEX("Bitidx.db"),
         // holds sha1 sum of the data file (to be checked by sha1sum)
         DIGEST("Digest.sha1");
 
@@ -103,25 +101,11 @@ public class Component
      */
     public String name()
     {
-        switch(type)
-        {
-            case DATA:
-            case PRIMARY_INDEX:
-            case FILTER:
-            case COMPACTED_MARKER:
-            case COMPRESSION_INFO:
-            case STATS:
-            case DIGEST:
-                return type.repr;
-            case BITMAP_INDEX:
-                return String.format("%d%c%s", id, separator, type.repr);
-        }
-        throw new IllegalStateException();
+        return type.repr;
     }
 
     /**
      * Filename of the form "<ksname>/<cfname>-[tmp-][<version>-]<gen>-<component>",
-     * where <component> is of the form "[<id>-]<component>".
      * @return A Descriptor for the SSTable, and a Component for this particular file.
      * TODO move descriptor into Component field
      */
@@ -130,15 +114,7 @@ public class Component
         Pair<Descriptor,String> path = Descriptor.fromFilename(directory, name);
 
         // parse the component suffix
-        String repr = path.right;
-        int id = -1;
-        int separatorPos = repr.indexOf(separator);
-        if (separatorPos != -1)
-        {
-            id = Integer.parseInt(repr.substring(0, separatorPos));
-            repr = repr.substring(separatorPos+1, repr.length());
-        }
-        Type type = Type.fromRepresentation(repr);
+        Type type = Type.fromRepresentation(path.right);
         // build (or retrieve singleton for) the component object
         Component component;
         switch(type)
@@ -150,9 +126,6 @@ public class Component
             case COMPRESSION_INFO:  component = Component.COMPRESSION_INFO; break;
             case STATS:             component = Component.STATS;            break;
             case DIGEST:            component = Component.DIGEST;           break;
-            case BITMAP_INDEX:
-                 component = new Component(type, id);
-                 break;
             default:
                  throw new IllegalStateException();
         }

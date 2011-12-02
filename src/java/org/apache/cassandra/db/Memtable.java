@@ -40,6 +40,7 @@ import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.sstable.SSTableWriter;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.SlabAllocator;
 import org.apache.cassandra.utils.WrappedRunnable;
 import org.github.jamm.MemoryMeter;
@@ -268,9 +269,10 @@ public class Memtable
 
             ssTable = writer.closeAndOpenReader();
         }
-        finally
+        catch (Exception e)
         {
-            writer.cleanupIfNecessary();
+            writer.abort();
+            throw FBUtilities.unchecked(e);
         }
         logger.info(String.format("Completed flushing %s (%d bytes)",
                                   ssTable.getFilename(), new File(ssTable.getFilename()).length()));

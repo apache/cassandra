@@ -683,4 +683,9 @@ public class FBUtilities
                                buffer.getData().length, buffer.getLength(), size, object);
         return buffer.getData();
     }
+
+    public static RuntimeException unchecked(Exception e)
+    {
+        return e instanceof RuntimeException ? (RuntimeException) e : new RuntimeException(e);
+    }
 }
