@@ -65,7 +65,7 @@ public class CommitLog implements CommitLogMBean
 
     private final ICommitLogExecutorService executor;
 
-    private final CommitLogAllocator allocator;
+    public final CommitLogAllocator allocator;
 
     public static final int END_OF_SEGMENT_MARKER = 0;          // this is written out at the end of a segment
     public static final int END_OF_SEGMENT_MARKER_SIZE = 4;     // number of bytes of ^^^
@@ -388,7 +388,7 @@ public class CommitLog implements CommitLogMBean
      */
     public int activeSegments()
     {
-        return allocator.activeSegments.size();
+        return allocator.getActiveSegments().size();
     }
 
     /**
@@ -427,7 +427,7 @@ public class CommitLog implements CommitLogMBean
                 // flushed CF as clean, until we reach the segment file containing the ReplayPosition passed
                 // in the arguments. Any segments that become unused after they are marked clean will be
                 // recycled or discarded.
-                for (Iterator<CommitLogSegment> iter = allocator.activeSegments.iterator(); iter.hasNext(); )
+                for (Iterator<CommitLogSegment> iter = allocator.getActiveSegments().iterator(); iter.hasNext();)
                 {
                     CommitLogSegment segment = iter.next();
                     segment.markClean(cfId, context);
@@ -438,7 +438,6 @@ public class CommitLog implements CommitLogMBean
                     if (segment.isUnused() && iter.hasNext())
                     {
                         logger.debug("Commit log segment {} is unused", segment);
-                        iter.remove();
                         allocator.recycleSegment(segment);
                     }
                     else
@@ -477,12 +476,9 @@ public class CommitLog implements CommitLogMBean
      */
     public void sync() throws IOException
     {
-        for (CommitLogSegment segment : allocator.activeSegments)
+        for (CommitLogSegment segment : allocator.getActiveSegments())
         {
-            if (segment.needsSync())
-            {
-                segment.sync();
-            }
+            segment.sync();
         }
     }
 
@@ -515,12 +511,15 @@ public class CommitLog implements CommitLogMBean
      */
     public void forceNewSegment() throws ExecutionException, InterruptedException
     {
+        logger.debug("Forcing new segment creation");
+
         Callable<?> task = new Callable()
         {
             public Object call() throws IOException
             {
                 if (activeSegment.position() > 0)
                     activateNextSegment();
+
                 return null;
             }
         };

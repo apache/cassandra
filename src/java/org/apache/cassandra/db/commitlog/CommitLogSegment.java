@@ -119,6 +119,8 @@ public class CommitLogSegment
             buffer = logFileAccessor.getChannel().map(FileChannel.MapMode.READ_WRITE, (long) 0, (long) CommitLog.SEGMENT_SIZE);
             buffer.putInt(CommitLog.END_OF_SEGMENT_MARKER);
             buffer.position(0);
+
+            needsSync = true;
         }
         catch (IOException e)
         {
@@ -178,13 +180,26 @@ public class CommitLogSegment
      * 
      * @return a new CommitLogSegment representing the newly reusable segment.
      */
-    public void recycle()
+    public CommitLogSegment recycle()
     {
         // writes an end-of-segment marker at the very beginning of the file and closes it
         buffer.position(0);
         buffer.putInt(CommitLog.END_OF_SEGMENT_MARKER);
         buffer.position(0);
-        needsSync = true;
+
+        try
+        {
+            sync();
+        }
+        catch (IOException e)
+        {
+            // This is a best effort thing anyway
+            logger.warn("I/O error flushing " + this + " " + e);
+        }
+
+        close();
+
+        return new CommitLogSegment(getPath());
     }
 
     /**
@@ -253,8 +268,11 @@ public class CommitLogSegment
      */
     public void sync() throws IOException
     {
-        buffer.force();
-        needsSync = false;
+        if (needsSync)
+        {
+            buffer.force();
+            needsSync = false;
+        }
     }
 
     /**
@@ -346,14 +364,6 @@ public class CommitLogSegment
     }
 
     /**
-     * @return true if this segment file has unflushed writes
-     */
-    public boolean needsSync()
-    {
-        return needsSync;
-    }
-
-    /**
      * Check to see if a certain ReplayPosition is contained by this segment file.
      *
      * @param   context the replay position to be checked 
@@ -384,13 +394,6 @@ public class CommitLogSegment
 
     public int position()
     {
-        try
-        {
-            return (int) logFileAccessor.getFilePointer();
-        }
-        catch (IOException e)
-        {
-            throw new IOError(e);
-        }
+        return buffer.position();
     }
 }

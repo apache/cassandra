@@ -18,9 +18,11 @@
 
 package org.apache.cassandra;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import com.google.common.base.Charsets;
@@ -44,6 +46,8 @@ public class SchemaLoader
     @BeforeClass
     public static void loadSchema()
     {
+        CommitLog.instance.allocator.enableReserveSegmentCreation();
+
         Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler()
         {
             public void uncaughtException(Thread t, Throwable e)

@@ -22,6 +22,8 @@ import java.io.File;
 
 import java.io.IOError;
 import java.io.IOException;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -58,7 +60,7 @@ public class CommitLogAllocator
     private final BlockingQueue<Runnable> queue = new LinkedBlockingQueue<Runnable>();
 
     /** Active segments, containing unflushed data */
-    final ConcurrentLinkedQueue<CommitLogSegment> activeSegments = new ConcurrentLinkedQueue<CommitLogSegment>();
+    private final ConcurrentLinkedQueue<CommitLogSegment> activeSegments = new ConcurrentLinkedQueue<CommitLogSegment>();
 
     /**
      * Tracks commitlog size, in multiples of the segment size.  We need to do this so we can "promise" size
@@ -113,7 +115,7 @@ public class CommitLogAllocator
     /**
      * Fetches an empty segment file.
      *
-     * @return the next writeable segment
+     * @return the next writable segment
      */
     public CommitLogSegment fetchSegment()
     {
@@ -142,6 +144,8 @@ public class CommitLogAllocator
      */
     public void recycleSegment(final CommitLogSegment segment)
     {
+        activeSegments.remove(segment);
+
         if (isCapExceeded())
         {
             discardSegment(segment);
@@ -152,7 +156,8 @@ public class CommitLogAllocator
         {
             public void run()
             {
-                segment.recycle();
+                CommitLogSegment recycled = segment.recycle();
+                internalAddReadySegment(recycled);
             }
         });
     }
@@ -197,11 +202,11 @@ public class CommitLogAllocator
     private void discardSegment(final CommitLogSegment segment)
     {
         size.addAndGet(-CommitLog.SEGMENT_SIZE);
+
         queue.add(new Runnable()
         {
             public void run()
             {
-                activeSegments.remove(segment);
                 segment.discard();
             }
         });
@@ -253,11 +258,20 @@ public class CommitLogAllocator
         return segment;
     }
 
-    public boolean isCapExceeded()
+    /**
+     * Check to see if the speculative current size exceeds the cap.
+     *
+     * @return true if cap is exceeded
+     */
+    private boolean isCapExceeded()
     {
         return size.get() > DatabaseDescriptor.getTotalCommitlogSpaceInMB() * 1024 * 1024;
     }
 
+    /**
+     * Throws a flag that enables the behavior of keeping at least one spare segment
+     * available at all times.
+     */
     public void enableReserveSegmentCreation()
     {
         createReserveSegments = true;
@@ -322,6 +336,14 @@ public class CommitLogAllocator
     public void awaitTermination() throws InterruptedException
     {
         allocationThread.join(); 
+    }
+
+    /**
+     * @return a read-only collection of the active commit log segments
+     */
+    public Collection<CommitLogSegment> getActiveSegments()
+    {
+        return Collections.unmodifiableCollection(activeSegments);
     }
 }
 
