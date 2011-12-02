@@ -6,6 +6,7 @@
  * (CQL) INSERT/UPDATE/DELETE/TRUNCATE commands should allow CF names to
    be qualified by keyspace (CASSANDRA-3419)
  * always remove endpoints from delevery queue in HH (CASSANDRA-3546)
+ * fix race between cf flush and its 2ndary indexes flush (CASSANDRA-3547)
 
 
 1.0.5
