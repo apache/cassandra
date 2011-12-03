@@ -1,7 +1,0 @@
-# NOTICE: See also /etc/cassandra/cassandra-env.sh
-
-# EXTRA_CLASSPATH provides the means to extend Cassandra's classpath with
-# additional libraries.  It is formatted as a colon-delimited list of
-# class directories and/or jar files.  For example, to enable the
-# JMX-to-web bridge install libmx4j-java and uncomment the following.
-#EXTRA_CLASSPATH="/usr/share/java/mx4j-tools.jar"
