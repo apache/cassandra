@@ -223,7 +223,9 @@ public class CliMain
         {
             String errorTemplate = sessionState.inFileMode() ? "Line " + lineNumber + " => " : "";
 
-            String message = (e.getCause() == null) ? e.getMessage() : e.getCause().getMessage();
+            Throwable exception = (e.getCause() == null) ? e : e.getCause();
+            String message = (exception instanceof InvalidRequestException) ? ((InvalidRequestException) exception).getWhy() : e.getMessage();
+
             sessionState.err.println(errorTemplate + message);
 
             if (!(e instanceof RuntimeException))

@@ -19,7 +19,6 @@
 package org.apache.cassandra.io.compress;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 
 import org.xerial.snappy.Snappy;
@@ -30,6 +29,10 @@ public class SnappyCompressor implements ICompressor
 
     public static SnappyCompressor create(Map<String, String> compressionOptions)
     {
+        // this would throw java.lang.NoClassDefFoundError if Snappy class
+        // wasn't found at runtime which should be processed by calling method
+        Snappy.getNativeLibraryVersion();
+
         // no specific options supported so far
         return instance;
     }

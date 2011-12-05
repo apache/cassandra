@@ -116,7 +116,11 @@ public class CompressionParameters
         }
         catch (InvocationTargetException e)
         {
-            throw new ConfigurationException(compressorClass.getSimpleName() + ".create() throwed an error", e);
+            Throwable cause = e.getCause();
+            throw new ConfigurationException(String.format("%s.create() threw an error: %s",
+                                             compressorClass.getSimpleName(),
+                                             cause == null ? e.getClass().getName() + " " + e.getMessage() : cause.getClass().getName() + " " + cause.getMessage()),
+                                             e);
         }
         catch (ExceptionInInitializerError e)
         {

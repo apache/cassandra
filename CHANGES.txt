@@ -13,6 +13,7 @@
  * Optimize componentsFor method for compaction and startup time
    (CASSANDRA-3532)
  * (CQL) Proper ColumnFamily metadata validation on CREATE COLUMNFAMILY (CASSANDRA-3565)
+ * validate compression parameters on add/update of the ColumnFamily (CASSANDRA-3573)
 Merged from 0.8:
  * use cannonical host for local node in nodetool info (CASSANDRA-3556)
 
