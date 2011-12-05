@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.security.KeyStore;
+import java.util.Set;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
@@ -35,6 +36,11 @@ import javax.net.ssl.TrustManagerFactory;
 
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.commons.lang.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.google.common.collect.Sets;
 
 /**
  * A Factory for providing and setting up Client and Server SSL wrapped
@@ -42,16 +48,15 @@ import org.apache.cassandra.io.util.FileUtils;
  */
 public final class SSLFactory
 {
-    private static final String PROTOCOL = "TLS";
-    private static final String ALGORITHM = "SunX509";
-    private static final String STORE_TYPE = "JKS";
+    private static final Logger logger_ = LoggerFactory.getLogger(SSLFactory.class);
 
     public static SSLServerSocket getServerSocket(EncryptionOptions options, InetAddress address, int port) throws IOException
     {
         SSLContext ctx = createSSLContext(options);
         SSLServerSocket serverSocket = (SSLServerSocket)ctx.getServerSocketFactory().createServerSocket();
         serverSocket.setReuseAddress(true);
-        serverSocket.setEnabledCipherSuites(options.cipherSuites);
+        String[] suits = filterCipherSuites(serverSocket.getSupportedCipherSuites(), options.cipher_suites);
+        serverSocket.setEnabledCipherSuites(suits);
         serverSocket.bind(new InetSocketAddress(address, port), 100);
         return serverSocket;
     }
@@ -61,7 +66,8 @@ public final class SSLFactory
     {
         SSLContext ctx = createSSLContext(options);
         SSLSocket socket = (SSLSocket) ctx.getSocketFactory().createSocket(address, port, localAddress, localPort);
-        socket.setEnabledCipherSuites(options.cipherSuites);
+        String[] suits = filterCipherSuites(socket.getSupportedCipherSuites(), options.cipher_suites);
+        socket.setEnabledCipherSuites(suits);
         return socket;
     }
 
@@ -70,7 +76,8 @@ public final class SSLFactory
     {
         SSLContext ctx = createSSLContext(options);
         SSLSocket socket = (SSLSocket) ctx.getSocketFactory().createSocket();
-        socket.setEnabledCipherSuites(options.cipherSuites);
+        String[] suits = filterCipherSuites(socket.getSupportedCipherSuites(), options.cipher_suites);
+        socket.setEnabledCipherSuites(suits);
         return socket;
     }
 
@@ -81,17 +88,17 @@ public final class SSLFactory
         SSLContext ctx;
         try
         {
-            ctx = SSLContext.getInstance(PROTOCOL);
+            ctx = SSLContext.getInstance(options.protocol);
             TrustManagerFactory tmf;
             KeyManagerFactory kmf;
 
-            tmf = TrustManagerFactory.getInstance(ALGORITHM);
-            KeyStore ts = KeyStore.getInstance(STORE_TYPE);
+            tmf = TrustManagerFactory.getInstance(options.algorithm);
+            KeyStore ts = KeyStore.getInstance(options.store_type);
             ts.load(tsf, options.truststore_password.toCharArray());
             tmf.init(ts);
 
-            kmf = KeyManagerFactory.getInstance(ALGORITHM);
-            KeyStore ks = KeyStore.getInstance(STORE_TYPE);
+            kmf = KeyManagerFactory.getInstance(options.algorithm);
+            KeyStore ks = KeyStore.getInstance(options.store_type);
             ks.load(ksf, options.keystore_password.toCharArray());
             kmf.init(ks, options.keystore_password.toCharArray());
 
@@ -108,5 +115,14 @@ public final class SSLFactory
             FileUtils.closeQuietly(ksf);
         }
         return ctx;
+    }
+    
+    private static String[] filterCipherSuites(String[] supported, String[] desired)
+    {
+        Set<String> des = Sets.newHashSet(desired);
+        Set<String> return_ = Sets.intersection(Sets.newHashSet(supported), des);
+        if (des.size() > return_.size())
+            logger_.warn("Filtering out {} as it isnt supported by the socket", StringUtils.join(Sets.difference(des, return_), ","));
+        return return_.toArray(new String[return_.size()]);
     }
 }
