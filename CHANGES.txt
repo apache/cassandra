@@ -1,5 +1,7 @@
 0.8.9
  * use cannonical host for local node in nodetool info (CASSANDRA-3556)
+ * remove nonlocal DC write optimization since it only worked with
+   CL.ONE or CL.LOCAL_QUORUM (CASSANDRA-3577)
 
 
 0.8.8

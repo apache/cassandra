@@ -296,8 +296,6 @@ public class StorageProxy implements StorageProxyMBean
     {
         for (Map.Entry<String, Multimap<Message, InetAddress>> entry: dcMessages.entrySet())
         {
-            String dataCenter = entry.getKey();
-
             // send the messages corresponding to this datacenter
             for (Map.Entry<Message, Collection<InetAddress>> messages: entry.getValue().asMap().entrySet())
             {
@@ -306,36 +304,10 @@ public class StorageProxy implements StorageProxyMBean
                 // from previous loop iterations
                 message.removeHeader(RowMutation.FORWARD_HEADER);
 
-                if (dataCenter.equals(localDataCenter))
-                {
-                    // direct writes to local DC or old Cassadra versions
-                    for (InetAddress destination : messages.getValue())
-                        MessagingService.instance().sendRR(message, destination, handler);
-                }
-                else
-                {
-                    // Non-local DC. First endpoint in list is the destination for this group
-                    Iterator<InetAddress> iter = messages.getValue().iterator();
-                    InetAddress target = iter.next();
-                    // Add all the other destinations of the same message as a header in the primary message.
-                    while (iter.hasNext())
-                    {
-                        InetAddress destination = iter.next();
-                        // group all nodes in this DC as forward headers on the primary message
-                        ByteArrayOutputStream bos = new ByteArrayOutputStream();
-                        DataOutputStream dos = new DataOutputStream(bos);
-
-                        // append to older addresses
-                        byte[] previousHints = message.getHeader(RowMutation.FORWARD_HEADER);
-                        if (previousHints != null)
-                            dos.write(previousHints);
-
-                        dos.write(destination.getAddress());
-                        message.setHeader(RowMutation.FORWARD_HEADER, bos.toByteArray());
-                    }
-                    // send the combined message + forward headers
-                    MessagingService.instance().sendRR(message, target, handler);
-                }
+                // direct writes to everything -- optimized nonlocal DC writes are
+                // postponed to 1.1; see CASSANDRA-3577
+                for (InetAddress destination : messages.getValue())
+                    MessagingService.instance().sendRR(message, destination, handler);
             }
         }
     }
