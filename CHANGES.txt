@@ -38,6 +38,8 @@
    (CASSANDRA-3532)
  * (CQL) Proper ColumnFamily metadata validation on CREATE COLUMNFAMILY (CASSANDRA-3565)
  * validate compression parameters on add/update of the ColumnFamily (CASSANDRA-3573)
+ * fix compression "chunk_length_kb" option to set correct kb value for thrift/avro
+   (CASSANDRA-3558)
 Merged from 0.8:
  * use cannonical host for local node in nodetool info (CASSANDRA-3556)
 
