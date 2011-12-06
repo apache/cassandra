@@ -1,6 +1,6 @@
 1.0.6
  * fix adding to leveled manifest after streaming (CASSANDRA-3536)
- * add command to stop compactions (CASSANDRA-1740)
+ * add command to stop compactions (CASSANDRA-1740, 3566)
  * filter out unavailable cipher suites when using encryption (CASSANDRA-3178)
  * (HADOOP) add old-style api support for CFIF and CFRR (CASSANDRA-2799)
  * Support TimeUUIDType column names in Stress.java tool (CASSANDRA-3541)

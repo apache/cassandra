@@ -38,7 +38,6 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.compaction.CompactionInfo;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.OperationType;
-import org.apache.cassandra.db.compaction.UserInterruptedException;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.cassandra.service.StorageService;
@@ -253,25 +252,20 @@ public abstract class AutoSavingCache<K, V> extends InstrumentingCache<K, V>
             {
                 for (K key : keys)
                 {
-                    if (isStopped())
-                        throw new UserInterruptedException(getCompactionInfo());
                     ByteBuffer bytes = translateKey(key);
                     ByteBufferUtil.writeWithLength(bytes, out);
                     bytesWritten += bytes.remaining();
                 }
-                out.flush();
-                path.delete(); // ignore error if it didn't exist
-                if (!tmpFile.renameTo(path))
-                    throw new IOException("Unable to rename " + tmpFile + " to " + path);
-                logger.info(String.format("Saved %s (%d items) in %d ms",
-                            path.getName(), keys.size(), (System.currentTimeMillis() - start)));
             }
             finally
             {
-                FileUtils.closeQuietly(out);
-                if (tmpFile.exists())
-                    tmpFile.delete();
+                out.close();
             }
+            path.delete(); // ignore error if it didn't exist
+            if (!tmpFile.renameTo(path))
+                throw new IOException("Unable to rename " + tmpFile + " to " + path);
+            logger.info(String.format("Saved %s (%d items) in %d ms",
+                        path.getName(), keys.size(), (System.currentTimeMillis() - start)));
         }
     }
 }
