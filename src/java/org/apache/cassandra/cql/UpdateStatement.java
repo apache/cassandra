@@ -37,7 +37,6 @@ import org.apache.cassandra.thrift.InvalidRequestException;
 
 import static org.apache.cassandra.cql.QueryProcessor.validateColumn;
 
-import static org.apache.cassandra.cql.Operation.OperationType;
 import static org.apache.cassandra.thrift.ThriftValidation.validateColumnFamily;
 import static org.apache.cassandra.thrift.ThriftValidation.validateCommutativeForWrite;
 
@@ -54,20 +53,22 @@ public class UpdateStatement extends AbstractModification
     /**
      * Creates a new UpdateStatement from a column family name, columns map, consistency
      * level, and key term.
-     * 
+     *
+     * @param keyspace Keyspace (optional)
      * @param columnFamily column family name
      * @param keyName alias key name
      * @param columns a map of column name/values pairs
      * @param keys the keys to update
      * @param attrs additional attributes for statement (CL, timestamp, timeToLive)
      */
-    public UpdateStatement(String columnFamily,
+    public UpdateStatement(String keyspace,
+                           String columnFamily,
                            String keyName,
                            Map<Term, Operation> columns,
                            List<Term> keys,
                            Attributes attrs)
     {
-        super(columnFamily, keyName, attrs);
+        super(keyspace, columnFamily, keyName, attrs);
 
         this.columns = columns;
         this.keys = keys;
@@ -77,7 +78,8 @@ public class UpdateStatement extends AbstractModification
      * Creates a new UpdateStatement from a column family name, a consistency level,
      * key, and lists of column names and values.  It is intended for use with the
      * alternate update format, <code>INSERT</code>.
-     * 
+     *
+     * @param keyspace Keyspace (optional)
      * @param columnFamily column family name
      * @param keyName alias key name
      * @param columnNames list of column names
@@ -85,14 +87,15 @@ public class UpdateStatement extends AbstractModification
      * @param keys the keys to update
      * @param attrs additional attributes for statement (CL, timestamp, timeToLive)
      */
-    public UpdateStatement(String columnFamily,
+    public UpdateStatement(String keyspace,
+                           String columnFamily,
                            String keyName,
                            List<Term> columnNames,
                            List<Term> columnValues,
                            List<Term> keys,
                            Attributes attrs)
     {
-        super(columnFamily, keyName, attrs);
+        super(keyspace, columnFamily, keyName, attrs);
 
         this.columnNames = columnNames;
         this.columnValues = columnValues;
@@ -266,7 +269,8 @@ public class UpdateStatement extends AbstractModification
     
     public String toString()
     {
-        return String.format("UpdateStatement(columnFamily=%s, keys=%s, columns=%s, consistency=%s, timestamp=%s, timeToLive=%s)",
+        return String.format("UpdateStatement(keyspace=%s, columnFamily=%s, keys=%s, columns=%s, consistency=%s, timestamp=%s, timeToLive=%s)",
+                             keyspace,
                              columnFamily,
                              keys,
                              columns,

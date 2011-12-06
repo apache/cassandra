@@ -2497,7 +2497,8 @@ public class CliClient
     private ByteBuffer columnValueAsBytes(ByteBuffer columnName, String columnFamilyName, String columnValue)
     {
         CfDef columnFamilyDef = getCfDef(columnFamilyName);
-        
+        AbstractType defaultValidator = getFormatType(columnFamilyDef.default_validation_class);
+
         for (ColumnDef columnDefinition : columnFamilyDef.getColumn_metadata())
         {
             byte[] currentColumnName = columnDefinition.getName();
@@ -2516,8 +2517,7 @@ public class CliClient
             }
         }
 
-        // if no validation were set returning simple .getBytes()
-        return ByteBufferUtil.bytes(columnValue);
+        return defaultValidator.fromString(columnValue);
     }
 
     /**

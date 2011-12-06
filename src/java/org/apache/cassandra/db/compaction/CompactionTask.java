@@ -36,6 +36,7 @@ import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.sstable.SSTableWriter;
 import org.apache.cassandra.utils.CloseableIterator;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class CompactionTask extends AbstractCompactionTask
 {
@@ -183,13 +184,17 @@ public class CompactionTask extends AbstractCompactionTask
                 }
             }
         }
+        catch (Exception e)
+        {
+            for (SSTableWriter writer : writers)
+                writer.abort();
+            throw FBUtilities.unchecked(e);
+        }
         finally
         {
             iter.close();
             if (collector != null)
                 collector.finishCompaction(ci);
-            for (SSTableWriter writer : writers)
-                writer.cleanupIfNecessary();
         }
 
         cfs.replaceCompactedSSTables(toCompact, sstables);

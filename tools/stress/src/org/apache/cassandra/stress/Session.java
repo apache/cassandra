@@ -27,9 +27,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.TypeParser;
+import org.apache.cassandra.db.marshal.*;
 import org.apache.commons.cli.*;
 
 import org.apache.cassandra.db.ColumnFamilyType;
@@ -49,6 +47,8 @@ public class Session implements Serializable
 
     public static final String DEFAULT_COMPARATOR = "AsciiType";
     public static final String DEFAULT_VALIDATOR  = "BytesType";
+
+    private static InetAddress localInetAddress;
 
     public final AtomicInteger operations;
     public final AtomicInteger keys;
@@ -89,6 +89,7 @@ public class Session implements Serializable
         availableOptions.addOption("I",  "compression",          true,   "Specify the compression to use for sstable, default:no compression");
         availableOptions.addOption("Q",  "query-names",          true,   "Comma-separated list of column names to retrieve from each row.");
         availableOptions.addOption("Z",  "compaction-strategy",  true,   "CompactionStrategy to use.");
+        availableOptions.addOption("U",  "comparator",           true,   "Column Comparator to use. Currently supported types are: TimeUUIDType, AsciiType, UTF8Type.");
     }
 
     private int numKeys          = 1000 * 1000;
@@ -131,6 +132,8 @@ public class Session implements Serializable
     protected float sigma;
 
     public final InetAddress sendToDaemon;
+    public final String comparator;
+    public final boolean timeUUIDComparator;
 
     public Session(String[] arguments) throws IllegalArgumentException
     {
@@ -313,13 +316,42 @@ public class Session implements Serializable
                 try
                 {
                     // validate compaction strategy class
-                    CFMetaData.createCompactionSrategy(compactionStrategy);
+                    CFMetaData.createCompactionStrategy(compactionStrategy);
                 }
                 catch (ConfigurationException e)
                 {
                     System.err.println(e.getMessage());
                     System.exit(1);
                 }
+            }
+
+            if (cmd.hasOption("U"))
+            {
+                AbstractType parsed = null;
+
+                try
+                {
+                    parsed = TypeParser.parse(cmd.getOptionValue("U"));
+                }
+                catch (ConfigurationException e)
+                {
+                    System.err.println(e.getMessage());
+                    System.exit(1);
+                }
+
+                comparator = cmd.getOptionValue("U");
+                timeUUIDComparator = parsed instanceof TimeUUIDType;
+
+                if (!(parsed instanceof TimeUUIDType || parsed instanceof AsciiType || parsed instanceof UTF8Type))
+                {
+                    System.err.println("Currently supported types are: TimeUUIDType, AsciiType, UTF8Type.");
+                    System.exit(1);
+                }
+            }
+            else
+            {
+                comparator = null;
+                timeUUIDComparator = false;
             }
         }
         catch (ParseException e)
@@ -464,6 +496,7 @@ public class Session implements Serializable
     public void createKeySpaces()
     {
         KsDef keyspace = new KsDef();
+        String defaultComparator = comparator == null ? DEFAULT_COMPARATOR : comparator;
 
         // column family for standard columns
         CfDef standardCfDef = new CfDef("Keyspace1", "Standard1");
@@ -471,7 +504,7 @@ public class Session implements Serializable
         if (compression != null)
             compressionOptions.put("sstable_compression", compression);
 
-        standardCfDef.setComparator_type(DEFAULT_COMPARATOR)
+        standardCfDef.setComparator_type(defaultComparator)
                      .setDefault_validation_class(DEFAULT_VALIDATOR)
                      .setCompression_options(compressionOptions);
 
@@ -485,7 +518,7 @@ public class Session implements Serializable
         // column family with super columns
         CfDef superCfDef = new CfDef("Keyspace1", "Super1").setColumn_type("Super");
         superCfDef.setComparator_type(DEFAULT_COMPARATOR)
-                  .setSubcomparator_type(DEFAULT_COMPARATOR)
+                  .setSubcomparator_type(defaultComparator)
                   .setDefault_validation_class(DEFAULT_VALIDATOR)
                   .setCompression_options(compressionOptions);
 
@@ -574,4 +607,20 @@ public class Session implements Serializable
         return client;
     }
 
+    public static InetAddress getLocalAddress()
+    {
+        if (localInetAddress == null)
+        {
+            try
+            {
+                localInetAddress = InetAddress.getLocalHost();
+            }
+            catch (UnknownHostException e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
+
+        return localInetAddress;
+    }
 }

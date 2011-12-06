@@ -52,9 +52,9 @@ public class Inserter extends Operation
 
         for (int i = 0; i < session.getColumnsPerKey(); i++)
         {
-            String columnName = ("C" + Integer.toString(i));
-            ByteBuffer columnValue = values.get(i % values.size());
-            columns.add(new Column(ByteBufferUtil.bytes(columnName)).setValue(columnValue).setTimestamp(System.currentTimeMillis()));
+            columns.add(new Column(columnName(i, session.timeUUIDComparator))
+                                .setValue(values.get(i % values.size()))
+                                .setTimestamp(System.currentTimeMillis()));
         }
 
         if (session.getColumnFamilyType() == ColumnFamilyType.Super)

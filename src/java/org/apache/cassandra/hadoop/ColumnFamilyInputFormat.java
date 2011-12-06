@@ -45,11 +45,14 @@ import org.apache.cassandra.thrift.KeyRange;
 import org.apache.cassandra.thrift.TokenRange;
 import org.apache.commons.lang.StringUtils;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.mapred.*;
+import org.apache.hadoop.mapreduce.*;
 import org.apache.hadoop.mapreduce.InputFormat;
 import org.apache.hadoop.mapreduce.InputSplit;
 import org.apache.hadoop.mapreduce.JobContext;
 import org.apache.hadoop.mapreduce.RecordReader;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
+import org.apache.hadoop.mapreduce.TaskAttemptID;
 import org.apache.thrift.TException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -72,8 +75,17 @@ import org.slf4j.LoggerFactory;
  * The default split size is 64k rows.
  */
 public class ColumnFamilyInputFormat extends InputFormat<ByteBuffer, SortedMap<ByteBuffer, IColumn>>
+    implements org.apache.hadoop.mapred.InputFormat<ByteBuffer, SortedMap<ByteBuffer, IColumn>>
 {
     private static final Logger logger = LoggerFactory.getLogger(ColumnFamilyInputFormat.class);
+
+    public static final String MAPRED_TASK_ID = "mapred.task.id";
+    // The simple fact that we need this is because the old Hadoop API wants us to "write"
+    // to the key and value whereas the new asks for it.
+    // I choose 8kb as the default max key size (instanciated only once), but you can
+    // override it in your jobConf with this setting.
+    public static final String CASSANDRA_HADOOP_MAX_KEY_SIZE = "cassandra.hadoop.max_key_size";
+    public static final int    CASSANDRA_HADOOP_MAX_KEY_SIZE_DEFAULT = 8192;
 
     private String keyspace;
     private String cfName;
@@ -263,10 +275,39 @@ public class ColumnFamilyInputFormat extends InputFormat<ByteBuffer, SortedMap<B
         return map;
     }
 
-
-
     public RecordReader<ByteBuffer, SortedMap<ByteBuffer, IColumn>> createRecordReader(InputSplit inputSplit, TaskAttemptContext taskAttemptContext) throws IOException, InterruptedException
     {
         return new ColumnFamilyRecordReader();
     }
+
+
+    //
+    // Old Hadoop API
+    //
+    public org.apache.hadoop.mapred.InputSplit[] getSplits(JobConf jobConf, int numSplits) throws IOException
+    {
+        TaskAttemptContext tac = new TaskAttemptContext(jobConf, new TaskAttemptID());
+        List<org.apache.hadoop.mapreduce.InputSplit> newInputSplits = this.getSplits(tac);
+        org.apache.hadoop.mapred.InputSplit[] oldInputSplits = new org.apache.hadoop.mapred.InputSplit[newInputSplits.size()];
+        for (int i = 0; i < newInputSplits.size(); i++)
+            oldInputSplits[i] = (ColumnFamilySplit)newInputSplits.get(i);
+        return oldInputSplits;
+    }
+
+    public org.apache.hadoop.mapred.RecordReader<ByteBuffer, SortedMap<ByteBuffer, IColumn>> getRecordReader(org.apache.hadoop.mapred.InputSplit split, JobConf jobConf, final Reporter reporter) throws IOException
+    {
+        TaskAttemptContext tac = new TaskAttemptContext(jobConf, TaskAttemptID.forName(jobConf.get(MAPRED_TASK_ID)))
+        {
+            @Override
+            public void progress()
+            {
+                reporter.progress();
+            }
+        };
+
+        ColumnFamilyRecordReader recordReader = new ColumnFamilyRecordReader(jobConf.getInt(CASSANDRA_HADOOP_MAX_KEY_SIZE, CASSANDRA_HADOOP_MAX_KEY_SIZE_DEFAULT));
+        recordReader.initialize((org.apache.hadoop.mapreduce.InputSplit)split, tac);
+        return recordReader;
+    }
+
 }

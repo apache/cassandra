@@ -52,6 +52,7 @@ import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.thrift.Column;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
 
 import com.google.common.base.Predicates;
 import com.google.common.collect.Maps;
@@ -264,16 +265,18 @@ public class QueryProcessor
     private static void batchUpdate(ClientState clientState, List<UpdateStatement> updateStatements, ConsistencyLevel consistency)
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
-        String keyspace = clientState.getKeyspace();
+        String globalKeyspace = clientState.getKeyspace();
         List<IMutation> rowMutations = new ArrayList<IMutation>();
         List<String> cfamsSeen = new ArrayList<String>();
 
         for (UpdateStatement update : updateStatements)
         {
+            String keyspace = update.keyspace == null ? globalKeyspace : update.keyspace;
+
             // Avoid unnecessary authorizations.
             if (!(cfamsSeen.contains(update.getColumnFamily())))
             {
-                clientState.hasColumnFamilyAccess(update.getColumnFamily(), Permission.WRITE);
+                clientState.hasColumnFamilyAccess(keyspace, update.getColumnFamily(), Permission.WRITE);
                 cfamsSeen.add(update.getColumnFamily());
             }
 
@@ -708,13 +711,15 @@ public class QueryProcessor
                 return result;
             
             case TRUNCATE:
-                String columnFamily = (String)statement.statement;
-                validateColumnFamily(keyspace, columnFamily);
-                clientState.hasColumnFamilyAccess(columnFamily, Permission.WRITE);
+                Pair<String, String> columnFamily = (Pair<String, String>)statement.statement;
+                keyspace = columnFamily.left == null ? clientState.getKeyspace() : columnFamily.left;
+
+                validateColumnFamily(keyspace, columnFamily.right);
+                clientState.hasColumnFamilyAccess(keyspace, columnFamily.right, Permission.WRITE);
                 
                 try
                 {
-                    StorageProxy.truncateBlocking(keyspace, columnFamily);
+                    StorageProxy.truncateBlocking(keyspace, columnFamily.right);
                 }
                 catch (TimeoutException e)
                 {
@@ -730,6 +735,9 @@ public class QueryProcessor
             
             case DELETE:
                 DeleteStatement delete = (DeleteStatement)statement.statement;
+
+                keyspace = delete.keyspace == null ? clientState.getKeyspace() : delete.keyspace;
+
                 try
                 {
                     StorageProxy.mutate(delete.prepareRowMutations(keyspace, clientState), delete.getConsistencyLevel());
@@ -778,10 +786,12 @@ public class QueryProcessor
                 CreateColumnFamilyStatement createCf = (CreateColumnFamilyStatement)statement.statement;
                 clientState.hasColumnFamilySchemaAccess(Permission.WRITE);
                 validateSchemaAgreement();
-                
+                CFMetaData cfmd = createCf.getCFMetaData(keyspace);
+                ThriftValidation.validateCfDef(cfmd.toThrift(), null);
+
                 try
                 {
-                    applyMigrationOnStage(new AddColumnFamily(createCf.getCFMetaData(keyspace)));
+                    applyMigrationOnStage(new AddColumnFamily(cfmd));
                 }
                 catch (ConfigurationException e)
                 {

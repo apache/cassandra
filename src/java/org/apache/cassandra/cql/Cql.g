@@ -33,6 +33,7 @@ options {
     import java.util.Collections;
     import java.util.List;
     import java.util.ArrayList;
+    import org.apache.cassandra.utils.Pair;
     import org.apache.cassandra.thrift.ConsistencyLevel;
     import org.apache.cassandra.thrift.InvalidRequestException;
 
@@ -115,7 +116,7 @@ query returns [CQLStatement stmnt]
     | updateStatement endStmnt { $stmnt = new CQLStatement(StatementType.UPDATE, $updateStatement.expr); }
     | batchStatement { $stmnt = new CQLStatement(StatementType.BATCH, $batchStatement.expr); }
     | useStatement      { $stmnt = new CQLStatement(StatementType.USE, $useStatement.keyspace); }
-    | truncateStatement { $stmnt = new CQLStatement(StatementType.TRUNCATE, $truncateStatement.cfam); }
+    | truncateStatement { $stmnt = new CQLStatement(StatementType.TRUNCATE, $truncateStatement.cf); }
     | deleteStatement endStmnt { $stmnt = new CQLStatement(StatementType.DELETE, $deleteStatement.expr); }
     | createKeyspaceStatement { $stmnt = new CQLStatement(StatementType.CREATE_KEYSPACE, $createKeyspaceStatement.expr); }
     | createColumnFamilyStatement { $stmnt = new CQLStatement(StatementType.CREATE_COLUMNFAMILY, $createColumnFamilyStatement.expr); }
@@ -220,13 +221,13 @@ insertStatement returns [UpdateStatement expr]
           List<Term> columnNames  = new ArrayList<Term>();
           List<Term> columnValues = new ArrayList<Term>();
       }
-      K_INSERT K_INTO columnFamily=( IDENT | STRING_LITERAL | INTEGER )
+      K_INSERT K_INTO (keyspace=(IDENT | STRING_LITERAL | INTEGER) '.')? columnFamily=( IDENT | STRING_LITERAL | INTEGER )
           '(' key_alias=term ( ',' column_name=term  { columnNames.add($column_name.item); } )+ ')'
         K_VALUES
           '(' key=term ( ',' column_value=term { columnValues.add($column_value.item); })+ ')'
         ( usingClause[attrs] )?
       {
-          return new UpdateStatement($columnFamily.text, key_alias.getText(), columnNames, columnValues, Collections.singletonList(key), attrs);
+          return new UpdateStatement($keyspace.text, $columnFamily.text, key_alias.getText(), columnNames, columnValues, Collections.singletonList(key), attrs);
       }
     ;
 
@@ -312,14 +313,14 @@ updateStatement returns [UpdateStatement expr]
           Map<Term, Operation> columns = new HashMap<Term, Operation>();
           List<Term> keyList = null;
       }
-      K_UPDATE columnFamily=( IDENT | STRING_LITERAL | INTEGER )
+      K_UPDATE (keyspace=(IDENT | STRING_LITERAL | INTEGER) '.')? columnFamily=( IDENT | STRING_LITERAL | INTEGER )
           ( usingClause[attrs] )?
           K_SET termPairWithOperation[columns] (',' termPairWithOperation[columns])*
           K_WHERE ( key_alias=term ('=' key=term { keyList = Collections.singletonList(key); }
                                     |
                                     K_IN '(' keys=termList { keyList = $keys.items; } ')' ))
       {
-          return new UpdateStatement($columnFamily.text, key_alias.getText(), columns, keyList, attrs);
+          return new UpdateStatement($keyspace.text, $columnFamily.text, key_alias.getText(), columns, keyList, attrs);
       }
     ;
 
@@ -341,13 +342,13 @@ deleteStatement returns [DeleteStatement expr]
       }
       K_DELETE
           ( cols=termList { columnsList = $cols.items; })?
-          K_FROM columnFamily=( IDENT | STRING_LITERAL | INTEGER )
+          K_FROM (keyspace=(IDENT | STRING_LITERAL | INTEGER) '.')? columnFamily=( IDENT | STRING_LITERAL | INTEGER )
           ( usingClauseDelete[attrs] )?
           ( K_WHERE key_alias=term ('=' key=term           { keyList = Collections.singletonList(key); }
                                    | K_IN '(' keys=termList { keyList = $keys.items; } ')')
                   )?
       {
-          return new DeleteStatement(columnsList, $columnFamily.text, key_alias.getText(), keyList, attrs);
+          return new DeleteStatement(columnsList, $keyspace.text, $columnFamily.text, key_alias.getText(), keyList, attrs);
       }
     ;
 
@@ -482,8 +483,8 @@ relation returns [Relation rel]
     ;
 
 // TRUNCATE <CF>;
-truncateStatement returns [String cfam]
-    : K_TRUNCATE columnFamily=( IDENT | STRING_LITERAL | INTEGER ) { $cfam = $columnFamily.text; } endStmnt
+truncateStatement returns [Pair<String,String> cf]
+    : K_TRUNCATE (keyspace=( IDENT | STRING_LITERAL | INTEGER ) '.')? columnFamily=( IDENT | STRING_LITERAL | INTEGER ) { $cf = new Pair<String, String>($keyspace.text, $columnFamily.text); } endStmnt
     ;
 
 endStmnt

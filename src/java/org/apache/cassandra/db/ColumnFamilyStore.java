@@ -226,7 +226,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         data = new DataTracker(this);
         Set<DecoratedKey> savedKeys = keyCache.readSaved();
         Set<Map.Entry<Descriptor, Set<Component>>> entries = files(table.name, columnFamilyName, false, false).entrySet();
-        data.addSSTables(SSTableReader.batchOpen(entries, savedKeys, data, metadata, this.partitioner));
+        data.addInitialSSTables(SSTableReader.batchOpen(entries, savedKeys, data, metadata, this.partitioner));
 
         // compaction strategy should be created after the CFS has been prepared
         this.compactionStrategy = metadata.createCompactionStrategyInstance(this);
@@ -906,7 +906,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public void addSSTable(SSTableReader sstable)
     {
         assert sstable.getColumnFamilyName().equals(columnFamily);
-        data.addStreamedSSTable(sstable);
+        data.addSSTables(Arrays.asList(sstable));
         CompactionManager.instance.submitBackground(this);
     }
 
@@ -961,6 +961,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public void markCompacted(Collection<SSTableReader> sstables)
     {
+        assert !sstables.isEmpty();
         data.markCompacted(sstables);
     }
 

@@ -39,6 +39,7 @@ import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.*;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.io.compress.CompressionParameters;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -602,7 +603,7 @@ public class ThriftValidation
                     if (cf_def.key_alias.equals(columnDef.name))
                         throw new InvalidRequestException("Invalid column name: "
                                                           + AsciiType.instance.compose(cf_def.key_alias)
-                                                          + ", because it equals to the key_alias.");
+                                                          + ", because it equals the key_alias");
                 }
             }
 
@@ -668,6 +669,9 @@ public class ThriftValidation
                 }
             }
             validateMinMaxCompactionThresholds(cf_def);
+
+            // validates compression parameters
+            CompressionParameters.create(cf_def.compression_options);
         }
         catch (ConfigurationException e)
         {

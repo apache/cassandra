@@ -36,13 +36,14 @@
  * Optimize componentsFor method for compaction and startup time
    (CASSANDRA-3532)
  * (CQL) Proper ColumnFamily metadata validation on CREATE COLUMNFAMILY (CASSANDRA-3565)
-Merged from 0.8: 
+ * validate compression parameters on add/update of the ColumnFamily (CASSANDRA-3573)
+Merged from 0.8:
  * use cannonical host for local node in nodetool info (CASSANDRA-3556)
 
 
 1.0.5
- * add command to stop compactions (CASSANDRA-1740)
- * fix assertion error when forwarding to local nodes (CASSANDRA-3539)
+ * revert CASSANDRA-3407 (see CASSANDRA-3540)
+ * fix assertion error while forwarding writes to local nodes (CASSANDRA-3539)
 
 1.0.4
  * fix self-hinting of timed out read repair updates and make hinted handoff

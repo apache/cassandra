@@ -46,9 +46,9 @@ public class DeleteStatement extends AbstractModification
     private List<Term> columns;
     private List<Term> keys;
     
-    public DeleteStatement(List<Term> columns, String columnFamily, String keyName, List<Term> keys, Attributes attrs)
+    public DeleteStatement(List<Term> columns, String keyspace, String columnFamily, String keyName, List<Term> keys, Attributes attrs)
     {
-        super(columnFamily, keyName, attrs);
+        super(keyspace, columnFamily, keyName, attrs);
 
         this.columns = columns;
         this.keys = keys;
@@ -118,8 +118,9 @@ public class DeleteStatement extends AbstractModification
 
     public String toString()
     {
-        return String.format("DeleteStatement(columns=%s, columnFamily=%s, consistency=%s keys=%s)",
+        return String.format("DeleteStatement(columns=%s, keyspace=%s, columnFamily=%s, consistency=%s keys=%s)",
                              columns,
+                             keyspace,
                              columnFamily,
                              cLevel,
                              keys);

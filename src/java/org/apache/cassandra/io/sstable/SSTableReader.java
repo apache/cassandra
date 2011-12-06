@@ -116,7 +116,7 @@ public class SSTableReader extends SSTable
 
     public static SSTableReader open(Descriptor desc, CFMetaData metadata) throws IOException
     {
-        return open(desc, componentsFor(desc, Descriptor.TempState.LIVE), metadata, StorageService.getPartitioner());
+        return open(desc, componentsFor(desc), metadata, StorageService.getPartitioner());
     }
 
     public static SSTableReader open(Descriptor descriptor, Set<Component> components, CFMetaData metadata, IPartitioner partitioner) throws IOException

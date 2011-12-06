@@ -43,7 +43,8 @@ public class CliTest extends CleanupHelper
                                                                                "{ column_name:world2, validation_class:LongType, index_type:KEYS, index_name:LongIdxName}, " +
                                                                                "{ column_name:617070, validation_class:UTF8Type, index_type:KEYS }, " +
                                                                                "{ column_name:28292, validation_class:UTF8Type, index_type:CUSTOM, index_options:{class_name:'org.apache.cassandra.db.index.keys.KeysIndex', foo:bar}}," +
-                                                                               "{ column_name:'-617071', validation_class:UTF8Type, index_type:KEYS }];",
+                                                                               "{ column_name:'-617071', validation_class:UTF8Type, index_type:KEYS }," +
+                                                                               "{ column_name:time_spent_uuid, validation_class:TimeUUIDType}] and default_validation_class=UTF8Type;",
         "assume 123 keys as utf8;",
         "set 123[hello][world] = 123848374878933948398384;",
         "set 123[hello][test_quote] = 'value\\'';",
@@ -60,7 +61,6 @@ public class CliTest extends CleanupHelper
         "get 123[hello][test_quote];",
         "get 123['k\\'ey'][VALUE]",
         "set 123[hello][-31337] = -23876;",
-        "set 123[hello][-31337] = long(-23876);",
         "set 123[hello][world2] = 15;",
         "get 123 where world2 = long(15);",
         "get 123 where world2 = long(15);",
@@ -68,7 +68,7 @@ public class CliTest extends CleanupHelper
         "del 123[utf8('hello')][utf8('world')];",
         "del 123[hello][world2];",
         "set 123['hello'][time_spent_uuid] = timeuuid(a8098c1a-f86e-11da-bd1a-00112444be1e);",
-        "create column family CF2 with comparator=IntegerType;",
+        "create column family CF2 with comparator=IntegerType and default_validation_class=AsciiType;",
         "assume CF2 keys as utf8;",
         "set CF2['key'][98349387493847748398334] = 'some text';",
         "get CF2['key'][98349387493847748398334];",
@@ -160,7 +160,7 @@ public class CliTest extends CleanupHelper
         "drop keyspace tesTIN;",
         "update column family 123 with comparator=UTF8Type and column_metadata=[];",
         "drop column family 123;",
-        "create column family myCF with column_type='Super' and comparator='UTF8Type' AND subcomparator='UTF8Type';",
+        "create column family myCF with column_type='Super' and comparator='UTF8Type' AND subcomparator='UTF8Type' AND default_validation_class=AsciiType;",
         "assume myCF keys as utf8;",
         "create column family Countries with comparator=UTF8Type and column_metadata=[ {column_name: name, validation_class: UTF8Type} ];",
         "set Countries[1][name] = USA;",

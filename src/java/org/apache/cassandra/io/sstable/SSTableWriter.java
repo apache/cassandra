@@ -277,16 +277,17 @@ public class SSTableWriter extends SSTable
     }
 
     /**
-     * Attempt to close the index writer and data file before deleting all temp components for the sstable
+     * After failure, attempt to close the index writer and data file before deleting all temp components for the sstable
      */
-    public void cleanupIfNecessary()
+    public void abort()
     {
+        assert descriptor.temporary;
         FileUtils.closeQuietly(iwriter);
         FileUtils.closeQuietly(dataFile);
 
         try
         {
-            Set<Component> components = SSTable.componentsFor(descriptor, Descriptor.TempState.TEMP);
+            Set<Component> components = SSTable.componentsFor(descriptor);
             if (!components.isEmpty())
                 SSTable.delete(descriptor, components);
         }
@@ -452,6 +453,7 @@ public class SSTableWriter extends SSTable
             indexFile.resetAndTruncate(mark);
         }
 
+        @Override
         public String toString()
         {
             return "IndexWriter(" + desc + ")";

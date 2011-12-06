@@ -1,4 +1,5 @@
-#!/usr/bin/env python
+#!/bin/sh
+# -*- mode: Python -*-
 
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -15,6 +16,18 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+""":"
+# bash code here; finds a suitable python interpreter and execs this file.
+# prefer unqualified "python" if suitable:
+python -c 'import sys; sys.exit(sys.hexversion < 0x020500b0)' 2>/dev/null \
+    && exec python "$0" "$@"
+for pyver in 2.6 2.7 2.5; do
+    which python$pyver > /dev/null 2>&1 && exec python$pyver "$0" "$@"
+done
+echo "No appropriate python interpreter found." >&2
+exit 1
+":"""
 
 description = "CQL Shell for Apache Cassandra"
 version = "2.0.0"
@@ -50,9 +63,11 @@ except ImportError:
 try:
     import cql
 except ImportError, e:
-    sys.stderr.write("\nPython CQL driver not installed, or not on PYTHONPATH.\n")
-    sys.stderr.write('You might try "easy_install cql".\n\n')
-    sys.exit(str(e))
+    sys.exit("\nPython CQL driver not installed, or not on PYTHONPATH.\n"
+             'You might try "easy_install cql".\n\n'
+             'Python: %s\n'
+             'Module load path: %r\n\n'
+             'Error: %s\n' % (sys.executable, sys.path, e))
 
 import cql.decoders
 from cql.cursor import _COUNT_DESCRIPTION, _VOID_DESCRIPTION
@@ -1520,3 +1535,5 @@ def main(options, hostname, port):
 
 if __name__ == '__main__':
     main(*read_options(sys.argv[1:], os.environ))
+
+# vim: set ft=python et ts=4 sw=4 :

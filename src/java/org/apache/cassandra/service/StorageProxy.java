@@ -812,7 +812,7 @@ public class StorageProxy implements StorageProxyMBean
     throws IOException, UnavailableException, TimeoutException
     {
         if (logger.isDebugEnabled())
-            logger.debug(command.toString());
+            logger.debug("Command/ConsistencyLevel is {}/{}", command.toString(), consistency_level);
         long startTime = System.nanoTime();
         List<Row> rows;
         // now scan until we have enough results

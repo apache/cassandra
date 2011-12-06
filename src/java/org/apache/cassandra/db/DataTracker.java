@@ -251,23 +251,29 @@ public class DataTracker
     public void markCompacted(Collection<SSTableReader> sstables)
     {
         replace(sstables, Collections.<SSTableReader>emptyList());
+        notifySSTablesChanged(sstables, Collections.<SSTableReader>emptyList());
     }
 
     public void replaceCompactedSSTables(Collection<SSTableReader> sstables, Iterable<SSTableReader> replacements)
     {
         replace(sstables, replacements);
+        notifySSTablesChanged(sstables, replacements);
+    }
+
+    public void addInitialSSTables(Collection<SSTableReader> sstables)
+    {
+        replace(Collections.<SSTableReader>emptyList(), sstables);
+        // no notifications or backup necessary
     }
 
     public void addSSTables(Collection<SSTableReader> sstables)
     {
         replace(Collections.<SSTableReader>emptyList(), sstables);
-    }
-
-    public void addStreamedSSTable(SSTableReader sstable)
-    {
-        addSSTables(Arrays.asList(sstable));
-        incrementallyBackup(sstable);
-        notifyAdded(sstable);
+        for (SSTableReader sstable : sstables)
+        {
+            incrementallyBackup(sstable);
+            notifyAdded(sstable);
+        }
     }
 
     /**
@@ -286,6 +292,7 @@ public class DataTracker
         }
         while (!view.compareAndSet(currentView, newView));
 
+        notifySSTablesChanged(notCompacting, Collections.<SSTableReader>emptySet());
         postReplace(notCompacting, Collections.<SSTableReader>emptySet());
     }
 
@@ -323,7 +330,6 @@ public class DataTracker
         addNewSSTablesSize(replacements);
         removeOldSSTablesSize(oldSSTables);
 
-        notifySSTablesChanged(replacements, oldSSTables);
         cfstore.updateCacheSizes();
     }
 
@@ -525,7 +531,7 @@ public class DataTracker
         return (double) falseCount / (trueCount + falseCount);
     }
 
-    public void notifySSTablesChanged(Iterable<SSTableReader> added, Iterable<SSTableReader> removed)
+    public void notifySSTablesChanged(Iterable<SSTableReader> removed, Iterable<SSTableReader> added)
     {
         for (INotificationConsumer subscriber : subscribers)
         {

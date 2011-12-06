@@ -29,7 +29,6 @@ import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Table;
-import org.apache.cassandra.db.compaction.AbstractCompactedRow;
 import org.apache.cassandra.db.compaction.CompactionController;
 import org.apache.cassandra.db.compaction.PrecompactedRow;
 import org.apache.cassandra.io.IColumnSerializer;
@@ -38,6 +37,7 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.BytesReadTracker;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
 import com.ning.compress.lzf.LZFInputStream;
@@ -154,9 +154,10 @@ public class IncomingStreamReader
             }
             return writer.closeAndOpenReader();
         }
-        finally
+        catch (Exception e)
         {
-            writer.cleanupIfNecessary();
+            writer.abort();
+            throw FBUtilities.unchecked(e);
         }
     }
 
