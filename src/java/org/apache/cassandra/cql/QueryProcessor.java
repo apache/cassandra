@@ -153,13 +153,13 @@ public class QueryProcessor
 
         ByteBuffer startKeyBytes = (select.getKeyStart() != null)
                                    ? select.getKeyStart().getByteBuffer(keyType)
-                                   : (new Term()).getByteBuffer();
+                                   : null;
 
         ByteBuffer finishKeyBytes = (select.getKeyFinish() != null)
                                     ? select.getKeyFinish().getByteBuffer(keyType)
-                                    : (new Term()).getByteBuffer();
+                                    : null;
 
-        RowPosition startKey = p.decorateKey(startKeyBytes), finishKey = p.decorateKey(finishKeyBytes);
+        RowPosition startKey = RowPosition.forKey(startKeyBytes, p), finishKey = RowPosition.forKey(finishKeyBytes, p);
         if (startKey.compareTo(finishKey) > 0 && !finishKey.isMinimum(p))
         {
             if (p instanceof RandomPartitioner)
