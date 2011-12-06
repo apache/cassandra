@@ -86,9 +86,9 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor
         this(corePoolSize, corePoolSize, keepAliveTime, unit, queue, factory);
     }
 
-    protected DebuggableThreadPoolExecutor(int corePoolSize, int maxPoolSize, long keepAliveTime, TimeUnit unit, BlockingQueue<Runnable> workQueue, ThreadFactory threadFactory)
+    public DebuggableThreadPoolExecutor(int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit, BlockingQueue<Runnable> workQueue, ThreadFactory threadFactory)
     {
-        super(corePoolSize, maxPoolSize, keepAliveTime, unit, workQueue, threadFactory);
+        super(corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory);
         allowCoreThreadTimeOut(true);
 
         // block task submissions until queue has room.

@@ -138,6 +138,7 @@ public class FileStreamTask extends WrappedRunnable
         // setting up data compression stream
         compressedoutput = new LZFOutputStream(output);
 
+        MessagingService.instance().incrementActiveStreamsOutbound();
         try
         {
             // stream each of the required sections of the file
@@ -170,6 +171,8 @@ public class FileStreamTask extends WrappedRunnable
         }
         finally
         {
+            MessagingService.instance().decrementActiveStreamsOutbound();
+
             // no matter what happens close file
             FileUtils.closeQuietly(file);
         }
