@@ -51,8 +51,6 @@ public interface CompactionManagerMBean
      * @param type the type of compaction to stop. Can be one of:
      *   - COMPACTION
      *   - VALIDATION
-     *   - KEY_CACHE_SAVE
-     *   - ROW_CACHE_SAVE
      *   - CLEANUP
      *   - SCRUB
      *   - INDEX_BUILD

@@ -168,7 +168,7 @@ public class NodeCmd
         // Four args
         addCmdHelp(header, "setcachecapacity <keyspace> <cfname> <keycachecapacity> <rowcachecapacity>", "Set the key and row cache capacities of a given column family");
         addCmdHelp(header, "setcompactionthreshold <keyspace> <cfname> <minthreshold> <maxthreshold>", "Set the min and max compaction thresholds for a given column family");
-        addCmdHelp(header, "stop <compaction_type>", "Supported types are COMPACTION, VALIDATION, KEY_CACHE_SAVE, ROW_CACHE_SAVE,CLEANUP, SCRUB, INDEX_BUILD");
+        addCmdHelp(header, "stop <compaction_type>", "Supported types are COMPACTION, VALIDATION, CLEANUP, SCRUB, INDEX_BUILD");
 
         String usage = String.format("java %s --host <arg> <command>%n", NodeCmd.class.getName());
         hf.printHelp(usage, "", options, "");
