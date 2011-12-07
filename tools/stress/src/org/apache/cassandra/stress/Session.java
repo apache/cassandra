@@ -79,6 +79,7 @@ public class Session implements Serializable
         availableOptions.addOption("i",  "progress-interval",    true,   "Progress Report Interval (seconds), default:10");
         availableOptions.addOption("g",  "keys-per-call",        true,   "Number of keys to get_range_slices or multiget per call, default:1000");
         availableOptions.addOption("l",  "replication-factor",   true,   "Replication Factor to use when creating needed column families, default:1");
+        availableOptions.addOption("L",  "enable-cql",           false,  "Perform queries using CQL (Cassandra Query Language).");
         availableOptions.addOption("e",  "consistency-level",    true,   "Consistency Level to use (ONE, QUORUM, LOCAL_QUORUM, EACH_QUORUM, ALL, ANY), default:ONE");
         availableOptions.addOption("x",  "create-index",         true,   "Type of index to create on needed column families (KEYS)");
         availableOptions.addOption("R",  "replication-strategy", true,   "Replication strategy to use (only on insert if keyspace does not exist), default:org.apache.cassandra.locator.SimpleStrategy");
@@ -112,6 +113,7 @@ public class Session implements Serializable
     private int keysPerCall       = 1000;
     private boolean replicateOnWrite = true;
     private boolean ignoreErrors  = false;
+    private boolean enable_cql    = false;
 
     private final String outFileName;
 
@@ -259,6 +261,9 @@ public class Session implements Serializable
                 replicationStrategyOptions.put("replication_factor", String.valueOf(Integer.parseInt(cmd.getOptionValue("l"))));
             else if (replicationStrategy.endsWith("SimpleStrategy"))
                 replicationStrategyOptions.put("replication_factor", "1");
+
+            if (cmd.hasOption("L"))
+                enable_cql = true;
 
             if (cmd.hasOption("O"))
             {
@@ -488,6 +493,11 @@ public class Session implements Serializable
     public float getSigma()
     {
         return sigma;
+    }
+
+    public boolean isCQL()
+    {
+        return enable_cql;
     }
 
     /**

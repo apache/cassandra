@@ -35,6 +35,7 @@ import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
+import org.apache.cassandra.utils.Hex;
 
 public abstract class Operation
 {
@@ -223,5 +224,15 @@ public abstract class Operation
             throw new IOException(message);
         else
             System.err.println(message);
+    }
+
+    protected String getQuotedCqlBlob(String term)
+    {
+        return getQuotedCqlBlob(term.getBytes());
+    }
+
+    protected String getQuotedCqlBlob(byte[] term)
+    {
+        return String.format("'%s'", Hex.bytesToHex(term));
     }
 }

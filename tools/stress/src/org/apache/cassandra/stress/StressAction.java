@@ -225,25 +225,25 @@ public class StressAction extends Thread
         switch (client.getOperation())
         {
             case READ:
-                return new Reader(client, index);
+                return client.isCQL() ? new CqlReader(client, index) : new Reader(client, index);
 
             case COUNTER_GET:
-                return new CounterGetter(client, index);
+                return client.isCQL() ? new CqlCounterGetter(client, index) : new CounterGetter(client, index);
 
             case INSERT:
-                return new Inserter(client, index);
+                return client.isCQL() ? new CqlInserter(client, index) : new Inserter(client, index);
 
             case COUNTER_ADD:
-                return new CounterAdder(client, index);
+                return client.isCQL() ? new CqlCounterAdder(client, index) : new CounterAdder(client, index);
 
             case RANGE_SLICE:
-                return new RangeSlicer(client, index);
+                return client.isCQL() ? new CqlRangeSlicer(client, index) : new RangeSlicer(client, index);
 
             case INDEXED_RANGE_SLICE:
-                return new IndexedRangeSlicer(client, index);
+                return client.isCQL() ? new CqlIndexedRangeSlicer(client, index) : new IndexedRangeSlicer(client, index);
 
             case MULTI_GET:
-                return new MultiGetter(client, index);
+                return client.isCQL() ? new CqlMultiGetter(client, index) : new MultiGetter(client, index);
         }
 
         throw new UnsupportedOperationException();
