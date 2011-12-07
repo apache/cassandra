@@ -313,7 +313,8 @@ public class CreateColumnFamilyStatement
                    .columnMetadata(getColumns(comparator))
                    .keyValidator(TypeParser.parse(comparators.get(getKeyType())))
                    .rowCacheProvider(FBUtilities.newCacheProvider(getPropertyString(KW_ROW_CACHE_PROVIDER, CFMetaData.DEFAULT_ROW_CACHE_PROVIDER)))
-                   .keyAlias(keyAlias);
+                   .keyAlias(keyAlias)
+                   .validate();
         }
         catch (ConfigurationException e)
         {

@@ -677,7 +677,8 @@ public final class CFMetaData
                       .replicateOnWrite(cf_def.replicate_on_write)
                       .defaultValidator(TypeParser.parse(cf_def.default_validation_class))
                       .keyValidator(TypeParser.parse(cf_def.key_validation_class))
-                      .columnMetadata(ColumnDefinition.fromColumnDef(cf_def.column_metadata));
+                      .columnMetadata(ColumnDefinition.fromColumnDef(cf_def.column_metadata))
+                      .validate();
     }
 
     // merges some final fields from this CFM with modifiable fields from CfDef into a new CFMetaData.
@@ -988,6 +989,32 @@ public final class CFMetaData
     public static String getDefaultIndexName(String cfName, AbstractType comparator, ByteBuffer columnName)
     {
         return (cfName + "_" + comparator.getString(columnName) + "_idx").replaceAll("\\W", "");
+    }
+
+    public CFMetaData validate() throws ConfigurationException
+    {
+        if (comparator instanceof CounterColumnType)
+            throw new ConfigurationException("CounterColumnType is not a valid comparator");
+        if (subcolumnComparator instanceof CounterColumnType)
+            throw new ConfigurationException("CounterColumnType is not a valid sub-column comparator");
+        if (keyValidator instanceof CounterColumnType)
+            throw new ConfigurationException("CounterColumnType is not a valid key validator");
+
+        // Mixing counter with non counter columns is not supported (#2614)
+        if (defaultValidator instanceof CounterColumnType)
+        {
+            for (ColumnDefinition def : column_metadata.values())
+                if (!(def.getValidator() instanceof CounterColumnType))
+                    throw new ConfigurationException("Cannot add a non counter column (" + comparator.getString(def.name) + ") in a counter column family");
+        }
+        else
+        {
+            for (ColumnDefinition def : column_metadata.values())
+                if (def.getValidator() instanceof CounterColumnType)
+                    throw new ConfigurationException("Cannot add a counter column (" + comparator.getString(def.name) + ") in a non counter column family");
+        }
+
+        return this;
     }
 
     @Override
