@@ -60,6 +60,9 @@ import org.apache.cassandra.net.ResponseVerbHandler;
 import org.apache.cassandra.service.AntiEntropyService.TreeRequestVerbHandler;
 import org.apache.cassandra.streaming.*;
 import org.apache.cassandra.thrift.Constants;
+import org.apache.cassandra.thrift.EndpointDetails;
+import org.apache.cassandra.thrift.InvalidRequestException;
+import org.apache.cassandra.thrift.TokenRange;
 import org.apache.cassandra.thrift.UnavailableException;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.NodeId;
@@ -732,6 +735,72 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
         List<Range> ranges = getAllRanges(tokenMetadata_.sortedTokens());
         return constructRangeToEndpointMap(keyspace, ranges);
+    }
+
+    /**
+     * The same as {@code describeRing(String)} but converts TokenRange to the String for JMX compatibility
+     *
+     * @param keyspace The keyspace to fetch information about
+     *
+     * @return a List of TokenRange(s) converted to String for the given keyspace
+     *
+     * @throws InvalidRequestException if there is no ring information available about keyspace
+     */
+    public List<String> describeRingJMX(String keyspace) throws InvalidRequestException
+    {
+        List<String> result = new ArrayList<String>();
+
+        for (TokenRange tokenRange : describeRing(keyspace))
+            result.add(tokenRange.toString());
+
+        return result;
+    }
+
+    /**
+     * The TokenRange for a given keyspace.
+     *
+     * @param keyspace The keyspace to fetch information about
+     *
+     * @return a List of TokenRange(s) for the given keyspace
+     *
+     * @throws InvalidRequestException if there is no ring information available about keyspace
+     */
+    public List<TokenRange> describeRing(String keyspace) throws InvalidRequestException
+    {
+        if (keyspace == null || !Schema.instance.getNonSystemTables().contains(keyspace))
+            throw new InvalidRequestException("There is no ring for the keyspace: " + keyspace);
+
+        List<TokenRange> ranges = new ArrayList<TokenRange>();
+        Token.TokenFactory tf = getPartitioner().getTokenFactory();
+
+        for (Map.Entry<Range, List<InetAddress>> entry : getRangeToAddressMap(keyspace).entrySet())
+        {
+            Range range = entry.getKey();
+            List<String> endpoints = new ArrayList<String>();
+            List<String> rpc_endpoints = new ArrayList<String>();
+            List<EndpointDetails> epDetails = new ArrayList<EndpointDetails>();
+
+            for (InetAddress endpoint : entry.getValue())
+            {
+                EndpointDetails details = new EndpointDetails();
+                details.host = endpoint.getHostAddress();
+                details.datacenter = DatabaseDescriptor.getEndpointSnitch().getDatacenter(endpoint);
+                details.rack = DatabaseDescriptor.getEndpointSnitch().getRack(endpoint);
+
+                endpoints.add(details.host);
+                rpc_endpoints.add(getRpcaddress(endpoint));
+
+                epDetails.add(details);
+            }
+
+            TokenRange tr = new TokenRange(tf.toString(range.left), tf.toString(range.right), endpoints)
+                                    .setEndpoint_details(epDetails)
+                                    .setRpc_endpoints(rpc_endpoints);
+
+            ranges.add(tr);
+        }
+
+        return ranges;
     }
 
     public Map<Token, String> getTokenToEndpointMap()

@@ -63,7 +63,6 @@ tokens {
     NODE_ASSUME;
     NODE_CONSISTENCY_LEVEL;
     NODE_DROP_INDEX;
-    NODE_DESCRIBE_RING;
 
     // Internal Nodes.
     NODE_COLUMN_ACCESS;
@@ -164,7 +163,6 @@ statement
     | assumeStatement
     | consistencyLevelStatement
     | dropIndex
-    | describeRing
     | -> ^(NODE_NO_OP)
     ;
 
@@ -212,8 +210,6 @@ helpStatement
         -> ^(NODE_HELP NODE_DEL_COLUMN_FAMILY)
     | HELP DROP INDEX
         -> ^(NODE_HELP NODE_DROP_INDEX)
-    | HELP DESCRIBE RING
-        -> ^(NODE_HELP NODE_DESCRIBE_RING)
     | HELP GET 
         -> ^(NODE_HELP NODE_THRIFT_GET)
     | HELP SET 
@@ -352,11 +348,6 @@ delColumnFamily
 dropIndex
     : DROP INDEX ON columnFamily '.' columnName
         -> ^(NODE_DROP_INDEX columnFamily columnName)
-    ;
-
-describeRing
-    : DESCRIBE RING (keyspace)?
-        -> ^(NODE_DESCRIBE_RING (keyspace)?)
     ;
 
 showVersion
@@ -589,7 +580,6 @@ CONSISTENCYLEVEL:   'CONSISTENCYLEVEL';
 INDEX:       'INDEX';
 ON:          'ON';
 SCHEMA:      'SCHEMA';
-RING:    'RING';
 
 IP_ADDRESS 
     : IntegerPositiveLiteral '.' IntegerPositiveLiteral '.' IntegerPositiveLiteral '.' IntegerPositiveLiteral

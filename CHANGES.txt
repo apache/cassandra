@@ -16,6 +16,7 @@
  * fix compression "chunk_length_kb" option to set correct kb value for thrift/avro
    (CASSANDRA-3558)
  * fix missing response during range slice repair (CASSANDRA-3551)
+ * 'describe ring' moved from CLI to nodetool and available through JMX (CASSANDRA-3220)
 Merged from 0.8:
  * use cannonical host for local node in nodetool info (CASSANDRA-3556)
  * remove nonlocal DC write optimization since it only worked with
