@@ -38,6 +38,7 @@ case "$1" in
             chown -R cassandra: /var/lib/cassandra
             chown -R cassandra: /var/log/cassandra
         fi
+        sysctl -p /etc/sysctl.d/cassandra.conf
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)

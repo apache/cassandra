@@ -44,6 +44,8 @@ install: build
 	dh_link usr/share/cassandra/apache-cassandra-$(VERSION).jar \
 		usr/share/cassandra/apache-cassandra.jar
 
+	cd debian/cassandra/etc/sysctl.d && mv cassandra-sysctl.conf cassandra.conf
+
 # Build architecture-independent files here.
 binary-indep: build install
 	dh_testdir

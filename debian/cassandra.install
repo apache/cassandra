@@ -3,6 +3,7 @@ conf/cassandra.yaml etc/cassandra
 conf/cassandra-env.sh etc/cassandra
 debian/cassandra.in.sh usr/share/cassandra
 debian/cassandra.conf etc/security/limits.d
+debian/cassandra-sysctl.conf etc/sysctl.d
 bin/cassandra usr/sbin
 bin/cassandra-cli usr/bin
 bin/nodetool usr/bin

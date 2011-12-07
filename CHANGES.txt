@@ -23,6 +23,7 @@ Merged from 0.8:
    CL.ONE or CL.LOCAL_QUORUM (CASSANDRA-3577)
  * detect misuses of CounterColumnType (CASSANDRA-3422)
  * Check for 0.0.0.0 is incorrect in CFIF (CASSANDRA-3584)
+ * Increase vm.max_map_count in debian packaging (CASSANDRA-3563)
 
 1.0.5
  * revert CASSANDRA-3407 (see CASSANDRA-3540)
