@@ -389,8 +389,6 @@ public class StorageProxy implements StorageProxyMBean
     {
         for (Map.Entry<String, Multimap<Message, InetAddress>> entry: dcMessages.entrySet())
         {
-            String dataCenter = entry.getKey();
-
             // send the messages corresponding to this datacenter
             for (Map.Entry<Message, Collection<InetAddress>> messages: entry.getValue().asMap().entrySet())
             {
@@ -399,32 +397,10 @@ public class StorageProxy implements StorageProxyMBean
                 // from previous loop iterations
                 message = message.withHeaderRemoved(RowMutation.FORWARD_HEADER);
 
-                if (dataCenter.equals(localDataCenter))
-                {
-                    // direct writes to local DC or old Cassadra versions
-                    for (InetAddress destination : messages.getValue())
-                        MessagingService.instance().sendRR(message, destination, handler);
-                }
-                else
-                {
-                    // Non-local DC. First endpoint in list is the destination for this group
-                    Iterator<InetAddress> iter = messages.getValue().iterator();
-                    InetAddress target = iter.next();
-                    // Add all the other destinations of the same message as a header in the primary message.
-                    if (iter.hasNext())
-                    {
-                        FastByteArrayOutputStream bos = new FastByteArrayOutputStream();
-                        DataOutputStream dos = new DataOutputStream(bos);
-                        while (iter.hasNext())
-                        {
-                            InetAddress destination = iter.next();
-                            dos.write(destination.getAddress());
-                        }
-                        message = message.withHeaderAdded(RowMutation.FORWARD_HEADER, bos.toByteArray());
-                    }
-                    // send the combined message + forward headers
-                    MessagingService.instance().sendRR(message, target, handler);
-                }
+                // direct writes to everything -- optimized nonlocal DC writes are
+                // postponed to 1.1; see CASSANDRA-3577
+                for (InetAddress destination : messages.getValue())
+                    MessagingService.instance().sendRR(message, destination, handler);
             }
         }
     }
