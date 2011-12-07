@@ -589,7 +589,6 @@
    modification operations (CASSANDRA-2222)
  * fix for reversed slice queries on large rows (CASSANDRA-2212)
  * fat clients were writing local data (CASSANDRA-2223)
- * turn off string interning in json2sstable (CASSANDRA-2189)
  * set DEFAULT_MEMTABLE_LIFETIME_IN_MINS to 24h
  * improve detection and cleanup of partially-written sstables 
    (CASSANDRA-2206)
