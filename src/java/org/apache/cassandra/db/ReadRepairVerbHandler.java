@@ -25,6 +25,7 @@ import java.io.IOException;
 import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessagingService;
 
 public class ReadRepairVerbHandler implements IVerbHandler
 {    
@@ -37,6 +38,10 @@ public class ReadRepairVerbHandler implements IVerbHandler
         {
             RowMutation rm = RowMutation.serializer().deserialize(new DataInputStream(buffer), message.getVersion());
             rm.apply();
+
+            WriteResponse response = new WriteResponse(rm.getTable(), rm.key(), true);
+            Message responseMessage = WriteResponse.makeWriteResponseMessage(message, response);
+            MessagingService.instance().sendReply(responseMessage, id, message.getFrom());
         }
         catch (IOException e)
         {
