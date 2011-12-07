@@ -20,7 +20,6 @@ package org.apache.cassandra.thrift;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
-import java.net.InetAddress;
 import java.net.SocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
@@ -49,10 +48,6 @@ import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.db.migration.*;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.dht.*;
-import org.apache.cassandra.gms.ApplicationState;
-import org.apache.cassandra.gms.EndpointState;
-import org.apache.cassandra.gms.Gossiper;
-import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.io.util.FastByteArrayOutputStream;
 import org.apache.cassandra.locator.*;
 import org.apache.cassandra.scheduler.IRequestScheduler;
@@ -61,7 +56,6 @@ import org.apache.cassandra.service.SocketSessionManagementService;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.thrift.TException;
 
 public class CassandraServer implements Cassandra.Iface
@@ -783,41 +777,7 @@ public class CassandraServer implements Cassandra.Iface
 
     public List<TokenRange> describe_ring(String keyspace)throws InvalidRequestException
     {
-        if (keyspace == null || !Schema.instance.getNonSystemTables().contains(keyspace))
-            throw new InvalidRequestException("There is no ring for the keyspace: " + keyspace);
-
-        List<TokenRange> ranges = new ArrayList<TokenRange>();
-        Token.TokenFactory tf = StorageService.getPartitioner().getTokenFactory();
-
-        for (Map.Entry<Range<Token>, List<InetAddress>> entry : StorageService.instance.getRangeToAddressMap(keyspace).entrySet())
-        {
-            Range<Token> range = entry.getKey();
-            List<String> endpoints = new ArrayList<String>();
-            List<String> rpc_endpoints = new ArrayList<String>();
-            List<EndpointDetails> epDetails = new ArrayList<EndpointDetails>();
-
-            for (InetAddress endpoint : entry.getValue())
-            {
-                EndpointState eps = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
-                EndpointDetails details = new EndpointDetails();
-
-                details.host = endpoint.getHostAddress();
-                details.datacenter = DatabaseDescriptor.getEndpointSnitch().getDatacenter(endpoint);
-                details.rack = DatabaseDescriptor.getEndpointSnitch().getRack(endpoint);
-
-                endpoints.add(details.host);
-                rpc_endpoints.add(StorageService.instance.getRpcaddress(endpoint));
-
-                epDetails.add(details);
-            }
-
-            TokenRange tr = new TokenRange(tf.toString(range.left), tf.toString(range.right), endpoints)
-                            .setEndpoint_details(epDetails)
-                            .setRpc_endpoints(rpc_endpoints);
-            ranges.add(tr);
-        }
-
-        return ranges;
+        return StorageService.instance.describeRing(keyspace);
     }
 
     public String describe_partitioner() throws TException

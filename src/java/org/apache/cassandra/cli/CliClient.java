@@ -284,9 +284,6 @@ public class CliClient
                 case CliParser.NODE_DROP_INDEX:
                     executeDropIndex(tree);
                     break;
-                case CliParser.NODE_DESCRIBE_RING:
-                    executeDescribeRing(tree);
-                    break;
 
                 case CliParser.NODE_NO_OP:
                     // comment lines come here; they are treated as no ops.
@@ -1431,59 +1428,6 @@ public class CliClient
         sessionState.out.println(mySchemaVersion);
         validateSchemaIsSettled(mySchemaVersion);
         keyspacesMap.put(keySpace, thriftClient.describe_keyspace(keySpace));
-    }
-
-    private void executeDescribeRing(Tree statement) throws TException, InvalidRequestException
-    {
-        if (!CliMain.isConnected())
-            return;
-
-        int argCount = statement.getChildCount();
-
-        if (argCount > 1) // in case somebody changes Cli grammar
-            throw new RuntimeException("`describe ring` command takes maximum one argument. See `help describe ring;`");
-
-        KsDef currentKeySpace = keyspacesMap.get(keySpace);
-
-        if (argCount == 0 && currentKeySpace != null)
-        {
-            describeRing(currentKeySpace.name);
-        }
-        else if (argCount == 1)
-        {
-            String entityName = statement.getChild(0).getText();
-            KsDef inputKsDef = CliUtils.getKeySpaceDef(entityName, thriftClient.describe_keyspaces());
-
-            if (inputKsDef == null)
-            {
-                sessionState.out.println("Sorry, no Keyspace was found with name: " + entityName);
-                return;
-            }
-
-            describeRing(inputKsDef.name);
-        }
-        else
-        {
-            sessionState.out.println("Authenticate to a Keyspace before using `describe ring` or `describe ring <keyspace>`");
-        }
-    }
-
-    private void describeRing(String name) throws TException
-    {
-        List<TokenRange> tokenRangeList;
-
-        try
-        {
-            for (TokenRange tokenRange : thriftClient.describe_ring(name))
-                sessionState.out.println(tokenRange);
-        }
-        catch (InvalidRequestException e)
-        {
-            sessionState.err.println(e.getWhy());
-
-            if (sessionState.debug)
-                e.printStackTrace(sessionState.err);
-        }
     }
 
     // TRUNCATE <columnFamily>

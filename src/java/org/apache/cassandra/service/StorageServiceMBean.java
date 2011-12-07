@@ -30,6 +30,8 @@ import java.util.concurrent.TimeoutException;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.thrift.InvalidRequestException;
+import org.apache.cassandra.thrift.TokenRange;
 import org.apache.cassandra.thrift.UnavailableException;
 
 
@@ -125,6 +127,17 @@ public interface StorageServiceMBean
      * @return mapping of ranges to rpc addresses
      */
     public Map<Range<Token>, List<String>> getRangeToRpcaddressMap(String keyspace);
+
+    /**
+     * The same as {@code describeRing(String)} but converts TokenRange to the String for JMX compatibility
+     *
+     * @param keyspace The keyspace to fetch information about
+     *
+     * @return a List of TokenRange(s) converted to String for the given keyspace
+     *
+     * @throws InvalidRequestException if there is no ring information available about keyspace
+     */
+    public List <String> describeRingJMX(String keyspace) throws InvalidRequestException;
 
     /**
      * Retrieve a map of pending ranges to endpoints that describe the ring topology

@@ -212,7 +212,7 @@ public class ColumnFamilyInputFormat extends InputFormat<ByteBuffer, SortedMap<B
             for (String endpoint: range.rpc_endpoints)
             {
                 String endpoint_address = endpoint;
-		        if(endpoint_address == null || endpoint_address == "0.0.0.0")
+		        if (endpoint_address == null || endpoint_address.equals("0.0.0.0"))
 			        endpoint_address = range.endpoints.get(endpointIndex);
 		        endpoints[endpointIndex++] = InetAddress.getByName(endpoint_address).getHostName();
             }
@@ -230,8 +230,13 @@ public class ColumnFamilyInputFormat extends InputFormat<ByteBuffer, SortedMap<B
     private List<String> getSubSplits(String keyspace, String cfName, TokenRange range, Configuration conf) throws IOException
     {
         int splitsize = ConfigHelper.getInputSplitSize(conf);
-        for (String host : range.rpc_endpoints)
+        for (int i = 0; i < range.rpc_endpoints.size(); i++)
         {
+            String host = range.rpc_endpoints.get(i);
+            
+            if (host == null || host.equals("0.0.0.0"))
+                host = range.endpoints.get(i);
+                        
             try
             {
                 Cassandra.Client client = ConfigHelper.createConnection(host, ConfigHelper.getRpcPort(conf), true);

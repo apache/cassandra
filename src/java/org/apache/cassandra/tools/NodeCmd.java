@@ -41,6 +41,7 @@ import org.apache.cassandra.db.compaction.CompactionInfo;
 import org.apache.cassandra.db.compaction.CompactionManagerMBean;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.net.MessagingServiceMBean;
+import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.Pair;
 
@@ -113,6 +114,7 @@ public class NodeCmd
         TPSTATS,
         UPGRADESSTABLES,
         VERSION,
+        DESCRIBERING,
     }
 
     
@@ -146,6 +148,7 @@ public class NodeCmd
         addCmdHelp(header, "move <new token>", "Move node on the token ring to a new token");
         addCmdHelp(header, "removetoken status|force|<token>", "Show status of current token removal, force completion of pending removal or remove providen token");
         addCmdHelp(header, "setcompactionthroughput <value_in_mb>", "Set the MB/s throughput cap for compaction in the system, or 0 to disable throttling.");
+        addCmdHelp(header, "describering [keyspace]", "Shows the token ranges info of a given keyspace.");
 
         // Two args
         addCmdHelp(header, "snapshot [keyspaces...] -t [snapshotName]", "Take a snapshot of the specified keyspaces using optional name snapshotName");
@@ -753,6 +756,11 @@ public class NodeCmd
                     probe.stop(arguments[0].toUpperCase());
                     break;
 
+                case DESCRIBERING :
+                    if (arguments.length != 1) { badUse("Missing keyspace argument for describering."); }
+                    nodeCmd.printDescribeRing(arguments[0], System.out);
+                    break;
+
                 default :
                     throw new RuntimeException("Unreachable code.");
             }
@@ -772,6 +780,22 @@ public class NodeCmd
             }
         }
         System.exit(0);
+    }
+
+    private void printDescribeRing(String keyspaceName, PrintStream out)
+    {
+        out.println("TokenRange: ");
+        try
+        {
+            for (String tokenRangeString : probe.describeRing(keyspaceName))
+            {
+                out.println("\t" + tokenRangeString);
+            }
+        }
+        catch (InvalidRequestException e)
+        {
+            err(e, e.getWhy());
+        }
     }
 
     private void printGossipInfo(PrintStream out) {

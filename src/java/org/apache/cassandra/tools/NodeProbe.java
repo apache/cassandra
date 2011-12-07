@@ -55,8 +55,8 @@ import org.apache.cassandra.net.MessagingServiceMBean;
 import org.apache.cassandra.service.StorageServiceMBean;
 import org.apache.cassandra.streaming.StreamingService;
 import org.apache.cassandra.streaming.StreamingServiceMBean;
+import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.thrift.UnavailableException;
-import org.apache.cassandra.utils.Pair;
 
 /**
  * JMX client operations for Cassandra.
@@ -639,6 +639,11 @@ public class NodeProbe
     public void stop(String string)
     {
         compactionProxy.stopCompaction(string);
+    }
+
+    public List<String> describeRing(String keyspaceName) throws InvalidRequestException
+    {
+        return ssProxy.describeRingJMX(keyspaceName);
     }
 }
 
