@@ -190,7 +190,7 @@ public abstract class AutoSavingCache<K, V> extends InstrumentingCache<K, V>
         }
     }
 
-    public class Writer extends CompactionInfo.Holder
+    public class Writer implements CompactionInfo.Holder
     {
         private final Set<K> keys;
         private final CompactionInfo info;
@@ -247,6 +247,7 @@ public abstract class AutoSavingCache<K, V> extends InstrumentingCache<K, V>
 
             logger.debug("Saving {}", path);
             File tmpFile = File.createTempFile(path.getName(), null, path.getParentFile());
+
             DataOutputStream out = SequentialWriter.open(tmpFile, true).stream;
             try
             {
@@ -261,6 +262,7 @@ public abstract class AutoSavingCache<K, V> extends InstrumentingCache<K, V>
             {
                 out.close();
             }
+
             path.delete(); // ignore error if it didn't exist
             if (!tmpFile.renameTo(path))
                 throw new IOException("Unable to rename " + tmpFile + " to " + path);

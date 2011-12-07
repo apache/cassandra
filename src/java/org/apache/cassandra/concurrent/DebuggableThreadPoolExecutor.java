@@ -23,7 +23,6 @@ package org.apache.cassandra.concurrent;
 
 import java.util.concurrent.*;
 
-import org.apache.cassandra.db.compaction.UserInterruptedException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -138,13 +137,10 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor
             }
             catch (ExecutionException e)
             {
-                Throwable actualException = e.getCause();
-                if (actualException instanceof UserInterruptedException)
-                    logger.info("Task interrupted by user: " + actualException);
-                else if (Thread.getDefaultUncaughtExceptionHandler() == null)
-                    logger.error("Error in ThreadPoolExecutor", actualException);
+                if (Thread.getDefaultUncaughtExceptionHandler() == null)
+                    logger.error("Error in ThreadPoolExecutor", e.getCause());
                 else
-                    Thread.getDefaultUncaughtExceptionHandler().uncaughtException(Thread.currentThread(), actualException);
+                    Thread.getDefaultUncaughtExceptionHandler().uncaughtException(Thread.currentThread(), e.getCause());
             }
         }
 

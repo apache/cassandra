@@ -152,9 +152,6 @@ public class CompactionTask extends AbstractCompactionTask
             writers.add(writer);
             while (nni.hasNext())
             {
-                if (ci.isStopped())
-                    throw new UserInterruptedException(ci.getCompactionInfo());
-
                 AbstractCompactedRow row = nni.next();
                 if (row.isEmpty())
                     continue;

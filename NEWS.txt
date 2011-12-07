@@ -9,16 +9,6 @@ upgrade, just in case you need to roll back to the previous version.
 by version X, but the inverse is not necessarily the case.)
 
 
-1.0.5
-=====
-
-JMX
----
-    - A command has been added to stop running compaction. It is available
-      through JMX and through nodetool stop <type> (see the nodetool help for
-      details). Please note that stopped compaction are terminated and cannot
-      be restarted afterwards.
-
 1.0.4
 =====
 

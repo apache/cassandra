@@ -109,7 +109,6 @@ public class NodeCmd
         SETCOMPACTIONTHROUGHPUT,
         SNAPSHOT,
         STATUSTHRIFT,
-        STOP,
         TPSTATS,
         UPGRADESSTABLES,
         VERSION,
@@ -168,7 +167,6 @@ public class NodeCmd
         // Four args
         addCmdHelp(header, "setcachecapacity <keyspace> <cfname> <keycachecapacity> <rowcachecapacity>", "Set the key and row cache capacities of a given column family");
         addCmdHelp(header, "setcompactionthreshold <keyspace> <cfname> <minthreshold> <maxthreshold>", "Set the min and max compaction thresholds for a given column family");
-        addCmdHelp(header, "stop <compaction_type>", "Supported types are COMPACTION, VALIDATION, CLEANUP, SCRUB, INDEX_BUILD");
 
         String usage = String.format("java %s --host <arg> <command>%n", NodeCmd.class.getName());
         hf.printHelp(usage, "", options, "");
@@ -747,11 +745,6 @@ public class NodeCmd
                     break;
 
                 case GOSSIPINFO : nodeCmd.printGossipInfo(System.out); break;
-
-                case STOP:
-                    if (arguments.length != 1) { badUse("stop requires a type."); }
-                    probe.stop(arguments[0].toUpperCase());
-                    break;
 
                 default :
                     throw new RuntimeException("Unreachable code.");

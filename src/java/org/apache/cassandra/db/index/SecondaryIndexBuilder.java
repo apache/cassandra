@@ -26,14 +26,14 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.compaction.CompactionInfo;
 import org.apache.cassandra.db.compaction.OperationType;
-import org.apache.cassandra.db.compaction.UserInterruptedException;
 import org.apache.cassandra.io.sstable.ReducingKeyIterator;
 
 /**
  * Manages building an entire index from column family data. Runs on to compaction manager.
  */
-public class SecondaryIndexBuilder extends CompactionInfo.Holder
+public class SecondaryIndexBuilder implements  CompactionInfo.Holder
 {
+    
     private final ColumnFamilyStore cfs;
     private final SortedSet<ByteBuffer> columns;
     private final ReducingKeyIterator iter;
@@ -59,8 +59,6 @@ public class SecondaryIndexBuilder extends CompactionInfo.Holder
     {
         while (iter.hasNext())
         {
-            if (isStopped())
-                throw new UserInterruptedException(getCompactionInfo());
             DecoratedKey<?> key = iter.next();
             Table.indexRow(key, cfs, columns);
         }
