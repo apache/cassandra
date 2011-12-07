@@ -30,6 +30,7 @@ import org.apache.cassandra.stress.Session;
 import org.apache.cassandra.stress.util.Operation;
 import org.apache.cassandra.thrift.Cassandra;
 import org.apache.cassandra.thrift.Compression;
+import org.apache.cassandra.utils.UUIDGen;
 
 public class CqlInserter extends Operation
 {
@@ -55,8 +56,15 @@ public class CqlInserter extends Operation
         {
             if (i > 0)
                 query.append(',');
-            query.append('C').append(i).append('=');
-            query.append(getQuotedCqlBlob(values.get(i % values.size()).array()));
+
+            // Column name
+            if (session.timeUUIDComparator)
+                query.append(UUIDGen.makeType1UUIDFromHost(Session.getLocalAddress()).toString());
+            else
+                query.append('C').append(i);
+
+            // Column value
+            query.append('=').append(getQuotedCqlBlob(values.get(i % values.size()).array()));
         }
         
         String key = String.format("%0" + session.getTotalKeysLength() + "d", index);
