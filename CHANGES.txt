@@ -19,6 +19,7 @@ Merged from 0.8:
  * use cannonical host for local node in nodetool info (CASSANDRA-3556)
  * remove nonlocal DC write optimization since it only worked with
    CL.ONE or CL.LOCAL_QUORUM (CASSANDRA-3577)
+ * detect misuses of CounterColumnType (CASSANDRA-3422)
 
 
 1.0.5

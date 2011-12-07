@@ -689,7 +689,8 @@ public final class CFMetaData
                       .defaultValidator(TypeParser.parse(cf_def.default_validation_class))
                       .keyValidator(TypeParser.parse(cf_def.key_validation_class))
                       .columnMetadata(ColumnDefinition.fromThrift(cf_def.column_metadata))
-                      .compressionParameters(cp);
+                      .compressionParameters(cp)
+                      .validate();
     }
 
     /** updates CFMetaData in-place to match cf_def */
@@ -968,6 +969,32 @@ public final class CFMetaData
         if (cfType == ColumnFamilyType.Standard)
             return Column.serializer();
         return SuperColumn.serializer(subcolumnComparator);
+    }
+
+    public CFMetaData validate() throws ConfigurationException
+    {
+        if (comparator instanceof CounterColumnType)
+            throw new ConfigurationException("CounterColumnType is not a valid comparator");
+        if (subcolumnComparator instanceof CounterColumnType)
+            throw new ConfigurationException("CounterColumnType is not a valid sub-column comparator");
+        if (keyValidator instanceof CounterColumnType)
+            throw new ConfigurationException("CounterColumnType is not a valid key validator");
+
+        // Mixing counter with non counter columns is not supported (#2614)
+        if (defaultValidator instanceof CounterColumnType)
+        {
+            for (ColumnDefinition def : column_metadata.values())
+                if (!(def.getValidator() instanceof CounterColumnType))
+                    throw new ConfigurationException("Cannot add a non counter column (" + comparator.getString(def.name) + ") in a counter column family");
+        }
+        else
+        {
+            for (ColumnDefinition def : column_metadata.values())
+                if (def.getValidator() instanceof CounterColumnType)
+                    throw new ConfigurationException("Cannot add a counter column (" + comparator.getString(def.name) + ") in a non counter column family");
+        }
+
+        return this;
     }
 
     @Override
