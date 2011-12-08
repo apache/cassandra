@@ -341,8 +341,14 @@ public final class MessagingService implements MessagingServiceMBean
         return verbHandlers_.get(type);
     }
 
-    private void addCallback(IMessageCallback cb, String messageId, Message message, InetAddress to, long timeout)
+    public String addCallback(IMessageCallback cb, Message message, InetAddress to)
     {
+        return addCallback(cb, message, to, DEFAULT_CALLBACK_TIMEOUT);
+    }
+    
+    public String addCallback(IMessageCallback cb, Message message, InetAddress to, long timeout)
+    {
+        String messageId = nextId();
         CallbackInfo previous;
 
         // If HH is enabled and this is a mutation message => store the message to track for potential hints.
@@ -352,6 +358,7 @@ public final class MessagingService implements MessagingServiceMBean
             previous = callbacks.put(messageId, new CallbackInfo(to, cb), timeout);
 
         assert previous == null;
+        return messageId;
     }
 
     private static AtomicInteger idGen = new AtomicInteger(0);
@@ -384,8 +391,7 @@ public final class MessagingService implements MessagingServiceMBean
      */
     public String sendRR(Message message, InetAddress to, IMessageCallback cb, long timeout)
     {
-        String id = nextId();
-        addCallback(cb, id, message, to, timeout);
+        String id = addCallback(cb, message, to, timeout);
         sendOneWay(message, id, to);
         return id;
     }
@@ -426,7 +432,7 @@ public final class MessagingService implements MessagingServiceMBean
      * @param message messages to be sent.
      * @param to endpoint to which the message needs to be sent
      */
-    private void sendOneWay(Message message, String id, InetAddress to)
+    public void sendOneWay(Message message, String id, InetAddress to)
     {
         if (logger_.isTraceEnabled())
             logger_.trace(FBUtilities.getBroadcastAddress() + " sending " + message.getVerb() + " to " + id + "@" + to);

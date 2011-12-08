@@ -18,18 +18,18 @@
 
 package org.apache.cassandra.db;
 
+import java.io.DataInputStream;
 import java.io.IOException;
 import java.net.InetAddress;
-import java.net.UnknownHostException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.io.util.FastByteArrayInputStream;
+import org.apache.cassandra.net.CompactEndpointSerializationHelper;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.utils.FBUtilities;
-
 
 public class RowMutationVerbHandler implements IVerbHandler
 {
@@ -45,7 +45,7 @@ public class RowMutationVerbHandler implements IVerbHandler
 
             // Check if there were any forwarding headers in this message
             byte[] forwardBytes = message.getHeader(RowMutation.FORWARD_HEADER);
-            if (forwardBytes != null)
+            if (forwardBytes != null && message.getVersion() >= MessagingService.VERSION_11)
                 forwardToLocalNodes(message, forwardBytes);
 
             rm.apply();
@@ -62,32 +62,26 @@ public class RowMutationVerbHandler implements IVerbHandler
         }
     }  
     
-    private void forwardToLocalNodes(Message message, byte[] forwardBytes) throws UnknownHostException
+    /**
+     * Older version (< 1.0) will not send this message at all, hence we don't
+     * need to check the version of the data.
+     */
+    private void forwardToLocalNodes(Message message, byte[] forwardBytes) throws IOException
     {
+        DataInputStream dis = new DataInputStream(new FastByteArrayInputStream(forwardBytes));
+        int size = dis.readInt();
+        
         // remove fwds from message to avoid infinite loop
         Message messageCopy = message.withHeaderRemoved(RowMutation.FORWARD_HEADER);
-
-        int bytesPerInetAddress = FBUtilities.getBroadcastAddress().getAddress().length;
-        assert forwardBytes.length >= bytesPerInetAddress;
-        assert forwardBytes.length % bytesPerInetAddress == 0;
-
-        int offset = 0;
-        byte[] addressBytes = new byte[bytesPerInetAddress];
-
-        // Send a message to each of the addresses on our Forward List
-        while (offset < forwardBytes.length)
+        for (int i = 0; i < size; i++)
         {
-            System.arraycopy(forwardBytes, offset, addressBytes, 0, bytesPerInetAddress);
-            InetAddress address = InetAddress.getByAddress(addressBytes);
-
+            // Send a message to each of the addresses on our Forward List
+            InetAddress address = CompactEndpointSerializationHelper.deserialize(dis);
+            String id = dis.readUTF();
             if (logger_.isDebugEnabled())
-                logger_.debug("Forwarding message to " + address);
-
-            // Send the original message to the address specified by the FORWARD_HINT
+                logger_.debug("Forwarding message to " + address + " with= ID: " + id);
             // Let the response go back to the coordinator
-            MessagingService.instance().sendOneWay(messageCopy, address);
-
-            offset += bytesPerInetAddress;
+            MessagingService.instance().sendOneWay(messageCopy, id, address);
         }
     }
 }

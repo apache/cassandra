@@ -400,33 +400,41 @@ public class StorageProxy implements StorageProxyMBean
                 // a single message object is used for unhinted writes, so clean out any forwards
                 // from previous loop iterations
                 message = message.withHeaderRemoved(RowMutation.FORWARD_HEADER);
+                Iterator<InetAddress> iter = messages.getValue().iterator();
+                InetAddress target = iter.next();
 
-                if (dataCenter.equals(localDataCenter))
+                // direct writes to local DC or old Cassadra versions
+                if (dataCenter.equals(localDataCenter) || Gossiper.instance.getVersion(target) < MessagingService.VERSION_11)
                 {
-                    // direct writes to local DC or old Cassadra versions
-                    for (InetAddress destination : messages.getValue())
-                        MessagingService.instance().sendRR(message, destination, handler);
-                }
-                else
-                {
-                    // Non-local DC. First endpoint in list is the destination for this group
-                    Iterator<InetAddress> iter = messages.getValue().iterator();
-                    InetAddress target = iter.next();
-                    // Add all the other destinations of the same message as a header in the primary message.
-                    if (iter.hasNext())
-                    {
-                        FastByteArrayOutputStream bos = new FastByteArrayOutputStream();
-                        DataOutputStream dos = new DataOutputStream(bos);
-                        while (iter.hasNext())
-                        {
-                            InetAddress destination = iter.next();
-                            dos.write(destination.getAddress());
-                        }
-                        message = message.withHeaderAdded(RowMutation.FORWARD_HEADER, bos.toByteArray());
-                    }
-                    // send the combined message + forward headers
+                    // yes, the loop and non-loop code here are the same; this is clunky but we want to avoid
+                    // creating a second iterator since we already have a perfectly good one
                     MessagingService.instance().sendRR(message, target, handler);
+                    while (iter.hasNext())
+                    {
+                        target = iter.next();
+                        MessagingService.instance().sendRR(message, target, handler);
+                    }
+                    continue;
                 }
+
+                // Add all the other destinations of the same message as a FORWARD_HEADER entry
+                FastByteArrayOutputStream bos = new FastByteArrayOutputStream();
+                DataOutputStream dos = new DataOutputStream(bos);
+                dos.writeInt(messages.getValue().size() - 1);
+                while (iter.hasNext())
+                {
+                    InetAddress destination = iter.next();
+                    CompactEndpointSerializationHelper.serialize(destination, dos);
+                    String id = MessagingService.instance().addCallback(handler, message, destination);
+                    dos.writeUTF(id);
+                    if (logger.isDebugEnabled())
+                        logger.debug("Adding FWD message to: " + destination + " with ID " + id);
+                }
+                message = message.withHeaderAdded(RowMutation.FORWARD_HEADER, bos.toByteArray());
+                // send the combined message + forward headers
+                String id = MessagingService.instance().sendRR(message, target, handler);
+                if (logger.isDebugEnabled())
+                    logger.debug("Sending message to: " + target + " with ID " + id);
             }
         }
     }
