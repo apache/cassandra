@@ -747,7 +747,9 @@ public class ThriftValidation
         for (String ksName : Schema.instance.getTables())
         {
             if (ksName.equalsIgnoreCase(newKsName))
-                throw new InvalidRequestException("Keyspace names must be case-insensitively unique");
+                throw new InvalidRequestException(String.format("Keyspace names must be case-insensitively unique (\"%s\" conflicts with \"%s\")",
+                                                                newKsName,
+                                                                ksName));
         }
     }
 }
