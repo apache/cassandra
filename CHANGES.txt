@@ -42,6 +42,7 @@
    (CASSANDRA-3558)
  * fix missing response during range slice repair (CASSANDRA-3551)
  * 'describe ring' moved from CLI to nodetool and available through JMX (CASSANDRA-3220)
+ * add back partitioner to sstable metadata (CASSANDRA-3540)
 Merged from 0.8:
  * use cannonical host for local node in nodetool info (CASSANDRA-3556)
  * detect misuses of CounterColumnType (CASSANDRA-3422)

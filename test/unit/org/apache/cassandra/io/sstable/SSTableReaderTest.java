@@ -21,6 +21,7 @@ package org.apache.cassandra.io.sstable;
  */
 
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.concurrent.ExecutionException;
@@ -33,14 +34,21 @@ import org.junit.Test;
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.FileDataInput;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.MmappedSegmentedFile;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.thrift.IndexClause;
+import org.apache.cassandra.thrift.IndexExpression;
+import org.apache.cassandra.thrift.IndexOperator;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.CLibrary;
 import org.apache.cassandra.utils.Pair;
 
 import org.apache.cassandra.Util;
@@ -186,6 +194,75 @@ public class SSTableReaderTest extends CleanupHelper
 
         // to capture 6 we have to stop at the start of 7
         assert p.right == p7;
+    }
+
+    @Test
+    public void testPersistentStatisticsWithSecondaryIndex() throws IOException, ExecutionException, InterruptedException
+    {
+        // Create secondary index and flush to disk
+        Table table = Table.open("Keyspace1");
+        ColumnFamilyStore store = table.getColumnFamilyStore("Indexed1");
+        ByteBuffer key = ByteBufferUtil.bytes(String.valueOf("k1"));
+        RowMutation rm = new RowMutation("Keyspace1", key);
+        rm.add(new QueryPath("Indexed1", null, ByteBufferUtil.bytes("birthdate")), ByteBufferUtil.bytes(1L), System.currentTimeMillis());
+        rm.apply();
+        store.forceBlockingFlush();
+
+        // check if opening and querying works
+        assertIndexQueryWorks(store);
+    }
+
+    @Test
+    public void testPersistentStatisticsFromOlderIndexedSSTable() throws IOException, ExecutionException, InterruptedException
+    {
+        // copy legacy indexed sstables
+        String root = System.getProperty("legacy-sstable-root");
+        assert root != null;
+        File rootDir = new File(root + File.separator + "hb" + File.separator + "Keyspace1");
+        assert rootDir.isDirectory();
+
+        String[] destDirs = DatabaseDescriptor.getAllDataFileLocationsForTable("Keyspace1");
+        assert destDirs != null;
+        assert destDirs.length > 0;
+
+        FileUtils.createDirectory(destDirs[0]);
+        for (File srcFile : rootDir.listFiles())
+        {
+            if (!srcFile.getName().startsWith("Indexed1"))
+                continue;
+            File destFile = new File(destDirs[0] + File.separator + srcFile.getName());
+            CLibrary.createHardLinkWithExec(srcFile, destFile);
+
+            destFile = new File(destDirs[0] + File.separator + srcFile.getName());
+
+            assert destFile.exists() : destFile.getAbsoluteFile();
+        }
+        ColumnFamilyStore store = Table.open("Keyspace1").getColumnFamilyStore("Indexed1");
+
+        // check if opening and querying works
+        assertIndexQueryWorks(store);
+    }
+
+    private void assertIndexQueryWorks(ColumnFamilyStore indexedCFS)
+    {
+        assert "Indexed1".equals(indexedCFS.getColumnFamilyName());
+
+        // make sure all sstables including 2ary indexes load from disk
+        indexedCFS.clearUnsafe();
+        for (ColumnFamilyStore indexCfs : indexedCFS.indexManager.getIndexesBackedByCfs())
+        {
+            indexCfs.clearUnsafe();
+            indexCfs.loadNewSSTables(); // v1.0.4 would fail here (see CASSANDRA-3540)
+        }
+        indexedCFS.loadNewSSTables();
+
+        // query using index to see if sstable for secondary index opens
+        IndexExpression expr = new IndexExpression(ByteBufferUtil.bytes("birthdate"), IndexOperator.EQ, ByteBufferUtil.bytes(1L));
+        IndexClause clause = new IndexClause(Arrays.asList(expr), ByteBufferUtil.EMPTY_BYTE_BUFFER, 100);
+        IPartitioner p = StorageService.getPartitioner();
+        Range range = new Range(p.getMinimumToken(), p.getMinimumToken());
+        List<Row> rows = indexedCFS.search(clause, range, new IdentityQueryFilter());
+        assert rows.size() == 1;
     }
 
     private List<Range<Token>> makeRanges(Token left, Token right)

@@ -28,6 +28,7 @@ import java.io.IOException;
 import org.junit.Test;
 
 import org.apache.cassandra.db.commitlog.ReplayPosition;
+import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.utils.EstimatedHistogram;
 
 public class SSTableMetadataSerializerTest
@@ -49,7 +50,7 @@ public class SSTableMetadataSerializerTest
                                                              .estimatedColumnCount(columnCounts)
                                                              .replayPosition(rp);
         collector.updateMaxTimestamp(maxTimestamp);
-        SSTableMetadata originalMetadata = collector.finalizeMetadata();
+        SSTableMetadata originalMetadata = collector.finalizeMetadata(RandomPartitioner.class.getCanonicalName());
 
         ByteArrayOutputStream byteOutput = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(byteOutput);
@@ -69,5 +70,6 @@ public class SSTableMetadataSerializerTest
         assert stats.replayPosition.equals(rp);
         assert stats.maxTimestamp == maxTimestamp;
         assert stats.maxTimestamp == originalMetadata.maxTimestamp;
+        assert RandomPartitioner.class.getCanonicalName().equals(stats.partitioner);
     }
 }
