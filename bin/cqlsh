@@ -1125,7 +1125,7 @@ class Shell(cmd.Cmd):
         """
 
     def help_delete_using(self):
-        """
+        print """
         DELETE: the USING clause
 
           DELETE ... USING CONSISTENCY <consistencylevel>;
@@ -1142,7 +1142,7 @@ class Shell(cmd.Cmd):
         """
 
     def help_delete_columns(self):
-        """
+        print """
         DELETE: specifying columns
 
           DELETE col1, 'col2 name', 3 FROM ...
