@@ -311,7 +311,7 @@ public class SSTableWriter extends SSTable
         dataFile.close();
 
         // write sstable statistics
-        SSTableMetadata sstableMetadata = sstableMetadataCollector.finalizeMetadata();
+        SSTableMetadata sstableMetadata = sstableMetadataCollector.finalizeMetadata(partitioner.getClass().getCanonicalName());
         writeMetadata(descriptor, sstableMetadata);
         maybeWriteDigest();
 

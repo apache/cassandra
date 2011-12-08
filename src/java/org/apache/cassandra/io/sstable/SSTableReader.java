@@ -137,9 +137,11 @@ public class SSTableReader extends SSTable
                                         ? SSTableMetadata.serializer.deserialize(descriptor)
                                         : SSTableMetadata.createDefaultInstance();
 
-        // check if sstable is created using same partitioner as this node
+        // Check if sstable is created using same partitioner.
+        // Partitioner can be null, which indicates older version of sstable or no stats available.
+        // In that case, we skip the check.
         String partitionerName = partitioner.getClass().getCanonicalName();
-        if (!partitionerName.equals(sstableMetadata.partitioner))
+        if (sstableMetadata.partitioner != null && !partitionerName.equals(sstableMetadata.partitioner))
             throw new RuntimeException(String.format("Cannot open %s because partitioner does not match %s",
                                                      descriptor, partitionerName));
 
