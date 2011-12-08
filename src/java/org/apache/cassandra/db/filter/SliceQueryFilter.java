@@ -56,9 +56,9 @@ public class SliceQueryFilter implements IFilter
         this.count = count;
     }
 
-    public IColumnIterator getMemtableColumnIterator(ColumnFamily cf, DecoratedKey<?> key, AbstractType comparator)
+    public IColumnIterator getMemtableColumnIterator(ColumnFamily cf, DecoratedKey<?> key)
     {
-        return Memtable.getSliceIterator(key, cf, this, comparator);
+        return Memtable.getSliceIterator(key, cf, this);
     }
 
     public IColumnIterator getSSTableColumnIterator(SSTableReader sstable, DecoratedKey<?> key)

@@ -85,7 +85,7 @@ public class CollationController
         {
             for (Memtable memtable : view.memtables)
             {
-                IColumnIterator iter = filter.getMemtableColumnIterator(memtable, cfs.metadata.comparator);
+                IColumnIterator iter = filter.getMemtableColumnIterator(memtable);
                 if (iter != null)
                 {
                     iterators.add(iter);
@@ -149,7 +149,7 @@ public class CollationController
                 }
             };
             ColumnFamily returnCF = container.cloneMeShallow();
-            filter.collateColumns(returnCF, Collections.singletonList(toCollate), cfs.metadata.comparator, gcBefore);
+            filter.collateColumns(returnCF, Collections.singletonList(toCollate), gcBefore);
             
             // "hoist up" the requested data into a more recent sstable
             if (sstablesIterated > cfs.getMinimumCompactionThreshold()
@@ -219,7 +219,7 @@ public class CollationController
         {
             for (Memtable memtable : view.memtables)
             {
-                IColumnIterator iter = filter.getMemtableColumnIterator(memtable, cfs.metadata.comparator);
+                IColumnIterator iter = filter.getMemtableColumnIterator(memtable);
                 if (iter != null)
                 {
                     returnCF.delete(iter.getColumnFamily());
@@ -243,7 +243,7 @@ public class CollationController
             if (iterators.isEmpty())
                 return null;
 
-            filter.collateColumns(returnCF, iterators, cfs.metadata.comparator, gcBefore);
+            filter.collateColumns(returnCF, iterators, gcBefore);
 
             // Caller is responsible for final removeDeletedCF.  This is important for cacheRow to work correctly:
             return returnCF;

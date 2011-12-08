@@ -180,4 +180,14 @@ public class TreeMapBackedSortedColumns extends TreeMap<ByteBuffer, IColumn> imp
     {
         return getReverseSortedColumns().iterator();
     }
+
+    public Iterator<IColumn> iterator(ByteBuffer start)
+    {
+        return tailMap(start).values().iterator();
+    }
+
+    public Iterator<IColumn> reverseIterator(ByteBuffer start)
+    {
+        return descendingMap().tailMap(start).values().iterator();
+    }
 }

@@ -235,8 +235,8 @@ public class KeysSearcher extends SecondaryIndexSearcher
                     {
                         ColumnFamily expandedData = data;
                         data = expandedData.cloneMeShallow();
-                        IColumnIterator iter = dataFilter.getMemtableColumnIterator(expandedData, dk, baseCfs.getComparator());
-                        new QueryFilter(dk, path, dataFilter).collateColumns(data, Collections.singletonList(iter), baseCfs.getComparator(), baseCfs.gcBefore());
+                        IColumnIterator iter = dataFilter.getMemtableColumnIterator(expandedData, dk);
+                        new QueryFilter(dk, path, dataFilter).collateColumns(data, Collections.singletonList(iter), baseCfs.gcBefore());
                     }
 
                     rows.add(new Row(dk, data));

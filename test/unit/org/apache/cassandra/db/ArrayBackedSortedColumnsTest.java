@@ -133,13 +133,53 @@ public class ArrayBackedSortedColumnsTest
         assertSame(names, map.getColumnNames());
     }
 
+    @Test
+    public void testIterator()
+    {
+        testIteratorInternal(false);
+        //testIteratorInternal(true);
+    }
+
+    private void testIteratorInternal(boolean reversed)
+    {
+        ISortedColumns map = ArrayBackedSortedColumns.factory().create(BytesType.instance, reversed);
+
+        List<ByteBuffer> names = new ArrayList<ByteBuffer>();
+        int[] values = new int[]{ 1, 2, 3, 5, 9 };
+        for (int v : values)
+            names.add(ByteBufferUtil.bytes(v));
+
+        for (int i = 0; i < values.length; ++i)
+            map.addColumn(new Column(ByteBufferUtil.bytes(values[reversed ? values.length - 1 - i : i])), HeapAllocator.instance);
+
+        //assertSame(new int[]{ 3, 5, 9 }, map.iterator(ByteBufferUtil.bytes(3)));
+        //assertSame(new int[]{ 5, 9 }, map.iterator(ByteBufferUtil.bytes(4)));
+
+        assertSame(new int[]{ 3, 2, 1 }, map.reverseIterator(ByteBufferUtil.bytes(3)));
+        assertSame(new int[]{ 3, 2, 1 }, map.reverseIterator(ByteBufferUtil.bytes(4)));
+
+        assertSame(map.iterator(), map.iterator(ByteBufferUtil.EMPTY_BYTE_BUFFER));
+    }
+
     private <T> void assertSame(Collection<T> c1, Collection<T> c2)
     {
-        Iterator<T> iter1 = c1.iterator();
-        Iterator<T> iter2 = c2.iterator();
+        assertSame(c1.iterator(), c2.iterator());
+    }
+
+    private <T> void assertSame(Iterator<T> iter1, Iterator<T> iter2)
+    {
         while (iter1.hasNext() && iter2.hasNext())
             assertEquals(iter1.next(), iter2.next());
         if (iter1.hasNext() || iter2.hasNext())
             fail("The collection don't have the same size");
+    }
+
+    private void assertSame(int[] names, Iterator<IColumn> iter)
+    {
+        for (int name : names)
+        {
+            assert iter.hasNext();
+            assert name == ByteBufferUtil.toInt(iter.next().name());
+        }
     }
 }

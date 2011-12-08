@@ -289,17 +289,39 @@ public class ArrayBackedSortedColumns extends ArrayList<IColumn> implements ISor
     @Override
     public Iterator<IColumn> iterator()
     {
-        return reversed ? reverseInternalIterator() : super.iterator();
+        return reversed ? reverseInternalIterator(size()) : super.iterator();
     }
 
     public Iterator<IColumn> reverseIterator()
     {
-        return reversed ? super.iterator() : reverseInternalIterator();
+        return reversed ? super.iterator() : reverseInternalIterator(size());
     }
 
-    private Iterator<IColumn> reverseInternalIterator()
+    public Iterator<IColumn> iterator(ByteBuffer start)
     {
-        final ListIterator<IColumn> iter = listIterator(size());
+        int idx = binarySearch(start);
+        if (idx < 0)
+            idx = -idx - 1;
+        else if (reversed)
+            // listIterator.previous() doesn't return the current element at first but the previous one
+            idx++;
+        return reversed ? reverseInternalIterator(idx) : listIterator(idx);
+    }
+
+    public Iterator<IColumn> reverseIterator(ByteBuffer start)
+    {
+        int idx = binarySearch(start);
+        if (idx < 0)
+            idx = -idx - 1;
+        else if (!reversed)
+            // listIterator.previous() doesn't return the current element at first but the previous one
+            idx++;
+        return reversed ? listIterator(idx) : reverseInternalIterator(idx);
+    }
+
+    private Iterator<IColumn> reverseInternalIterator(int idx)
+    {
+        final ListIterator<IColumn> iter = listIterator(idx);
         return new Iterator<IColumn>()
         {
             public boolean hasNext()

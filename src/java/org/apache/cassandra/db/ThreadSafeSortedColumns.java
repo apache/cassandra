@@ -162,4 +162,14 @@ public class ThreadSafeSortedColumns extends ConcurrentSkipListMap<ByteBuffer, I
     {
         return getReverseSortedColumns().iterator();
     }
+
+    public Iterator<IColumn> iterator(ByteBuffer start)
+    {
+        return tailMap(start).values().iterator();
+    }
+
+    public Iterator<IColumn> reverseIterator(ByteBuffer start)
+    {
+        return descendingMap().tailMap(start).values().iterator();
+    }
 }

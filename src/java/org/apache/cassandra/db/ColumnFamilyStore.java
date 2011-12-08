@@ -1183,8 +1183,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     ColumnFamily filterColumnFamily(ColumnFamily cached, QueryFilter filter, int gcBefore)
     {
         ColumnFamily cf = cached.cloneMeShallow(ArrayBackedSortedColumns.factory(), filter.filter.isReversed());
-        IColumnIterator ci = filter.getMemtableColumnIterator(cached, null, getComparator());
-        filter.collateColumns(cf, Collections.singletonList(ci), getComparator(), gcBefore);
+        IColumnIterator ci = filter.getMemtableColumnIterator(cached, null);
+        filter.collateColumns(cf, Collections.singletonList(ci), gcBefore);
         // TODO this is necessary because when we collate supercolumns together, we don't check
         // their subcolumns for relevance, so we need to do a second prune post facto here.
         return cf.isSuper() ? removeDeleted(cf, gcBefore) : removeDeletedCF(cf, gcBefore);
@@ -1299,7 +1299,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         ViewFragment view = markReferenced(startWith, stopAt);
         try
         {
-            CloseableIterator<Row> iterator = RowIteratorFactory.getIterator(view.memtables, view.sstables, startWith, stopAt, filter, getComparator(), this);
+            CloseableIterator<Row> iterator = RowIteratorFactory.getIterator(view.memtables, view.sstables, startWith, stopAt, filter, this);
             rows = new ArrayList<Row>();
 
             try

@@ -125,6 +125,18 @@ public interface ISortedColumns extends IIterableColumns
     public Iterator<IColumn> reverseIterator();
 
     /**
+     * Returns an iterator over the columns of this map starting from the
+     * first column whose name is equal or greater than @param start.
+     */
+    public Iterator<IColumn> iterator(ByteBuffer start);
+
+    /**
+     * Returns a reversed iterator over the columns of this map starting from
+     * the last column whose name is equal or lesser than @param start.
+     */
+    public Iterator<IColumn> reverseIterator(ByteBuffer start);
+
+    /**
      * Returns if this map only support inserts in reverse order.
      */
     public boolean isInsertReversed();

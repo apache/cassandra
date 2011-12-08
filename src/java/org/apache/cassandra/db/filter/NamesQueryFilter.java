@@ -50,7 +50,7 @@ public class NamesQueryFilter implements IFilter
         this(FBUtilities.singleton(column));
     }
 
-    public IColumnIterator getMemtableColumnIterator(ColumnFamily cf, DecoratedKey<?> key, AbstractType comparator)
+    public IColumnIterator getMemtableColumnIterator(ColumnFamily cf, DecoratedKey<?> key)
     {
         return Memtable.getNamesIterator(key, cf, this);
     }

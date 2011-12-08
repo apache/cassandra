@@ -55,20 +55,20 @@ public class QueryFilter
         superFilter = path.superColumnName == null ? null : new NamesQueryFilter(path.superColumnName);
     }
 
-    public IColumnIterator getMemtableColumnIterator(Memtable memtable, AbstractType comparator)
+    public IColumnIterator getMemtableColumnIterator(Memtable memtable)
     {
         ColumnFamily cf = memtable.getColumnFamily(key);
         if (cf == null)
             return null;
-        return getMemtableColumnIterator(cf, key, comparator);
+        return getMemtableColumnIterator(cf, key);
     }
 
-    public IColumnIterator getMemtableColumnIterator(ColumnFamily cf, DecoratedKey<?> key, AbstractType comparator)
+    public IColumnIterator getMemtableColumnIterator(ColumnFamily cf, DecoratedKey<?> key)
     {
         assert cf != null;
         if (path.superColumnName == null)
-            return filter.getMemtableColumnIterator(cf, key, comparator);
-        return superFilter.getMemtableColumnIterator(cf, key, comparator);
+            return filter.getMemtableColumnIterator(cf, key);
+        return superFilter.getMemtableColumnIterator(cf, key);
     }
 
     // TODO move gcBefore into a field
@@ -87,10 +87,10 @@ public class QueryFilter
     }
 
     // TODO move gcBefore into a field
-    public void collateColumns(final ColumnFamily returnCF, List<? extends CloseableIterator<IColumn>> toCollate, AbstractType comparator, final int gcBefore)
+    public void collateColumns(final ColumnFamily returnCF, List<? extends CloseableIterator<IColumn>> toCollate, final int gcBefore)
     {
         IFilter topLevelFilter = (superFilter == null ? filter : superFilter);
-        Comparator<IColumn> fcomp = topLevelFilter.getColumnComparator(comparator);
+        Comparator<IColumn> fcomp = topLevelFilter.getColumnComparator(returnCF.getComparator());
         // define a 'reduced' iterator that merges columns w/ the same name, which
         // greatly simplifies computing liveColumns in the presence of tombstones.
         MergeIterator.Reducer<IColumn, IColumn> reducer = new MergeIterator.Reducer<IColumn, IColumn>()

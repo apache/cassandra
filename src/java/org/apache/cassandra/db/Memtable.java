@@ -343,24 +343,12 @@ public class Memtable
     /**
      * obtain an iterator of columns in this memtable in the specified order starting from a given column.
      */
-    public static IColumnIterator getSliceIterator(final DecoratedKey key, final ColumnFamily cf, SliceQueryFilter filter, AbstractType typeComparator)
+    public static IColumnIterator getSliceIterator(final DecoratedKey key, final ColumnFamily cf, SliceQueryFilter filter)
     {
         assert cf != null;
-        final boolean isSuper = cf.isSuper();
-        final Collection<IColumn> filteredColumns = filter.reversed ? cf.getReverseSortedColumns() : cf.getSortedColumns();
-
-        // ok to not have subcolumnComparator since we won't be adding columns to this object
-        IColumn startColumn = isSuper ? new SuperColumn(filter.start, (AbstractType)null) :  new Column(filter.start);
-        Comparator<IColumn> comparator = filter.getColumnComparator(typeComparator);
-
-        final PeekingIterator<IColumn> filteredIter = Iterators.peekingIterator(filteredColumns.iterator());
-        if (!filter.reversed || filter.start.remaining() != 0)
-        {
-            while (filteredIter.hasNext() && comparator.compare(filteredIter.peek(), startColumn) < 0)
-            {
-                filteredIter.next();
-            }
-        }
+        final Iterator<IColumn> filteredIter = filter.reversed
+                                             ? (filter.start.remaining() == 0 ? cf.reverseIterator() : cf.reverseIterator(filter.start))
+                                             : cf.iterator(filter.start);
 
         return new AbstractColumnIterator()
         {
@@ -381,7 +369,7 @@ public class Memtable
 
             public IColumn next()
             {
-                return filteredIter.next();                
+                return filteredIter.next();
             }
         };
     }

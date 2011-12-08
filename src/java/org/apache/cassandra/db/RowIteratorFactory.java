@@ -61,7 +61,6 @@ public class RowIteratorFactory
                                           final RowPosition startWith,
                                           final RowPosition stopAt,
                                           final QueryFilter filter,
-                                          final AbstractType comparator,
                                           final ColumnFamilyStore cfs)
     {
         // fetch data from current memtable, historical memtables, and SSTables in the correct order.
@@ -80,7 +79,7 @@ public class RowIteratorFactory
         // memtables
         for (Memtable memtable : memtables)
         {
-            iterators.add(new ConvertToColumnIterator(filter, comparator, p, memtable.getEntryIterator(startWith)));
+            iterators.add(new ConvertToColumnIterator(filter, p, memtable.getEntryIterator(startWith)));
         }
 
         for (SSTableReader sstable : sstables)
@@ -120,7 +119,7 @@ public class RowIteratorFactory
                 ColumnFamily cached = cfs.getRawCachedRow(key);
                 if (cached == null)
                     // not cached: collate
-                    filter.collateColumns(returnCF, colIters, comparator, gcBefore);
+                    filter.collateColumns(returnCF, colIters, gcBefore);
                 else
                 {
                     QueryFilter keyFilter = new QueryFilter(key, filter.path, filter.filter);
@@ -141,14 +140,12 @@ public class RowIteratorFactory
     private static class ConvertToColumnIterator extends AbstractIterator<IColumnIterator> implements CloseableIterator<IColumnIterator>
     {
         private final QueryFilter filter;
-        private final AbstractType comparator;
         private final Predicate<IColumnIterator> pred;
         private final Iterator<Map.Entry<DecoratedKey, ColumnFamily>> iter;
 
-        public ConvertToColumnIterator(QueryFilter filter, AbstractType comparator, Predicate<IColumnIterator> pred, Iterator<Map.Entry<DecoratedKey, ColumnFamily>> iter)
+        public ConvertToColumnIterator(QueryFilter filter, Predicate<IColumnIterator> pred, Iterator<Map.Entry<DecoratedKey, ColumnFamily>> iter)
         {
             this.filter = filter;
-            this.comparator = comparator;
             this.pred = pred;
             this.iter = iter;
         }
@@ -158,7 +155,7 @@ public class RowIteratorFactory
             while (iter.hasNext())
             {
                 Map.Entry<DecoratedKey, ColumnFamily> entry = iter.next();
-                IColumnIterator ici = filter.getMemtableColumnIterator(entry.getValue(), entry.getKey(), comparator);
+                IColumnIterator ici = filter.getMemtableColumnIterator(entry.getValue(), entry.getKey());
                 if (pred.apply(ici))
                     return ici;
             }

@@ -21,6 +21,7 @@
  * fix potential race in AES when a repair fails (CASSANDRA-3548)
  * Remove columns shadowed by a deleted container even when we cannot purge
    (CASSANDRA-3538)
+ * Improve memtable slice iteration performance (CASSANDRA-3545)
 
 
 1.0.6

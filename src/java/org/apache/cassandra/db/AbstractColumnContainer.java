@@ -234,6 +234,21 @@ public abstract class AbstractColumnContainer implements IColumnContainer, IIter
         return columns.iterator();
     }
 
+    public Iterator<IColumn> reverseIterator()
+    {
+        return columns.reverseIterator();
+    }
+
+    public Iterator<IColumn> iterator(ByteBuffer start)
+    {
+        return columns.iterator(start);
+    }
+
+    public Iterator<IColumn> reverseIterator(ByteBuffer start)
+    {
+        return columns.reverseIterator(start);
+    }
+
     protected static class DeletionInfo
     {
         public final long markedForDeleteAt;
