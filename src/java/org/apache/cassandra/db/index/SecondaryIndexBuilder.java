@@ -26,7 +26,7 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.compaction.CompactionInfo;
 import org.apache.cassandra.db.compaction.OperationType;
-import org.apache.cassandra.db.compaction.UserInterruptedException;
+import org.apache.cassandra.db.compaction.CompactionInterruptedException;
 import org.apache.cassandra.io.sstable.ReducingKeyIterator;
 
 /**
@@ -60,7 +60,7 @@ public class SecondaryIndexBuilder extends CompactionInfo.Holder
         while (iter.hasNext())
         {
             if (isStopped())
-                throw new UserInterruptedException(getCompactionInfo());
+                throw new CompactionInterruptedException(getCompactionInfo());
             DecoratedKey<?> key = iter.next();
             Table.indexRow(key, cfs, columns);
         }

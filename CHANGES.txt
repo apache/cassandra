@@ -1,6 +1,6 @@
 1.1-dev
  * multi-dc replication optimization supporting CL > ONE (CASSANDRA-3577)
- * add command to stop compactions (CASSANDRA-1740, 3566)
+ * add command to stop compactions (CASSANDRA-1740, 3566, 3582)
  * multithreaded streaming (CASSANDRA-3494)
  * removed in-tree redhat spec (CASSANDRA-3567)
  * "defragment" rows for name-based queries under STCS, again (CASSANDRA-2503)

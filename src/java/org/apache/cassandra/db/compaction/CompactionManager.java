@@ -488,7 +488,7 @@ public class CompactionManager implements CompactionManagerMBean
             while (!dataFile.isEOF())
             {
                 if (scrubInfo.isStopped())
-                    throw new UserInterruptedException(scrubInfo.getCompactionInfo());
+                    throw new CompactionInterruptedException(scrubInfo.getCompactionInfo());
                 long rowStart = dataFile.getFilePointer();
                 if (logger.isDebugEnabled())
                     logger.debug("Reading row at " + rowStart);
@@ -696,7 +696,7 @@ public class CompactionManager implements CompactionManagerMBean
                 while (scanner.hasNext())
                 {
                     if (ci.isStopped())
-                        throw new UserInterruptedException(ci.getCompactionInfo());
+                        throw new CompactionInterruptedException(ci.getCompactionInfo());
                     SSTableIdentityIterator row = (SSTableIdentityIterator) scanner.next();
                     if (Range.isInRanges(row.getKey().token, ranges))
                     {
@@ -827,7 +827,7 @@ public class CompactionManager implements CompactionManagerMBean
             while (nni.hasNext())
             {
                 if (ci.isStopped())
-                    throw new UserInterruptedException(ci.getCompactionInfo());
+                    throw new CompactionInterruptedException(ci.getCompactionInfo());
                 AbstractCompactedRow row = nni.next();
                 validator.add(row);
             }
@@ -975,7 +975,7 @@ public class CompactionManager implements CompactionManagerMBean
         return CompactionExecutor.compactions.size();
     }
 
-    private static class CompactionExecutor extends DebuggableThreadPoolExecutor implements CompactionExecutorStatsCollector
+    private static class CompactionExecutor extends ThreadPoolExecutor implements CompactionExecutorStatsCollector
     {
         // a synchronized identity set of running tasks to their compaction info
         private static final Set<CompactionInfo.Holder> compactions = Collections.synchronizedSet(Collections.newSetFromMap(new IdentityHashMap<CompactionInfo.Holder, Boolean>()));
@@ -983,6 +983,7 @@ public class CompactionManager implements CompactionManagerMBean
         protected CompactionExecutor(int minThreads, int maxThreads, String name, BlockingQueue<Runnable> queue)
         {
             super(minThreads, maxThreads, 60, TimeUnit.SECONDS, queue, new NamedThreadFactory(name, Thread.MIN_PRIORITY));
+            allowCoreThreadTimeOut(true);
         }
 
         private CompactionExecutor(int threadCount, String name)
@@ -1008,6 +1009,29 @@ public class CompactionManager implements CompactionManagerMBean
         public static List<CompactionInfo.Holder> getCompactions()
         {
             return new ArrayList<CompactionInfo.Holder>(compactions);
+        }
+
+        // modified from DebuggableThreadPoolExecutor so that CompactionInterruptedExceptions are not logged
+        @Override
+        public void afterExecute(Runnable r, Throwable t)
+        {
+            super.afterExecute(r,t);
+
+            if (t == null)
+                t = DebuggableThreadPoolExecutor.extractThrowable(r);
+
+            if (t != null)
+            {
+                if (t instanceof CompactionInterruptedException)
+                {
+                    logger.info(t.getMessage());
+                    logger.debug("Full interruption stack trace:", t);
+                }
+                else
+                {
+                    DebuggableThreadPoolExecutor.handleOrLog(t);
+                }
+            }
         }
     }
 

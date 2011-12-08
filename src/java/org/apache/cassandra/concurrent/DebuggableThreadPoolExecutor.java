@@ -23,7 +23,6 @@ package org.apache.cassandra.concurrent;
 
 import java.util.concurrent.*;
 
-import org.apache.cassandra.db.compaction.UserInterruptedException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -117,6 +116,23 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor
 
     public static void logExceptionsAfterExecute(Runnable r, Throwable t)
     {
+        if (t == null)
+            t = extractThrowable(r);
+
+        if (t != null)
+            handleOrLog(t);
+    }
+
+    public static void handleOrLog(Throwable t)
+    {
+        if (Thread.getDefaultUncaughtExceptionHandler() == null)
+            logger.error("Error in ThreadPoolExecutor", t);
+        else
+            Thread.getDefaultUncaughtExceptionHandler().uncaughtException(Thread.currentThread(), t);
+    }
+
+    public static Throwable extractThrowable(Runnable r)
+    {
         // Check for exceptions wrapped by FutureTask.  We do this by calling get(), which will
         // cause it to throw any saved exception.
         //
@@ -138,23 +154,11 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor
             }
             catch (ExecutionException e)
             {
-                Throwable actualException = e.getCause();
-                if (actualException instanceof UserInterruptedException)
-                    logger.info("Task interrupted by user: " + actualException);
-                else if (Thread.getDefaultUncaughtExceptionHandler() == null)
-                    logger.error("Error in ThreadPoolExecutor", actualException);
-                else
-                    Thread.getDefaultUncaughtExceptionHandler().uncaughtException(Thread.currentThread(), actualException);
+                return e.getCause();
             }
         }
 
-        // exceptions for non-FutureTask runnables [i.e., added via execute() instead of submit()]
-        if (t != null)
-        {
-            if (Thread.getDefaultUncaughtExceptionHandler() == null)
-                logger.error("Error in ThreadPoolExecutor", t);
-            else
-                Thread.getDefaultUncaughtExceptionHandler().uncaughtException(Thread.currentThread(), t);
-        }
+        return null;
     }
+
 }
