@@ -260,7 +260,7 @@ public class SSTableReaderTest extends CleanupHelper
         IndexExpression expr = new IndexExpression(ByteBufferUtil.bytes("birthdate"), IndexOperator.EQ, ByteBufferUtil.bytes(1L));
         IndexClause clause = new IndexClause(Arrays.asList(expr), ByteBufferUtil.EMPTY_BYTE_BUFFER, 100);
         IPartitioner p = StorageService.getPartitioner();
-        Range range = new Range(p.getMinimumToken(), p.getMinimumToken());
+        Range<RowPosition> range = Util.range("", "");
         List<Row> rows = indexedCFS.search(clause, range, new IdentityQueryFilter());
         assert rows.size() == 1;
     }
