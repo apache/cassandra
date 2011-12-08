@@ -62,7 +62,7 @@ public class SSTableImport
     private static Integer keyCountToImport = null;
     private static boolean isSorted = false;
 
-    private static JsonFactory factory = new MappingJsonFactory();
+    private static JsonFactory factory = new MappingJsonFactory().configure(JsonParser.Feature.INTERN_FIELD_NAMES, false);
 
     static
     {
@@ -418,7 +418,7 @@ public class SSTableImport
      */
     private static JsonParser getParser(String fileName) throws IOException
     {
-        return factory.createJsonParser(new File(fileName)).configure(JsonParser.Feature.INTERN_FIELD_NAMES, false);
+        return factory.createJsonParser(new File(fileName));
     }
 
     /**
