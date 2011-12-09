@@ -449,7 +449,10 @@ public class CassandraServer implements Cassandra.Iface
             totalCount += columns.size();
             requestedCount -= columns.size();
             ColumnOrSuperColumn lastColumn = columns.get(columns.size() - 1);
-            ByteBuffer lastName = lastColumn.isSetSuper_column() ? lastColumn.super_column.name : lastColumn.column.name;
+            ByteBuffer lastName =
+                    lastColumn.isSetSuper_column() ? lastColumn.super_column.name :
+                        (lastColumn.isSetColumn() ? lastColumn.column.name :
+                            (lastColumn.isSetCounter_column() ? lastColumn.counter_column.name : lastColumn.counter_super_column.name));
             if ((requestedCount == 0) || ((columns.size() == 1) && (lastName.equals(predicate.slice_range.start))))
             {
                 break;
