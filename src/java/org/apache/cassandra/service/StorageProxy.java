@@ -702,7 +702,7 @@ public class StorageProxy implements StorageProxyMBean
                     RangeSliceResponseResolver resolver = new RangeSliceResponseResolver(command.keyspace, liveEndpoints);
                     ReadCallback<Iterable<Row>> handler = getReadCallback(resolver, command, consistency_level, liveEndpoints);
                     handler.assureSufficientLiveNodes();
-                    for (InetAddress endpoint : liveEndpoints)
+                    for (InetAddress endpoint : handler.endpoints)
                     {
                         MessagingService.instance().sendRR(c2, endpoint, handler);
                         if (logger.isDebugEnabled())
@@ -968,7 +968,7 @@ public class StorageProxy implements StorageProxyMBean
 
             IndexScanCommand command = new IndexScanCommand(keyspace, column_family, index_clause, column_predicate, range);
             MessageProducer producer = new CachingMessageProducer(command);
-            for (InetAddress endpoint : liveEndpoints)
+            for (InetAddress endpoint : handler.endpoints)
             {
                 MessagingService.instance().sendRR(producer, endpoint, handler);
                 if (logger.isDebugEnabled())
