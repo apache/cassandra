@@ -387,8 +387,16 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             logger_.info("Loading persisted ring state");
             for (Map.Entry<Token, InetAddress> entry : SystemTable.loadTokens().entrySet())
             {
-                tokenMetadata_.updateNormalToken(entry.getKey(), entry.getValue());
-                Gossiper.instance.addSavedEndpoint(entry.getValue());
+                if (entry.getValue() == FBUtilities.getBroadcastAddress())
+                {
+                    // entry has been mistakenly added, delete it
+                    SystemTable.removeToken(entry.getKey());
+                }
+                else
+                {
+                    tokenMetadata_.updateNormalToken(entry.getKey(), entry.getValue());
+                    Gossiper.instance.addSavedEndpoint(entry.getValue());
+                }
             }
         }
 
