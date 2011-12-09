@@ -100,7 +100,7 @@ public class SystemTable
      */
     public static synchronized void updateToken(InetAddress ep, Token token)
     {
-        if (ep == FBUtilities.getBroadcastAddress())
+        if (ep == FBUtilities.getLocalAddress())
             return;
         IPartitioner p = StorageService.getPartitioner();
         ColumnFamily cf = ColumnFamily.create(Table.SYSTEM_TABLE, STATUS_CF);
