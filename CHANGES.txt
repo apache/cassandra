@@ -6,6 +6,7 @@
    CL.ONE or CL.LOCAL_QUORUM (CASSANDRA-3577)
  * detect misuses of CounterColumnType (CASSANDRA-3422)
  * turn off string interning in json2sstable, take 2 (CASSANDRA-2189)
+ * gossiper will never add itself to saved endpoints (CASSANDRA-3485)
 
 
 0.8.8
