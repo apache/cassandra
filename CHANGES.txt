@@ -32,6 +32,7 @@ Merged from 0.8:
    (CASSANDRA-3573)
  * Check for 0.0.0.0 is incorrect in CFIF (CASSANDRA-3584)
  * Increase vm.max_map_count in debian packaging (CASSANDRA-3563)
+ * gossiper will never add itself to saved endpoints (CASSANDRA-3485)
 
 
 1.0.5
