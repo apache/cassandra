@@ -1,4 +1,6 @@
 0.8.9
+ * remove invalid assertion that table was opened before dropping it
+   (CASSANDRA-3580)
  * range and index scans now only send requests to enough replicas to
    satisfy requested CL + RR (CASSANDRA-3598)
  * use cannonical host for local node in nodetool info (CASSANDRA-3556)
