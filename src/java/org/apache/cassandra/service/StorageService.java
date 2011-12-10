@@ -404,7 +404,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             logger_.info("Loading persisted ring state");
             for (Map.Entry<Token, InetAddress> entry : SystemTable.loadTokens().entrySet())
             {
-                if (entry.getValue() == FBUtilities.getBroadcastAddress())
+                if (entry.getValue() == FBUtilities.getLocalAddress())
                 {
                     // entry has been mistakenly added, delete it
                     SystemTable.removeToken(entry.getKey());
