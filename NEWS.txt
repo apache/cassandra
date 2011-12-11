@@ -8,6 +8,15 @@ upgrade, just in case you need to roll back to the previous version.
 (Cassandra version X + 1 will always be able to read data files created
 by version X, but the inverse is not necessarily the case.)
 
+1.0.5
+=====
+
+Upgrading
+---------
+    - 1.0.5 comes to fix two important regression of 1.0.4. So all information
+      concerning 1.0.4 are valid for this release, but please avoids upgrading
+      to 1.0.4.
+
 
 1.0.4
 =====
