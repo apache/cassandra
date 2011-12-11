@@ -14,6 +14,10 @@ by version X, but the inverse is not necessarily the case.)
 
 Upgrading
 ---------
+    - If you are running a multi datacenter setup, you should upgrade to
+      the latest 1.0.x (or 0.8.x) release before upgrading.  Versions
+      0.8.8 and 1.0.3-1.0.5 generate cross-dc forwarding that is incompatible
+      with 1.1.
     - EACH_QUORUM ConsistencyLevel is only supported for writes and will now
       throw an InvalidRequestException when used for reads.  (Previous
       versions would silently perform a LOCAL_QUORUM read instead.)
