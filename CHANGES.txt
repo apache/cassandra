@@ -27,7 +27,7 @@ Merged from 0.8:
    satisfy requested CL + RR (CASSANDRA-3598)
  * use cannonical host for local node in nodetool info (CASSANDRA-3556)
  * remove nonlocal DC write optimization since it only worked with
-   CL.ONE or CL.LOCAL_QUORUM (CASSANDRA-3577)
+   CL.ONE or CL.LOCAL_QUORUM (CASSANDRA-3577, 3585)
  * detect misuses of CounterColumnType (CASSANDRA-3422)
  * turn off string interning in json2sstable, take 2 (CASSANDRA-2189)
  * validate compression parameters on add/update of the ColumnFamily 
