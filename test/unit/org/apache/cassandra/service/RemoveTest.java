@@ -125,7 +125,7 @@ public class RemoveTest extends CleanupHelper
             {
                 try
                 {
-                    ss.removeToken(token, 0);
+                    ss.removeToken(token);
                 }
                 catch (Exception e)
                 {

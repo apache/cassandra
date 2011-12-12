@@ -377,9 +377,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
      * @param endpoint - the endpoint being removed
      * @param token - the token being removed
      * @param mytoken - my own token for replication coordination
-     * @param delay
      */
-    public void advertiseRemoving(InetAddress endpoint, Token token, Token mytoken, int delay)
+    public void advertiseRemoving(InetAddress endpoint, Token token, Token mytoken)
     {
         EndpointState epState = endpointStateMap.get(endpoint);
         // remember this node's generation
@@ -388,7 +387,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         logger.info("Sleeping for " + StorageService.RING_DELAY + "ms to ensure " + endpoint + " does not change");
         try
         {
-            Thread.sleep(delay);
+            Thread.sleep(StorageService.RING_DELAY);
         }
         catch (InterruptedException e)
         {
