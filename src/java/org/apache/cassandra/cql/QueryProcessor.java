@@ -203,7 +203,7 @@ public class QueryProcessor
         // if start key was set and relation was "greater than"
         if (select.getKeyStart() != null && !select.includeStartKey() && !rows.isEmpty())
         {
-            if (rows.get(0).key.key.equals(startKey))
+            if (rows.get(0).key.key.equals(startKeyBytes))
                 rows.remove(0);
         }
 
@@ -211,7 +211,7 @@ public class QueryProcessor
         if (select.getKeyFinish() != null && !select.includeFinishKey() && !rows.isEmpty())
         {
             int lastIndex = rows.size() - 1;
-            if (rows.get(lastIndex).key.key.equals(finishKey))
+            if (rows.get(lastIndex).key.key.equals(finishKeyBytes))
                 rows.remove(lastIndex);
         }
 

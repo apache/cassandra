@@ -16,7 +16,8 @@
  * Use faster bytes comparison (CASSANDRA-3434)
  * Bulk loader is no longer a fat client, (HADOOP) bulk load output format
    (CASSANDRA-3045)
- * remove assumption that keys and token are in bijection (CASSANDRA-1034,3574)
+ * remove assumption that keys and token are in bijection
+   (CASSANDRA-1034, 3574, 3604)
  * always remove endpoints from delevery queue in HH (CASSANDRA-3546)
  * fix race between cf flush and its 2ndary indexes flush (CASSANDRA-3547)
  * fix potential race in AES when a repair fails (CASSANDRA-3548)
