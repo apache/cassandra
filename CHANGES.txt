@@ -1,3 +1,7 @@
+1.0.7
+ * fix assertion when dropping a columnfamily with no sstables (CASSANDRA-3614)
+
+
 1.0.6
  * (CQL) fix cqlsh support for replicate_on_write (CASSANDRA-3596)
  * fix adding to leveled manifest after streaming (CASSANDRA-3536)

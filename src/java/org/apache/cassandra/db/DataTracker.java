@@ -253,6 +253,12 @@ public class DataTracker
     public void removeAllSSTables()
     {
         List<SSTableReader> sstables = getSSTables();
+        if (sstables.isEmpty())
+        {
+            // notifySSTablesChanged -> LeveledManifest.promote doesn't like a no-op "promotion"
+            return;
+        }
+
         replace(sstables, Collections.<SSTableReader>emptyList());
         notifySSTablesChanged(sstables, Collections.<SSTableReader>emptyList());
     }
