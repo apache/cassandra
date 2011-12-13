@@ -24,6 +24,7 @@
  * Remove columns shadowed by a deleted container even when we cannot purge
    (CASSANDRA-3538)
  * Improve memtable slice iteration performance (CASSANDRA-3545)
+ * more efficient allocation of small bloom filters (CASSANDRA-3618)
 
 
 1.0.6
