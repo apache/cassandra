@@ -76,6 +76,7 @@ Test system: AMD Opteron, 64 bit linux, Sun Java 1.5_06 -server -Xbatch -Xmx64M
 public class OpenBitSet implements Serializable {
   protected long[][] bits;
   protected int wlen;   // number of words (elements) used in the array
+  private final int pageCount;
   /**
    * length of bits[][] page in long[] elements. 
    * Choosing unform size for all sizes of bitsets fight fragmentation for very large
@@ -95,13 +96,19 @@ public class OpenBitSet implements Serializable {
   public OpenBitSet(long numBits, boolean allocatePages) 
   {
     wlen= bits2words(numBits);    
+    int lastPageSize = wlen % PAGE_SIZE;
+    int fullPageCount = wlen / PAGE_SIZE;
+    pageCount = fullPageCount + (lastPageSize == 0 ? 0 : 1);
     
-    bits = new long[getPageCount()][];
-    
+    bits = new long[pageCount][];
+
     if (allocatePages)
     {
-        for (int allocated=0,i=0;allocated<wlen;allocated+=PAGE_SIZE,i++)
-            bits[i]=new long[PAGE_SIZE];
+        for (int i = 0; i < fullPageCount; ++i)
+            bits[i] = new long[PAGE_SIZE];
+
+        if (lastPageSize != 0)
+            bits[bits.length - 1] = new long[lastPageSize];
     }
   }
 
@@ -119,7 +126,7 @@ public class OpenBitSet implements Serializable {
   
   public int getPageCount()
   {
-      return wlen / PAGE_SIZE + 1;
+      return pageCount;
   }
 
   public long[] getPage(int pageIdx)

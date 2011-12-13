@@ -1,5 +1,6 @@
 1.0.7
  * fix assertion when dropping a columnfamily with no sstables (CASSANDRA-3614)
+ * more efficient allocation of small bloom filters (CASSANDRA-3618)
 
 
 1.0.6
