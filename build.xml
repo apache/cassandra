@@ -378,7 +378,9 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
           <dependency groupId="com.thoughtworks.paranamer" artifactId="paranamer-ant" version="2.1"/>
           <dependency groupId="junit" artifactId="junit" version="4.6" />
           <dependency groupId="commons-logging" artifactId="commons-logging" version="1.1.1"/>
-          <dependency groupId="org.apache.rat" artifactId="apache-rat" version="0.6" />
+          <dependency groupId="org.apache.rat" artifactId="apache-rat" version="0.6">
+             <exclusion groupId="commons-lang" artifactId="commons-lang"/>
+          </dependency>
           <dependency groupId="org.apache.hadoop" artifactId="hadoop-core" version="0.20.203.0"/>
           <dependency groupId="net.sf.jopt-simple" artifactId="jopt-simple" version="3.2"/>
           <dependency groupId="net.java.dev.jna" artifactId="jna" version="3.2.7"/>
