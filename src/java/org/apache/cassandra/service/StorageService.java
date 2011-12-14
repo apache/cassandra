@@ -524,6 +524,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                  || !Schema.instance.getNonSystemTables().isEmpty()))
         {
             setMode(Mode.JOINING, "waiting for ring and schema information", true);
+            // first sleep the delay to make sure we see the schema
             try
             {
                 Thread.sleep(delay);
@@ -532,6 +533,22 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             {
                 throw new AssertionError(e);
             }
+            // now if our schema hasn't matched, keep sleeping until it does
+            while (!MigrationManager.isReadyForBootstrap())
+            {
+                setMode(Mode.JOINING, "waiting for schema information to complete", true);
+                try
+                {
+                    Thread.sleep(delay);
+                }
+                catch (InterruptedException e)
+                {
+                    throw new AssertionError(e);
+                }
+            }
+            setMode(Mode.JOINING, "schema complete, ready to bootstrap", true);
+
+
             if (logger_.isDebugEnabled())
                 logger_.debug("... got ring + schema info");
 

@@ -53,6 +53,8 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
 
     // avoids re-pushing migrations that we're waiting on target to apply already
     private static Map<InetAddress,UUID> lastPushed = new MapMaker().expiration(1, TimeUnit.MINUTES).makeMap();
+    
+    private static UUID highestKnown;
 
     public void onJoin(InetAddress endpoint, EndpointState epState) { 
         VersionedValue value = epState.getApplicationState(ApplicationState.SCHEMA);
@@ -94,6 +96,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
      */
     public static void rectify(UUID theirVersion, InetAddress endpoint)
     {
+        updateHighestKnown(theirVersion);
         UUID myVersion = Schema.instance.getVersion();
         if (theirVersion.timestamp() < myVersion.timestamp()
             && !StorageService.instance.isClientMode())
@@ -111,6 +114,17 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
                              endpoint, lastPushed.get(endpoint));
             }
         }
+    }
+    
+    private static void updateHighestKnown(UUID theirversion)
+    {
+        if (highestKnown == null || theirversion.timestamp() > highestKnown.timestamp())
+            highestKnown = theirversion;
+    }
+
+    public static boolean isReadyForBootstrap()
+    {
+        return highestKnown.compareTo(Schema.instance.getVersion()) == 0;
     }
 
     private static void pushMigrations(InetAddress endpoint, Collection<IColumn> migrations)
