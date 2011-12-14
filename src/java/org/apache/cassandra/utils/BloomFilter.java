@@ -113,7 +113,7 @@ public class BloomFilter extends Filter
     {
         for (long bucketIndex : getHashBuckets(key))
         {
-            bitset.fastSet(bucketIndex);
+            bitset.set(bucketIndex);
         }
     }
 
@@ -121,7 +121,7 @@ public class BloomFilter extends Filter
     {
       for (long bucketIndex : getHashBuckets(key))
       {
-          if (!bitset.fastGet(bucketIndex))
+          if (!bitset.get(bucketIndex))
           {
               return false;
           }
