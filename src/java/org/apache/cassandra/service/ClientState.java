@@ -19,6 +19,7 @@
 package org.apache.cassandra.service;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -30,6 +31,7 @@ import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.auth.Resources;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql.CQLStatement;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.thrift.AuthenticationException;
 import org.apache.cassandra.thrift.InvalidRequestException;
@@ -48,6 +50,9 @@ public class ClientState
     // Reusable array for authorization
     private final List<Object> resource = new ArrayList<Object>();
 
+    // a map of prepared statements index by an integer
+    private Map<Integer,CQLStatement> prepared = new HashMap<Integer,CQLStatement>();
+
     private long clock;
 
     /**
@@ -58,6 +63,11 @@ public class ClientState
         reset();
     }
 
+    public Map<Integer, CQLStatement> getPrepared()
+    {
+        return prepared;
+    }
+    
     public String getRawKeyspace()
     {
         return keyspace;
@@ -114,6 +124,7 @@ public class ClientState
         user = DatabaseDescriptor.getAuthenticator().defaultUser();
         keyspace = null;
         resourceClear();
+        prepared.clear();
     }
 
     /**

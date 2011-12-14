@@ -450,7 +450,7 @@ comparatorType
     ;
 
 term returns [Term item]
-    : ( t=K_KEY | t=STRING_LITERAL | t=INTEGER | t=UUID | t=IDENT | t=FLOAT) { $item = new Term($t.text, $t.type); }
+    : ( t=K_KEY | t=STRING_LITERAL | t=INTEGER | t=UUID | t=IDENT | t=FLOAT | t=QMARK) { $item = new Term($t.text, $t.type); }
     ;
 
 termList returns [List<Term> items]
@@ -597,6 +597,11 @@ RANGEOP
 INTEGER
     : '-'? DIGIT+
     ;
+    
+QMARK
+    : '?'
+    ;
+
 
 /* Normally a lexer only emits one token at a time, but ours is tricked out
  * to support multiple (see @lexer::members near the top of the grammar).

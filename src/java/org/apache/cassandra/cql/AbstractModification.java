@@ -103,7 +103,7 @@ public abstract class AbstractModification
      *
      * @throws InvalidRequestException on the wrong request
      */
-    public abstract List<IMutation> prepareRowMutations(String keyspace, ClientState clientState)
+    public abstract List<IMutation> prepareRowMutations(String keyspace, ClientState clientState, List<String> variables)
             throws org.apache.cassandra.thrift.InvalidRequestException;
 
     /**
@@ -117,6 +117,6 @@ public abstract class AbstractModification
      *
      * @throws InvalidRequestException on the wrong request
      */
-    public abstract List<IMutation> prepareRowMutations(String keyspace, ClientState clientState, Long timestamp)
+    public abstract List<IMutation> prepareRowMutations(String keyspace, ClientState clientState, Long timestamp, List<String> variables)
             throws org.apache.cassandra.thrift.InvalidRequestException;
 }

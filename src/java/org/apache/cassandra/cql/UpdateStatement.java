@@ -124,13 +124,13 @@ public class UpdateStatement extends AbstractModification
     }
 
     /** {@inheritDoc} */
-    public List<IMutation> prepareRowMutations(String keyspace, ClientState clientState) throws InvalidRequestException
+    public List<IMutation> prepareRowMutations(String keyspace, ClientState clientState, List<String> variables) throws InvalidRequestException
     {
-        return prepareRowMutations(keyspace, clientState, null);
+        return prepareRowMutations(keyspace, clientState, null, variables);
     }
 
     /** {@inheritDoc} */
-    public List<IMutation> prepareRowMutations(String keyspace, ClientState clientState, Long timestamp) throws InvalidRequestException
+    public List<IMutation> prepareRowMutations(String keyspace, ClientState clientState, Long timestamp, List<String> variables) throws InvalidRequestException
     {
         List<String> cfamsSeen = new ArrayList<String>();
 
@@ -162,7 +162,7 @@ public class UpdateStatement extends AbstractModification
 
         for (Term key: keys)
         {
-            rowMutations.add(mutationForKey(keyspace, key.getByteBuffer(getKeyType(keyspace)), metadata, timestamp, clientState));
+            rowMutations.add(mutationForKey(keyspace, key.getByteBuffer(getKeyType(keyspace),variables), metadata, timestamp, clientState, variables));
         }
 
         return rowMutations;
@@ -182,7 +182,8 @@ public class UpdateStatement extends AbstractModification
      *
      * @throws InvalidRequestException on the wrong request
      */
-    private IMutation mutationForKey(String keyspace, ByteBuffer key, CFMetaData metadata, Long timestamp, ClientState clientState) throws InvalidRequestException
+    private IMutation mutationForKey(String keyspace, ByteBuffer key, CFMetaData metadata, Long timestamp, ClientState clientState, List<String> variables)
+    throws InvalidRequestException
     {
         AbstractType<?> comparator = getComparator(keyspace);
 
@@ -192,7 +193,7 @@ public class UpdateStatement extends AbstractModification
 
         for (Map.Entry<Term, Operation> column : getColumns().entrySet())
         {
-            ByteBuffer colName = column.getKey().getByteBuffer(comparator);
+            ByteBuffer colName = column.getKey().getByteBuffer(comparator, variables);
             Operation op = column.getValue();
 
             if (op.isUnary())
@@ -200,7 +201,7 @@ public class UpdateStatement extends AbstractModification
                 if (hasCounterColumn)
                     throw new InvalidRequestException("Mix of commutative and non-commutative operations is not allowed.");
 
-                ByteBuffer colValue = op.a.getByteBuffer(getValueValidator(keyspace, colName));
+                ByteBuffer colValue = op.a.getByteBuffer(getValueValidator(keyspace, colName),variables);
 
                 validateColumn(metadata, colName, colValue);
                 rm.add(new QueryPath(columnFamily, null, colName),
@@ -239,7 +240,6 @@ public class UpdateStatement extends AbstractModification
         return columnFamily;
     }
 
-    /** {@inheritDoc} */
     public List<Term> getKeys()
     {
         return keys;
@@ -293,4 +293,15 @@ public class UpdateStatement extends AbstractModification
     {
         return Schema.instance.getValueValidator(keyspace, columnFamily, column);
     }
+
+    public List<Term> getColumnNames()
+    {
+        return columnNames;
+    }
+
+    public List<Term> getColumnValues()
+    {
+        return columnValues;
+    }
+    
 }

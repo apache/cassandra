@@ -115,7 +115,7 @@ public class CreateColumnFamilyStatement
     }
     
     /** Perform validation of parsed params */
-    private void validate() throws InvalidRequestException
+    private void validate(List<String> variables) throws InvalidRequestException
     {
         // Column family name
         if (!name.matches("\\w+"))
@@ -174,7 +174,7 @@ public class CreateColumnFamilyStatement
 
         for (Map.Entry<Term, String> column : columns.entrySet())
         {
-            ByteBuffer name = column.getKey().getByteBuffer(comparator);
+            ByteBuffer name = column.getKey().getByteBuffer(comparator, variables);
 
             if (keyAlias != null && keyAlias.equals(name))
                 throw new InvalidRequestException("Invalid column name: "
@@ -271,9 +271,9 @@ public class CreateColumnFamilyStatement
      * @return a CFMetaData instance corresponding to the values parsed from this statement
      * @throws InvalidRequestException on failure to validate parsed parameters
      */
-    public CFMetaData getCFMetaData(String keyspace) throws InvalidRequestException
+    public CFMetaData getCFMetaData(String keyspace, List<String> variables) throws InvalidRequestException
     {
-        validate();
+        validate(variables);
 
         CFMetaData newCFMD;
         try
@@ -367,4 +367,10 @@ public class CreateColumnFamilyStatement
         }
         return result;
     }
+
+    public Map<Term, String> getColumns()
+    {
+        return columns;
+    }
+    
 }

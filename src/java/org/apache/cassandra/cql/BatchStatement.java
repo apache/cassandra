@@ -76,12 +76,13 @@ public class BatchStatement
         return timeToLive;
     }
 
-    public List<IMutation> getMutations(String keyspace, ClientState clientState) throws InvalidRequestException
+    public List<IMutation> getMutations(String keyspace, ClientState clientState, List<String> variables)
+    throws InvalidRequestException
     {
         List<IMutation> batch = new LinkedList<IMutation>();
 
         for (AbstractModification statement : statements) {
-            batch.addAll(statement.prepareRowMutations(keyspace, clientState, timestamp));
+            batch.addAll(statement.prepareRowMutations(keyspace, clientState, timestamp, variables));
         }
 
         return batch;

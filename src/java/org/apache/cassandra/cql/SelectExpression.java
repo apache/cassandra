@@ -147,4 +147,18 @@ public class SelectExpression
     {
         return wildcard;
     }
+
+    public String toString()
+    {
+        return String.format("SelectExpression [numColumns=%s, reverseColumns=%s, hasFirstSet=%s, wildcard=%s, start=%s, finish=%s, columns=%s]",
+            numColumns,
+            reverseColumns,
+            hasFirstSet,
+            wildcard,
+            start,
+            finish,
+            columns);
+    }
+    
+    
 }

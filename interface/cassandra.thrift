@@ -46,7 +46,7 @@ namespace rb CassandraThrift
 #           for every edit that doesn't result in a change to major/minor.
 #
 # See the Semantic Versioning Specification (SemVer) http://semver.org.
-const string VERSION = "19.19.0"
+const string VERSION = "19.22.0"
 
 
 #
@@ -461,6 +461,12 @@ struct CqlResult {
     4: optional CqlMetadata schema
 }
 
+struct CqlPreparedResult {
+    1: required i32 itemId,
+    2: required i32 count
+}
+
+
 service Cassandra {
   # auth methods
   void login(1: required AuthenticationRequest auth_request) throws (1:AuthenticationException authnx, 2:AuthorizationException authzx),
@@ -683,4 +689,27 @@ service Cassandra {
             2:UnavailableException ue,
             3:TimedOutException te,
             4:SchemaDisagreementException sde)
+            
+            
+  /**
+   * Prepare a CQL (Cassandra Query Language) statement by compiling and returning
+   * - the type of CQL statement
+   * - an id token of the compiled CQL stored on the server side.
+   * - a count of the discovered bound markers in the statement 
+   */
+  CqlPreparedResult prepare_cql_query(1:required binary query, 2:required Compression compression)
+    throws (1:InvalidRequestException ire)
+
+             
+  /**
+   * Executes a prepared CQL (Cassandra Query Language) statement by passing an id token and  a list of variables
+   * to bind and returns a CqlResult containing the results.
+   */
+  CqlResult execute_prepared_cql_query(1:required i32 itemId, 2:required list<string> values)
+    throws (1:InvalidRequestException ire,
+            2:UnavailableException ue,
+            3:TimedOutException te,
+            4:SchemaDisagreementException sde)
+           
+
 }

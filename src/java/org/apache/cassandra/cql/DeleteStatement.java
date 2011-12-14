@@ -59,20 +59,17 @@ public class DeleteStatement extends AbstractModification
         return columns;
     }
 
-    /** {@inheritDoc} */
     public List<Term> getKeys()
     {
         return keys;
     }
 
-    /** {@inheritDoc} */
-    public List<IMutation> prepareRowMutations(String keyspace, ClientState clientState) throws InvalidRequestException
+    public List<IMutation> prepareRowMutations(String keyspace, ClientState clientState, List<String> variables) throws InvalidRequestException
     {
-        return prepareRowMutations(keyspace, clientState, null);
+        return prepareRowMutations(keyspace, clientState, null, variables);
     }
 
-    /** {@inheritDoc} */
-    public List<IMutation> prepareRowMutations(String keyspace, ClientState clientState, Long timestamp) throws InvalidRequestException
+    public List<IMutation> prepareRowMutations(String keyspace, ClientState clientState, Long timestamp, List<String> variables) throws InvalidRequestException
     {
         clientState.hasColumnFamilyAccess(columnFamily, Permission.WRITE);
         AbstractType<?> keyType = Schema.instance.getCFMetaData(keyspace, columnFamily).getKeyValidator();
@@ -81,20 +78,21 @@ public class DeleteStatement extends AbstractModification
 
         for (Term key : keys)
         {
-            rowMutations.add(mutationForKey(key.getByteBuffer(keyType), keyspace, timestamp, clientState));
+            rowMutations.add(mutationForKey(key.getByteBuffer(keyType, variables), keyspace, timestamp, clientState,variables));
         }
 
         return rowMutations;
     }
 
-    /** {@inheritDoc} */
-    public RowMutation mutationForKey(ByteBuffer key, String keyspace, Long timestamp, ClientState clientState) throws InvalidRequestException
+    public RowMutation mutationForKey(ByteBuffer key, String keyspace, Long timestamp, ClientState clientState, List<String> variables)
+    throws InvalidRequestException
     {
         RowMutation rm = new RowMutation(keyspace, key);
 
         CFMetaData metadata = validateColumnFamily(keyspace, columnFamily);
         QueryProcessor.validateKeyAlias(metadata, keyName);
 
+        @SuppressWarnings("rawtypes")
         AbstractType comparator = metadata.getComparatorFor(null);
 
         if (columns.size() < 1)
@@ -107,7 +105,7 @@ public class DeleteStatement extends AbstractModification
             // Delete specific columns
             for (Term column : columns)
             {
-                ByteBuffer columnName = column.getByteBuffer(comparator);
+                ByteBuffer columnName = column.getByteBuffer(comparator, variables);
                 validateColumnName(columnName);
                 rm.delete(new QueryPath(columnFamily, null, columnName), (timestamp == null) ? getTimestamp(clientState) : timestamp);
             }

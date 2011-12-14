@@ -182,4 +182,19 @@ public class WhereClause
             }
         }
     }
+
+    public String toString()
+    {
+        return String.format("WhereClause [keys=%s, startKey=%s, finishKey=%s, columns=%s, includeStartKey=%s, includeFinishKey=%s, multiKey=%s, keyAlias=%s]",
+            keys,
+            startKey,
+            finishKey,
+            columns,
+            includeStartKey,
+            includeFinishKey,
+            multiKey,
+            keyAlias);
+    }
+    
+
 }

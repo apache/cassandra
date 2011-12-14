@@ -24,6 +24,7 @@ public class CQLStatement
 {
     public StatementType type;
     public Object statement;
+    public int boundTerms = 0;
     
     public CQLStatement(StatementType type, Object statement)
     {

@@ -21,6 +21,7 @@
 package org.apache.cassandra.cql;
 
 import java.nio.ByteBuffer;
+import java.util.List;
 
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.AsciiType;
@@ -35,6 +36,8 @@ public class Term
 {   
     private final String text;
     private final TermType type;
+    
+    private Integer bindIndex;
     
     /**
      * Create new Term instance from a string, and an integer that corresponds
@@ -66,6 +69,11 @@ public class Term
         this.text = "";
         this.type = TermType.STRING;
     }
+    
+    public void setBindIndex(int bindIndex)
+    {
+        this.bindIndex = bindIndex;
+    }
 
     /**
      * Returns the text parsed to create this term.
@@ -76,7 +84,7 @@ public class Term
     {
         return text;
     }
-    
+        
     /**
      * Returns the typed value, serialized to a ByteBuffer according to a
      * comparator/validator.
@@ -84,11 +92,18 @@ public class Term
      * @return a ByteBuffer of the value.
      * @throws InvalidRequestException if unable to coerce the string to its type.
      */
-    public ByteBuffer getByteBuffer(AbstractType<?> validator) throws InvalidRequestException
+    public ByteBuffer getByteBuffer(AbstractType<?> validator, List<String> variables) throws InvalidRequestException
     {
         try
         {
-            return validator.fromString(text);
+            if (!isBindMarker()) return validator.fromString(text);
+            
+            // must be a marker term so check for a CqlBindValue stored in the term
+            if (bindIndex==null) throw new AssertionError("a marker Term was encountered with no index value");
+            
+            String bindValue = variables.get(bindIndex);
+                        
+            return validator.fromString(bindValue);
         }
         catch (MarshalException e)
         {
@@ -136,6 +151,11 @@ public class Term
     {
         return String.format("Term(%s, type=%s)", getText(), type);
     }
+    
+    public boolean isBindMarker()
+    {
+        return type==TermType.QMARK;
+    }
 
     @Override
     public int hashCode()
@@ -157,6 +177,7 @@ public class Term
         if (getClass() != obj.getClass())
             return false;
         Term other = (Term) obj;
+        if (type==TermType.QMARK) return false; // markers are never equal 
         if (text == null)
         {
             if (other.text != null)
@@ -173,7 +194,7 @@ public class Term
 
 enum TermType
 {
-    STRING, INTEGER, UUID, FLOAT;
+    STRING, INTEGER, UUID, FLOAT, QMARK;
     
     static TermType forInt(int type)
     {
@@ -184,7 +205,9 @@ enum TermType
         else if (type == CqlParser.UUID)
           return UUID;
         else if (type == CqlParser.FLOAT)
-          return FLOAT;
+            return FLOAT;
+        else if (type == CqlParser.QMARK)
+            return QMARK;
         
         // FIXME: handled scenario that should never occur.
         return null;

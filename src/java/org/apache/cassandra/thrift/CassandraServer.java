@@ -41,6 +41,7 @@ import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.*;
+import org.apache.cassandra.cql.CQLStatement;
 import org.apache.cassandra.cql.QueryProcessor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryPath;
@@ -985,7 +986,8 @@ public class CassandraServer implements Cassandra.Iface
     }
 
     /** update an existing keyspace, but do not allow column family modifications. 
-     * @throws SchemaDisagreementException */
+     * @throws SchemaDisagreementException
+     */
     public synchronized String system_update_keyspace(KsDef ks_def)
     throws InvalidRequestException, SchemaDisagreementException, TException
     {
@@ -1149,9 +1151,8 @@ public class CassandraServer implements Cassandra.Iface
 
         internal_remove(key, path, System.currentTimeMillis(), consistency_level, true);
     }
-
-    public CqlResult execute_cql_query(ByteBuffer query, Compression compression)
-    throws InvalidRequestException, UnavailableException, TimedOutException, SchemaDisagreementException, TException
+    
+    private static String uncompress(ByteBuffer query, Compression compression) throws InvalidRequestException
     {
         String queryString = null;
         
@@ -1161,7 +1162,7 @@ public class CassandraServer implements Cassandra.Iface
             switch (compression)
             {
                 case GZIP:
-                	FastByteArrayOutputStream byteArray = new FastByteArrayOutputStream();
+                    FastByteArrayOutputStream byteArray = new FastByteArrayOutputStream();
                     byte[] outBuffer = new byte[1024], inBuffer = new byte[1024];
                     
                     Inflater decompressor = new Inflater();
@@ -1206,7 +1207,16 @@ public class CassandraServer implements Cassandra.Iface
         {
             throw new InvalidRequestException("Unknown query string encoding.");
         }
+        return queryString;
+    }
+
+    public CqlResult execute_cql_query(ByteBuffer query, Compression compression)
+    throws InvalidRequestException, UnavailableException, TimedOutException, SchemaDisagreementException, TException
+    {
+        if (logger.isDebugEnabled()) logger.debug("execute_cql_query");
         
+        String queryString = uncompress(query,compression);
+                
         try
         {
             return QueryProcessor.process(queryString, state());
@@ -1217,6 +1227,54 @@ public class CassandraServer implements Cassandra.Iface
             ire.initCause(e);
             throw ire;
         }
+    }
+   
+    private static final int makeItemId(String cql)
+    {
+       // use the hash of the string till something better is provided
+        return cql.hashCode();
+    }
+    
+    public CqlPreparedResult prepare_cql_query(ByteBuffer query, Compression compression)
+    throws InvalidRequestException, TException
+    {
+        if (logger.isDebugEnabled()) logger.debug("prepare_cql_query");
+                
+        String queryString = uncompress(query,compression);
+        int itemId = makeItemId(queryString);
+        
+        try
+        {
+            CQLStatement statement = QueryProcessor.prepare(queryString, state());
+            
+            // discover all the marked Terms and hang them off of statement for use later
+            QueryProcessor.discoverBoundTerms(statement);
+            if (logger.isTraceEnabled()) logger.trace("Discovered "+ statement.boundTerms + " bound variables.");
+            
+            // put the prepared Statement into the Map
+            state().getPrepared().put(itemId, statement);
+            if (logger.isTraceEnabled()) logger.trace("Storing prepared statement: #"+ itemId + " count:"+state().getPrepared().size());
+            return new CqlPreparedResult(itemId, statement.boundTerms);
+        }
+        catch (RecognitionException e)
+        {
+            InvalidRequestException ire = new InvalidRequestException("Invalid or malformed CQL query string");
+            ire.initCause(e);
+            throw ire;
+        }
+    }
+    
+    
+   public CqlResult execute_prepared_cql_query(int itemId,List<String> bindVariables)
+    throws InvalidRequestException, UnavailableException, TimedOutException, SchemaDisagreementException, TException
+    {
+        if (logger.isDebugEnabled()) logger.debug("execute_prepared_cql_query");
+        
+        CQLStatement statement = state().getPrepared().get(itemId);
+        if (logger.isTraceEnabled()) logger.trace("Retreving prepared statement: #"+ itemId + " count:"+state().getPrepared().size());
+        
+        CqlResult result = QueryProcessor.process_prepared(statement, state(), bindVariables);
+        return result;
     }
 
     // main method moved to CassandraDaemon
