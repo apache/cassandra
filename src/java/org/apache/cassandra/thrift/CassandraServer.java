@@ -1228,34 +1228,17 @@ public class CassandraServer implements Cassandra.Iface
             throw ire;
         }
     }
-   
-    private static final int makeItemId(String cql)
-    {
-        // use the hash of the string till something better is provided
-        return cql.hashCode();
-    }
-    
+
     public CqlPreparedResult prepare_cql_query(ByteBuffer query, Compression compression)
     throws InvalidRequestException, TException
     {
         if (logger.isDebugEnabled()) logger.debug("prepare_cql_query");
                 
         String queryString = uncompress(query,compression);
-        int itemId = makeItemId(queryString);
         
         try
         {
-            CQLStatement statement = QueryProcessor.prepare(queryString, state());
-            
-            // discover all the marked Terms and hang them off of statement for use later
-            QueryProcessor.discoverBoundTerms(statement);
-            if (logger.isTraceEnabled()) logger.trace("Discovered "+ statement.boundTerms + " bound variables.");
-            
-            // put the prepared Statement into the Map
-            state().getPrepared().put(itemId, statement);
-            if (logger.isTraceEnabled())
-                logger.trace("Storing prepared statement: #"+ itemId + " count:"+state().getPrepared().size());
-            return new CqlPreparedResult(itemId, statement.boundTerms);
+            return QueryProcessor.prepare(queryString, state());
         }
         catch (RecognitionException e)
         {
@@ -1264,8 +1247,7 @@ public class CassandraServer implements Cassandra.Iface
             throw ire;
         }
     }
-    
-    
+
     public CqlResult execute_prepared_cql_query(int itemId, List<String> bindVariables)
     throws InvalidRequestException, UnavailableException, TimedOutException, SchemaDisagreementException, TException
     {

@@ -501,7 +501,7 @@ public class QueryProcessor
             term.setBindIndex(statement.boundTerms++);
     }
     
-    public static void discoverBoundTerms(CQLStatement statement) throws InvalidRequestException
+    private static void discoverBoundTerms(CQLStatement statement) throws InvalidRequestException
     {
         switch (statement.type)
         {
@@ -1094,11 +1094,24 @@ public class QueryProcessor
         return processStatement(getStatement(queryString), clientState, new ArrayList<String>());
     }
 
-    public static CQLStatement prepare(String queryString, ClientState clientState)
+    public static CqlPreparedResult prepare(String queryString, ClientState clientState)
     throws RecognitionException, InvalidRequestException
     {
         if (logger.isDebugEnabled()) logger.debug("CQL QUERY: {}", queryString);
-        return getStatement(queryString);
+
+        CQLStatement statement = getStatement(queryString);
+        int statementId = makeStatementId(queryString);
+
+        discoverBoundTerms(statement);
+        if (logger.isTraceEnabled()) logger.trace("Discovered "+ statement.boundTerms + " bound variables.");
+
+        clientState.getPrepared().put(statementId, statement);
+        if (logger.isTraceEnabled())
+            logger.trace(String.format("Stored prepared statement #%d with %d bind markers",
+                                       statementId,
+                                       clientState.getPrepared().size()));
+
+        return new CqlPreparedResult(statementId, statement.boundTerms);
     }
    
     public static CqlResult processPrepared(CQLStatement statement, ClientState clientState, List<String> variables)
@@ -1114,12 +1127,17 @@ public class QueryProcessor
             // at this point there is a match in count between markers and variables that is non-zero
 
             if (logger.isTraceEnabled()) 
-                for (int i = 0; i < variables.size(); i++) logger.trace("[{}] '{}'",i+1,variables.get(i));
+                for (int i = 0; i < variables.size(); i++) logger.trace("[{}] '{}'", i+1, variables.get(i));
         }
 
         return processStatement(statement, clientState, variables);
     }
-    
+
+    private static final int makeStatementId(String cql)
+    {
+        // use the hash of the string till something better is provided
+        return cql.hashCode();
+    }
 
     private static Column thriftify(IColumn c)
     {
