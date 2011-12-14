@@ -99,11 +99,10 @@ public class Term
             if (!isBindMarker()) return validator.fromString(text);
             
             // must be a marker term so check for a CqlBindValue stored in the term
-            if (bindIndex==null) throw new AssertionError("a marker Term was encountered with no index value");
-            
-            String bindValue = variables.get(bindIndex);
+            if (bindIndex == null)
+                throw new AssertionError("a marker Term was encountered with no index value");
                         
-            return validator.fromString(bindValue);
+            return validator.fromString(variables.get(bindIndex));
         }
         catch (MarshalException e)
         {

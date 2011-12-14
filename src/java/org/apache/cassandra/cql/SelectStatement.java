@@ -175,12 +175,12 @@ public class SelectStatement
         clause.extractKeysFromColumns(cfm);
     }
 
-    public AbstractType getComparator(String keyspace)
+    public AbstractType<?> getComparator(String keyspace)
     {
         return Schema.instance.getComparator(keyspace, columnFamily);
     }
     
-    public AbstractType getValueValidator(String keyspace, ByteBuffer column)
+    public AbstractType<?> getValueValidator(String keyspace, ByteBuffer column)
     {
         return Schema.instance.getValueValidator(keyspace, columnFamily, column);
     }
@@ -188,13 +188,13 @@ public class SelectStatement
     public String toString()
     {
         return String.format("SelectStatement [expression=%s, isCountOper=%s, columnFamily=%s, keyspace=%s, cLevel=%s, clause=%s, numRecords=%s]",
-            expression,
-            isCountOper,
-            columnFamily,
-            keyspace,
-            cLevel,
-            clause,
-            numRecords);
+                             expression,
+                             isCountOper,
+                             columnFamily,
+                             keyspace,
+                             cLevel,
+                             clause,
+                             numRecords);
     }
     
 

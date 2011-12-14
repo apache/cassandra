@@ -498,9 +498,7 @@ public class QueryProcessor
     private final static void maybeAddBoundTerm(CQLStatement statement, Term term) throws InvalidRequestException
     {
         if (term != null && term.isBindMarker())
-        {
             term.setBindIndex(statement.boundTerms++);
-        }
     }
     
     public static void discoverBoundTerms(CQLStatement statement) throws InvalidRequestException
@@ -512,15 +510,15 @@ public class QueryProcessor
                 if (logger.isTraceEnabled()) logger.trace(select.toString());
                 
                 // handle the select expression first
-                if (!select.isColumnRange() )
+                if (!select.isColumnRange())
                 {
-                    List<Term> list = select.getColumnNames();
-                    for (Term term : list) maybeAddBoundTerm(statement,term);
+                    for (Term term : select.getColumnNames())
+                        maybeAddBoundTerm(statement,term);
                 }
                 else
                 {
-                    maybeAddBoundTerm(statement,select.getColumnStart());
-                    maybeAddBoundTerm(statement,select.getColumnFinish());
+                    maybeAddBoundTerm(statement, select.getColumnStart());
+                    maybeAddBoundTerm(statement, select.getColumnFinish());
                 }
                 
                 // next handle the WHERE clause NB order is VERY important
@@ -529,26 +527,26 @@ public class QueryProcessor
                 
                 if (select.isMultiKey())
                 {
-                    for (Term term : select.getKeys()) maybeAddBoundTerm(statement,term);
+                    for (Term term : select.getKeys()) maybeAddBoundTerm(statement, term);
                 }
                 else if (!select.getColumnRelations().isEmpty())
                 {
                     if (select.isKeyRange())
                     {
-                        maybeAddBoundTerm(statement,select.getKeyStart());
-                        maybeAddBoundTerm(statement,select.getKeyFinish());
+                        maybeAddBoundTerm(statement, select.getKeyStart());
+                        maybeAddBoundTerm(statement, select.getKeyFinish());
                     }
 
                     for (Relation relation : select.getColumnRelations())
                     {
-                        maybeAddBoundTerm(statement,relation.getEntity());
-                        maybeAddBoundTerm(statement,relation.getValue());
+                        maybeAddBoundTerm(statement, relation.getEntity());
+                        maybeAddBoundTerm(statement, relation.getValue());
                     }                    
                 }
                 else
                 {
                     // maybe its empty or just a simple term
-                    for (Term term : select.getKeys()) maybeAddBoundTerm(statement,term);                   
+                    for (Term term : select.getKeys()) maybeAddBoundTerm(statement, term);
                 }
 
                break;
@@ -560,13 +558,13 @@ public class QueryProcessor
                 // first handle the SET clause values that come in pairs for UPDATE. NB the order of the markers (?)
                 for (Map.Entry<Term, Operation> column : update.getColumns().entrySet())
                 {
-                    maybeAddBoundTerm(statement,column.getKey());
-                    maybeAddBoundTerm(statement,column.getValue().a);
+                    maybeAddBoundTerm(statement, column.getKey());
+                    maybeAddBoundTerm(statement, column.getValue().a);
                 }
                 
                 // now handle the key(s) in the WHERE clause
 
-                for (Term term : update.getKeys()) maybeAddBoundTerm(statement,term);
+                for (Term term : update.getKeys()) maybeAddBoundTerm(statement, term);
                 break;
                 
             case INSERT: // insert uses UpdateStatement but with different marker ordering
@@ -574,11 +572,11 @@ public class QueryProcessor
                 if (logger.isTraceEnabled()) logger.trace(insert.toString());
                                 
                 // first handle the INTO..VALUES clause values that are grouped in order for INSERT. NB the order of the markers (?)
-                for (Term term : insert.getColumnNames()) maybeAddBoundTerm(statement,term);
-                for (Term term : insert.getColumnValues()) maybeAddBoundTerm(statement,term);
+                for (Term term : insert.getColumnNames()) maybeAddBoundTerm(statement, term);
+                for (Term term : insert.getColumnValues()) maybeAddBoundTerm(statement, term);
 
                 // now handle the key(s) in the VALUES clause 
-                for (Term term : insert.getKeys()) maybeAddBoundTerm(statement,term);
+                for (Term term : insert.getKeys()) maybeAddBoundTerm(statement, term);
                 break;
 
             case DELETE:
@@ -586,31 +584,31 @@ public class QueryProcessor
                 if (logger.isTraceEnabled()) logger.trace(delete.toString());
 
                 // first handle the columns list for DELETE. NB the order of the markers (?)
-                for (Term term : delete.getColumns()) maybeAddBoundTerm(statement,term);
+                for (Term term : delete.getColumns()) maybeAddBoundTerm(statement, term);
 
                 // now handle the key(s) in the WHERE clause 
-                for (Term term : delete.getKeys()) maybeAddBoundTerm(statement,term);
+                for (Term term : delete.getKeys()) maybeAddBoundTerm(statement, term);
                 break;
 
             case CREATE_COLUMNFAMILY:
                 CreateColumnFamilyStatement createCf = (CreateColumnFamilyStatement)statement.statement;
                 
                 // handle the left hand Terms. Not terribly useful but included for completeness
-                for (Term term : createCf.getColumns().keySet()) maybeAddBoundTerm(statement,term);
+                for (Term term : createCf.getColumns().keySet()) maybeAddBoundTerm(statement, term);
                 break;
 
             case CREATE_INDEX:
                 CreateIndexStatement createIdx = (CreateIndexStatement)statement.statement;
                 
                 // handle the column name Term. Not terribly useful but included for completeness
-                maybeAddBoundTerm(statement,createIdx.getColumnName());
+                maybeAddBoundTerm(statement, createIdx.getColumnName());
                 break;
                 
            default: // all other statement types are a NOOP.                    
         }
     }
     
-    public static CqlResult doTheStatement(CQLStatement statement,ClientState clientState, List<String> variables )
+    public static CqlResult processStatement(CQLStatement statement,ClientState clientState, List<String> variables )
     throws  UnavailableException, InvalidRequestException, TimedOutException, SchemaDisagreementException
     {
         String keyspace = null;
@@ -1093,33 +1091,25 @@ public class QueryProcessor
     throws RecognitionException, UnavailableException, InvalidRequestException, TimedOutException, SchemaDisagreementException
     {
         if (logger.isDebugEnabled()) logger.debug("CQL QUERY: {}", queryString);
-        
-        CQLStatement statement = getStatement(queryString);
-        
-        CqlResult result = doTheStatement(statement, clientState, new ArrayList<String>());
-        
-        return result;
+        return processStatement(getStatement(queryString), clientState, new ArrayList<String>());
     }
 
-    public static CQLStatement prepare (String queryString, ClientState clientState)
-                    throws RecognitionException, InvalidRequestException
+    public static CQLStatement prepare(String queryString, ClientState clientState)
+    throws RecognitionException, InvalidRequestException
     {
         if (logger.isDebugEnabled()) logger.debug("CQL QUERY: {}", queryString);
-
-        CQLStatement statement = getStatement(queryString);
-
-        return statement;
+        return getStatement(queryString);
     }
    
-    public static CqlResult process_prepared(CQLStatement statement, ClientState clientState, List<String> variables)
+    public static CqlResult processPrepared(CQLStatement statement, ClientState clientState, List<String> variables)
     throws UnavailableException, InvalidRequestException, TimedOutException, SchemaDisagreementException
     {
         // Check to see if there are any bound variables to verify 
-        if (!(variables.isEmpty() && (statement.boundTerms==0)))
+        if (!(variables.isEmpty() && (statement.boundTerms == 0)))
         {
             if (variables.size() != statement.boundTerms) 
                 throw new InvalidRequestException(String.format("there were %d markers(?) in CQL but  %d bound variables",
-                statement.boundTerms, variables.size()));
+                                                                statement.boundTerms, variables.size()));
 
             // at this point there is a match in count between markers and variables that is non-zero
 
@@ -1127,9 +1117,7 @@ public class QueryProcessor
                 for (int i = 0; i < variables.size(); i++) logger.trace("[{}] '{}'",i+1,variables.get(i));
         }
 
-        CqlResult result = doTheStatement(statement, clientState, variables);
-
-        return result;
+        return processStatement(statement, clientState, variables);
     }
     
 

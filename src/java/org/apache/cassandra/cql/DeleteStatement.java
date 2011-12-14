@@ -92,8 +92,7 @@ public class DeleteStatement extends AbstractModification
         CFMetaData metadata = validateColumnFamily(keyspace, columnFamily);
         QueryProcessor.validateKeyAlias(metadata, keyName);
 
-        @SuppressWarnings("rawtypes")
-        AbstractType comparator = metadata.getComparatorFor(null);
+        AbstractType<?> comparator = metadata.getComparatorFor(null);
 
         if (columns.size() < 1)
         {
