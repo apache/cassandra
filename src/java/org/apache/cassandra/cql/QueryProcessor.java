@@ -1090,14 +1090,14 @@ public class QueryProcessor
     public static CqlResult process(String queryString, ClientState clientState)
     throws RecognitionException, UnavailableException, InvalidRequestException, TimedOutException, SchemaDisagreementException
     {
-        if (logger.isDebugEnabled()) logger.debug("CQL QUERY: {}", queryString);
+        logger.trace("CQL QUERY: {}", queryString);
         return processStatement(getStatement(queryString), clientState, new ArrayList<String>());
     }
 
     public static CqlPreparedResult prepare(String queryString, ClientState clientState)
     throws RecognitionException, InvalidRequestException
     {
-        if (logger.isDebugEnabled()) logger.debug("CQL QUERY: {}", queryString);
+        logger.trace("CQL QUERY: {}", queryString);
 
         CQLStatement statement = getStatement(queryString);
         int statementId = makeStatementId(queryString);
