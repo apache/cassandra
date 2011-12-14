@@ -1,7 +1,7 @@
 1.0.7
  * fix assertion when dropping a columnfamily with no sstables (CASSANDRA-3614)
  * more efficient allocation of small bloom filters (CASSANDRA-3618)
-
+ * CLibrary.createHardLinkWithExec() to check for errors (CASSANDRA-3101)
 
 1.0.6
  * (CQL) fix cqlsh support for replicate_on_write (CASSANDRA-3596)
