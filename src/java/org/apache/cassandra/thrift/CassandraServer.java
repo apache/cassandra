@@ -1254,8 +1254,11 @@ public class CassandraServer implements Cassandra.Iface
         if (logger.isDebugEnabled()) logger.debug("execute_prepared_cql_query");
         
         CQLStatement statement = state().getPrepared().get(itemId);
-        if (logger.isTraceEnabled()) logger.trace("Retreving prepared statement: #"+ itemId + " count:"+state().getPrepared().size());
-        
+
+        if (statement == null)
+            throw new InvalidRequestException(String.format("Prepared query with ID %d not found", itemId));
+        logger.trace("Retrieved prepared statement #{} with {} bind markers", itemId, state().getPrepared().size());
+
         return QueryProcessor.processPrepared(statement, state(), bindVariables);
     }
 

@@ -20,6 +20,7 @@ package org.apache.cassandra.service;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -42,6 +43,7 @@ import org.apache.cassandra.thrift.InvalidRequestException;
  */
 public class ClientState
 {
+    private static final int MAX_CACHE_PREPARED = 50;   // Ridiculously large, right?
     private static Logger logger = LoggerFactory.getLogger(ClientState.class);
 
     // Current user for the session
@@ -50,8 +52,12 @@ public class ClientState
     // Reusable array for authorization
     private final List<Object> resource = new ArrayList<Object>();
 
-    // a map of prepared statements index by an integer
-    private Map<Integer,CQLStatement> prepared = new HashMap<Integer,CQLStatement>();
+    // An LRU map of prepared statements
+    private Map<Integer, CQLStatement> prepared = new HashMap<Integer, CQLStatement>() {
+        protected boolean removeEldestEntry(Map.Entry<Integer, CQLStatement> eldest) {
+            return size() > MAX_CACHE_PREPARED;
+        }
+    };
 
     private long clock;
 
