@@ -29,3 +29,4 @@ drivers/txpy/txcql/cassandra/*
 drivers/py/cql/cassandra/*
 doc/cql/CQL*
 build.properties.default
+test/data/legacy-sstables/**

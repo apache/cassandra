@@ -50,4 +50,5 @@ JVM_OPTS=" \
         -XX:+HeapDumpOnOutOfMemoryError \
         -Dcom.sun.management.jmxremote.port=8090 \
         -Dcom.sun.management.jmxremote.ssl=false \
-        -Dcom.sun.management.jmxremote.authenticate=false"
+        -Dcom.sun.management.jmxremote.authenticate=false \
+        -Dcassandra.ring_delay_ms=1000"

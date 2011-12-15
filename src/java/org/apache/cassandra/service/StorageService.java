@@ -79,7 +79,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 {
     private static Logger logger_ = LoggerFactory.getLogger(StorageService.class);
 
-    public static final int RING_DELAY = 30 * 1000; // delay after which we assume ring has stablized
+    public static final int RING_DELAY = getRingDelay(); // delay after which we assume ring has stablized
 
     /* All verb handler identifiers */
     public enum Verb
@@ -150,6 +150,17 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         put(Verb.UNUSED_3, Stage.INTERNAL_RESPONSE);
     }};
 
+    private static int getRingDelay()
+    {
+        String newdelay = System.getProperty("cassandra.ring_delay_ms");
+        if (newdelay != null)
+        {
+            logger_.warn("Overriding RING_DELAY to {}ms", newdelay);
+            return Integer.parseInt(newdelay);
+        }
+        else
+            return 30 * 1000;
+    }
 
     /**
      * This pool is used for periodic short (sub-second) tasks.
@@ -404,8 +415,16 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             logger_.info("Loading persisted ring state");
             for (Map.Entry<Token, InetAddress> entry : SystemTable.loadTokens().entrySet())
             {
-                tokenMetadata_.updateNormalToken(entry.getKey(), entry.getValue());
-                Gossiper.instance.addSavedEndpoint(entry.getValue());
+                if (entry.getValue() == FBUtilities.getLocalAddress())
+                {
+                    // entry has been mistakenly added, delete it
+                    SystemTable.removeToken(entry.getKey());
+                }
+                else
+                {
+                    tokenMetadata_.updateNormalToken(entry.getKey(), entry.getValue());
+                    Gossiper.instance.addSavedEndpoint(entry.getValue());
+                }
             }
         }
 
@@ -2331,11 +2350,6 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      */
     public void removeToken(String tokenString)
     {
-        removeToken(tokenString, RING_DELAY);
-    }
-
-    public void removeToken(String tokenString, int delay)
-    {
         InetAddress myAddress = FBUtilities.getBroadcastAddress();
         Token localToken = tokenMetadata_.getToken(myAddress);
         Token token = partitioner.getTokenFactory().fromString(tokenString);
@@ -2382,7 +2396,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         calculatePendingRanges();
         // the gossiper will handle spoofing this node's state to REMOVING_TOKEN for us
         // we add our own token so other nodes to let us know when they're done
-        Gossiper.instance.advertiseRemoving(endpoint, token, localToken, delay);
+        Gossiper.instance.advertiseRemoving(endpoint, token, localToken);
 
         // kick off streaming commands
         restoreReplicaCount(endpoint, myAddress);

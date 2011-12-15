@@ -63,8 +63,7 @@ public class DropKeyspace extends Migration
         }
 
         // remove the table from the static instances.
-        Table table = Table.clear(ksm.name, schema);
-        assert table != null;
+        Table.clear(ksm.name, schema);
         // reset defs.
         schema.clearTableDefinition(ksm, newVersion);
     }

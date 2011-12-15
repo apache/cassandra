@@ -33,15 +33,28 @@ Upgrading
       want to use such large batches.
 
 
+1.0.6
+=====
+
+Upgrading
+---------
+    - This release fixes an issue related to the chunk_length_kb option for
+      compressed sstables. If you use compression on some column families, it
+      is recommended after the upgrade to check the value for this option on
+      these column families (the default value is 64). In case the option would
+      not be set correctly, you should update the column family definition,
+      setting the right value and then run scrub on the column family.
+    - Please report to instruction for 1.0.5 if coming from an older version.
+
+
 1.0.5
 =====
 
-JMX
----
-    - A command has been added to stop running compaction. It is available
-      through JMX and through nodetool stop <type> (see the nodetool help for
-      details). Please note that stopped compaction are terminated and cannot
-      be restarted afterwards.
+Upgrading
+---------
+    - 1.0.5 comes to fix two important regression of 1.0.4. So all information
+      concerning 1.0.4 are valid for this release, but please avoids upgrading
+      to 1.0.4.
 
 
 1.0.4

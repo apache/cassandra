@@ -377,9 +377,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
      * @param endpoint - the endpoint being removed
      * @param token - the token being removed
      * @param mytoken - my own token for replication coordination
-     * @param delay
      */
-    public void advertiseRemoving(InetAddress endpoint, Token token, Token mytoken, int delay)
+    public void advertiseRemoving(InetAddress endpoint, Token token, Token mytoken)
     {
         EndpointState epState = endpointStateMap.get(endpoint);
         // remember this node's generation
@@ -388,7 +387,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         logger.info("Sleeping for " + StorageService.RING_DELAY + "ms to ensure " + endpoint + " does not change");
         try
         {
-            Thread.sleep(delay);
+            Thread.sleep(StorageService.RING_DELAY);
         }
         catch (InterruptedException e)
         {
@@ -430,6 +429,66 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         {
             throw new AssertionError(e);
         }
+    }
+
+    /**
+     * Do not call this method unless you know what you are doing.
+     * It will try extremely hard to obliterate any endpoint from the ring,
+     * even if it does not know about it.
+     * This should only ever be called by human via JMX.
+     * @param  address
+     * @throws UnknownHostException
+     */
+    public void unsafeAssassinateEndpoint(String address) throws UnknownHostException
+    {
+        InetAddress endpoint = InetAddress.getByName(address);
+        EndpointState epState = endpointStateMap.get(endpoint);
+        Token token = null;
+        logger.warn("Assassinating {} via gossip", endpoint);
+        if (epState == null)
+        {
+            epState = new EndpointState(new HeartBeatState((int)((System.currentTimeMillis() + 60000) / 1000), 9999));
+        }
+        else
+        {
+            try
+            {
+                token = StorageService.instance.getTokenMetadata().getToken(endpoint);
+            }
+            catch (AssertionError e)
+            {
+            }
+            int generation = epState.getHeartBeatState().getGeneration();
+            logger.info("Sleeping for " + StorageService.RING_DELAY + "ms to ensure " + endpoint + " does not change");
+            try
+            {
+                Thread.sleep(StorageService.RING_DELAY);
+            }
+            catch (InterruptedException e)
+            {
+                throw new AssertionError(e);
+            }
+            // make sure it did not change
+            epState = endpointStateMap.get(endpoint);
+            if (epState.getHeartBeatState().getGeneration() != generation)
+                throw new RuntimeException("Endpoint " + endpoint + " generation changed while trying to remove it");
+            epState.updateTimestamp(); // make sure we don't evict it too soon
+            epState.getHeartBeatState().forceNewerGenerationUnsafe();
+        }
+        if (token == null)
+            token = StorageService.instance.getBootstrapToken();
+        // do not pass go, do not collect 200 dollars, just gtfo
+        epState.addApplicationState(ApplicationState.STATUS, StorageService.instance.valueFactory.left(token, computeExpireTime()));
+        handleMajorStateChange(endpoint, epState);
+        try
+        {
+            Thread.sleep(intervalInMillis * 4);
+        }
+        catch (InterruptedException e)
+        {
+            throw new AssertionError(e);
+        }
+        logger.warn("Finished killing {}", endpoint);
     }
 
     public boolean isKnownEndpoint(InetAddress endpoint)
@@ -1035,6 +1094,11 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
      */
     public void addSavedEndpoint(InetAddress ep)
     {
+        if (ep == FBUtilities.getLocalAddress())
+        {
+            logger.debug("Attempt to add self as saved endpoint");
+            return;
+        }
         EndpointState epState = new EndpointState(new HeartBeatState(0));
         epState.markDead();
         epState.setHasToken(true);

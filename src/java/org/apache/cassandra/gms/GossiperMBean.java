@@ -28,4 +28,6 @@ public interface GossiperMBean
 
     public int getCurrentGenerationNumber(String address) throws UnknownHostException;
 
+    public void unsafeAssassinateEndpoint(String address) throws UnknownHostException;
+
 }

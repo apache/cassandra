@@ -37,7 +37,7 @@ columnfamily_options = (
     ('max_compaction_threshold', None),
     ('row_cache_save_period_in_seconds', None),
     ('key_cache_save_period_in_seconds', None),
-    ('replication_on_write', 'replicate_on_write')
+    ('replicate_on_write', None)
 )
 
 cql_type_to_apache_class = {

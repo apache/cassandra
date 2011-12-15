@@ -292,6 +292,11 @@ public class DataTracker
         }
         while (!view.compareAndSet(currentView, newView));
 
+        if (notCompacting.isEmpty())
+        {
+            // notifySSTablesChanged -> LeveledManifest.promote doesn't like a no-op "promotion"
+            return;
+        }
         notifySSTablesChanged(notCompacting, Collections.<SSTableReader>emptySet());
         postReplace(notCompacting, Collections.<SSTableReader>emptySet());
     }

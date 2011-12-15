@@ -59,7 +59,6 @@
     <property name="test.name" value="*Test"/>
     <property name="test.unit.src" value="${test.dir}/unit"/>
     <property name="test.long.src" value="${test.dir}/long"/>
-    <property name="test.distributed.src" value="${test.dir}/distributed"/>
     <property name="dist.dir" value="${build.dir}/dist"/>
     <condition property="version" value="${base.version}">
       <isset property="release"/>
@@ -285,9 +284,6 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
       <artifact:remoteRepository id="central"   url="${artifact.remoteRepository.central}"/>
       <artifact:remoteRepository id="java.net2" url="${artifact.remoteRepository.java.net2}"/>
       <artifact:remoteRepository id="apache"    url="${artifact.remoteRepository.apache}"/>
-      <!-- for distributed tests -->
-      <artifact:remoteRepository id="jclouds"   url="${artifact.remoteRepository.jclouds}"/>
-      <artifact:remoteRepository id="oauth"     url="${artifact.remoteRepository.oauth}"/>
 
       <macrodef name="install">
         <attribute name="pomFile"/>
@@ -969,22 +965,6 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
     </copy>
   </target>
 
-  <target name="build-distributed-test" depends="build-test,maven-ant-tasks-retrieve-test" description="Compile distributed test classes (which have additional deps)">
-    <javac
-     debug="true"
-     debuglevel="${debuglevel}"
-     destdir="${test.classes}">
-      <classpath>
-          <path refid="cassandra.classpath"/>
-          <pathelement location="${test.classes}"/>
-          <fileset dir="${test.lib}">
-            <include name="**/*.jar" />
-          </fileset>
-      </classpath>
-      <src path="${test.distributed.src}"/>
-    </javac>
-  </target>
-
   <macrodef name="testmacro">
     <attribute name="suitename" />
     <attribute name="inputdir" />
@@ -1036,6 +1016,7 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
     <testmacro suitename="unit" inputdir="${test.unit.src}" timeout="60000">
       <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
       <jvmarg value="-Dcorrupt-sstable-root=${test.data}/corrupt-sstables"/>
+      <jvmarg value="-Dcassandra.ring_delay_ms=1000"/>
     </testmacro>
   </target>
     
@@ -1044,6 +1025,7 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
       <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
       <jvmarg value="-Dcorrupt-sstable-root=${test.data}/corrupt-sstables"/>
       <jvmarg value="-Dcassandra.test.compression=true"/>
+      <jvmarg value="-Dcassandra.ring_delay_ms=1000"/>
     </testmacro>
   </target>
 
@@ -1070,14 +1052,7 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
   <target name="long-test" depends="build-test" description="Execute functional tests">
     <testmacro suitename="long" inputdir="${test.long.src}"
                timeout="${test.long.timeout}" />
-  </target>
-
-  <!-- Depends on artifacts so that we can push a tarball to remote nodes, and has its own build target for cloudy deps. -->
-  <target name="distributed-test" depends="build-distributed-test,artifacts" description="Execute distributed tests: see ${test.distributed.src}/README.txt">
-    <testmacro suitename="distributed" inputdir="${test.distributed.src}" timeout="1200000" forkmode="once">
-      <jvmarg value="-Dwhirr.config=${whirr.config}"/>
-      <jvmarg value="-Dwhirr.cassandra_tarball=${build.dir}/${final.name}-bin.tar.gz"/>
-    </testmacro>
+      <jvmarg value="-Dcassandra.ring_delay_ms=1000"/>
   </target>
 
   <!-- instruments the classes to later create code coverage reports -->
