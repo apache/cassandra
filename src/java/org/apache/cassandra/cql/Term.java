@@ -89,7 +89,7 @@ public class Term
      * @return a ByteBuffer of the value.
      * @throws InvalidRequestException if unable to coerce the string to its type.
      */
-    public ByteBuffer getByteBuffer(AbstractType<?> validator, List<String> variables) throws InvalidRequestException
+    public ByteBuffer getByteBuffer(AbstractType<?> validator, List<ByteBuffer> variables) throws InvalidRequestException
     {
         try
         {
@@ -99,7 +99,7 @@ public class Term
             if (bindIndex == null)
                 throw new AssertionError("a marker Term was encountered with no index value");
                         
-            return validator.fromString(variables.get(bindIndex));
+            return variables.get(bindIndex);
         }
         catch (MarshalException e)
         {

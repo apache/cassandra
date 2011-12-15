@@ -20,6 +20,7 @@
  */
 package org.apache.cassandra.cql;
 
+import java.nio.ByteBuffer;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -76,7 +77,7 @@ public class BatchStatement
         return timeToLive;
     }
 
-    public List<IMutation> getMutations(String keyspace, ClientState clientState, List<String> variables)
+    public List<IMutation> getMutations(String keyspace, ClientState clientState, List<ByteBuffer> variables)
     throws InvalidRequestException
     {
         List<IMutation> batch = new LinkedList<IMutation>();

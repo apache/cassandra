@@ -20,6 +20,7 @@
  */
 package org.apache.cassandra.cql;
 
+import java.nio.ByteBuffer;
 import java.util.List;
 
 import org.apache.cassandra.db.IMutation;
@@ -103,7 +104,7 @@ public abstract class AbstractModification
      *
      * @throws InvalidRequestException on the wrong request
      */
-    public abstract List<IMutation> prepareRowMutations(String keyspace, ClientState clientState, List<String> variables)
+    public abstract List<IMutation> prepareRowMutations(String keyspace, ClientState clientState, List<ByteBuffer> variables)
             throws org.apache.cassandra.thrift.InvalidRequestException;
 
     /**
@@ -117,6 +118,6 @@ public abstract class AbstractModification
      *
      * @throws InvalidRequestException on the wrong request
      */
-    public abstract List<IMutation> prepareRowMutations(String keyspace, ClientState clientState, Long timestamp, List<String> variables)
+    public abstract List<IMutation> prepareRowMutations(String keyspace, ClientState clientState, Long timestamp, List<ByteBuffer> variables)
             throws org.apache.cassandra.thrift.InvalidRequestException;
 }

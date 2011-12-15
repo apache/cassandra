@@ -64,12 +64,12 @@ public class DeleteStatement extends AbstractModification
         return keys;
     }
 
-    public List<IMutation> prepareRowMutations(String keyspace, ClientState clientState, List<String> variables) throws InvalidRequestException
+    public List<IMutation> prepareRowMutations(String keyspace, ClientState clientState, List<ByteBuffer> variables) throws InvalidRequestException
     {
         return prepareRowMutations(keyspace, clientState, null, variables);
     }
 
-    public List<IMutation> prepareRowMutations(String keyspace, ClientState clientState, Long timestamp, List<String> variables) throws InvalidRequestException
+    public List<IMutation> prepareRowMutations(String keyspace, ClientState clientState, Long timestamp, List<ByteBuffer> variables) throws InvalidRequestException
     {
         clientState.hasColumnFamilyAccess(columnFamily, Permission.WRITE);
         AbstractType<?> keyType = Schema.instance.getCFMetaData(keyspace, columnFamily).getKeyValidator();
@@ -84,7 +84,7 @@ public class DeleteStatement extends AbstractModification
         return rowMutations;
     }
 
-    public RowMutation mutationForKey(ByteBuffer key, String keyspace, Long timestamp, ClientState clientState, List<String> variables)
+    public RowMutation mutationForKey(ByteBuffer key, String keyspace, Long timestamp, ClientState clientState, List<ByteBuffer> variables)
     throws InvalidRequestException
     {
         RowMutation rm = new RowMutation(keyspace, key);

@@ -124,13 +124,13 @@ public class UpdateStatement extends AbstractModification
     }
 
     /** {@inheritDoc} */
-    public List<IMutation> prepareRowMutations(String keyspace, ClientState clientState, List<String> variables) throws InvalidRequestException
+    public List<IMutation> prepareRowMutations(String keyspace, ClientState clientState, List<ByteBuffer> variables) throws InvalidRequestException
     {
         return prepareRowMutations(keyspace, clientState, null, variables);
     }
 
     /** {@inheritDoc} */
-    public List<IMutation> prepareRowMutations(String keyspace, ClientState clientState, Long timestamp, List<String> variables) throws InvalidRequestException
+    public List<IMutation> prepareRowMutations(String keyspace, ClientState clientState, Long timestamp, List<ByteBuffer> variables) throws InvalidRequestException
     {
         List<String> cfamsSeen = new ArrayList<String>();
 
@@ -182,7 +182,7 @@ public class UpdateStatement extends AbstractModification
      *
      * @throws InvalidRequestException on the wrong request
      */
-    private IMutation mutationForKey(String keyspace, ByteBuffer key, CFMetaData metadata, Long timestamp, ClientState clientState, List<String> variables)
+    private IMutation mutationForKey(String keyspace, ByteBuffer key, CFMetaData metadata, Long timestamp, ClientState clientState, List<ByteBuffer> variables)
     throws InvalidRequestException
     {
         AbstractType<?> comparator = getComparator(keyspace);

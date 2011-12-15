@@ -1257,7 +1257,7 @@ public class CassandraServer implements Cassandra.Iface
         }
     }
 
-    public CqlResult execute_prepared_cql_query(int itemId, List<String> bindVariables)
+    public CqlResult execute_prepared_cql_query(int itemId, List<ByteBuffer> bindVariables)
     throws InvalidRequestException, UnavailableException, TimedOutException, SchemaDisagreementException, TException
     {
         if (logger.isDebugEnabled()) logger.debug("execute_prepared_cql_query");
