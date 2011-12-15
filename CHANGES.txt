@@ -1,3 +1,6 @@
+0.8.10
+ * prevent new nodes from thinking down nodes are up forever (CASSANDRA-3626)
+
 0.8.9
  * remove invalid assertion that table was opened before dropping it
    (CASSANDRA-3580)
