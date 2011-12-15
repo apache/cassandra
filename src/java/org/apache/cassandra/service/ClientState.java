@@ -43,7 +43,7 @@ import org.apache.cassandra.thrift.InvalidRequestException;
  */
 public class ClientState
 {
-    private static final int MAX_CACHE_PREPARED = 50;   // Ridiculously large, right?
+    private static final int MAX_CACHE_PREPARED = 10000;    // Enough to keep buggy clients from OOM'ing us
     private static Logger logger = LoggerFactory.getLogger(ClientState.class);
 
     // Current user for the session
@@ -53,7 +53,7 @@ public class ClientState
     private final List<Object> resource = new ArrayList<Object>();
 
     // An LRU map of prepared statements
-    private Map<Integer, CQLStatement> prepared = new HashMap<Integer, CQLStatement>() {
+    private Map<Integer, CQLStatement> prepared = new LinkedHashMap<Integer, CQLStatement>(16, 0.75f, true) {
         protected boolean removeEldestEntry(Map.Entry<Integer, CQLStatement> eldest) {
             return size() > MAX_CACHE_PREPARED;
         }
