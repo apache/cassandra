@@ -930,7 +930,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             }
             else
             {
-                // this is a new node
+                // this is a new node, report it to the FD in case it is the first time we are seeing it AND it's not alive
+                FailureDetector.instance.report(ep);
             	handleMajorStateChange(ep, remoteState);
             }
         }
