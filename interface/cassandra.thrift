@@ -709,7 +709,7 @@ service Cassandra {
    * Executes a prepared CQL (Cassandra Query Language) statement by passing an id token and  a list of variables
    * to bind and returns a CqlResult containing the results.
    */
-  CqlResult execute_prepared_cql_query(1:required i32 itemId, 2:required list<string> values)
+  CqlResult execute_prepared_cql_query(1:required i32 itemId, 2:required list<binary> values)
     throws (1:InvalidRequestException ire,
             2:UnavailableException ue,
             3:TimedOutException te,
