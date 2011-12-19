@@ -39,9 +39,6 @@ public class SequentialWriter extends OutputStream
     protected byte[] buffer;
     private final boolean skipIOCache;
     private final int fd;
-    private final int directoryFD;
-    // directory should be synced only after first file sync, in other words, only once per file
-    private boolean directorySynced = false;
 
     protected long current = 0, bufferOffset;
     protected int validBufferBytes;
@@ -63,7 +60,6 @@ public class SequentialWriter extends OutputStream
         buffer = new byte[bufferSize];
         this.skipIOCache = skipIOCache;
         fd = CLibrary.getfd(out.getFD());
-        directoryFD = CLibrary.tryOpenDirectory(file.getParent());
         stream = new DataOutputStream(this);
     }
 
@@ -151,12 +147,6 @@ public class SequentialWriter extends OutputStream
         {
             flushInternal();
             out.getFD().sync();
-
-            if (!directorySynced)
-            {
-                CLibrary.trySync(directoryFD);
-                directorySynced = true;
-            }
 
             syncNeeded = false;
         }
@@ -298,7 +288,6 @@ public class SequentialWriter extends OutputStream
             CLibrary.trySkipCache(fd, 0, 0);
 
         out.close();
-        CLibrary.tryCloseFD(directoryFD);
     }
 
     /**
