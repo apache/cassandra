@@ -60,6 +60,10 @@ import org.apache.cassandra.utils.NodeId;
  *   - delta + delta = sum counts (and logical clock)
  *   - delta + other = keep the delta one
  *   - other + other = keep the shard with highest logical clock
+ *
+ * For a detailed description of the meaning of a delta and why the merging
+ * rules work this way, see CASSANDRA-1938 - specifically the 1938_discussion
+ * attachment.
  */
 public class CounterContext implements IContext
 {
