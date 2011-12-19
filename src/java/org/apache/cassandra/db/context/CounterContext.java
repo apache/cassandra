@@ -19,15 +19,18 @@ package org.apache.cassandra.db.context;
 
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.db.DBConstants;
+import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.utils.Allocator;
-import org.apache.cassandra.utils.HeapAllocator;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.HeapAllocator;
 import org.apache.cassandra.utils.NodeId;
 
 /**
@@ -73,7 +76,7 @@ public class CounterContext implements IContext
     private static final int COUNT_LENGTH = DBConstants.longSize;
     private static final int STEP_LENGTH = NodeId.LENGTH + CLOCK_LENGTH + COUNT_LENGTH;
 
-    private static final Logger logger = Logger.getLogger(CounterContext.class);
+    private static final Logger logger = LoggerFactory.getLogger(CounterContext.class);
 
     // lazy-load singleton
     private static class LazyHolder

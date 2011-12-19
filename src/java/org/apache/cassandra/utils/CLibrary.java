@@ -18,13 +18,17 @@
  */
 package org.apache.cassandra.utils;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileDescriptor;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.lang.reflect.Field;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import org.apache.commons.lang.StringUtils;
 
 import com.sun.jna.LastErrorException;
 import com.sun.jna.Native;
@@ -42,6 +46,7 @@ public final class CLibrary
     private static final int F_SETFL   = 4;  /* set file status flags */
     private static final int F_NOCACHE = 48; /* Mac OS X specific flag, turns cache on/off */
     private static final int O_DIRECT  = 040000; /* fcntl.h */
+    private static final int O_RDONLY  = 00000000; /* fcntl.h */
 
     private static final int POSIX_FADV_NORMAL     = 0; /* fadvise.h */
     private static final int POSIX_FADV_RANDOM     = 1; /* fadvise.h */
@@ -80,7 +85,11 @@ public final class CLibrary
 
     // fadvice
     public static native int posix_fadvise(int fd, long offset, int len, int flag) throws LastErrorException;
-        
+
+    public static native int open(String path, int flags) throws LastErrorException;
+    public static native int fsync(int fd) throws LastErrorException;
+    public static native int close(int fd) throws LastErrorException;
+
     private static int errno(RuntimeException e)
     {
         assert e instanceof LastErrorException;
@@ -148,6 +157,7 @@ public final class CLibrary
         }
         catch (RuntimeException e)
         {
+            logger.error("Unable to create hard link", e);
             if (!(e instanceof LastErrorException))
                 throw e;
             // there are 17 different error codes listed on the man page.  punt until/unless we find which
@@ -178,10 +188,37 @@ public final class CLibrary
             pb = new ProcessBuilder("ln", sourceFile.getAbsolutePath(), destinationFile.getAbsolutePath());
             pb.redirectErrorStream(true);
         }
+        try
+        {
+            exec(pb);
+        }
+        catch (IOException ex)
+        {
+            logger.error("Unable to create hard link", ex);
+            throw ex;
+        }
+    }
+
+    private static void exec(ProcessBuilder pb) throws IOException
+    {
         Process p = pb.start();
         try
         {
-            p.waitFor();
+            int errCode = p.waitFor();
+            if (errCode != 0)
+            {
+                BufferedReader in = new BufferedReader(new InputStreamReader(p.getInputStream()));
+                BufferedReader err = new BufferedReader(new InputStreamReader(p.getErrorStream()));
+                StringBuffer buff = new StringBuffer();
+                String str;
+                while ((str = in.readLine()) != null)
+                    buff.append(str).append(System.getProperty("line.separator"));
+                while ((str = err.readLine()) != null)
+                    buff.append(str).append(System.getProperty("line.separator"));
+                throw new IOException("Exception while executing the command: "+ StringUtils.join(pb.command(), " ") +
+                                      ", command error Code: " + errCode +
+                                      ", command output: "+ buff.toString());
+            }
         }
         catch (InterruptedException e)
         {
@@ -227,6 +264,73 @@ public final class CLibrary
         }
 
         return result;
+    }
+
+    public static int tryOpenDirectory(String path)
+    {
+        int fd = -1;
+
+        try
+        {
+            return open(path, O_RDONLY);
+        }
+        catch (UnsatisfiedLinkError e)
+        {
+            // JNA is unavailable just skipping Direct I/O
+        }
+        catch (RuntimeException e)
+        {
+            if (!(e instanceof LastErrorException))
+                throw e;
+
+            logger.warn(String.format("open(%s, O_RDONLY) failed, errno (%d).", path, CLibrary.errno(e)));
+        }
+
+        return fd;
+    }
+
+    public static void trySync(int fd)
+    {
+        if (fd == -1)
+            return;
+
+        try
+        {
+            fsync(fd);
+        }
+        catch (UnsatisfiedLinkError e)
+        {
+            // JNA is unavailable just skipping Direct I/O
+        }
+        catch (RuntimeException e)
+        {
+            if (!(e instanceof LastErrorException))
+                throw e;
+
+            logger.warn(String.format("fsync(%d) failed, errno (%d).", fd, CLibrary.errno(e)));
+        }
+    }
+
+    public static void tryCloseFD(int fd)
+    {
+        if (fd == -1)
+            return;
+
+        try
+        {
+            close(fd);
+        }
+        catch (UnsatisfiedLinkError e)
+        {
+            // JNA is unavailable just skipping Direct I/O
+        }
+        catch (RuntimeException e)
+        {
+            if (!(e instanceof LastErrorException))
+                throw e;
+
+            logger.warn(String.format("close(%d) failed, errno (%d).", fd, CLibrary.errno(e)));
+        }
     }
 
     /**

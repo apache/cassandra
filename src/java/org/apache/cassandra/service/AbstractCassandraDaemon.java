@@ -23,6 +23,8 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.Arrays;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -46,6 +48,9 @@ import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.utils.CLibrary;
 import org.apache.cassandra.utils.Mx4jTool;
+import org.apache.commons.lang.ArrayUtils;
+
+import com.google.common.collect.Iterables;
 
 /**
  * The <code>CassandraDaemon</code> is an abstraction for a Cassandra daemon
@@ -117,10 +122,10 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
      */
     protected void setup() throws IOException
     {
-    	logger.info("JVM vendor/version: {}/{}", System.getProperty("java.vm.name"), System.getProperty("java.version") );
+        logger.info("JVM vendor/version: {}/{}", System.getProperty("java.vm.name"), System.getProperty("java.version") );
         logger.info("Heap size: {}/{}", Runtime.getRuntime().totalMemory(), Runtime.getRuntime().maxMemory());
-		logger.info("Classpath: {}", System.getProperty("java.class.path"));
-    	CLibrary.tryMlockall();
+        logger.info("Classpath: {}", System.getProperty("java.class.path"));
+        CLibrary.tryMlockall();
 
         listenPort = DatabaseDescriptor.getRpcPort();
         listenAddr = DatabaseDescriptor.getRpcAddress();
@@ -139,7 +144,20 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
                 }
             }
         });
-        
+
+        // check all directories(data, commitlog, saved cache) for existence and permission
+        Iterable<String> dirs = Iterables.concat(Arrays.asList(DatabaseDescriptor.getAllDataFileLocations()),
+                                                 Arrays.asList(new String[] {DatabaseDescriptor.getCommitLogLocation(),
+                                                                             DatabaseDescriptor.getSavedCachesLocation()}));
+        for (String dataDir : dirs)
+        {
+            logger.debug("Checking directory {}", dataDir);
+            File dir = new File(dataDir);
+            if (dir.exists())
+                assert dir.isDirectory() && dir.canRead() && dir.canWrite() && dir.canExecute()
+                    : String.format("Directory %s is not accessible.", dataDir);
+        }
+
         // check the system table to keep user from shooting self in foot by changing partitioner, cluster name, etc.
         // we do a one-off scrub of the system table first; we can't load the list of the rest of the tables,
         // until system table is opened.
