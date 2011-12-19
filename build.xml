@@ -1146,18 +1146,11 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
   <comment></comment>
   <projects>
   </projects>
-    <buildSpec>
-      <buildCommand>
-        <name>org.eclipse.ui.externaltools.ExternalToolBuilder</name>
-        <triggers>full,incremental,auto,clean,</triggers>
-        <arguments>
-          <dictionary>
-            <key>LaunchConfigHandle</key>
-            <value>&lt;project&gt;/.externalToolBuilders/Cassandra_Ant_Builder.launch</value>
-          </dictionary>
-        </arguments>
-      </buildCommand>
-    </buildSpec>
+  <buildSpec>
+    <buildCommand>
+      <name>org.eclipse.jdt.core.javabuilder</name>
+    </buildCommand>
+  </buildSpec>
   <natures>
     <nature>org.eclipse.jdt.core.javanature</nature>
   </natures>
@@ -1205,31 +1198,6 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
   	    echo.perform();	     
   	]]> </script>
     <mkdir dir=".settings" />
-    <mkdir dir=".externalToolBuilders" />
-    <echo file=".externalToolBuilders/Cassandra_Ant_Builder.launch"><![CDATA[<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<launchConfiguration type="org.eclipse.ant.AntBuilderLaunchConfigurationType">
-<stringAttribute key="org.eclipse.ant.ui.ATTR_ANT_AFTER_CLEAN_TARGETS" value="build-test,"/>
-<stringAttribute key="org.eclipse.ant.ui.ATTR_ANT_AUTO_TARGETS" value="build-test,"/>
-<stringAttribute key="org.eclipse.ant.ui.ATTR_ANT_CLEAN_TARGETS" value="clean"/>
-<stringAttribute key="org.eclipse.ant.ui.ATTR_ANT_MANUAL_TARGETS" value="build-test,"/>
-<booleanAttribute key="org.eclipse.ant.ui.ATTR_TARGETS_UPDATED" value="true"/>
-<booleanAttribute key="org.eclipse.ant.ui.DEFAULT_VM_INSTALL" value="false"/>
-<listAttribute key="org.eclipse.debug.core.MAPPED_RESOURCE_PATHS">
-<listEntry value="/${eclipse.project.name}/build.xml"/>
-</listAttribute>
-<listAttribute key="org.eclipse.debug.core.MAPPED_RESOURCE_TYPES">
-<listEntry value="1"/>
-</listAttribute>
-<booleanAttribute key="org.eclipse.debug.ui.ATTR_LAUNCH_IN_BACKGROUND" value="false"/>
-<stringAttribute key="org.eclipse.jdt.launching.CLASSPATH_PROVIDER" value="org.eclipse.ant.ui.AntClasspathProvider"/>
-<booleanAttribute key="org.eclipse.jdt.launching.DEFAULT_CLASSPATH" value="true"/>
-<stringAttribute key="org.eclipse.jdt.launching.PROJECT_ATTR" value="${eclipse.project.name}"/>
-<stringAttribute key="org.eclipse.ui.externaltools.ATTR_LOCATION" value="$${workspace_loc:/${eclipse.project.name}/build.xml}"/>
-<stringAttribute key="org.eclipse.ui.externaltools.ATTR_RUN_BUILD_KINDS" value="full,incremental,auto,clean,"/>
-<booleanAttribute key="org.eclipse.ui.externaltools.ATTR_TRIGGERS_CONFIGURED" value="true"/>
-<stringAttribute key="org.eclipse.ui.externaltools.ATTR_WORKING_DIRECTORY" value="$${workspace_loc:/${eclipse.project.name}}"/>
-</launchConfiguration>]]>
-    </echo>
   </target>
 
   <pathconvert property="eclipse.project.name">
