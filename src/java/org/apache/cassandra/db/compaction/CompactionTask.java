@@ -175,9 +175,12 @@ public class CompactionTask extends AbstractCompactionTask
                     SSTableReader toIndex = writer.closeAndOpenReader(getMaxDataAge(toCompact));
                     cachedKeyMap.put(toIndex, cachedKeys);
                     sstables.add(toIndex);
-                    writer = cfs.createCompactionWriter(keysPerSSTable, compactionFileLocation, toCompact);
-                    writers.add(writer);
-                    cachedKeys = new HashMap<DecoratedKey, Long>();
+                    if (nni.hasNext())
+                    {
+                        writer = cfs.createCompactionWriter(keysPerSSTable, compactionFileLocation, toCompact);
+                        writers.add(writer);
+                        cachedKeys = new HashMap<DecoratedKey, Long>();
+                    }
                 }
             }
         }
