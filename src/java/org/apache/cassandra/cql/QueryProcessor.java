@@ -1109,7 +1109,7 @@ public class QueryProcessor
         if (logger.isTraceEnabled())
             logger.trace(String.format("Stored prepared statement #%d with %d bind markers",
                                        statementId,
-                                       clientState.getPrepared().size()));
+                                       statement.boundTerms));
 
         return new CqlPreparedResult(statementId, statement.boundTerms);
     }
