@@ -4,6 +4,8 @@
  * CLibrary.createHardLinkWithExec() to check for errors (CASSANDRA-3101)
 Merged from 0.8:
  * prevent new nodes from thinking down nodes are up forever (CASSANDRA-3626)
+ * fsync the directory after new sstable or commitlog segment are created (CASSANDRA-3250)
+
 
 1.0.6
  * (CQL) fix cqlsh support for replicate_on_write (CASSANDRA-3596)
