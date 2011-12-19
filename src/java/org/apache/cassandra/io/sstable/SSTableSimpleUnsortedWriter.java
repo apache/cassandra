@@ -23,6 +23,9 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.locks.Condition;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
@@ -31,6 +34,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.HeapAllocator;
 
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.SimpleCondition;
 
 /**
  * A SSTable writer that doesn't assume rows are in sorted order.
@@ -43,9 +47,14 @@ import org.apache.cassandra.utils.ByteBufferUtil;
  */
 public class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
 {
-    private final Map<DecoratedKey, ColumnFamily> keys = new TreeMap<DecoratedKey, ColumnFamily>();
+    private static final Buffer SENTINEL = new Buffer();
+
+    private Buffer buffer = new Buffer();
     private final long bufferSize;
     private long currentSize;
+
+    private final BlockingQueue<Buffer> writeQueue = new SynchronousQueue<Buffer>();
+    private final DiskWriter diskWriter = new DiskWriter();
 
     /**
      * Create a new buffering writer.
@@ -67,6 +76,7 @@ public class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
     {
         super(directory, new CFMetaData(keyspace, columnFamily, subComparator == null ? ColumnFamilyType.Standard : ColumnFamilyType.Super, comparator, subComparator));
         this.bufferSize = bufferSizeInMB * 1024L * 1024L;
+        this.diskWriter.start();
     }
 
     protected void writeRow(DecoratedKey key, ColumnFamily columnFamily) throws IOException
@@ -79,12 +89,12 @@ public class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
 
     protected ColumnFamily getColumnFamily()
     {
-        ColumnFamily previous = keys.get(currentKey);
+        ColumnFamily previous = buffer.get(currentKey);
         // If the CF already exist in memory, we'll just continue adding to it
         if (previous == null)
         {
             previous = ColumnFamily.create(metadata, TreeMapBackedSortedColumns.factory());
-            keys.put(currentKey, previous);
+            buffer.put(currentKey, previous);
         }
         else
         {
@@ -98,20 +108,77 @@ public class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
     public void close() throws IOException
     {
         sync();
+        try
+        {
+            writeQueue.put(SENTINEL);
+            diskWriter.join();
+        }
+        catch (InterruptedException e)
+        {
+            throw new RuntimeException(e);
+        }
+
+        checkForWriterException();
     }
 
     private void sync() throws IOException
     {
-        if (keys.isEmpty())
+        if (buffer.isEmpty())
             return;
 
-        SSTableWriter writer = getWriter();
-        for (Map.Entry<DecoratedKey, ColumnFamily> entry : keys.entrySet())
+        checkForWriterException();
+
+        try
         {
-            writer.append(entry.getKey(), entry.getValue());
+            writeQueue.put(buffer);
         }
-        writer.closeAndOpenReader();
+        catch (InterruptedException e)
+        {
+            throw new RuntimeException(e);
+        }
+        buffer = new Buffer();
         currentSize = 0;
-        keys.clear();
+    }
+
+    private void checkForWriterException() throws IOException
+    {
+        // slightly lame way to report exception from the writer, but that should be good enough
+        if (diskWriter.exception != null)
+        {
+            if (diskWriter.exception instanceof IOException)
+                throw (IOException) diskWriter.exception;
+            else
+                throw new RuntimeException(diskWriter.exception);
+        }
+    }
+
+    // typedef
+    private static class Buffer extends TreeMap<DecoratedKey, ColumnFamily> {}
+
+    private class DiskWriter extends Thread
+    {
+        volatile Exception exception = null;
+
+        public void run()
+        {
+            try
+            {
+                while (true)
+                {
+                    Buffer b = writeQueue.take();
+                    if (b == SENTINEL)
+                        return;
+
+                    SSTableWriter writer = getWriter();
+                    for (Map.Entry<DecoratedKey, ColumnFamily> entry : b.entrySet())
+                        writer.append(entry.getKey(), entry.getValue());
+                    writer.closeAndOpenReader();
+                }
+            }
+            catch (Exception e)
+            {
+                exception = e;
+            }
+        }
     }
 }

@@ -25,6 +25,7 @@
    (CASSANDRA-3538)
  * Improve memtable slice iteration performance (CASSANDRA-3545)
  * more efficient allocation of small bloom filters (CASSANDRA-3618)
+ * Use separate writer thread in SSTableSimpleUnsortedWriter (CASSANDRA-3619)
 
 
 1.0.7
