@@ -33,11 +33,10 @@ import org.apache.cassandra.thrift.InvalidRequestException;
 
 /** A term parsed from a CQL statement. */
 public class Term
-{   
+{
     private final String text;
     private final TermType type;
-    
-    private Integer bindIndex;
+    private Integer bindIndex = -1;
     
     /**
      * Create new Term instance from a string, and an integer that corresponds
@@ -70,9 +69,10 @@ public class Term
         this.type = TermType.STRING;
     }
     
-    public void setBindIndex(int bindIndex)
+    public Term(String text, int type, int index)
     {
-        this.bindIndex = bindIndex;
+        this(text, type);
+        this.bindIndex = index;
     }
 
     /**

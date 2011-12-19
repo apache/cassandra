@@ -26,9 +26,10 @@ public class CQLStatement
     public Object statement;
     public int boundTerms = 0;
     
-    public CQLStatement(StatementType type, Object statement)
+    public CQLStatement(StatementType type, Object statement, int lastMarker)
     {
         this.type = type;
         this.statement = statement;
+        this.boundTerms = lastMarker + 1;
     }
 }

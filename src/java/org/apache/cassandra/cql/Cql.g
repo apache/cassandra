@@ -42,6 +42,7 @@ options {
 
 @members {
     private List<String> recognitionErrors = new ArrayList<String>();
+    private int currentBindMarkerIdx = -1;
     
     public void displayRecognitionError(String[] tokenNames, RecognitionException e)
     {
@@ -111,20 +112,20 @@ options {
 }
 
 query returns [CQLStatement stmnt]
-    : selectStatement   { $stmnt = new CQLStatement(StatementType.SELECT, $selectStatement.expr); }
-    | insertStatement endStmnt { $stmnt = new CQLStatement(StatementType.INSERT, $insertStatement.expr); }
-    | updateStatement endStmnt { $stmnt = new CQLStatement(StatementType.UPDATE, $updateStatement.expr); }
-    | batchStatement { $stmnt = new CQLStatement(StatementType.BATCH, $batchStatement.expr); }
-    | useStatement      { $stmnt = new CQLStatement(StatementType.USE, $useStatement.keyspace); }
-    | truncateStatement { $stmnt = new CQLStatement(StatementType.TRUNCATE, $truncateStatement.cf); }
-    | deleteStatement endStmnt { $stmnt = new CQLStatement(StatementType.DELETE, $deleteStatement.expr); }
-    | createKeyspaceStatement { $stmnt = new CQLStatement(StatementType.CREATE_KEYSPACE, $createKeyspaceStatement.expr); }
-    | createColumnFamilyStatement { $stmnt = new CQLStatement(StatementType.CREATE_COLUMNFAMILY, $createColumnFamilyStatement.expr); }
-    | createIndexStatement { $stmnt = new CQLStatement(StatementType.CREATE_INDEX, $createIndexStatement.expr); }
-    | dropIndexStatement   { $stmnt = new CQLStatement(StatementType.DROP_INDEX, $dropIndexStatement.expr); }
-    | dropKeyspaceStatement { $stmnt = new CQLStatement(StatementType.DROP_KEYSPACE, $dropKeyspaceStatement.ksp); }
-    | dropColumnFamilyStatement { $stmnt = new CQLStatement(StatementType.DROP_COLUMNFAMILY, $dropColumnFamilyStatement.cfam); }
-    | alterTableStatement { $stmnt = new CQLStatement(StatementType.ALTER_TABLE, $alterTableStatement.expr); }
+    : selectStatement   { $stmnt = new CQLStatement(StatementType.SELECT, $selectStatement.expr, currentBindMarkerIdx); }
+    | insertStatement endStmnt { $stmnt = new CQLStatement(StatementType.INSERT, $insertStatement.expr, currentBindMarkerIdx); }
+    | updateStatement endStmnt { $stmnt = new CQLStatement(StatementType.UPDATE, $updateStatement.expr, currentBindMarkerIdx); }
+    | batchStatement { $stmnt = new CQLStatement(StatementType.BATCH, $batchStatement.expr, currentBindMarkerIdx); }
+    | useStatement      { $stmnt = new CQLStatement(StatementType.USE, $useStatement.keyspace, currentBindMarkerIdx); }
+    | truncateStatement { $stmnt = new CQLStatement(StatementType.TRUNCATE, $truncateStatement.cf, currentBindMarkerIdx); }
+    | deleteStatement endStmnt { $stmnt = new CQLStatement(StatementType.DELETE, $deleteStatement.expr, currentBindMarkerIdx); }
+    | createKeyspaceStatement { $stmnt = new CQLStatement(StatementType.CREATE_KEYSPACE, $createKeyspaceStatement.expr, currentBindMarkerIdx); }
+    | createColumnFamilyStatement { $stmnt = new CQLStatement(StatementType.CREATE_COLUMNFAMILY, $createColumnFamilyStatement.expr, currentBindMarkerIdx); }
+    | createIndexStatement { $stmnt = new CQLStatement(StatementType.CREATE_INDEX, $createIndexStatement.expr, currentBindMarkerIdx); }
+    | dropIndexStatement   { $stmnt = new CQLStatement(StatementType.DROP_INDEX, $dropIndexStatement.expr, currentBindMarkerIdx); }
+    | dropKeyspaceStatement { $stmnt = new CQLStatement(StatementType.DROP_KEYSPACE, $dropKeyspaceStatement.ksp, currentBindMarkerIdx); }
+    | dropColumnFamilyStatement { $stmnt = new CQLStatement(StatementType.DROP_COLUMNFAMILY, $dropColumnFamilyStatement.cfam, currentBindMarkerIdx); }
+    | alterTableStatement { $stmnt = new CQLStatement(StatementType.ALTER_TABLE, $alterTableStatement.expr, currentBindMarkerIdx); }
     ;
 
 // USE <KEYSPACE>;
@@ -450,7 +451,9 @@ comparatorType
     ;
 
 term returns [Term item]
-    : ( t=K_KEY | t=STRING_LITERAL | t=INTEGER | t=UUID | t=IDENT | t=FLOAT | t=QMARK) { $item = new Term($t.text, $t.type); }
+    : (( t=K_KEY | t=STRING_LITERAL | t=INTEGER | t=UUID | t=IDENT | t=FLOAT ) { $item = new Term($t.text, $t.type); }
+       | t=QMARK { $item = new Term($t.text, $t.type, ++currentBindMarkerIdx); }
+      )
     ;
 
 termList returns [List<Term> items]
