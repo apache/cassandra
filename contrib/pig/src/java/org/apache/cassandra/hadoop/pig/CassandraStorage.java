@@ -27,6 +27,7 @@ import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.Hex;
+import org.apache.cassandra.utils.UUIDGen;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
@@ -171,6 +172,8 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
            pair.set(position, ((BigInteger) value).intValue());
        else if (value instanceof ByteBuffer)
            pair.set(position, new DataByteArray(ByteBufferUtil.getArray((ByteBuffer) value)));
+       else if (value instanceof UUID)
+           pair.set(position, new DataByteArray(UUIDGen.decompose((java.util.UUID) value)));
        else
            pair.set(position, value);
     }
