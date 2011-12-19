@@ -37,7 +37,13 @@ public class Term
     private final String text;
     private final TermType type;
     private Integer bindIndex = -1;
-    
+
+    public Term(String text, TermType type)
+    {
+        this.text = text == null ? "" : text;
+        this.type = type;
+    }
+
     /**
      * Create new Term instance from a string, and an integer that corresponds
      * with the token ID from CQLParser.
@@ -47,28 +53,19 @@ public class Term
      */
     public Term(String text, int type)
     {
-        this.text = text == null ? "" : text;
-        this.type = TermType.forInt(type);
-    }
-    
-    public Term(String text, TermType type)
-    {
-        this.text = text == null ? "" : text;
-        this.type = type;
+        this(text == null ? "" : text, TermType.forInt(type));
     }
 
     public Term(long value, TermType type)
     {
-        this.text = String.valueOf(value);
-        this.type = type;
+        this(String.valueOf(value), type);
     }
-    
+
     protected Term()
     {
-        this.text = "";
-        this.type = TermType.STRING;
+        this("", TermType.STRING);
     }
-    
+
     public Term(String text, int type, int index)
     {
         this(text, type);
