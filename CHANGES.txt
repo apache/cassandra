@@ -2,9 +2,9 @@
  * fix assertion when dropping a columnfamily with no sstables (CASSANDRA-3614)
  * more efficient allocation of small bloom filters (CASSANDRA-3618)
  * CLibrary.createHardLinkWithExec() to check for errors (CASSANDRA-3101)
+ * fsync the directory after new sstable or commitlog segment are created (CASSANDRA-3250)
 Merged from 0.8:
  * prevent new nodes from thinking down nodes are up forever (CASSANDRA-3626)
- * fsync the directory after new sstable or commitlog segment are created (CASSANDRA-3250)
 
 
 1.0.6
