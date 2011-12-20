@@ -22,14 +22,19 @@ import java.util.*;
 
 import com.google.common.base.Function;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 public class ExpiringMap<K, V>
 {
+    private static final Logger logger = LoggerFactory.getLogger(ExpiringMap.class);
+
     private static class CacheableObject<T>
     {
         private final T value;
-        private final long age;
+        private final long createdAt;
         private final long expiration;
 
         CacheableObject(T o, long e)
@@ -37,7 +42,7 @@ public class ExpiringMap<K, V>
             assert o != null;
             value = o;
             expiration = e;
-            age = System.currentTimeMillis();
+            createdAt = System.currentTimeMillis();
         }
 
         T getValue()
@@ -45,31 +50,31 @@ public class ExpiringMap<K, V>
             return value;
         }
 
-        boolean isReadyToDie(long start)
+        boolean isReadyToDieAt(long time)
         {
-            return ((start - age) > expiration);
+            return ((time - createdAt) > expiration);
         }
     }
 
     private final NonBlockingHashMap<K, CacheableObject<V>> cache = new NonBlockingHashMap<K, CacheableObject<V>>();
     private final Timer timer;
     private static int counter = 0;
-    private final long expiration;
+    private final long defaultExpiration;
 
-    public ExpiringMap(long expiration)
+    public ExpiringMap(long defaultExpiration)
     {
-        this(expiration, null);
+        this(defaultExpiration, null);
     }
 
     /**
      *
-     * @param expiration the TTL for objects in the cache in milliseconds
+     * @param defaultExpiration the TTL for objects in the cache in milliseconds
      */
-    public ExpiringMap(long expiration, final Function<Pair<K,V>, ?> postExpireHook)
+    public ExpiringMap(long defaultExpiration, final Function<Pair<K,V>, ?> postExpireHook)
     {
-        this.expiration = expiration;
+        this.defaultExpiration = defaultExpiration;
 
-        if (expiration <= 0)
+        if (defaultExpiration <= 0)
         {
             throw new IllegalArgumentException("Argument specified must be a positive number");
         }
@@ -80,24 +85,28 @@ public class ExpiringMap<K, V>
             public void run()
             {
                 long start = System.currentTimeMillis();
+                int n = 0;
                 for (Map.Entry<K, CacheableObject<V>> entry : cache.entrySet())
                 {
-                    if (entry.getValue().isReadyToDie(start))
+                    if (entry.getValue().isReadyToDieAt(start))
                     {
                         cache.remove(entry.getKey());
+                        n++;
                         if (postExpireHook != null)
                             postExpireHook.apply(new Pair<K, V>(entry.getKey(), entry.getValue().getValue()));
                     }
                 }
+                logger.trace("Expired {} entries", n);
             }
         };
-        timer.schedule(task, expiration / 2, expiration / 2);
+        timer.schedule(task, defaultExpiration / 2, defaultExpiration / 2);
     }
 
     public void shutdown()
     {
         while (!cache.isEmpty())
         {
+            logger.trace("Waiting for {} entries before shutting down ExpiringMap", cache.size());
             try
             {
                 Thread.sleep(100);
@@ -117,7 +126,7 @@ public class ExpiringMap<K, V>
 
     public V put(K key, V value)
     {
-        return put(key, value, this.expiration);
+        return put(key, value, this.defaultExpiration);
     }
 
     public V put(K key, V value, long timeout)
@@ -141,7 +150,7 @@ public class ExpiringMap<K, V>
     public long getAge(K key)
     {
         CacheableObject<V> co = cache.get(key);
-        return co == null ? 0 : co.age;
+        return co == null ? 0 : co.createdAt;
     }
 
     public int size()

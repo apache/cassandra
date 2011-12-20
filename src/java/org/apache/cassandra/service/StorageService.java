@@ -347,7 +347,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         Gossiper.instance.unregister(migrationManager);
         Gossiper.instance.unregister(this);
         Gossiper.instance.stop();
-        MessagingService.instance().shutdown();
+        MessagingService.instance().waitForCallbacks();
         // give it a second so that task accepted before the MessagingService shutdown gets submitted to the stage (to avoid RejectedExecutionException)
         try { Thread.sleep(1000L); } catch (InterruptedException e) {}
         StageManager.shutdownNow();
@@ -443,13 +443,15 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                 if (mutationStage.isShutdown())
                     return; // drained already
 
+                stopRPCServer();
                 optionalTasks.shutdown();
                 Gossiper.instance.stop();
-                MessagingService.instance().shutdown();
 
+                // In-progress writes originating here could generate hints to be written, so shut down MessagingService
+                // before mutation stage, so we can get all the hints saved before shutting down
+                MessagingService.instance().waitForCallbacks();
                 mutationStage.shutdown();
                 mutationStage.awaitTermination(3600, TimeUnit.SECONDS);
-
                 StorageProxy.instance.verifyNoHintsInProgress();
 
                 List<Future<?>> flushes = new ArrayList<Future<?>>();
@@ -2106,7 +2108,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             public void run()
             {
                 Gossiper.instance.stop();
-                MessagingService.instance().shutdown();
+                MessagingService.instance().waitForCallbacks();
                 StageManager.shutdownNow();
                 setMode(Mode.DECOMMISSIONED, true);
                 // let op be responsible for killing the process
@@ -2498,10 +2500,12 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             return;
         }
         setMode(Mode.DRAINING, "starting drain process", true);
+        stopRPCServer();
         optionalTasks.shutdown();
         Gossiper.instance.stop();
+
         setMode(Mode.DRAINING, "shutting down MessageService", false);
-        MessagingService.instance().shutdown();
+        MessagingService.instance().waitForCallbacks();
         setMode(Mode.DRAINING, "waiting for streaming", false);
         MessagingService.instance().waitForStreaming();
 

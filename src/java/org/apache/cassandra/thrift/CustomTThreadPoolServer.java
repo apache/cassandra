@@ -19,21 +19,21 @@
 
 package org.apache.cassandra.thrift;
 
+import java.net.SocketTimeoutException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.apache.thrift.server.TThreadPoolServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.thrift.TException;
 import org.apache.thrift.TProcessor;
-import org.apache.thrift.TProcessorFactory;
 import org.apache.thrift.protocol.TProtocol;
-import org.apache.thrift.protocol.TProtocolFactory;
 import org.apache.thrift.server.TServer;
-import org.apache.thrift.transport.*;
+import org.apache.thrift.server.TThreadPoolServer;
+import org.apache.thrift.transport.TTransport;
+import org.apache.thrift.transport.TTransportException;
 
 
 /**
@@ -96,7 +96,6 @@ public class CustomTThreadPoolServer extends TServer
                 }
             }
 
-            int failureCount = 0;
             try
             {
                 TTransport client = serverTransport_.accept();
@@ -106,9 +105,11 @@ public class CustomTThreadPoolServer extends TServer
             }
             catch (TTransportException ttx)
             {
+                if (ttx.getCause() instanceof SocketTimeoutException) // thrift sucks
+                    continue;
+
                 if (!stopped_)
                 {
-                    ++failureCount;
                     LOGGER.warn("Transport error occurred during acceptance of message.", ttx);
                 }
             }

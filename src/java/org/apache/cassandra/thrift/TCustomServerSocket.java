@@ -149,7 +149,7 @@ public class TCustomServerSocket extends TServerTransport
         {
             try
             {
-                serverSocket_.setSoTimeout(0);
+                serverSocket_.setSoTimeout(100);
             }
             catch (SocketException sx)
             {
