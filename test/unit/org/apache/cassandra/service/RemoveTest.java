@@ -31,14 +31,11 @@ import org.junit.Test;
 
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.Gossiper;
-import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -88,7 +85,7 @@ public class RemoveTest extends CleanupHelper
     {
         SinkManager.clear();
         MessagingService.instance().clearCallbacksUnsafe();
-        MessagingService.instance().shutdown();
+        MessagingService.instance().waitForCallbacks();
         ss.setPartitionerUnsafe(oldPartitioner);
     }
 
