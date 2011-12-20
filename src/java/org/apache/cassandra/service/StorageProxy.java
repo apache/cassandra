@@ -830,32 +830,46 @@ public class StorageProxy implements StorageProxyMBean
             List<AbstractBounds<RowPosition>> ranges = getRestrictedRanges(command.range);
             for (AbstractBounds<RowPosition> range : ranges)
             {
-                List<InetAddress> liveEndpoints = StorageService.instance.getLiveNaturalEndpoints(command.keyspace, range.right);
+                RangeSliceCommand nodeCmd = new RangeSliceCommand(command.keyspace,
+                                                                  command.column_family,
+                                                                  command.super_column,
+                                                                  command.predicate,
+                                                                  range,
+                                                                  command.row_filter,
+                                                                  command.max_keys);
+
+                List<InetAddress> liveEndpoints = StorageService.instance.getLiveNaturalEndpoints(nodeCmd.keyspace, range.right);
                 DatabaseDescriptor.getEndpointSnitch().sortByProximity(FBUtilities.getBroadcastAddress(), liveEndpoints);
 
                 if (consistency_level == ConsistencyLevel.ONE && !liveEndpoints.isEmpty() && liveEndpoints.get(0).equals(FBUtilities.getBroadcastAddress()))
                 {
                     if (logger.isDebugEnabled())
                         logger.debug("local range slice");
-                    ColumnFamilyStore cfs = Table.open(command.keyspace).getColumnFamilyStore(command.column_family);
-                    rows.addAll(cfs.getRangeSlice(command.super_column,
-                                                range,
-                                                command.max_keys,
-                                                QueryFilter.getFilter(command.predicate, cfs.getComparator())));
+
+                    try
+                    {
+                        rows.addAll(RangeSliceVerbHandler.executeLocally(nodeCmd));
+                    }
+                    catch (ExecutionException e)
+                    {
+                        throw new RuntimeException(e.getCause());
+                    }
+                    catch (InterruptedException e)
+                    {
+                        throw new AssertionError(e);
+                    }
                 }
                 else
                 {
-                    RangeSliceCommand c2 = new RangeSliceCommand(command.keyspace, command.column_family, command.super_column, command.predicate, range, command.max_keys);
-
                     // collect replies and resolve according to consistency level
-                    RangeSliceResponseResolver resolver = new RangeSliceResponseResolver(command.keyspace, liveEndpoints);
-                    ReadCallback<Iterable<Row>> handler = getReadCallback(resolver, command, consistency_level, liveEndpoints);
+                    RangeSliceResponseResolver resolver = new RangeSliceResponseResolver(nodeCmd.keyspace, liveEndpoints);
+                    ReadCallback<Iterable<Row>> handler = getReadCallback(resolver, nodeCmd, consistency_level, liveEndpoints);
                     handler.assureSufficientLiveNodes();
                     for (InetAddress endpoint : handler.endpoints)
                     {
-                        MessagingService.instance().sendRR(c2, endpoint, handler);
+                        MessagingService.instance().sendRR(nodeCmd, endpoint, handler);
                         if (logger.isDebugEnabled())
-                            logger.debug("reading " + c2 + " from " + endpoint);
+                            logger.debug("reading " + nodeCmd + " from " + endpoint);
                     }
 
                     try
@@ -880,7 +894,7 @@ public class StorageProxy implements StorageProxyMBean
                 }
 
                 // if we're done, great, otherwise, move to the next range
-                if (rows.size() >= command.max_keys)
+                if (rows.size() >= nodeCmd.max_keys)
                     break;
             }
         }

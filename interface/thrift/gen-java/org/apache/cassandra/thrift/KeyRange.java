@@ -57,12 +57,14 @@ public class KeyRange implements org.apache.thrift.TBase<KeyRange, KeyRange._Fie
   private static final org.apache.thrift.protocol.TField END_KEY_FIELD_DESC = new org.apache.thrift.protocol.TField("end_key", org.apache.thrift.protocol.TType.STRING, (short)2);
   private static final org.apache.thrift.protocol.TField START_TOKEN_FIELD_DESC = new org.apache.thrift.protocol.TField("start_token", org.apache.thrift.protocol.TType.STRING, (short)3);
   private static final org.apache.thrift.protocol.TField END_TOKEN_FIELD_DESC = new org.apache.thrift.protocol.TField("end_token", org.apache.thrift.protocol.TType.STRING, (short)4);
+  private static final org.apache.thrift.protocol.TField ROW_FILTER_FIELD_DESC = new org.apache.thrift.protocol.TField("row_filter", org.apache.thrift.protocol.TType.LIST, (short)6);
   private static final org.apache.thrift.protocol.TField COUNT_FIELD_DESC = new org.apache.thrift.protocol.TField("count", org.apache.thrift.protocol.TType.I32, (short)5);
 
   public ByteBuffer start_key;
   public ByteBuffer end_key;
   public String start_token;
   public String end_token;
+  public List<IndexExpression> row_filter;
   public int count;
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
@@ -71,6 +73,7 @@ public class KeyRange implements org.apache.thrift.TBase<KeyRange, KeyRange._Fie
     END_KEY((short)2, "end_key"),
     START_TOKEN((short)3, "start_token"),
     END_TOKEN((short)4, "end_token"),
+    ROW_FILTER((short)6, "row_filter"),
     COUNT((short)5, "count");
 
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
@@ -94,6 +97,8 @@ public class KeyRange implements org.apache.thrift.TBase<KeyRange, KeyRange._Fie
           return START_TOKEN;
         case 4: // END_TOKEN
           return END_TOKEN;
+        case 6: // ROW_FILTER
+          return ROW_FILTER;
         case 5: // COUNT
           return COUNT;
         default:
@@ -150,6 +155,9 @@ public class KeyRange implements org.apache.thrift.TBase<KeyRange, KeyRange._Fie
         new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
     tmpMap.put(_Fields.END_TOKEN, new org.apache.thrift.meta_data.FieldMetaData("end_token", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
         new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
+    tmpMap.put(_Fields.ROW_FILTER, new org.apache.thrift.meta_data.FieldMetaData("row_filter", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.ListMetaData(org.apache.thrift.protocol.TType.LIST, 
+            new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, IndexExpression.class))));
     tmpMap.put(_Fields.COUNT, new org.apache.thrift.meta_data.FieldMetaData("count", org.apache.thrift.TFieldRequirementType.REQUIRED, 
         new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32)));
     metaDataMap = Collections.unmodifiableMap(tmpMap);
@@ -189,6 +197,13 @@ public class KeyRange implements org.apache.thrift.TBase<KeyRange, KeyRange._Fie
     if (other.isSetEnd_token()) {
       this.end_token = other.end_token;
     }
+    if (other.isSetRow_filter()) {
+      List<IndexExpression> __this__row_filter = new ArrayList<IndexExpression>();
+      for (IndexExpression other_element : other.row_filter) {
+        __this__row_filter.add(new IndexExpression(other_element));
+      }
+      this.row_filter = __this__row_filter;
+    }
     this.count = other.count;
   }
 
@@ -202,6 +217,7 @@ public class KeyRange implements org.apache.thrift.TBase<KeyRange, KeyRange._Fie
     this.end_key = null;
     this.start_token = null;
     this.end_token = null;
+    this.row_filter = null;
     this.count = 100;
 
   }
@@ -322,6 +338,45 @@ public class KeyRange implements org.apache.thrift.TBase<KeyRange, KeyRange._Fie
     }
   }
 
+  public int getRow_filterSize() {
+    return (this.row_filter == null) ? 0 : this.row_filter.size();
+  }
+
+  public java.util.Iterator<IndexExpression> getRow_filterIterator() {
+    return (this.row_filter == null) ? null : this.row_filter.iterator();
+  }
+
+  public void addToRow_filter(IndexExpression elem) {
+    if (this.row_filter == null) {
+      this.row_filter = new ArrayList<IndexExpression>();
+    }
+    this.row_filter.add(elem);
+  }
+
+  public List<IndexExpression> getRow_filter() {
+    return this.row_filter;
+  }
+
+  public KeyRange setRow_filter(List<IndexExpression> row_filter) {
+    this.row_filter = row_filter;
+    return this;
+  }
+
+  public void unsetRow_filter() {
+    this.row_filter = null;
+  }
+
+  /** Returns true if field row_filter is set (has been assigned a value) and false otherwise */
+  public boolean isSetRow_filter() {
+    return this.row_filter != null;
+  }
+
+  public void setRow_filterIsSet(boolean value) {
+    if (!value) {
+      this.row_filter = null;
+    }
+  }
+
   public int getCount() {
     return this.count;
   }
@@ -379,6 +434,14 @@ public class KeyRange implements org.apache.thrift.TBase<KeyRange, KeyRange._Fie
       }
       break;
 
+    case ROW_FILTER:
+      if (value == null) {
+        unsetRow_filter();
+      } else {
+        setRow_filter((List<IndexExpression>)value);
+      }
+      break;
+
     case COUNT:
       if (value == null) {
         unsetCount();
@@ -404,6 +467,9 @@ public class KeyRange implements org.apache.thrift.TBase<KeyRange, KeyRange._Fie
     case END_TOKEN:
       return getEnd_token();
 
+    case ROW_FILTER:
+      return getRow_filter();
+
     case COUNT:
       return new Integer(getCount());
 
@@ -426,6 +492,8 @@ public class KeyRange implements org.apache.thrift.TBase<KeyRange, KeyRange._Fie
       return isSetStart_token();
     case END_TOKEN:
       return isSetEnd_token();
+    case ROW_FILTER:
+      return isSetRow_filter();
     case COUNT:
       return isSetCount();
     }
@@ -481,6 +549,15 @@ public class KeyRange implements org.apache.thrift.TBase<KeyRange, KeyRange._Fie
         return false;
     }
 
+    boolean this_present_row_filter = true && this.isSetRow_filter();
+    boolean that_present_row_filter = true && that.isSetRow_filter();
+    if (this_present_row_filter || that_present_row_filter) {
+      if (!(this_present_row_filter && that_present_row_filter))
+        return false;
+      if (!this.row_filter.equals(that.row_filter))
+        return false;
+    }
+
     boolean this_present_count = true;
     boolean that_present_count = true;
     if (this_present_count || that_present_count) {
@@ -516,6 +593,11 @@ public class KeyRange implements org.apache.thrift.TBase<KeyRange, KeyRange._Fie
     builder.append(present_end_token);
     if (present_end_token)
       builder.append(end_token);
+
+    boolean present_row_filter = true && (isSetRow_filter());
+    builder.append(present_row_filter);
+    if (present_row_filter)
+      builder.append(row_filter);
 
     boolean present_count = true;
     builder.append(present_count);
@@ -573,6 +655,16 @@ public class KeyRange implements org.apache.thrift.TBase<KeyRange, KeyRange._Fie
         return lastComparison;
       }
     }
+    lastComparison = Boolean.valueOf(isSetRow_filter()).compareTo(typedOther.isSetRow_filter());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    if (isSetRow_filter()) {
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.row_filter, typedOther.row_filter);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
     lastComparison = Boolean.valueOf(isSetCount()).compareTo(typedOther.isSetCount());
     if (lastComparison != 0) {
       return lastComparison;
@@ -624,6 +716,24 @@ public class KeyRange implements org.apache.thrift.TBase<KeyRange, KeyRange._Fie
         case 4: // END_TOKEN
           if (field.type == org.apache.thrift.protocol.TType.STRING) {
             this.end_token = iprot.readString();
+          } else { 
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
+        case 6: // ROW_FILTER
+          if (field.type == org.apache.thrift.protocol.TType.LIST) {
+            {
+              org.apache.thrift.protocol.TList _list16 = iprot.readListBegin();
+              this.row_filter = new ArrayList<IndexExpression>(_list16.size);
+              for (int _i17 = 0; _i17 < _list16.size; ++_i17)
+              {
+                IndexExpression _elem18;
+                _elem18 = new IndexExpression();
+                _elem18.read(iprot);
+                this.row_filter.add(_elem18);
+              }
+              iprot.readListEnd();
+            }
           } else { 
             org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
@@ -685,6 +795,20 @@ public class KeyRange implements org.apache.thrift.TBase<KeyRange, KeyRange._Fie
     oprot.writeFieldBegin(COUNT_FIELD_DESC);
     oprot.writeI32(this.count);
     oprot.writeFieldEnd();
+    if (this.row_filter != null) {
+      if (isSetRow_filter()) {
+        oprot.writeFieldBegin(ROW_FILTER_FIELD_DESC);
+        {
+          oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, this.row_filter.size()));
+          for (IndexExpression _iter19 : this.row_filter)
+          {
+            _iter19.write(oprot);
+          }
+          oprot.writeListEnd();
+        }
+        oprot.writeFieldEnd();
+      }
+    }
     oprot.writeFieldStop();
     oprot.writeStructEnd();
   }
@@ -730,6 +854,16 @@ public class KeyRange implements org.apache.thrift.TBase<KeyRange, KeyRange._Fie
         sb.append("null");
       } else {
         sb.append(this.end_token);
+      }
+      first = false;
+    }
+    if (isSetRow_filter()) {
+      if (!first) sb.append(", ");
+      sb.append("row_filter:");
+      if (this.row_filter == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.row_filter);
       }
       first = false;
     }

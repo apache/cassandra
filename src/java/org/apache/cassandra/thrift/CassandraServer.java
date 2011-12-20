@@ -668,7 +668,7 @@ public class CassandraServer implements Cassandra.Iface
         CFMetaData metadata = ThriftValidation.validateColumnFamily(keyspace, column_parent.column_family);
         ThriftValidation.validateColumnParent(metadata, column_parent);
         ThriftValidation.validatePredicate(metadata, column_parent, predicate);
-        ThriftValidation.validateKeyRange(range);
+        ThriftValidation.validateKeyRange(metadata, column_parent.super_column, range);
         ThriftValidation.validateConsistencyLevel(keyspace, consistency_level, RequestType.READ);
 
         List<Row> rows;
@@ -690,7 +690,7 @@ public class CassandraServer implements Cassandra.Iface
             schedule(DatabaseDescriptor.getRpcTimeout());
             try
             {
-                rows = StorageProxy.getRangeSlice(new RangeSliceCommand(keyspace, column_parent, predicate, bounds, range.count), consistency_level);
+                rows = StorageProxy.getRangeSlice(new RangeSliceCommand(keyspace, column_parent, predicate, bounds, range.row_filter, range.count), consistency_level);
             }
             finally
             {
@@ -739,7 +739,11 @@ public class CassandraServer implements Cassandra.Iface
         List<Row> rows;
         try
         {
-            rows = StorageProxy.scan(keyspace, column_parent.column_family, index_clause, column_predicate, consistency_level);
+            rows = StorageProxy.scan(keyspace,
+                                     column_parent.column_family,
+                                     index_clause,
+                                     column_predicate,
+                                     consistency_level);
         }
         catch (IOException e)
         {

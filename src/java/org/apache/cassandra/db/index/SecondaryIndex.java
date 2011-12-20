@@ -70,7 +70,6 @@ public abstract class SecondaryIndex
      */
     public abstract void validateOptions() throws ConfigurationException;
 
-    
     /**
      * @return The name of the index
      */

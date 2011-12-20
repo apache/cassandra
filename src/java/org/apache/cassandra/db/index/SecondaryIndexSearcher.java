@@ -24,7 +24,6 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.IFilter;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.dht.AbstractBounds;
-import org.apache.cassandra.thrift.IndexClause;
 import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.thrift.IndexOperator;
 
@@ -40,52 +39,11 @@ public abstract class SecondaryIndexSearcher
         this.columns = columns;
         this.baseCfs = indexManager.baseCfs;
     }
-    
-    public static boolean satisfies(ColumnFamily data, IndexClause clause, IndexExpression first)
-    {
-        // We enforces even the primary clause because reads are not synchronized with writes and it is thus possible to have a race
-        // where the index returned a row which doesn't have the primarycolumn when we actually read it
-        for (IndexExpression expression : clause.expressions)
-        {
-            // check column data vs expression
-            IColumn column = data.getColumn(expression.column_name);
-            if (column == null)
-                return false;
-            int v = data.metadata().getValueValidator(expression.column_name).compare(column.value(), expression.value);
-            if (!satisfies(v, expression.op))
-                return false;
-        }
-        return true;
-    }
 
-    public static boolean satisfies(int comparison, IndexOperator op)
-    {
-        switch (op)
-        {
-            case EQ:
-                return comparison == 0;
-            case GTE:
-                return comparison >= 0;
-            case GT:
-                return comparison > 0;
-            case LTE:
-                return comparison <= 0;
-            case LT:
-                return comparison < 0;
-            default:
-                throw new IllegalStateException();
-        }
-    }
-    
-    public NamesQueryFilter getExtraFilter(IndexClause clause)
-    {
-        SortedSet<ByteBuffer> columns = new TreeSet<ByteBuffer>(baseCfs.getComparator());
-        for (IndexExpression expr : clause.expressions)
-        {
-            columns.add(expr.column_name);
-        }
-        return new NamesQueryFilter(columns);
-    }
-    
-    public abstract List<Row> search(IndexClause clause, AbstractBounds<RowPosition> range, IFilter dataFilter);
+    public abstract List<Row> search(List<IndexExpression> clause, AbstractBounds<RowPosition> range, int maxResults, IFilter dataFilter);
+
+    /**
+     * @return true this index is able to handle given clauses.
+     */
+    public abstract boolean isIndexing(List<IndexExpression> clause);
 }

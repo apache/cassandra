@@ -94,7 +94,7 @@ public class ScrubTest extends CleanupHelper
         boolean caught = false;
         try
         {
-             rows = cfs.getRangeSlice(ByteBufferUtil.bytes("1"), Util.range("", ""), 1000, new IdentityQueryFilter());
+             rows = cfs.getRangeSlice(ByteBufferUtil.bytes("1"), Util.range("", ""), 1000, new IdentityQueryFilter(), null);
              fail("This slice should fail");
         }
         catch (NegativeArraySizeException e)
@@ -104,7 +104,7 @@ public class ScrubTest extends CleanupHelper
         assert caught : "'corrupt' test file actually was not";
         
         CompactionManager.instance.performScrub(cfs);
-        rows = cfs.getRangeSlice(ByteBufferUtil.bytes("1"), Util.range("", ""), 1000, new IdentityQueryFilter());
+        rows = cfs.getRangeSlice(ByteBufferUtil.bytes("1"), Util.range("", ""), 1000, new IdentityQueryFilter(), null);
         assertEquals(100, rows.size());
     }
     
@@ -120,13 +120,13 @@ public class ScrubTest extends CleanupHelper
 
         // insert data and verify we get it back w/ range query
         fillCF(cfs, 1);
-        rows = cfs.getRangeSlice(null, Util.range("", ""), 1000, new IdentityQueryFilter());
+        rows = cfs.getRangeSlice(null, Util.range("", ""), 1000, new IdentityQueryFilter(), null);
         assertEquals(1, rows.size());
 
         CompactionManager.instance.performScrub(cfs);
 
         // check data is still there
-        rows = cfs.getRangeSlice(null, Util.range("", ""), 1000, new IdentityQueryFilter());
+        rows = cfs.getRangeSlice(null, Util.range("", ""), 1000, new IdentityQueryFilter(), null);
         assertEquals(1, rows.size());
     }
 
@@ -160,13 +160,13 @@ public class ScrubTest extends CleanupHelper
 
         // insert data and verify we get it back w/ range query
         fillCF(cfs, 10);
-        rows = cfs.getRangeSlice(null, Util.range("", ""), 1000, new IdentityQueryFilter());
+        rows = cfs.getRangeSlice(null, Util.range("", ""), 1000, new IdentityQueryFilter(), null);
         assertEquals(10, rows.size());
 
         CompactionManager.instance.performScrub(cfs);
 
         // check data is still there
-        rows = cfs.getRangeSlice(null, Util.range("", ""), 1000, new IdentityQueryFilter());
+        rows = cfs.getRangeSlice(null, Util.range("", ""), 1000, new IdentityQueryFilter(), null);
         assertEquals(10, rows.size());
     }
       

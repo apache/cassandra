@@ -114,6 +114,7 @@ public class Cassandra {
 
     /**
      * Returns the subset of columns specified in SlicePredicate for the rows matching the IndexClause
+     * @Deprecated; use get_range_slices instead with row_filter specified
      * 
      * @param column_parent
      * @param index_clause
@@ -8008,14 +8009,14 @@ public class Cassandra {
           case 0: // SUCCESS
             if (field.type == org.apache.thrift.protocol.TType.LIST) {
               {
-                org.apache.thrift.protocol.TList _list83 = iprot.readListBegin();
-                this.success = new ArrayList<ColumnOrSuperColumn>(_list83.size);
-                for (int _i84 = 0; _i84 < _list83.size; ++_i84)
+                org.apache.thrift.protocol.TList _list87 = iprot.readListBegin();
+                this.success = new ArrayList<ColumnOrSuperColumn>(_list87.size);
+                for (int _i88 = 0; _i88 < _list87.size; ++_i88)
                 {
-                  ColumnOrSuperColumn _elem85;
-                  _elem85 = new ColumnOrSuperColumn();
-                  _elem85.read(iprot);
-                  this.success.add(_elem85);
+                  ColumnOrSuperColumn _elem89;
+                  _elem89 = new ColumnOrSuperColumn();
+                  _elem89.read(iprot);
+                  this.success.add(_elem89);
                 }
                 iprot.readListEnd();
               }
@@ -8065,9 +8066,9 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, this.success.size()));
-          for (ColumnOrSuperColumn _iter86 : this.success)
+          for (ColumnOrSuperColumn _iter90 : this.success)
           {
-            _iter86.write(oprot);
+            _iter90.write(oprot);
           }
           oprot.writeListEnd();
         }
@@ -9358,8 +9359,6 @@ public class Cassandra {
 
     private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
       try {
-        // it doesn't seem like you should have to do this, but java serialization is wacky, and doesn't call the default constructor.
-        __isset_bit_vector = new BitSet(1);
         read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
       } catch (org.apache.thrift.TException te) {
         throw new java.io.IOException(te);
@@ -9869,13 +9868,13 @@ public class Cassandra {
           case 1: // KEYS
             if (field.type == org.apache.thrift.protocol.TType.LIST) {
               {
-                org.apache.thrift.protocol.TList _list87 = iprot.readListBegin();
-                this.keys = new ArrayList<ByteBuffer>(_list87.size);
-                for (int _i88 = 0; _i88 < _list87.size; ++_i88)
+                org.apache.thrift.protocol.TList _list91 = iprot.readListBegin();
+                this.keys = new ArrayList<ByteBuffer>(_list91.size);
+                for (int _i92 = 0; _i92 < _list91.size; ++_i92)
                 {
-                  ByteBuffer _elem89;
-                  _elem89 = iprot.readBinary();
-                  this.keys.add(_elem89);
+                  ByteBuffer _elem93;
+                  _elem93 = iprot.readBinary();
+                  this.keys.add(_elem93);
                 }
                 iprot.readListEnd();
               }
@@ -9925,9 +9924,9 @@ public class Cassandra {
         oprot.writeFieldBegin(KEYS_FIELD_DESC);
         {
           oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRING, this.keys.size()));
-          for (ByteBuffer _iter90 : this.keys)
+          for (ByteBuffer _iter94 : this.keys)
           {
-            oprot.writeBinary(_iter90);
+            oprot.writeBinary(_iter94);
           }
           oprot.writeListEnd();
         }
@@ -10516,26 +10515,26 @@ public class Cassandra {
           case 0: // SUCCESS
             if (field.type == org.apache.thrift.protocol.TType.MAP) {
               {
-                org.apache.thrift.protocol.TMap _map91 = iprot.readMapBegin();
-                this.success = new HashMap<ByteBuffer,List<ColumnOrSuperColumn>>(2*_map91.size);
-                for (int _i92 = 0; _i92 < _map91.size; ++_i92)
+                org.apache.thrift.protocol.TMap _map95 = iprot.readMapBegin();
+                this.success = new HashMap<ByteBuffer,List<ColumnOrSuperColumn>>(2*_map95.size);
+                for (int _i96 = 0; _i96 < _map95.size; ++_i96)
                 {
-                  ByteBuffer _key93;
-                  List<ColumnOrSuperColumn> _val94;
-                  _key93 = iprot.readBinary();
+                  ByteBuffer _key97;
+                  List<ColumnOrSuperColumn> _val98;
+                  _key97 = iprot.readBinary();
                   {
-                    org.apache.thrift.protocol.TList _list95 = iprot.readListBegin();
-                    _val94 = new ArrayList<ColumnOrSuperColumn>(_list95.size);
-                    for (int _i96 = 0; _i96 < _list95.size; ++_i96)
+                    org.apache.thrift.protocol.TList _list99 = iprot.readListBegin();
+                    _val98 = new ArrayList<ColumnOrSuperColumn>(_list99.size);
+                    for (int _i100 = 0; _i100 < _list99.size; ++_i100)
                     {
-                      ColumnOrSuperColumn _elem97;
-                      _elem97 = new ColumnOrSuperColumn();
-                      _elem97.read(iprot);
-                      _val94.add(_elem97);
+                      ColumnOrSuperColumn _elem101;
+                      _elem101 = new ColumnOrSuperColumn();
+                      _elem101.read(iprot);
+                      _val98.add(_elem101);
                     }
                     iprot.readListEnd();
                   }
-                  this.success.put(_key93, _val94);
+                  this.success.put(_key97, _val98);
                 }
                 iprot.readMapEnd();
               }
@@ -10585,14 +10584,14 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeMapBegin(new org.apache.thrift.protocol.TMap(org.apache.thrift.protocol.TType.STRING, org.apache.thrift.protocol.TType.LIST, this.success.size()));
-          for (Map.Entry<ByteBuffer, List<ColumnOrSuperColumn>> _iter98 : this.success.entrySet())
+          for (Map.Entry<ByteBuffer, List<ColumnOrSuperColumn>> _iter102 : this.success.entrySet())
           {
-            oprot.writeBinary(_iter98.getKey());
+            oprot.writeBinary(_iter102.getKey());
             {
-              oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, _iter98.getValue().size()));
-              for (ColumnOrSuperColumn _iter99 : _iter98.getValue())
+              oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, _iter102.getValue().size()));
+              for (ColumnOrSuperColumn _iter103 : _iter102.getValue())
               {
-                _iter99.write(oprot);
+                _iter103.write(oprot);
               }
               oprot.writeListEnd();
             }
@@ -11180,13 +11179,13 @@ public class Cassandra {
           case 1: // KEYS
             if (field.type == org.apache.thrift.protocol.TType.LIST) {
               {
-                org.apache.thrift.protocol.TList _list100 = iprot.readListBegin();
-                this.keys = new ArrayList<ByteBuffer>(_list100.size);
-                for (int _i101 = 0; _i101 < _list100.size; ++_i101)
+                org.apache.thrift.protocol.TList _list104 = iprot.readListBegin();
+                this.keys = new ArrayList<ByteBuffer>(_list104.size);
+                for (int _i105 = 0; _i105 < _list104.size; ++_i105)
                 {
-                  ByteBuffer _elem102;
-                  _elem102 = iprot.readBinary();
-                  this.keys.add(_elem102);
+                  ByteBuffer _elem106;
+                  _elem106 = iprot.readBinary();
+                  this.keys.add(_elem106);
                 }
                 iprot.readListEnd();
               }
@@ -11236,9 +11235,9 @@ public class Cassandra {
         oprot.writeFieldBegin(KEYS_FIELD_DESC);
         {
           oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRING, this.keys.size()));
-          for (ByteBuffer _iter103 : this.keys)
+          for (ByteBuffer _iter107 : this.keys)
           {
-            oprot.writeBinary(_iter103);
+            oprot.writeBinary(_iter107);
           }
           oprot.writeListEnd();
         }
@@ -11823,15 +11822,15 @@ public class Cassandra {
           case 0: // SUCCESS
             if (field.type == org.apache.thrift.protocol.TType.MAP) {
               {
-                org.apache.thrift.protocol.TMap _map104 = iprot.readMapBegin();
-                this.success = new HashMap<ByteBuffer,Integer>(2*_map104.size);
-                for (int _i105 = 0; _i105 < _map104.size; ++_i105)
+                org.apache.thrift.protocol.TMap _map108 = iprot.readMapBegin();
+                this.success = new HashMap<ByteBuffer,Integer>(2*_map108.size);
+                for (int _i109 = 0; _i109 < _map108.size; ++_i109)
                 {
-                  ByteBuffer _key106;
-                  int _val107;
-                  _key106 = iprot.readBinary();
-                  _val107 = iprot.readI32();
-                  this.success.put(_key106, _val107);
+                  ByteBuffer _key110;
+                  int _val111;
+                  _key110 = iprot.readBinary();
+                  _val111 = iprot.readI32();
+                  this.success.put(_key110, _val111);
                 }
                 iprot.readMapEnd();
               }
@@ -11881,10 +11880,10 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeMapBegin(new org.apache.thrift.protocol.TMap(org.apache.thrift.protocol.TType.STRING, org.apache.thrift.protocol.TType.I32, this.success.size()));
-          for (Map.Entry<ByteBuffer, Integer> _iter108 : this.success.entrySet())
+          for (Map.Entry<ByteBuffer, Integer> _iter112 : this.success.entrySet())
           {
-            oprot.writeBinary(_iter108.getKey());
-            oprot.writeI32(_iter108.getValue());
+            oprot.writeBinary(_iter112.getKey());
+            oprot.writeI32(_iter112.getValue());
           }
           oprot.writeMapEnd();
         }
@@ -13068,14 +13067,14 @@ public class Cassandra {
           case 0: // SUCCESS
             if (field.type == org.apache.thrift.protocol.TType.LIST) {
               {
-                org.apache.thrift.protocol.TList _list109 = iprot.readListBegin();
-                this.success = new ArrayList<KeySlice>(_list109.size);
-                for (int _i110 = 0; _i110 < _list109.size; ++_i110)
+                org.apache.thrift.protocol.TList _list113 = iprot.readListBegin();
+                this.success = new ArrayList<KeySlice>(_list113.size);
+                for (int _i114 = 0; _i114 < _list113.size; ++_i114)
                 {
-                  KeySlice _elem111;
-                  _elem111 = new KeySlice();
-                  _elem111.read(iprot);
-                  this.success.add(_elem111);
+                  KeySlice _elem115;
+                  _elem115 = new KeySlice();
+                  _elem115.read(iprot);
+                  this.success.add(_elem115);
                 }
                 iprot.readListEnd();
               }
@@ -13125,9 +13124,9 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, this.success.size()));
-          for (KeySlice _iter112 : this.success)
+          for (KeySlice _iter116 : this.success)
           {
-            _iter112.write(oprot);
+            _iter116.write(oprot);
           }
           oprot.writeListEnd();
         }
@@ -14311,14 +14310,14 @@ public class Cassandra {
           case 0: // SUCCESS
             if (field.type == org.apache.thrift.protocol.TType.LIST) {
               {
-                org.apache.thrift.protocol.TList _list113 = iprot.readListBegin();
-                this.success = new ArrayList<KeySlice>(_list113.size);
-                for (int _i114 = 0; _i114 < _list113.size; ++_i114)
+                org.apache.thrift.protocol.TList _list117 = iprot.readListBegin();
+                this.success = new ArrayList<KeySlice>(_list117.size);
+                for (int _i118 = 0; _i118 < _list117.size; ++_i118)
                 {
-                  KeySlice _elem115;
-                  _elem115 = new KeySlice();
-                  _elem115.read(iprot);
-                  this.success.add(_elem115);
+                  KeySlice _elem119;
+                  _elem119 = new KeySlice();
+                  _elem119.read(iprot);
+                  this.success.add(_elem119);
                 }
                 iprot.readListEnd();
               }
@@ -14368,9 +14367,9 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, this.success.size()));
-          for (KeySlice _iter116 : this.success)
+          for (KeySlice _iter120 : this.success)
           {
-            _iter116.write(oprot);
+            _iter120.write(oprot);
           }
           oprot.writeListEnd();
         }
@@ -17315,8 +17314,6 @@ public class Cassandra {
 
     private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
       try {
-        // it doesn't seem like you should have to do this, but java serialization is wacky, and doesn't call the default constructor.
-        __isset_bit_vector = new BitSet(1);
         read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
       } catch (org.apache.thrift.TException te) {
         throw new java.io.IOException(te);
@@ -19215,38 +19212,38 @@ public class Cassandra {
           case 1: // MUTATION_MAP
             if (field.type == org.apache.thrift.protocol.TType.MAP) {
               {
-                org.apache.thrift.protocol.TMap _map117 = iprot.readMapBegin();
-                this.mutation_map = new HashMap<ByteBuffer,Map<String,List<Mutation>>>(2*_map117.size);
-                for (int _i118 = 0; _i118 < _map117.size; ++_i118)
+                org.apache.thrift.protocol.TMap _map121 = iprot.readMapBegin();
+                this.mutation_map = new HashMap<ByteBuffer,Map<String,List<Mutation>>>(2*_map121.size);
+                for (int _i122 = 0; _i122 < _map121.size; ++_i122)
                 {
-                  ByteBuffer _key119;
-                  Map<String,List<Mutation>> _val120;
-                  _key119 = iprot.readBinary();
+                  ByteBuffer _key123;
+                  Map<String,List<Mutation>> _val124;
+                  _key123 = iprot.readBinary();
                   {
-                    org.apache.thrift.protocol.TMap _map121 = iprot.readMapBegin();
-                    _val120 = new HashMap<String,List<Mutation>>(2*_map121.size);
-                    for (int _i122 = 0; _i122 < _map121.size; ++_i122)
+                    org.apache.thrift.protocol.TMap _map125 = iprot.readMapBegin();
+                    _val124 = new HashMap<String,List<Mutation>>(2*_map125.size);
+                    for (int _i126 = 0; _i126 < _map125.size; ++_i126)
                     {
-                      String _key123;
-                      List<Mutation> _val124;
-                      _key123 = iprot.readString();
+                      String _key127;
+                      List<Mutation> _val128;
+                      _key127 = iprot.readString();
                       {
-                        org.apache.thrift.protocol.TList _list125 = iprot.readListBegin();
-                        _val124 = new ArrayList<Mutation>(_list125.size);
-                        for (int _i126 = 0; _i126 < _list125.size; ++_i126)
+                        org.apache.thrift.protocol.TList _list129 = iprot.readListBegin();
+                        _val128 = new ArrayList<Mutation>(_list129.size);
+                        for (int _i130 = 0; _i130 < _list129.size; ++_i130)
                         {
-                          Mutation _elem127;
-                          _elem127 = new Mutation();
-                          _elem127.read(iprot);
-                          _val124.add(_elem127);
+                          Mutation _elem131;
+                          _elem131 = new Mutation();
+                          _elem131.read(iprot);
+                          _val128.add(_elem131);
                         }
                         iprot.readListEnd();
                       }
-                      _val120.put(_key123, _val124);
+                      _val124.put(_key127, _val128);
                     }
                     iprot.readMapEnd();
                   }
-                  this.mutation_map.put(_key119, _val120);
+                  this.mutation_map.put(_key123, _val124);
                 }
                 iprot.readMapEnd();
               }
@@ -19280,19 +19277,19 @@ public class Cassandra {
         oprot.writeFieldBegin(MUTATION_MAP_FIELD_DESC);
         {
           oprot.writeMapBegin(new org.apache.thrift.protocol.TMap(org.apache.thrift.protocol.TType.STRING, org.apache.thrift.protocol.TType.MAP, this.mutation_map.size()));
-          for (Map.Entry<ByteBuffer, Map<String,List<Mutation>>> _iter128 : this.mutation_map.entrySet())
+          for (Map.Entry<ByteBuffer, Map<String,List<Mutation>>> _iter132 : this.mutation_map.entrySet())
           {
-            oprot.writeBinary(_iter128.getKey());
+            oprot.writeBinary(_iter132.getKey());
             {
-              oprot.writeMapBegin(new org.apache.thrift.protocol.TMap(org.apache.thrift.protocol.TType.STRING, org.apache.thrift.protocol.TType.LIST, _iter128.getValue().size()));
-              for (Map.Entry<String, List<Mutation>> _iter129 : _iter128.getValue().entrySet())
+              oprot.writeMapBegin(new org.apache.thrift.protocol.TMap(org.apache.thrift.protocol.TType.STRING, org.apache.thrift.protocol.TType.LIST, _iter132.getValue().size()));
+              for (Map.Entry<String, List<Mutation>> _iter133 : _iter132.getValue().entrySet())
               {
-                oprot.writeString(_iter129.getKey());
+                oprot.writeString(_iter133.getKey());
                 {
-                  oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, _iter129.getValue().size()));
-                  for (Mutation _iter130 : _iter129.getValue())
+                  oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, _iter133.getValue().size()));
+                  for (Mutation _iter134 : _iter133.getValue())
                   {
-                    _iter130.write(oprot);
+                    _iter134.write(oprot);
                   }
                   oprot.writeListEnd();
                 }
@@ -21201,25 +21198,25 @@ public class Cassandra {
           case 0: // SUCCESS
             if (field.type == org.apache.thrift.protocol.TType.MAP) {
               {
-                org.apache.thrift.protocol.TMap _map131 = iprot.readMapBegin();
-                this.success = new HashMap<String,List<String>>(2*_map131.size);
-                for (int _i132 = 0; _i132 < _map131.size; ++_i132)
+                org.apache.thrift.protocol.TMap _map135 = iprot.readMapBegin();
+                this.success = new HashMap<String,List<String>>(2*_map135.size);
+                for (int _i136 = 0; _i136 < _map135.size; ++_i136)
                 {
-                  String _key133;
-                  List<String> _val134;
-                  _key133 = iprot.readString();
+                  String _key137;
+                  List<String> _val138;
+                  _key137 = iprot.readString();
                   {
-                    org.apache.thrift.protocol.TList _list135 = iprot.readListBegin();
-                    _val134 = new ArrayList<String>(_list135.size);
-                    for (int _i136 = 0; _i136 < _list135.size; ++_i136)
+                    org.apache.thrift.protocol.TList _list139 = iprot.readListBegin();
+                    _val138 = new ArrayList<String>(_list139.size);
+                    for (int _i140 = 0; _i140 < _list139.size; ++_i140)
                     {
-                      String _elem137;
-                      _elem137 = iprot.readString();
-                      _val134.add(_elem137);
+                      String _elem141;
+                      _elem141 = iprot.readString();
+                      _val138.add(_elem141);
                     }
                     iprot.readListEnd();
                   }
-                  this.success.put(_key133, _val134);
+                  this.success.put(_key137, _val138);
                 }
                 iprot.readMapEnd();
               }
@@ -21253,14 +21250,14 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeMapBegin(new org.apache.thrift.protocol.TMap(org.apache.thrift.protocol.TType.STRING, org.apache.thrift.protocol.TType.LIST, this.success.size()));
-          for (Map.Entry<String, List<String>> _iter138 : this.success.entrySet())
+          for (Map.Entry<String, List<String>> _iter142 : this.success.entrySet())
           {
-            oprot.writeString(_iter138.getKey());
+            oprot.writeString(_iter142.getKey());
             {
-              oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRING, _iter138.getValue().size()));
-              for (String _iter139 : _iter138.getValue())
+              oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRING, _iter142.getValue().size()));
+              for (String _iter143 : _iter142.getValue())
               {
-                oprot.writeString(_iter139);
+                oprot.writeString(_iter143);
               }
               oprot.writeListEnd();
             }
@@ -21859,14 +21856,14 @@ public class Cassandra {
           case 0: // SUCCESS
             if (field.type == org.apache.thrift.protocol.TType.LIST) {
               {
-                org.apache.thrift.protocol.TList _list140 = iprot.readListBegin();
-                this.success = new ArrayList<KsDef>(_list140.size);
-                for (int _i141 = 0; _i141 < _list140.size; ++_i141)
+                org.apache.thrift.protocol.TList _list144 = iprot.readListBegin();
+                this.success = new ArrayList<KsDef>(_list144.size);
+                for (int _i145 = 0; _i145 < _list144.size; ++_i145)
                 {
-                  KsDef _elem142;
-                  _elem142 = new KsDef();
-                  _elem142.read(iprot);
-                  this.success.add(_elem142);
+                  KsDef _elem146;
+                  _elem146 = new KsDef();
+                  _elem146.read(iprot);
+                  this.success.add(_elem146);
                 }
                 iprot.readListEnd();
               }
@@ -21900,9 +21897,9 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, this.success.size()));
-          for (KsDef _iter143 : this.success)
+          for (KsDef _iter147 : this.success)
           {
-            _iter143.write(oprot);
+            _iter147.write(oprot);
           }
           oprot.writeListEnd();
         }
@@ -23615,14 +23612,14 @@ public class Cassandra {
           case 0: // SUCCESS
             if (field.type == org.apache.thrift.protocol.TType.LIST) {
               {
-                org.apache.thrift.protocol.TList _list144 = iprot.readListBegin();
-                this.success = new ArrayList<TokenRange>(_list144.size);
-                for (int _i145 = 0; _i145 < _list144.size; ++_i145)
+                org.apache.thrift.protocol.TList _list148 = iprot.readListBegin();
+                this.success = new ArrayList<TokenRange>(_list148.size);
+                for (int _i149 = 0; _i149 < _list148.size; ++_i149)
                 {
-                  TokenRange _elem146;
-                  _elem146 = new TokenRange();
-                  _elem146.read(iprot);
-                  this.success.add(_elem146);
+                  TokenRange _elem150;
+                  _elem150 = new TokenRange();
+                  _elem150.read(iprot);
+                  this.success.add(_elem150);
                 }
                 iprot.readListEnd();
               }
@@ -23656,9 +23653,9 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, this.success.size()));
-          for (TokenRange _iter147 : this.success)
+          for (TokenRange _iter151 : this.success)
           {
-            _iter147.write(oprot);
+            _iter151.write(oprot);
           }
           oprot.writeListEnd();
         }
@@ -26120,6 +26117,8 @@ public class Cassandra {
 
     private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
       try {
+        // it doesn't seem like you should have to do this, but java serialization is wacky, and doesn't call the default constructor.
+        __isset_bit_vector = new BitSet(1);
         read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
       } catch (org.apache.thrift.TException te) {
         throw new java.io.IOException(te);
@@ -26460,13 +26459,13 @@ public class Cassandra {
           case 0: // SUCCESS
             if (field.type == org.apache.thrift.protocol.TType.LIST) {
               {
-                org.apache.thrift.protocol.TList _list148 = iprot.readListBegin();
-                this.success = new ArrayList<String>(_list148.size);
-                for (int _i149 = 0; _i149 < _list148.size; ++_i149)
+                org.apache.thrift.protocol.TList _list152 = iprot.readListBegin();
+                this.success = new ArrayList<String>(_list152.size);
+                for (int _i153 = 0; _i153 < _list152.size; ++_i153)
                 {
-                  String _elem150;
-                  _elem150 = iprot.readString();
-                  this.success.add(_elem150);
+                  String _elem154;
+                  _elem154 = iprot.readString();
+                  this.success.add(_elem154);
                 }
                 iprot.readListEnd();
               }
@@ -26500,9 +26499,9 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRING, this.success.size()));
-          for (String _iter151 : this.success)
+          for (String _iter155 : this.success)
           {
-            oprot.writeString(_iter151);
+            oprot.writeString(_iter155);
           }
           oprot.writeListEnd();
         }
@@ -33637,13 +33636,13 @@ public class Cassandra {
           case 2: // VALUES
             if (field.type == org.apache.thrift.protocol.TType.LIST) {
               {
-                org.apache.thrift.protocol.TList _list152 = iprot.readListBegin();
-                this.values = new ArrayList<String>(_list152.size);
-                for (int _i153 = 0; _i153 < _list152.size; ++_i153)
+                org.apache.thrift.protocol.TList _list156 = iprot.readListBegin();
+                this.values = new ArrayList<String>(_list156.size);
+                for (int _i157 = 0; _i157 < _list156.size; ++_i157)
                 {
-                  String _elem154;
-                  _elem154 = iprot.readString();
-                  this.values.add(_elem154);
+                  String _elem158;
+                  _elem158 = iprot.readString();
+                  this.values.add(_elem158);
                 }
                 iprot.readListEnd();
               }
@@ -33676,9 +33675,9 @@ public class Cassandra {
         oprot.writeFieldBegin(VALUES_FIELD_DESC);
         {
           oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRING, this.values.size()));
-          for (String _iter155 : this.values)
+          for (String _iter159 : this.values)
           {
-            oprot.writeString(_iter155);
+            oprot.writeString(_iter159);
           }
           oprot.writeListEnd();
         }

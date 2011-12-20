@@ -133,7 +133,8 @@ public class Util
         return cfs.getRangeSlice(superColumn,
                                  new Bounds<Token>(min, min).toRowBounds(),
                                  10000,
-                                 new IdentityQueryFilter());
+                                 new IdentityQueryFilter(),
+                                 null);
     }
 
     /**

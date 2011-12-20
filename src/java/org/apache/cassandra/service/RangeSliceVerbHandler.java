@@ -18,22 +18,37 @@
 
 package org.apache.cassandra.service;
 
+import java.util.List;
+import java.util.concurrent.ExecutionException;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.RangeSliceCommand;
 import org.apache.cassandra.db.RangeSliceReply;
+import org.apache.cassandra.db.Row;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.filter.QueryFilter;
+import org.apache.cassandra.db.filter.IFilter;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 
 public class RangeSliceVerbHandler implements IVerbHandler
 {
-
     private static final Logger logger = LoggerFactory.getLogger(RangeSliceVerbHandler.class);
+
+    static List<Row> executeLocally(RangeSliceCommand command) throws ExecutionException, InterruptedException
+    {
+        ColumnFamilyStore cfs = Table.open(command.keyspace).getColumnFamilyStore(command.column_family);
+        IFilter columnFilter = QueryFilter.getFilter(command.predicate, cfs.getComparator());
+
+        if (cfs.indexManager.hasIndexFor(command.row_filter))
+            return cfs.search(command.row_filter, command.range, command.max_keys, columnFilter);
+        else
+            return cfs.getRangeSlice(command.super_column, command.range, command.max_keys, columnFilter, command.row_filter);
+    }
 
     public void doVerb(Message message, String id)
     {
@@ -46,10 +61,7 @@ public class RangeSliceVerbHandler implements IVerbHandler
             }
             RangeSliceCommand command = RangeSliceCommand.read(message);
             ColumnFamilyStore cfs = Table.open(command.keyspace).getColumnFamilyStore(command.column_family);
-            RangeSliceReply reply = new RangeSliceReply(cfs.getRangeSlice(command.super_column,
-                                                                          command.range,
-                                                                          command.max_keys,
-                                                                          QueryFilter.getFilter(command.predicate, cfs.getComparator())));
+            RangeSliceReply reply = new RangeSliceReply(executeLocally(command));
             Message response = reply.getReply(message);
             if (logger.isDebugEnabled())
                 logger.debug("Sending " + reply+ " to " + id + "@" + message.getFrom());

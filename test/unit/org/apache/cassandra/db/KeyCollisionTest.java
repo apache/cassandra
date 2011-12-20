@@ -72,7 +72,7 @@ public class KeyCollisionTest extends CleanupHelper
         insert("key1", "key2", "key3"); // token = 4
         insert("longKey1", "longKey2"); // token = 8
 
-        List<Row> rows = cfs.getRangeSlice(null, new Bounds<RowPosition>(dk("k2"), dk("key2")), 10000, new IdentityQueryFilter());
+        List<Row> rows = cfs.getRangeSlice(null, new Bounds<RowPosition>(dk("k2"), dk("key2")), 10000, new IdentityQueryFilter(), null);
         assert rows.size() == 4 : "Expecting 4 keys, got " + rows.size();
         assert rows.get(0).key.key.equals(ByteBufferUtil.bytes("k2"));
         assert rows.get(1).key.key.equals(ByteBufferUtil.bytes("k3"));

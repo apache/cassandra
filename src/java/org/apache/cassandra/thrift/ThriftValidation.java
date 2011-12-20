@@ -479,7 +479,7 @@ public class ThriftValidation
             validateColumnNames(metadata, column_parent, predicate.column_names);
     }
 
-    public static void validateKeyRange(KeyRange range) throws InvalidRequestException
+    public static void validateKeyRange(CFMetaData metadata, ByteBuffer superColumn, KeyRange range) throws InvalidRequestException
     {
         if ((range.start_key == null) != (range.end_key == null))
         {
@@ -508,10 +508,29 @@ public class ThriftValidation
             }
         }
 
+        validateFilterClauses(metadata, range.row_filter);
+
+        if (!isEmpty(range.row_filter) && superColumn != null)
+        {
+            throw new InvalidRequestException("super columns are not yet supported for indexing");
+        }
+        if (!isEmpty(range.row_filter) && range.start_key == null)
+        {
+            // TODO: our current KEYS indexes can't do that efficiently
+            // (without scanning *all* the keys in the range and simply applying the filter to discard them when they don't match)
+            // See KeySearcher.search()
+            throw new InvalidRequestException("filtered queries must use concrete keys rather than tokens");
+        }
+
         if (range.count <= 0)
         {
             throw new InvalidRequestException("maxRows must be positive");
         }
+    }
+
+    private static boolean isEmpty(List<IndexExpression> clause)
+    {
+        return clause == null || clause.isEmpty();
     }
 
     public static void validateIndexClauses(CFMetaData metadata, IndexClause index_clause)
@@ -519,11 +538,24 @@ public class ThriftValidation
     {
         if (index_clause.expressions.isEmpty())
             throw new InvalidRequestException("index clause list may not be empty");
+
+        if (!validateFilterClauses(metadata, index_clause.expressions))
+            throw new InvalidRequestException("No indexed columns present in index clause with operator EQ");
+    }
+
+    // return true if index_clause contains an indexed columns with operator EQ
+    public static boolean validateFilterClauses(CFMetaData metadata, List<IndexExpression> index_clause)
+    throws InvalidRequestException
+    {
+        if (isEmpty(index_clause))
+            // no filter to apply
+            return false;
+
         Set<ByteBuffer> indexedColumns = Table.open(metadata.ksName).getColumnFamilyStore(metadata.cfName).indexManager.getIndexedColumns();
         AbstractType nameValidator =  ColumnFamily.getComparatorFor(metadata.ksName, metadata.cfName, null);
 
         boolean isIndexed = false;
-        for (IndexExpression expression : index_clause.expressions)
+        for (IndexExpression expression : index_clause)
         {
             try
             {
@@ -553,8 +585,7 @@ public class ThriftValidation
             isIndexed |= (expression.op == IndexOperator.EQ) && indexedColumns.contains(expression.column_name);
         }
 
-        if (!isIndexed)
-            throw new InvalidRequestException("No indexed columns present in index clause with operator EQ");
+        return isIndexed;
     }
 
     public static void validateCfDef(CfDef cf_def, CFMetaData old) throws InvalidRequestException

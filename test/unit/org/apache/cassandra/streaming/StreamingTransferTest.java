@@ -40,7 +40,6 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.SSTableUtils;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.thrift.IndexClause;
 import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.thrift.IndexOperator;
 import org.apache.cassandra.utils.FBUtilities;
@@ -154,10 +153,10 @@ public class StreamingTransferTest extends CleanupHelper
             IndexExpression expr = new IndexExpression(ByteBufferUtil.bytes("birthdate"),
                                                        IndexOperator.EQ,
                                                        ByteBufferUtil.bytes(val));
-            IndexClause clause = new IndexClause(Arrays.asList(expr), ByteBufferUtil.EMPTY_BYTE_BUFFER, 100);
+            List<IndexExpression> clause = Arrays.asList(expr);
             IFilter filter = new IdentityQueryFilter();
             Range<RowPosition> range = Util.range("", "");
-            List<Row> rows = cfs.search(clause, range, filter);
+            List<Row> rows = cfs.search(clause, range, 100, filter);
             assertEquals(1, rows.size());
             assert rows.get(0).key.key.equals(ByteBufferUtil.bytes(key));
         }

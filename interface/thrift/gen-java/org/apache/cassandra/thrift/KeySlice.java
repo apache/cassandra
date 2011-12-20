@@ -399,14 +399,14 @@ public class KeySlice implements org.apache.thrift.TBase<KeySlice, KeySlice._Fie
         case 2: // COLUMNS
           if (field.type == org.apache.thrift.protocol.TType.LIST) {
             {
-              org.apache.thrift.protocol.TList _list16 = iprot.readListBegin();
-              this.columns = new ArrayList<ColumnOrSuperColumn>(_list16.size);
-              for (int _i17 = 0; _i17 < _list16.size; ++_i17)
+              org.apache.thrift.protocol.TList _list20 = iprot.readListBegin();
+              this.columns = new ArrayList<ColumnOrSuperColumn>(_list20.size);
+              for (int _i21 = 0; _i21 < _list20.size; ++_i21)
               {
-                ColumnOrSuperColumn _elem18;
-                _elem18 = new ColumnOrSuperColumn();
-                _elem18.read(iprot);
-                this.columns.add(_elem18);
+                ColumnOrSuperColumn _elem22;
+                _elem22 = new ColumnOrSuperColumn();
+                _elem22.read(iprot);
+                this.columns.add(_elem22);
               }
               iprot.readListEnd();
             }
@@ -438,9 +438,9 @@ public class KeySlice implements org.apache.thrift.TBase<KeySlice, KeySlice._Fie
       oprot.writeFieldBegin(COLUMNS_FIELD_DESC);
       {
         oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, this.columns.size()));
-        for (ColumnOrSuperColumn _iter19 : this.columns)
+        for (ColumnOrSuperColumn _iter23 : this.columns)
         {
-          _iter19.write(oprot);
+          _iter23.write(oprot);
         }
         oprot.writeListEnd();
       }

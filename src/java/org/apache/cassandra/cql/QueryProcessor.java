@@ -171,8 +171,20 @@ public class QueryProcessor
         AbstractBounds<RowPosition> bounds = new Bounds<RowPosition>(startKey, finishKey);
         
         // XXX: Our use of Thrift structs internally makes me Sad. :(
-        SlicePredicate thriftSlicePredicate = slicePredicateFromSelect(select, metadata,variables);
+        SlicePredicate thriftSlicePredicate = slicePredicateFromSelect(select, metadata, variables);
         validateSlicePredicate(metadata, thriftSlicePredicate);
+
+        List<IndexExpression> expressions = new ArrayList<IndexExpression>();
+        for (Relation columnRelation : select.getColumnRelations())
+        {
+            // Left and right side of relational expression encoded according to comparator/validator.
+            ByteBuffer entity = columnRelation.getEntity().getByteBuffer(metadata.comparator, variables);
+            ByteBuffer value = columnRelation.getValue().getByteBuffer(select.getValueValidator(metadata.ksName, entity), variables);
+
+            expressions.add(new IndexExpression(entity,
+                                                IndexOperator.valueOf(columnRelation.operator().toString()),
+                                                value));
+        }
 
         int limit = select.isKeyRange() && select.getKeyStart() != null
                   ? select.getNumRecords() + 1
@@ -185,6 +197,7 @@ public class QueryProcessor
                                                                     null,
                                                                     thriftSlicePredicate,
                                                                     bounds,
+                                                                    expressions,
                                                                     limit),
                                                                     select.getConsistencyLevel());
         }
@@ -218,51 +231,7 @@ public class QueryProcessor
 
         return rows.subList(0, select.getNumRecords() < rows.size() ? select.getNumRecords() : rows.size());
     }
-    
-    private static List<org.apache.cassandra.db.Row> getIndexedSlices(CFMetaData metadata, SelectStatement select, List<String> variables)
-    throws TimedOutException, UnavailableException, InvalidRequestException
-    {
-        // XXX: Our use of Thrift structs internally (still) makes me Sad. :~(
-        SlicePredicate thriftSlicePredicate = slicePredicateFromSelect(select, metadata, variables);
-        validateSlicePredicate(metadata, thriftSlicePredicate);
-        
-        List<IndexExpression> expressions = new ArrayList<IndexExpression>();
-        for (Relation columnRelation : select.getColumnRelations())
-        {
-            // Left and right side of relational expression encoded according to comparator/validator.
-            ByteBuffer entity = columnRelation.getEntity().getByteBuffer(metadata.comparator, variables);
-            ByteBuffer value = columnRelation.getValue().getByteBuffer(select.getValueValidator(metadata.ksName, entity), variables);
-            
-            expressions.add(new IndexExpression(entity,
-                                                IndexOperator.valueOf(columnRelation.operator().toString()),
-                                                value));
-        }
 
-        AbstractType<?> keyType = Schema.instance.getCFMetaData(metadata.ksName, select.getColumnFamily()).getKeyValidator();
-        ByteBuffer startKey = (!select.isKeyRange()) ? (new Term()).getByteBuffer() : select.getKeyStart().getByteBuffer(keyType, variables);
-        IndexClause thriftIndexClause = new IndexClause(expressions, startKey, select.getNumRecords());
-        
-        List<org.apache.cassandra.db.Row> rows;
-        try
-        {
-            rows = StorageProxy.scan(metadata.ksName,
-                                     select.getColumnFamily(),
-                                     thriftIndexClause,
-                                     thriftSlicePredicate,
-                                     select.getConsistencyLevel());
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
-        catch (TimeoutException e)
-        {
-            throw new TimedOutException();
-        }
-        
-        return rows;
-    }
-    
     private static void batchUpdate(ClientState clientState, List<UpdateStatement> updateStatements, ConsistencyLevel consistency, List<String> variables )
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
@@ -544,16 +513,7 @@ public class QueryProcessor
                 }
                 else
                 {
-                    // Range query
-                    if ((select.getKeyFinish() != null) || (select.getColumnRelations().size() == 0))
-                    {
-                        rows = multiRangeSlice(metadata, select, variables);
-                    }
-                    // Index scan
-                    else
-                    {
-                        rows = getIndexedSlices(metadata, select, variables);
-                    }
+                    rows = multiRangeSlice(metadata, select, variables);
                 }
 
                 // count resultset is a single column named "count"

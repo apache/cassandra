@@ -30,10 +30,10 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.regex.Pattern;
 import javax.management.*;
 
+import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.Iterables;
 import org.apache.cassandra.db.compaction.LeveledManifest;
 import org.apache.cassandra.service.CacheService;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -48,6 +48,8 @@ import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.LeveledCompactionStrategy;
+import org.apache.cassandra.db.compaction.LeveledManifest;
+import org.apache.cassandra.db.filter.ExtendedFilter;
 import org.apache.cassandra.db.filter.IFilter;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
@@ -59,7 +61,7 @@ import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.thrift.IndexClause;
+import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.utils.IntervalTree.Interval;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
@@ -1265,87 +1267,139 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return columns;
     }
 
+    public static abstract class AbstractScanIterator extends AbstractIterator<Row> implements CloseableIterator<Row> {}
+
     /**
-      * Fetch a range of rows and columns from memtables/sstables.
+      * Iterate over a range of rows and columns from memtables/sstables.
       *
       * @param superColumn optional SuperColumn to slice subcolumns of; null to slice top-level columns
       * @param range Either a Bounds, which includes start key, or a Range, which does not.
-      * @param maxResults Maximum rows to return
       * @param columnFilter description of the columns we're interested in for each row
-      * @return true if we found all keys we were looking for, otherwise false
      */
-    public List<Row> getRangeSlice(ByteBuffer superColumn, final AbstractBounds<RowPosition> range, int maxResults, IFilter columnFilter)
+    public AbstractScanIterator getSequentialIterator(ByteBuffer superColumn, final AbstractBounds<RowPosition> range, IFilter columnFilter)
     {
         assert range instanceof Bounds
                || !((Range)range).isWrapAround() || range.right.isMinimum()
                : range;
 
-        RowPosition startWith = range.left;
-        RowPosition stopAt = range.right;
+        final RowPosition startWith = range.left;
+        final RowPosition stopAt = range.right;
 
         QueryFilter filter = new QueryFilter(null, new QueryPath(columnFamily, superColumn, null), columnFilter);
-        int gcBefore = (int)(System.currentTimeMillis() / 1000) - metadata.getGcGraceSeconds();
 
         List<Row> rows;
-        ViewFragment view = markReferenced(startWith, stopAt);
+        final ViewFragment view = markReferenced(startWith, stopAt);
         try
         {
-            CloseableIterator<Row> iterator = RowIteratorFactory.getIterator(view.memtables, view.sstables, startWith, stopAt, filter, this);
-            rows = new ArrayList<Row>();
+            final CloseableIterator<Row> iterator = RowIteratorFactory.getIterator(view.memtables, view.sstables, startWith, stopAt, filter, this);
+            final int gcBefore = (int)(System.currentTimeMillis() / 1000) - metadata.getGcGraceSeconds();
 
-            try
+            return new AbstractScanIterator()
             {
-                // pull rows out of the iterator
                 boolean first = true;
-                while (iterator.hasNext())
+
+                protected Row computeNext()
                 {
+                    // pull a row out of the iterator
+                    if (!iterator.hasNext())
+                        return endOfData();
+
                     Row current = iterator.next();
                     DecoratedKey key = current.key;
 
                     if (!stopAt.isMinimum() && stopAt.compareTo(key) < 0)
-                        return rows;
+                        return endOfData();
 
                     // skip first one
                     if (range instanceof Bounds || !first || !key.equals(startWith))
                     {
-                        // TODO this is necessary because when we collate supercolumns together, we don't check
-                        // their subcolumns for relevance, so we need to do a second prune post facto here.
-                        rows.add(current.cf != null && current.cf.isSuper()
-                                 ? new Row(current.key, ColumnFamilyStore.removeDeleted(current.cf, gcBefore))
-                                 : current);
                         if (logger.isDebugEnabled())
                             logger.debug("scanned " + key);
+                        // TODO this is necessary because when we collate supercolumns together, we don't check
+                        // their subcolumns for relevance, so we need to do a second prune post facto here.
+                        return current.cf != null && current.cf.isSuper()
+                             ? new Row(current.key, removeDeleted(current.cf, gcBefore))
+                             : current;
                     }
                     first = false;
 
-                    if (rows.size() >= maxResults)
-                        return rows;
+                    return computeNext();
                 }
-            }
-            finally
-            {
-                try
-                {
-                    iterator.close();
-                }
-                catch (IOException e)
-                {
-                    throw new IOError(e);
-                }
-            }
-        }
-        finally
-        {
-            // separate finally block to release references in case getIterator() throws
-            SSTableReader.releaseReferences(view.sstables);
-        }
 
-        return rows;
+                public void close() throws IOException
+                {
+                    SSTableReader.releaseReferences(view.sstables);
+                    try
+                    {
+                        iterator.close();
+                    }
+                    catch (IOException e)
+                    {
+                        throw new IOError(e);
+                    }
+                }
+            };
+        }
+        catch (RuntimeException e)
+        {
+            // In case getIterator() throws, otherwise the iteror close method releases the references.
+            SSTableReader.releaseReferences(view.sstables);
+            throw e;
+        }
     }
 
-    public List<Row> search(IndexClause clause, AbstractBounds<RowPosition> range, IFilter dataFilter)
+    public List<Row> getRangeSlice(ByteBuffer superColumn, final AbstractBounds<RowPosition> range, int maxResults, IFilter columnFilter, List<IndexExpression> rowFilter)
     {
-        return indexManager.search(clause, range, dataFilter);
+        return filter(getSequentialIterator(superColumn, range, columnFilter), ExtendedFilter.create(this, columnFilter, rowFilter, maxResults));
+    }
+
+    public List<Row> search(List<IndexExpression> clause, AbstractBounds<RowPosition> range, int maxResults, IFilter dataFilter)
+    {
+        return indexManager.search(clause, range, maxResults, dataFilter);
+    }
+
+    public List<Row> filter(AbstractScanIterator rowIterator, ExtendedFilter filter)
+    {
+         List<Row> rows = new ArrayList<Row>();
+         try
+         {
+             while (rowIterator.hasNext() && rows.size() < filter.maxResults)
+             {
+                 // get the raw columns requested, and additional columns for the expressions if necessary
+                 Row rawRow = rowIterator.next();
+                 ColumnFamily data = rawRow.cf;
+
+                 // roughtly
+                 IFilter extraFilter = filter.getExtraFilter(data);
+                 if (extraFilter != null)
+                 {
+                     QueryPath path = new QueryPath(columnFamily);
+                     ColumnFamily cf = filter.cfs.getColumnFamily(new QueryFilter(rawRow.key, path, extraFilter));
+                     if (cf != null)
+                         data.addAll(cf, HeapAllocator.instance);
+                 }
+
+                 if (!filter.isSatisfiedBy(data))
+                     continue;
+
+                 logger.debug("{} satisfies all filter expressions", data);
+                 // cut the resultset back to what was requested, if necessary
+                 data = filter.prune(data);
+                 rows.add(new Row(rawRow.key, data));
+             }
+             return rows;
+         }
+         finally
+         {
+             try
+             {
+                 rowIterator.close();
+             }
+             catch (IOException e)
+             {
+                 throw new IOError(e);
+             }
+         }
     }
 
     public AbstractType getComparator()

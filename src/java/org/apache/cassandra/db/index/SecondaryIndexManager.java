@@ -31,7 +31,6 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.LocalToken;
 import org.apache.cassandra.io.sstable.ReducingKeyIterator;
 import org.apache.cassandra.io.sstable.SSTableReader;
-import org.apache.cassandra.thrift.IndexClause;
 import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.commons.lang.StringUtils;
@@ -140,6 +139,26 @@ public class SecondaryIndexManager
     public SortedSet<ByteBuffer> getIndexedColumns()
     {
         return indexesByColumn.keySet();
+    }
+
+    /**
+     * @return true if the indexes can handle the clause.
+     */
+    public boolean hasIndexFor(List<IndexExpression> clause)
+    {
+        if (clause == null || clause.isEmpty())
+            return false;
+
+        // It doesn't seem a clause can have multiple searchers, but since
+        // getIndexSearchersForQuery returns a list ...
+        List<SecondaryIndexSearcher> searchers = getIndexSearchersForQuery(clause);
+        if (searchers.isEmpty())
+            return false;
+
+        for (SecondaryIndexSearcher searcher : searchers)
+            if (!searcher.isIndexing(clause))
+                return false;
+        return true;
     }
 
     /**
@@ -485,9 +504,9 @@ public class SecondaryIndexManager
     /**
      * Get a list of IndexSearchers from the union of expression index types
      * @param clause the query clause
-     * @return the searchers to needed to query the index
+     * @return the searchers needed to query the index
      */
-    private List<SecondaryIndexSearcher> getIndexSearchersForQuery(IndexClause clause)
+    private List<SecondaryIndexSearcher> getIndexSearchersForQuery(List<IndexExpression> clause)
     {
         List<SecondaryIndexSearcher> indexSearchers = new ArrayList<SecondaryIndexSearcher>();
         
@@ -495,7 +514,7 @@ public class SecondaryIndexManager
  
         
         //Group columns by type
-        for (IndexExpression ix : clause.expressions)
+        for (IndexExpression ix : clause)
         {
             SecondaryIndex index = getIndexForColumn(ix.column_name);
             
@@ -531,7 +550,7 @@ public class SecondaryIndexManager
      * @param dataFilter the column range to restrict to
      * @return found indexed rows
      */
-    public List<Row> search(IndexClause clause, AbstractBounds<RowPosition> range, IFilter dataFilter)
+    public List<Row> search(List<IndexExpression> clause, AbstractBounds<RowPosition> range, int maxResults, IFilter dataFilter)
     {
         List<SecondaryIndexSearcher> indexSearchers = getIndexSearchersForQuery(clause);
                
@@ -543,6 +562,6 @@ public class SecondaryIndexManager
             throw new RuntimeException("Unable to search across multiple secondary index types");
         
         
-        return indexSearchers.get(0).search(clause, range, dataFilter);
+        return indexSearchers.get(0).search(clause, range, maxResults, dataFilter);
     }
 }

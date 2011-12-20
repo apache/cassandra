@@ -284,11 +284,15 @@ struct IndexExpression {
     3: required binary value,
 }
 
+/**
+ * @Deprecated: use a KeyRange with row_filter in get_range_slices instead
+ */
 struct IndexClause {
-    1: required list<IndexExpression> expressions
+    1: required list<IndexExpression> expressions,
     2: required binary start_key,
     3: required i32 count=100,
 }
+
 
 /**
 The semantics of start keys and tokens are slightly different.
@@ -303,6 +307,7 @@ struct KeyRange {
     2: optional binary end_key,
     3: optional string start_token,
     4: optional string end_token,
+    6: optional list<IndexExpression> row_filter,
     5: required i32 count=100
 }
 
@@ -527,7 +532,10 @@ service Cassandra {
                                   4:required ConsistencyLevel consistency_level=ConsistencyLevel.ONE)
                  throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
-  /** Returns the subset of columns specified in SlicePredicate for the rows matching the IndexClause */
+  /**
+    Returns the subset of columns specified in SlicePredicate for the rows matching the IndexClause
+    @Deprecated; use get_range_slices instead with row_filter specified
+    */
   list<KeySlice> get_indexed_slices(1:required ColumnParent column_parent,
                                     2:required IndexClause index_clause,
                                     3:required SlicePredicate column_predicate,
