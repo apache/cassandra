@@ -1,5 +1,4 @@
 1.0.7
- * avoid logging (harmless) exception when GC takes < 1ms (CASSANDRA-3656)
  * add nodetool setstreamthroughput (CASSANDRA-3571)
  * fix assertion when dropping a columnfamily with no sstables (CASSANDRA-3614)
  * more efficient allocation of small bloom filters (CASSANDRA-3618)
@@ -8,6 +7,7 @@
  * stop thrift service in shutdown hook so we can quiesce MessagingService
    (CASSANDRA-3335)
 Merged from 0.8:
+ * avoid logging (harmless) exception when GC takes < 1ms (CASSANDRA-3656)
  * prevent new nodes from thinking down nodes are up forever (CASSANDRA-3626)
  * Flush non-cfs backed secondary indexes (CASSANDRA-3659)
 
