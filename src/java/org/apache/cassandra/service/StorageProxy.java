@@ -804,21 +804,10 @@ public class StorageProxy implements StorageProxyMBean
                     if (logger.isDebugEnabled())
                         logger.debug("local range slice");
                     ColumnFamilyStore cfs = Table.open(command.keyspace).getColumnFamilyStore(command.column_family);
-                    try
-                    {
-                        rows.addAll(cfs.getRangeSlice(command.super_column,
-                                                    range,
-                                                    command.max_keys,
-                                                    QueryFilter.getFilter(command.predicate, cfs.getComparator())));
-                    }
-                    catch (ExecutionException e)
-                    {
-                        throw new RuntimeException(e.getCause());
-                    }
-                    catch (InterruptedException e)
-                    {
-                        throw new AssertionError(e);
-                    }
+                    rows.addAll(cfs.getRangeSlice(command.super_column,
+                                                range,
+                                                command.max_keys,
+                                                QueryFilter.getFilter(command.predicate, cfs.getComparator())));
                 }
                 else
                 {

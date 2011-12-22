@@ -300,9 +300,6 @@ public interface StorageServiceMBean
      */
     public void truncate(String keyspace, String columnFamily) throws UnavailableException, TimeoutException, IOException;
 
-    /** force hint delivery to an endpoint **/
-    public void deliverHints(String host) throws UnknownHostException;
-
     /** save row and key caches */
     public void saveCaches() throws ExecutionException, InterruptedException;
 

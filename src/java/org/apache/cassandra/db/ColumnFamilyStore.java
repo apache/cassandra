@@ -1313,7 +1313,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
       * @return true if we found all keys we were looking for, otherwise false
      */
     public List<Row> getRangeSlice(ByteBuffer superColumn, final AbstractBounds range, int maxResults, IFilter columnFilter)
-    throws ExecutionException, InterruptedException
     {
         assert range instanceof Bounds
                || (!((Range)range).isWrapAround() || range.right.equals(StorageService.getPartitioner().getMinimumToken()))
