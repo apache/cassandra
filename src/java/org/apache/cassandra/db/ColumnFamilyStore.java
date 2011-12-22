@@ -47,6 +47,7 @@ import org.apache.cassandra.db.compaction.LeveledCompactionStrategy;
 import org.apache.cassandra.db.filter.IFilter;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.*;
@@ -669,7 +670,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             logger.debug("flush position is {}", ctx);
 
             // submit the memtable for any indexed sub-cfses, and our own.
-            List<ColumnFamilyStore> icc = new ArrayList<ColumnFamilyStore>();
+            final List<ColumnFamilyStore> icc = new ArrayList<ColumnFamilyStore>();
             // don't assume that this.memtable is dirty; forceFlush can bring us here during index build even if it is not
             for (ColumnFamilyStore cfs : concatWithIndexes())
             {
@@ -701,6 +702,19 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 public void runMayThrow() throws InterruptedException, IOException
                 {
                     latch.await();
+                    
+                    if (!icc.isEmpty())
+                    {
+                        //only valid when memtables exist
+                        
+                        for (SecondaryIndex index : indexManager.getIndexesNotBackedByCfs())
+                        {
+                            // flush any non-cfs backed indexes
+                            logger.info("Flushing SecondaryIndex {}", index);
+                            index.forceBlockingFlush();
+                        }
+                    }
+                    
                     if (writeCommitLog)
                     {
                         // if we're not writing to the commit log, we are replaying the log, so marking

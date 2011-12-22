@@ -38,6 +38,7 @@
    (CASSANDRA-3335)
 Merged from 0.8:
  * prevent new nodes from thinking down nodes are up forever (CASSANDRA-3626)
+ * Flush non-cfs backed secondary indexes (CASSANDRA-3659)
 
 
 1.0.6

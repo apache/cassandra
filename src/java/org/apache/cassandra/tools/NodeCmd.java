@@ -158,7 +158,7 @@ public class NodeCmd
         addCmdHelp(header, "cleanup [keyspace] [cfnames]", "Run cleanup on one or more column family");
         addCmdHelp(header, "compact [keyspace] [cfnames]", "Force a (major) compaction on one or more column family");
         addCmdHelp(header, "scrub [keyspace] [cfnames]", "Scrub (rebuild sstables for) one or more column family");
-        addCmdHelp(header, "upgradesstables [keyspace] [cfnames]", "Scrub (rebuild sstables for) one or more column family");
+        addCmdHelp(header, "upgradesstables [keyspace] [cfnames]", "Upgrade sstables for one or more column family");
         addCmdHelp(header, "invalidatekeycache [keyspace] [cfnames]", "Invalidate the key cache of one or more column family");
         addCmdHelp(header, "invalidaterowcache [keyspace] [cfnames]", "Invalidate the key cache of one or more column family");
         addCmdHelp(header, "getcompactionthreshold <keyspace> <cfname>", "Print min and max compaction thresholds for a given column family");
