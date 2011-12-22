@@ -641,6 +641,11 @@ public class NodeProbe
         compactionProxy.stopCompaction(string);
     }
 
+    public void setStreamThroughput(int value)
+    {
+        ssProxy.setStreamThroughputMbPerSec(value);
+    }
+
     public List<String> describeRing(String keyspaceName) throws InvalidRequestException
     {
         return ssProxy.describeRingJMX(keyspaceName);

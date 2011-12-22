@@ -30,6 +30,7 @@
 
 
 1.0.7
+ * add nodetool setstreamthroughput (CASSANDRA-3571)
  * fix assertion when dropping a columnfamily with no sstables (CASSANDRA-3614)
  * more efficient allocation of small bloom filters (CASSANDRA-3618)
  * CLibrary.createHardLinkWithExec() to check for errors (CASSANDRA-3101)
