@@ -211,6 +211,10 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
     /* Are we starting this node in bootstrap mode? */
     private boolean isBootstrapMode;
+
+    /* we bootstrap but do NOT join the ring unless told to do so */
+    private boolean isSurveyMode= Boolean.parseBoolean(System.getProperty("cassandra.write_survey", "false"));
+
     /* when intialized as a client, we shouldn't write to the system table. */
     private boolean isClientMode;
     private boolean initialized;
@@ -610,14 +614,21 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             }
         }
 
-        // start participating in the ring.
-        SystemTable.setBootstrapped(true);
-        setToken(token);
-        // remove the existing info about the replaced node.
-        if (current != null)
-            Gossiper.instance.replacedEndpoint(current);
-        logger_.info("Bootstrap/Replace/Move completed! Now serving reads.");
-        assert tokenMetadata_.sortedTokens().size() > 0;
+        if (!isSurveyMode)
+        {
+            // start participating in the ring.
+            SystemTable.setBootstrapped(true);
+            setToken(token);
+            // remove the existing info about the replaced node.
+            if (current != null)
+                Gossiper.instance.replacedEndpoint(current);
+            logger_.info("Bootstrap/Replace/Move completed! Now serving reads.");
+            assert tokenMetadata_.sortedTokens().size() > 0;
+        }
+        else
+        {
+            logger_.info("Bootstrap complete, but write survey mode is active, not becoming an active ring member. Use JMX (StorageService->joinRing()) to finalize ring joining.");
+        }
     }
 
     public synchronized void joinRing() throws IOException, org.apache.cassandra.config.ConfigurationException
@@ -626,6 +637,14 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         {
             logger_.info("Joining ring by operator request");
             joinTokenRing(0);
+        }
+        else if (isSurveyMode)
+        {
+            setToken(SystemTable.getSavedToken());
+            SystemTable.setBootstrapped(true);
+            isSurveyMode = false;
+            logger_.info("Leaving write survey mode and joining ring at operator request");
+            assert tokenMetadata_.sortedTokens().size() > 0;
         }
     }
 
