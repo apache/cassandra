@@ -186,7 +186,7 @@ public class Cassandra {
      * 
      * @param cfname
      */
-    public void truncate(String cfname) throws InvalidRequestException, UnavailableException, org.apache.thrift.TException;
+    public void truncate(String cfname) throws InvalidRequestException, UnavailableException, TimedOutException, org.apache.thrift.TException;
 
     /**
      * for each schema version present in the cluster, returns a list of nodes at that version.
@@ -1070,7 +1070,7 @@ public class Cassandra {
       return;
     }
 
-    public void truncate(String cfname) throws InvalidRequestException, UnavailableException, org.apache.thrift.TException
+    public void truncate(String cfname) throws InvalidRequestException, UnavailableException, TimedOutException, org.apache.thrift.TException
     {
       send_truncate(cfname);
       recv_truncate();
@@ -1086,7 +1086,7 @@ public class Cassandra {
       oprot_.getTransport().flush();
     }
 
-    public void recv_truncate() throws InvalidRequestException, UnavailableException, org.apache.thrift.TException
+    public void recv_truncate() throws InvalidRequestException, UnavailableException, TimedOutException, org.apache.thrift.TException
     {
       org.apache.thrift.protocol.TMessage msg = iprot_.readMessageBegin();
       if (msg.type == org.apache.thrift.protocol.TMessageType.EXCEPTION) {
@@ -1105,6 +1105,9 @@ public class Cassandra {
       }
       if (result.ue != null) {
         throw result.ue;
+      }
+      if (result.te != null) {
+        throw result.te;
       }
       return;
     }
@@ -2422,7 +2425,7 @@ public class Cassandra {
         prot.writeMessageEnd();
       }
 
-      public void getResult() throws InvalidRequestException, UnavailableException, org.apache.thrift.TException {
+      public void getResult() throws InvalidRequestException, UnavailableException, TimedOutException, org.apache.thrift.TException {
         if (getState() != org.apache.thrift.async.TAsyncMethodCall.State.RESPONSE_READ) {
           throw new IllegalStateException("Method call not finished!");
         }
@@ -3683,6 +3686,8 @@ public class Cassandra {
           result.ire = ire;
         } catch (UnavailableException ue) {
           result.ue = ue;
+        } catch (TimedOutException te) {
+          result.te = te;
         } catch (Throwable th) {
           LOGGER.error("Internal error processing truncate", th);
           org.apache.thrift.TApplicationException x = new org.apache.thrift.TApplicationException(org.apache.thrift.TApplicationException.INTERNAL_ERROR, "Internal error processing truncate");
@@ -9353,6 +9358,8 @@ public class Cassandra {
 
     private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
       try {
+        // it doesn't seem like you should have to do this, but java serialization is wacky, and doesn't call the default constructor.
+        __isset_bit_vector = new BitSet(1);
         read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
       } catch (org.apache.thrift.TException te) {
         throw new java.io.IOException(te);
@@ -20160,14 +20167,17 @@ public class Cassandra {
 
     private static final org.apache.thrift.protocol.TField IRE_FIELD_DESC = new org.apache.thrift.protocol.TField("ire", org.apache.thrift.protocol.TType.STRUCT, (short)1);
     private static final org.apache.thrift.protocol.TField UE_FIELD_DESC = new org.apache.thrift.protocol.TField("ue", org.apache.thrift.protocol.TType.STRUCT, (short)2);
+    private static final org.apache.thrift.protocol.TField TE_FIELD_DESC = new org.apache.thrift.protocol.TField("te", org.apache.thrift.protocol.TType.STRUCT, (short)3);
 
     public InvalidRequestException ire;
     public UnavailableException ue;
+    public TimedOutException te;
 
     /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
     public enum _Fields implements org.apache.thrift.TFieldIdEnum {
       IRE((short)1, "ire"),
-      UE((short)2, "ue");
+      UE((short)2, "ue"),
+      TE((short)3, "te");
 
       private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -20186,6 +20196,8 @@ public class Cassandra {
             return IRE;
           case 2: // UE
             return UE;
+          case 3: // TE
+            return TE;
           default:
             return null;
         }
@@ -20234,6 +20246,8 @@ public class Cassandra {
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
       tmpMap.put(_Fields.UE, new org.apache.thrift.meta_data.FieldMetaData("ue", org.apache.thrift.TFieldRequirementType.DEFAULT, 
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
+      tmpMap.put(_Fields.TE, new org.apache.thrift.meta_data.FieldMetaData("te", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+          new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(truncate_result.class, metaDataMap);
     }
@@ -20243,11 +20257,13 @@ public class Cassandra {
 
     public truncate_result(
       InvalidRequestException ire,
-      UnavailableException ue)
+      UnavailableException ue,
+      TimedOutException te)
     {
       this();
       this.ire = ire;
       this.ue = ue;
+      this.te = te;
     }
 
     /**
@@ -20260,6 +20276,9 @@ public class Cassandra {
       if (other.isSetUe()) {
         this.ue = new UnavailableException(other.ue);
       }
+      if (other.isSetTe()) {
+        this.te = new TimedOutException(other.te);
+      }
     }
 
     public truncate_result deepCopy() {
@@ -20270,6 +20289,7 @@ public class Cassandra {
     public void clear() {
       this.ire = null;
       this.ue = null;
+      this.te = null;
     }
 
     public InvalidRequestException getIre() {
@@ -20320,6 +20340,30 @@ public class Cassandra {
       }
     }
 
+    public TimedOutException getTe() {
+      return this.te;
+    }
+
+    public truncate_result setTe(TimedOutException te) {
+      this.te = te;
+      return this;
+    }
+
+    public void unsetTe() {
+      this.te = null;
+    }
+
+    /** Returns true if field te is set (has been assigned a value) and false otherwise */
+    public boolean isSetTe() {
+      return this.te != null;
+    }
+
+    public void setTeIsSet(boolean value) {
+      if (!value) {
+        this.te = null;
+      }
+    }
+
     public void setFieldValue(_Fields field, Object value) {
       switch (field) {
       case IRE:
@@ -20338,6 +20382,14 @@ public class Cassandra {
         }
         break;
 
+      case TE:
+        if (value == null) {
+          unsetTe();
+        } else {
+          setTe((TimedOutException)value);
+        }
+        break;
+
       }
     }
 
@@ -20348,6 +20400,9 @@ public class Cassandra {
 
       case UE:
         return getUe();
+
+      case TE:
+        return getTe();
 
       }
       throw new IllegalStateException();
@@ -20364,6 +20419,8 @@ public class Cassandra {
         return isSetIre();
       case UE:
         return isSetUe();
+      case TE:
+        return isSetTe();
       }
       throw new IllegalStateException();
     }
@@ -20399,6 +20456,15 @@ public class Cassandra {
           return false;
       }
 
+      boolean this_present_te = true && this.isSetTe();
+      boolean that_present_te = true && that.isSetTe();
+      if (this_present_te || that_present_te) {
+        if (!(this_present_te && that_present_te))
+          return false;
+        if (!this.te.equals(that.te))
+          return false;
+      }
+
       return true;
     }
 
@@ -20415,6 +20481,11 @@ public class Cassandra {
       builder.append(present_ue);
       if (present_ue)
         builder.append(ue);
+
+      boolean present_te = true && (isSetTe());
+      builder.append(present_te);
+      if (present_te)
+        builder.append(te);
 
       return builder.toHashCode();
     }
@@ -20443,6 +20514,16 @@ public class Cassandra {
       }
       if (isSetUe()) {
         lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.ue, typedOther.ue);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetTe()).compareTo(typedOther.isSetTe());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      if (isSetTe()) {
+        lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.te, typedOther.te);
         if (lastComparison != 0) {
           return lastComparison;
         }
@@ -20480,6 +20561,14 @@ public class Cassandra {
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
             }
             break;
+          case 3: // TE
+            if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
+              this.te = new TimedOutException();
+              this.te.read(iprot);
+            } else { 
+              org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
           default:
             org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
         }
@@ -20501,6 +20590,10 @@ public class Cassandra {
       } else if (this.isSetUe()) {
         oprot.writeFieldBegin(UE_FIELD_DESC);
         this.ue.write(oprot);
+        oprot.writeFieldEnd();
+      } else if (this.isSetTe()) {
+        oprot.writeFieldBegin(TE_FIELD_DESC);
+        this.te.write(oprot);
         oprot.writeFieldEnd();
       }
       oprot.writeFieldStop();
@@ -20525,6 +20618,14 @@ public class Cassandra {
         sb.append("null");
       } else {
         sb.append(this.ue);
+      }
+      first = false;
+      if (!first) sb.append(", ");
+      sb.append("te:");
+      if (this.te == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.te);
       }
       first = false;
       sb.append(")");
@@ -26017,8 +26118,6 @@ public class Cassandra {
 
     private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
       try {
-        // it doesn't seem like you should have to do this, but java serialization is wacky, and doesn't call the default constructor.
-        __isset_bit_vector = new BitSet(1);
         read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
       } catch (org.apache.thrift.TException te) {
         throw new java.io.IOException(te);

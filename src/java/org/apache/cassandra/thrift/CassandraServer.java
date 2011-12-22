@@ -1072,7 +1072,7 @@ public class CassandraServer implements Cassandra.Iface
             throw new SchemaDisagreementException();
     }
 
-    public void truncate(String cfname) throws InvalidRequestException, UnavailableException, TException
+    public void truncate(String cfname) throws InvalidRequestException, UnavailableException, TimedOutException, TException
     {
         logger.debug("truncating {} in {}", cfname, state().getKeyspace());
         state().hasColumnFamilyAccess(cfname, Permission.WRITE);
@@ -1090,7 +1090,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         catch (TimeoutException e)
         {
-            throw (UnavailableException) new UnavailableException().initCause(e);
+            throw new TimedOutException();
         }
         catch (IOException e)
         {

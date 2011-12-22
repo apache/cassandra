@@ -46,7 +46,7 @@ namespace rb CassandraThrift
 #           for every edit that doesn't result in a change to major/minor.
 #
 # See the Semantic Versioning Specification (SemVer) http://semver.org.
-const string VERSION = "19.20.0"
+const string VERSION = "19.22.1"
 
 
 #
@@ -599,7 +599,7 @@ service Cassandra {
    some hosts are down.
   */
   void truncate(1:required string cfname)
-       throws (1: InvalidRequestException ire, 2: UnavailableException ue),
+       throws (1: InvalidRequestException ire, 2: UnavailableException ue, 3: TimedOutException te),
 
 
     
