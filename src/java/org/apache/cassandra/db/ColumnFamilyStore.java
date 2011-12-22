@@ -204,6 +204,17 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
     }
 
+    public void setCompactionStrategyClass(String compactionStrategyClass) throws ConfigurationException
+    {
+        metadata.compactionStrategyClass = CFMetaData.createCompactionStrategy(compactionStrategyClass);
+        maybeReloadCompactionStrategy();
+    }
+    
+    public String getCompactionStrategyClass()
+    {
+        return metadata.compactionStrategyClass.getName();
+    }
+
     private ColumnFamilyStore(Table table, String columnFamilyName, IPartitioner partitioner, int generation, CFMetaData metadata)
     {
         assert metadata != null : "null metadata for " + table + ":" + columnFamilyName;

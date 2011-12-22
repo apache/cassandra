@@ -207,6 +207,17 @@ public interface ColumnFamilyStoreMBean
     public void setMaximumCompactionThreshold(int threshold);
 
     /**
+     * Sets the compaction strategy by class name
+     * @param className the name of the compaction strategy class
+     */
+    public void setCompactionStrategyClass(String className) throws ConfigurationException;
+
+    /**
+     * Gets the compaction strategy class name
+     */
+    public String getCompactionStrategyClass();
+
+    /**
      * Disable automatic compaction.
      */
     public void disableAutoCompaction();
