@@ -308,7 +308,27 @@ public class SecondaryIndexManager
         return cfsList;
     }
         
-   
+    /**
+     * @return all indexes which do *not* use a backing CFS internally
+     */
+    public Collection<SecondaryIndex> getIndexesNotBackedByCfs()
+    {
+        // we use identity map because per row indexes use same instance
+        // across many columns
+        IdentityHashMap<SecondaryIndex, Object> indexList = new IdentityHashMap<SecondaryIndex, Object>();
+
+        for (Map.Entry<ByteBuffer, SecondaryIndex> entry : indexesByColumn.entrySet())
+        {
+            ColumnFamilyStore cfs = entry.getValue().getIndexCfs();
+            
+            if (cfs == null)
+                indexList.put(entry.getValue(), null);        
+        }
+        
+        return indexList.keySet();
+    }
+    
+    
     /**
      * Removes obsolete index entries and creates new ones for the given row key
      * and mutated columns.
