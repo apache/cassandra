@@ -108,6 +108,7 @@ public class NodeCmd
         SETCACHECAPACITY,
         SETCOMPACTIONTHRESHOLD,
         SETCOMPACTIONTHROUGHPUT,
+        SETSTREAMTHROUGHPUT,
         SNAPSHOT,
         STATUSTHRIFT,
         TPSTATS,
@@ -147,6 +148,7 @@ public class NodeCmd
         addCmdHelp(header, "move <new token>", "Move node on the token ring to a new token");
         addCmdHelp(header, "removetoken status|force|<token>", "Show status of current token removal, force completion of pending removal or remove providen token");
         addCmdHelp(header, "setcompactionthroughput <value_in_mb>", "Set the MB/s throughput cap for compaction in the system, or 0 to disable throttling.");
+        addCmdHelp(header, "setstreamthroughput <value_in_mb>", "Set the MB/s throughput cap for streaming in the system, or 0 to disable throttling.");
         addCmdHelp(header, "describering [keyspace]", "Shows the token ranges info of a given keyspace.");
 
         // Two args
@@ -692,6 +694,11 @@ public class NodeCmd
                 case SETCOMPACTIONTHROUGHPUT :
                     if (arguments.length != 1) { badUse("Missing value argument."); }
                     probe.setCompactionThroughput(Integer.valueOf(arguments[0]));
+                    break;
+
+                case SETSTREAMTHROUGHPUT :
+                    if (arguments.length != 1) { badUse("Missing value argument."); }
+                    probe.setStreamThroughput(Integer.valueOf(arguments[0]));
                     break;
 
                 case REMOVETOKEN :

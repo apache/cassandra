@@ -636,6 +636,11 @@ public class NodeProbe
         return fdProxy.getAllEndpointStates();
     }
 
+    public void setStreamThroughput(int value)
+    {
+        ssProxy.setStreamThroughputMbPerSec(value);
+    }
+
     public List<String> describeRing(String keyspaceName) throws InvalidRequestException
     {
         return ssProxy.describeRingJMX(keyspaceName);

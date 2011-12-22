@@ -351,6 +351,9 @@ public interface StorageServiceMBean
     public boolean isJoined();
 
     public int getExceptionCount();
+    
+    public void setStreamThroughputMbPerSec(int value);
+    public int getStreamThroughputMbPerSec();
 
     public int getCompactionThroughputMbPerSec();
     public void setCompactionThroughputMbPerSec(int value);

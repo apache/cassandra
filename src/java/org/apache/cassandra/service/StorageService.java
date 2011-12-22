@@ -634,6 +634,17 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         return joined;
     }
 
+    public void setStreamThroughputMbPerSec(int value)
+    {
+        DatabaseDescriptor.setStreamThroughputOutboundMegabitsPerSec(value);
+        logger_.info("setstreamthroughput: throttle set to {}", value);
+    }
+    
+    public int getStreamThroughputMbPerSec()
+    {
+        return DatabaseDescriptor.getStreamThroughputOutboundMegabitsPerSec();
+    }
+
     public int getCompactionThroughputMbPerSec()
     {
         return DatabaseDescriptor.getCompactionThroughputMbPerSec();
