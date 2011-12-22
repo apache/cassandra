@@ -26,6 +26,7 @@ import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.dht.IPartitioner;
@@ -165,10 +166,12 @@ public class SSTableLoader
             return null;
         }
 
-        public Void get(long timeout, TimeUnit unit) throws InterruptedException
+        public Void get(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
         {
-            latch.await(timeout, unit);
-            return null;
+            if (latch.await(timeout, unit))
+                return null;
+            else
+                throw new TimeoutException();
         }
 
         public boolean isCancelled()

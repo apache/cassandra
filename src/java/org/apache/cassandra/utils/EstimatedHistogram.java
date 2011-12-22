@@ -24,6 +24,8 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicLongArray;
 
+import com.google.common.base.Objects;
+
 import org.apache.cassandra.io.ISerializer;
 
 public class EstimatedHistogram
@@ -200,6 +202,12 @@ public class EstimatedHistogram
         EstimatedHistogram that = (EstimatedHistogram) o;
         return Arrays.equals(getBucketOffsets(), that.getBucketOffsets()) &&
                Arrays.equals(getBuckets(false), that.getBuckets(false));
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hashCode(getBucketOffsets(), getBuckets(false));
     }
 
     public static class EstimatedHistogramSerializer implements ISerializer<EstimatedHistogram>

@@ -913,8 +913,6 @@ public class CliClient
         String columnFamily = CliCompiler.getColumnFamily(columnFamilySpec, keyspacesMap.get(keySpace).cf_defs);
         ByteBuffer key = getKeyAsBytes(columnFamily, columnFamilySpec.getChild(1));
         int columnSpecCnt = CliCompiler.numColumnSpecifiers(columnFamilySpec);
-        CfDef cfDef = getCfDef(columnFamily);
-        boolean isSuper = cfDef.column_type.equals("Super");
         
         byte[] superColumnName = null;
         ByteBuffer columnName;

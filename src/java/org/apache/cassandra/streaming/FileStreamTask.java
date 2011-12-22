@@ -185,7 +185,7 @@ public class FileStreamTask extends WrappedRunnable
         assert MessagingService.getBits(msheader, 3, 1) == 0 : "Stream received before stream reply";
         int version = MessagingService.getBits(msheader, 15, 8);
 
-        int totalSize = input.readInt();
+        input.readInt(); // Read total size
         String id = input.readUTF();
         Header header = Header.serializer().deserialize(input, version);
 

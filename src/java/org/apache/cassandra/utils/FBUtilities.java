@@ -414,7 +414,7 @@ public class FBUtilities
                         // both tokens are on the same side of the wrap point
                         return o1.compareTo(o2);
                     }
-                    return -o1.compareTo(o2);
+                    return o2.compareTo(o1);
                 }
             };
             Collections.sort(keys, comparator);

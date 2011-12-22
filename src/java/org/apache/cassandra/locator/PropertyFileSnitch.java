@@ -142,9 +142,10 @@ public class PropertyFileSnitch extends AbstractNetworkTopologySnitch
 
             if (key.equals("default"))
             {
-                defaultDCRack = value.split(":");
-                if (defaultDCRack.length < 2)
-                    defaultDCRack = new String[] { "default", "default" };
+                String[] newDefault = value.split(":");
+                if (newDefault.length < 2)
+                    newDefault = new String[] { "default", "default" };
+                defaultDCRack = newDefault;
             }
             else
             {

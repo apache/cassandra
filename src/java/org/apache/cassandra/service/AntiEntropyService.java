@@ -595,7 +595,7 @@ public class AntiEntropyService
      * Triggers repairs with all neighbors for the given table, cfs and range.
      * Typical lifecycle is: start() then join(). Executed in client threads.
      */
-    class RepairSession extends WrappedRunnable implements IEndpointStateChangeSubscriber, IFailureDetectionEventListener
+    static class RepairSession extends WrappedRunnable implements IEndpointStateChangeSubscriber, IFailureDetectionEventListener
     {
         private final String sessionName;
         private final String tablename;

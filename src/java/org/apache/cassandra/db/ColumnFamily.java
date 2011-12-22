@@ -258,16 +258,19 @@ public class ColumnFamily extends AbstractColumnContainer
         return maxTimestamp;
     }
 
+    @Override
     public int hashCode()
     {
         throw new RuntimeException("Not implemented.");
     }
 
+    @Override
     public boolean equals(Object o)
     {
         throw new RuntimeException("Not implemented.");
     }
 
+    @Override
     public String toString()
     {
         StringBuilder sb = new StringBuilder("ColumnFamily(");

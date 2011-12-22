@@ -258,7 +258,7 @@ public class CompressionMetadata
     /**
      * Holds offset and length of the file chunk
      */
-    public class Chunk
+    public static class Chunk
     {
         public final long offset;
         public final int length;

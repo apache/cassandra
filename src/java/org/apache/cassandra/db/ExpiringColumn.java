@@ -170,4 +170,22 @@ public class ExpiringColumn extends Column
         if (localExpirationTime < 0)
             throw new MarshalException("The local expiration time should not be negative");
     }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        // super.equals() returns false if o is not a CounterColumn
+        return super.equals(o)
+            && localExpirationTime == ((ExpiringColumn)o).localExpirationTime
+            && timeToLive == ((ExpiringColumn)o).timeToLive;
+    }
+
+    @Override
+    public int hashCode()
+    {
+        int result = super.hashCode();
+        result = 31 * result + localExpirationTime;
+        result = 31 * result + timeToLive;
+        return result;
+    }
 }

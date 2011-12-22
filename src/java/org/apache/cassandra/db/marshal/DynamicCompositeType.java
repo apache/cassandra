@@ -248,7 +248,7 @@ public class DynamicCompositeType extends AbstractCompositeType
         {
             int header = 0;
             if (isAlias)
-                header = 0x8000 | ((byte)comparatorName.charAt(0));
+                header = 0x8000 | (((byte)comparatorName.charAt(0)) & 0xFF);
             else
                 header = comparatorName.length();
             putShortLength(bb, header);

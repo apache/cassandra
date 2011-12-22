@@ -27,6 +27,7 @@
  * more efficient allocation of small bloom filters (CASSANDRA-3618)
  * Use separate writer thread in SSTableSimpleUnsortedWriter (CASSANDRA-3619)
  * fsync the directory after new sstable or commitlog segment are created (CASSANDRA-3250)
+ * fix minor issues reported by FindBugs (CASSANDRA-3658)
 
 
 1.0.7

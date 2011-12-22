@@ -89,7 +89,7 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>
                     return 1;
                 }
 
-                return -AbstractType.this.compare(o1, o2);
+                return AbstractType.this.compare(o2, o1);
             }
         };
     }

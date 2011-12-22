@@ -90,7 +90,6 @@ public class RowIteratorFactory
             iterators.add(scanner);
         }
 
-        final Memtable firstMemtable = memtables.iterator().next();
         // reduce rows from all sources into a single row
         return MergeIterator.get(iterators, COMPARE_BY_KEY, new MergeIterator.Reducer<IColumnIterator, Row>()
         {

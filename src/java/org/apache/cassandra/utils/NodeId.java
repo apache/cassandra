@@ -25,6 +25,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import com.google.common.base.Objects;
 
 import org.apache.cassandra.db.CounterColumn;
 import org.apache.cassandra.db.SystemTable;
@@ -240,6 +241,12 @@ public class NodeId implements Comparable<NodeId>
 
             NodeIdRecord otherRecord = (NodeIdRecord)o;
             return id.equals(otherRecord.id) && timestamp == otherRecord.timestamp;
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hashCode(id, timestamp);
         }
 
         public String toString()

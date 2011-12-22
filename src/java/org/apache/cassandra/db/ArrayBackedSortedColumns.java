@@ -181,7 +181,7 @@ public class ArrayBackedSortedColumns extends ArrayList<IColumn> implements ISor
         while (low <= high)
         {
             mid = (low + high) >> 1;
-            if ((result = -compare(get(mid).name(), name)) > 0)
+            if ((result = compare(name, get(mid).name())) > 0)
             {
                 low = mid + 1;
             }

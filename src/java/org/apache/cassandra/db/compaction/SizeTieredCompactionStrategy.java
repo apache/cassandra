@@ -35,7 +35,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
     private static final Logger logger = LoggerFactory.getLogger(SizeTieredCompactionStrategy.class);
     protected static final long DEFAULT_MIN_SSTABLE_SIZE = 50L * 1024L * 1024L;
     protected static final String MIN_SSTABLE_SIZE_KEY = "min_sstable_size";
-    protected static long minSSTableSize;
+    protected long minSSTableSize;
     protected volatile int estimatedRemainingTasks;
 
     public SizeTieredCompactionStrategy(ColumnFamilyStore cfs, Map<String, String> options)
