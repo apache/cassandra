@@ -150,7 +150,10 @@ public class CompressionParameters
 
         try
         {
-            return 1024 * Integer.parseInt(chLengthKB);
+            int parsed = Integer.parseInt(chLengthKB);
+            if (parsed > Integer.MAX_VALUE / 1024)
+                throw new ConfigurationException("Value of " + CHUNK_LENGTH_KB + " is too large (" + parsed + ")");
+            return 1024 * parsed;
         }
         catch (NumberFormatException e)
         {
