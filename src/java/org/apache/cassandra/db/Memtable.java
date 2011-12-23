@@ -309,11 +309,13 @@ public class Memtable
      * @param startWith Include data in the result from and including this key and to the end of the memtable
      * @return An iterator of entries with the data from the start key 
      */
-    public Iterator<Map.Entry<DecoratedKey, ColumnFamily>> getEntryIterator(final RowPosition startWith)
+    public Iterator<Map.Entry<DecoratedKey, ColumnFamily>> getEntryIterator(final RowPosition startWith, final RowPosition stopAt)
     {
         return new Iterator<Map.Entry<DecoratedKey, ColumnFamily>>()
         {
-            private Iterator<Map.Entry<RowPosition, ColumnFamily>> iter = columnFamilies.tailMap(startWith).entrySet().iterator();
+            private Iterator<Map.Entry<RowPosition, ColumnFamily>> iter = stopAt.isMinimum()
+                                                                        ? columnFamilies.tailMap(startWith).entrySet().iterator()
+                                                                        : columnFamilies.subMap(startWith, true, stopAt, true).entrySet().iterator();
 
             public boolean hasNext()
             {

@@ -29,6 +29,7 @@
  * fsync the directory after new sstable or commitlog segment are created (CASSANDRA-3250)
  * fix minor issues reported by FindBugs (CASSANDRA-3658)
  * global key/row caches (CASSANDRA-3143)
+ * optimize memtable iteration during range scan (CASSANDRA-3638)
 
 1.0.7
  * add nodetool setstreamthroughput (CASSANDRA-3571)

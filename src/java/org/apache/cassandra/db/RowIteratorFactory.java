@@ -65,21 +65,11 @@ public class RowIteratorFactory
     {
         // fetch data from current memtable, historical memtables, and SSTables in the correct order.
         final List<CloseableIterator<IColumnIterator>> iterators = new ArrayList<CloseableIterator<IColumnIterator>>();
-        // we iterate through memtables with a priority queue to avoid more sorting than necessary.
-        // this predicate throws out the rows before the start of our range.
-        Predicate<IColumnIterator> p = new Predicate<IColumnIterator>()
-        {
-            public boolean apply(IColumnIterator row)
-            {
-                return startWith.compareTo(row.getKey()) <= 0
-                       && (stopAt.isMinimum() || row.getKey().compareTo(stopAt) <= 0);
-            }
-        };
 
         // memtables
         for (Memtable memtable : memtables)
         {
-            iterators.add(new ConvertToColumnIterator(filter, p, memtable.getEntryIterator(startWith)));
+            iterators.add(new ConvertToColumnIterator(filter, memtable.getEntryIterator(startWith, stopAt)));
         }
 
         for (SSTableReader sstable : sstables)
@@ -139,24 +129,20 @@ public class RowIteratorFactory
     private static class ConvertToColumnIterator extends AbstractIterator<IColumnIterator> implements CloseableIterator<IColumnIterator>
     {
         private final QueryFilter filter;
-        private final Predicate<IColumnIterator> pred;
         private final Iterator<Map.Entry<DecoratedKey, ColumnFamily>> iter;
 
-        public ConvertToColumnIterator(QueryFilter filter, Predicate<IColumnIterator> pred, Iterator<Map.Entry<DecoratedKey, ColumnFamily>> iter)
+        public ConvertToColumnIterator(QueryFilter filter, Iterator<Map.Entry<DecoratedKey, ColumnFamily>> iter)
         {
             this.filter = filter;
-            this.pred = pred;
             this.iter = iter;
         }
 
         public IColumnIterator computeNext()
         {
-            while (iter.hasNext())
+            if (iter.hasNext())
             {
                 Map.Entry<DecoratedKey, ColumnFamily> entry = iter.next();
-                IColumnIterator ici = filter.getMemtableColumnIterator(entry.getValue(), entry.getKey());
-                if (pred.apply(ici))
-                    return ici;
+                return filter.getMemtableColumnIterator(entry.getValue(), entry.getKey());
             }
             return endOfData();
         }
