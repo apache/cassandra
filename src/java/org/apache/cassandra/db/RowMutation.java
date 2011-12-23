@@ -112,7 +112,7 @@ public class RowMutation implements IMutation, MessageProducer
      * The format is the following:
      *
      * HintsColumnFamily: {        // cf
-     *   <dest ip>: {              // key
+     *   <dest token>: {           // key
      *     <uuid>: {               // super-column
      *       table: <table>        // columns
      *       key: <key>

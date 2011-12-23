@@ -99,8 +99,7 @@ public class GCInspector
             if (previousTotal.equals(total))
                 continue;
             gctimes.put(gc.getName(), total);
-            Long duration = total - previousTotal;
-            assert duration > 0;
+            Long duration = total - previousTotal; // may be zero for a really fast collection
 
             Long previousCount = gccounts.get(gc.getName());
             Long count = gc.getCollectionCount();

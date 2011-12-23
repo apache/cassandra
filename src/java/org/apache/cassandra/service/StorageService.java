@@ -514,7 +514,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         MigrationManager.passiveAnnounce(Schema.instance.getVersion());
         Gossiper.instance.addLocalApplicationState(ApplicationState.RELEASE_VERSION, valueFactory.releaseVersion());
 
-        HintedHandOffManager.instance.registerMBean();
+        HintedHandOffManager.instance.start();
 
         if (DatabaseDescriptor.isAutoBootstrap()
                 && DatabaseDescriptor.getSeeds().contains(FBUtilities.getBroadcastAddress())
@@ -1494,7 +1494,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     public void onAlive(InetAddress endpoint, EndpointState state)
     {
         if (!isClientMode && getTokenMetadata().isMember(endpoint))
-            deliverHints(endpoint);
+            HintedHandOffManager.instance.scheduleHintDelivery(endpoint);
     }
 
     public void onRemove(InetAddress endpoint)
@@ -1545,18 +1545,9 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         return map;
     }
 
-    /**
-     * Deliver hints to the specified node when it has crashed
-     * and come back up/ marked as alive after a network partition
-    */
-    public final void deliverHints(InetAddress endpoint)
-    {
-        HintedHandOffManager.instance.deliverHints(endpoint);
-    }
-
     public final void deliverHints(String host) throws UnknownHostException
     {
-        HintedHandOffManager.instance.deliverHints(host);
+        HintedHandOffManager.instance.scheduleHintDelivery(host);
     }
 
     public Token getLocalToken()

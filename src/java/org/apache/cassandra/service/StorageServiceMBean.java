@@ -300,9 +300,6 @@ public interface StorageServiceMBean
      */
     public void truncate(String keyspace, String columnFamily) throws UnavailableException, TimeoutException, IOException;
 
-    /** force hint delivery to an endpoint **/
-    public void deliverHints(String host) throws UnknownHostException;
-
     /**
      * given a list of tokens (representing the nodes in the cluster), returns
      *   a mapping from "token -> %age of cluster owned by that token"

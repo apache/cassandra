@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.db;
 
+import java.net.UnknownHostException;
 import java.util.List;
 import java.util.Map;
 
@@ -25,9 +26,9 @@ public interface HintedHandOffManagerMBean
 {
     /**
      * Nuke all hints from this node to `ep`.
-     * @param epaddr String rep. of endpoint address to delete hints for, either ip address ("127.0.0.1") or hostname
+     * @param host String rep. of endpoint address to delete hints for, either ip address ("127.0.0.1") or hostname
      */
-    public void deleteHintsForEndpoint(final String epaddr);
+    public void deleteHintsForEndpoint(final String host);
 
     /**
      * List all the endpoints that this node has hints for.
@@ -42,5 +43,8 @@ public interface HintedHandOffManagerMBean
      * @return map of endpoint -> hint count
      */
     public Map<String, Integer> countPendingHints();
+
+    /** force hint delivery to an endpoint **/
+    public void scheduleHintDelivery(String host) throws UnknownHostException;
 }
 

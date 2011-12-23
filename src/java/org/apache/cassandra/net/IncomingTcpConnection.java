@@ -82,8 +82,9 @@ public class IncomingTcpConnection extends Thread
                 } 
                 else
                 {
-                    // streaming connections are per-session and have a fixed version.  we can't do anything with a new-version stream connection, so drop it.
-                    logger.error("Received untranslated stream from newer protocol version. Terminating connection!");
+                    // streaming connections are per-session and have a fixed version.  we can't do anything with a wrong-version stream connection, so drop it.
+                    logger.error("Received stream using protocol version {} (my version {}). Terminating connection",
+                                 version, MessagingService.version_);
                 }
                 // We are done with this connection....
                 return;

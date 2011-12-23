@@ -169,6 +169,17 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
     }
 
+    public void setCompactionStrategyClass(String compactionStrategyClass) throws ConfigurationException
+    {
+        metadata.compactionStrategyClass = CFMetaData.createCompactionStrategy(compactionStrategyClass);
+        maybeReloadCompactionStrategy();
+    }
+    
+    public String getCompactionStrategyClass()
+    {
+        return metadata.compactionStrategyClass.getName();
+    }
+
     private ColumnFamilyStore(Table table, String columnFamilyName, IPartitioner partitioner, int generation, CFMetaData metadata)
     {
         assert metadata != null : "null metadata for " + table + ":" + columnFamilyName;
@@ -1267,7 +1278,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
       * @return true if we found all keys we were looking for, otherwise false
      */
     public List<Row> getRangeSlice(ByteBuffer superColumn, final AbstractBounds<RowPosition> range, int maxResults, IFilter columnFilter)
-    throws ExecutionException, InterruptedException
     {
         assert range instanceof Bounds
                || !((Range)range).isWrapAround() || range.right.isMinimum()
