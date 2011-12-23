@@ -139,6 +139,7 @@ public class CliClient
         COMPACTION_STRATEGY,
         COMPACTION_STRATEGY_OPTIONS,
         COMPRESSION_OPTIONS,
+        BLOOM_FILTER_FP_CHANCE
     }
 
     private static final String DEFAULT_PLACEMENT_STRATEGY = "org.apache.cassandra.locator.NetworkTopologyStrategy";
@@ -1243,6 +1244,9 @@ public class CliClient
                 break;
             case COMPRESSION_OPTIONS:
                 cfDef.setCompression_options(getStrategyOptionsFromTree(statement.getChild(i+1)));
+                break;
+            case BLOOM_FILTER_FP_CHANCE:
+                cfDef.setBloom_filter_fp_chance(Double.parseDouble(mValue));
                 break;
             default:
                 //must match one of the above or we'd throw an exception at the valueOf statement above.

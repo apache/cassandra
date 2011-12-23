@@ -385,6 +385,9 @@ commands:
             - index_options: Optional additional options for index_type.
               Options have the form {key:value}.
                    
+        - bloom_filter_fp_chance: Desired false positive probability for
+          sstable row bloom filters.  Default is 0.000744.
+
         - column_type: Type of columns this column family holds, valid values are
           Standard and Super. Default is Standard.
 
@@ -586,6 +589,9 @@ commands:
             
             - index_options: Optional additional options for index_type.
               Options have the form {key:value}.
+
+        - bloom_filter_fp_chance: Desired false positive probability for
+          sstable row bloom filters.  Default is 0.000744.
 
         - column_type: Type of columns this column family holds, valid values are
           Standard and Super. Default is Standard.
