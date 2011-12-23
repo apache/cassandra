@@ -112,6 +112,11 @@ public abstract class SecondaryIndex
     public abstract void forceBlockingFlush() throws IOException;
 
     /**
+     * Get current amount of memory this index is consuming (in bytes)
+     */
+    public abstract long getLiveSize();
+    
+    /**
      * Allow access to the underlying column family store if there is one
      * @return the underlying column family store or null
      */

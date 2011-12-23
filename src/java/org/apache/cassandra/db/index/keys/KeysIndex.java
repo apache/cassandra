@@ -152,4 +152,9 @@ public class KeysIndex extends PerColumnSecondaryIndex
     {
         // no options used
     }
+
+    public long getLiveSize()
+    {
+        return indexCfs.getMemtableDataSize();
+    }
 }
