@@ -83,7 +83,7 @@ public class SSTableWriter extends SSTable
               components(metadata),
               metadata,
               partitioner);
-        iwriter = new IndexWriter(descriptor, partitioner, keyCount);
+        iwriter = new IndexWriter(keyCount);
 
         if (compression)
         {
@@ -385,24 +385,30 @@ public class SSTableWriter extends SSTable
     /**
      * Encapsulates writing the index and filter for an SSTable. The state of this object is not valid until it has been closed.
      */
-    static class IndexWriter implements Closeable
+    class IndexWriter implements Closeable
     {
         private final SequentialWriter indexFile;
-        public final Descriptor desc;
-        public final IPartitioner<?> partitioner;
         public final SegmentedFile.Builder builder;
         public final IndexSummary summary;
         public final BloomFilter bf;
         private FileMark mark;
 
-        IndexWriter(Descriptor desc, IPartitioner<?> part, long keyCount) throws IOException
+        IndexWriter(long keyCount) throws IOException
         {
-            this.desc = desc;
-            this.partitioner = part;
-            indexFile = SequentialWriter.open(new File(desc.filenameFor(SSTable.COMPONENT_INDEX)), true);
+            indexFile = SequentialWriter.open(new File(descriptor.filenameFor(SSTable.COMPONENT_INDEX)), true);
             builder = SegmentedFile.getBuilder(DatabaseDescriptor.getIndexAccessMode());
             summary = new IndexSummary(keyCount);
-            bf = BloomFilter.getFilter(keyCount, 15);
+
+            Double fpChance = metadata.getBloomFilterFpChance();
+            if (fpChance != null && fpChance == 0)
+            {
+                // paranoia -- we've had bugs in the thrift <-> avro <-> CfDef dance before, let's not let that break things
+                logger.error("Bloom filter FP chance of zero isn't supposed to happen");
+                fpChance = null;
+            }
+            bf = fpChance == null
+               ? BloomFilter.getFilter(keyCount, 15)
+               : BloomFilter.getFilter(keyCount, fpChance);
         }
 
         public void afterAppend(DecoratedKey<?> key, long dataPosition) throws IOException
@@ -424,7 +430,7 @@ public class SSTableWriter extends SSTable
         public void close() throws IOException
         {
             // bloom filter
-            FileOutputStream fos = new FileOutputStream(desc.filenameFor(SSTable.COMPONENT_FILTER));
+            FileOutputStream fos = new FileOutputStream(descriptor.filenameFor(SSTable.COMPONENT_FILTER));
             DataOutputStream stream = new DataOutputStream(fos);
             BloomFilter.serializer().serialize(bf, stream);
             stream.flush();
@@ -456,7 +462,7 @@ public class SSTableWriter extends SSTable
         @Override
         public String toString()
         {
-            return "IndexWriter(" + desc + ")";
+            return "IndexWriter(" + descriptor + ")";
         }
     }
 }

@@ -135,6 +135,7 @@ public final class CFMetaData
     private double mergeShardsChance;                 // default 0.1, chance [0.0, 1.0] of merging old shards during replication
     private IRowCacheProvider rowCacheProvider;
     private ByteBuffer keyAlias;                      // default NULL
+    private Double bloomFilterFpChance;                           // default NULL
 
     private Map<ByteBuffer, ColumnDefinition> column_metadata;
     public Class<? extends AbstractCompactionStrategy> compactionStrategyClass;
@@ -162,6 +163,8 @@ public final class CFMetaData
     public CFMetaData compactionStrategyClass(Class<? extends AbstractCompactionStrategy> prop) {compactionStrategyClass = prop; return this;}
     public CFMetaData compactionStrategyOptions(Map<String, String> prop) {compactionStrategyOptions = prop; return this;}
     public CFMetaData compressionParameters(CompressionParameters prop) {compressionParameters = prop; return this;}
+    public CFMetaData bloomFilterFpChance(Double prop) {
+        bloomFilterFpChance = prop; return this;}
 
     public CFMetaData(String keyspace, String name, ColumnFamilyType type, AbstractType comp, AbstractType subcc)
     {
@@ -282,7 +285,8 @@ public final class CFMetaData
                       .columnMetadata(oldCFMD.column_metadata)
                       .compactionStrategyClass(oldCFMD.compactionStrategyClass)
                       .compactionStrategyOptions(oldCFMD.compactionStrategyOptions)
-                      .compressionParameters(oldCFMD.compressionParameters);
+                      .compressionParameters(oldCFMD.compressionParameters)
+                      .bloomFilterFpChance(oldCFMD.bloomFilterFpChance);
     }
     
     /**
@@ -341,6 +345,7 @@ public final class CFMetaData
                 cf.compaction_strategy_options.put(new Utf8(e.getKey()), new Utf8(e.getValue()));
         }
         cf.compression_options = compressionParameters.asAvroOptions();
+        cf.bloom_filter_fp_chance = bloomFilterFpChance;
         return cf;
     }
 
@@ -440,7 +445,8 @@ public final class CFMetaData
                       .defaultValidator(validator)
                       .keyValidator(keyValidator)
                       .columnMetadata(column_metadata)
-                      .compressionParameters(cp);
+                      .compressionParameters(cp)
+                      .bloomFilterFpChance(cf.bloom_filter_fp_chance);
     }
     
     public String getComment()
@@ -537,7 +543,12 @@ public final class CFMetaData
     {
         return superColumnName == null ? comparator : subcolumnComparator;
     }
-    
+
+    public Double getBloomFilterFpChance()
+    {
+        return bloomFilterFpChance;
+    }
+
     public boolean equals(Object obj)
     {
         if (obj == this)
@@ -576,6 +587,7 @@ public final class CFMetaData
             .append(compactionStrategyClass, rhs.compactionStrategyClass)
             .append(compactionStrategyOptions, rhs.compactionStrategyOptions)
             .append(compressionParameters, rhs.compressionParameters)
+            .append(bloomFilterFpChance, rhs.bloomFilterFpChance)
             .isEquals();
     }
 
@@ -607,6 +619,7 @@ public final class CFMetaData
             .append(compactionStrategyClass)
             .append(compactionStrategyOptions)
             .append(compressionParameters)
+            .append(bloomFilterFpChance)
             .toHashCode();
     }
 
@@ -678,6 +691,8 @@ public final class CFMetaData
             newCFMD.compactionStrategyClass = createCompactionStrategy(cf_def.compaction_strategy);
         if (cf_def.isSetCompaction_strategy_options())
             newCFMD.compactionStrategyOptions(new HashMap<String, String>(cf_def.compaction_strategy_options));
+        if (cf_def.isSetBloom_filter_fp_chance())
+            newCFMD.bloomFilterFpChance(cf_def.bloom_filter_fp_chance);
 
         CompressionParameters cp = CompressionParameters.create(cf_def.compression_options);
 
@@ -740,6 +755,8 @@ public final class CFMetaData
         if (cf_def.row_cache_provider != null)
             rowCacheProvider = FBUtilities.newCacheProvider(cf_def.row_cache_provider.toString());
         keyAlias = cf_def.key_alias;
+        if (cf_def.bloom_filter_fp_chance != null)
+            bloomFilterFpChance = cf_def.bloom_filter_fp_chance;
 
         // adjust column definitions. figure out who is coming and going.
         Set<ByteBuffer> toRemove = new HashSet<ByteBuffer>();
@@ -885,6 +902,8 @@ public final class CFMetaData
         def.setCompaction_strategy(compactionStrategyClass.getName());
         def.setCompaction_strategy_options(new HashMap<String, String>(compactionStrategyOptions));
         def.setCompression_options(compressionParameters.asThriftOptions());
+        if (bloomFilterFpChance != null)
+            def.setBloom_filter_fp_chance(bloomFilterFpChance);
         return def;
     }
 
@@ -1027,6 +1046,7 @@ public final class CFMetaData
             .append("compactionStrategyClass", compactionStrategyClass)
             .append("compactionStrategyOptions", compactionStrategyOptions)
             .append("compressionOptions", compressionParameters.asThriftOptions())
+            .append("bloomFilterFpChance", bloomFilterFpChance)
             .toString();
     }
 }

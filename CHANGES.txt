@@ -1,4 +1,5 @@
 1.0.7
+ * allow configuring bloom_filter_fp_chance (CASSANDRA-3497)
  * attempt hint delivery every ten minutes, or when failure detector
    notifies us that a node is back up, whichever comes first.  hint
    handoff throttle delay default changed to 1ms, from 50 (CASSANDRA-3554)

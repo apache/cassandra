@@ -46,7 +46,7 @@ namespace rb CassandraThrift
 #           for every edit that doesn't result in a change to major/minor.
 #
 # See the Semantic Versioning Specification (SemVer) http://semver.org.
-const string VERSION = "19.19.0"
+const string VERSION = "19.20.0"
 
 
 #
@@ -414,6 +414,7 @@ struct CfDef {
     30: optional map<string,string> compaction_strategy_options,
     31: optional i32 row_cache_keys_to_save,
     32: optional map<string,string> compression_options,
+    33: optional double bloom_filter_fp_chance,
 }
 
 /* describes a keyspace. */
