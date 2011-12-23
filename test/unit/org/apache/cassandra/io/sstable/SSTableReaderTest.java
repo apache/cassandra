@@ -40,6 +40,7 @@ import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.MmappedSegmentedFile;
@@ -167,7 +168,7 @@ public class SSTableReaderTest extends CleanupHelper
     {
         Table table = Table.open("Keyspace1");
         ColumnFamilyStore store = table.getColumnFamilyStore("Standard2");
-        store.getKeyCache().setCapacity(100);
+        CacheService.instance.keyCache.setCapacity(100);
 
         // insert data and compact to a single sstable
         CompactionManager.instance.disableAutoCompaction();

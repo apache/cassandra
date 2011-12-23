@@ -20,12 +20,11 @@ package org.apache.cassandra.cache;
  * 
  */
 
-
-import java.util.Collection;
-import java.util.Map;
 import java.util.Set;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap;
+import com.googlecode.concurrentlinkedhashmap.Weigher;
+
 import com.googlecode.concurrentlinkedhashmap.Weighers;
 
 /** Wrapper so CLHM can implement ICache interface.
@@ -40,14 +39,41 @@ public class ConcurrentLinkedHashCache<K, V> implements ICache<K, V>
         this.map = map;
     }
 
-    public static <K, V> ConcurrentLinkedHashCache<K, V> create(int capacity, String tableName, String cfname)
+    /**
+     * Initialize a cache with weigher = Weighers.singleton() and initial capacity 0
+     *
+     * @param capacity cache weighted capacity
+     *
+     * @param <K> key type
+     * @param <V> value type
+     *
+     * @return initialized cache
+     */
+    public static <K, V> ConcurrentLinkedHashCache<K, V> create(int capacity)
+    {
+        return create(capacity, Weighers.<V>singleton());
+    }
+
+    /**
+     * Initialize a cache with initial capacity set to 0
+     *
+     * @param weightedCapacity cache weighted capacity
+     * @param weigher The weigher to use
+     *
+     * @param <K> key type
+     * @param <V> value type
+     *
+     * @return initialized cache
+     */
+    public static <K, V> ConcurrentLinkedHashCache<K, V> create(int weightedCapacity, Weigher<V> weigher)
     {
         ConcurrentLinkedHashMap<K, V> map = new ConcurrentLinkedHashMap.Builder<K, V>()
-                                            .weigher(Weighers.<V>singleton())
-                                            .initialCapacity(capacity)
-                                            .maximumWeightedCapacity(capacity)
+                                            .weigher(weigher)
+                                            .initialCapacity(0)
+                                            .maximumWeightedCapacity(weightedCapacity)
                                             .concurrencyLevel(DEFAULT_CONCURENCY_LEVEL)
                                             .build();
+
         return new ConcurrentLinkedHashCache<K, V>(map);
     }
 
@@ -69,6 +95,11 @@ public class ConcurrentLinkedHashCache<K, V> implements ICache<K, V>
     public int size()
     {
         return map.size();
+    }
+
+    public int weightedSize()
+    {
+        return map.weightedSize();
     }
 
     public void clear()
@@ -99,6 +130,11 @@ public class ConcurrentLinkedHashCache<K, V> implements ICache<K, V>
     public Set<K> hotKeySet(int n)
     {
         return map.descendingKeySetWithLimit(n);
+    }
+
+    public boolean containsKey(K key)
+    {
+        return map.containsKey(key);
     }
 
     public boolean isPutCopying()

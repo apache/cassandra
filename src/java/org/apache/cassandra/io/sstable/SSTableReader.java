@@ -29,9 +29,11 @@ import java.util.concurrent.*;
 import com.google.common.base.Function;
 import com.google.common.collect.Collections2;
 
+import org.apache.cassandra.cache.KeyCacheKey;
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.io.compress.CompressedRandomAccessReader;
+import org.apache.cassandra.service.CacheService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -82,7 +84,7 @@ public class SSTableReader extends SSTable
     private IndexSummary indexSummary;
     private Filter bf;
 
-    private InstrumentingCache<Pair<Descriptor, DecoratedKey>, Long> keyCache;
+    private InstrumentingCache<KeyCacheKey, Long> keyCache;
 
     private BloomFilterTracker bloomFilterTracker = new BloomFilterTracker();
 
@@ -283,7 +285,7 @@ public class SSTableReader extends SSTable
     {
         if (tracker != null)
         {
-            keyCache = tracker.getKeyCache();
+            keyCache = CacheService.instance.keyCache;
             deletingTask.setTracker(tracker);
         }
     }
@@ -321,6 +323,7 @@ public class SSTableReader extends SSTable
     private void load(boolean recreatebloom, Set<DecoratedKey> keysToLoadInCache) throws IOException
     {
         boolean cacheLoading = keyCache != null && !keysToLoadInCache.isEmpty();
+
         SegmentedFile.Builder ibuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getIndexAccessMode());
         SegmentedFile.Builder dbuilder = compression
                                           ? SegmentedFile.getCompressedBuilder()
@@ -331,9 +334,6 @@ public class SSTableReader extends SSTable
         DecoratedKey left = null, right = null;
         try
         {
-            if (keyCache != null && keyCache.getCapacity() - keyCache.size() < keysToLoadInCache.size())
-                keyCache.updateCapacity(keyCache.size() + keysToLoadInCache.size());
-
             long indexSize = input.length();
             long estimatedKeys = SSTable.estimateRowsFromIndex(input);
             indexSummary = new IndexSummary(estimatedKeys);
@@ -367,6 +367,7 @@ public class SSTableReader extends SSTable
                         bf.add(decoratedKey.key);
                     if (shouldAddEntry)
                         indexSummary.addEntry(decoratedKey, indexPosition);
+                    // if key cache could be used and we have key already pre-loaded
                     if (cacheLoading && keysToLoadInCache.contains(decoratedKey))
                         cacheKey(decoratedKey, dataPosition);
                 }
@@ -449,7 +450,7 @@ public class SSTableReader extends SSTable
     {
         return indexSummary.getIndexPositions().size() * DatabaseDescriptor.getIndexInterval();
     }
-    
+
     /**
      * @param ranges
      * @return An estimate of the number of keys for given ranges in this SSTable.
@@ -604,17 +605,19 @@ public class SSTableReader extends SSTable
 
     public void cacheKey(DecoratedKey key, Long info)
     {
+        if (keyCache == null)
+            return;
+
         // avoid keeping a permanent reference to the original key buffer
-        DecoratedKey copiedKey = new DecoratedKey(key.token, ByteBufferUtil.clone(key.key));
-        keyCache.put(new Pair<Descriptor, DecoratedKey>(descriptor, copiedKey), info);
+        keyCache.put(new KeyCacheKey(descriptor, ByteBufferUtil.clone(key.key)), info);
     }
 
     public Long getCachedPosition(DecoratedKey key, boolean updateStats)
     {
-        return getCachedPosition(new Pair<Descriptor, DecoratedKey>(descriptor, key), updateStats);
+        return getCachedPosition(new KeyCacheKey(descriptor, key.key), updateStats);
     }
 
-    private Long getCachedPosition(Pair<Descriptor, DecoratedKey> unifiedKey, boolean updateStats)
+    private Long getCachedPosition(KeyCacheKey unifiedKey, boolean updateStats)
     {
         if (keyCache != null && keyCache.getCapacity() > 0)
             return updateStats ? keyCache.get(unifiedKey) : keyCache.getInternal(unifiedKey);
@@ -641,8 +644,7 @@ public class SSTableReader extends SSTable
         if ((op == Operator.EQ || op == Operator.GE) && (key instanceof DecoratedKey))
         {
             DecoratedKey decoratedKey = (DecoratedKey)key;
-            Pair<Descriptor, DecoratedKey> unifiedKey = new Pair<Descriptor, DecoratedKey>(descriptor, decoratedKey);
-            Long cachedPosition = getCachedPosition(unifiedKey, true);
+            Long cachedPosition = getCachedPosition(new KeyCacheKey(descriptor, decoratedKey.key), true);
             if (cachedPosition != null)
                 return cachedPosition;
         }
@@ -909,7 +911,7 @@ public class SSTableReader extends SSTable
         return bloomFilterTracker.getRecentTruePositiveCount();
     }
 
-    public InstrumentingCache<Pair<Descriptor,DecoratedKey>, Long> getKeyCache()
+    public InstrumentingCache<KeyCacheKey, Long> getKeyCache()
     {
         return keyCache;
     }

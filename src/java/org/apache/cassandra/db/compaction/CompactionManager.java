@@ -937,8 +937,6 @@ public class CompactionManager implements CompactionManagerMBean
                 {
                     compactionLock.writeLock().unlock();
                 }
-
-                main.invalidateRowCache();
             }
         };
 

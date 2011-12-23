@@ -58,6 +58,8 @@ public class CleanupHelper extends SchemaLoader
             FileUtils.deleteRecursive(dir);
         }
 
+        cleanupSavedCaches();
+
         // clean up data directory which are stored as data directory/table/data files
         for (String dirName : DatabaseDescriptor.getAllDataFileLocations())
         {
@@ -104,5 +106,15 @@ public class CleanupHelper extends SchemaLoader
 
             store.getColumnFamily(key, path, ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 1);
         }
+    }
+
+    protected static void cleanupSavedCaches()
+    {
+        File cachesDir = new File(DatabaseDescriptor.getSavedCachesLocation());
+
+        if (!cachesDir.exists() || !cachesDir.isDirectory())
+            return;
+
+        FileUtils.delete(cachesDir.listFiles());
     }
 }

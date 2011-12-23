@@ -50,18 +50,13 @@ public class CreateColumnFamilyStatement
 
     private static final String KW_COMPARATOR = "comparator";
     private static final String KW_COMMENT = "comment";
-    private static final String KW_ROWCACHESIZE = "row_cache_size";
-    private static final String KW_KEYCACHESIZE = "key_cache_size";
     private static final String KW_READREPAIRCHANCE = "read_repair_chance";
     private static final String KW_GCGRACESECONDS = "gc_grace_seconds";
     private static final String KW_DEFAULTVALIDATION = "default_validation";
     private static final String KW_MINCOMPACTIONTHRESHOLD = "min_compaction_threshold";
     private static final String KW_MAXCOMPACTIONTHRESHOLD = "max_compaction_threshold";
-    private static final String KW_ROWCACHESAVEPERIODSECS = "row_cache_save_period_in_seconds";
-    private static final String KW_KEYCACHESAVEPERIODSECS = "key_cache_save_period_in_seconds";
     private static final String KW_REPLICATEONWRITE = "replicate_on_write";
-    private static final String KW_ROW_CACHE_PROVIDER = "row_cache_provider";
-    
+
     // Maps CQL short names to the respective Cassandra comparator/validator class names
     public  static final Map<String, String> comparators = new HashMap<String, String>();
     private static final Set<String> keywords = new HashSet<String>();
@@ -86,21 +81,21 @@ public class CreateColumnFamilyStatement
 
         keywords.add(KW_COMPARATOR);
         keywords.add(KW_COMMENT);
-        keywords.add(KW_ROWCACHESIZE);
-        keywords.add(KW_KEYCACHESIZE);
         keywords.add(KW_READREPAIRCHANCE);
         keywords.add(KW_GCGRACESECONDS);
         keywords.add(KW_DEFAULTVALIDATION);
         keywords.add(KW_MINCOMPACTIONTHRESHOLD);
         keywords.add(KW_MAXCOMPACTIONTHRESHOLD);
-        keywords.add(KW_ROWCACHESAVEPERIODSECS);
-        keywords.add(KW_KEYCACHESAVEPERIODSECS);
         keywords.add(KW_REPLICATEONWRITE);
-        keywords.add(KW_ROW_CACHE_PROVIDER);
 
+        obsoleteKeywords.add("row_cache_size");
+        obsoleteKeywords.add("key_cache_size");
+        obsoleteKeywords.add("row_cache_save_period_in_seconds");
+        obsoleteKeywords.add("key_cache_save_period_in_seconds");
         obsoleteKeywords.add("memtable_throughput_in_mb");
         obsoleteKeywords.add("memtable_operations_in_millions");
         obsoleteKeywords.add("memtable_flush_after_mins");
+        obsoleteKeywords.add("row_cache_provider");
     }
  
     private final String name;
@@ -287,20 +282,15 @@ public class CreateColumnFamilyStatement
                                      null);
 
             newCFMD.comment(properties.get(KW_COMMENT))
-                   .rowCacheSize(getPropertyDouble(KW_ROWCACHESIZE, CFMetaData.DEFAULT_ROW_CACHE_SIZE))
-                   .keyCacheSize(getPropertyDouble(KW_KEYCACHESIZE, CFMetaData.DEFAULT_KEY_CACHE_SIZE))
                    .readRepairChance(getPropertyDouble(KW_READREPAIRCHANCE, CFMetaData.DEFAULT_READ_REPAIR_CHANCE))
                    .replicateOnWrite(getPropertyBoolean(KW_REPLICATEONWRITE, CFMetaData.DEFAULT_REPLICATE_ON_WRITE))
                    .gcGraceSeconds(getPropertyInt(KW_GCGRACESECONDS, CFMetaData.DEFAULT_GC_GRACE_SECONDS))
                    .defaultValidator(getValidator())
                    .minCompactionThreshold(getPropertyInt(KW_MINCOMPACTIONTHRESHOLD, CFMetaData.DEFAULT_MIN_COMPACTION_THRESHOLD))
                    .maxCompactionThreshold(getPropertyInt(KW_MAXCOMPACTIONTHRESHOLD, CFMetaData.DEFAULT_MAX_COMPACTION_THRESHOLD))
-                   .rowCacheSavePeriod(getPropertyInt(KW_ROWCACHESAVEPERIODSECS, CFMetaData.DEFAULT_ROW_CACHE_SAVE_PERIOD_IN_SECONDS))
-                   .keyCacheSavePeriod(getPropertyInt(KW_KEYCACHESAVEPERIODSECS, CFMetaData.DEFAULT_KEY_CACHE_SAVE_PERIOD_IN_SECONDS))
                    .mergeShardsChance(0.0)
                    .columnMetadata(getColumns(comparator))
                    .keyValidator(TypeParser.parse(comparators.get(getKeyType())))
-                   .rowCacheProvider(FBUtilities.newCacheProvider(getPropertyString(KW_ROW_CACHE_PROVIDER, CFMetaData.DEFAULT_ROW_CACHE_PROVIDER.getClass().getName())))
                    .keyAlias(keyAlias)
                    .validate();
         }

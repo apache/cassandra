@@ -46,7 +46,7 @@ namespace rb CassandraThrift
 #           for every edit that doesn't result in a change to major/minor.
 #
 # See the Semantic Versioning Specification (SemVer) http://semver.org.
-const string VERSION = "19.22.1"
+const string VERSION = "19.23.1"
 
 
 #
@@ -394,8 +394,6 @@ struct CfDef {
     5: optional string comparator_type="BytesType",
     6: optional string subcomparator_type,
     8: optional string comment,
-    9: optional double row_cache_size=0,
-    11: optional double key_cache_size=200000,
     12: optional double read_repair_chance=1.0,
     13: optional list<ColumnDef> column_metadata,
     14: optional i32 gc_grace_seconds,
@@ -403,16 +401,12 @@ struct CfDef {
     16: optional i32 id,
     17: optional i32 min_compaction_threshold,
     18: optional i32 max_compaction_threshold,
-    19: optional i32 row_cache_save_period_in_seconds,
-    20: optional i32 key_cache_save_period_in_seconds,
     24: optional bool replicate_on_write,
     25: optional double merge_shards_chance,
     26: optional string key_validation_class,
-    27: optional string row_cache_provider,
     28: optional binary key_alias,
     29: optional string compaction_strategy,
     30: optional map<string,string> compaction_strategy_options,
-    31: optional i32 row_cache_keys_to_save,
     32: optional map<string,string> compression_options,
 }
 

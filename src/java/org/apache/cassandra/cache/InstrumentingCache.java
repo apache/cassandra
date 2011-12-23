@@ -20,18 +20,13 @@ package org.apache.cassandra.cache;
  * 
  */
 
-
-import java.lang.management.ManagementFactory;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
-
-import javax.management.MBeanServer;
-import javax.management.ObjectName;
 
 /**
  * Wraps an ICache in requests + hits tracking.
  */
-public class InstrumentingCache<K, V> implements InstrumentingCacheMBean
+public class InstrumentingCache<K, V>
 {
     private final AtomicLong requests = new AtomicLong(0);
     private final AtomicLong hits = new AtomicLong(0);
@@ -40,22 +35,9 @@ public class InstrumentingCache<K, V> implements InstrumentingCacheMBean
     private volatile boolean capacitySetManually;
     private final ICache<K, V> map;
 
-    public InstrumentingCache(ICache<K, V> map, String table, String name)
+    public InstrumentingCache(ICache<K, V> map)
     {
         this.map = map;
-        MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
-        try
-        {
-            ObjectName mbeanName = new ObjectName("org.apache.cassandra.db:type=Caches,keyspace=" + table + ",cache=" + name);
-            // unregister any previous, as this may be a replacement.
-            if (mbs.isRegistered(mbeanName))
-                mbs.unregisterMBean(mbeanName);
-            mbs.registerMBean(this, mbeanName);
-        }
-        catch (Exception e)
-        {
-            throw new RuntimeException(e);
-        }
     }
 
     public void put(K key, V value)
@@ -108,9 +90,9 @@ public class InstrumentingCache<K, V> implements InstrumentingCacheMBean
         return map.size();
     }
 
-    public int getSize()
+    public int weightedSize()
     {
-        return size();
+        return map.weightedSize();
     }
 
     public long getHits()
@@ -153,6 +135,11 @@ public class InstrumentingCache<K, V> implements InstrumentingCacheMBean
     public Set<K> hotKeySet(int n)
     {
         return map.hotKeySet(n);
+    }
+
+    public boolean containsKey(K key)
+    {
+        return map.containsKey(key);
     }
 
     public boolean isPutCopying()

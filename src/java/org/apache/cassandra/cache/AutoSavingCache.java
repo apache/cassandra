@@ -20,68 +20,53 @@ package org.apache.cassandra.cache;
 
 import java.io.*;
 import java.nio.ByteBuffer;
-import java.util.Set;
-import java.util.TreeSet;
+import java.util.*;
+
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.compaction.CompactionInfo;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.SequentialWriter;
+import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.WrappedRunnable;
+import org.apache.cassandra.utils.Pair;
 
-public abstract class AutoSavingCache<K, V> extends InstrumentingCache<K, V>
+public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K, V>
 {
     private static final Logger logger = LoggerFactory.getLogger(AutoSavingCache.class);
 
     /** True if a cache flush is currently executing: only one may execute at a time. */
     public static final AtomicBoolean flushInProgress = new AtomicBoolean(false);
 
-    protected final String cfName;
-    protected final String tableName;
     protected volatile ScheduledFuture<?> saveTask;
-    protected final ColumnFamilyStore.CacheType cacheType;
+    protected final CacheService.CacheType cacheType;
     
-    public AutoSavingCache(ICache<K, V> cache, String tableName, String cfName, ColumnFamilyStore.CacheType cacheType)
+    public AutoSavingCache(ICache<K, V> cache, CacheService.CacheType cacheType)
     {
-        super(cache, tableName, cfName + cacheType);
-        this.tableName = tableName;
-        this.cfName = cfName;
+        super(cache);
         this.cacheType = cacheType;
     }
 
-    public abstract ByteBuffer translateKey(K key);
-    public abstract double getConfiguredCacheSize(CFMetaData cfm);
-
-    public int getAdjustedCacheSize(long expectedKeys)
+    public File getCachePath(String ksName, String cfName)
     {
-        CFMetaData cfm = Schema.instance.getCFMetaData(tableName, cfName);
-        return (int)Math.min(FBUtilities.absoluteFromFraction(getConfiguredCacheSize(cfm), expectedKeys), Integer.MAX_VALUE);
-    }
-
-    public File getCachePath()
-    {
-        return DatabaseDescriptor.getSerializedCachePath(tableName, cfName, cacheType);
+        return DatabaseDescriptor.getSerializedCachePath(ksName, cfName, cacheType);
     }
 
     public Writer getWriter(int keysToSave)
     {
-        return new Writer(tableName, cfName, keysToSave);
+        return new Writer(keysToSave);
     }
 
     public void scheduleSaving(int savePeriodInSeconds, final int keysToSave)
@@ -107,14 +92,9 @@ public abstract class AutoSavingCache<K, V> extends InstrumentingCache<K, V>
         }
     }
 
-    public Future<?> submitWrite(int keysToSave)
+    public Set<DecoratedKey> readSaved(String ksName, String cfName)
     {
-        return CompactionManager.instance.submitCacheWrite(getWriter(keysToSave));
-    }
-
-    public Set<DecoratedKey> readSaved()
-    {
-        File path = getCachePath();
+        File path = getCachePath(ksName, cfName);
         Set<DecoratedKey> keys = new TreeSet<DecoratedKey>();
         if (path.exists())
         {
@@ -139,14 +119,14 @@ public abstract class AutoSavingCache<K, V> extends InstrumentingCache<K, V>
                     catch (Exception e)
                     {
                         logger.info(String.format("unable to read entry #%s from saved cache %s; skipping remaining entries",
-                                                  keys.size(), path.getAbsolutePath()), e);
+                                keys.size(), path.getAbsolutePath()), e);
                         break;
                     }
                     keys.add(key);
                 }
                 if (logger.isDebugEnabled())
                     logger.debug(String.format("completed reading (%d ms; %d keys) saved cache %s",
-                                               System.currentTimeMillis() - start, keys.size(), path));
+                            System.currentTimeMillis() - start, keys.size(), path));
             }
             catch (Exception e)
             {
@@ -160,34 +140,32 @@ public abstract class AutoSavingCache<K, V> extends InstrumentingCache<K, V>
         return keys;
     }
 
-    /**
-     * Resizes the cache based on a key estimate.
-     * Caller is in charge of synchronizing this correctly if needed
-     */
-    public void updateCacheSize(long keys)
+    public Future<?> submitWrite(int keysToSave)
     {
-        if (!isCapacitySetManually())
-        {
-            int cacheSize = getAdjustedCacheSize(keys);
-            if (cacheSize != getCapacity())
-            {
-                // update cache size for the new volume
-                if (logger.isDebugEnabled())
-                    logger.debug(cacheType + " capacity for " + cfName + " is " + cacheSize);
-                updateCapacity(cacheSize);
-            }
-        }
+        return CompactionManager.instance.submitCacheWrite(getWriter(keysToSave));
     }
 
     public void reduceCacheSize()
     {
         if (getCapacity() > 0)
         {
-            int newCapacity = (int) (DatabaseDescriptor.getReduceCacheCapacityTo() * size());
-            logger.warn(String.format("Reducing %s %s capacity from %d to %s to reduce memory pressure",
-                                      cfName, cacheType, getCapacity(), newCapacity));
+            int newCapacity = (int) (DatabaseDescriptor.getReduceCacheCapacityTo() * weightedSize());
+
+            logger.warn(String.format("Reducing %s capacity from %d to %s to reduce memory pressure",
+                                      cacheType, getCapacity(), newCapacity));
+
             setCapacity(newCapacity);
         }
+    }
+
+    public int estimateSizeToSave(Set<K> keys)
+    {
+        int bytes = 0;
+
+        for (K key : keys)
+            bytes += key.serializedSize();
+
+        return bytes;
     }
 
     public class Writer extends CompactionInfo.Holder
@@ -197,29 +175,27 @@ public abstract class AutoSavingCache<K, V> extends InstrumentingCache<K, V>
         private final long estimatedTotalBytes;
         private long bytesWritten;
 
-        private Writer(String ksname, String cfname, int keysToSave)
+        protected Writer(int keysToSave)
         {
             if (keysToSave >= getKeySet().size())
                 keys = getKeySet();
             else
                 keys = hotKeySet(keysToSave);
-            long bytes = 0;
-            for (K key : keys)
-                bytes += translateKey(key).remaining();
-            // an approximation -- the keyset can change while saving
-            estimatedTotalBytes = bytes;
-            OperationType type;
 
-            if (cacheType == ColumnFamilyStore.CacheType.KEY_CACHE_TYPE) 
+            // an approximation -- the keyset can change while saving
+            estimatedTotalBytes = estimateSizeToSave(keys);
+
+            OperationType type;
+            if (cacheType == CacheService.CacheType.KEY_CACHE)
                 type = OperationType.KEY_CACHE_SAVE;
-            else if (cacheType == ColumnFamilyStore.CacheType.ROW_CACHE_TYPE)
+            else if (cacheType == CacheService.CacheType.ROW_CACHE)
                 type = OperationType.ROW_CACHE_SAVE;
             else
                 type = OperationType.UNKNOWN;
 
             info = new CompactionInfo(this.hashCode(),
-                                      ksname,
-                                      cfname,
+                                      "Global",
+                                      cacheType.toString(),
                                       type,
                                       0,
                                       estimatedTotalBytes);
@@ -235,37 +211,83 @@ public abstract class AutoSavingCache<K, V> extends InstrumentingCache<K, V>
 
         public void saveCache() throws IOException
         {
-            long start = System.currentTimeMillis();
-            File path = getCachePath();
+            logger.debug("Deleting old {} files.", cacheType);
+            deleteOldCacheFiles();
 
             if (keys.size() == 0 || estimatedTotalBytes == 0)
             {
-                logger.debug("Deleting {} (cache is empty)");
-                path.delete();
+                logger.debug("Skipping {} save, cache is empty.", cacheType);
                 return;
             }
 
-            logger.debug("Saving {}", path);
-            File tmpFile = File.createTempFile(path.getName(), null, path.getParentFile());
-            DataOutputStream out = SequentialWriter.open(tmpFile, true).stream;
+            long start = System.currentTimeMillis();
+
+            HashMap<Pair<String, String>, SequentialWriter> writers = new HashMap<Pair<String, String>, SequentialWriter>();
+
             try
             {
-                for (K key : keys)
+                for (CacheKey key : keys)
                 {
-                    ByteBuffer bytes = translateKey(key);
-                    ByteBufferUtil.writeWithLength(bytes, out);
+                    Pair<String, String> path = key.getPathInfo();
+                    SequentialWriter writer = writers.get(path);
+
+                    if (writer == null)
+                    {
+                        writer = tempCacheFile(path);
+                        writers.put(path, writer);
+                    }
+
+                    ByteBuffer bytes = key.serializeForStorage();
+                    ByteBufferUtil.writeWithLength(bytes, writer.stream);
                     bytesWritten += bytes.remaining();
                 }
             }
             finally
             {
-                out.close();
+                for (SequentialWriter writer : writers.values())
+                    FileUtils.closeQuietly(writer);
             }
-            path.delete(); // ignore error if it didn't exist
-            if (!tmpFile.renameTo(path))
-                throw new IOException("Unable to rename " + tmpFile + " to " + path);
-            logger.info(String.format("Saved %s (%d items) in %d ms",
-                        path.getName(), keys.size(), (System.currentTimeMillis() - start)));
+
+            for (Map.Entry<Pair<String, String>, SequentialWriter> info : writers.entrySet())
+            {
+                Pair<String, String> path = info.getKey();
+                SequentialWriter writer = info.getValue();
+
+                File tmpFile = new File(writer.getPath());
+                File cacheFile = getCachePath(path.left, path.right);
+
+                cacheFile.delete(); // ignore error if it didn't exist
+                if (!tmpFile.renameTo(cacheFile))
+                    logger.error("Unable to rename " + tmpFile + " to " + cacheFile);
+            }
+
+            logger.info(String.format("Saved %s (%d items) in %d ms", cacheType, keys.size(), System.currentTimeMillis() - start));
+        }
+
+        private SequentialWriter tempCacheFile(Pair<String, String> pathInfo) throws IOException
+        {
+            File path = getCachePath(pathInfo.left, pathInfo.right);
+            File tmpFile = File.createTempFile(path.getName(), null, path.getParentFile());
+
+            return SequentialWriter.open(tmpFile, true);
+        }
+
+
+        private void deleteOldCacheFiles()
+        {
+            File savedCachesDir = new File(DatabaseDescriptor.getSavedCachesLocation());
+
+            if (savedCachesDir.exists() && savedCachesDir.isDirectory())
+            {
+                for (File file : savedCachesDir.listFiles())
+                {
+                    if (file.isFile() && file.getName().endsWith(cacheType.toString()))
+                    {
+                        if (!file.delete())
+                            logger.warn("Failed to delete {}", file.getAbsolutePath());
+                    }
+                }
+            }
         }
     }
 }

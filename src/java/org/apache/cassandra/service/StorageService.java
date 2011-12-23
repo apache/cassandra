@@ -1695,22 +1695,6 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         }
     }
 
-    public void invalidateKeyCaches(String tableName, String... columnFamilies) throws IOException
-    {
-        for (ColumnFamilyStore cfStore : getValidColumnFamilies(tableName, columnFamilies))
-        {
-            cfStore.invalidateKeyCache();
-        }
-    }
-
-    public void invalidateRowCaches(String tableName, String... columnFamilies) throws IOException
-    {
-        for (ColumnFamilyStore cfStore : getValidColumnFamilies(tableName, columnFamilies))
-        {
-            cfStore.invalidateRowCache();
-        }
-    }
-
     /**
      * Takes the snapshot for the given tables. A snapshot name must be specified.
      *
@@ -2603,19 +2587,6 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         StorageProxy.truncateBlocking(keyspace, columnFamily);
     }
 
-    public void saveCaches() throws ExecutionException, InterruptedException
-    {
-        List<Future<?>> futures = new ArrayList<Future<?>>();
-        logger_.debug("submitting cache saves");
-        for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
-        {
-            futures.add(cfs.keyCache.submitWrite(-1));
-            futures.add(cfs.rowCache.submitWrite(cfs.getRowCacheKeysToSave()));
-        }
-        FBUtilities.waitOnFutures(futures);
-        logger_.debug("cache saves completed");
-    }
-
     public Map<Token, Float> getOwnership()
     {
         List<Token> sortedTokens = new ArrayList<Token>(getTokenToEndpointMap().keySet());
@@ -2678,12 +2649,6 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
         logger_.warn("Flushing " + largest + " to relieve memory pressure");
         largest.forceFlush();
-    }
-
-    public void reduceCacheSizes()
-    {
-        for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
-            cfs.reduceCacheSizes();
     }
 
     /**

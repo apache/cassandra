@@ -28,7 +28,6 @@ import org.apache.commons.lang.builder.HashCodeBuilder;
 import org.apache.commons.lang.builder.ToStringBuilder;
 
 import org.apache.avro.util.Utf8;
-import org.apache.cassandra.cache.IRowCacheProvider;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.db.marshal.*;
@@ -37,10 +36,7 @@ import org.apache.cassandra.db.migration.avro.ColumnDef;
 import org.apache.cassandra.io.IColumnSerializer;
 import org.apache.cassandra.io.compress.CompressionParameters;
 import org.apache.cassandra.thrift.InvalidRequestException;
-import org.apache.cassandra.cache.ConcurrentLinkedHashCacheProvider;
-import org.apache.cassandra.cache.SerializingCacheProvider;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -55,18 +51,12 @@ public final class CFMetaData
 
     private static Logger logger = LoggerFactory.getLogger(CFMetaData.class);
 
-    public final static double DEFAULT_ROW_CACHE_SIZE = 0.0;
-    public final static double DEFAULT_KEY_CACHE_SIZE = 200000;
     public final static double DEFAULT_READ_REPAIR_CHANCE = 0.1;
     public final static boolean DEFAULT_REPLICATE_ON_WRITE = true;
-    public final static int DEFAULT_ROW_CACHE_SAVE_PERIOD_IN_SECONDS = 0;
-    public final static int DEFAULT_KEY_CACHE_SAVE_PERIOD_IN_SECONDS = 4 * 3600;
-    public final static int DEFAULT_ROW_CACHE_KEYS_TO_SAVE = Integer.MAX_VALUE;
     public final static int DEFAULT_GC_GRACE_SECONDS = 864000;
     public final static int DEFAULT_MIN_COMPACTION_THRESHOLD = 4;
     public final static int DEFAULT_MAX_COMPACTION_THRESHOLD = 32;
     public final static double DEFAULT_MERGE_SHARDS_CHANCE = 0.1;
-    public final static IRowCacheProvider DEFAULT_ROW_CACHE_PROVIDER = new SerializingCacheProvider();
     public final static String DEFAULT_COMPACTION_STRATEGY_CLASS = "SizeTieredCompactionStrategy";
     public final static ByteBuffer DEFAULT_KEY_NAME = ByteBufferUtil.bytes("KEY");
 
@@ -106,8 +96,6 @@ public final class CFMetaData
 
     //OPTIONAL
     private String comment;                           // default none, for humans only
-    private double rowCacheSize;                      // default 0
-    private double keyCacheSize;                      // default 0.01
     private double readRepairChance;                  // default 1.0 (always), chance [0.0,1.0] of read repair
     private boolean replicateOnWrite;                 // default false
     private int gcGraceSeconds;                       // default 864000 (ten days)
@@ -115,13 +103,9 @@ public final class CFMetaData
     private AbstractType keyValidator;                // default BytesType (no-op), use comparator types
     private int minCompactionThreshold;               // default 4
     private int maxCompactionThreshold;               // default 32
-    private int rowCacheSavePeriodInSeconds;          // default 0 (off)
-    private int keyCacheSavePeriodInSeconds;          // default 3600 (1 hour)
-    private int rowCacheKeysToSave;                   // default max int (aka feature is off)
     // mergeShardsChance is now obsolete, but left here so as to not break
     // thrift compatibility
     private double mergeShardsChance;                 // default 0.1, chance [0.0, 1.0] of merging old shards during replication
-    private IRowCacheProvider rowCacheProvider;
     private ByteBuffer keyAlias;                      // default NULL
 
     private Map<ByteBuffer, ColumnDefinition> column_metadata;
@@ -131,8 +115,6 @@ public final class CFMetaData
     private CompressionParameters compressionParameters;
 
     public CFMetaData comment(String prop) { comment = enforceCommentNotNull(prop); return this;}
-    public CFMetaData rowCacheSize(double prop) {rowCacheSize = prop; return this;}
-    public CFMetaData keyCacheSize(double prop) {keyCacheSize = prop; return this;}
     public CFMetaData readRepairChance(double prop) {readRepairChance = prop; return this;}
     public CFMetaData replicateOnWrite(boolean prop) {replicateOnWrite = prop; return this;}
     public CFMetaData gcGraceSeconds(int prop) {gcGraceSeconds = prop; return this;}
@@ -140,13 +122,9 @@ public final class CFMetaData
     public CFMetaData keyValidator(AbstractType prop) {keyValidator = prop; return this;}
     public CFMetaData minCompactionThreshold(int prop) {minCompactionThreshold = prop; return this;}
     public CFMetaData maxCompactionThreshold(int prop) {maxCompactionThreshold = prop; return this;}
-    public CFMetaData rowCacheSavePeriod(int prop) {rowCacheSavePeriodInSeconds = prop; return this;}
-    public CFMetaData keyCacheSavePeriod(int prop) {keyCacheSavePeriodInSeconds = prop; return this;}
-    public CFMetaData rowCacheKeysToSave(int prop) {rowCacheKeysToSave = prop; return this;}
     public CFMetaData mergeShardsChance(double prop) {mergeShardsChance = prop; return this;}
     public CFMetaData keyAlias(ByteBuffer prop) {keyAlias = prop; return this;}
     public CFMetaData columnMetadata(Map<ByteBuffer,ColumnDefinition> prop) {column_metadata = prop; return this;}
-    public CFMetaData rowCacheProvider(IRowCacheProvider prop) { rowCacheProvider = prop; return this;}
     public CFMetaData compactionStrategyClass(Class<? extends AbstractCompactionStrategy> prop) {compactionStrategyClass = prop; return this;}
     public CFMetaData compactionStrategyOptions(Map<String, String> prop) {compactionStrategyOptions = prop; return this;}
     public CFMetaData compressionParameters(CompressionParameters prop) {compressionParameters = prop; return this;}
@@ -185,16 +163,12 @@ public final class CFMetaData
     private void init()
     {
         // Set a bunch of defaults
-        rowCacheSize                 = DEFAULT_ROW_CACHE_SIZE;
-        keyCacheSize                 = DEFAULT_KEY_CACHE_SIZE;
-        rowCacheKeysToSave           = DEFAULT_ROW_CACHE_KEYS_TO_SAVE;
         readRepairChance             = DEFAULT_READ_REPAIR_CHANCE;
         replicateOnWrite             = DEFAULT_REPLICATE_ON_WRITE;
         gcGraceSeconds               = DEFAULT_GC_GRACE_SECONDS;
         minCompactionThreshold       = DEFAULT_MIN_COMPACTION_THRESHOLD;
         maxCompactionThreshold       = DEFAULT_MAX_COMPACTION_THRESHOLD;
         mergeShardsChance            = DEFAULT_MERGE_SHARDS_CHANCE;
-        rowCacheProvider             = DEFAULT_ROW_CACHE_PROVIDER;
 
         // Defaults strange or simple enough to not need a DEFAULT_T for
         defaultValidator = BytesType.instance;
@@ -222,19 +196,15 @@ public final class CFMetaData
         CFMetaData newCFMD = new CFMetaData(Table.SYSTEM_TABLE, cfName, type, comparator,  subcc, cfId);
 
         return newCFMD.comment(comment)
-                      .keyCacheSize(0.01)
                       .readRepairChance(0)
                       .gcGraceSeconds(0)
-                      .mergeShardsChance(0.0)
-                      .rowCacheSavePeriod(0)
-                      .keyCacheSavePeriod(0);
+                      .mergeShardsChance(0.0);
     }
 
     public static CFMetaData newIndexMetadata(CFMetaData parent, ColumnDefinition info, AbstractType columnComparator)
     {
         return new CFMetaData(parent.ksName, parent.indexColumnFamilyName(info), ColumnFamilyType.Standard, columnComparator, null)
                              .keyValidator(info.getValidator())
-                             .keyCacheSize(0.0)
                              .readRepairChance(0.0)
                              .gcGraceSeconds(parent.gcGraceSeconds)
                              .minCompactionThreshold(parent.minCompactionThreshold)
@@ -256,17 +226,12 @@ public final class CFMetaData
     private static CFMetaData copyOpts(CFMetaData newCFMD, CFMetaData oldCFMD)
     {
         return newCFMD.comment(oldCFMD.comment)
-                      .rowCacheSize(oldCFMD.rowCacheSize)
-                      .keyCacheSize(oldCFMD.keyCacheSize)
                       .readRepairChance(oldCFMD.readRepairChance)
                       .replicateOnWrite(oldCFMD.replicateOnWrite)
                       .gcGraceSeconds(oldCFMD.gcGraceSeconds)
                       .defaultValidator(oldCFMD.defaultValidator)
                       .minCompactionThreshold(oldCFMD.minCompactionThreshold)
                       .maxCompactionThreshold(oldCFMD.maxCompactionThreshold)
-                      .rowCacheSavePeriod(oldCFMD.rowCacheSavePeriodInSeconds)
-                      .keyCacheSavePeriod(oldCFMD.keyCacheSavePeriodInSeconds)
-                      .rowCacheKeysToSave(oldCFMD.rowCacheKeysToSave)
                       .columnMetadata(oldCFMD.column_metadata)
                       .compactionStrategyClass(oldCFMD.compactionStrategyClass)
                       .compactionStrategyOptions(oldCFMD.compactionStrategyOptions)
@@ -303,8 +268,6 @@ public final class CFMetaData
             cf.subcomparator_type = new Utf8(subcolumnComparator.toString());
         }
         cf.comment = new Utf8(enforceCommentNotNull(comment));
-        cf.row_cache_size = rowCacheSize;
-        cf.key_cache_size = keyCacheSize;
         cf.read_repair_chance = readRepairChance;
         cf.replicate_on_write = replicateOnWrite;
         cf.gc_grace_seconds = gcGraceSeconds;
@@ -312,15 +275,11 @@ public final class CFMetaData
         cf.key_validation_class = new Utf8(keyValidator.toString());
         cf.min_compaction_threshold = minCompactionThreshold;
         cf.max_compaction_threshold = maxCompactionThreshold;
-        cf.row_cache_save_period_in_seconds = rowCacheSavePeriodInSeconds;
-        cf.key_cache_save_period_in_seconds = keyCacheSavePeriodInSeconds;
-        cf.row_cache_keys_to_save = rowCacheKeysToSave;
         cf.merge_shards_chance = mergeShardsChance;
         cf.key_alias = keyAlias;
         cf.column_metadata = new ArrayList<ColumnDef>(column_metadata.size());
         for (ColumnDefinition cd : column_metadata.values())
             cf.column_metadata.add(cd.toAvro());
-        cf.row_cache_provider = new Utf8(rowCacheProvider.getClass().getName());
         cf.compaction_strategy = new Utf8(compactionStrategyClass.getName());
         if (compactionStrategyOptions != null)
         {
@@ -373,24 +332,7 @@ public final class CFMetaData
         //  Isn't AVRO supposed to handle stuff like this?
         if (cf.min_compaction_threshold != null) { newCFMD.minCompactionThreshold(cf.min_compaction_threshold); }
         if (cf.max_compaction_threshold != null) { newCFMD.maxCompactionThreshold(cf.max_compaction_threshold); }
-        if (cf.row_cache_save_period_in_seconds != null) { newCFMD.rowCacheSavePeriod(cf.row_cache_save_period_in_seconds); }
-        if (cf.key_cache_save_period_in_seconds != null) { newCFMD.keyCacheSavePeriod(cf.key_cache_save_period_in_seconds); }
-        if (cf.row_cache_keys_to_save != null) { newCFMD.rowCacheKeysToSave(cf.row_cache_keys_to_save); }
         if (cf.merge_shards_chance != null) { newCFMD.mergeShardsChance(cf.merge_shards_chance); }
-        if (cf.row_cache_provider != null)
-        {
-            try
-            {
-                newCFMD.rowCacheProvider(FBUtilities.newCacheProvider(cf.row_cache_provider.toString()));
-            }
-            catch (ConfigurationException e)
-            {
-                // default was already set upon newCFMD init
-                logger.warn("Unable to instantiate cache provider {}; using default {} instead",
-                            cf.row_cache_provider,
-                            DEFAULT_ROW_CACHE_PROVIDER);
-            }
-        }
         if (cf.key_alias != null) { newCFMD.keyAlias(cf.key_alias); }
         if (cf.compaction_strategy != null)
         {
@@ -420,8 +362,6 @@ public final class CFMetaData
         }
 
         return newCFMD.comment(cf.comment.toString())
-                      .rowCacheSize(cf.row_cache_size)
-                      .keyCacheSize(cf.key_cache_size)
                       .readRepairChance(cf.read_repair_chance)
                       .replicateOnWrite(cf.replicate_on_write)
                       .gcGraceSeconds(cf.gc_grace_seconds)
@@ -435,17 +375,7 @@ public final class CFMetaData
     {
         return comment;
     }
-    
-    public double getRowCacheSize()
-    {
-        return rowCacheSize;
-    }
-    
-    public double getKeyCacheSize()
-    {
-        return keyCacheSize;
-    }
-    
+
     public double getReadRepairChance()
     {
         return readRepairChance;
@@ -484,26 +414,6 @@ public final class CFMetaData
     public Integer getMaxCompactionThreshold()
     {
         return maxCompactionThreshold;
-    }
-
-    public int getRowCacheSavePeriodInSeconds()
-    {
-        return rowCacheSavePeriodInSeconds;
-    }
-
-    public int getKeyCacheSavePeriodInSeconds()
-    {
-        return keyCacheSavePeriodInSeconds;
-    }
-
-    public int getRowCacheKeysToSave()
-    {
-        return rowCacheKeysToSave;
-    }
-
-    public IRowCacheProvider getRowCacheProvider()
-    {
-        return rowCacheProvider;
     }
 
     public ByteBuffer getKeyName()
@@ -545,8 +455,6 @@ public final class CFMetaData
             .append(comparator, rhs.comparator)
             .append(subcolumnComparator, rhs.subcolumnComparator)
             .append(comment, rhs.comment)
-            .append(rowCacheSize, rhs.rowCacheSize)
-            .append(keyCacheSize, rhs.keyCacheSize)
             .append(readRepairChance, rhs.readRepairChance)
             .append(replicateOnWrite, rhs.replicateOnWrite)
             .append(gcGraceSeconds, rhs.gcGraceSeconds)
@@ -556,9 +464,6 @@ public final class CFMetaData
             .append(maxCompactionThreshold, rhs.maxCompactionThreshold)
             .append(cfId.intValue(), rhs.cfId.intValue())
             .append(column_metadata, rhs.column_metadata)
-            .append(rowCacheSavePeriodInSeconds, rhs.rowCacheSavePeriodInSeconds)
-            .append(keyCacheSavePeriodInSeconds, rhs.keyCacheSavePeriodInSeconds)
-            .append(rowCacheKeysToSave, rhs.rowCacheKeysToSave)
             .append(mergeShardsChance, rhs.mergeShardsChance)
             .append(keyAlias, rhs.keyAlias)
             .append(compactionStrategyClass, rhs.compactionStrategyClass)
@@ -576,8 +481,6 @@ public final class CFMetaData
             .append(comparator)
             .append(subcolumnComparator)
             .append(comment)
-            .append(rowCacheSize)
-            .append(keyCacheSize)
             .append(readRepairChance)
             .append(replicateOnWrite)
             .append(gcGraceSeconds)
@@ -587,9 +490,6 @@ public final class CFMetaData
             .append(maxCompactionThreshold)
             .append(cfId)
             .append(column_metadata)
-            .append(rowCacheSavePeriodInSeconds)
-            .append(keyCacheSavePeriodInSeconds)
-            .append(rowCacheKeysToSave)
             .append(mergeShardsChance)
             .append(keyAlias)
             .append(compactionStrategyClass)
@@ -621,12 +521,6 @@ public final class CFMetaData
             cf_def.setMin_compaction_threshold(CFMetaData.DEFAULT_MIN_COMPACTION_THRESHOLD);
         if (!cf_def.isSetMax_compaction_threshold())
             cf_def.setMax_compaction_threshold(CFMetaData.DEFAULT_MAX_COMPACTION_THRESHOLD);
-        if (!cf_def.isSetRow_cache_save_period_in_seconds())
-            cf_def.setRow_cache_save_period_in_seconds(CFMetaData.DEFAULT_ROW_CACHE_SAVE_PERIOD_IN_SECONDS);
-        if (!cf_def.isSetKey_cache_save_period_in_seconds())
-            cf_def.setKey_cache_save_period_in_seconds(CFMetaData.DEFAULT_KEY_CACHE_SAVE_PERIOD_IN_SECONDS);
-        if (!cf_def.isSetRow_cache_keys_to_save())
-            cf_def.setRow_cache_keys_to_save(CFMetaData.DEFAULT_ROW_CACHE_KEYS_TO_SAVE);
         if (!cf_def.isSetMerge_shards_chance())
             cf_def.setMerge_shards_chance(CFMetaData.DEFAULT_MERGE_SHARDS_CHANCE);
         if (null == cf_def.compaction_strategy)
@@ -655,11 +549,7 @@ public final class CFMetaData
         if (cf_def.isSetGc_grace_seconds()) { newCFMD.gcGraceSeconds(cf_def.gc_grace_seconds); }
         if (cf_def.isSetMin_compaction_threshold()) { newCFMD.minCompactionThreshold(cf_def.min_compaction_threshold); }
         if (cf_def.isSetMax_compaction_threshold()) { newCFMD.maxCompactionThreshold(cf_def.max_compaction_threshold); }
-        if (cf_def.isSetRow_cache_save_period_in_seconds()) { newCFMD.rowCacheSavePeriod(cf_def.row_cache_save_period_in_seconds); }
-        if (cf_def.isSetKey_cache_save_period_in_seconds()) { newCFMD.keyCacheSavePeriod(cf_def.key_cache_save_period_in_seconds); }
-        if (cf_def.isSetRow_cache_keys_to_save()) { newCFMD.rowCacheKeysToSave(cf_def.row_cache_keys_to_save); }
         if (cf_def.isSetMerge_shards_chance()) { newCFMD.mergeShardsChance(cf_def.merge_shards_chance); }
-        if (cf_def.isSetRow_cache_provider()) { newCFMD.rowCacheProvider(FBUtilities.newCacheProvider(cf_def.row_cache_provider)); }
         if (cf_def.isSetKey_alias()) { newCFMD.keyAlias(cf_def.key_alias); }
         if (cf_def.isSetKey_validation_class()) { newCFMD.keyValidator(TypeParser.parse(cf_def.key_validation_class)); }
         if (cf_def.isSetCompaction_strategy())
@@ -670,8 +560,6 @@ public final class CFMetaData
         CompressionParameters cp = CompressionParameters.create(cf_def.compression_options);
 
         return newCFMD.comment(cf_def.comment)
-                      .rowCacheSize(cf_def.row_cache_size)
-                      .keyCacheSize(cf_def.key_cache_size)
                       .readRepairChance(cf_def.read_repair_chance)
                       .replicateOnWrite(cf_def.replicate_on_write)
                       .defaultValidator(TypeParser.parse(cf_def.default_validation_class))
@@ -712,8 +600,6 @@ public final class CFMetaData
         validateMinMaxCompactionThresholds(cf_def);
 
         comment = enforceCommentNotNull(cf_def.comment);
-        rowCacheSize = cf_def.row_cache_size;
-        keyCacheSize = cf_def.key_cache_size;
         readRepairChance = cf_def.read_repair_chance;
         replicateOnWrite = cf_def.replicate_on_write;
         gcGraceSeconds = cf_def.gc_grace_seconds;
@@ -721,12 +607,7 @@ public final class CFMetaData
         keyValidator = TypeParser.parse(cf_def.key_validation_class);
         minCompactionThreshold = cf_def.min_compaction_threshold;
         maxCompactionThreshold = cf_def.max_compaction_threshold;
-        rowCacheSavePeriodInSeconds = cf_def.row_cache_save_period_in_seconds;
-        keyCacheSavePeriodInSeconds = cf_def.key_cache_save_period_in_seconds;
-        rowCacheKeysToSave = cf_def.row_cache_keys_to_save;
         mergeShardsChance = cf_def.merge_shards_chance;
-        if (cf_def.row_cache_provider != null)
-            rowCacheProvider = FBUtilities.newCacheProvider(cf_def.row_cache_provider.toString());
         keyAlias = cf_def.key_alias;
 
         // adjust column definitions. figure out who is coming and going.
@@ -843,8 +724,6 @@ public final class CFMetaData
             def.setSubcomparator_type(subcolumnComparator.toString());
         }
         def.setComment(enforceCommentNotNull(comment));
-        def.setRow_cache_size(rowCacheSize);
-        def.setKey_cache_size(keyCacheSize);
         def.setRead_repair_chance(readRepairChance);
         def.setReplicate_on_write(replicateOnWrite);
         def.setGc_grace_seconds(gcGraceSeconds);
@@ -852,10 +731,6 @@ public final class CFMetaData
         def.setKey_validation_class(keyValidator.toString());
         def.setMin_compaction_threshold(minCompactionThreshold);
         def.setMax_compaction_threshold(maxCompactionThreshold);
-        def.setRow_cache_save_period_in_seconds(rowCacheSavePeriodInSeconds);
-        def.setKey_cache_save_period_in_seconds(keyCacheSavePeriodInSeconds);
-        def.setRow_cache_keys_to_save(rowCacheKeysToSave);
-        def.setRow_cache_provider(rowCacheProvider.getClass().getName());
         def.setMerge_shards_chance(mergeShardsChance);
         def.setKey_alias(getKeyName());
         List<org.apache.cassandra.thrift.ColumnDef> column_meta = new ArrayList<org.apache.cassandra.thrift.ColumnDef>(column_metadata.size());
@@ -996,8 +871,6 @@ public final class CFMetaData
             .append("comparator", comparator)
             .append("subcolumncomparator", subcolumnComparator)
             .append("comment", comment)
-            .append("rowCacheSize", rowCacheSize)
-            .append("keyCacheSize", keyCacheSize)
             .append("readRepairChance", readRepairChance)
             .append("replicateOnWrite", replicateOnWrite)
             .append("gcGraceSeconds", gcGraceSeconds)
@@ -1005,10 +878,6 @@ public final class CFMetaData
             .append("keyValidator", keyValidator)
             .append("minCompactionThreshold", minCompactionThreshold)
             .append("maxCompactionThreshold", maxCompactionThreshold)
-            .append("rowCacheSavePeriodInSeconds", rowCacheSavePeriodInSeconds)
-            .append("keyCacheSavePeriodInSeconds", keyCacheSavePeriodInSeconds)
-            .append("rowCacheKeysToSave", rowCacheKeysToSave)
-            .append("rowCacheProvider", rowCacheProvider)
             .append("mergeShardsChance", mergeShardsChance)
             .append("keyAlias", keyAlias)
             .append("column_metadata", column_metadata)

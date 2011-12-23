@@ -31,7 +31,9 @@ Upgrading
       Larger batches will continue to be accepted but will not be
       durable.  Consider setting durable_writes=false if you really
       want to use such large batches.
-
+    - Make sure that global settings: key_cache_{size_in_mb, save_period}
+      and row_cache_{size_in_mb, save_period} in conf/cassandra.yaml are
+      used instead of per-ColumnFamily options.
 
 1.0.6
 =====

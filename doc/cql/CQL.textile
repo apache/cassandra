@@ -538,16 +538,11 @@ A number of optional keyword arguments can be supplied to control the configurat
 |_. keyword|_. default|_. description|
 |comparator|text|Determines the storage type of column names (which itself determines the sorting and validation of column names). Valid values are listed in the "Data Storage Types":#storageTypes table above.|
 |comment|none|A free-form, human-readable comment.|
-|row_cache_provider|SerializingCacheProvider if JNA is present, otherwise ConcurrentHashMapCacheProvider|A factory for the cache with which to back the row cache.|
-|row_cache_size|0|Number of rows whose entire contents to cache in memory.|
-|key_cache_size|200000|Number of keys per SSTable whose locations are kept in memory in "mostly LRU" order.|
 |read_repair_chance|1.0|The probability with which read repairs should be invoked on non-quorum reads.|
 |gc_grace_seconds|864000|Time to wait before garbage collecting tombstones (deletion markers).|
 |default_validation|text|Determines the default storage type of column values (which itself determines the validation for column values). This option does not affect the types of columns which were defined in a @CREATE COLUMNFAMILY@ statement-- only new columns. Valid values are listed in the "Data Storage Types":#storageTypes table above.|
 |min_compaction_threshold|4|Minimum number of SSTables needed to start a minor compaction.|
 |max_compaction_threshold|32|Maximum number of SSTables allowed before a minor compaction is forced.|
-|row_cache_save_period_in_seconds|0|Number of seconds between saving row caches.|
-|key_cache_save_period_in_seconds|14400|Number of seconds between saving key caches.|
 |replicate_on_write|false| |
 
 h2. CREATE INDEX

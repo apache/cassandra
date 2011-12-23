@@ -66,6 +66,72 @@ data_file_directories:
 # commit log
 commitlog_directory: /var/lib/cassandra/commitlog
 
+# Maximum size of the key cache in memory.
+#
+# Each key cache hit saves 1 seek and each row cache hit saves 2 seeks at the
+# minimum, sometimes more. The key cache is fairly tiny for the amount of
+# time it saves, so it's worthwhile to use it at large numbers.
+# The row cache saves even more time, but must store the whole values of
+# its rows, so it is extremely space-intensive. It's best to only use the
+# row cache if you have hot rows or static rows.
+#
+# NOTE: if you reduce the size, you may not get you hottest keys loaded on startup.
+#
+# Default value is 2 (call hold > 200000 keys). Set to 0 to disable key cache.
+key_cache_size_in_mb: 2
+
+# Duration in seconds after which Cassandra should
+# safe the keys cache. Caches are saved to saved_caches_directory as
+# specified in this configuration file.
+#
+# Saved caches greatly improve cold-start speeds, and is relatively cheap in
+# terms of I/O for the key cache. Row cache saving is much more expensive and
+# has limited use.
+#
+# Default is 14400 or 4 hours.
+key_cache_save_period: 14400
+
+# Number of keys from the key cache to save
+# Disabled by default, meaning all keys are going to be saved
+# key_cache_keys_to_save: 100
+
+# Maximum size of the row cache in memory.
+# NOTE: if you reduce the size, you may not get you hottest keys loaded on startup.
+#
+# Default value is 0, to disable row caching.
+row_cache_size_in_mb: 0
+
+# Duration in seconds after which Cassandra should
+# safe the row cache. Caches are saved to saved_caches_directory as specified
+# in this configuration file.
+#
+# Saved caches greatly improve cold-start speeds, and is relatively cheap in
+# terms of I/O for the key cache. Row cache saving is much more expensive and
+# has limited use.
+#
+# Default is 0 to disable saving the row cache.
+row_cache_save_period: 0
+
+# Number of keys from the row cache to save
+# Disabled by default, meaning all keys are going to be saved
+# row_cache_keys_to_save: 100
+
+# The provider for the row cache to use.
+#
+# Supported values are: ConcurrentLinkedHashCacheProvider, SerializingCacheProvider
+#
+# SerializingCacheProvider serialises the contents of the row and stores
+# it in native memory, i.e., off the JVM Heap. Serialized rows take
+# significantly less memory than "live" rows in the JVM, so you can cache
+# more rows in a given memory footprint.  And storing the cache off-heap
+# means you can use smaller heap sizes, reducing the impact of GC pauses.
+#
+# It is also valid to specify the fully-qualified class name to a class
+# that implements org.apache.cassandra.cache.IRowCacheProvider.
+#
+# Defaults to SerializingCacheProvider
+row_cache_provider: SerializingCacheProvider
+
 # saved caches
 saved_caches_directory: /var/lib/cassandra/saved_caches
 

@@ -119,9 +119,9 @@ public class Table
                     tableInstance = new Table(table);
                     schema.storeTableInstance(tableInstance);
 
-                    //table has to be constructed and in the cache before cacheRow can be called
+                    // table has to be constructed and in the cache before cacheRow can be called
                     for (ColumnFamilyStore cfs : tableInstance.getColumnFamilyStores())
-                        cfs.initCaches();
+                        cfs.initRowCache();
                 }
             }
         }

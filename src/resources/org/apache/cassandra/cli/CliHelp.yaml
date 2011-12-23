@@ -450,53 +450,12 @@ commands:
 
           See http://wiki.apache.org/Cassandra/DistributedDeletes
 
-        - keys_cached: Maximum number of keys to cache in memory. Valid values are
-          either a double between 0 and 1 (inclusive on both ends) denoting what
-          fraction should be cached. Or an absolute number of rows to cache.
-          Default value is 200000.
-
-          Each key cache hit saves 1 seek and each row cache hit saves 2 seeks at the
-          minimum, sometimes more. The key cache is fairly tiny for the amount of
-          time it saves, so it's worthwhile to use it at large numbers all the way
-          up to 1.0 (all keys cached). The row cache saves even more time, but must
-          store the whole values of its rows, so it is extremely space-intensive.
-          It's best to only use the row cache if you have hot rows or static rows.
-
-        - key_cache_save_period: Duration in seconds after which Cassandra should
-          safe the keys cache. Caches are saved to saved_caches_directory as
-          specified in conf/Cassandra.yaml. Default is 14400 or 4 hours.
-
-          Saved caches greatly improve cold-start speeds, and is relatively cheap in
-          terms of I/O for the key cache. Row cache saving is much more expensive and
-          has limited use.
-
         - read_repair_chance: Probability (0.0-1.0) with which to perform read
           repairs for any read operation. Default is 0.1.
 
           Note that disabling read repair entirely means that the dynamic snitch
           will not have any latency information from all the replicas to recognize
           when one is performing worse than usual.
-
-        - rows_cached: Maximum number of rows whose entire contents we
-          cache in memory. Valid values are either a double between 0 and 1 (
-          inclusive on both ends) denoting what fraction should be cached. Or an
-          absolute number of rows to cache. Default value is 0, to disable row
-          caching.
-
-          Each key cache hit saves 1 seek and each row cache hit saves 2 seeks at the
-          minimum, sometimes more. The key cache is fairly tiny for the amount of
-          time it saves, so it's worthwhile to use it at large numbers all the way
-          up to 1.0 (all keys cached). The row cache saves even more time, but must
-          store the whole values of its rows, so it is extremely space-intensive.
-          It's best to only use the row cache if you have hot rows or static rows.
-
-        - row_cache_save_period: Duration in seconds after which Cassandra should
-          safe the row cache. Caches are saved to saved_caches_directory as specified
-          in conf/Cassandra.yaml. Default is 0 to disable saving the row cache.
-
-          Saved caches greatly improve cold-start speeds, and is relatively cheap in
-          terms of I/O for the key cache. Row cache saving is much more expensive and
-          has limited use.
 
         - subcomparator:  Validator to use to validate and compare sub column names
           in this column family. Only applied to Super column families. Default is
@@ -536,23 +495,6 @@ commands:
 
         - replicate_on_write: Replicate every counter update from the leader to the
         follower replicas. Accepts the values true and false.
-
-        - row_cache_provider: The provider for the row cache to use for this
-        column family. 
-
-        Supported values are:
-            - ConcurrentLinkedHashCacheProvider
-            - SerializingCacheProvider
-
-        It is also valid to specify the fully-qualified class name to a class
-        that implements org.apache.cassandra.cache.IRowCacheProvider.
-
-        row_cache_provider defaults to SerializingCacheProvider.
-        SerializingCacheProvider serialises the contents of the row and stores
-        it in native memory, i.e., off the JVM Heap. Serialized rows take
-        significantly less memory than "live" rows in the JVM, so you can cache
-        more rows in a given memory footprint.  And storing the cache off-heap
-        means you can use smaller heap sizes, reducing the impact of GC pauses.
 
         - compression_options: Options related to compression.
           Options have the form {key:value}.
@@ -710,53 +652,12 @@ commands:
 
           See http://wiki.apache.org/Cassandra/DistributedDeletes
 
-        - keys_cached: Maximum number of keys to cache in memory. Valid values are
-          either a double between 0 and 1 (inclusive on both ends) denoting what
-          fraction should be cached. Or an absolute number of rows to cache.
-          Default value is 200000.
-
-          Each key cache hit saves 1 seek and each row cache hit saves 2 seeks at the
-          minimum, sometimes more. The key cache is fairly tiny for the amount of
-          time it saves, so it's worthwhile to use it at large numbers all the way
-          up to 1.0 (all keys cached). The row cache saves even more time, but must
-          store the whole values of its rows, so it is extremely space-intensive.
-          It's best to only use the row cache if you have hot rows or static rows.
-
-        - key_cache_save_period: Duration in seconds after which Cassandra should
-          safe the keys cache. Caches are saved to saved_caches_directory as
-          specified in conf/Cassandra.yaml. Default is 14400 or 4 hours.
-
-          Saved caches greatly improve cold-start speeds, and is relatively cheap in
-          terms of I/O for the key cache. Row cache saving is much more expensive and
-          has limited use.
-
         - read_repair_chance: Probability (0.0-1.0) with which to perform read
           repairs for any read operation. Default is 0.1.
 
           Note that disabling read repair entirely means that the dynamic snitch
           will not have any latency information from all the replicas to recognize
           when one is performing worse than usual.
-
-        - rows_cached: Maximum number of rows whose entire contents we
-          cache in memory. Valid values are either a double between 0 and 1 (
-          inclusive on both ends) denoting what fraction should be cached. Or an
-          absolute number of rows to cache. Default value is 0, to disable row
-          caching.
-
-          Each key cache hit saves 1 seek and each row cache hit saves 2 seeks at the
-          minimum, sometimes more. The key cache is fairly tiny for the amount of
-          time it saves, so it's worthwhile to use it at large numbers all the way
-          up to 1.0 (all keys cached). The row cache saves even more time, but must
-          store the whole values of its rows, so it is extremely space-intensive.
-          It's best to only use the row cache if you have hot rows or static rows.
-
-        - row_cache_save_period: Duration in seconds after which Cassandra should
-          safe the row cache. Caches are saved to saved_caches_directory as specified
-          in conf/Cassandra.yaml. Default is 0 to disable saving the row cache.
-
-          Saved caches greatly improve cold-start speeds, and is relatively cheap in
-          terms of I/O for the key cache. Row cache saving is much more expensive and
-          has limited use.
 
         - subcomparator:  Validator to use to validate and compare sub column names
           in this column family. Only applied to Super column families. Default is
@@ -796,23 +697,6 @@ commands:
 
         - replicate_on_write: Replicate every counter update from the leader to the
         follower replicas. Accepts the values true and false.
-
-        - row_cache_provider: The provider for the row cache to use for this
-        column family. 
-
-        Supported values are:
-            - ConcurrentLinkedHashCacheProvider
-            - SerializingCacheProvider
-
-        It is also valid to specify the fully-qualified class name to a class
-        that implements org.apache.cassandra.cache.IRowCacheProvider.
-
-        row_cache_provider defaults to SerializingCacheProvider.
-        SerializingCacheProvider serialises the contents of the row and stores
-        it in native memory, i.e., off the JVM Heap. Serialized rows take
-        significantly less memory than "live" rows in the JVM, so you can cache
-        more rows in a given memory footprint.  And storing the cache off-heap
-        means you can use smaller heap sizes, reducing the impact of GC pauses.
 
         - compression_options: Options related to compression.
           Options have the form {key:value}.

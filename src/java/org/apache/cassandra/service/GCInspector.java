@@ -138,7 +138,7 @@ public class GCInspector
                 {
                     cacheSizesReduced = true;
                     logger.warn("Heap is " + usage + " full.  You may need to reduce memtable and/or cache sizes.  Cassandra is now reducing cache sizes to free up memory.  Adjust reduce_cache_sizes_at threshold in cassandra.yaml if you don't want Cassandra to do this automatically");
-                    StorageService.instance.reduceCacheSizes();
+                    CacheService.instance.reduceCacheSizes();
                 }
 
                 if (memoryUsed > DatabaseDescriptor.getFlushLargestMemtablesAt() * memoryMax)

@@ -303,9 +303,6 @@ public interface StorageServiceMBean
     /** force hint delivery to an endpoint **/
     public void deliverHints(String host) throws UnknownHostException;
 
-    /** save row and key caches */
-    public void saveCaches() throws ExecutionException, InterruptedException;
-
     /**
      * given a list of tokens (representing the nodes in the cluster), returns
      *   a mapping from "token -> %age of cluster owned by that token"
@@ -342,9 +339,6 @@ public interface StorageServiceMBean
 
     // to determine if thrift is running
     public boolean isRPCServerRunning();
-
-    public void invalidateKeyCaches(String ks, String... cfs) throws IOException;
-    public void invalidateRowCaches(String ks, String... cfs) throws IOException;
 
     // allows a node that have been started without joining the ring to join it
     public void joinRing() throws IOException, org.apache.cassandra.config.ConfigurationException;

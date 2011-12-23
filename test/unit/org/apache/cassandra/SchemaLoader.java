@@ -144,8 +144,7 @@ public class SchemaLoader
                                                           "StandardInteger1",
                                                           st,
                                                           IntegerType.instance,
-                                                          null)
-                                                   .keyCacheSize(0),
+                                                          null),
                                            new CFMetaData(ks1,
                                                           "Counter1",
                                                           st,
@@ -212,8 +211,7 @@ public class SchemaLoader
                                                           "Super5",
                                                           su,
                                                           TimeUUIDType.instance,
-                                                          bytes)
-                                                   .keyCacheSize(0)));
+                                                          bytes)));
 
         // Keyspace 5
         schema.add(KSMetaData.testMetadata(ks5,
@@ -233,20 +231,16 @@ public class SchemaLoader
         schema.add(KSMetaData.testMetadata(ks_kcs,
                                            simple,
                                            opts_rf1,
-                                           standardCFMD(ks_kcs, "Standard1")
-                                                   .keyCacheSize(0.5),
-                                           standardCFMD(ks_kcs, "Standard2")
-                                                   .keyCacheSize(1.0),
-                                           standardCFMD(ks_kcs, "Standard3")
-                                                   .keyCacheSize(1.0)));
+                                           standardCFMD(ks_kcs, "Standard1"),
+                                           standardCFMD(ks_kcs, "Standard2"),
+                                           standardCFMD(ks_kcs, "Standard3")));
 
         // RowCacheSpace
         schema.add(KSMetaData.testMetadata(ks_rcs,
                                            simple,
                                            opts_rf1,
                                            standardCFMD(ks_rcs, "CFWithoutCache"),
-                                           standardCFMD(ks_rcs, "CachedCF")
-                                                   .rowCacheSize(100)));
+                                           standardCFMD(ks_rcs, "CachedCF")));
 
         schema.add(KSMetaData.testMetadataNotDurable(ks_nocommit,
                                                      simple,
@@ -273,15 +267,15 @@ public class SchemaLoader
 
     private static CFMetaData standardCFMD(String ksName, String cfName)
     {
-        return new CFMetaData(ksName, cfName, ColumnFamilyType.Standard, BytesType.instance, null).keyCacheSize(0);
+        return new CFMetaData(ksName, cfName, ColumnFamilyType.Standard, BytesType.instance, null);
     }
     private static CFMetaData superCFMD(String ksName, String cfName, AbstractType subcc)
     {
-        return superCFMD(ksName, cfName, BytesType.instance, subcc).keyCacheSize(0);
+        return superCFMD(ksName, cfName, BytesType.instance, subcc);
     }
     private static CFMetaData superCFMD(String ksName, String cfName, AbstractType cc, AbstractType subcc)
     {
-        return new CFMetaData(ksName, cfName, ColumnFamilyType.Super, cc, subcc).keyCacheSize(0);
+        return new CFMetaData(ksName, cfName, ColumnFamilyType.Super, cc, subcc);
     }
     private static CFMetaData indexCFMD(String ksName, String cfName, final Boolean withIdxType) throws ConfigurationException
     {

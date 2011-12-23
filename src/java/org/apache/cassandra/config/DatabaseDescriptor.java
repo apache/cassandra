@@ -34,8 +34,8 @@ import org.apache.cassandra.auth.AllowAllAuthenticator;
 import org.apache.cassandra.auth.AllowAllAuthority;
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.auth.IAuthority;
+import org.apache.cassandra.cache.IRowCacheProvider;
 import org.apache.cassandra.config.Config.RequestSchedulerId;
-import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DefsTable;
 import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.dht.IPartitioner;
@@ -47,6 +47,7 @@ import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.SeedProvider;
 import org.apache.cassandra.scheduler.IRequestScheduler;
 import org.apache.cassandra.scheduler.NoScheduler;
+import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.thrift.CassandraDaemon;
 import org.apache.cassandra.utils.FBUtilities;
 import org.yaml.snakeyaml.Loader;
@@ -81,6 +82,8 @@ public class DatabaseDescriptor
     private static IRequestScheduler requestScheduler;
     private static RequestSchedulerId requestSchedulerId;
     private static RequestSchedulerOptions requestSchedulerOptions;
+
+    private static IRowCacheProvider rowCacheProvider;
 
     /**
      * Inspect the classpath to find storage configuration file
@@ -412,6 +415,8 @@ public class DatabaseDescriptor
 
             if (conf.initial_token != null)
                 partitioner.getTokenFactory().validate(conf.initial_token);
+
+            rowCacheProvider = FBUtilities.newCacheProvider(conf.row_cache_provider);
 
             // Hardcoded system tables
             KSMetaData systemMeta = KSMetaData.systemKeyspace();
@@ -919,7 +924,7 @@ public class DatabaseDescriptor
         return conf.index_interval;
     }
 
-    public static File getSerializedCachePath(String ksName, String cfName, ColumnFamilyStore.CacheType cacheType)
+    public static File getSerializedCachePath(String ksName, String cfName, CacheService.CacheType cacheType)
     {
         return new File(conf.saved_caches_directory + File.separator + ksName + "-" + cfName + "-" + cacheType);
     }
@@ -1021,5 +1026,40 @@ public class DatabaseDescriptor
     public static long getTotalCommitlogSpaceInMB()
     {
         return conf.commitlog_total_space_in_mb;
+    }
+
+    public static int getKeyCacheSizeInMB()
+    {
+        return conf.key_cache_size_in_mb;
+    }
+
+    public static int getKeyCacheSavePeriod()
+    {
+        return conf.key_cache_save_period;
+    }
+
+    public static int getKeyCacheKeysToSave()
+    {
+        return conf.key_cache_keys_to_save;
+    }
+
+    public static int getRowCacheSizeInMB()
+    {
+        return conf.row_cache_size_in_mb;
+    }
+
+    public static int getRowCacheSavePeriod()
+    {
+        return conf.row_cache_save_period;
+    }
+
+    public static int getRowCacheKeysToSave()
+    {
+        return conf.row_cache_keys_to_save;
+    }
+
+    public static IRowCacheProvider getRowCacheProvider()
+    {
+        return rowCacheProvider;
     }
 }

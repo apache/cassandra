@@ -27,12 +27,13 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import com.google.common.collect.*;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cache.AutoSavingCache;
+import org.apache.cassandra.cache.KeyCacheKey;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.notifications.INotification;
 import org.apache.cassandra.notifications.INotificationConsumer;
@@ -41,7 +42,6 @@ import org.apache.cassandra.notifications.SSTableListChangedNotification;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.IntervalTree.Interval;
 import org.apache.cassandra.utils.IntervalTree.IntervalTree;
-import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.WrappedRunnable;
 
 public class DataTracker
@@ -155,7 +155,6 @@ public class DataTracker
         while (!view.compareAndSet(currentView, newView));
 
         addNewSSTablesSize(Arrays.asList(sstable));
-        cfstore.updateCacheSizes();
 
         notifyAdded(sstable);
         incrementallyBackup(sstable);
@@ -334,8 +333,6 @@ public class DataTracker
     {
         addNewSSTablesSize(replacements);
         removeOldSSTablesSize(oldSSTables);
-
-        cfstore.updateCacheSizes();
     }
 
     private void addNewSSTablesSize(Iterable<SSTableReader> newSSTables)
@@ -365,11 +362,6 @@ public class DataTracker
             assert firstToCompact : sstable + " was already marked compacted";
             sstable.releaseReference();
         }
-    }
-
-    public AutoSavingCache<Pair<Descriptor,DecoratedKey>,Long> getKeyCache()
-    {
-        return cfstore.getKeyCache();
     }
 
     public long getLiveSize()

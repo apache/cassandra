@@ -31,9 +31,9 @@ import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.ExecutionException;
 
+import org.apache.cassandra.service.CacheServiceMBean;
 import org.apache.commons.cli.*;
 
-import org.apache.cassandra.cache.InstrumentingCacheMBean;
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutorMBean;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
@@ -143,6 +143,8 @@ public class NodeCmd
         addCmdHelp(header, "enablethrift", "Reenable thrift server");
         addCmdHelp(header, "statusthrift", "Status of thrift server");
         addCmdHelp(header, "gossipinfo", "Shows the gossip information for the cluster");
+        addCmdHelp(header, "invalidatekeycache", "Invalidate the key cache");
+        addCmdHelp(header, "invalidaterowcache", "Invalidate the row cache");
 
         // One arg
         addCmdHelp(header, "netstats [host]", "Print network information on provided host (connecting node by default)");
@@ -160,9 +162,8 @@ public class NodeCmd
         addCmdHelp(header, "cleanup [keyspace] [cfnames]", "Run cleanup on one or more column family");
         addCmdHelp(header, "compact [keyspace] [cfnames]", "Force a (major) compaction on one or more column family");
         addCmdHelp(header, "scrub [keyspace] [cfnames]", "Scrub (rebuild sstables for) one or more column family");
-        addCmdHelp(header, "upgradesstables [keyspace] [cfnames]", "Upgrade sstables for one or more column family");
-        addCmdHelp(header, "invalidatekeycache [keyspace] [cfnames]", "Invalidate the key cache of one or more column family");
-        addCmdHelp(header, "invalidaterowcache [keyspace] [cfnames]", "Invalidate the key cache of one or more column family");
+
+        addCmdHelp(header, "upgradesstables [keyspace] [cfnames]", "Scrub (rebuild sstables for) one or more column family");
         addCmdHelp(header, "getcompactionthreshold <keyspace> <cfname>", "Print min and max compaction thresholds for a given column family");
         addCmdHelp(header, "cfhistograms <keyspace> <cfname>", "Print statistic histograms for a given column family");
         addCmdHelp(header, "refresh <keyspace> <cf-name>", "Load newly placed SSTables to the system without restart.");
@@ -317,6 +318,28 @@ public class NodeCmd
 
         // Exceptions
         outs.printf("%-17s: %s%n", "Exceptions", probe.getExceptionCount());
+
+        CacheServiceMBean cacheService = probe.getCacheServiceMBean();
+
+        // Key Cache: Hits, Requests, RecentHitRate, SavePeriodInSeconds
+        outs.printf("%-17s: size %d (bytes), capacity %d (bytes), %d hits, %d requests, %.3f recent hit rate, %d save period in seconds%n",
+                    "Key Cache",
+                    cacheService.getKeyCacheSize(),
+                    cacheService.getKeyCacheCapacityInBytes(),
+                    cacheService.getKeyCacheHits(),
+                    cacheService.getKeyCacheRequests(),
+                    cacheService.getKeyCacheRecentHitRate(),
+                    cacheService.getKeyCacheSavePeriodInSeconds());
+
+        // Row Cache: Hits, Requests, RecentHitRate, SavePeriodInSeconds
+        outs.printf("%-17s: size %d (bytes), capacity %d (bytes), %d hits, %d requests, %.3f recent hit rate, %d save period in seconds%n",
+                    "Row Cache",
+                    cacheService.getRowCacheSize(),
+                    cacheService.getRowCacheCapacityInBytes(),
+                    cacheService.getRowCacheHits(),
+                    cacheService.getRowCacheRequests(),
+                    cacheService.getRowCacheRecentHitRate(),
+                    cacheService.getRowCacheSavePeriodInSeconds());
     }
 
     public void printReleaseVersion(PrintStream outs)
@@ -501,31 +524,6 @@ public class NodeCmd
                 outs.println("\t\tBloom Filter False Postives: " + cfstore.getBloomFilterFalsePositives());
                 outs.println("\t\tBloom Filter False Ratio: " + String.format("%01.5f", cfstore.getRecentBloomFilterFalseRatio()));
                 outs.println("\t\tBloom Filter Space Used: " + cfstore.getBloomFilterDiskSpaceUsed());
-
-                InstrumentingCacheMBean keyCacheMBean = probe.getKeyCacheMBean(tableName, cfstore.getColumnFamilyName());
-                if (keyCacheMBean.getCapacity() > 0)
-                {
-                    outs.println("\t\tKey cache capacity: " + keyCacheMBean.getCapacity());
-                    outs.println("\t\tKey cache size: " + keyCacheMBean.getSize());
-                    outs.println("\t\tKey cache hit rate: " + keyCacheMBean.getRecentHitRate());
-                }
-                else
-                {
-                    outs.println("\t\tKey cache: disabled");
-                }
-
-                InstrumentingCacheMBean rowCacheMBean = probe.getRowCacheMBean(tableName, cfstore.getColumnFamilyName());
-                if (rowCacheMBean.getCapacity() > 0)
-                {
-                    outs.println("\t\tRow cache capacity: " + rowCacheMBean.getCapacity());
-                    outs.println("\t\tRow cache size: " + rowCacheMBean.getSize());
-                    outs.println("\t\tRow cache hit rate: " + rowCacheMBean.getRecentHitRate());
-                }
-                else
-                {
-                    outs.println("\t\tRow cache: disabled");
-                }
-
                 outs.println("\t\tCompacted row minimum size: " + cfstore.getMinRowSize());
                 outs.println("\t\tCompacted row maximum size: " + cfstore.getMaxRowSize());
                 outs.println("\t\tCompacted row mean size: " + cfstore.getMeanRowSize());
@@ -710,14 +708,20 @@ public class NodeCmd
                     else                                    { probe.removeToken(arguments[0]); }
                     break;
 
+                case INVALIDATEKEYCACHE :
+                    probe.invalidateKeyCache();
+                    break;
+
+                case INVALIDATEROWCACHE :
+                    probe.invalidateRowCache();
+                    break;
+
                 case CLEANUP :
                 case COMPACT :
                 case REPAIR  :
                 case FLUSH   :
                 case SCRUB   :
                 case UPGRADESSTABLES   :
-                case INVALIDATEKEYCACHE :
-                case INVALIDATEROWCACHE :
                     optionalKSandCFs(command, cmd, arguments, probe);
                     break;
 
@@ -886,8 +890,6 @@ public class NodeCmd
                     else
                         probe.forceTableRepair(keyspace, columnFamilies);
                     break;
-                case INVALIDATEKEYCACHE : probe.invalidateKeyCaches(keyspace, columnFamilies); break;
-                case INVALIDATEROWCACHE : probe.invalidateRowCaches(keyspace, columnFamilies); break;
                 case FLUSH   :
                     try { probe.forceTableFlush(keyspace, columnFamilies); }
                     catch (ExecutionException ee) { err(ee, "Error occured during flushing"); }

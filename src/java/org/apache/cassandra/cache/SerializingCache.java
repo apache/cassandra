@@ -28,11 +28,13 @@ import java.util.Set;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap;
 import com.googlecode.concurrentlinkedhashmap.EvictionListener;
+import com.googlecode.concurrentlinkedhashmap.Weigher;
 import com.googlecode.concurrentlinkedhashmap.Weighers;
 
 import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.util.MemoryInputStream;
 import org.apache.cassandra.io.util.MemoryOutputStream;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -47,7 +49,7 @@ public class SerializingCache<K, V> implements ICache<K, V>
     private final ConcurrentLinkedHashMap<K, FreeableMemory> map;
     private final ISerializer<V> serializer;
 
-    public SerializingCache(int capacity, ISerializer<V> serializer, String tableName, String cfName)
+    public SerializingCache(int capacity, boolean useMemoryWeigher, ISerializer<V> serializer)
     {
         this.serializer = serializer;
 
@@ -58,13 +60,28 @@ public class SerializingCache<K, V> implements ICache<K, V>
                 mem.unreference();
             }
         };
+
         this.map = new ConcurrentLinkedHashMap.Builder<K, FreeableMemory>()
-                   .weigher(Weighers.<FreeableMemory>singleton())
+                   .weigher(useMemoryWeigher
+                                ? createMemoryWeigher()
+                                : Weighers.<FreeableMemory>singleton())
                    .initialCapacity(capacity)
                    .maximumWeightedCapacity(capacity)
                    .concurrencyLevel(DEFAULT_CONCURENCY_LEVEL)
                    .listener(listener)
                    .build();
+    }
+
+    private static Weigher<FreeableMemory> createMemoryWeigher()
+    {
+        return new Weigher<FreeableMemory>()
+        {
+            @Override
+            public int weightOf(FreeableMemory value)
+            {
+                return (int) Math.min(value.size(), Integer.MAX_VALUE);
+            }
+        };
     }
 
 	private V deserialize(FreeableMemory mem)
@@ -127,6 +144,11 @@ public class SerializingCache<K, V> implements ICache<K, V>
         return map.size();
     }
 
+    public int weightedSize()
+    {
+        return map.weightedSize();
+    }
+
     public void clear()
     {
         map.clear();
@@ -175,6 +197,11 @@ public class SerializingCache<K, V> implements ICache<K, V>
     public Set<K> hotKeySet(int n)
     {
         return map.descendingKeySetWithLimit(n);
+    }
+
+    public boolean containsKey(K key)
+    {
+        return map.containsKey(key);
     }
 
     public boolean isPutCopying()

@@ -42,11 +42,15 @@ public interface ICache<K, V>
 
     public int size();
 
+    public int weightedSize();
+
     public void clear();
 
     public Set<K> keySet();
 
     public Set<K> hotKeySet(int n);
+
+    public boolean containsKey(K key);
 
     /**
      * @return true if the cache implementation inherently copies the cached values; otherwise,

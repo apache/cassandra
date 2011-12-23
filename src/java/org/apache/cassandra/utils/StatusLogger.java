@@ -30,13 +30,19 @@ import javax.management.ObjectName;
 
 import com.google.common.collect.Iterables;
 
+import org.apache.cassandra.cache.AutoSavingCache;
+import org.apache.cassandra.cache.KeyCacheKey;
+import org.apache.cassandra.cache.RowCacheKey;
+import org.apache.cassandra.db.ColumnFamily;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutorMBean;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.service.CacheService;
 
 public class StatusLogger
 {
@@ -81,15 +87,33 @@ public class StatusLogger
         logger.info(String.format("%-25s%10s%10s",
                                   "MessagingService", "n/a", pendingCommands + "," + pendingResponses));
 
+        // Global key/row cache information
+        AutoSavingCache<KeyCacheKey, Long> keyCache = CacheService.instance.keyCache;
+        AutoSavingCache<RowCacheKey, ColumnFamily> rowCache = CacheService.instance.rowCache;
+
+        int keyCacheKeysToSave = DatabaseDescriptor.getKeyCacheKeysToSave();
+        int rowCacheKeysToSave = DatabaseDescriptor.getRowCacheKeysToSave();
+
+        logger.info(String.format("%-25s%10s%25s%25s%65s", "Cache Type", "Size", "Capacity", "KeysToSave", "Provider"));
+        logger.info(String.format("%-25s%10s%25s%25s%65s", "KeyCache",
+                                                           keyCache.weightedSize(),
+                                                           keyCache.getCapacity(),
+                                                           keyCacheKeysToSave == Integer.MAX_VALUE ? "all" : keyCacheKeysToSave,
+                                                           ""));
+
+        logger.info(String.format("%-25s%10s%25s%25s%65s", "RowCache",
+                                                           rowCache.weightedSize(),
+                                                           rowCache.getCapacity(),
+                                                           rowCacheKeysToSave == Integer.MAX_VALUE ? "all" : rowCacheKeysToSave,
+                                                           DatabaseDescriptor.getRowCacheProvider().getClass().getName()));
+
         // per-CF stats
-        logger.info(String.format("%-25s%20s%20s%20s", "ColumnFamily", "Memtable ops,data", "Row cache size/cap", "Key cache size/cap"));
+        logger.info(String.format("%-25s%20s", "ColumnFamily", "Memtable ops,data"));
         for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
         {
-            logger.info(String.format("%-25s%20s%20s%20s",
+            logger.info(String.format("%-25s%20s",
                                       cfs.table.name + "." + cfs.columnFamily,
-                                      cfs.getMemtableColumnsCount() + "," + cfs.getMemtableDataSize(),
-                                      cfs.getRowCacheSize() + "/" + cfs.getRowCacheCapacity(),
-                                      cfs.getKeyCacheSize() + "/" + cfs.getKeyCacheCapacity()));
+                                      cfs.getMemtableColumnsCount() + "," + cfs.getMemtableDataSize()));
         }
     }
 }

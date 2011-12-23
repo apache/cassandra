@@ -21,12 +21,11 @@ package org.apache.cassandra.cache;
  */
 
 import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.DecoratedKey;
 
 public class SerializingCacheProvider implements IRowCacheProvider
 {
-    public ICache<DecoratedKey, ColumnFamily> create(int capacity, String tableName, String cfName)
+    public ICache<RowCacheKey, ColumnFamily> create(int capacity, boolean useMemoryWeigher)
     {
-        return new SerializingCache<DecoratedKey, ColumnFamily>(capacity, ColumnFamily.serializer(), tableName, cfName);
+        return new SerializingCache<RowCacheKey, ColumnFamily>(capacity, useMemoryWeigher, ColumnFamily.serializer());
     }
 }

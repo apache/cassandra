@@ -70,8 +70,6 @@ public class DefsTest extends CleanupHelper
         // make sure some of the fields didn't get unexpected zeros put in during [de]serialize operations.
         assert cd.min_compaction_threshold == null;
         assert cd2.min_compaction_threshold == null;
-        assert cd.row_cache_save_period_in_seconds == null;
-        assert cd2.row_cache_save_period_in_seconds == null;
         assert cd.compaction_strategy == null;
     }
     
@@ -100,16 +98,12 @@ public class DefsTest extends CleanupHelper
                                         null);
 
         cfm.comment("No comment")
-           .rowCacheSize(1.0)
-           .keyCacheSize(1.0)
            .readRepairChance(0.5)
            .replicateOnWrite(false)
            .gcGraceSeconds(100000)
            .defaultValidator(null)
            .minCompactionThreshold(500)
            .maxCompactionThreshold(500)
-           .rowCacheSavePeriod(500)
-           .keyCacheSavePeriod(500)
            .mergeShardsChance(0.0)
            .columnMetadata(indexes);
 
@@ -521,7 +515,6 @@ public class DefsTest extends CleanupHelper
         
         // updating certain fields should fail.
         org.apache.cassandra.db.migration.avro.CfDef cf_def = cf.toAvro();
-        cf_def.row_cache_size = 43.3;
         cf_def.column_metadata = new ArrayList<org.apache.cassandra.db.migration.avro.ColumnDef>();
         cf_def.default_validation_class ="BytesType";
         cf_def.min_compaction_threshold = 5;
@@ -530,13 +523,7 @@ public class DefsTest extends CleanupHelper
         // test valid operations.
         cf_def.comment = "Modified comment";
         new UpdateColumnFamily(cf_def).apply(); // doesn't get set back here.
-        
-        cf_def.row_cache_size = 2d;
-        new UpdateColumnFamily(cf_def).apply();
-        
-        cf_def.key_cache_size = 3d;
-        new UpdateColumnFamily(cf_def).apply();
-        
+
         cf_def.read_repair_chance = 0.23;
         new UpdateColumnFamily(cf_def).apply();
         
@@ -556,8 +543,6 @@ public class DefsTest extends CleanupHelper
         
         // check the cumulative affect.
         assert Schema.instance.getCFMetaData(cf.ksName, cf.cfName).getComment().equals(cf_def.comment);
-        assert Schema.instance.getCFMetaData(cf.ksName, cf.cfName).getRowCacheSize() == cf_def.row_cache_size;
-        assert Schema.instance.getCFMetaData(cf.ksName, cf.cfName).getKeyCacheSize() == cf_def.key_cache_size;
         assert Schema.instance.getCFMetaData(cf.ksName, cf.cfName).getReadRepairChance() == cf_def.read_repair_chance;
         assert Schema.instance.getCFMetaData(cf.ksName, cf.cfName).getGcGraceSeconds() == cf_def.gc_grace_seconds;
         assert Schema.instance.getCFMetaData(cf.ksName, cf.cfName).getDefaultValidator() == UTF8Type.instance;
@@ -677,7 +662,6 @@ public class DefsTest extends CleanupHelper
     {
         CFMetaData newCFMD = new CFMetaData(ks, cf, ColumnFamilyType.Standard, UTF8Type.instance, null);
         newCFMD.comment(comment)
-               .keyCacheSize(1.0)
                .readRepairChance(0.0)
                .mergeShardsChance(0.0);
 

@@ -1199,12 +1199,6 @@ public class CliClient
             case COMMENT:
                 cfDef.setComment(CliUtils.unescapeSQLString(mValue));
                 break;
-            case ROWS_CACHED:
-                cfDef.setRow_cache_size(Double.parseDouble(mValue));
-                break;
-            case KEYS_CACHED:
-                cfDef.setKey_cache_size(Double.parseDouble(mValue));
-                break;
             case READ_REPAIR_CHANCE:
                 double chance = Double.parseDouble(mValue);
 
@@ -1226,15 +1220,6 @@ public class CliClient
                 break;
             case MEMTABLE_THROUGHPUT:
                 break;
-            case ROW_CACHE_SAVE_PERIOD:
-                cfDef.setRow_cache_save_period_in_seconds(Integer.parseInt(mValue));
-                break;
-            case KEY_CACHE_SAVE_PERIOD:
-                cfDef.setKey_cache_save_period_in_seconds(Integer.parseInt(mValue));
-                break;
-            case ROW_CACHE_KEYS_TO_SAVE:
-                cfDef.setRow_cache_keys_to_save(Integer.parseInt(mValue));
-                break;
             case DEFAULT_VALIDATION_CLASS:
                 cfDef.setDefault_validation_class(CliUtils.unescapeSQLString(mValue));
                 break;
@@ -1246,9 +1231,6 @@ public class CliClient
                 break;
             case REPLICATE_ON_WRITE:
                 cfDef.setReplicate_on_write(Boolean.parseBoolean(mValue));
-                break;
-            case ROW_CACHE_PROVIDER:
-                cfDef.setRow_cache_provider(CliUtils.unescapeSQLString(mValue));
                 break;
             case KEY_VALIDATION_CLASS:
                 cfDef.setKey_validation_class(CliUtils.unescapeSQLString(mValue));
@@ -1643,17 +1625,11 @@ public class CliClient
                         normaliseType(cfDef.default_validation_class, "org.apache.cassandra.db.marshal"));
         writeAttr(sb, false, "key_validation_class",
                     normaliseType(cfDef.key_validation_class, "org.apache.cassandra.db.marshal"));
-        writeAttr(sb, false, "rows_cached", cfDef.row_cache_size);
-        writeAttr(sb, false, "row_cache_save_period", cfDef.row_cache_save_period_in_seconds);
-        writeAttr(sb, false, "row_cache_keys_to_save", cfDef.row_cache_keys_to_save);
-        writeAttr(sb, false, "keys_cached", cfDef.key_cache_size);
-        writeAttr(sb, false, "key_cache_save_period", cfDef.key_cache_save_period_in_seconds);
         writeAttr(sb, false, "read_repair_chance", cfDef.read_repair_chance);
         writeAttr(sb, false, "gc_grace", cfDef.gc_grace_seconds);
         writeAttr(sb, false, "min_compaction_threshold", cfDef.min_compaction_threshold);
         writeAttr(sb, false, "max_compaction_threshold", cfDef.max_compaction_threshold);
         writeAttr(sb, false, "replicate_on_write", cfDef.replicate_on_write);
-        writeAttr(sb, false, "row_cache_provider", normaliseType(cfDef.row_cache_provider, "org.apache.cassandra.cache"));
         writeAttr(sb, false, "compaction_strategy", cfDef.compaction_strategy);
 
         if (!cfDef.compaction_strategy_options.isEmpty())
@@ -1982,11 +1958,6 @@ public class CliClient
             sessionState.out.printf("      Default column value validator: %s%n", cf_def.default_validation_class);
 
         sessionState.out.printf("      Columns sorted by: %s%s%n", cf_def.comparator_type, cf_def.column_type.equals("Super") ? "/" + cf_def.subcomparator_type : "");
-        sessionState.out.printf("      Row cache size / save period in seconds / keys to save : %s/%s/%s%n",
-                cf_def.row_cache_size, cf_def.row_cache_save_period_in_seconds,
-                cf_def.row_cache_keys_to_save == Integer.MAX_VALUE ? "all" : cf_def.row_cache_keys_to_save);
-        sessionState.out.printf("      Row Cache Provider: %s%n", cf_def.getRow_cache_provider());
-        sessionState.out.printf("      Key cache size / save period in seconds: %s/%s%n", cf_def.key_cache_size, cf_def.key_cache_save_period_in_seconds);
         sessionState.out.printf("      GC grace seconds: %s%n", cf_def.gc_grace_seconds);
         sessionState.out.printf("      Compaction min/max thresholds: %s/%s%n", cf_def.min_compaction_threshold, cf_def.max_compaction_threshold);
         sessionState.out.printf("      Read repair chance: %s%n", cf_def.read_repair_chance);

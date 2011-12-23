@@ -20,15 +20,33 @@ package org.apache.cassandra.cache;
  * 
  */
 
-
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap;
 import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.DecoratedKey;
+
+import com.googlecode.concurrentlinkedhashmap.Weigher;
+import com.googlecode.concurrentlinkedhashmap.Weighers;
+
+import org.github.jamm.MemoryMeter;
 
 public class ConcurrentLinkedHashCacheProvider implements IRowCacheProvider
 {
-    public ICache<DecoratedKey, ColumnFamily> create(int capacity, String tableName, String cfName)
+    public ICache<RowCacheKey, ColumnFamily> create(int capacity, boolean useMemoryWeigher)
     {
-        return ConcurrentLinkedHashCache.create(capacity, tableName, cfName);
+        return ConcurrentLinkedHashCache.create(capacity, useMemoryWeigher
+                                                            ? createMemoryWeigher()
+                                                            : Weighers.<ColumnFamily>singleton());
+    }
+
+    private static Weigher<ColumnFamily> createMemoryWeigher()
+    {
+        return new Weigher<ColumnFamily>()
+        {
+            final MemoryMeter meter = new MemoryMeter();
+
+            @Override
+            public int weightOf(ColumnFamily value)
+            {
+                return (int) Math.min(meter.measure(value), Integer.MAX_VALUE);
+            }
+        };
     }
 }

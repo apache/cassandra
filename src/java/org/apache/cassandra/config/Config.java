@@ -20,6 +20,9 @@ package org.apache.cassandra.config;
  * 
  */
 
+import org.apache.cassandra.cache.ConcurrentLinkedHashCacheProvider;
+import org.apache.cassandra.cache.IRowCacheProvider;
+
 import java.util.List;
 
 
@@ -121,6 +124,15 @@ public class Config
 
     public boolean incremental_backups = false;
     public int memtable_flush_queue_size = 4;
+
+    public int key_cache_size_in_mb = 2;
+    public int key_cache_save_period = 14400;
+    public int key_cache_keys_to_save = Integer.MAX_VALUE;
+
+    public int row_cache_size_in_mb = 0;
+    public int row_cache_save_period = 0;
+    public int row_cache_keys_to_save = Integer.MAX_VALUE;
+    public String row_cache_provider = ConcurrentLinkedHashCacheProvider.class.getSimpleName();
 
     public static enum CommitLogSync {
         periodic,

@@ -51,8 +51,6 @@ protocol InterNode {
         union { string, null } comparator_type;
         union { string, null } subcomparator_type;
         union { string, null } comment;
-        union { double, null } row_cache_size;
-        union { double, null } key_cache_size;
         union { double, null } read_repair_chance;
         boolean replicate_on_write = false;
         union { int, null } gc_grace_seconds;
@@ -60,13 +58,9 @@ protocol InterNode {
         union { null, string } key_validation_class = null;
         union { null, int } min_compaction_threshold = null;
         union { null, int } max_compaction_threshold = null;
-        union { int, null } row_cache_save_period_in_seconds = 0;
-        union { int, null } key_cache_save_period_in_seconds = 3600;
-        union { null, int } row_cache_keys_to_save = null;
         union { null, double} merge_shards_chance = null;
         union { int, null } id;
         union { array<ColumnDef>, null } column_metadata;
-        union { string, null } row_cache_provider = "org.apache.cassandra.cache.ConcurrentLinkedHashCacheProvider";
         union { null, bytes } key_alias = null;
         union { null, string } compaction_strategy = null;
         union { null, map<string> } compaction_strategy_options = null;

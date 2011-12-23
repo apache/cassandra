@@ -105,7 +105,7 @@ public class CacheProviderTest extends SchemaLoader
     @Test
     public void testHeapCache() throws InterruptedException
     {
-        ICache<String, ColumnFamily> cache = ConcurrentLinkedHashCache.create(CAPACITY, tableName, cfName);
+        ICache<String, ColumnFamily> cache = ConcurrentLinkedHashCache.create(CAPACITY);
         ColumnFamily cf = createCF();
         simpleCase(cf, cache);
         concurrentCase(cf, cache);
@@ -114,7 +114,7 @@ public class CacheProviderTest extends SchemaLoader
     @Test
     public void testSerializingCache() throws InterruptedException
     {
-        ICache<String, ColumnFamily> cache = new SerializingCache<String, ColumnFamily>(CAPACITY, ColumnFamily.serializer(), tableName, cfName);
+        ICache<String, ColumnFamily> cache = new SerializingCache<String, ColumnFamily>(CAPACITY, false, ColumnFamily.serializer());
         ColumnFamily cf = createCF();
         simpleCase(cf, cache);
         concurrentCase(cf, cache);

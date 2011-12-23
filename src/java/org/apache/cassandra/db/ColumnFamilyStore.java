@@ -25,11 +25,15 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.regex.Pattern;
 import javax.management.*;
 
 import com.google.common.collect.Iterables;
 import org.apache.cassandra.db.compaction.LeveledManifest;
+import org.apache.cassandra.service.CacheService;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -123,32 +127,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private volatile DefaultInteger minCompactionThreshold;
     private volatile DefaultInteger maxCompactionThreshold;
     private volatile AbstractCompactionStrategy compactionStrategy;
-    private volatile DefaultInteger rowCacheSaveInSeconds;
-    private volatile DefaultInteger keyCacheSaveInSeconds;
-    private volatile DefaultInteger rowCacheKeysToSave;
-
-    public static enum CacheType
-    {
-        KEY_CACHE_TYPE("KeyCache"),
-        ROW_CACHE_TYPE("RowCache");
-
-        public final String name;
-
-        private CacheType(String name)
-        {
-            this.name = name;
-        }
-
-        @Override
-        public String toString()
-        {
-            return name;
-        }
-    }
-
-    public final AutoSavingCache<Pair<Descriptor,DecoratedKey>, Long> keyCache;
-    public final AutoSavingCache<DecoratedKey, ColumnFamily> rowCache;
-
 
     /** ratio of in-memory memtable size, to serialized size */
     volatile double liveRatio = 1.0;
@@ -166,17 +144,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         if (!maxCompactionThreshold.isModified())
             for (ColumnFamilyStore cfs : concatWithIndexes())
                 cfs.maxCompactionThreshold = new DefaultInteger(metadata.getMaxCompactionThreshold());
-        if (!rowCacheSaveInSeconds.isModified())
-            rowCacheSaveInSeconds = new DefaultInteger(metadata.getRowCacheSavePeriodInSeconds());
-        if (!keyCacheSaveInSeconds.isModified())
-            keyCacheSaveInSeconds = new DefaultInteger(metadata.getKeyCacheSavePeriodInSeconds());
-        if (!rowCacheKeysToSave.isModified())
-            rowCacheKeysToSave = new DefaultInteger(metadata.getRowCacheKeysToSave());
 
         maybeReloadCompactionStrategy();
-
-        updateCacheSizes();
-        scheduleCacheSaving(rowCacheSaveInSeconds.value(), keyCacheSaveInSeconds.value(), rowCacheKeysToSave.value());
 
         indexManager.reload();
     }
@@ -203,14 +172,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private ColumnFamilyStore(Table table, String columnFamilyName, IPartitioner partitioner, int generation, CFMetaData metadata)
     {
         assert metadata != null : "null metadata for " + table + ":" + columnFamilyName;
+
         this.table = table;
         columnFamily = columnFamilyName;
         this.metadata = metadata;
         this.minCompactionThreshold = new DefaultInteger(metadata.getMinCompactionThreshold());
         this.maxCompactionThreshold = new DefaultInteger(metadata.getMaxCompactionThreshold());
-        this.rowCacheSaveInSeconds = new DefaultInteger(metadata.getRowCacheSavePeriodInSeconds());
-        this.keyCacheSaveInSeconds = new DefaultInteger(metadata.getKeyCacheSavePeriodInSeconds());
-        this.rowCacheKeysToSave = new DefaultInteger(metadata.getRowCacheKeysToSave());
         this.partitioner = partitioner;
         this.indexManager = new SecondaryIndexManager(this);
         fileIndexGenerator.set(generation);
@@ -218,14 +185,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         if (logger.isDebugEnabled())
             logger.debug("Starting CFS {}", columnFamily);
 
-        ICache<Pair<Descriptor, DecoratedKey>, Long> kc = ConcurrentLinkedHashCache.create(0, table.name, columnFamilyName);
-        keyCache = new AutoSavingKeyCache<Pair<Descriptor, DecoratedKey>, Long>(kc, table.name, columnFamilyName);
-        ICache<DecoratedKey, ColumnFamily> rc = metadata.getRowCacheProvider().create(0, table.name, columnFamilyName);
-        rowCache = new AutoSavingRowCache<DecoratedKey, ColumnFamily>(rc, table.name, columnFamilyName);
-
         // scan for sstables corresponding to this cf and load them
         data = new DataTracker(this);
-        Set<DecoratedKey> savedKeys = keyCache.readSaved();
+        Set<DecoratedKey> savedKeys = CacheService.instance.keyCache.readSaved(table.name, columnFamily);
         Set<Map.Entry<Descriptor, Set<Component>>> entries = files(table.name, columnFamilyName, false, false).entrySet();
         data.addInitialSSTables(SSTableReader.batchOpen(entries, savedKeys, data, metadata, this.partitioner));
 
@@ -402,39 +364,30 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     }
 
     // must be called after all sstables are loaded since row cache merges all row versions
-    public void initCaches()
+    public void initRowCache()
     {
         long start = System.currentTimeMillis();
+
+        AutoSavingCache<RowCacheKey, ColumnFamily> rowCache = CacheService.instance.rowCache;
+
         // results are sorted on read (via treeset) because there are few reads and many writes and reads only happen at startup
         int cachedRowsRead = 0;
-        for (DecoratedKey key : rowCache.readSaved())
+        for (DecoratedKey key : rowCache.readSaved(table.name, columnFamily))
         {
-            cacheRow(key);
-            if (cachedRowsRead++ > rowCache.getCapacity())
-            {
-                logger.debug(String.format("Stopped loading row cache after capacity %d was reached", rowCache.getCapacity()));
-                break;
-            }
+            cacheRow(metadata.cfId, key);
         }
-        if (rowCache.size() > 0)
+
+        if (cachedRowsRead > 0)
             logger.info(String.format("completed loading (%d ms; %d keys) row cache for %s.%s",
-                                      System.currentTimeMillis()-start,
-                                      rowCache.size(),
-                                      table.name,
-                                      columnFamily));
-
-        scheduleCacheSaving(metadata.getRowCacheSavePeriodInSeconds(), metadata.getKeyCacheSavePeriodInSeconds(), metadata.getRowCacheKeysToSave());
+                        System.currentTimeMillis() - start,
+                        cachedRowsRead,
+                        table.name,
+                        columnFamily));
     }
 
-    public void scheduleCacheSaving(int rowCacheSavePeriodInSeconds, int keyCacheSavePeriodInSeconds, int rowCacheKeysToSave)
+    public AutoSavingCache<KeyCacheKey, Long> getKeyCache()
     {
-        keyCache.scheduleSaving(keyCacheSavePeriodInSeconds, Integer.MAX_VALUE);
-        rowCache.scheduleSaving(rowCacheSavePeriodInSeconds, rowCacheKeysToSave);
-    }
-
-    public AutoSavingCache<Pair<Descriptor,DecoratedKey>, Long> getKeyCache()
-    {
-        return keyCache;
+        return CacheService.instance.keyCache;
     }
 
     /**
@@ -520,7 +473,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         Set<Descriptor> currentDescriptors = new HashSet<Descriptor>();
         // going to hold new SSTable view of the CFS containing old and new SSTables
         Set<SSTableReader> sstables = new HashSet<SSTableReader>();
-        Set<DecoratedKey> savedKeys = keyCache.readSaved();
         // get the max generation number, to prevent generation conflicts
         int generation = 0;
 
@@ -553,8 +505,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                                                          descriptor));
 
             logger.info("Initializing new SSTable {}", rawSSTable);
+
             try
             {
+                Set<DecoratedKey> savedKeys = CacheService.instance.keyCache.readSaved(descriptor.ksname, descriptor.cfname);
                 reader = SSTableReader.open(rawSSTable.getKey(), rawSSTable.getValue(), savedKeys, data, metadata, partitioner);
             }
             catch (IOException e)
@@ -580,7 +534,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         logger.info("Loading new SSTables and building secondary indexes for " + table.name + "/" + columnFamily + ": " + sstables);
         SSTableReader.acquireReferences(sstables);
-        data.addSSTables(sstables); // this will call updateCacheSizes() for us
+        data.addSSTables(sstables);
         try
         {
             indexManager.maybeBuildSecondaryIndexes(sstables, indexManager.getIndexedColumns());
@@ -756,13 +710,19 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public void updateRowCache(DecoratedKey key, ColumnFamily columnFamily)
     {
-        if (rowCache.isPutCopying())
+        Integer cfId = Schema.instance.getId(table.name, this.columnFamily);
+        if (cfId == null)
+            return; // secondary index
+
+        RowCacheKey cacheKey = new RowCacheKey(cfId, key);
+
+        if (CacheService.instance.rowCache.isPutCopying())
         {
-            invalidateCachedRow(key);
+            invalidateCachedRow(cacheKey);
         }
         else
         {
-            ColumnFamily cachedRow = getRawCachedRow(key);
+            ColumnFamily cachedRow = getRawCachedRow(cacheKey);
             if (cachedRow != null)
                 cachedRow.addAll(columnFamily, HeapAllocator.instance);
         }
@@ -1141,19 +1101,26 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return (int) (System.currentTimeMillis() / 1000) - metadata.getGcGraceSeconds();
     }
 
-    private ColumnFamily cacheRow(DecoratedKey key)
+    public ColumnFamily cacheRow(Integer cfId, DecoratedKey decoratedKey)
     {
+        RowCacheKey key = new RowCacheKey(cfId, decoratedKey);
+
         ColumnFamily cached;
-        if ((cached = rowCache.get(key)) == null)
+
+        if ((cached = CacheService.instance.rowCache.get(key)) == null)
         {
             // We force ThreadSafeSortedColumns because cached row will be accessed concurrently
-            cached = getTopLevelColumns(QueryFilter.getIdentityFilter(key, new QueryPath(columnFamily)), Integer.MIN_VALUE, true);
+            cached = getTopLevelColumns(QueryFilter.getIdentityFilter(decoratedKey, new QueryPath(columnFamily)),
+                                        Integer.MIN_VALUE,
+                                        true);
+
             if (cached == null)
                 return null;
 
             // avoid keeping a permanent reference to the original key buffer
-            rowCache.put(new DecoratedKey(key.token, ByteBufferUtil.clone(key.key)), cached);
+            CacheService.instance.rowCache.put(key, cached);
         }
+
         return cached;
     }
 
@@ -1164,7 +1131,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         long start = System.nanoTime();
         try
         {
-            if (rowCache.getCapacity() == 0)
+            if (CacheService.instance.rowCache.getCapacity() == 0)
             {
                 ColumnFamily cf = getTopLevelColumns(filter, gcBefore, false);
 
@@ -1176,7 +1143,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 return cf.isSuper() ? removeDeleted(cf, gcBefore) : removeDeletedCF(cf, gcBefore);
             }
 
-            ColumnFamily cached = cacheRow(filter.key);
+            Integer cfId = Schema.instance.getId(table.name, this.columnFamily);
+            if (cfId == null)
+                return null; // secondary index
+
+            ColumnFamily cached = cacheRow(cfId, filter.key);
             if (cached == null)
                 return null;
 
@@ -1465,49 +1436,38 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     }
 
     /** raw cached row -- does not fetch the row if it is not present.  not counted in cache statistics.  */
+
     public ColumnFamily getRawCachedRow(DecoratedKey key)
     {
-        return rowCache.getCapacity() == 0 ? null : rowCache.getInternal(key);
+        Integer cfId = Schema.instance.getId(table.name, this.columnFamily);
+        if (cfId == null)
+            return null; // secondary index
+
+        return getRawCachedRow(new RowCacheKey(cfId, key));
+    }
+
+    public ColumnFamily getRawCachedRow(RowCacheKey key)
+    {
+        return CacheService.instance.rowCache.getCapacity() == 0 ? null : CacheService.instance.rowCache.getInternal(key);
+    }
+
+    public void invalidateCachedRow(RowCacheKey key)
+    {
+        CacheService.instance.rowCache.remove(key);
     }
 
     public void invalidateCachedRow(DecoratedKey key)
     {
-        rowCache.remove(key);
+        Integer cfId = Schema.instance.getId(table.name, this.columnFamily);
+        if (cfId == null)
+            return; // secondary index
+
+        invalidateCachedRow(new RowCacheKey(cfId, key));
     }
 
     public void forceMajorCompaction() throws InterruptedException, ExecutionException
     {
         CompactionManager.instance.performMaximal(this);
-    }
-
-    public void invalidateRowCache()
-    {
-        rowCache.clear();
-    }
-
-    public void invalidateKeyCache()
-    {
-        keyCache.clear();
-    }
-
-    public int getRowCacheCapacity()
-    {
-        return rowCache.getCapacity();
-    }
-
-    public int getKeyCacheCapacity()
-    {
-        return keyCache.getCapacity();
-    }
-
-    public int getRowCacheSize()
-    {
-        return rowCache.size();
-    }
-
-    public int getKeyCacheSize()
-    {
-        return keyCache.size();
     }
 
     public static Iterable<ColumnFamilyStore> all()
@@ -1690,9 +1650,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
        - get     memsize
        - get     memops
        - get/set memtime
-       - get/set rowCacheSavePeriodInSeconds
-       - get/set keyCacheSavePeriodInSeconds
-       - get/set rowCacheKeysToSave
      */
 
     public AbstractCompactionStrategy getCompactionStrategy()
@@ -1733,58 +1690,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return getMinimumCompactionThreshold() <= 0 || getMaximumCompactionThreshold() <= 0;
     }
 
-    public int getRowCacheSavePeriodInSeconds()
-    {
-        return rowCacheSaveInSeconds.value();
-    }
-    public void setRowCacheSavePeriodInSeconds(int rcspis)
-    {
-        if (rcspis < 0)
-        {
-            throw new RuntimeException("RowCacheSavePeriodInSeconds must be non-negative.");
-        }
-        this.rowCacheSaveInSeconds.set(rcspis);
-        scheduleCacheSaving(rowCacheSaveInSeconds.value(), keyCacheSaveInSeconds.value(), rowCacheKeysToSave.value());
-    }
-
-    public int getKeyCacheSavePeriodInSeconds()
-    {
-        return keyCacheSaveInSeconds.value();
-    }
-    public void setKeyCacheSavePeriodInSeconds(int kcspis)
-    {
-        if (kcspis < 0)
-        {
-            throw new RuntimeException("KeyCacheSavePeriodInSeconds must be non-negative.");
-        }
-        this.keyCacheSaveInSeconds.set(kcspis);
-        scheduleCacheSaving(rowCacheSaveInSeconds.value(), keyCacheSaveInSeconds.value(), rowCacheKeysToSave.value());
-    }
-
-    public int getRowCacheKeysToSave()
-    {
-        return rowCacheKeysToSave.value();
-    }
-
-    public void setRowCacheKeysToSave(int keysToSave)
-    {
-        this.rowCacheKeysToSave.set(keysToSave);
-    }
     // End JMX get/set.
 
     public long estimateKeys()
     {
         return data.estimatedKeys();
-    }
-
-    /**
-     * Resizes the key and row caches based on the current key estimate.
-     */
-    public synchronized void updateCacheSizes()
-    {
-        long keys = estimateKeys();
-        keyCache.updateCacheSize(keys);
-        rowCache.updateCacheSize(keys);
     }
 
     public long[] getEstimatedRowSizeHistogram()
@@ -1812,15 +1722,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         assert isIndex();
         return columnFamily.split("\\.")[0];
-    }
-
-    /**
-     * sets each cache's maximum capacity to 75% of its current size
-     */
-    public void reduceCacheSizes()
-    {
-        rowCache.reduceCacheSize();
-        keyCache.reduceCacheSize();
     }
 
     private ByteBuffer intern(ByteBuffer name)

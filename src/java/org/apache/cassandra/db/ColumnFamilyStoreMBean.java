@@ -22,8 +22,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
-import org.apache.cassandra.config.ConfigurationException;
-
 /**
  * The MBean interface for ColumnFamilyStore
  */
@@ -148,17 +146,6 @@ public interface ColumnFamilyStoreMBean
     public void forceMajorCompaction() throws ExecutionException, InterruptedException;
 
     /**
-     * invalidate the key cache; for use after invalidating row cache
-     */
-    public void invalidateKeyCache();
-
-    /**
-     * invalidate the row cache; for use after bulk loading via BinaryMemtable
-     */
-    public void invalidateRowCache();
-
-
-    /**
      * return the size of the smallest compacted row
      * @return
      */
@@ -222,15 +209,6 @@ public interface ColumnFamilyStoreMBean
      * @return list of the index names
      */
     public List<String> getBuiltIndexes();
-
-    public int getRowCacheSavePeriodInSeconds();
-    public void setRowCacheSavePeriodInSeconds(int rcspis);
-
-    public int getKeyCacheSavePeriodInSeconds();
-    public void setKeyCacheSavePeriodInSeconds(int kcspis);
-
-    public int getRowCacheKeysToSave();
-    public void setRowCacheKeysToSave(int keysToSave);
 
     /**
      * Scan through Keyspace/ColumnFamily's data directory
