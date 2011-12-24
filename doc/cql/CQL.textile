@@ -488,9 +488,14 @@ bc(syntax).
 <createColumnFamilyStatement> ::= "CREATE" "COLUMNFAMILY" <name>
                                     "(" <term> <storageType> "PRIMARY" "KEY"
                                         ( "," <term> <storageType> )* ")"
-                                   ( "WITH" <identifier> "=" <cfOptionVal>
-                                     ( "AND" <identifier> "=" <cfOptionVal> )* )?
+                                   ( "WITH" <optionName> "=" <cfOptionVal>
+                                     ( "AND" <optionName> "=" <cfOptionVal> )* )?
                                 ;
+<optionName> ::= <identifier>
+               | <optionName> ":" <identifier>
+               | <optionName> ":" <integer>
+               ;
+
 <cfOptionVal> ::= <storageType>
                 | <identifier>
                 | <stringLiteral>
@@ -549,6 +554,8 @@ A number of optional keyword arguments can be supplied to control the configurat
 |row_cache_save_period_in_seconds|0|Number of seconds between saving row caches.|
 |key_cache_save_period_in_seconds|14400|Number of seconds between saving key caches.|
 |replicate_on_write|false| |
+|compaction_strategy_options|none|CompactionStrategy specific options such as "sstable_size_in_mb" for LeveledCompactionStrategy and "min_sstable_size" for SizeTieredCompactionStrategy|
+|compression_parameters|none|Compression parameters such as "sstable_compressor" and "chunk_length_kb"|
 
 h2. CREATE INDEX
 

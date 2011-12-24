@@ -10,6 +10,8 @@
  * Avoid creating empty and non cleaned writer during compaction (CASSANDRA-3616)
  * stop thrift service in shutdown hook so we can quiesce MessagingService
    (CASSANDRA-3335)
+ * (CQL) compaction_strategy_options and compression_parameters for
+   CREATE COLUMNFAMILY statement (CASSANDRA-3374)
 Merged from 0.8:
  * avoid logging (harmless) exception when GC takes < 1ms (CASSANDRA-3656)
  * prevent new nodes from thinking down nodes are up forever (CASSANDRA-3626)

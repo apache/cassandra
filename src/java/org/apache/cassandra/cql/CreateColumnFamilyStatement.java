@@ -42,6 +42,7 @@ import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.io.compress.CompressionParameters;
 
 /** A <code>CREATE COLUMNFAMILY</code> parsed from a CQL query statement. */
 public class CreateColumnFamilyStatement
@@ -61,12 +62,16 @@ public class CreateColumnFamilyStatement
     private static final String KW_KEYCACHESAVEPERIODSECS = "key_cache_save_period_in_seconds";
     private static final String KW_REPLICATEONWRITE = "replicate_on_write";
     private static final String KW_ROW_CACHE_PROVIDER = "row_cache_provider";
+    private static final String KW_COMPACTION_STRATEGY_CLASS = "compaction_strategy_class";
     
     // Maps CQL short names to the respective Cassandra comparator/validator class names
     public  static final Map<String, String> comparators = new HashMap<String, String>();
     private static final Set<String> keywords = new HashSet<String>();
     private static final Set<String> obsoleteKeywords = new HashSet<String>();
-    
+
+    private static final String COMPACTION_OPTIONS_PREFIX = "compaction_strategy_options";
+    private static final String COMPRESSION_PARAMETERS_PREFIX = "compression_parameters";
+
     static
     {
         comparators.put("ascii", "AsciiType");
@@ -97,6 +102,7 @@ public class CreateColumnFamilyStatement
         keywords.add(KW_KEYCACHESAVEPERIODSECS);
         keywords.add(KW_REPLICATEONWRITE);
         keywords.add(KW_ROW_CACHE_PROVIDER);
+        keywords.add(KW_COMPACTION_STRATEGY_CLASS);
 
         obsoleteKeywords.add("memtable_throughput_in_mb");
         obsoleteKeywords.add("memtable_operations_in_millions");
@@ -108,6 +114,8 @@ public class CreateColumnFamilyStatement
     private final Map<String, String> properties = new HashMap<String, String>();
     private List<String> keyValidator = new ArrayList<String>();
     private ByteBuffer keyAlias = null;
+    private final Map<String, String> compactionStrategyOptions = new HashMap<String, String>();
+    private final Map<String, String> compressionParameters = new HashMap<String, String>();
 
     public CreateColumnFamilyStatement(String name)
     {
@@ -117,6 +125,34 @@ public class CreateColumnFamilyStatement
     /** Perform validation of parsed params */
     private void validate() throws InvalidRequestException
     {
+        // we need to remove parent:key = value pairs from the main properties
+        Set<String> propsToRemove = new HashSet<String>();
+
+        // check if we have compaction/compression options
+        for (String property : properties.keySet())
+        {
+            if (!property.contains(":"))
+                continue;
+
+            String key = property.split(":")[1];
+            String val = properties.get(property);
+
+            if (property.startsWith(COMPACTION_OPTIONS_PREFIX))
+            {
+                compactionStrategyOptions.put(key, val);
+                propsToRemove.add(property);
+            }
+
+            if (property.startsWith(COMPRESSION_PARAMETERS_PREFIX))
+            {
+                compressionParameters.put(key, val);
+                propsToRemove.add(property);
+            }
+        }
+
+        for (String property : propsToRemove)
+            properties.remove(property);
+
         // Column family name
         if (!name.matches("\\w+"))
             throw new InvalidRequestException(String.format("\"%s\" is not a valid column family name", name));
@@ -302,6 +338,8 @@ public class CreateColumnFamilyStatement
                    .keyValidator(TypeParser.parse(comparators.get(getKeyType())))
                    .rowCacheProvider(FBUtilities.newCacheProvider(getPropertyString(KW_ROW_CACHE_PROVIDER, CFMetaData.DEFAULT_ROW_CACHE_PROVIDER.getClass().getName())))
                    .keyAlias(keyAlias)
+                   .compactionStrategyOptions(compactionStrategyOptions)
+                   .compressionParameters(CompressionParameters.create(compressionParameters))
                    .validate();
         }
         catch (ConfigurationException e)
