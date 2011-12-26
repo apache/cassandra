@@ -32,7 +32,7 @@ public interface IRequestScheduler
      * 
      * @param t Thread handing the request
      * @param id    Scheduling parameter, an id to distinguish profiles (users/keyspace)
-     * @param timeout   The max time in milliseconds to spend blocking for a slot
+     * @param timeoutMS   The max time in milliseconds to spend blocking for a slot
      */
     public void queue(Thread t, String id, long timeoutMS) throws TimeoutException;
 

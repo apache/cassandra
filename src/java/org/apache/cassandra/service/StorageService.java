@@ -69,7 +69,7 @@ import org.apache.cassandra.utils.NodeId;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.WrappedRunnable;
 
-/*
+/**
  * This abstraction contains the token/identifier of this node
  * on the identifier space. This token gets gossiped around.
  * This class will also maintain histograms of the load information
@@ -204,7 +204,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         return getPrimaryRangeForEndpoint(FBUtilities.getBroadcastAddress());
     }
 
-    private Set<InetAddress> replicatingNodes = Collections.synchronizedSet(new HashSet<InetAddress>());
+    private final Set<InetAddress> replicatingNodes = Collections.synchronizedSet(new HashSet<InetAddress>());
     private CassandraDaemon daemon;
 
     private InetAddress removingNode;
@@ -223,7 +223,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     private static enum Mode { NORMAL, CLIENT, JOINING, LEAVING, DECOMMISSIONED, MOVING, DRAINING, DRAINED }
     private Mode operationMode;
 
-    private MigrationManager migrationManager = new MigrationManager();
+    private final MigrationManager migrationManager = new MigrationManager();
 
     /* Used for tracking drain progress */
     private volatile int totalCFs, remainingCFs;
@@ -285,7 +285,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         MessagingService.instance().registerVerbHandlers(Verb.TRUNCATE, new TruncateVerbHandler());
         MessagingService.instance().registerVerbHandlers(Verb.SCHEMA_CHECK, new SchemaCheckVerbHandler());
 
-        // spin up the streaming serivice so it is available for jmx tools.
+        // spin up the streaming service so it is available for jmx tools.
         if (StreamingService.instance == null)
             throw new RuntimeException("Streaming service is unavailable.");
     }
@@ -441,6 +441,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         // daemon threads, like our executors', continue to run while shutdown hooks are invoked
         Thread drainOnShutdown = new Thread(new WrappedRunnable()
         {
+            @Override
             public void runMayThrow() throws ExecutionException, InterruptedException, IOException
             {
                 ThreadPoolExecutor mutationStage = StageManager.getStage(Stage.MUTATION);
@@ -1958,8 +1959,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      *
      * @param table keyspace name also known as table
      * @param cf Column family name
-     * @param key - key for which we need to find the endpoint return value -
-     * the endpoint responsible for this key
+     * @param key key for which we need to find the endpoint 
+     * @return the endpoint responsible for this key
      */
     public List<InetAddress> getNaturalEndpoints(String table, String cf, String key)
     {
@@ -1976,8 +1977,9 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      * This method returns the N endpoints that are responsible for storing the
      * specified key i.e for replication.
      *
-     * @param position - position for which we need to find the endpoint return value -
-     * the endpoint responsible for this token
+     * @param table keyspace name also known as table
+     * @param pos position for which we need to find the endpoint 
+     * @return the endpoint responsible for this token
      */
     public List<InetAddress> getNaturalEndpoints(String table, RingPosition pos)
     {
@@ -1988,8 +1990,9 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      * This method attempts to return N endpoints that are responsible for storing the
      * specified key i.e for replication.
      *
-     * @param key - key for which we need to find the endpoint return value -
-     * the endpoint responsible for this key
+     * @param table keyspace name also known as table
+     * @param key key for which we need to find the endpoint 
+     * @return the endpoint responsible for this key
      */
     public List<InetAddress> getLiveNaturalEndpoints(String table, ByteBuffer key)
     {
@@ -2806,6 +2809,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
         SSTableLoader.Client client = new SSTableLoader.Client()
         {
+            @Override
             public void init(String keyspace)
             {
                 for (Map.Entry<Range<Token>, List<InetAddress>> entry : StorageService.instance.getRangeToAddressMap(keyspace).entrySet())
@@ -2816,6 +2820,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                 }
             }
 
+            @Override
             public boolean validateColumnFamily(String keyspace, String cfName)
             {
                 return Schema.instance.getCFMetaData(keyspace, cfName) != null;

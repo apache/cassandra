@@ -87,7 +87,7 @@ public abstract class AbstractReplicationStrategy
      * get the (possibly cached) endpoints that should store the given Token.
      * Note that while the endpoints are conceptually a Set (no duplicates will be included),
      * we return a List to avoid an extra allocation when sorting by proximity later
-     * @param searchToken the token the natural endpoints are requested for
+     * @param searchPosition the position the natural endpoints are requested for
      * @return a copy of the natural endpoints for the given token
      */
     public ArrayList<InetAddress> getNaturalEndpoints(RingPosition searchPosition)
@@ -109,7 +109,7 @@ public abstract class AbstractReplicationStrategy
     /**
      * calculate the natural endpoints for the given token
      *
-     * @see #getNaturalEndpoints(org.apache.cassandra.dht.Token)
+     * @see #getNaturalEndpoints(org.apache.cassandra.dht.RingPosition)
      *
      * @param searchToken the token the natural endpoints are requested for
      * @return a copy of the natural endpoints for the given token

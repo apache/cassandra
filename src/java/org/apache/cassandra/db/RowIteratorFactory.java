@@ -25,7 +25,6 @@ import com.google.common.collect.AbstractIterator;
 
 import org.apache.cassandra.db.columniterator.IColumnIterator;
 import org.apache.cassandra.db.filter.QueryFilter;
-import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.sstable.SSTableScanner;
 import org.apache.cassandra.utils.CloseableIterator;
@@ -33,8 +32,6 @@ import org.apache.cassandra.utils.MergeIterator;
 
 public class RowIteratorFactory
 {
-
-    private static final int RANGE_FILE_BUFFER_SIZE = 256 * 1024;
 
     private static final Comparator<IColumnIterator> COMPARE_BY_KEY = new Comparator<IColumnIterator>()
     {
@@ -53,7 +50,7 @@ public class RowIteratorFactory
      * @param startWith Start at this key
      * @param stopAt Stop and this key
      * @param filter Used to decide which columns to pull out
-     * @param comparator
+     * @param cfs
      * @return A row iterator following all the given restrictions
      */
     public static CloseableIterator<Row> getIterator(final Iterable<Memtable> memtables,

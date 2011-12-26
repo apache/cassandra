@@ -43,7 +43,7 @@ public interface CassandraDaemon
     
     /**
      * Start the Cassandra Daemon, assuming that it has already been
-     * initialized, via either {@link #init(String[])} or
+     * initialized, via either {@link CassandraDaemon#init(String[])} or
      * {@link #load(String[])}.
      * 
      * @throws IOException

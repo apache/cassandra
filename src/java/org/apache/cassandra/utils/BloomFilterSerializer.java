@@ -68,7 +68,7 @@ public class BloomFilterSerializer implements ISerializer<BloomFilter>
 
     /**
      * Calculates a serialized size of the given Bloom Filter
-     * @see this.serialize(BloomFilter, DataOutput)
+     * @see BloomFilterSerializer#serialize(BloomFilter, DataOutput)
      *
      * @param bf Bloom filter to calculate serialized size
      *

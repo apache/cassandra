@@ -36,12 +36,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.RowMutation;
-import org.apache.cassandra.db.ColumnFamily;
 
 /*
  * A single commit log file on disk. Manages creation of the file and writing row mutations to disk,
@@ -64,7 +64,7 @@ public class CommitLogSegment
 
     public final long id;
 
-    private File logFile;
+    private final File logFile;
     private RandomAccessFile logFileAccessor;
 
     private boolean needsSync = false;
@@ -116,7 +116,7 @@ public class CommitLogSegment
             // Map the segment, extending or truncating it to the standard segment size
             logFileAccessor.setLength(CommitLog.SEGMENT_SIZE);
 
-            buffer = logFileAccessor.getChannel().map(FileChannel.MapMode.READ_WRITE, (long) 0, (long) CommitLog.SEGMENT_SIZE);
+            buffer = logFileAccessor.getChannel().map(FileChannel.MapMode.READ_WRITE, 0, CommitLog.SEGMENT_SIZE);
             buffer.putInt(CommitLog.END_OF_SEGMENT_MARKER);
             buffer.position(0);
 
@@ -132,7 +132,7 @@ public class CommitLogSegment
      * Extracts the commit log ID from filename
      *
      * @param   filename  the filename of the commit log file
-     * @returns the extracted commit log ID
+     * @return the extracted commit log ID
      */
     public static long idFromFilename(String filename)
     {
@@ -152,7 +152,7 @@ public class CommitLogSegment
 
     /**
      * @param   filename  the filename to check
-     * @returns true if filename could be a commit log based on it's filename
+     * @return true if filename could be a commit log based on it's filename
      */
     public static boolean possibleCommitLogFile(String filename)
     {
