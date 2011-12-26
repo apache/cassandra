@@ -335,11 +335,14 @@ public class SSTableReader extends SSTable
         try
         {
             long indexSize = input.length();
-            long estimatedKeys = SSTable.estimateRowsFromIndex(input);
+            long histogramCount = sstableMetadata.estimatedRowSize.count();
+            long estimatedKeys = histogramCount > 0 && !sstableMetadata.estimatedRowSize.isOverflowed()
+                               ? histogramCount
+                               : SSTable.estimateRowsFromIndex(input); // statistics is supposed to be optional
             indexSummary = new IndexSummary(estimatedKeys);
             if (recreatebloom)
-                // estimate key count based on index length
                 bf = LegacyBloomFilter.getFilter(estimatedKeys, 15);
+
             while (true)
             {
                 long indexPosition = input.getFilePointer();

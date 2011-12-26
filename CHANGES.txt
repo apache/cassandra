@@ -1,4 +1,6 @@
 1.1-dev
+ * Optimize key count estimation when opening sstable on startup
+   (CASSANDRA-2988)
  * multi-dc replication optimization supporting CL > ONE (CASSANDRA-3577)
  * add command to stop compactions (CASSANDRA-1740, 3566, 3582)
  * multithreaded streaming (CASSANDRA-3494)

@@ -207,25 +207,6 @@ public abstract class SSTable
         return components;
     }
 
-    /** @return An estimate of the number of keys contained in the given data file. */
-    static long estimateRowsFromData(Descriptor desc, RandomAccessReader dfile) throws IOException
-    {
-        // collect sizes for the first 1000 keys, or first 100 megabytes of data
-        final int SAMPLES_CAP = 1000, BYTES_CAP = (int)Math.min(100000000, dfile.length());
-        int keys = 0;
-        long dataPosition = 0;
-        while (dataPosition < BYTES_CAP && keys < SAMPLES_CAP)
-        {
-            dfile.seek(dataPosition);
-            ByteBufferUtil.skipShortLength(dfile);
-            long dataSize = SSTableReader.readRowSize(dfile, desc);
-            dataPosition = dfile.getFilePointer() + dataSize;
-            keys++;
-        }
-        dfile.seek(0);
-        return dfile.length() / (dataPosition / keys);
-    }
-
     /** @return An estimate of the number of keys contained in the given index file. */
     static long estimateRowsFromIndex(RandomAccessReader ifile) throws IOException
     {

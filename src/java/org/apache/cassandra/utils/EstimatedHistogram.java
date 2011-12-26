@@ -183,6 +183,17 @@ public class EstimatedHistogram
     }
 
     /**
+     * @return the total number of non-zero values
+     */
+    public long count()
+    {
+       long sum = 0L;
+       for (int i = 0; i < buckets.length(); i++) 
+           sum += buckets.get(i);
+       return sum;
+    }
+
+    /**
      * @return true if this histogram has overflowed -- that is, a value larger than our largest bucket could bound was added
      */
     public boolean isOverflowed()
