@@ -977,10 +977,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public long getTotalMemtableLiveSize()
     {
-        long total = 0;
-        for (ColumnFamilyStore cfs : concatWithIndexes())
-            total += cfs.getMemtableThreadSafe().getLiveSize();
-        return total;
+        return getMemtableDataSize() + indexManager.getTotalLiveSize();
     }
 
     public int getMemtableSwitchCount()

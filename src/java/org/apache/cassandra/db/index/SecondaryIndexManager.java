@@ -328,6 +328,27 @@ public class SecondaryIndexManager
         return indexList.keySet();
     }
     
+    /**
+     * @return total current ram size of all indexes
+     */
+    public long getTotalLiveSize()
+    {
+        long total = 0;
+        
+        // we use identity map because per row indexes use same instance
+        // across many columns
+        IdentityHashMap<SecondaryIndex, Object> indexList = new IdentityHashMap<SecondaryIndex, Object>();
+
+        for (Map.Entry<ByteBuffer, SecondaryIndex> entry : indexesByColumn.entrySet())
+        {
+            SecondaryIndex index = entry.getValue();
+            
+            if (indexList.put(index, index) == null)
+                total += index.getLiveSize();
+        }
+        
+        return total;
+    }
     
     /**
      * Removes obsolete index entries and creates new ones for the given row key

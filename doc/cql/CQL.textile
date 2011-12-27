@@ -488,9 +488,14 @@ bc(syntax).
 <createColumnFamilyStatement> ::= "CREATE" "COLUMNFAMILY" <name>
                                     "(" <term> <storageType> "PRIMARY" "KEY"
                                         ( "," <term> <storageType> )* ")"
-                                   ( "WITH" <identifier> "=" <cfOptionVal>
-                                     ( "AND" <identifier> "=" <cfOptionVal> )* )?
+                                   ( "WITH" <optionName> "=" <cfOptionVal>
+                                     ( "AND" <optionName> "=" <cfOptionVal> )* )?
                                 ;
+<optionName> ::= <identifier>
+               | <optionName> ":" <identifier>
+               | <optionName> ":" <integer>
+               ;
+
 <cfOptionVal> ::= <storageType>
                 | <identifier>
                 | <stringLiteral>
@@ -544,6 +549,8 @@ A number of optional keyword arguments can be supplied to control the configurat
 |min_compaction_threshold|4|Minimum number of SSTables needed to start a minor compaction.|
 |max_compaction_threshold|32|Maximum number of SSTables allowed before a minor compaction is forced.|
 |replicate_on_write|false| |
+|compaction_strategy_options|none|CompactionStrategy specific options such as "sstable_size_in_mb" for LeveledCompactionStrategy and "min_sstable_size" for SizeTieredCompactionStrategy|
+|compression_parameters|none|Compression parameters such as "sstable_compressor" and "chunk_length_kb"|
 
 h2. CREATE INDEX
 

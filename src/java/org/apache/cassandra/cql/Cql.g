@@ -379,8 +379,8 @@ createKeyspaceStatement returns [CreateKeyspaceStatement expr]
 createColumnFamilyStatement returns [CreateColumnFamilyStatement expr]
     : K_CREATE K_COLUMNFAMILY name=( IDENT | STRING_LITERAL | INTEGER ) { $expr = new CreateColumnFamilyStatement($name.text); }
       ( '(' createCfamColumns[expr] ( ',' createCfamColumns[expr] )* ')' )?
-      ( K_WITH prop1=IDENT '=' arg1=createCfamKeywordArgument { $expr.addProperty($prop1.text, $arg1.arg); }
-          ( K_AND propN=IDENT '=' argN=createCfamKeywordArgument { $expr.addProperty($propN.text, $argN.arg); } )*
+      ( K_WITH prop1=(COMPIDENT | IDENT) '=' arg1=createCfamKeywordArgument { $expr.addProperty($prop1.text, $arg1.arg); }
+          ( K_AND propN=(COMPIDENT | IDENT) '=' argN=createCfamKeywordArgument { $expr.addProperty($propN.text, $argN.arg); } )*
       )?
       endStmnt
     ;
