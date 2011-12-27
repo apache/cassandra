@@ -35,6 +35,14 @@ Upgrading
       and row_cache_{size_in_mb, save_period} in conf/cassandra.yaml are
       used instead of per-ColumnFamily options.
 
+Features
+--------
+    - Cassandra 1.1 adds row-level isolation.  Multi-column updates to
+      a single row have always been *atomic* (either all will be applied,
+      or none) thanks to the CommitLog, but until 1.1 they were not *isolated*
+      -- a reader may see mixed old and new values while the update happens.
+
+
 1.0.6
 =====
 

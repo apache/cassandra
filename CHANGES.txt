@@ -1,4 +1,5 @@
 1.1-dev
+ * add row-level isolation via SnapTree (CASSANDRA-2893)
  * Optimize key count estimation when opening sstable on startup
    (CASSANDRA-2988)
  * multi-dc replication optimization supporting CL > ONE (CASSANDRA-3577)
