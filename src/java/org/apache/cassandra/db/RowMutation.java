@@ -398,7 +398,7 @@ public class RowMutation implements IMutation, MessageProducer
             for (int i = 0; i < size; ++i)
             {
                 Integer cfid = Integer.valueOf(dis.readInt());
-                ColumnFamily cf = ColumnFamily.serializer().deserialize(dis, flag, ThreadSafeSortedColumns.factory());
+                ColumnFamily cf = ColumnFamily.serializer().deserialize(dis, flag, TreeMapBackedSortedColumns.factory());
                 modifications.put(cfid, cf);
             }
             return new RowMutation(table, key, modifications);

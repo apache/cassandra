@@ -28,6 +28,8 @@ import org.junit.Test;
 
 import static org.junit.Assert.*;
 
+import com.google.common.base.Function;
+
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.utils.HeapAllocator;
@@ -76,7 +78,7 @@ public class ArrayBackedSortedColumnsTest
         for (int i = 0; i < values2.length; ++i)
             map2.addColumn(new Column(ByteBufferUtil.bytes(values2[reversed ? values2.length - 1 - i : i])), HeapAllocator.instance);
 
-        map2.addAll(map, HeapAllocator.instance);
+        map2.addAll(map, HeapAllocator.instance, new Function<IColumn, IColumn>(){ public IColumn apply(IColumn c) { return c; }; });
 
         Iterator<IColumn> iter = map2.iterator();
         assertEquals("1st column", 1, iter.next().name().getInt(0));

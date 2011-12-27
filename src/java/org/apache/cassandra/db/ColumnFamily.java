@@ -61,7 +61,7 @@ public class ColumnFamily extends AbstractColumnContainer
 
     public static ColumnFamily create(CFMetaData cfm)
     {
-        return create(cfm, ThreadSafeSortedColumns.factory());
+        return create(cfm, TreeMapBackedSortedColumns.factory());
     }
 
     public static ColumnFamily create(CFMetaData cfm, ISortedColumns.Factory factory)
@@ -84,8 +84,7 @@ public class ColumnFamily extends AbstractColumnContainer
     public ColumnFamily cloneMeShallow(ISortedColumns.Factory factory, boolean reversedInsertOrder)
     {
         ColumnFamily cf = ColumnFamily.create(cfm, factory, reversedInsertOrder);
-        // since deletion info is immutable, aliasing it is fine
-        cf.deletionInfo.set(deletionInfo.get());
+        cf.delete(this);
         return cf;
     }
 
@@ -108,8 +107,7 @@ public class ColumnFamily extends AbstractColumnContainer
     public ColumnFamily cloneMe()
     {
         ColumnFamily cf = new ColumnFamily(cfm, columns.cloneMe());
-        // since deletion info is immutable, aliasing it is fine
-        cf.deletionInfo.set(deletionInfo.get());
+        cf.delete(this);
         return cf;
     }
 

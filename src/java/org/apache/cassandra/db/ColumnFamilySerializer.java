@@ -115,7 +115,7 @@ public class ColumnFamilySerializer implements ISerializer<ColumnFamily>
 
     public ColumnFamily deserialize(DataInput dis) throws IOException
     {
-        return deserialize(dis, IColumnSerializer.Flag.LOCAL, ThreadSafeSortedColumns.factory());
+        return deserialize(dis, IColumnSerializer.Flag.LOCAL, TreeMapBackedSortedColumns.factory());
     }
 
     public ColumnFamily deserialize(DataInput dis, IColumnSerializer.Flag flag, ISortedColumns.Factory factory) throws IOException

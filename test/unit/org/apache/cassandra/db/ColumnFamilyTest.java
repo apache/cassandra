@@ -174,7 +174,7 @@ public class ColumnFamilyTest extends SchemaLoader
     public void testSuperColumnResolution()
     {
         testSuperColumnResolution(TreeMapBackedSortedColumns.factory());
-        testSuperColumnResolution(ThreadSafeSortedColumns.factory());
+        testSuperColumnResolution(AtomicSortedColumns.factory());
         // array-sorted does allow conflict resolution IF it is the last column.  Bit of an edge case.
         testSuperColumnResolution(ArrayBackedSortedColumns.factory());
     }

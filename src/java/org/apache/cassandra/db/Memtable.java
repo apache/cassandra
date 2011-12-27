@@ -25,6 +25,7 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 
+import com.google.common.base.Function;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.PeekingIterator;
 import org.slf4j.Logger;
@@ -82,7 +83,15 @@ public class Memtable
     public final ColumnFamilyStore cfs;
     private final long creationTime;
 
-    private SlabAllocator allocator = new SlabAllocator();
+    private final SlabAllocator allocator = new SlabAllocator();
+    // We really only need one column by allocator but one by memtable is not a big waste and avoids needing allocators to know about CFS
+    private final Function<IColumn, IColumn> localCopyFunction = new Function<IColumn, IColumn>()
+    {
+        public IColumn apply(IColumn c)
+        {
+            return c.localCopy(cfs, allocator);
+        };
+    };
 
     public Memtable(ColumnFamilyStore cfs)
     {
@@ -203,25 +212,19 @@ public class Memtable
                                     ? cf.isMarkedForDelete() ? 1 : 0
                                     : cf.getColumnCount());
 
-        ColumnFamily clonedCf = columnFamilies.get(key);
-        // if the row doesn't exist yet in the memtable, clone cf to our allocator.
-        if (clonedCf == null)
+
+        ColumnFamily previous = columnFamilies.get(key);
+
+        if (previous == null)
         {
-            clonedCf = cf.cloneMeShallow();
-            for (IColumn column : cf.getSortedColumns())
-                clonedCf.addColumn(column.localCopy(cfs, allocator));
-            clonedCf = columnFamilies.putIfAbsent(new DecoratedKey(key.token, allocator.clone(key.key)), clonedCf);
-            if (clonedCf == null)
-                return;
-            // else there was a race and the other thread won.  fall through to updating his CF object
+            ColumnFamily empty = cf.cloneMeShallow(AtomicSortedColumns.factory(), false);
+            // We'll add the columns later. This avoids wasting works if we get beaten in the putIfAbsent
+            previous = columnFamilies.putIfAbsent(new DecoratedKey(key.token, allocator.clone(key.key)), empty);
+            if (previous == null)
+                previous = empty;
         }
 
-        // we duplicate the funcationality of CF.resolve here to avoid having to either pass the Memtable in for
-        // the cloning operation, or cloning the CF container as well as the Columns.  fortunately, resolve
-        // is really quite simple:
-        clonedCf.delete(cf);
-        for (IColumn column : cf.getSortedColumns())
-            clonedCf.addColumn(column.localCopy(cfs, allocator), allocator);
+        previous.addAll(cf, allocator, localCopyFunction);
     }
 
     // for debugging

@@ -76,7 +76,7 @@ public class CollationController
         logger.debug("collectTimeOrderedData");
 
         ISortedColumns.Factory factory = mutableColumns
-                                       ? ThreadSafeSortedColumns.factory()
+                                       ? AtomicSortedColumns.factory()
                                        : TreeMapBackedSortedColumns.factory();
         ColumnFamily container = ColumnFamily.create(cfs.metadata, factory, filter.filter.isReversed());
         List<IColumnIterator> iterators = new ArrayList<IColumnIterator>();
@@ -209,7 +209,7 @@ public class CollationController
     {
         logger.debug("collectAllData");
         ISortedColumns.Factory factory = mutableColumns
-                                       ? ThreadSafeSortedColumns.factory()
+                                       ? AtomicSortedColumns.factory()
                                        : ArrayBackedSortedColumns.factory();
         List<IColumnIterator> iterators = new ArrayList<IColumnIterator>();
         ColumnFamily returnCF = ColumnFamily.create(cfs.metadata, factory, filter.filter.isReversed());

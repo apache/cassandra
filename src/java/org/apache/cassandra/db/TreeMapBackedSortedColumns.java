@@ -24,11 +24,15 @@ import java.util.SortedMap;
 import java.util.SortedSet;
 import java.util.TreeMap;
 
+import com.google.common.base.Function;
+
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.utils.Allocator;
 
-public class TreeMapBackedSortedColumns extends TreeMap<ByteBuffer, IColumn> implements ISortedColumns
+public class TreeMapBackedSortedColumns extends AbstractThreadUnsafeSortedColumns implements ISortedColumns
 {
+    private final TreeMap<ByteBuffer, IColumn> map;
+
     public static final ISortedColumns.Factory factory = new Factory()
     {
         public ISortedColumns create(AbstractType<?> comparator, boolean insertReversed)
@@ -49,17 +53,17 @@ public class TreeMapBackedSortedColumns extends TreeMap<ByteBuffer, IColumn> imp
 
     public AbstractType<?> getComparator()
     {
-        return (AbstractType)comparator();
+        return (AbstractType)map.comparator();
     }
 
     private TreeMapBackedSortedColumns(AbstractType<?> comparator)
     {
-        super(comparator);
+        this.map = new TreeMap<ByteBuffer, IColumn>(comparator);
     }
 
     private TreeMapBackedSortedColumns(SortedMap<ByteBuffer, IColumn> columns)
     {
-        super(columns);
+        this.map = new TreeMap<ByteBuffer, IColumn>(columns);
     }
 
     public ISortedColumns.Factory getFactory()
@@ -69,7 +73,7 @@ public class TreeMapBackedSortedColumns extends TreeMap<ByteBuffer, IColumn> imp
 
     public ISortedColumns cloneMe()
     {
-        return new TreeMapBackedSortedColumns(this);
+        return new TreeMapBackedSortedColumns(map);
     }
 
     public boolean isInsertReversed()
@@ -88,7 +92,7 @@ public class TreeMapBackedSortedColumns extends TreeMap<ByteBuffer, IColumn> imp
         // but TreeMap lacks putAbsent.  Rather than split it into a "get, then put" check, we do it as follows,
         // which saves the extra "get" in the no-conflict case [for both normal and super columns],
         // in exchange for a re-put in the SuperColumn case.
-        IColumn oldColumn = put(name, column);
+        IColumn oldColumn = map.put(name, column);
         if (oldColumn != null)
         {
             if (oldColumn instanceof SuperColumn)
@@ -98,13 +102,13 @@ public class TreeMapBackedSortedColumns extends TreeMap<ByteBuffer, IColumn> imp
                 // add the new one to the old, then place old back in the Map, rather than copy the old contents
                 // into the new Map entry.
                 ((SuperColumn) oldColumn).putColumn((SuperColumn)column, allocator);
-                put(name,  oldColumn);
+                map.put(name,  oldColumn);
             }
             else
             {
                 // calculate reconciled col from old (existing) col and new col
                 IColumn reconciledColumn = column.reconcile(oldColumn, allocator);
-                put(name, reconciledColumn);
+                map.put(name, reconciledColumn);
             }
         }
     }
@@ -112,10 +116,10 @@ public class TreeMapBackedSortedColumns extends TreeMap<ByteBuffer, IColumn> imp
     /**
      * We need to go through each column in the column container and resolve it before adding
      */
-    public void addAll(ISortedColumns cm, Allocator allocator)
+    protected void addAllColumns(ISortedColumns cm, Allocator allocator, Function<IColumn, IColumn> transformation)
     {
         for (IColumn column : cm.getSortedColumns())
-            addColumn(column, allocator);
+            addColumn(transformation.apply(column), allocator);
     }
 
     public boolean replace(IColumn oldColumn, IColumn newColumn)
@@ -127,15 +131,15 @@ public class TreeMapBackedSortedColumns extends TreeMap<ByteBuffer, IColumn> imp
         // column or the column was not equal to oldColumn (to be coherent
         // with other implementation). We optimize for the common case where
         // oldColumn do is present though.
-        IColumn previous = put(oldColumn.name(), newColumn);
+        IColumn previous = map.put(oldColumn.name(), newColumn);
         if (previous == null)
         {
-            remove(oldColumn.name());
+            map.remove(oldColumn.name());
             return false;
         }
         if (!previous.equals(oldColumn))
         {
-            put(oldColumn.name(), previous);
+            map.put(oldColumn.name(), previous);
             return false;
         }
         return true;
@@ -143,37 +147,42 @@ public class TreeMapBackedSortedColumns extends TreeMap<ByteBuffer, IColumn> imp
 
     public IColumn getColumn(ByteBuffer name)
     {
-        return get(name);
+        return map.get(name);
     }
 
     public void removeColumn(ByteBuffer name)
     {
-        remove(name);
+        map.remove(name);
+    }
+
+    public void clear()
+    {
+        map.clear();
+    }
+
+    public int size()
+    {
+        return map.size();
     }
 
     public Collection<IColumn> getSortedColumns()
     {
-        return values();
+        return map.values();
     }
 
     public Collection<IColumn> getReverseSortedColumns()
     {
-        return descendingMap().values();
+        return map.descendingMap().values();
     }
 
     public SortedSet<ByteBuffer> getColumnNames()
     {
-        return navigableKeySet();
-    }
-
-    public int getEstimatedColumnCount()
-    {
-        return size();
+        return map.navigableKeySet();
     }
 
     public Iterator<IColumn> iterator()
     {
-        return values().iterator();
+        return map.values().iterator();
     }
 
     public Iterator<IColumn> reverseIterator()
@@ -183,11 +192,11 @@ public class TreeMapBackedSortedColumns extends TreeMap<ByteBuffer, IColumn> imp
 
     public Iterator<IColumn> iterator(ByteBuffer start)
     {
-        return tailMap(start).values().iterator();
+        return map.tailMap(start).values().iterator();
     }
 
     public Iterator<IColumn> reverseIterator(ByteBuffer start)
     {
-        return descendingMap().tailMap(start).values().iterator();
+        return map.descendingMap().tailMap(start).values().iterator();
     }
 }

@@ -70,7 +70,7 @@ public class Row
 
         public Row deserialize(DataInput dis, int version) throws IOException
         {
-            return deserialize(dis, version, IColumnSerializer.Flag.LOCAL, ThreadSafeSortedColumns.factory());
+            return deserialize(dis, version, IColumnSerializer.Flag.LOCAL, TreeMapBackedSortedColumns.factory());
         }
 
         public long serializedSize(Row row, int version)

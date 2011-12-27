@@ -20,6 +20,8 @@ package org.apache.cassandra.db;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import com.google.common.base.Function;
+
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.utils.Allocator;
 
@@ -30,10 +32,11 @@ import org.apache.cassandra.utils.Allocator;
  * main operations performed are iterating over the map and adding columns
  * (especially if insertion is in sorted order).
  */
-public class ArrayBackedSortedColumns extends ArrayList<IColumn> implements ISortedColumns
+public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns implements ISortedColumns
 {
     private final AbstractType<?> comparator;
     private final boolean reversed;
+    private final ArrayList<IColumn> columns;
 
     public static final ISortedColumns.Factory factory = new Factory()
     {
@@ -58,13 +61,14 @@ public class ArrayBackedSortedColumns extends ArrayList<IColumn> implements ISor
         super();
         this.comparator = comparator;
         this.reversed = reversed;
+        this.columns = new ArrayList<IColumn>();
     }
 
     private ArrayBackedSortedColumns(Collection<IColumn> columns, AbstractType<?> comparator, boolean reversed)
     {
-        super(columns);
         this.comparator = comparator;
         this.reversed = reversed;
+        this.columns = new ArrayList<IColumn>(columns);
     }
 
     public ISortedColumns.Factory getFactory()
@@ -79,7 +83,7 @@ public class ArrayBackedSortedColumns extends ArrayList<IColumn> implements ISor
 
     public ISortedColumns cloneMe()
     {
-        return new ArrayBackedSortedColumns(this, comparator, reversed);
+        return new ArrayBackedSortedColumns(columns, comparator, reversed);
     }
 
     public boolean isInsertReversed()
@@ -98,7 +102,7 @@ public class ArrayBackedSortedColumns extends ArrayList<IColumn> implements ISor
     public IColumn getColumn(ByteBuffer name)
     {
         int pos = binarySearch(name);
-        return pos >= 0 ? get(pos) : null;
+        return pos >= 0 ? columns.get(pos) : null;
     }
 
     /**
@@ -113,14 +117,14 @@ public class ArrayBackedSortedColumns extends ArrayList<IColumn> implements ISor
      */
     public void addColumn(IColumn column, Allocator allocator)
     {
-        if (isEmpty())
+        if (columns.isEmpty())
         {
-            add(column);
+            columns.add(column);
             return;
         }
 
         // Fast path if inserting at the tail
-        int c = compare(get(size() - 1).name(), column.name());
+        int c = compare(columns.get(size() - 1).name(), column.name());
         // note that we want an assertion here (see addColumn javadoc), but we also want that if
         // assertion are disabled, addColumn works correctly with unsorted input
         assert c <= 0 : "Added column does not sort as the " + (reversed ? "first" : "last") + " column";
@@ -128,7 +132,7 @@ public class ArrayBackedSortedColumns extends ArrayList<IColumn> implements ISor
         if (c < 0)
         {
             // Insert as last
-            add(column);
+            columns.add(column);
         }
         else if (c == 0)
         {
@@ -141,7 +145,7 @@ public class ArrayBackedSortedColumns extends ArrayList<IColumn> implements ISor
             if (pos >= 0)
                 resolveAgainst(pos, column, allocator);
             else
-                add(-pos-1, column);
+                columns.add(-pos-1, column);
         }
     }
 
@@ -151,7 +155,7 @@ public class ArrayBackedSortedColumns extends ArrayList<IColumn> implements ISor
      */
     private void resolveAgainst(int i, IColumn column, Allocator allocator)
     {
-        IColumn oldColumn = get(i);
+        IColumn oldColumn = columns.get(i);
         if (oldColumn instanceof SuperColumn)
         {
             // Delegated to SuperColumn
@@ -162,7 +166,7 @@ public class ArrayBackedSortedColumns extends ArrayList<IColumn> implements ISor
         {
             // calculate reconciled col from old (existing) col and new col
             IColumn reconciledColumn = column.reconcile(oldColumn, allocator);
-            set(i, reconciledColumn);
+            columns.set(i, reconciledColumn);
         }
     }
 
@@ -181,7 +185,7 @@ public class ArrayBackedSortedColumns extends ArrayList<IColumn> implements ISor
         while (low <= high)
         {
             mid = (low + high) >> 1;
-            if ((result = compare(name, get(mid).name())) > 0)
+            if ((result = compare(name, columns.get(mid).name())) > 0)
             {
                 low = mid + 1;
             }
@@ -197,46 +201,46 @@ public class ArrayBackedSortedColumns extends ArrayList<IColumn> implements ISor
         return -mid - (result < 0 ? 1 : 2);
     }
 
-    public void addAll(ISortedColumns cm, Allocator allocator)
+    protected void addAllColumns(ISortedColumns cm, Allocator allocator, Function<IColumn, IColumn> transformation)
     {
         if (cm.isEmpty())
             return;
 
-        IColumn[] copy = toArray(new IColumn[size()]);
+        IColumn[] copy = columns.toArray(new IColumn[size()]);
         int idx = 0;
         Iterator<IColumn> other = reversed ? cm.reverseIterator() : cm.iterator();
         IColumn otherColumn = other.next();
 
-        clear();
+        columns.clear();
 
         while (idx < copy.length && otherColumn != null)
         {
             int c = compare(copy[idx].name(), otherColumn.name());
             if (c < 0)
             {
-                add(copy[idx]);
+                columns.add(copy[idx]);
                 idx++;
             }
             else if (c > 0)
             {
-                add(otherColumn);
+                columns.add(transformation.apply(otherColumn));
                 otherColumn = other.hasNext() ? other.next() : null;
             }
             else // c == 0
             {
-                add(copy[idx]);
-                resolveAgainst(size() - 1, otherColumn, allocator);
+                columns.add(copy[idx]);
+                resolveAgainst(size() - 1, transformation.apply(otherColumn), allocator);
                 idx++;
                 otherColumn = other.hasNext() ? other.next() : null;
             }
         }
         while (idx < copy.length)
         {
-            add(copy[idx++]);
+            columns.add(copy[idx++]);
         }
         while (otherColumn != null)
         {
-            add(otherColumn);
+            columns.add(transformation.apply(otherColumn));
             otherColumn = other.hasNext() ? other.next() : null;
         }
     }
@@ -249,7 +253,7 @@ public class ArrayBackedSortedColumns extends ArrayList<IColumn> implements ISor
         int pos = binarySearch(oldColumn.name());
         if (pos >= 0)
         {
-            set(pos, newColumn);
+            columns.set(pos, newColumn);
         }
 
         return pos >= 0;
@@ -257,7 +261,7 @@ public class ArrayBackedSortedColumns extends ArrayList<IColumn> implements ISor
 
     public Collection<IColumn> getSortedColumns()
     {
-        return reversed ? new ReverseSortedCollection() : this;
+        return reversed ? new ReverseSortedCollection() : columns;
     }
 
     public Collection<IColumn> getReverseSortedColumns()
@@ -272,7 +276,17 @@ public class ArrayBackedSortedColumns extends ArrayList<IColumn> implements ISor
     {
         int pos = binarySearch(name);
         if (pos >= 0)
-            remove(pos);
+            columns.remove(pos);
+    }
+
+    public int size()
+    {
+        return columns.size();
+    }
+
+    public void clear()
+    {
+        columns.clear();
     }
 
     public SortedSet<ByteBuffer> getColumnNames()
@@ -281,20 +295,15 @@ public class ArrayBackedSortedColumns extends ArrayList<IColumn> implements ISor
         return new ColumnNamesSet();
     }
 
-    public int getEstimatedColumnCount()
-    {
-        return size();
-    }
-
     @Override
     public Iterator<IColumn> iterator()
     {
-        return reversed ? reverseInternalIterator(size()) : super.iterator();
+        return reversed ? reverseInternalIterator(size()) : columns.iterator();
     }
 
     public Iterator<IColumn> reverseIterator()
     {
-        return reversed ? super.iterator() : reverseInternalIterator(size());
+        return reversed ? columns.iterator() : reverseInternalIterator(size());
     }
 
     public Iterator<IColumn> iterator(ByteBuffer start)
@@ -305,7 +314,7 @@ public class ArrayBackedSortedColumns extends ArrayList<IColumn> implements ISor
         else if (reversed)
             // listIterator.previous() doesn't return the current element at first but the previous one
             idx++;
-        return reversed ? reverseInternalIterator(idx) : listIterator(idx);
+        return reversed ? reverseInternalIterator(idx) : columns.listIterator(idx);
     }
 
     public Iterator<IColumn> reverseIterator(ByteBuffer start)
@@ -316,12 +325,12 @@ public class ArrayBackedSortedColumns extends ArrayList<IColumn> implements ISor
         else if (!reversed)
             // listIterator.previous() doesn't return the current element at first but the previous one
             idx++;
-        return reversed ? listIterator(idx) : reverseInternalIterator(idx);
+        return reversed ? columns.listIterator(idx) : reverseInternalIterator(idx);
     }
 
     private Iterator<IColumn> reverseInternalIterator(int idx)
     {
-        final ListIterator<IColumn> iter = listIterator(idx);
+        final ListIterator<IColumn> iter = columns.listIterator(idx);
         return new Iterator<IColumn>()
         {
             public boolean hasNext()
@@ -345,7 +354,7 @@ public class ArrayBackedSortedColumns extends ArrayList<IColumn> implements ISor
     {
         public int size()
         {
-            return ArrayBackedSortedColumns.this.size();
+            return columns.size();
         }
 
         public Iterator<IColumn> iterator()
@@ -361,12 +370,12 @@ public class ArrayBackedSortedColumns extends ArrayList<IColumn> implements ISor
 
                 public IColumn next()
                 {
-                    return ArrayBackedSortedColumns.this.get(idx--);
+                    return columns.get(idx--);
                 }
 
                 public void remove()
                 {
-                    ArrayBackedSortedColumns.this.remove(idx--);
+                    columns.remove(idx--);
                 }
             };
         }
@@ -376,12 +385,12 @@ public class ArrayBackedSortedColumns extends ArrayList<IColumn> implements ISor
     {
         public int size()
         {
-            return ArrayBackedSortedColumns.this.size();
+            return columns.size();
         }
 
         public Iterator<IColumn> iterator()
         {
-            return ArrayBackedSortedColumns.super.iterator();
+            return columns.iterator();
         }
     }
 
@@ -389,7 +398,7 @@ public class ArrayBackedSortedColumns extends ArrayList<IColumn> implements ISor
     {
         public int size()
         {
-            return ArrayBackedSortedColumns.this.size();
+            return columns.size();
         }
 
         public Iterator<ByteBuffer> iterator()
@@ -416,7 +425,7 @@ public class ArrayBackedSortedColumns extends ArrayList<IColumn> implements ISor
 
         public Comparator<ByteBuffer> comparator()
         {
-            return ArrayBackedSortedColumns.this.getComparator();
+            return getComparator();
         }
 
         public ByteBuffer first()
@@ -424,7 +433,7 @@ public class ArrayBackedSortedColumns extends ArrayList<IColumn> implements ISor
             final ArrayBackedSortedColumns outerList = ArrayBackedSortedColumns.this;
             if (outerList.isEmpty())
                 throw new NoSuchElementException();
-            return outerList.get(outerList.reversed ? size() - 1 : 0).name();
+            return outerList.columns.get(outerList.reversed ? size() - 1 : 0).name();
         }
 
         public ByteBuffer last()
@@ -432,7 +441,7 @@ public class ArrayBackedSortedColumns extends ArrayList<IColumn> implements ISor
             final ArrayBackedSortedColumns outerList = ArrayBackedSortedColumns.this;
             if (outerList.isEmpty())
                 throw new NoSuchElementException();
-            return outerList.get(outerList.reversed ? 0 : size() - 1).name();
+            return outerList.columns.get(outerList.reversed ? 0 : size() - 1).name();
         }
 
         /*

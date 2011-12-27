@@ -55,7 +55,7 @@ public class SuperColumn extends AbstractColumnContainer implements IColumn
 
     public SuperColumn(ByteBuffer name, AbstractType comparator)
     {
-        this(name, ThreadSafeSortedColumns.factory().create(comparator, false));
+        this(name, AtomicSortedColumns.factory().create(comparator, false));
     }
 
     SuperColumn(ByteBuffer name, ISortedColumns columns)
@@ -69,16 +69,14 @@ public class SuperColumn extends AbstractColumnContainer implements IColumn
     public SuperColumn cloneMeShallow()
     {
         SuperColumn sc = new SuperColumn(name, getComparator());
-        // since deletion info is immutable, aliasing it is fine
-        sc.deletionInfo.set(deletionInfo.get());
+        sc.delete(this);
         return sc;
     }
 
     public IColumn cloneMe()
     {
         SuperColumn sc = new SuperColumn(name, columns.cloneMe());
-        // since deletion info is immutable, aliasing it is fine
-        sc.deletionInfo.set(deletionInfo.get());
+        sc.delete(this);
         return sc;
     }
 
@@ -262,8 +260,7 @@ public class SuperColumn extends AbstractColumnContainer implements IColumn
         // we don't try to intern supercolumn names, because if we're using Cassandra correctly it's almost
         // certainly just going to pollute our interning map with unique, dynamic values
         SuperColumn sc = new SuperColumn(allocator.clone(name), this.getComparator());
-        // since deletion info is immutable, aliasing it is fine
-        sc.deletionInfo.set(deletionInfo.get());
+        sc.delete(this);
 
         for(IColumn c : columns)
         {
@@ -358,7 +355,7 @@ class SuperColumnSerializer implements IColumnSerializer
         int size = dis.readInt();
         ColumnSerializer serializer = Column.serializer();
         ColumnSortedMap preSortedMap = new ColumnSortedMap(comparator, serializer, dis, size, flag, expireBefore);
-        SuperColumn superColumn = new SuperColumn(name, ThreadSafeSortedColumns.factory().fromSorted(preSortedMap, false));
+        SuperColumn superColumn = new SuperColumn(name, AtomicSortedColumns.factory().fromSorted(preSortedMap, false));
         superColumn.delete(localDeleteTime, markedForDeleteAt);
         return superColumn;
     }
