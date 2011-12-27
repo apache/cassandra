@@ -30,7 +30,7 @@ import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-public abstract class Token<T> implements RingPosition<Token<T>>
+public abstract class Token<T> implements RingPosition<Token<T>>, Serializable
 {
     private static final long serialVersionUID = 1L;
 
