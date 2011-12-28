@@ -88,14 +88,16 @@ public class CompressedRandomAccessReader extends RandomAccessReader
 
         validBufferBytes = metadata.compressor().uncompress(compressed, 0, chunk.length, buffer, 0);
 
-        checksum.update(buffer, 0, validBufferBytes);
+        if (metadata.parameters.crcChance > FBUtilities.threadLocalRandom().nextDouble())
+        {
+            checksum.update(buffer, 0, validBufferBytes);
 
-        if (checksum(chunk) != (int) checksum.getValue())
-            throw new CorruptedBlockException(getPath(), chunk);
+            if (checksum(chunk) != (int) checksum.getValue())
+                throw new CorruptedBlockException(getPath(), chunk);
 
-        // reset checksum object back to the original (blank) state
-        checksum.reset();
-
+            // reset checksum object back to the original (blank) state
+            checksum.reset();
+        }
 
         // buffer offset is always aligned
         bufferOffset = current & ~(buffer.length - 1);

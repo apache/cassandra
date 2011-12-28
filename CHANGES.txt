@@ -33,6 +33,9 @@
  * fix minor issues reported by FindBugs (CASSANDRA-3658)
  * global key/row caches (CASSANDRA-3143)
  * optimize memtable iteration during range scan (CASSANDRA-3638)
+ * introduce 'crc_check_chance' in CompressionParameters to support
+   a checksum percentage checking chance similarly to read-repair (CASSANDRA-3611)
+
 
 1.0.7
  * allow configuring bloom_filter_fp_chance (CASSANDRA-3497)
