@@ -159,6 +159,17 @@ public class CommitLogTest extends CleanupHelper
         assert CommitLog.instance.activeSegments() == 1 : "Expecting 1 segment, got " + CommitLog.instance.activeSegments();
     }
 
+    // CASSANDRA-3615
+    @Test
+    public void testExceedSegmentSizeWithOverhead() throws Exception
+    {
+        CommitLog.instance.resetUnsafe();
+        
+        RowMutation rm = new RowMutation("Keyspace1", bytes("k"));
+        rm.add(new QueryPath("Standard1", null, bytes("c1")), ByteBuffer.allocate((128 * 1024 * 1024) - 83), 0);
+        CommitLog.instance.add(rm);
+    }
+
     protected void testRecoveryWithBadSizeArgument(int size, int dataSize) throws Exception
     {
         Checksum checksum = new CRC32();

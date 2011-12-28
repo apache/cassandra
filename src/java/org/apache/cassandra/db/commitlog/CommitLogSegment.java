@@ -255,9 +255,12 @@ public class CommitLogSegment
         checksum.update(serializedRow);
         buffer.putLong(checksum.getValue());
 
-        // writes end of segment marker and rewinds back to position where it starts
-        buffer.putInt(CommitLog.END_OF_SEGMENT_MARKER);
-        buffer.position(buffer.position() - CommitLog.END_OF_SEGMENT_MARKER_SIZE);
+        if (buffer.remaining() >= 4)
+        {
+            // writes end of segment marker and rewinds back to position where it starts
+            buffer.putInt(CommitLog.END_OF_SEGMENT_MARKER);
+            buffer.position(buffer.position() - CommitLog.END_OF_SEGMENT_MARKER_SIZE);
+        }
 
         needsSync = true;
         return repPos;
