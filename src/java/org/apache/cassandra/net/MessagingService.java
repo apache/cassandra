@@ -529,6 +529,7 @@ public final class MessagingService implements MessagingServiceMBean
             {
                 for (DebuggableThreadPoolExecutor e : streamExecutors.values())
                 {
+                    e.shutdown()
                     if (!e.isTerminated())
                     {
                         stillWaiting = true;
