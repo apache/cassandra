@@ -465,6 +465,7 @@ public final class MessagingService implements MessagingServiceMBean
 
     public void waitForStreaming() throws InterruptedException
     {
+        streamExecutor_.shutdown();
         streamExecutor_.awaitTermination(24, TimeUnit.HOURS);
     }
 

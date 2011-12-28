@@ -2492,7 +2492,12 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         return String.format("Drained %s/%s ColumnFamilies", remainingCFs, totalCFs);
     }
 
-    /** shuts node off to writes, empties memtables and the commit log. */
+    /**
+     * Shuts node off to writes, empties memtables and the commit log.
+     * There are two differences between drain and the normal shutdown hook:
+     * - Drain waits for in-progress streaming to complete
+     * - Drain flushes *all* columnfamilies (shutdown hook only flushes non-durable CFs)
+     */
     public synchronized void drain() throws IOException, InterruptedException, ExecutionException
     {
         ExecutorService mutationStage = StageManager.getStage(Stage.MUTATION);
