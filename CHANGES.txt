@@ -1,4 +1,5 @@
 1.0.7
+ * fix regression in HH page size calculation (CASSANDRA-3624)
  * retry failed stream on IOException (CASSANDRA-3686)
  * allow configuring bloom_filter_fp_chance (CASSANDRA-3497)
  * attempt hint delivery every ten minutes, or when failure detector
