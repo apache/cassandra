@@ -788,17 +788,29 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
 
       <create-javadoc destdir="${javadoc.jars.dir}/main">
         <filesets>
-        <fileset dir="${build.src.java}" defaultexcludes="yes">
-          <include name="org/apache/**/*.java"/>
-        </fileset>
-        <fileset dir="${build.src.gen-java}" defaultexcludes="yes">
-          <include name="org/apache/**/*.java"/>
-        </fileset>
+          <fileset dir="${build.src.java}" defaultexcludes="yes">
+            <include name="org/apache/**/*.java"/>
+          </fileset>
+          <fileset dir="${build.src.gen-java}" defaultexcludes="yes">
+            <include name="org/apache/**/*.java"/>
+          </fileset>
         </filesets>
       </create-javadoc>
       <jar jarfile="${build.dir}/${final.name}-javadoc.jar"
            basedir="${javadoc.jars.dir}/main"/>
 
+      <create-javadoc destdir="${javadoc.jars.dir}/clientutil">
+        <filesets>
+          <fileset dir="${build.src.java}" defaultexcludes="yes">
+            <include name="org/apache/cassandra/cql/jdbc/*" />
+            <include name="org/apache/cassandra/utils/ByteBufferUtil*.java" />
+            <include name="org/apache/cassandra/utils/Hex.java" />
+            <include name="org/apache/cassandra/utils/UUIDGen*.java" />
+          </fileset>
+        </filesets>
+      </create-javadoc>
+      <jar jarfile="${build.dir}/${ant.project.name}-clientutil-${version}-javadoc.jar"
+           basedir="${javadoc.jars.dir}/clientutil"/>
       <!-- javadoc task always rebuilds so might as well remove the generated docs to prevent 
            being pulled into the distribution by accident -->
       <delete quiet="true" dir="${javadoc.jars.dir}"/>
@@ -819,6 +831,14 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
         </fileset>
         <fileset dir="${build.src.gen-java}" defaultexcludes="yes">
           <include name="org/apache/**/*.java"/>
+        </fileset>
+      </jar>
+      <jar jarfile="${build.dir}/${ant.project.name}-clientutil-${version}-sources.jar">
+        <fileset dir="${build.src.java}" defaultexcludes="yes">
+          <include name="org/apache/cassandra/cql/jdbc/*" />
+          <include name="org/apache/cassandra/utils/ByteBufferUtil*.java" />
+          <include name="org/apache/cassandra/utils/Hex.java" />
+          <include name="org/apache/cassandra/utils/UUIDGen*.java" />
         </fileset>
       </jar>
     </target>
@@ -1250,6 +1270,12 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
     <!-- the cassandra-clientutil jar -->  
     <install pomFile="${build.dir}/${ant.project.name}-clientutil-${version}.pom"
              file="${build.dir}/${ant.project.name}-clientutil-${version}.jar"/>
+    <install pomFile="${build.dir}/${ant.project.name}-clientutil-${version}.pom"
+             file="${build.dir}/${ant.project.name}-clientutil-${version}-sources.jar"
+             classifier="sources"/>
+    <install pomFile="${build.dir}/${ant.project.name}-clientutil-${version}.pom"
+             file="${build.dir}/${ant.project.name}-clientutil-${version}-javadoc.jar"
+             classifier="javadoc"/>
 
     <!-- the cassandra-all jar -->
     <install pomFile="${build.dir}/${final.name}.pom"
@@ -1298,7 +1324,12 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
     <!-- the cassandra-clientutil jar -->  
     <deploy pomFile="${build.dir}/${ant.project.name}-clientutil-${version}.pom"
             file="${build.dir}/${ant.project.name}-clientutil-${version}.jar"/>
-
+    <deploy pomFile="${build.dir}/${ant.project.name}-clientutil-${version}.pom"
+             file="${build.dir}/${ant.project.name}-clientutil-${version}-sources.jar"
+             classifier="sources"/>
+    <deploy pomFile="${build.dir}/${ant.project.name}-clientutil-${version}.pom"
+             file="${build.dir}/${ant.project.name}-clientutil-${version}-javadoc.jar"
+             classifier="javadoc"/>
     <!-- the cassandra-all jar -->
     <deploy pomFile="${build.dir}/${final.name}.pom"
             file="${build.dir}/${final.name}.jar"/>
@@ -1309,5 +1340,4 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
             file="${build.dir}/${final.name}-javadoc.jar"
             classifier="javadoc"/>
   </target>
-
 </project>
