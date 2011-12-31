@@ -158,7 +158,10 @@ public class IncomingStreamReader
         catch (Exception e)
         {
             writer.abort();
-            throw FBUtilities.unchecked(e);
+            if (e instanceof IOException)
+                throw (IOException) e;
+            else
+                throw FBUtilities.unchecked(e);
         }
     }
 
