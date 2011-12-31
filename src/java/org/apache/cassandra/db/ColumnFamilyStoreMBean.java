@@ -33,22 +33,22 @@ public interface ColumnFamilyStoreMBean
      * @return the name of the column family
      */
     public String getColumnFamilyName();
-    
+
     /**
      * Returns the total amount of data stored in the memtable, including
      * column related overhead.
-     * 
+     *
      * @return The size in bytes.
      */
     public long getMemtableDataSize();
-    
+
     /**
      * Returns the total number of columns present in the memtable.
-     * 
+     *
      * @return The number of columns.
      */
     public long getMemtableColumnsCount();
-    
+
     /**
      * Returns the number of times that a flush has resulted in the
      * memtable being switched out.
@@ -56,11 +56,6 @@ public interface ColumnFamilyStoreMBean
      * @return the number of memtable switches
      */
     public int getMemtableSwitchCount();
-
-    /**
-     * Triggers an immediate memtable flush.
-     */
-    public Object forceFlush() throws IOException;
 
     /**
      * @return a histogram of the number of sstable data files accessed per read: reading this property resets it
@@ -101,7 +96,7 @@ public interface ColumnFamilyStoreMBean
      * @return the number of write operations on this column family
      */
     public long getWriteCount();
-    
+
     /**
      * @return total write latency (divide by getReadCount() for average)
      */

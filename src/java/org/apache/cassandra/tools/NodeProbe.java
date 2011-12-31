@@ -227,7 +227,7 @@ public class NodeProbe
         ssProxy.drain();	
     }
     
-    public Map<Token, String> getTokenToEndpointMap()
+    public Map<String, String> getTokenToEndpointMap()
     {
         return ssProxy.getTokenToEndpointMap();
     }
@@ -262,7 +262,7 @@ public class NodeProbe
         return ssProxy.getLoadMap();
     }
 
-    public Map<Token, Float> getOwnership()
+    public Map<String, Float> getOwnership()
     {
         return ssProxy.getOwnership();
     }
@@ -527,9 +527,9 @@ public class NodeProbe
         // Try to find the endpoint using the local token, doing so in a crazy manner
         // to maintain backwards compatibility with the MBean interface
         String stringToken = ssProxy.getToken();
-        Map<Token, String> tokenToEndpoint = ssProxy.getTokenToEndpointMap();
+        Map<String, String> tokenToEndpoint = ssProxy.getTokenToEndpointMap();
 
-        for (Map.Entry<Token, String> pair : tokenToEndpoint.entrySet())
+        for (Map.Entry<String, String> pair : tokenToEndpoint.entrySet())
         {
             if (pair.getKey().toString().equals(stringToken))
             {

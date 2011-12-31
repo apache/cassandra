@@ -37,7 +37,7 @@ import org.apache.cassandra.utils.FBUtilities;
 public class Range<T extends RingPosition> extends AbstractBounds<T> implements Comparable<Range<T>>, Serializable
 {
     public static final long serialVersionUID = 1L;
-    
+
     public Range(T left, T right)
     {
         this(left, right, StorageService.getPartitioner());
@@ -52,7 +52,7 @@ public class Range<T extends RingPosition> extends AbstractBounds<T> implements 
     {
         if (isWrapAround(left, right))
         {
-            /* 
+            /*
              * We are wrapping around, so the interval is (a,b] where a >= b,
              * then we have 3 cases which hold for any given token k:
              * (1) a < k -- return true
@@ -67,7 +67,7 @@ public class Range<T extends RingPosition> extends AbstractBounds<T> implements 
         else
         {
             /*
-             * This is the range (a, b] where a < b. 
+             * This is the range (a, b] where a < b.
              */
             return bi.compareTo(left) > 0 && right.compareTo(bi) >= 0;
         }
@@ -225,7 +225,7 @@ public class Range<T extends RingPosition> extends AbstractBounds<T> implements 
 
     public int compareTo(Range<T> rhs)
     {
-        /* 
+        /*
          * If the range represented by the "this" pointer
          * is a wrap around then it is the smaller one.
          */
@@ -234,7 +234,7 @@ public class Range<T extends RingPosition> extends AbstractBounds<T> implements 
 
         if ( isWrapAround(rhs.left, rhs.right) )
             return 1;
-        
+
         return right.compareTo(rhs.right);
     }
 
@@ -324,6 +324,14 @@ public class Range<T extends RingPosition> extends AbstractBounds<T> implements 
     public String toString()
     {
         return "(" + left + "," + right + "]";
+    }
+
+    public List<String> asList()
+    {
+        ArrayList<String> ret = new ArrayList<String>(2);
+        ret.add(left.toString());
+        ret.add(right.toString());
+        return ret;
     }
 
     public boolean isWrapAround()

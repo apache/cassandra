@@ -476,7 +476,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                 FBUtilities.waitOnFutures(flushes);
 
                 CommitLog.instance.shutdownBlocking();
-                
+
                 // wait for miscellaneous tasks like sstable and commitlog segment deletion
                 tasks.shutdown();
                 if (!tasks.awaitTermination(1, TimeUnit.MINUTES))
@@ -659,7 +659,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         DatabaseDescriptor.setStreamThroughputOutboundMegabitsPerSec(value);
         logger_.info("setstreamthroughput: throttle set to {}", value);
     }
-    
+
     public int getStreamThroughputMbPerSec()
     {
         return DatabaseDescriptor.getStreamThroughputOutboundMegabitsPerSec();
@@ -742,13 +742,13 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      * @param keyspace
      * @return
      */
-    public Map<Range<Token>, List<String>> getRangeToEndpointMap(String keyspace)
+    public Map<List<String>, List<String>> getRangeToEndpointMap(String keyspace)
     {
         /* All the ranges for the tokens */
-        Map<Range<Token>, List<String>> map = new HashMap<Range<Token>, List<String>>();
+        Map<List<String>, List<String>> map = new HashMap<List<String>, List<String>>();
         for (Map.Entry<Range<Token>,List<InetAddress>> entry : getRangeToAddressMap(keyspace).entrySet())
         {
-            map.put(entry.getKey(), stringify(entry.getValue()));
+            map.put(entry.getKey().asList(), stringify(entry.getValue()));
         }
         return map;
     }
@@ -773,10 +773,10 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      * @param keyspace
      * @return
      */
-    public Map<Range<Token>, List<String>> getRangeToRpcaddressMap(String keyspace)
+    public Map<List<String>, List<String>> getRangeToRpcaddressMap(String keyspace)
     {
         /* All the ranges for the tokens */
-        Map<Range<Token>, List<String>> map = new HashMap<Range<Token>, List<String>>();
+        Map<List<String>, List<String>> map = new HashMap<List<String>, List<String>>();
         for (Map.Entry<Range<Token>, List<InetAddress>> entry : getRangeToAddressMap(keyspace).entrySet())
         {
             List<String> rpcaddrs = new ArrayList<String>();
@@ -784,23 +784,23 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             {
                 rpcaddrs.add(getRpcaddress(endpoint));
             }
-            map.put(entry.getKey(), rpcaddrs);
+            map.put(entry.getKey().asList(), rpcaddrs);
         }
         return map;
     }
 
-    public Map<Range<Token>, List<String>> getPendingRangeToEndpointMap(String keyspace)
+    public Map<List<String>, List<String>> getPendingRangeToEndpointMap(String keyspace)
     {
         // some people just want to get a visual representation of things. Allow null and set it to the first
         // non-system table.
         if (keyspace == null)
             keyspace = Schema.instance.getNonSystemTables().get(0);
 
-        Map<Range<Token>, List<String>> map = new HashMap<Range<Token>, List<String>>();
+        Map<List<String>, List<String>> map = new HashMap<List<String>, List<String>>();
         for (Map.Entry<Range<Token>, Collection<InetAddress>> entry : tokenMetadata_.getPendingRanges(keyspace).entrySet())
         {
             List<InetAddress> l = new ArrayList<InetAddress>(entry.getValue());
-            map.put(entry.getKey(), stringify(l));
+            map.put(entry.getKey().asList(), stringify(l));
         }
         return map;
     }
@@ -882,13 +882,13 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         return ranges;
     }
 
-    public Map<Token, String> getTokenToEndpointMap()
+    public Map<String, String> getTokenToEndpointMap()
     {
         Map<Token, InetAddress> mapInetAddress = tokenMetadata_.getTokenToEndpointMap();
-        Map<Token, String> mapString = new HashMap<Token, String>(mapInetAddress.size());
+        Map<String, String> mapString = new HashMap<String, String>(mapInetAddress.size());
         for (Map.Entry<Token, InetAddress> entry : mapInetAddress.entrySet())
         {
-            mapString.put(entry.getKey(), entry.getValue().getHostAddress());
+            mapString.put(entry.getKey().toString(), entry.getValue().getHostAddress());
         }
         return mapString;
     }
@@ -1188,13 +1188,13 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             SystemTable.removeToken(token);
         }
     }
-    
+
     private void excise(Token token, InetAddress endpoint, long expireTime)
     {
         addExpireTimeIfFound(endpoint, expireTime);
         excise(token, endpoint);
     }
-    
+
     protected void addExpireTimeIfFound(InetAddress endpoint, long expireTime)
     {
         if (expireTime != 0L)
@@ -1325,7 +1325,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      * @param ranges the ranges to find sources for
      * @return multimap of addresses to ranges the address is responsible for
      */
-    private Multimap<InetAddress, Range<Token>> getNewSourceRanges(String table, Set<Range<Token>> ranges) 
+    private Multimap<InetAddress, Range<Token>> getNewSourceRanges(String table, Set<Range<Token>> ranges)
     {
         InetAddress myAddress = FBUtilities.getBroadcastAddress();
         Multimap<Range<Token>, InetAddress> rangeAddresses = Table.open(table).getReplicationStrategy().getRangeAddresses(tokenMetadata_);
@@ -1400,7 +1400,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
         for (String table : Schema.instance.getNonSystemTables())
         {
-            Multimap<Range<Token>, InetAddress> changedRanges = getChangedRangesForLeaving(table, endpoint); 
+            Multimap<Range<Token>, InetAddress> changedRanges = getChangedRangesForLeaving(table, endpoint);
             Set<Range<Token>> myNewRanges = new HashSet<Range<Token>>();
             for (Map.Entry<Range<Token>, InetAddress> entry : changedRanges.entries())
             {
@@ -1959,7 +1959,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      *
      * @param table keyspace name also known as table
      * @param cf Column family name
-     * @param key key for which we need to find the endpoint 
+     * @param key key for which we need to find the endpoint
      * @return the endpoint responsible for this key
      */
     public List<InetAddress> getNaturalEndpoints(String table, String cf, String key)
@@ -1978,7 +1978,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      * specified key i.e for replication.
      *
      * @param table keyspace name also known as table
-     * @param pos position for which we need to find the endpoint 
+     * @param pos position for which we need to find the endpoint
      * @return the endpoint responsible for this token
      */
     public List<InetAddress> getNaturalEndpoints(String table, RingPosition pos)
@@ -1991,7 +1991,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      * specified key i.e for replication.
      *
      * @param table keyspace name also known as table
-     * @param key key for which we need to find the endpoint 
+     * @param key key for which we need to find the endpoint
      * @return the endpoint responsible for this key
      */
     public List<InetAddress> getLiveNaturalEndpoints(String table, ByteBuffer key)
@@ -2586,11 +2586,17 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         StorageProxy.truncateBlocking(keyspace, columnFamily);
     }
 
-    public Map<Token, Float> getOwnership()
+    public Map<String, Float> getOwnership()
     {
-        List<Token> sortedTokens = new ArrayList<Token>(getTokenToEndpointMap().keySet());
+        List<Token> sortedTokens = new ArrayList<Token>(tokenMetadata_.getTokenToEndpointMap().keySet());
         Collections.sort(sortedTokens);
-        return partitioner.describeOwnership(sortedTokens);
+        Map<Token, Float> token_map = partitioner.describeOwnership(sortedTokens);
+        Map<String, Float> string_map = new HashMap<String, Float>();
+        for(Map.Entry<Token, Float> entry : token_map.entrySet())
+        {
+            string_map.put(entry.getKey().toString(), entry.getValue());
+        }
+        return string_map;
     }
 
     public List<String> getKeyspaces()

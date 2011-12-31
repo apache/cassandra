@@ -18,12 +18,14 @@
 
 package org.apache.cassandra.db.compaction;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public interface CompactionManagerMBean
 {
     /** List of running compaction objects. */
-    public List<CompactionInfo> getCompactions();
+    public List<Map<String, String>> getCompactions();
 
     /** List of running compaction summary strings. */
     public List<String> getCompactionSummary();

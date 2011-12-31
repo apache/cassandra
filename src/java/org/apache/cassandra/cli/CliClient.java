@@ -35,7 +35,6 @@ import org.antlr.runtime.tree.Tree;
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
-import org.apache.cassandra.db.compaction.CompactionInfo;
 import org.apache.cassandra.db.compaction.CompactionManagerMBean;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.marshal.*;
@@ -1914,15 +1913,15 @@ public class CliClient
             // compaction manager information
             if (compactionManagerMBean != null)
             {
-                for (CompactionInfo info : compactionManagerMBean.getCompactions())
+                for (Map<String, String> info : compactionManagerMBean.getCompactions())
                 {
                     // if ongoing compaction type is index build
-                    if (info.getTaskType() != OperationType.INDEX_BUILD)
+                    if (info.get("taskType").equals(OperationType.INDEX_BUILD.toString()))
                         continue;
                     sessionState.out.printf("%nCurrently building index %s, completed %d of %d bytes.%n",
-                                            info.getColumnFamily(),
-                                            info.getBytesComplete(),
-                                            info.getTotalBytes());
+                                            info.get("columnfamily"),
+                                            info.get("bytesComplete"),
+                                            info.get("totalBytes"));
                 }
             }
 

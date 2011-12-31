@@ -197,8 +197,8 @@ public class NodeCmd
      */
     public void printRing(PrintStream outs)
     {
-        Map<Token, String> tokenToEndpoint = probe.getTokenToEndpointMap();
-        List<Token> sortedTokens = new ArrayList<Token>(tokenToEndpoint.keySet());
+        Map<String, String> tokenToEndpoint = probe.getTokenToEndpointMap();
+        List<String> sortedTokens = new ArrayList<String>(tokenToEndpoint.keySet());
         Collections.sort(sortedTokens);
 
         Collection<String> liveNodes = probe.getLiveNodes();
@@ -216,9 +216,9 @@ public class NodeCmd
             outs.printf(format, "", "", "", "", "", "", "", sortedTokens.get(sortedTokens.size() - 1));
 
         // Calculate per-token ownership of the ring
-        Map<Token, Float> ownerships = probe.getOwnership();
+        Map<String, Float> ownerships = probe.getOwnership();
 
-        for (Token token : sortedTokens)
+        for (String token : sortedTokens)
         {
             String primaryEndpoint = tokenToEndpoint.get(token);
             String dataCenter;
@@ -432,12 +432,12 @@ public class NodeCmd
         outs.println("pending tasks: " + cm.getPendingTasks());
         if (cm.getCompactions().size() > 0)
             outs.printf("%25s%16s%16s%16s%16s%10s%n", "compaction type", "keyspace", "column family", "bytes compacted", "bytes total", "progress");
-        for (CompactionInfo c : cm.getCompactions())
+        for (Map<String, String> c : cm.getCompactions())
         {
-            String percentComplete = c.getTotalBytes() == 0
+            String percentComplete = new Long(c.get("totalBytes")) == 0
                                    ? "n/a"
-                                   : new DecimalFormat("0.00").format((double) c.getBytesComplete() / c.getTotalBytes() * 100) + "%";
-            outs.printf("%25s%16s%16s%16s%16s%10s%n", c.getTaskType(), c.getKeyspace(), c.getColumnFamily(), c.getBytesComplete(), c.getTotalBytes(), percentComplete);
+                                   : new DecimalFormat("0.00").format((double) new Long(c.get("bytesComplete")) / new Long(c.get("totalBytes")) * 100) + "%";
+            outs.printf("%25s%16s%16s%16s%16s%10s%n", c.get("taskType"), c.get("keyspace"), c.get("columnfamily"), c.get("bytesComplete"), c.get("totalBytes"), percentComplete);
         }
     }
 

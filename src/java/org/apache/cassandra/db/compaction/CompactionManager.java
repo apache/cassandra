@@ -1047,11 +1047,11 @@ public class CompactionManager implements CompactionManagerMBean
         void finishCompaction(CompactionInfo.Holder ci);
     }
 
-    public List<CompactionInfo> getCompactions()
+    public List<Map<String, String>> getCompactions()
     {
-        List<CompactionInfo> out = new ArrayList<CompactionInfo>();
+        List<Map<String, String>> out = new ArrayList<Map<String, String>>();
         for (CompactionInfo.Holder ci : CompactionExecutor.getCompactions())
-            out.add(ci.getCompactionInfo());
+            out.add(ci.getCompactionInfo().asMap());
         return out;
     }
 

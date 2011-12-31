@@ -34,6 +34,8 @@ Upgrading
     - Make sure that global settings: key_cache_{size_in_mb, save_period}
       and row_cache_{size_in_mb, save_period} in conf/cassandra.yaml are
       used instead of per-ColumnFamily options.
+    - JMX methods no longer return custom Cassandra objects.  Any such methods
+      will now return standard Maps, Lists, etc.
 
 Features
 --------

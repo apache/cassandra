@@ -19,6 +19,8 @@
 package org.apache.cassandra.db.compaction;
 
 import java.io.Serializable;
+import java.util.HashMap;
+import java.util.Map;
 
 /** Implements serializable to allow structured info to be returned via JMX. */
 public final class CompactionInfo implements Serializable
@@ -84,6 +86,18 @@ public final class CompactionInfo implements Serializable
         buff.append('(').append(getKeyspace()).append(", ").append(getColumnFamily());
         buff.append(", ").append(getBytesComplete()).append('/').append(getTotalBytes());
         return buff.append(')').toString();
+    }
+
+    public Map<String, String> asMap()
+    {
+        Map<String, String> ret = new HashMap<String, String>();
+        ret.put("id", Integer.toString(id));
+        ret.put("keyspace", ksname);
+        ret.put("columnfamily", cfname);
+        ret.put("bytesComplete", Long.toString(bytesComplete));
+        ret.put("totalBytes", Long.toString(totalBytes));
+        ret.put("taskType", tasktype.toString());
+        return ret;
     }
 
     public static abstract class Holder

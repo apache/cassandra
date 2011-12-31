@@ -118,7 +118,7 @@ public interface StorageServiceMBean
      *
      * @return mapping of ranges to end points
      */
-    public Map<Range<Token>, List<String>> getRangeToEndpointMap(String keyspace);
+    public Map<List<String>, List<String>> getRangeToEndpointMap(String keyspace);
 
     /**
      * Retrieve a map of range to rpc addresses that describe the ring topology
@@ -126,7 +126,7 @@ public interface StorageServiceMBean
      *
      * @return mapping of ranges to rpc addresses
      */
-    public Map<Range<Token>, List<String>> getRangeToRpcaddressMap(String keyspace);
+    public Map<List<String>, List<String>> getRangeToRpcaddressMap(String keyspace);
 
     /**
      * The same as {@code describeRing(String)} but converts TokenRange to the String for JMX compatibility
@@ -144,7 +144,7 @@ public interface StorageServiceMBean
      * @param keyspace the keyspace to get the pending range map for.
      * @return a map of pending ranges to endpoints
      */
-    public Map<Range<Token>, List<String>> getPendingRangeToEndpointMap(String keyspace);
+    public Map<List<String>, List<String>> getPendingRangeToEndpointMap(String keyspace);
 
     /**
      * Retrieve a map of tokens to endpoints, including the bootstrapping
@@ -152,7 +152,7 @@ public interface StorageServiceMBean
      *
      * @return a map of tokens to endpoints
      */
-    public Map<Token, String> getTokenToEndpointMap();
+    public Map<String, String> getTokenToEndpointMap();
 
     /**
      * Numeric load value.
@@ -304,7 +304,7 @@ public interface StorageServiceMBean
      * given a list of tokens (representing the nodes in the cluster), returns
      *   a mapping from "token -> %age of cluster owned by that token"
      */
-    public Map<Token, Float> getOwnership();
+    public Map<String, Float> getOwnership();
 
     public List<String> getKeyspaces();
 
