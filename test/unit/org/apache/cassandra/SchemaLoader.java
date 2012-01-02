@@ -239,8 +239,8 @@ public class SchemaLoader
         schema.add(KSMetaData.testMetadata(ks_rcs,
                                            simple,
                                            opts_rf1,
-                                           standardCFMD(ks_rcs, "CFWithoutCache"),
-                                           standardCFMD(ks_rcs, "CachedCF")));
+                                           standardCFMD(ks_rcs, "CFWithoutCache").caching(CFMetaData.Caching.NONE),
+                                           standardCFMD(ks_rcs, "CachedCF").caching(CFMetaData.Caching.ALL)));
 
         schema.add(KSMetaData.testMetadataNotDurable(ks_nocommit,
                                                      simple,

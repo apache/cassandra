@@ -25,8 +25,6 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.regex.Pattern;
 import javax.management.*;
 
@@ -1113,6 +1111,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public ColumnFamily cacheRow(Integer cfId, DecoratedKey decoratedKey)
     {
+        CFMetaData.Caching caching = metadata.getCaching();
+
+        if (caching == CFMetaData.Caching.NONE || caching == CFMetaData.Caching.KEYS_ONLY)
+            return null;
+
         RowCacheKey key = new RowCacheKey(cfId, decoratedKey);
 
         ColumnFamily cached;

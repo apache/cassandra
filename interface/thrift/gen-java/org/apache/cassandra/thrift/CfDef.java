@@ -66,6 +66,7 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
   private static final org.apache.thrift.protocol.TField COMPACTION_STRATEGY_OPTIONS_FIELD_DESC = new org.apache.thrift.protocol.TField("compaction_strategy_options", org.apache.thrift.protocol.TType.MAP, (short)30);
   private static final org.apache.thrift.protocol.TField COMPRESSION_OPTIONS_FIELD_DESC = new org.apache.thrift.protocol.TField("compression_options", org.apache.thrift.protocol.TType.MAP, (short)32);
   private static final org.apache.thrift.protocol.TField BLOOM_FILTER_FP_CHANCE_FIELD_DESC = new org.apache.thrift.protocol.TField("bloom_filter_fp_chance", org.apache.thrift.protocol.TType.DOUBLE, (short)33);
+  private static final org.apache.thrift.protocol.TField CACHING_FIELD_DESC = new org.apache.thrift.protocol.TField("caching", org.apache.thrift.protocol.TType.STRING, (short)34);
 
   public String keyspace;
   public String name;
@@ -88,6 +89,7 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
   public Map<String,String> compaction_strategy_options;
   public Map<String,String> compression_options;
   public double bloom_filter_fp_chance;
+  public String caching;
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
   public enum _Fields implements org.apache.thrift.TFieldIdEnum {
@@ -111,7 +113,8 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     COMPACTION_STRATEGY((short)29, "compaction_strategy"),
     COMPACTION_STRATEGY_OPTIONS((short)30, "compaction_strategy_options"),
     COMPRESSION_OPTIONS((short)32, "compression_options"),
-    BLOOM_FILTER_FP_CHANCE((short)33, "bloom_filter_fp_chance");
+    BLOOM_FILTER_FP_CHANCE((short)33, "bloom_filter_fp_chance"),
+    CACHING((short)34, "caching");
 
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -168,6 +171,8 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
           return COMPRESSION_OPTIONS;
         case 33: // BLOOM_FILTER_FP_CHANCE
           return BLOOM_FILTER_FP_CHANCE;
+        case 34: // CACHING
+          return CACHING;
         default:
           return null;
       }
@@ -268,6 +273,8 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
             new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING))));
     tmpMap.put(_Fields.BLOOM_FILTER_FP_CHANCE, new org.apache.thrift.meta_data.FieldMetaData("bloom_filter_fp_chance", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
         new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.DOUBLE)));
+    tmpMap.put(_Fields.CACHING, new org.apache.thrift.meta_data.FieldMetaData("caching", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
     metaDataMap = Collections.unmodifiableMap(tmpMap);
     org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(CfDef.class, metaDataMap);
   }
@@ -278,6 +285,8 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     this.comparator_type = "BytesType";
 
     this.read_repair_chance = 1;
+
+    this.caching = "keys_only";
 
   }
 
@@ -372,6 +381,9 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       this.compression_options = __this__compression_options;
     }
     this.bloom_filter_fp_chance = other.bloom_filter_fp_chance;
+    if (other.isSetCaching()) {
+      this.caching = other.caching;
+    }
   }
 
   public CfDef deepCopy() {
@@ -411,6 +423,8 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     this.compression_options = null;
     setBloom_filter_fp_chanceIsSet(false);
     this.bloom_filter_fp_chance = 0.0;
+    this.caching = "keys_only";
+
   }
 
   public String getKeyspace() {
@@ -956,6 +970,30 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     __isset_bit_vector.set(__BLOOM_FILTER_FP_CHANCE_ISSET_ID, value);
   }
 
+  public String getCaching() {
+    return this.caching;
+  }
+
+  public CfDef setCaching(String caching) {
+    this.caching = caching;
+    return this;
+  }
+
+  public void unsetCaching() {
+    this.caching = null;
+  }
+
+  /** Returns true if field caching is set (has been assigned a value) and false otherwise */
+  public boolean isSetCaching() {
+    return this.caching != null;
+  }
+
+  public void setCachingIsSet(boolean value) {
+    if (!value) {
+      this.caching = null;
+    }
+  }
+
   public void setFieldValue(_Fields field, Object value) {
     switch (field) {
     case KEYSPACE:
@@ -1126,6 +1164,14 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       }
       break;
 
+    case CACHING:
+      if (value == null) {
+        unsetCaching();
+      } else {
+        setCaching((String)value);
+      }
+      break;
+
     }
   }
 
@@ -1194,6 +1240,9 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     case BLOOM_FILTER_FP_CHANCE:
       return new Double(getBloom_filter_fp_chance());
 
+    case CACHING:
+      return getCaching();
+
     }
     throw new IllegalStateException();
   }
@@ -1247,6 +1296,8 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       return isSetCompression_options();
     case BLOOM_FILTER_FP_CHANCE:
       return isSetBloom_filter_fp_chance();
+    case CACHING:
+      return isSetCaching();
     }
     throw new IllegalStateException();
   }
@@ -1453,6 +1504,15 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
         return false;
     }
 
+    boolean this_present_caching = true && this.isSetCaching();
+    boolean that_present_caching = true && that.isSetCaching();
+    if (this_present_caching || that_present_caching) {
+      if (!(this_present_caching && that_present_caching))
+        return false;
+      if (!this.caching.equals(that.caching))
+        return false;
+    }
+
     return true;
   }
 
@@ -1564,6 +1624,11 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     builder.append(present_bloom_filter_fp_chance);
     if (present_bloom_filter_fp_chance)
       builder.append(bloom_filter_fp_chance);
+
+    boolean present_caching = true && (isSetCaching());
+    builder.append(present_caching);
+    if (present_caching)
+      builder.append(caching);
 
     return builder.toHashCode();
   }
@@ -1786,6 +1851,16 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
         return lastComparison;
       }
     }
+    lastComparison = Boolean.valueOf(isSetCaching()).compareTo(typedOther.isSetCaching());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    if (isSetCaching()) {
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.caching, typedOther.caching);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
     return 0;
   }
 
@@ -1993,6 +2068,13 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
             org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
+        case 34: // CACHING
+          if (field.type == org.apache.thrift.protocol.TType.STRING) {
+            this.caching = iprot.readString();
+          } else { 
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
         default:
           org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
       }
@@ -2157,6 +2239,13 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       oprot.writeFieldBegin(BLOOM_FILTER_FP_CHANCE_FIELD_DESC);
       oprot.writeDouble(this.bloom_filter_fp_chance);
       oprot.writeFieldEnd();
+    }
+    if (this.caching != null) {
+      if (isSetCaching()) {
+        oprot.writeFieldBegin(CACHING_FIELD_DESC);
+        oprot.writeString(this.caching);
+        oprot.writeFieldEnd();
+      }
     }
     oprot.writeFieldStop();
     oprot.writeStructEnd();
@@ -2338,6 +2427,16 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       if (!first) sb.append(", ");
       sb.append("bloom_filter_fp_chance:");
       sb.append(this.bloom_filter_fp_chance);
+      first = false;
+    }
+    if (isSetCaching()) {
+      if (!first) sb.append(", ");
+      sb.append("caching:");
+      if (this.caching == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.caching);
+      }
       first = false;
     }
     sb.append(")");

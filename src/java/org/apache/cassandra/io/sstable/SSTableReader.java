@@ -608,7 +608,9 @@ public class SSTableReader extends SSTable
 
     public void cacheKey(DecoratedKey key, Long info)
     {
-        if (keyCache == null)
+        CFMetaData.Caching caching = metadata.getCaching();
+
+        if (keyCache == null || caching == CFMetaData.Caching.NONE || caching == CFMetaData.Caching.ROWS_ONLY)
             return;
 
         // avoid keeping a permanent reference to the original key buffer
