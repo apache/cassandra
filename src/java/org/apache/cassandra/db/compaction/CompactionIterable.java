@@ -95,7 +95,7 @@ public class CompactionIterable extends AbstractCompactionIterable
 
         protected AbstractCompactedRow getReduced()
         {
-            assert rows.size() > 0;
+            assert !rows.isEmpty();
 
             try
             {
