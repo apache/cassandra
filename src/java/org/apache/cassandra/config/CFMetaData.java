@@ -388,6 +388,17 @@ public final class CFMetaData
             throw new RuntimeException(e);
         }
 
+        Caching caching;
+
+        try
+        {
+            caching = Caching.fromString(cf.caching.toString());
+        }
+        catch (ConfigurationException e)
+        {
+            throw new RuntimeException(e);
+        }
+
         return newCFMD.comment(cf.comment.toString())
                       .readRepairChance(cf.read_repair_chance)
                       .replicateOnWrite(cf.replicate_on_write)
@@ -396,7 +407,8 @@ public final class CFMetaData
                       .keyValidator(keyValidator)
                       .columnMetadata(column_metadata)
                       .compressionParameters(cp)
-                      .bloomFilterFpChance(cf.bloom_filter_fp_chance);
+                      .bloomFilterFpChance(cf.bloom_filter_fp_chance)
+                      .caching(caching);
     }
     
     public String getComment()

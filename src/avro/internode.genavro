@@ -66,7 +66,7 @@ protocol InterNode {
         union { null, map<string> } compaction_strategy_options = null;
         union { null, map<string> } compression_options = null;
         union { null, double } bloom_filter_fp_chance = null;
-        string caching = "keys_only";
+        union { null, string } caching = null;
     }
 
     @aliases(["org.apache.cassandra.config.avro.KsDef"])
