@@ -37,6 +37,8 @@
  * introduce 'crc_check_chance' in CompressionParameters to support
    a checksum percentage checking chance similarly to read-repair (CASSANDRA-3611)
  * a way to deactivate global key/row cache on per-CF basis (CASSANDRA-3667)
+ * fix LeveledCompactionStrategy broken because of generation pre-allocation
+   in LeveledManifest (CASSANDRA-3691)
 
 
 1.0.7

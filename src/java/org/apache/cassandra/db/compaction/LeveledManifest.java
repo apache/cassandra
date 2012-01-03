@@ -32,7 +32,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.RowPosition;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.SSTable;
@@ -59,7 +59,7 @@ public class LeveledManifest
 
     private final ColumnFamilyStore cfs;
     private final List<SSTableReader>[] generations;
-    private final DecoratedKey[] lastCompactedKeys;
+    private final RowPosition[] lastCompactedKeys;
     private final int maxSSTableSizeInMB;
     private int levelCount;
 
@@ -71,11 +71,11 @@ public class LeveledManifest
         // allocate enough generations for a PB of data
         int n = (int) Math.log10(1000 * 1000 * 1000 / maxSSTableSizeInMB);
         generations = new List[n];
-        lastCompactedKeys = new DecoratedKey[n];
+        lastCompactedKeys = new RowPosition[n];
         for (int i = 0; i < generations.length; i++)
         {
             generations[i] = new ArrayList<SSTableReader>();
-            lastCompactedKeys[i] = new DecoratedKey(cfs.partitioner.getMinimumToken(), null);
+            lastCompactedKeys[i] = cfs.partitioner.getMinimumToken().minKeyBound();
         }
     }
 
