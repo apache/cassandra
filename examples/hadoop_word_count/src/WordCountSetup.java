@@ -106,16 +106,24 @@ public class WordCountSetup
 
     private static void addToMutationMap(Map<ByteBuffer,Map<String,List<Mutation>>> mutationMap, ByteBuffer key, String cf, Column c)
     {
-        Map<String,List<Mutation>> cfMutation = new HashMap<String,List<Mutation>>();
-        List<Mutation> mList = new ArrayList<Mutation>();
+        Map<String, List<Mutation>> cfMutation = mutationMap.get(key);
+        if (cfMutation == null) {
+            cfMutation = new HashMap<String, List<Mutation>>();
+            mutationMap.put(key, cfMutation);
+        }
+        
+        List<Mutation> mutationList = cfMutation.get(cf);
+        if (mutationList == null) {
+            mutationList = new ArrayList<Mutation>();
+            cfMutation.put(cf,  mutationList);
+        }
+        
         ColumnOrSuperColumn cc = new ColumnOrSuperColumn();
         Mutation m = new Mutation();
 
         cc.setColumn(c);
         m.setColumn_or_supercolumn(cc);
-        mList.add(m);
-        cfMutation.put(cf, mList);
-        mutationMap.put(key, cfMutation);
+        mutationList.add(m);
     }
 
     private static void setupKeyspace(Cassandra.Iface client) throws TException, InvalidRequestException, SchemaDisagreementException {
