@@ -11,6 +11,5 @@ bin/json2sstable usr/bin
 bin/sstable2json usr/bin
 bin/sstablekeys usr/bin
 bin/sstableloader usr/bin
-bin/cqlsh usr/bin
 lib/*.jar usr/share/cassandra/lib
 lib/licenses usr/share/doc/cassandra
