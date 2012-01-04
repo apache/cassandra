@@ -22,11 +22,15 @@ package org.apache.cassandra.io.sstable;
 
 
 import java.io.File;
+import java.io.IOException;
 import java.util.StringTokenizer;
 
 import com.google.common.base.Objects;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Table;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.io.sstable.Component.separator;
@@ -118,6 +122,7 @@ public class Descriptor
     {
         StringBuilder buff = new StringBuilder();
         buff.append(directory).append(File.separatorChar);
+        buff.append(ksname).append(separator);
         buff.append(cfname).append(separator);
         if (temporary)
             buff.append(SSTable.TEMPFILE_MARKER).append(separator);
@@ -144,12 +149,11 @@ public class Descriptor
     public static Descriptor fromFilename(String filename)
     {
         File file = new File(filename);
-        assert file.getParentFile() != null : "Filename must include parent directory.";
         return fromFilename(file.getParentFile(), file.getName()).left;
     }
 
     /**
-     * Filename of the form "<ksname>/<cfname>-[tmp-][<version>-]<gen>-<component>"
+     * Filename of the form "<ksname>-<cfname>-[tmp-][<version>-]<gen>-<component>"
      *
      * @param directory The directory of the SSTable files
      * @param name The name of the SSTable file
@@ -158,14 +162,12 @@ public class Descriptor
      */
     public static Pair<Descriptor,String> fromFilename(File directory, String name)
     {
-        // name of parent directory is keyspace name
-        String ksname = extractKeyspaceName(directory);
-
         // tokenize the filename
         StringTokenizer st = new StringTokenizer(name, String.valueOf(separator));
         String nexttok;
 
-        // all filenames must start with a column family
+        // all filenames must start with keyspace and column family
+        String ksname = st.nextToken();
         String cfname = st.nextToken();
 
         // optional temporary marker
@@ -188,47 +190,8 @@ public class Descriptor
 
         // component suffix
         String component = st.nextToken();
-
+        directory = directory != null ? directory : new File(".");
         return new Pair<Descriptor,String>(new Descriptor(version, directory, ksname, cfname, generation, temporary), component);
-    }
-
-    /**
-     * Extracts the keyspace name out of the directory name. Snapshot directories have a slightly different
-     * path structure and need to be treated differently.
-     *
-     * Regular path:   "<ksname>/<cfname>-[tmp-][<version>-]<gen>-<component>"
-     * Snapshot path: "<ksname>/snapshots/<snapshot-name>/<cfname>-[tmp-][<version>-]<gen>-<component>"
-     *
-     * @param directory a directory containing SSTables
-     * @return the keyspace name
-     */
-    public static String extractKeyspaceName(File directory)
-    {
-        if (isSnapshotInPath(directory))
-        {
-            // We need to move backwards. If this is a snapshot, first parent takes us to:
-            // <ksname>/snapshots/ and second call to parent takes us to <ksname>.
-            return directory.getParentFile().getParentFile().getName();
-        }
-        return directory.getName();
-    }
-
-    /**
-     * @param directory The directory to check
-     * @return <code>TRUE</code> if this directory represents a snapshot directory. <code>FALSE</code> otherwise.
-     */
-    private static boolean isSnapshotInPath(File directory)
-    {
-        File curDirectory = directory;
-        while (curDirectory != null)
-        {
-            if (curDirectory.getName().equals(Table.SNAPSHOT_SUBDIR_NAME))
-                return true;
-            curDirectory = curDirectory.getParentFile();
-        }
-
-        // The directory does not represent a snapshot directory.
-        return false;
     }
 
     /**

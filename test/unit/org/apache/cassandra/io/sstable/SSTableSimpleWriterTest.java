@@ -37,12 +37,11 @@ public class SSTableSimpleWriterTest extends CleanupHelper
         final int INC = 5;
         final int NBCOL = 10;
 
-
         String tablename = "Keyspace1";
         String cfname = "StandardInteger1";
 
         Table t = Table.open(tablename); // make sure we create the directory
-        File dir = new File(t.getDataFileLocation(0));
+        File dir = Directories.create(tablename, cfname).getDirectoryForNewSSTables(0);
         assert dir.exists();
 
         SSTableSimpleUnsortedWriter writer = new SSTableSimpleUnsortedWriter(dir, tablename, cfname, IntegerType.instance, null, 16);

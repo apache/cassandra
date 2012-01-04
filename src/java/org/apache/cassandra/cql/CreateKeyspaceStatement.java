@@ -65,6 +65,8 @@ public class CreateKeyspaceStatement
         // keyspace name
         if (!name.matches("\\w+"))
             throw new InvalidRequestException(String.format("\"%s\" is not a valid keyspace name", name));
+        if (name.length() > 32)
+            throw new InvalidRequestException(String.format("Keyspace names shouldn't be more than 32 character long (got \"%s\")", name));
         
         // required
         if (!attrs.containsKey("strategy_class"))

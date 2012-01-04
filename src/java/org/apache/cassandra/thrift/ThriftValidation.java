@@ -592,6 +592,8 @@ public class ThriftValidation
     {
         try
         {
+            if (cf_def.name.length() > 32)
+                throw new InvalidRequestException(String.format("Column family names shouldn't be more than 32 character long (got \"%s\")", cf_def.name));
             if (cf_def.key_alias != null)
             {
                 if (!cf_def.key_alias.hasRemaining())
@@ -724,6 +726,9 @@ public class ThriftValidation
 
     public static void validateKsDef(KsDef ks_def) throws ConfigurationException
     {
+        if (ks_def.name.length() > 32)
+            throw new ConfigurationException(String.format("Keyspace names shouldn't be more than 32 character long (got \"%s\")", ks_def.name));
+
         // Attempt to instantiate the ARS, which will throw a ConfigException if
         //  the strategy_options aren't fully formed or if the ARS Classname is invalid.
         Map<String, String> options = KSMetaData.forwardsCompatibleOptions(ks_def);

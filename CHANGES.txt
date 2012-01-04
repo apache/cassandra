@@ -39,6 +39,7 @@
  * a way to deactivate global key/row cache on per-CF basis (CASSANDRA-3667)
  * fix LeveledCompactionStrategy broken because of generation pre-allocation
    in LeveledManifest (CASSANDRA-3691)
+ * finer-grained control over data directories (CASSANDRA-2749)
 
 
 1.0.7

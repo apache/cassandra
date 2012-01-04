@@ -343,11 +343,14 @@ public class LeveledManifest
         return overlapping(generations[level].get(0), generations[(level + 1)]);
     }
 
+    public static File tryGetManifest(ColumnFamilyStore cfs)
+    {
+        return cfs.directories.tryGetLeveledManifest();
+    }
+
     public synchronized void serialize()
     {
-        File manifestFile = tryGetManifest(cfs);
-        if (manifestFile == null)
-            manifestFile = new File(new File(DatabaseDescriptor.getAllDataFileLocations()[0], cfs.table.name), cfs.columnFamily + ".json");
+        File manifestFile = cfs.directories.getOrCreateLeveledManifest();
         File oldFile = new File(manifestFile.getPath().replace(EXTENSION, "-old.json"));
         File tmpFile = new File(manifestFile.getPath().replace(EXTENSION, "-tmp.json"));
 
@@ -385,21 +388,6 @@ public class LeveledManifest
         {
             throw new IOError(e);
         }
-    }
-
-    public static File tryGetManifest(ColumnFamilyStore cfs)
-    {
-        for (String dir : DatabaseDescriptor.getAllDataFileLocations())
-        {
-            File manifestFile = new File(new File(dir, cfs.table.name), cfs.columnFamily + EXTENSION);
-            if (manifestFile.exists())
-            {
-                logger.debug("Found manifest at {}", manifestFile);
-                return manifestFile;
-            }
-        }
-        logger.debug("No level manifest found");
-        return null;
     }
 
     @Override

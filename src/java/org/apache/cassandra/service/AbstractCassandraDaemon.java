@@ -41,6 +41,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.SystemTable;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.commitlog.CommitLog;
@@ -155,6 +156,10 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
                 assert dir.isDirectory() && dir.canRead() && dir.canWrite() && dir.canExecute()
                     : String.format("Directory %s is not accessible.", dataDir);
         }
+
+        // Migrate sstables from pre-#2749 to the correct location
+        if (Directories.sstablesNeedsMigration())
+            Directories.migrateSSTables();
 
         if (CacheService.instance == null) // should never happen
             throw new RuntimeException("Failed to initialize Cache Service.");

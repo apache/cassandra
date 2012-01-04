@@ -152,6 +152,8 @@ public class CreateColumnFamilyStatement
         // Column family name
         if (!name.matches("\\w+"))
             throw new InvalidRequestException(String.format("\"%s\" is not a valid column family name", name));
+        if (name.length() > 32)
+            throw new InvalidRequestException(String.format("Column family names shouldn't be more than 32 character long (got \"%s\")", name));
         
         // Catch the case where someone passed a kwarg that is not recognized.
         for (String bogus : Sets.difference(properties.keySet(), Sets.union(keywords, obsoleteKeywords)))
@@ -403,3 +405,4 @@ public class CreateColumnFamilyStatement
     }
     
 }
+

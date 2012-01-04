@@ -221,19 +221,16 @@ public class SSTableReaderTest extends CleanupHelper
         File rootDir = new File(root + File.separator + "hb" + File.separator + "Keyspace1");
         assert rootDir.isDirectory();
 
-        String[] destDirs = DatabaseDescriptor.getAllDataFileLocationsForTable("Keyspace1");
-        assert destDirs != null;
-        assert destDirs.length > 0;
+        File destDir = Directories.create("Keyspace1", "Indexed1").getDirectoryForNewSSTables(0);
+        assert destDir != null;
 
-        FileUtils.createDirectory(destDirs[0]);
+        FileUtils.createDirectory(destDir);
         for (File srcFile : rootDir.listFiles())
         {
             if (!srcFile.getName().startsWith("Indexed1"))
                 continue;
-            File destFile = new File(destDirs[0] + File.separator + srcFile.getName());
+            File destFile = new File(destDir, srcFile.getName());
             CLibrary.createHardLinkWithExec(srcFile, destFile);
-
-            destFile = new File(destDirs[0] + File.separator + srcFile.getName());
 
             assert destFile.exists() : destFile.getAbsoluteFile();
         }

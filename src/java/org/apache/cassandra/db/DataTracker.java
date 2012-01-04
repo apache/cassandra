@@ -169,10 +169,7 @@ public class DataTracker
         {
             protected void runMayThrow() throws Exception
             {
-                File keyspaceDir = new File(sstable.getFilename()).getParentFile();
-                File backupsDir = new File(keyspaceDir, "backups");
-                if (!backupsDir.exists() && !backupsDir.mkdirs())
-                    throw new IOException("Unable to create " + backupsDir);
+                File backupsDir = Directories.getBackupsDirectory(sstable.descriptor);
                 sstable.createLinks(backupsDir.getCanonicalPath());
             }
         };

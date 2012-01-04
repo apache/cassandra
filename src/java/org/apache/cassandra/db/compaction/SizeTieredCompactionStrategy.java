@@ -109,8 +109,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
     public AbstractCompactionTask getUserDefinedTask(Collection<SSTableReader> sstables, final int gcBefore)
     {
         return new CompactionTask(cfs, sstables, gcBefore)
-                .isUserDefined(true)
-                .compactionFileLocation(cfs.table.getDataFileLocation(1));
+                .isUserDefined(true);
     }
 
     public int getEstimatedRemainingTasks()

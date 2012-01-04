@@ -64,8 +64,6 @@ public class DatabaseDescriptor
     private static InetAddress broadcastAddress;
     private static InetAddress rpcAddress;
     private static SeedProvider seedProvider;
-    /* Current index into the above list of directories */
-    private static int currentIndex = 0;
 
     /* Hashing strategy Random or OPHF */
     private static IPartitioner partitioner;
@@ -736,32 +734,6 @@ public class DatabaseDescriptor
         return conf.data_file_directories;
     }
 
-    /**
-     * Get a list of data directories for a given table
-     * 
-     * @param table name of the table.
-     * 
-     * @return an array of path to the data directories. 
-     */
-    public static String[] getAllDataFileLocationsForTable(String table)
-    {
-        String[] tableLocations = new String[conf.data_file_directories.length];
-
-        for (int i = 0; i < conf.data_file_directories.length; i++)
-        {
-            tableLocations[i] = conf.data_file_directories[i] + File.separator + table;
-        }
-
-        return tableLocations;
-    }
-
-    public synchronized static String getNextAvailableDataLocation()
-    {
-        String dataFileDirectory = conf.data_file_directories[currentIndex];
-        currentIndex = (currentIndex + 1) % conf.data_file_directories.length;
-        return dataFileDirectory;
-    }
-
     public static String getCommitLogLocation()
     {
         return conf.commitlog_directory;
@@ -775,44 +747,6 @@ public class DatabaseDescriptor
     public static Set<InetAddress> getSeeds()
     {
         return Collections.unmodifiableSet(new HashSet(seedProvider.getSeeds()));
-    }
-
-    /*
-     * Loop through all the disks to see which disk has the max free space
-     * return the disk with max free space for compactions. If the size of the expected
-     * compacted file is greater than the max disk space available return null, we cannot
-     * do compaction in this case.
-     */
-    public static String getDataFileLocationForTable(String table, long expectedCompactedFileSize)
-    {
-      long maxFreeDisk = 0;
-      int maxDiskIndex = 0;
-      String dataFileDirectory = null;
-      String[] dataDirectoryForTable = getAllDataFileLocationsForTable(table);
-
-      for ( int i = 0 ; i < dataDirectoryForTable.length ; i++ )
-      {
-        File f = new File(dataDirectoryForTable[i]);
-        if( maxFreeDisk < f.getUsableSpace())
-        {
-          maxFreeDisk = f.getUsableSpace();
-          maxDiskIndex = i;
-        }
-      }
-        logger.debug("expected data files size is {}; largest free partition has {} bytes free",
-                     expectedCompactedFileSize, maxFreeDisk);
-      // Load factor of 0.9 we do not want to use the entire disk that is too risky.
-      maxFreeDisk = (long)(0.9 * maxFreeDisk);
-      if( expectedCompactedFileSize < maxFreeDisk )
-      {
-        dataFileDirectory = dataDirectoryForTable[maxDiskIndex];
-        currentIndex = (maxDiskIndex + 1 )%dataDirectoryForTable.length ;
-      }
-      else
-      {
-        currentIndex = maxDiskIndex;
-      }
-        return dataFileDirectory;
     }
 
     public static InetAddress getListenAddress()

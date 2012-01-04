@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.db.compaction;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.*;
 import java.util.Map.Entry;
@@ -41,7 +42,6 @@ import org.apache.cassandra.utils.FBUtilities;
 public class CompactionTask extends AbstractCompactionTask
 {
     protected static final Logger logger = LoggerFactory.getLogger(CompactionTask.class);
-    protected String compactionFileLocation;
     protected final int gcBefore;
     protected boolean isUserDefined;
     protected static long totalBytesCompacted = 0;
@@ -49,7 +49,6 @@ public class CompactionTask extends AbstractCompactionTask
     public CompactionTask(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, final int gcBefore)
     {
         super(cfs, sstables);
-        compactionFileLocation = null;
         this.gcBefore = gcBefore;
         this.isUserDefined = false;
     }
@@ -74,8 +73,10 @@ public class CompactionTask extends AbstractCompactionTask
         if (!isCompactionInteresting(toCompact))
             return 0;
 
-        if (compactionFileLocation == null)
-            compactionFileLocation = cfs.table.getDataFileLocation(cfs.getExpectedCompactedFileSize(toCompact));
+        // If use defined, we don't want to "trust" our space estimation. If
+        // there isn't enough room, it's the user problem
+        long expectedSize = isUserDefined ? 0 : cfs.getExpectedCompactedFileSize(toCompact);
+        File compactionFileLocation = cfs.directories.getDirectoryForNewSSTables(expectedSize);
         if (partialCompactionsAcceptable())
         {
             // If the compaction file path is null that means we have no space left for this compaction.
@@ -88,15 +89,16 @@ public class CompactionTask extends AbstractCompactionTask
                     // Note that we have removed files that are still marked as compacting. This suboptimal but ok since the caller will unmark all
                     // the sstables at the end.
                     toCompact.remove(cfs.getMaxSizeFile(toCompact));
-                    compactionFileLocation = cfs.table.getDataFileLocation(cfs.getExpectedCompactedFileSize(toCompact));
+                    compactionFileLocation = cfs.directories.getDirectoryForNewSSTables(cfs.getExpectedCompactedFileSize(toCompact));
                 }
             }
 
-            if (compactionFileLocation == null)
-            {
-                logger.warn("insufficient space to compact even the two smallest files, aborting");
-                return 0;
-            }
+        }
+
+        if (compactionFileLocation == null)
+        {
+            logger.warn("insufficient space to compact even the two smallest files, aborting");
+            return 0;
         }
 
         if (DatabaseDescriptor.isSnapshotBeforeCompaction())
@@ -260,12 +262,6 @@ public class CompactionTask extends AbstractCompactionTask
                 max = sstable.maxDataAge;
         }
         return max;
-    }
-
-    public CompactionTask compactionFileLocation(String compactionFileLocation)
-    {
-        this.compactionFileLocation = compactionFileLocation;
-        return this;
     }
 
     public CompactionTask isUserDefined(boolean isUserDefined)

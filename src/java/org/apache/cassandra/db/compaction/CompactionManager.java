@@ -454,7 +454,7 @@ public class CompactionManager implements CompactionManagerMBean
         boolean isCommutative = cfs.metadata.getDefaultValidator().isCommutative();
 
         // Calculate the expected compacted filesize
-        String compactionFileLocation = cfs.table.getDataFileLocation(sstable.onDiskLength());
+        File compactionFileLocation = cfs.directories.getDirectoryForNewSSTables(sstable.onDiskLength());
         if (compactionFileLocation == null)
             throw new IOException("disk full");
         int expectedBloomFilterSize = Math.max(DatabaseDescriptor.getIndexInterval(),
@@ -681,7 +681,7 @@ public class CompactionManager implements CompactionManagerMBean
             logger.info("Cleaning up " + sstable);
             // Calculate the expected compacted filesize
             long expectedRangeFileSize = cfs.getExpectedCompactedFileSize(Arrays.asList(sstable)) / 2;
-            String compactionFileLocation = table.getDataFileLocation(expectedRangeFileSize);
+            File compactionFileLocation = cfs.directories.getDirectoryForNewSSTables(expectedRangeFileSize);
             if (compactionFileLocation == null)
                 throw new IOException("disk full");
 
@@ -773,7 +773,7 @@ public class CompactionManager implements CompactionManagerMBean
         }
     }
 
-    private SSTableWriter maybeCreateWriter(ColumnFamilyStore cfs, String compactionFileLocation, int expectedBloomFilterSize, SSTableWriter writer, Collection<SSTableReader> sstables)
+    private SSTableWriter maybeCreateWriter(ColumnFamilyStore cfs, File compactionFileLocation, int expectedBloomFilterSize, SSTableWriter writer, Collection<SSTableReader> sstables)
             throws IOException
     {
         if (writer == null)

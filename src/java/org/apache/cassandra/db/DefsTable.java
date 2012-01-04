@@ -25,7 +25,6 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.apache.avro.Schema;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
@@ -99,23 +98,5 @@ public class DefsTable
             keyspaces.add(KSMetaData.fromAvro(ks));
         }
         return keyspaces;
-    }
-    
-    /** gets all the files that belong to a given column family. */
-    public static Set<File> getFiles(String table, final String cf)
-    {
-        Set<File> found = new HashSet<File>();
-        for (String path : DatabaseDescriptor.getAllDataFileLocationsForTable(table))
-        {
-            File[] dbFiles = new File(path).listFiles(new FileFilter()
-            {
-                public boolean accept(File pathname)
-                {
-                    return pathname.getName().startsWith(cf + "-") && pathname.getName().endsWith(".db") && pathname.exists();
-                }
-            });
-            found.addAll(Arrays.asList(dbFiles));
-        }
-        return found;
     }
 }

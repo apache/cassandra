@@ -128,6 +128,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private volatile DefaultInteger maxCompactionThreshold;
     private volatile AbstractCompactionStrategy compactionStrategy;
 
+    public final Directories directories;
+
     /** ratio of in-memory memtable size, to serialized size */
     volatile double liveRatio = 1.0;
     /** ops count last time we computed liveRatio */
@@ -180,7 +182,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return metadata.compactionStrategyClass.getName();
     }
 
-    private ColumnFamilyStore(Table table, String columnFamilyName, IPartitioner partitioner, int generation, CFMetaData metadata)
+    private ColumnFamilyStore(Table table, String columnFamilyName, IPartitioner partitioner, int generation, CFMetaData metadata, Directories directories)
     {
         assert metadata != null : "null metadata for " + table + ":" + columnFamilyName;
 
@@ -190,6 +192,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         this.minCompactionThreshold = new DefaultInteger(metadata.getMinCompactionThreshold());
         this.maxCompactionThreshold = new DefaultInteger(metadata.getMaxCompactionThreshold());
         this.partitioner = partitioner;
+        this.directories = directories;
         this.indexManager = new SecondaryIndexManager(this);
         fileIndexGenerator.set(generation);
 
@@ -199,8 +202,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         // scan for sstables corresponding to this cf and load them
         data = new DataTracker(this);
         Set<DecoratedKey> savedKeys = CacheService.instance.keyCache.readSaved(table.name, columnFamily);
-        Set<Map.Entry<Descriptor, Set<Component>>> entries = files(table.name, columnFamilyName, false, false).entrySet();
-        data.addInitialSSTables(SSTableReader.batchOpen(entries, savedKeys, data, metadata, this.partitioner));
+        Directories.SSTableLister sstables = directories.sstableLister().skipCompacted(true).skipTemporary(true);
+        data.addInitialSSTables(SSTableReader.batchOpen(sstables.list().entrySet(), savedKeys, data, metadata, this.partitioner));
 
         // compaction strategy should be created after the CFS has been prepared
         this.compactionStrategy = metadata.createCompactionStrategyInstance(this);
@@ -281,29 +284,20 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public static synchronized ColumnFamilyStore createColumnFamilyStore(Table table, String columnFamily, IPartitioner partitioner, CFMetaData metadata)
     {
         // get the max generation number, to prevent generation conflicts
+        Directories directories = Directories.create(table.name, columnFamily);
+        Directories.SSTableLister lister = directories.sstableLister().includeBackups(true);
         List<Integer> generations = new ArrayList<Integer>();
-        for (String path : DatabaseDescriptor.getAllDataFileLocationsForTable(table.name))
+        for (Map.Entry<Descriptor, Set<Component>> entry : lister.list().entrySet())
         {
-            Iterable<Pair<Descriptor, Component>> pairs = files(new File(path), columnFamily);
-            File incrementalsPath = new File(path, "backups");
-            if (incrementalsPath.exists())
-                pairs = Iterables.concat(pairs, files(incrementalsPath, columnFamily));
-
-            for (Pair<Descriptor, Component> pair : pairs)
-            {
-                Descriptor desc = pair.left;
-                if (!desc.cfname.equals(columnFamily))
-                    continue;
-                generations.add(desc.generation);
-                if (!desc.isCompatible())
-                    throw new RuntimeException(String.format("Can't open incompatible SSTable! Current version %s, found file: %s",
-                                                             Descriptor.CURRENT_VERSION, desc));
-            }
+            Descriptor desc = entry.getKey();
+            generations.add(desc.generation);
+            if (!desc.isCompatible())
+                throw new RuntimeException(String.format("Can't open incompatible SSTable! Current version %s, found file: %s", Descriptor.CURRENT_VERSION, desc));
         }
         Collections.sort(generations);
         int value = (generations.size() > 0) ? (generations.get(generations.size() - 1)) : 0;
 
-        return new ColumnFamilyStore(table, columnFamily, partitioner, value, metadata);
+        return new ColumnFamilyStore(table, columnFamily, partitioner, value, metadata, directories);
     }
 
     /**
@@ -314,7 +308,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         logger.debug("Removing compacted SSTable files from {} (see http://wiki.apache.org/cassandra/MemtableSSTable)", columnFamily);
 
-        for (Map.Entry<Descriptor,Set<Component>> sstableFiles : files(table, columnFamily, true, true).entrySet())
+        Directories directories = Directories.create(table, columnFamily);
+        for (Map.Entry<Descriptor,Set<Component>> sstableFiles : directories.sstableLister().list().entrySet())
         {
             Descriptor desc = sstableFiles.getKey();
             Set<Component> components = sstableFiles.getValue();
@@ -402,63 +397,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     }
 
     /**
-     * Collects a map of sstable components.
-     */
-    private static Map<Descriptor,Set<Component>> files(String keyspace, final String columnFamily, final boolean includeCompacted, final boolean includeTemporary)
-    {
-        final Map<Descriptor,Set<Component>> sstables = new HashMap<Descriptor,Set<Component>>();
-        for (String directory : DatabaseDescriptor.getAllDataFileLocationsForTable(keyspace))
-        {
-            for (Pair<Descriptor, Component> component : files(new File(directory), columnFamily))
-            {
-                if (component != null)
-                {
-                    if ((includeCompacted || !new File(component.left.filenameFor(Component.COMPACTED_MARKER)).exists())
-                     && (includeTemporary || !component.left.temporary))
-                    {
-                        Set<Component> components = sstables.get(component.left);
-                        if (components == null)
-                        {
-                            components = new HashSet<Component>();
-                            sstables.put(component.left, components);
-                        }
-                        components.add(component.right);
-                    }
-                    else
-                        logger.debug("not including compacted sstable " + component.left.cfname + "-" + component.left.generation);
-                }
-            }
-        }
-        return sstables;
-    }
-
-    private static List<Pair<Descriptor, Component>> files(File path, final String columnFamilyName)
-    {
-        final List<Pair<Descriptor, Component>> sstables = new ArrayList<Pair<Descriptor, Component>>();
-        final String sstableFilePrefix = columnFamilyName + Component.separator;
-
-        // NB: we never "accept" a file in the FilenameFilter sense: they are added to the sstable map
-        path.listFiles(new FileFilter()
-        {
-            public boolean accept(File file)
-            {
-                // we are only interested in the SSTable files that belong to the specific ColumnFamily
-                if (file.isDirectory() || !file.getName().startsWith(sstableFilePrefix))
-                    return false;
-
-                Pair<Descriptor, Component> pair = SSTable.tryComponentFromFilename(file.getParentFile(), file.getName());
-
-                if (pair != null)
-                    sstables.add(pair);
-
-                return false;
-            }
-        });
-
-        return sstables;
-    }
-
-    /**
      * See #{@code StorageService.loadNewSSTables(String, String)} for more info
      *
      * @param ksName The keyspace name
@@ -500,15 +438,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         // set to true if we have at least one new SSTable to load
         boolean atLeastOneNew = false;
 
-        for (Map.Entry<Descriptor, Set<Component>> rawSSTable : files(table.name, columnFamily, false, false).entrySet())
+        Directories.SSTableLister lister = directories.sstableLister().skipCompacted(true).skipTemporary(true);
+        for (Map.Entry<Descriptor, Set<Component>> rawSSTable : lister.list().entrySet())
         {
             Descriptor descriptor = rawSSTable.getKey();
 
             if (currentDescriptors.contains(descriptor))
                 continue; // old (initialized) SSTable found, skipping
-
-            if (!descriptor.cfname.equals(columnFamily))
-                continue;
 
             if (!descriptor.isCompatible())
                 throw new RuntimeException(String.format("Can't open incompatible SSTable! Current version %s, found file: %s",
@@ -580,16 +516,16 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public String getFlushPath(long estimatedSize, String version)
     {
-        String location = table.getDataFileLocation(estimatedSize);
+        File location = directories.getDirectoryForNewSSTables(estimatedSize);
         if (location == null)
             throw new RuntimeException("Insufficient disk space to flush " + estimatedSize + " bytes");
         return getTempSSTablePath(location, version);
     }
 
-    public String getTempSSTablePath(String directory, String version)
+    public String getTempSSTablePath(File directory, String version)
     {
         Descriptor desc = new Descriptor(version,
-                                         new File(directory),
+                                         directory,
                                          table.name,
                                          columnFamily,
                                          fileIndexGenerator.incrementAndGet(),
@@ -597,7 +533,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return desc.filenameFor(Component.DATA);
     }
 
-    public String getTempSSTablePath(String directory)
+    public String getTempSSTablePath(File directory)
     {
         return getTempSSTablePath(directory, Descriptor.CURRENT_VERSION);
     }
@@ -1420,30 +1356,17 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             {
                 for (SSTableReader ssTable : currentView.sstables)
                 {
-                    // mkdir
-                    File dataDirectory = ssTable.descriptor.directory.getParentFile();
-                    String snapshotDirectoryPath = Table.getSnapshotPath(dataDirectory.getAbsolutePath(), table.name, snapshotName);
-                    FileUtils.createDirectory(snapshotDirectoryPath);
+                    File snapshotDirectory = Directories.getSnapshotDirectory(ssTable.descriptor, snapshotName);
 
                     // hard links
-                    ssTable.createLinks(snapshotDirectoryPath);
+                    ssTable.createLinks(snapshotDirectory.getPath());
                     if (logger.isDebugEnabled())
                         logger.debug("Snapshot for " + table + " keyspace data file " + ssTable.getFilename() +
-                                     " created in " + snapshotDirectoryPath);
+                                     " created in " + snapshotDirectory);
                 }
 
                 if (compactionStrategy instanceof LeveledCompactionStrategy)
-                {
-                    File manifest = LeveledManifest.tryGetManifest(cfs);
-
-                    if (manifest != null)
-                    {
-                        File snapshotDirectory = new File(Table.getSnapshotPath(manifest.getParent(), snapshotName));
-                        FileUtils.createDirectory(snapshotDirectory);
-
-                        CLibrary.createHardLink(manifest, new File(snapshotDirectory, manifest.getName()));
-                    }
-                }
+                    directories.snapshotLeveledManifest(snapshotName);
             }
             catch (IOException e)
             {
@@ -1477,6 +1400,16 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
 
         snapshotWithoutFlush(snapshotName);
+    }
+
+    public boolean snapshotExists(String snapshotName)
+    {
+        return directories.snapshotExists(snapshotName);
+    }
+
+    public void clearSnapshot(String snapshotName) throws IOException
+    {
+        directories.clearSnapshot(snapshotName);
     }
 
     public boolean hasUnreclaimedSpace()
@@ -1827,7 +1760,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                                  sstableMetadataCollector);
     }
 
-    public SSTableWriter createCompactionWriter(long estimatedRows, String location, Collection<SSTableReader> sstables) throws IOException
+    public SSTableWriter createCompactionWriter(long estimatedRows, File location, Collection<SSTableReader> sstables) throws IOException
     {
         ReplayPosition rp = ReplayPosition.getReplayPosition(sstables);
         SSTableMetadata.Collector sstableMetadataCollector = SSTableMetadata.createCollector().replayPosition(rp);

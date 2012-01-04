@@ -61,8 +61,6 @@ public class Table
 {
     public static final String SYSTEM_TABLE = "system";
 
-    public static final String SNAPSHOT_SUBDIR_NAME = "snapshots";
-
     private static final Logger logger = LoggerFactory.getLogger(Table.class);
 
     /**
@@ -224,43 +222,34 @@ public class Table
         return snapshotName;
     }
 
-    /**?
-     * Clear snapshots for this table. If no tag is given we will clear all
-     * snapshots
+    /**
+     * Check whether snapshots already exists for a given name.
      *
      * @param snapshotName the user supplied snapshot name
      * @return true if the snapshot exists
      */
     public boolean snapshotExists(String snapshotName)
     {
-        for (String dataDirPath : DatabaseDescriptor.getAllDataFileLocations())
+        assert snapshotName != null;
+        for (ColumnFamilyStore cfStore : columnFamilyStores.values())
         {
-            String snapshotPath = dataDirPath + File.separator + name + File.separator + SNAPSHOT_SUBDIR_NAME + File.separator + snapshotName;
-            File snapshot = new File(snapshotPath);
-            if (snapshot.exists())
-            {
+            if (cfStore.snapshotExists(snapshotName))
                 return true;
-            }
         }
         return false;
     }
 
     /**
      * Clear all the snapshots for a given table.
+     *
+     * @param snapshotName the user supplied snapshot name. It empty or null,
+     * all the snapshots will be cleaned
      */
-    public void clearSnapshot(String tag) throws IOException
+    public void clearSnapshot(String snapshotName) throws IOException
     {
-        for (String dataDirPath : DatabaseDescriptor.getAllDataFileLocations())
+        for (ColumnFamilyStore cfStore : columnFamilyStores.values())
         {
-            // If tag is empty we will delete the entire snapshot directory
-            String snapshotPath = dataDirPath + File.separator + name + File.separator + SNAPSHOT_SUBDIR_NAME + File.separator + tag;
-            File snapshotDir = new File(snapshotPath);
-            if (snapshotDir.exists())
-            {
-                if (logger.isDebugEnabled())
-                    logger.debug("Removing snapshot directory " + snapshotPath);
-                FileUtils.deleteRecursive(snapshotDir);
-            }
+            cfStore.clearSnapshot(snapshotName);
         }
     }
     
@@ -292,25 +281,6 @@ public class Table
         indexLocks = new Object[DatabaseDescriptor.getConcurrentWriters() * 128];
         for (int i = 0; i < indexLocks.length; i++)
             indexLocks[i] = new Object();
-        // create data directories.
-        for (String dataDir : DatabaseDescriptor.getAllDataFileLocations())
-        {
-            try
-            {
-                String keyspaceDir = dataDir + File.separator + table;
-                if (!StorageService.instance.isClientMode())
-                    FileUtils.createDirectory(keyspaceDir);
-    
-                // remove the deprecated streaming directory.
-                File streamingDir = new File(keyspaceDir, "stream");
-                if (streamingDir.exists())
-                    FileUtils.deleteRecursive(streamingDir);
-            }
-            catch (IOException ex)
-            {
-                throw new IOError(ex);
-            }
-        }
 
         for (CFMetaData cfm : new ArrayList<CFMetaData>(Schema.instance.getTableDefinition(table).cfMetaData().values()))
         {
@@ -559,41 +529,6 @@ public class Table
                 futures.add(future);
         }
         return futures;
-    }
-
-    public String getDataFileLocation(long expectedSize)
-    {
-        String path = DatabaseDescriptor.getDataFileLocationForTable(name, expectedSize);
-        // Requesting GC has a chance to free space only if we're using mmap and a non SUN jvm
-        if (path == null
-         && (DatabaseDescriptor.getDiskAccessMode() == Config.DiskAccessMode.mmap || DatabaseDescriptor.getIndexAccessMode() == Config.DiskAccessMode.mmap)
-         && !MmappedSegmentedFile.isCleanerAvailable())
-        {
-            StorageService.instance.requestGC();
-            // retry after GCing has forced unmap of compacted SSTables so they can be deleted
-            // Note: GCInspector will do this already, but only sun JVM supports GCInspector so far
-            SSTableDeletingTask.rescheduleFailedTasks();
-            try
-            {
-                Thread.sleep(10000);
-            }
-            catch (InterruptedException e)
-            {
-                throw new AssertionError(e);
-            }
-            path = DatabaseDescriptor.getDataFileLocationForTable(name, expectedSize);
-        }
-        return path;
-    }
-
-    public static String getSnapshotPath(String dataDirPath, String tableName, String snapshotName)
-    {
-        return getSnapshotPath(dataDirPath + File.separator + tableName, snapshotName);
-    }
-
-    public static String getSnapshotPath(String tableDirectory, String snapshotName)
-    {
-        return tableDirectory + File.separator + SNAPSHOT_SUBDIR_NAME + File.separator + snapshotName;
     }
 
     public static Iterable<Table> all()

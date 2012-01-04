@@ -231,7 +231,7 @@ public class Util
     public static void compact(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, boolean forceDeserialize) throws IOException
     {
         CompactionTask task = new CompactionTask(cfs, sstables, (int) (System.currentTimeMillis() / 1000) - cfs.metadata.getGcGraceSeconds());
-        task.isUserDefined(forceDeserialize).compactionFileLocation(cfs.table.getDataFileLocation(1));
+        task.isUserDefined(forceDeserialize);
         task.execute(null);
     }
 

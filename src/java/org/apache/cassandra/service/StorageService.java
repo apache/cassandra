@@ -1622,14 +1622,6 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         return locations;
     }
 
-    public String[] getAllDataFileLocationsForTable(String table)
-    {
-        String[] locations = DatabaseDescriptor.getAllDataFileLocationsForTable(table);
-        for (int i = 0; i < locations.length; i++)
-            locations[i] = getCanonicalPath(locations[i]);
-        return locations;
-    }
-
     public String getCommitLogLocation()
     {
         return getCanonicalPath(DatabaseDescriptor.getCommitLogLocation());

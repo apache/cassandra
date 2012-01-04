@@ -56,7 +56,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 
 public class DefsTest extends CleanupHelper
-{   
+{
     @Test
     public void testZeroInjection() throws IOException
     {
@@ -293,7 +293,7 @@ public class DefsTest extends CleanupHelper
         assert store != null;
         store.forceBlockingFlush();
         store.getFlushPath(1024, Descriptor.CURRENT_VERSION);
-        assert DefsTable.getFiles(cfm.ksName, cfm.cfName).size() > 0;
+        assert store.directories.sstableLister().list().size() > 0;
         
         new DropColumnFamily(ks.name, cfm.cfName).apply();
 
@@ -314,7 +314,7 @@ public class DefsTest extends CleanupHelper
         assert !success : "This mutation should have failed since the CF no longer exists.";
 
         // verify that the files are gone.
-        for (File file : DefsTable.getFiles(cfm.ksName, cfm.cfName))
+        for (File file : store.directories.sstableLister().listFiles())
         {
             if (file.getPath().endsWith("Data.db") && !new File(file.getPath().replace("Data.db", "Compacted")).exists())
                 throw new AssertionError("undeleted file " + file);
@@ -366,7 +366,7 @@ public class DefsTest extends CleanupHelper
         ColumnFamilyStore store = Table.open(cfm.ksName).getColumnFamilyStore(cfm.cfName);
         assert store != null;
         store.forceBlockingFlush();
-        assert DefsTable.getFiles(cfm.ksName, cfm.cfName).size() > 0;
+        assert store.directories.sstableLister().list().size() > 0;
         
         new DropKeyspace(ks.name).apply();
 
