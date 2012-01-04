@@ -40,10 +40,12 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
 
     public SizeTieredCompactionStrategy(ColumnFamilyStore cfs, Map<String, String> options)
     {
-       super(cfs, options);
-       this.estimatedRemainingTasks = 0;
-       String optionValue = options.get(MIN_SSTABLE_SIZE_KEY);
-       minSSTableSize = (null != optionValue) ? Long.parseLong(optionValue) : DEFAULT_MIN_SSTABLE_SIZE;
+        super(cfs, options);
+        this.estimatedRemainingTasks = 0;
+        String optionValue = options.get(MIN_SSTABLE_SIZE_KEY);
+        minSSTableSize = (null != optionValue) ? Long.parseLong(optionValue) : DEFAULT_MIN_SSTABLE_SIZE;
+        cfs.setMaximumCompactionThreshold(cfs.metadata.getMaxCompactionThreshold());
+        cfs.setMinimumCompactionThreshold(cfs.metadata.getMinCompactionThreshold());
     }
 
     public AbstractCompactionTask getNextBackgroundTask(final int gcBefore)

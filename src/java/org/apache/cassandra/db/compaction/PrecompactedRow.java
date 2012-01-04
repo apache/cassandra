@@ -22,6 +22,7 @@ package org.apache.cassandra.db.compaction;
 
 
 import java.io.DataOutput;
+import java.io.IOError;
 import java.io.IOException;
 import java.security.MessageDigest;
 import java.util.List;
@@ -56,6 +57,10 @@ public class PrecompactedRow extends AbstractCompactedRow
 
     public static ColumnFamily removeDeletedAndOldShards(DecoratedKey<?> key, CompactionController controller, ColumnFamily cf)
     {
+        assert key != null;
+        assert controller != null;
+        assert cf != null;
+
         // avoid calling shouldPurge unless we actually need to: it can be very expensive if LCS
         // gets behind and has hundreds of overlapping L0 sstables.  Essentially, this method is an
         // ugly refactor of removeDeletedAndOldShards(controller.shouldPurge(key), controller, cf),
@@ -97,6 +102,7 @@ public class PrecompactedRow extends AbstractCompactedRow
 
     private static ColumnFamily merge(List<SSTableIdentityIterator> rows)
     {
+        assert !rows.isEmpty();
         ColumnFamily cf = null;
         for (SSTableIdentityIterator row : rows)
         {
@@ -107,9 +113,9 @@ public class PrecompactedRow extends AbstractCompactedRow
             }
             catch (IOException e)
             {
-                logger.error("Skipping row " + row.getKey() + " in " + row.getPath(), e);
-                continue;
+                throw new IOError(e);
             }
+
             if (cf == null)
             {
                 cf = thisCF;

@@ -107,7 +107,7 @@ public class IncomingStreamReader
         ColumnFamilyStore cfs = Table.open(localFile.desc.ksname).getColumnFamilyStore(localFile.desc.cfname);
         DecoratedKey key;
         SSTableWriter writer = new SSTableWriter(localFile.getFilename(), remoteFile.estimatedKeys);
-        CompactionController controller = null;
+        CompactionController controller = new CompactionController(cfs, Collections.<SSTableReader>emptyList(), Integer.MIN_VALUE, true);
 
         try
         {
@@ -127,8 +127,6 @@ public class IncomingStreamReader
                     if (cached != null && remoteFile.type == OperationType.AES && dataSize <= DatabaseDescriptor.getInMemoryCompactionLimit())
                     {
                         // need to update row cache
-                        if (controller == null)
-                            controller = new CompactionController(cfs, Collections.<SSTableReader>emptyList(), Integer.MIN_VALUE, true);
                         // Note: Because we won't just echo the columns, there is no need to use the PRESERVE_SIZE flag, contrarily to what appendFromStream does below
                         SSTableIdentityIterator iter = new SSTableIdentityIterator(cfs.metadata, in, key, 0, dataSize, IColumnSerializer.Flag.FROM_REMOTE);
                         PrecompactedRow row = new PrecompactedRow(controller, Collections.singletonList(iter));
@@ -157,7 +155,10 @@ public class IncomingStreamReader
         catch (Exception e)
         {
             writer.abort();
-            throw FBUtilities.unchecked(e);
+            if (e instanceof IOException)
+                throw (IOException) e;
+            else
+                throw FBUtilities.unchecked(e);
         }
     }
 
