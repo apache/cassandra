@@ -346,7 +346,8 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
 
         ColumnFamilyStore hintStore = Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(HINTS_CF);
         IPartitioner p = StorageService.getPartitioner();
-        Range range = new Range(p.getMinimumToken(), p.getMinimumToken(), p);
+        RowPosition minPos = p.getMinimumToken().minKeyBound();
+        Range<RowPosition> range = new Range<RowPosition>(minPos, minPos, p);
         IFilter filter = new NamesQueryFilter(ImmutableSortedSet.<ByteBuffer>of());
         List<Row> rows = hintStore.getRangeSlice(null, range, Integer.MAX_VALUE, filter, null);
         for (Row row : rows)
