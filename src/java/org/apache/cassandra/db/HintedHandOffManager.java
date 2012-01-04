@@ -87,7 +87,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
     public static final String HINTS_CF = "HintsColumnFamily";
 
     private static final Logger logger_ = LoggerFactory.getLogger(HintedHandOffManager.class);
-    private static final int PAGE_SIZE = 1024;
+    private static final int PAGE_SIZE = 128;
     private static final int LARGE_NUMBER = 65536; // 64k nodes ought to be enough for anybody.
 
     // in 0.8, subcolumns were KS-CF bytestrings, and the data was stored in the "normal" storage there.
@@ -270,10 +270,20 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         int rowsReplayed = 0;
         ByteBuffer startColumn = ByteBufferUtil.EMPTY_BYTE_BUFFER;
 
+        int pageSize = PAGE_SIZE;
+        // read less columns (mutations) per page if they are very large
+        if (hintStore.getMeanColumns() > 0)
+        {
+            int averageColumnSize = (int) (hintStore.getMeanRowSize() / hintStore.getMeanColumns());
+            pageSize = Math.min(PAGE_SIZE, DatabaseDescriptor.getInMemoryCompactionLimit() / averageColumnSize);
+            pageSize = Math.max(2, pageSize); // page size of 1 does not allow actual paging b/c of >= behavior on startColumn
+            logger_.debug("average hinted-row column size is {}; using pageSize of {}", averageColumnSize, pageSize);
+        }
+
         delivery:
         while (true)
         {
-            QueryFilter filter = QueryFilter.getSliceFilter(epkey, new QueryPath(HINTS_CF), startColumn, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, PAGE_SIZE);
+            QueryFilter filter = QueryFilter.getSliceFilter(epkey, new QueryPath(HINTS_CF), startColumn, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, pageSize);
             ColumnFamily hintsPage = ColumnFamilyStore.removeDeleted(hintStore.getColumnFamily(filter), Integer.MAX_VALUE);
             if (pagingFinished(hintsPage, startColumn))
                 break;
