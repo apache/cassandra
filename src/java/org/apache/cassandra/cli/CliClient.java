@@ -1661,6 +1661,8 @@ public class CliClient
         writeAttr(sb, false, "replicate_on_write", cfDef.replicate_on_write);
         writeAttr(sb, false, "row_cache_provider", normaliseType(cfDef.row_cache_provider, "org.apache.cassandra.cache"));
         writeAttr(sb, false, "compaction_strategy", cfDef.compaction_strategy);
+        if (cfDef.isSetBloom_filter_fp_chance())
+            writeAttr(sb, false, "bloom_filter_fp_chance", cfDef.bloom_filter_fp_chance);
 
         if (!cfDef.compaction_strategy_options.isEmpty())
         {
@@ -1997,6 +1999,7 @@ public class CliClient
         sessionState.out.printf("      Compaction min/max thresholds: %s/%s%n", cf_def.min_compaction_threshold, cf_def.max_compaction_threshold);
         sessionState.out.printf("      Read repair chance: %s%n", cf_def.read_repair_chance);
         sessionState.out.printf("      Replicate on write: %s%n", cf_def.replicate_on_write);
+        sessionState.out.printf("      Bloom Filter FP chance: %s%n", cf_def.isSetBloom_filter_fp_chance() ? cf_def.bloom_filter_fp_chance : "default");
 
         // if we have connection to the cfMBean established
         if (cfMBean != null)
