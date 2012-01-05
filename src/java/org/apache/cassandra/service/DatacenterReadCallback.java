@@ -23,6 +23,8 @@ package org.apache.cassandra.service;
 
 import java.net.InetAddress;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -42,6 +44,19 @@ public class DatacenterReadCallback<T> extends ReadCallback<T>
 {
     private static final IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
     private static final String localdc = snitch.getDatacenter(FBUtilities.getBroadcastAddress());
+    private static final Comparator<InetAddress> localComparator = new Comparator<InetAddress>()
+    {
+        public int compare(InetAddress endpoint1, InetAddress endpoint2)
+        {
+            boolean local1 = localdc.equals(snitch.getDatacenter(endpoint1));
+            boolean local2 = localdc.equals(snitch.getDatacenter(endpoint2));
+            if (local1 && !local2)
+                return -1;
+            if (local2 && !local1)
+                return 1;
+            return 0;
+        }
+    };
 
     public DatacenterReadCallback(IResponseResolver resolver, ConsistencyLevel consistencyLevel, IReadCommand command, List<InetAddress> endpoints)
     {
@@ -49,17 +64,9 @@ public class DatacenterReadCallback<T> extends ReadCallback<T>
     }
 
     @Override
-    protected List<InetAddress> preferredEndpoints(List<InetAddress> endpoints)
+    protected void sortForConsistencyLevel(List<InetAddress> endpoints)
     {
-        ArrayList<InetAddress> preferred = new ArrayList<InetAddress>(blockfor);
-        for (InetAddress endpoint : endpoints)
-        {
-            if (localdc.equals(snitch.getDatacenter(endpoint)))
-                preferred.add(endpoint);
-            if (preferred.size() == blockfor)
-                break;
-        }
-        return preferred;
+        Collections.sort(endpoints, localComparator);
     }
 
     @Override

@@ -18,7 +18,6 @@ clean:
 	rm -rf bin/java
 	find -name "*.pyc" -exec rm '{}' ';'
 	find -name "*py.class" -exec rm '{}' ';'
-	$(RM) -r pylib/build
 	dh_clean
 
 build: build-stamp
@@ -27,8 +26,6 @@ build-stamp:
 	printf "version=%s" $(VERSION) > build.properties
 
 	$(ANT) jar
-	cd pylib && python setup.py install --no-compile --install-layout deb \
-		--root $(CURDIR)/debian/cassandra
 
 	touch build-stamp
 
@@ -37,7 +34,6 @@ install: build
 	dh_testroot
 	dh_installdirs
 	dh_install
-	dh_pysupport
 
 	# Copy in the jar and symlink to something stable
 	dh_install build/apache-cassandra-$(VERSION).jar \

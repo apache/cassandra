@@ -67,6 +67,9 @@ Merged from 0.8:
  * prevent new nodes from thinking down nodes are up forever (CASSANDRA-3626)
  * Flush non-cfs backed secondary indexes (CASSANDRA-3659)
  * Secondary Indexes should report memory consumption (CASSANDRA-3155)
+ * use correct list of replicas for LOCAL_QUORUM reads when read repair
+   is disabled (CASSANDRA-3696)
+
 
 1.0.6
  * (CQL) fix cqlsh support for replicate_on_write (CASSANDRA-3596)
