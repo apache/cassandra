@@ -46,4 +46,7 @@ public interface StorageProxyMBean
     public int getMaxHintsInProgress();
     public void setMaxHintsInProgress(int qs);
     public int getHintsInProgress();
+
+    public Long getRpcTimeout();
+    public void setRpcTimeout(Long timeoutInMillis);
 }
