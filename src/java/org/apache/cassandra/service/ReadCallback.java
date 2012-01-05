@@ -21,7 +21,6 @@ package org.apache.cassandra.service;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.List;
-import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -69,18 +68,25 @@ public class ReadCallback<T> implements IAsyncCallback
         this.resolver = resolver;
         this.startTime = System.currentTimeMillis();
         boolean repair = randomlyReadRepair();
+        sortForConsistencyLevel(endpoints);
         this.endpoints = repair || resolver instanceof RowRepairResolver
                        ? endpoints
-                       : preferredEndpoints(endpoints);
+                       : endpoints.subList(0, Math.min(endpoints.size(), blockfor));
 
         if (logger.isDebugEnabled())
             logger.debug(String.format("Blockfor/repair is %s/%s; setting up requests to %s",
                                        blockfor, repair, StringUtils.join(this.endpoints, ",")));
     }
 
-    protected List<InetAddress> preferredEndpoints(List<InetAddress> endpoints)
+    /**
+     * Endpoints is already restricted to live replicas, sorted by snitch preference.  This is a hook for
+     * DatacenterReadCallback to move local-DC replicas to the front of the list.  We need this both
+     * when doing read repair (because the first replica gets the data read) and otherwise (because
+     * only the first 1..blockfor replicas will get digest reads).
+     */
+    protected void sortForConsistencyLevel(List<InetAddress> endpoints)
     {
-        return endpoints.subList(0, Math.min(endpoints.size(), blockfor)); // min so as to not throw exception until assureSufficient is called
+        // no-op except in DRC
     }
 
     private boolean randomlyReadRepair()
