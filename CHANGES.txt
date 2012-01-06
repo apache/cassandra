@@ -24,6 +24,8 @@ Merged from 0.8:
  * Secondary Indexes should report memory consumption (CASSANDRA-3155)
  * use correct list of replicas for LOCAL_QUORUM reads when read repair
    is disabled (CASSANDRA-3696)
+ * fix for SelectStatement start/end key are not set correctly
+   when a key alias is involved (CASSANDRA-3700)
 
 
 1.0.6
