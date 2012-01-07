@@ -1640,6 +1640,9 @@ public class CliClient
         writeAttr(sb, false, "compaction_strategy", cfDef.compaction_strategy);
         writeAttr(sb, false, "caching", cfDef.caching);
 
+        if (cfDef.isSetBloom_filter_fp_chance())
+            writeAttr(sb, false, "bloom_filter_fp_chance", cfDef.bloom_filter_fp_chance);
+
         if (!cfDef.compaction_strategy_options.isEmpty())
         {
             StringBuilder cOptions = new StringBuilder();
@@ -1971,6 +1974,7 @@ public class CliClient
         sessionState.out.printf("      Read repair chance: %s%n", cf_def.read_repair_chance);
         sessionState.out.printf("      Replicate on write: %s%n", cf_def.replicate_on_write);
         sessionState.out.printf("      Caching: %s%n", cf_def.caching);
+        sessionState.out.printf("      Bloom Filter FP chance: %s%n", cf_def.isSetBloom_filter_fp_chance() ? cf_def.bloom_filter_fp_chance : "default");
 
         // if we have connection to the cfMBean established
         if (cfMBean != null)

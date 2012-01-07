@@ -22,12 +22,11 @@ package org.apache.cassandra.cql;
 
 /**
  * Relations encapsulate the relationship between an entity of some kind, and
- * a value (term). For example, KEY > "start" or "colname1" = "somevalue".
+ * a value (term). For example, <key> > "start" or "colname1" = "somevalue".
  *
  */
 public class Relation
 {
-    private EntityType entityType = EntityType.COLUMN;
     private Term entity;
     private RelationType relationType;
     private Term value;
@@ -41,22 +40,9 @@ public class Relation
      */
     public Relation(Term entity, String type, Term value)
     {
-        if (entity.getText().toUpperCase().equals("KEY"))
-            this.entityType = EntityType.KEY;
-        
         this.entity = entity;
         this.relationType = RelationType.forString(type);
         this.value = value;
-    }
-    
-    public boolean isKey()
-    {
-        return entityType == EntityType.KEY;
-    }
-    
-    public boolean isColumn()
-    {
-        return entityType == EntityType.COLUMN;
     }
     
     public RelationType operator()
@@ -77,13 +63,8 @@ public class Relation
     @Override
     public String toString()
     {
-        return String.format("Relation(%s, %s,nnn %s)", entity, relationType, value);
+        return String.format("Relation(%s, %s, %s)", entity, relationType, value);
     }
-}
-
-enum EntityType
-{
-    KEY, COLUMN;
 }
 
 enum RelationType

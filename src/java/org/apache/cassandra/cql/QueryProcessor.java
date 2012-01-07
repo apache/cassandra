@@ -383,7 +383,7 @@ public class QueryProcessor
         assert key.toUpperCase().equals(key); // should always be uppercased by caller
         String realKeyAlias = bufferToString(cfm.getKeyName()).toUpperCase();
         if (!realKeyAlias.equals(key))
-            throw new InvalidRequestException(String.format("Expected key '%s' to be present in WHERE clause for '%s'", key, cfm.cfName));
+            throw new InvalidRequestException(String.format("Expected key '%s' to be present in WHERE clause for '%s'", realKeyAlias, cfm.cfName));
     }
 
     private static void validateColumnNames(Iterable<ByteBuffer> columns)

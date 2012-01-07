@@ -1315,4 +1315,14 @@ public class StorageProxy implements StorageProxyMBean
         if (getHintsInProgress() > 0)
             logger.warn("Some hints were not written before shutdown.  This is not supposed to happen.  You should (a) run repair, and (b) file a bug report");
     }
+
+    public Long getRpcTimeout()
+    {
+        return DatabaseDescriptor.getRpcTimeout();
+    }
+
+    public void setRpcTimeout(Long timeoutInMillis)
+    {
+        DatabaseDescriptor.setRpcTimeout(timeoutInMillis);
+    }
 }

@@ -198,16 +198,24 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                || (hintColumnFamily.getSortedColumns().size() == 1 && hintColumnFamily.getColumn(startColumn) != null);
     }
 
-    private int waitForSchemaAgreement(InetAddress endpoint) throws InterruptedException
+    private int waitForSchemaAgreement(InetAddress endpoint) throws TimeoutException
     {
         Gossiper gossiper = Gossiper.instance;
         int waited = 0;
         // first, wait for schema to be gossiped.
-        while (gossiper.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.SCHEMA) == null) {
-            Thread.sleep(1000);
+        while (gossiper.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.SCHEMA) == null)
+        {
+            try
+            {
+                Thread.sleep(1000);
+            }
+            catch (InterruptedException e)
+            {
+                throw new AssertionError(e);
+            }
             waited += 1000;
             if (waited > 2 * StorageService.RING_DELAY)
-                throw new RuntimeException("Didin't receive gossiped schema from " + endpoint + " in " + 2 * StorageService.RING_DELAY + "ms");
+                throw new TimeoutException("Didin't receive gossiped schema from " + endpoint + " in " + 2 * StorageService.RING_DELAY + "ms");
         }
         waited = 0;
         // then wait for the correct schema version.
@@ -217,43 +225,64 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         while (!gossiper.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.SCHEMA).value.equals(
                 gossiper.getEndpointStateForEndpoint(FBUtilities.getBroadcastAddress()).getApplicationState(ApplicationState.SCHEMA).value))
         {
-            Thread.sleep(1000);
+            try
+            {
+                Thread.sleep(1000);
+            }
+            catch (InterruptedException e)
+            {
+                throw new AssertionError(e);
+            }
             waited += 1000;
             if (waited > 2 * StorageService.RING_DELAY)
-                throw new RuntimeException("Could not reach schema agreement with " + endpoint + " in " + 2 * StorageService.RING_DELAY + "ms");
+                throw new TimeoutException("Could not reach schema agreement with " + endpoint + " in " + 2 * StorageService.RING_DELAY + "ms");
         }
         logger_.debug("schema for {} matches local schema", endpoint);
         return waited;
     }
 
-    private void deliverHintsToEndpoint(InetAddress endpoint) throws IOException, DigestMismatchException, InvalidRequestException, TimeoutException, InterruptedException
+    private void deliverHintsToEndpoint(InetAddress endpoint) throws IOException, DigestMismatchException, InvalidRequestException, InterruptedException
     {
-        ColumnFamilyStore hintStore = Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(HINTS_CF);
         try
         {
-            if (hintStore.isEmpty())
-                return; // nothing to do, don't confuse users by logging a no-op handoff
-
-            logger_.debug("Checking remote({}) schema before delivering hints", endpoint);
-            int waited = waitForSchemaAgreement(endpoint);
-            // sleep a random amount to stagger handoff delivery from different replicas.
-            // (if we had to wait, then gossiper randomness took care of that for us already.)
-            if (waited == 0) {
-                // use a 'rounded' sleep interval because of a strange bug with windows: CASSANDRA-3375
-                int sleep = FBUtilities.threadLocalRandom().nextInt(2000) * 30;
-                logger_.debug("Sleeping {}ms to stagger hint delivery", sleep);
-                Thread.sleep(sleep);
-            }
-
-            if (!FailureDetector.instance.isAlive(endpoint))
-            {
-                logger_.info("Endpoint {} died before hint delivery, aborting", endpoint);
-                return;
-            }
+            deliverHintsToEndpointInternal(endpoint);
         }
         finally
         {
             queuedDeliveries.remove(endpoint);
+        }
+    }
+
+    private void deliverHintsToEndpointInternal(InetAddress endpoint) throws IOException, DigestMismatchException, InvalidRequestException, InterruptedException
+    {
+        ColumnFamilyStore hintStore = Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(HINTS_CF);
+        if (hintStore.isEmpty())
+            return; // nothing to do, don't confuse users by logging a no-op handoff
+
+        logger_.debug("Checking remote({}) schema before delivering hints", endpoint);
+        int waited;
+        try
+        {
+            waited = waitForSchemaAgreement(endpoint);
+        }
+        catch (TimeoutException e)
+        {
+            return;
+        }
+        // sleep a random amount to stagger handoff delivery from different replicas.
+        // (if we had to wait, then gossiper randomness took care of that for us already.)
+        if (waited == 0)
+        {
+            // use a 'rounded' sleep interval because of a strange bug with windows: CASSANDRA-3375
+            int sleep = FBUtilities.threadLocalRandom().nextInt(2000) * 30;
+            logger_.debug("Sleeping {}ms to stagger hint delivery", sleep);
+            Thread.sleep(sleep);
+        }
+
+        if (!FailureDetector.instance.isAlive(endpoint))
+        {
+            logger_.info("Endpoint {} died before hint delivery, aborting", endpoint);
+            return;
         }
 
         // 1. Get the key of the endpoint we need to handoff
@@ -341,8 +370,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
             }
         }
 
-        logger_.info(String.format("Finished hinted handoff of %s rows to endpoint %s",
-                                   rowsReplayed, endpoint));
+        logger_.info(String.format("Finished hinted handoff of %s rows to endpoint %s", rowsReplayed, endpoint));
     }
 
     /**
