@@ -102,7 +102,7 @@ public abstract class AbstractColumnContainer implements IColumnContainer, IIter
             // Stop if either we don't need to change the deletion info (it's
             // still MIN_VALUE or not expired yet) or we've succesfully changed it
             if (current.localDeletionTime == Integer.MIN_VALUE
-                || current.localDeletionTime > gcBefore
+                || current.localDeletionTime >= gcBefore
                 || deletionInfo.compareAndSet(current, new DeletionInfo()))
             {
                 break;
