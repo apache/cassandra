@@ -392,7 +392,7 @@ public final class CFMetaData
 
         try
         {
-            caching = Caching.fromString(cf.caching.toString());
+            caching = cf.caching == null ? Caching.KEYS_ONLY : Caching.fromString(cf.caching.toString());
         }
         catch (ConfigurationException e)
         {
