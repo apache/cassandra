@@ -27,6 +27,16 @@ export PIG_INITIAL_ADDRESS=localhost
 export PIG_RPC_PORT=9160
 export PIG_PARTITIONER=org.apache.cassandra.dht.RandomPartitioner
 
+These properties can be overridden with the following if you use different clusters
+for input and output:
+* PIG_INPUT_INITIAL_ADDRESS : initial address to connect to for reading
+* PIG_INPUT_RPC_PORT : the port thrift is listening on for reading
+* PIG_INPUT_PARTITIONER : cluster partitioner for reading
+* PIG_OUTPUT_INITIAL_ADDRESS : initial address to connect to for writing
+* PIG_OUTPUT_RPC_PORT : the port thrift is listening on for writing
+* PIG_OUTPUT_PARTITIONER : cluster partitioner for writing
+
+
 Then you can build and run it like this:
 
 contrib/pig$ ant

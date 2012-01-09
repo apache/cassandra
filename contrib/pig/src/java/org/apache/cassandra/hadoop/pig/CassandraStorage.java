@@ -32,7 +32,6 @@ import org.apache.commons.logging.LogFactory;
 
 import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.IColumn;
-import org.apache.cassandra.db.SuperColumn;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.hadoop.*;
 import org.apache.cassandra.thrift.Mutation;
@@ -49,15 +48,10 @@ import org.apache.pig.backend.executionengine.ExecException;
 import org.apache.pig.backend.hadoop.executionengine.mapReduceLayer.PigSplit;
 import org.apache.pig.data.*;
 import org.apache.pig.ResourceSchema.ResourceFieldSchema;
-import org.apache.pig.impl.logicalLayer.FrontendException;
 import org.apache.pig.impl.util.UDFContext;
 import org.apache.thrift.TDeserializer;
 import org.apache.thrift.TException;
 import org.apache.thrift.TSerializer;
-import org.apache.thrift.transport.TFramedTransport;
-import org.apache.thrift.transport.TSocket;
-import org.apache.thrift.transport.TTransport;
-import org.apache.thrift.transport.TTransportException;
 
 /**
  * A LoadStoreFunc for retrieving data from and storing data to Cassandra
@@ -68,6 +62,12 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
 {
     // system environment variables that can be set to configure connection info:
     // alternatively, Hadoop JobConf variables can be set using keys from ConfigHelper
+    public final static String PIG_INPUT_RPC_PORT = "PIG_INPUT_RPC_PORT";
+    public final static String PIG_INPUT_INITIAL_ADDRESS = "PIG_INPUT_INITIAL_ADDRESS";
+    public final static String PIG_INPUT_PARTITIONER = "PIG_INPUT_PARTITIONER";
+    public final static String PIG_OUTPUT_RPC_PORT = "PIG_OUTPUT_RPC_PORT";
+    public final static String PIG_OUTPUT_INITIAL_ADDRESS = "PIG_OUTPUT_INITIAL_ADDRESS";
+    public final static String PIG_OUTPUT_PARTITIONER = "PIG_OUTPUT_PARTITIONER";
     public final static String PIG_RPC_PORT = "PIG_RPC_PORT";
     public final static String PIG_INITIAL_ADDRESS = "PIG_INITIAL_ADDRESS";
     public final static String PIG_PARTITIONER = "PIG_PARTITIONER";
@@ -288,17 +288,36 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
     private void setConnectionInformation() throws IOException
     {
         if (System.getenv(PIG_RPC_PORT) != null)
-            ConfigHelper.setRpcPort(conf, System.getenv(PIG_RPC_PORT));
-        else if (ConfigHelper.getRpcPort(conf) == 0) 
-            throw new IOException("PIG_RPC_PORT environment variable not set");
+        {
+            ConfigHelper.setInputRpcPort(conf, System.getenv(PIG_RPC_PORT));
+            ConfigHelper.setOutputRpcPort(conf, System.getenv(PIG_RPC_PORT));
+        }
+
+        if (System.getenv(PIG_INPUT_RPC_PORT) != null)
+            ConfigHelper.setInputRpcPort(conf, System.getenv(PIG_INPUT_RPC_PORT));
+        if (System.getenv(PIG_OUTPUT_RPC_PORT) != null)
+            ConfigHelper.setOutputRpcPort(conf, System.getenv(PIG_OUTPUT_RPC_PORT));
+
         if (System.getenv(PIG_INITIAL_ADDRESS) != null)
-            ConfigHelper.setInitialAddress(conf, System.getenv(PIG_INITIAL_ADDRESS));
-        else if (ConfigHelper.getInitialAddress(conf) == null) 
-            throw new IOException("PIG_INITIAL_ADDRESS environment variable not set");
+        {
+            ConfigHelper.setInputInitialAddress(conf, System.getenv(PIG_INITIAL_ADDRESS));
+            ConfigHelper.setOutputInitialAddress(conf, System.getenv(PIG_INITIAL_ADDRESS));
+        }
+        if (System.getenv(PIG_INPUT_INITIAL_ADDRESS) != null)
+            ConfigHelper.setInputInitialAddress(conf, System.getenv(PIG_INPUT_INITIAL_ADDRESS));
+        if (System.getenv(PIG_OUTPUT_INITIAL_ADDRESS) != null)
+            ConfigHelper.setOutputInitialAddress(conf, System.getenv(PIG_OUTPUT_INITIAL_ADDRESS));
+
         if (System.getenv(PIG_PARTITIONER) != null)
-            ConfigHelper.setPartitioner(conf, System.getenv(PIG_PARTITIONER));
-        else if (ConfigHelper.getPartitioner(conf) == null) 
-            throw new IOException("PIG_PARTITIONER environment variable not set");
+        {
+            ConfigHelper.setInputPartitioner(conf, System.getenv(PIG_PARTITIONER));
+            ConfigHelper.setOutputPartitioner(conf, System.getenv(PIG_PARTITIONER));
+    }
+        if(System.getenv(PIG_INPUT_PARTITIONER) != null)
+            ConfigHelper.setInputPartitioner(conf, System.getenv(PIG_INPUT_PARTITIONER));
+        if(System.getenv(PIG_OUTPUT_PARTITIONER) != null)
+            ConfigHelper.setOutputPartitioner(conf, System.getenv(PIG_OUTPUT_PARTITIONER));
+
     }
 
     @Override
@@ -314,6 +333,14 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
         }
         ConfigHelper.setInputColumnFamily(conf, keyspace, column_family);
         setConnectionInformation();
+
+        if (ConfigHelper.getInputRpcPort(conf) == 0)
+            throw new IOException("PIG_INPUT_RPC_PORT or PIG_RPC_PORT environment variable not set");
+        if (ConfigHelper.getInputInitialAddress(conf) == null)
+            throw new IOException("PIG_INPUT_INITIAL_ADDRESS or PIG_INITIAL_ADDRESS environment variable not set");
+        if (ConfigHelper.getInputPartitioner(conf) == null)
+            throw new IOException("PIG_INPUT_PARTITIONER or PIG_PARTITIONER environment variable not set");
+
         initSchema(loadSignature);
     }
 
@@ -448,6 +475,14 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
         setLocationFromUri(location);
         ConfigHelper.setOutputColumnFamily(conf, keyspace, column_family);
         setConnectionInformation();
+
+        if (ConfigHelper.getOutputRpcPort(conf) == 0)
+            throw new IOException("PIG_OUTPUT_RPC_PORT or PIG_RPC_PORT environment variable not set");
+        if (ConfigHelper.getOutputInitialAddress(conf) == null)
+            throw new IOException("PIG_OUTPUT_INITIAL_ADDRESS or PIG_INITIAL_ADDRESS environment variable not set");
+        if (ConfigHelper.getOutputPartitioner(conf) == null)
+            throw new IOException("PIG_OUTPUT_PARTITIONER or PIG_PARTITIONER environment variable not set");
+
         initSchema(storeSignature);
     }
 
@@ -565,7 +600,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
             Cassandra.Client client = null;
             try
             {
-                client = ConfigHelper.getClientFromAddressList(conf);
+                client = ConfigHelper.getClientFromInputAddressList(conf);
                 CfDef cfDef = null;
                 client.set_keyspace(keyspace);
                 KsDef ksDef = client.describe_keyspace(keyspace);

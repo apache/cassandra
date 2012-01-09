@@ -314,7 +314,7 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<Mutation>>
                     try
                     {
                         InetAddress address = iter.next();
-                        thriftSocket = new TSocket(address.getHostName(), ConfigHelper.getRpcPort(conf));
+                        thriftSocket = new TSocket(address.getHostName(), ConfigHelper.getOutputRpcPort(conf));
                         thriftClient = ColumnFamilyOutputFormat.createAuthenticatedClient(thriftSocket, conf);
                     }
                     catch (Exception e)
