@@ -63,9 +63,9 @@ public class TestRingCache
         thriftClient = cassandraClient;
         String seed = DatabaseDescriptor.getSeeds().iterator().next().getHostAddress();
         conf = new Configuration();
-        ConfigHelper.setPartitioner(conf, DatabaseDescriptor.getPartitioner().getClass().getName());
-        ConfigHelper.setInitialAddress(conf, seed);
-        ConfigHelper.setRpcPort(conf, Integer.toString(DatabaseDescriptor.getRpcPort()));
+        ConfigHelper.setOutputPartitioner(conf, DatabaseDescriptor.getPartitioner().getClass().getName());
+        ConfigHelper.setOutputInitialAddress(conf, seed);
+        ConfigHelper.setOutputRpcPort(conf, Integer.toString(DatabaseDescriptor.getRpcPort()));
 
     }
 

@@ -55,7 +55,7 @@ public class RingCache
     public RingCache(Configuration conf) throws IOException
     {
         this.conf = conf;
-        this.partitioner = ConfigHelper.getPartitioner(conf);
+        this.partitioner = ConfigHelper.getOutputPartitioner(conf);
         refreshEndpointMap();
     }
 
@@ -63,7 +63,7 @@ public class RingCache
     {
             try {
                 
-                Cassandra.Client client = ConfigHelper.getClientFromAddressList(conf);
+                Cassandra.Client client = ConfigHelper.getClientFromOutputAddressList(conf);
 
                 List<TokenRange> ring = client.describe_ring(ConfigHelper.getOutputKeyspace(conf));
                 rangeMap = ArrayListMultimap.create();
@@ -96,7 +96,7 @@ public class RingCache
             }
             catch (TException e)
             {
-                logger_.debug("Error contacting seed list" + ConfigHelper.getInitialAddress(conf) + " " + e.getMessage());
+                logger_.debug("Error contacting seed list" + ConfigHelper.getOutputInitialAddress(conf) + " " + e.getMessage());
             }
         }
 

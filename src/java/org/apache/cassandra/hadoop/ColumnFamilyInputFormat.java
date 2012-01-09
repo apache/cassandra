@@ -126,7 +126,7 @@ public class ColumnFamilyInputFormat extends InputFormat<ByteBuffer, SortedMap<B
             Range<Token> jobRange = null;
             if (jobKeyRange != null)
             {
-                partitioner = ConfigHelper.getPartitioner(context.getConfiguration());
+                partitioner = ConfigHelper.getInputPartitioner(context.getConfiguration());
                 assert partitioner.preservesOrder() : "ConfigHelper.setInputKeyRange(..) can only be used with a order preserving paritioner";
                 assert jobKeyRange.start_key == null : "only start_token supported";
                 assert jobKeyRange.end_key == null : "only end_token supported";
@@ -239,7 +239,7 @@ public class ColumnFamilyInputFormat extends InputFormat<ByteBuffer, SortedMap<B
                         
             try
             {
-                Cassandra.Client client = ConfigHelper.createConnection(host, ConfigHelper.getRpcPort(conf), true);
+                Cassandra.Client client = ConfigHelper.createConnection(host, ConfigHelper.getInputRpcPort(conf), true);
                 client.set_keyspace(keyspace);
                 return client.describe_splits(cfName, range.start_token, range.end_token, splitsize);
             }
@@ -262,7 +262,7 @@ public class ColumnFamilyInputFormat extends InputFormat<ByteBuffer, SortedMap<B
 
     private List<TokenRange> getRangeMap(Configuration conf) throws IOException
     {
-        Cassandra.Client client = ConfigHelper.getClientFromAddressList(conf);
+        Cassandra.Client client = ConfigHelper.getClientFromInputAddressList(conf);
 
         List<TokenRange> map;
         try

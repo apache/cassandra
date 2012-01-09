@@ -149,7 +149,7 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
 
             // create connection using thrift
             String location = getLocation();
-            socket = new TSocket(location, ConfigHelper.getRpcPort(conf));
+            socket = new TSocket(location, ConfigHelper.getInputRpcPort(conf));
             TBinaryProtocol binaryProtocol = new TBinaryProtocol(new TFramedTransport(socket));
             client = new Cassandra.Client(binaryProtocol);
             socket.open();

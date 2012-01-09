@@ -45,7 +45,8 @@ import org.slf4j.LoggerFactory;
 
 public class ConfigHelper
 {
-    private static final String PARTITIONER_CONFIG = "cassandra.partitioner.class";
+    private static final String INPUT_PARTITIONER_CONFIG = "cassandra.input.partitioner.class";
+    private static final String OUTPUT_PARTITIONER_CONFIG = "cassandra.output.partitioner.class";
     private static final String INPUT_KEYSPACE_CONFIG = "cassandra.input.keyspace";
     private static final String OUTPUT_KEYSPACE_CONFIG = "cassandra.output.keyspace";
     private static final String INPUT_KEYSPACE_USERNAME_CONFIG = "cassandra.input.keyspace.username";
@@ -56,13 +57,14 @@ public class ConfigHelper
     private static final String OUTPUT_COLUMNFAMILY_CONFIG = "cassandra.output.columnfamily";
     private static final String INPUT_PREDICATE_CONFIG = "cassandra.input.predicate";
     private static final String INPUT_KEYRANGE_CONFIG = "cassandra.input.keyRange";
-    private static final String OUTPUT_PREDICATE_CONFIG = "cassandra.output.predicate";
     private static final String INPUT_SPLIT_SIZE_CONFIG = "cassandra.input.split.size";
     private static final int DEFAULT_SPLIT_SIZE = 64 * 1024;
     private static final String RANGE_BATCH_SIZE_CONFIG = "cassandra.range.batch.size";
     private static final int DEFAULT_RANGE_BATCH_SIZE = 4096;
-    private static final String THRIFT_PORT = "cassandra.thrift.port";
-    private static final String INITIAL_THRIFT_ADDRESS = "cassandra.thrift.address";
+    private static final String INPUT_THRIFT_PORT = "cassandra.input.thrift.port";
+    private static final String OUTPUT_THRIFT_PORT = "cassandra.output.thrift.port";
+    private static final String INPUT_INITIAL_THRIFT_ADDRESS = "cassandra.input.thrift.address";
+    private static final String OUTPUT_INITIAL_THRIFT_ADDRESS = "cassandra.output.thrift.address";
     private static final String READ_CONSISTENCY_LEVEL = "cassandra.consistencylevel.read";
     private static final String WRITE_CONSISTENCY_LEVEL = "cassandra.consistencylevel.write";
     
@@ -309,36 +311,36 @@ public class ConfigHelper
         return conf.get(WRITE_CONSISTENCY_LEVEL, "ONE");
     }
 
-    public static int getRpcPort(Configuration conf)
+    public static int getInputRpcPort(Configuration conf)
     {
-        return Integer.parseInt(conf.get(THRIFT_PORT));
+        return Integer.parseInt(conf.get(INPUT_THRIFT_PORT));
     }
 
-    public static void setRpcPort(Configuration conf, String port)
+    public static void setInputRpcPort(Configuration conf, String port)
     {
-        conf.set(THRIFT_PORT, port);
+        conf.set(INPUT_THRIFT_PORT, port);
     }
 
-    public static String getInitialAddress(Configuration conf)
+    public static String getInputInitialAddress(Configuration conf)
     {
-        return conf.get(INITIAL_THRIFT_ADDRESS);
+        return conf.get(INPUT_INITIAL_THRIFT_ADDRESS);
     }
 
-    public static void setInitialAddress(Configuration conf, String address)
+    public static void setInputInitialAddress(Configuration conf, String address)
     {
-        conf.set(INITIAL_THRIFT_ADDRESS, address);
+        conf.set(INPUT_INITIAL_THRIFT_ADDRESS, address);
     }
 
-    public static void setPartitioner(Configuration conf, String classname)
+    public static void setInputPartitioner(Configuration conf, String classname)
     {
-        conf.set(PARTITIONER_CONFIG, classname); 
+        conf.set(INPUT_PARTITIONER_CONFIG, classname);
     }
 
-    public static IPartitioner getPartitioner(Configuration conf)
+    public static IPartitioner getInputPartitioner(Configuration conf)
     {
         try
         {
-            return FBUtilities.newPartitioner(conf.get(PARTITIONER_CONFIG)); 
+            return FBUtilities.newPartitioner(conf.get(INPUT_PARTITIONER_CONFIG));
         }
         catch (ConfigurationException e)
         {
@@ -346,17 +348,63 @@ public class ConfigHelper
         }
     }
     
-
-    public static Cassandra.Client getClientFromAddressList(Configuration conf) throws IOException
+    public static int getOutputRpcPort(Configuration conf)
     {
-        String[] addresses = ConfigHelper.getInitialAddress(conf).split(",");
+        return Integer.parseInt(conf.get(OUTPUT_THRIFT_PORT));
+    }
+
+    public static void setOutputRpcPort(Configuration conf, String port)
+    {
+        conf.set(OUTPUT_THRIFT_PORT, port);
+    }
+
+    public static String getOutputInitialAddress(Configuration conf)
+    {
+        return conf.get(OUTPUT_INITIAL_THRIFT_ADDRESS);
+    }
+
+    public static void setOutputInitialAddress(Configuration conf, String address)
+    {
+        conf.set(OUTPUT_INITIAL_THRIFT_ADDRESS, address);
+    }
+
+    public static void setOutputPartitioner(Configuration conf, String classname)
+    {
+        conf.set(OUTPUT_PARTITIONER_CONFIG, classname);
+    }
+
+    public static IPartitioner getOutputPartitioner(Configuration conf)
+    {
+        try
+        {
+            return FBUtilities.newPartitioner(conf.get(OUTPUT_PARTITIONER_CONFIG));
+        }
+        catch (ConfigurationException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+
+    public static Cassandra.Client getClientFromInputAddressList(Configuration conf) throws IOException
+    {
+        return getClientFromAddressList(conf, ConfigHelper.getInputInitialAddress(conf).split(","), ConfigHelper.getInputRpcPort(conf));
+    }
+
+        public static Cassandra.Client getClientFromOutputAddressList(Configuration conf) throws IOException
+    {
+        return getClientFromAddressList(conf, ConfigHelper.getOutputInitialAddress(conf).split(","), ConfigHelper.getOutputRpcPort(conf));
+    }
+
+    private static Cassandra.Client getClientFromAddressList(Configuration conf, String[] addresses, int port) throws IOException
+    {
         Cassandra.Client client = null;
         List<IOException> exceptions = new ArrayList<IOException>();
         for (String address : addresses)
         {
             try
             {
-                client = createConnection(address, ConfigHelper.getRpcPort(conf), true);
+                client = createConnection(address, port, true);
                 break;
             }
             catch (IOException ioe)

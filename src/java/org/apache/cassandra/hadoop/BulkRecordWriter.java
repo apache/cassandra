@@ -85,7 +85,8 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<Mutation>>
                 BytesType.instance,
                 subcomparator,
                 Integer.valueOf(conf.get(BUFFER_SIZE_IN_MB, "64")));
-        this.loader = new SSTableLoader(outputdir, new ExternalClient(ConfigHelper.getInitialAddress(conf), ConfigHelper.getRpcPort(conf)), new NullOutputHandler());
+
+        this.loader = new SSTableLoader(outputdir, new ExternalClient(ConfigHelper.getOutputInitialAddress(conf), ConfigHelper.getOutputRpcPort(conf)), new NullOutputHandler());
     }
 
     private String getOutputLocation() throws IOException
