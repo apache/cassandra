@@ -160,7 +160,7 @@ public class WhereClause
         for (Relation relation : clauseRelations)
         {
             String name = relation.getEntity().getText().toUpperCase();
-            if (name.equals(realKeyAlias) || name.equals("KEY"))
+            if (name.equals(realKeyAlias))
             {
                 if (keyAlias == null) // setting found key as an alias
                     keyAlias = name;
@@ -199,6 +199,4 @@ public class WhereClause
                              multiKey,
                              keyAlias);
     }
-    
-
 }

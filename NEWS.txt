@@ -39,6 +39,11 @@ Upgrading
     - Hadoop input and output details are now separated.  If you were
       previously using methods such as getRpcPort you now need to use
       getInputRpcPort or getOutputRpcPort depending on the circumstance.
+    - CQL changes:
+      + Prior to 1.1, you could use KEY as the primary key name in some
+        select statements, even if the PK was actually given a different
+        name.  In 1.1+ you must use the defined PK name.
+        
 
 Features
 --------
