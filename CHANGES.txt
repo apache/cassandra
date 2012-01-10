@@ -62,6 +62,8 @@
  * Reset min/max compaction threshold when creating size tiered compaction
    strategy (CASSANDRA-3666)
  * Don't ignore IOException during compaction (CASSANDRA-3655)
+ * Fix assertion error for CF with gc_grace=0 (CASSANDRA-3579)
+ * Shutdown ParallelCompaction reducer executor after use (CASSANDRA-3711)
 Merged from 0.8:
  * avoid logging (harmless) exception when GC takes < 1ms (CASSANDRA-3656)
  * prevent new nodes from thinking down nodes are up forever (CASSANDRA-3626)
@@ -71,6 +73,8 @@ Merged from 0.8:
    is disabled (CASSANDRA-3696)
  * fix for SelectStatement start/end key are not set correctly
    when a key alias is involved (CASSANDRA-3700)
+ * fix CLI `show schema` command insert of an extra comma in
+   column_metadata (CASSANDRA-3714)
 
 
 1.0.6

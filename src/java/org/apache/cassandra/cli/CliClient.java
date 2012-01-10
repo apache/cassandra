@@ -1249,7 +1249,7 @@ public class CliClient
                 cfDef.setBloom_filter_fp_chance(Double.parseDouble(mValue));
                 break;
             case CACHING:
-                cfDef.setCaching(mValue);
+                cfDef.setCaching(CliUtils.unescapeSQLString(mValue));
                 break;
             default:
                 //must match one of the above or we'd throw an exception at the valueOf statement above.
@@ -1735,14 +1735,18 @@ public class CliClient
         {
             sb.append("," + NEWLINE);
             sb.append(TAB + TAB + "index_name : '" + CliUtils.escapeSQLString(colDef.index_name) + "'," + NEWLINE);
-            sb.append(TAB + TAB + "index_type : " + CliUtils.escapeSQLString(Integer.toString(colDef.index_type.getValue())) + "," + NEWLINE);
+            sb.append(TAB + TAB + "index_type : " + CliUtils.escapeSQLString(Integer.toString(colDef.index_type.getValue())));
 
             if (colDef.index_options != null)
             {
-                sb.append(TAB + TAB + "index_options : {"+NEWLINE);        
+                sb.append("," + NEWLINE);
+                sb.append(TAB + TAB + "index_options : {" + NEWLINE);
+                int numOpts = colDef.index_options.size();
                 for (Map.Entry<String, String> entry : colDef.index_options.entrySet())
                 {
-                    sb.append(TAB + TAB + TAB + CliUtils.escapeSQLString(entry.getKey()) + ": '" + CliUtils.escapeSQLString(entry.getValue()) + "'," + NEWLINE);
+                    sb.append(TAB + TAB + TAB + CliUtils.escapeSQLString(entry.getKey()) + ": '" + CliUtils.escapeSQLString(entry.getValue()) + "'");
+                    if (--numOpts > 0)
+                        sb.append("," + NEWLINE);
                 }
                 sb.append("}");
             }

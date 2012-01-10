@@ -708,9 +708,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public static ColumnFamily removeDeletedCF(ColumnFamily cf, int gcBefore)
     {
-        // in case of a timestamp tie, tombstones get priority over non-tombstones.
-        // (we want this to be deterministic to avoid confusion.)
-        if (cf.getColumnCount() == 0 && cf.getLocalDeletionTime() <= gcBefore)
+        if (cf.getColumnCount() == 0 && cf.getLocalDeletionTime() < gcBefore)
             return null;
 
         cf.maybeResetDeletionTimes(gcBefore);
@@ -752,7 +750,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             // remove columns if
             // (a) the column itself is tombstoned or
             // (b) the CF is tombstoned and the column is not newer than it
-            if ((c.isMarkedForDelete() && c.getLocalDeletionTime() <= gcBefore)
+            //
+            // Note that we need the inequality below for case (a) to be strict for expiring columns
+            // to work correctly  -- see the comment in ExpiringColumn.isMarkedForDelete().
+            if ((c.isMarkedForDelete() && c.getLocalDeletionTime() < gcBefore)
                 || c.timestamp() <= cf.getMarkedForDeleteAt())
             {
                 iter.remove();
@@ -778,12 +779,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 // (a) the subcolumn itself is tombstoned or
                 // (b) the supercolumn is tombstoned and the subcolumn is not newer than it
                 if (subColumn.timestamp() <= minTimestamp
-                    || (subColumn.isMarkedForDelete() && subColumn.getLocalDeletionTime() <= gcBefore))
+                    || (subColumn.isMarkedForDelete() && subColumn.getLocalDeletionTime() < gcBefore))
                 {
                     subIter.remove();
                 }
             }
-            if (c.getSubColumns().isEmpty() && c.getLocalDeletionTime() <= gcBefore)
+            if (c.getSubColumns().isEmpty() && c.getLocalDeletionTime() < gcBefore)
             {
                 iter.remove();
             }
