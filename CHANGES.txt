@@ -28,6 +28,8 @@ Merged from 0.8:
    is disabled (CASSANDRA-3696)
  * fix for SelectStatement start/end key are not set correctly
    when a key alias is involved (CASSANDRA-3700)
+ * fix CLI `show schema` command insert of an extra comma in
+   column_metadata (CASSANDRA-3714)
 
 
 1.0.6
