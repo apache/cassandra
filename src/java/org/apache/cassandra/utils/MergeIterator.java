@@ -65,6 +65,8 @@ public abstract class MergeIterator<In,Out> extends AbstractIterator<Out> implem
                 throw new IOError(e);
             }
         }
+
+        reducer.close();
     }
 
     /** A MergeIterator that consumes multiple input values per output value. */
@@ -179,6 +181,11 @@ public abstract class MergeIterator<In,Out> extends AbstractIterator<Out> implem
          * To be overriden by implementing classes.
          */
         protected void onKeyChange() {}
+
+        /**
+         * May be overridden by implementations that require cleaning up after use
+         */
+        public void close() {}
     }
 
     private static class OneToOne<In, Out> extends MergeIterator<In, Out>

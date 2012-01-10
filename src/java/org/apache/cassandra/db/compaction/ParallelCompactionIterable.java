@@ -195,6 +195,11 @@ public class ParallelCompactionIterable extends AbstractCompactionIterable
             return new CompactedRowContainer(new LazilyCompactedRow(controller, iterators));
         }
 
+        public void close()
+        {
+            executor.shutdown();
+        }
+
         private class MergeTask implements Callable<ColumnFamily>
         {
             private final List<RowContainer> rows;
