@@ -41,7 +41,7 @@
    in LeveledManifest (CASSANDRA-3691)
  * finer-grained control over data directories (CASSANDRA-2749)
  * Fix ClassCastException during hinted handoff (CASSANDRA-3694)
-
+ * Upgrade Thrift to 0.7 (CASSANDRA-3213)
 
 1.0.7
  * fix regression in HH page size calculation (CASSANDRA-3624)

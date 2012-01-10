@@ -369,9 +369,7 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
             <exclusion groupId="org.apache.velocity" artifactId="velocity"/>
           </dependency>
           
-          <dependency groupId="org.apache.thrift" artifactId="libthrift" version="0.6.1">
-            <exclusion groupId="org.slf4j" artifactId="slf4j-log4j12"/>
-          </dependency>
+          <dependency groupId="org.apache.thrift" artifactId="libthrift" version="0.7.0"/>
 
           <dependency groupId="com.thoughtworks.paranamer" artifactId="paranamer-ant" version="2.1"/>
           <dependency groupId="junit" artifactId="junit" version="4.6" />
