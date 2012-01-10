@@ -21,6 +21,7 @@ package org.apache.cassandra.cql;
  */
 
 import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -142,20 +143,27 @@ public class WhereClause
 
     public void extractKeysFromColumns(CFMetaData cfm)
     {
-        ByteBuffer realKeyAlias = cfm.getKeyName();
+        String realKeyAlias = null;
+        try
+        {
+            // ThriftValidation ensures that key_alias is ascii
+            realKeyAlias = ByteBufferUtil.string(cfm.getKeyName()).toUpperCase();
+        }
+        catch (CharacterCodingException e)
+        {
+            throw new RuntimeException(e);
+        }
 
         if (!keys.isEmpty())
             return; // we already have key(s) set (<key> IN (.., ...) construction used)
 
         for (Relation relation : clauseRelations)
         {
-            String nameText = relation.getEntity().getText();
-            ByteBuffer name = ByteBufferUtil.bytes(nameText);
-
-            if (name.equals(realKeyAlias))
+            String name = relation.getEntity().getText().toUpperCase();
+            if (name.equals(realKeyAlias) || name.equals("KEY"))
             {
                 if (keyAlias == null) // setting found key as an alias
-                    keyAlias = nameText.toUpperCase();
+                    keyAlias = name;
 
                 if (relation.operator() == RelationType.EQ)
                 {
