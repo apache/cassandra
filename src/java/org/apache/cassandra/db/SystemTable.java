@@ -223,7 +223,7 @@ public class SystemTable
         IPartitioner p = StorageService.getPartitioner();
         Table table = Table.open(Table.SYSTEM_TABLE);
         QueryFilter filter = QueryFilter.getIdentityFilter(decorate(RING_KEY), new QueryPath(STATUS_CF));
-        ColumnFamily cf = table.getColumnFamilyStore(STATUS_CF).getColumnFamily(filter);
+        ColumnFamily cf = ColumnFamilyStore.removeDeleted(table.getColumnFamilyStore(STATUS_CF).getColumnFamily(filter), Integer.MAX_VALUE);
         if (cf != null)
         {
             for (IColumn column : cf.getSortedColumns())
