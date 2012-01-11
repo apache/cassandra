@@ -30,6 +30,7 @@ import org.cliffc.high_scale_lib.NonBlockingHashMap;
 public class ExpiringMap<K, V>
 {
     private static final Logger logger = LoggerFactory.getLogger(ExpiringMap.class);
+    private volatile boolean shutdown;
 
     private static class CacheableObject<T>
     {
@@ -104,6 +105,7 @@ public class ExpiringMap<K, V>
 
     public void shutdown()
     {
+        shutdown = true;
         while (!cache.isEmpty())
         {
             logger.trace("Waiting for {} entries before shutting down ExpiringMap", cache.size());
@@ -131,6 +133,21 @@ public class ExpiringMap<K, V>
 
     public V put(K key, V value, long timeout)
     {
+        if (shutdown)
+        {
+            // StorageProxy isn't equipped to deal with "I'm nominally alive, but I can't send any messages out."
+            // So we'll just sit on this thread until the rest of the server shutdown completes.
+            //
+            // See comments in CustomTThreadPoolServer.serve, CASSANDRA-3335, and CASSANDRA-3727.
+            try
+            {
+                Thread.sleep(Long.MAX_VALUE);
+            }
+            catch (InterruptedException e)
+            {
+                throw new AssertionError(e);
+            }
+        }
         CacheableObject<V> previous = cache.put(key, new CacheableObject<V>(value, timeout));
         return (previous == null) ? null : previous.getValue();
     }

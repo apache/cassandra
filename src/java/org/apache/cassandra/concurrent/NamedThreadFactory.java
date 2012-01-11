@@ -50,6 +50,7 @@ public class NamedThreadFactory implements ThreadFactory
         String name = id + ":" + n.getAndIncrement();
         Thread thread = new Thread(runnable, name);
         thread.setPriority(priority);
+        thread.setDaemon(true);
         return thread;
     }
 }

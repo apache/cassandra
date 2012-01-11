@@ -31,6 +31,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.log4j.PropertyConfigurator;
@@ -391,13 +392,16 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
     /**
      * A subclass of Java's ThreadPoolExecutor which implements Jetty's ThreadPool
      * interface (for integration with Avro), and performs ClientState cleanup.
+     *
+     * (Note that the tasks being executed perform their own while-command-process
+     * loop until the client disconnects.)
      */
     public static class CleaningThreadPool extends ThreadPoolExecutor 
     {
         private ThreadLocal<ClientState> state;
         public CleaningThreadPool(ThreadLocal<ClientState> state, int minWorkerThread, int maxWorkerThreads)
         {
-            super(minWorkerThread, maxWorkerThreads, 60, TimeUnit.SECONDS, new SynchronousQueue<Runnable>());
+            super(minWorkerThread, maxWorkerThreads, 60, TimeUnit.SECONDS, new SynchronousQueue<Runnable>(), new NamedThreadFactory("Thrift"));
             this.state = state;
         }
 
@@ -408,7 +412,5 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
             DebuggableThreadPoolExecutor.logExceptionsAfterExecute(r, t);
             state.get().logout();
         }
-
-
     }
 }

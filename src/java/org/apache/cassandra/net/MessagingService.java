@@ -475,15 +475,9 @@ public final class MessagingService implements MessagingServiceMBean
     }
 
     /**
-     * There isn't a good way to shut down the MessagingService. One problem (but not the only one)
-     * is that StorageProxy has no way to communicate back to clients, "I'm nominally alive, but I can't
-     * send that request to the nodes with your data."  Neither TimedOut nor Unavailable is appropriate
-     * to return in that situation.
-     *
-     * So instead of shutting down MS and letting StorageProxy/clients cope somehow, we shut down
-     * the Thrift service and then wait for all the outstanding requests to finish or timeout.
+     * Wait for callbacks and don't allow any more to be created (since they could require writing hints)
      */
-    public void waitForCallbacks()
+    public void shutdown()
     {
         logger_.info("Waiting for messaging service to quiesce");
         // We may need to schedule hints on the mutation stage, so it's erroneous to shut down the mutation stage first

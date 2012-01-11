@@ -119,27 +119,24 @@ public class CustomTThreadPoolServer extends TServer
         }
 
         executorService_.shutdown();
-
-        // Loop until awaitTermination finally does return without a interrupted
-        // exception. If we don't do this, then we'll shut down prematurely. We want
-        // to let the executorService clear it's task queue, closing client sockets
-        // appropriately.
-        long timeoutMS = args.stopTimeoutUnit.toMillis(args.stopTimeoutVal);
-        long now = System.currentTimeMillis();
-        while (timeoutMS >= 0)
-        {
-            try
-            {
-                executorService_.awaitTermination(timeoutMS, TimeUnit.MILLISECONDS);
-                break;
-            }
-            catch (InterruptedException ix)
-            {
-                long newnow = System.currentTimeMillis();
-                timeoutMS -= (newnow - now);
-                now = newnow;
-            }
-        }
+        // Thrift's default shutdown waits for the WorkerProcess threads to complete.  We do not,
+        // because doing that allows a client to hold our shutdown "hostage" by simply not sending
+        // another message after stop is called (since process will block indefinitely trying to read
+        // the next meessage header).
+        //
+        // The "right" fix would be to update thrift to set a socket timeout on client connections
+        // (and tolerate unintentional timeouts until stopped_ is set).  But this requires deep
+        // changes to the code generator, so simply setting these threads to daemon (in our custom
+        // CleaningThreadPool) and ignoring them after shutdown is good enough.
+        //
+        // Remember, our goal on shutdown is not necessarily that each client request we receive
+        // gets answered first [to do that, you should redirect clients to a different coordinator
+        // first], but rather (1) to make sure that for each update we ack as successful, we generate
+        // hints for any non-responsive replicas, and (2) to make sure that we quickly stop
+        // accepting client connections so shutdown can continue.  Not waiting for the WorkerProcess
+        // threads here accomplishes (2); MessagingService's shutdown method takes care of (1).
+        //
+        // See CASSANDRA-3335 and CASSANDRA-3727.
     }
 
     public void stop()
@@ -184,7 +181,9 @@ public class CustomTThreadPoolServer extends TServer
                 inputProtocol = inputProtocolFactory_.getProtocol(inputTransport);
                 outputProtocol = outputProtocolFactory_.getProtocol(outputTransport);
                 // we check stopped_ first to make sure we're not supposed to be shutting
-                // down. this is necessary for graceful shutdown.
+                // down. this is necessary for graceful shutdown.  (but not sufficient,
+                // since process() can take arbitrarily long waiting for client input.
+                // See comments at the end of serve().)
                 while (!stopped_ && processor.process(inputProtocol, outputProtocol))
                 {
                     inputProtocol = inputProtocolFactory_.getProtocol(inputTransport);

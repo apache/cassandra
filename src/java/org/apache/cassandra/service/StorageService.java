@@ -323,7 +323,6 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         daemon.startRPCServer();
     }
 
-    // should only be called via JMX
     public void stopRPCServer()
     {
         if (daemon == null)
@@ -347,7 +346,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         Gossiper.instance.unregister(migrationManager);
         Gossiper.instance.unregister(this);
         Gossiper.instance.stop();
-        MessagingService.instance().waitForCallbacks();
+        MessagingService.instance().shutdown();
         // give it a second so that task accepted before the MessagingService shutdown gets submitted to the stage (to avoid RejectedExecutionException)
         try { Thread.sleep(1000L); } catch (InterruptedException e) {}
         StageManager.shutdownNow();
@@ -449,7 +448,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
                 // In-progress writes originating here could generate hints to be written, so shut down MessagingService
                 // before mutation stage, so we can get all the hints saved before shutting down
-                MessagingService.instance().waitForCallbacks();
+                MessagingService.instance().shutdown();
                 mutationStage.shutdown();
                 mutationStage.awaitTermination(3600, TimeUnit.SECONDS);
                 StorageProxy.instance.verifyNoHintsInProgress();
@@ -2110,7 +2109,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             public void run()
             {
                 Gossiper.instance.stop();
-                MessagingService.instance().waitForCallbacks();
+                MessagingService.instance().shutdown();
                 StageManager.shutdownNow();
                 setMode(Mode.DECOMMISSIONED, true);
                 // let op be responsible for killing the process
@@ -2512,7 +2511,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         Gossiper.instance.stop();
 
         setMode(Mode.DRAINING, "shutting down MessageService", false);
-        MessagingService.instance().waitForCallbacks();
+        MessagingService.instance().shutdown();
         setMode(Mode.DRAINING, "waiting for streaming", false);
         MessagingService.instance().waitForStreaming();
 
