@@ -38,6 +38,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.AbstractIterator;
+import com.google.common.primitives.Ints;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -118,21 +119,6 @@ public class FBUtilities
     }
 
     /**
-     * Parses a string representing either a fraction, absolute value or percentage.
-     */
-    public static double parseDoubleOrPercent(String value)
-    {
-        if (value.endsWith("%"))
-        {
-            return Double.parseDouble(value.substring(0, value.length() - 1)) / 100;
-        }
-        else
-        {
-            return Double.parseDouble(value);
-        }
-    }
-
-    /**
      * Please use getBroadcastAddress instead. You need this only when you have to listen/connect.
      */
     public static InetAddress getLocalAddress()
@@ -158,27 +144,6 @@ public class FBUtilities
                                 ? getLocalAddress()
                                 : DatabaseDescriptor.getBroadcastAddress();
         return broadcastInetAddress_;
-    }
-
-    /**
-     * @param fractOrAbs A double that may represent a fraction or absolute value.
-     * @param total If fractionOrAbs is a fraction, the total to take the fraction from
-     * @return An absolute value which may be larger than the total.
-     */
-    public static long absoluteFromFraction(double fractOrAbs, long total)
-    {
-        if (fractOrAbs < 0)
-            throw new UnsupportedOperationException("unexpected negative value " + fractOrAbs);
-
-        if (0 < fractOrAbs && fractOrAbs <= 1)
-        {
-            // fraction
-            return Math.max(1, (long)(fractOrAbs * total));
-        }
-
-        // absolute
-        assert fractOrAbs >= 1 || fractOrAbs == 0;
-        return (long)fractOrAbs;
     }
 
     /**
@@ -210,80 +175,6 @@ public class FBUtilities
             midpoint = distance.shiftRight(1).add(left).mod(max);
         }
         return new Pair<BigInteger, Boolean>(midpoint, remainder);
-    }
-
-    /**
-     * Copy bytes from int into bytes starting from offset.
-     * @param bytes Target array
-     * @param offset Offset into the array
-     * @param i Value to write
-     */
-    public static void copyIntoBytes(byte[] bytes, int offset, int i)
-    {
-        bytes[offset]   = (byte)( ( i >>> 24 ) & 0xFF );
-        bytes[offset+1] = (byte)( ( i >>> 16 ) & 0xFF );
-        bytes[offset+2] = (byte)( ( i >>> 8  ) & 0xFF );
-        bytes[offset+3] = (byte)(   i          & 0xFF );
-    }
-
-    /**
-     * @param i Write this int to an array
-     * @return 4-byte array containing the int
-     */
-    public static byte[] toByteArray(int i)
-    {
-        byte[] bytes = new byte[4];
-        copyIntoBytes(bytes, 0, i);
-        return bytes;
-    }
-
-    /**
-     * Copy bytes from long into bytes starting from offset.
-     * @param bytes Target array
-     * @param offset Offset into the array
-     * @param l Value to write
-     */
-    public static void copyIntoBytes(byte[] bytes, int offset, long l)
-    {
-        bytes[offset]   = (byte)( ( l >>> 56 ) & 0xFF );
-        bytes[offset+1] = (byte)( ( l >>> 48 ) & 0xFF );
-        bytes[offset+2] = (byte)( ( l >>> 40 ) & 0xFF );
-        bytes[offset+3] = (byte)( ( l >>> 32 ) & 0xFF );
-        bytes[offset+4] = (byte)( ( l >>> 24 ) & 0xFF );
-        bytes[offset+5] = (byte)( ( l >>> 16 ) & 0xFF );
-        bytes[offset+6] = (byte)( ( l >>> 8  ) & 0xFF );
-        bytes[offset+7] = (byte)(   l          & 0xFF );
-    }
-
-    /**
-     * @param l Write this long to an array
-     * @return 8-byte array containing the long
-     */
-    public static byte[] toByteArray(long l)
-    {
-        byte[] bytes = new byte[8];
-        copyIntoBytes(bytes, 0, l);
-        return bytes;
-    }
-
-    /**
-     * Convert the byte array to an int starting from the given offset.
-     *
-     * @param b The byte array
-     *
-     * @return The integer
-     */
-    public static int byteArrayToInt(byte[] b)
-    {
-        int value = 0;
-
-        for (int i = 0; i < 4; i++)
-        {
-            int shift = (4 - 1 - i) * 8;
-            value += (b[i] & 0x000000FF) << shift;
-        }
-
-        return value;
     }
 
     public static int compareUnsigned(byte[] bytes1, byte[] bytes2, int offset1, int offset2, int len1, int len2)
@@ -338,26 +229,6 @@ public class FBUtilities
         if (!new File(tmpFilename).renameTo(new File(filename)))
         {
             throw new IOException("rename failed of " + filename);
-        }
-    }
-
-    public static void atomicSetMax(AtomicInteger atomic, int i)
-    {
-        while (true)
-        {
-            int j = atomic.get();
-            if (j >= i || atomic.compareAndSet(j, i))
-                break;
-        }
-    }
-
-    public static void atomicSetMax(AtomicLong atomic, long i)
-    {
-        while (true)
-        {
-            long j = atomic.get();
-            if (j >= i || atomic.compareAndSet(j, i))
-                break;
         }
     }
 
@@ -527,10 +398,6 @@ public class FBUtilities
             catch (ExecutionException e)
             {
                 throw new RuntimeException(e);
-            }
-            catch (TimeoutException e)
-            {
-               throw e;
             }
         }
     }

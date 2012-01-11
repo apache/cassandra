@@ -23,6 +23,8 @@ import java.nio.channels.FileChannel;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
+import com.google.common.primitives.Ints;
+
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -113,7 +115,7 @@ public class CompressedRandomAccessReader extends RandomAccessReader
                                                 chunk.offset,
                                                 chunk.length));
 
-        return FBUtilities.byteArrayToInt(checksumBytes);
+        return Ints.fromByteArray(checksumBytes);
     }
 
     @Override
