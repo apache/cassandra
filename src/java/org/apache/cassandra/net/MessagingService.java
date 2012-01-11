@@ -482,7 +482,21 @@ public final class MessagingService implements MessagingServiceMBean
         logger_.info("Waiting for messaging service to quiesce");
         // We may need to schedule hints on the mutation stage, so it's erroneous to shut down the mutation stage first
         assert !StageManager.getStage(Stage.MUTATION).isShutdown();
+
+        // the important part
         callbacks.shutdown();
+
+        // attempt to humor tests that try to stop and restart MS
+        try
+        {
+            for (SocketThread th : socketThreads)
+                th.close();
+        }
+        catch (IOException e)
+        {
+            throw new IOError(e);
+        }
+
     }
 
     public void receive(Message message, String id)
