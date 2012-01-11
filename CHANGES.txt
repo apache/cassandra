@@ -42,6 +42,8 @@
  * finer-grained control over data directories (CASSANDRA-2749)
  * Fix ClassCastException during hinted handoff (CASSANDRA-3694)
  * Upgrade Thrift to 0.7 (CASSANDRA-3213)
+ * Make stress.java insert operation to use microseconds (CASSANDRA-3725)
+
 
 1.0.7
  * fix regression in HH page size calculation (CASSANDRA-3624)

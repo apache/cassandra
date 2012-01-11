@@ -22,6 +22,7 @@ import org.apache.cassandra.stress.util.Operation;
 import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -54,7 +55,7 @@ public class Inserter extends Operation
         {
             columns.add(new Column(columnName(i, session.timeUUIDComparator))
                                 .setValue(values.get(i % values.size()))
-                                .setTimestamp(System.currentTimeMillis()));
+                                .setTimestamp(FBUtilities.timestampMicros()));
         }
 
         if (session.getColumnFamilyType() == ColumnFamilyType.Super)
