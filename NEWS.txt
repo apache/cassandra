@@ -57,10 +57,10 @@ Features
       SSTables locally and then stream them into the cluster.
     - The bulk loader is not longer a fat client; it can be run from an
       existing machine in a cluster.
-    - A new write survey mode has been added, similar to bootstrap, but the
-      node will not automatically join the cluster.  This is useful for cases
-      such as testing different compaction strategies with live traffic without
-      affecting the cluster.
+    - A new write survey mode has been added, similar to bootstrap (enabled via
+      -Dcassandra.write_survey=true), but the node will not automatically join
+      the cluster.  This is useful for cases such as testing different
+      compaction strategies with live traffic without affecting the cluster.
     - Key and row caches are now global, similar to the global memtable
       threshold.
     - Off-heap caches no longer require JNA.
