@@ -108,7 +108,7 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor
     protected void onFinalRejection(Runnable task) {}
 
     @Override
-    public void afterExecute(Runnable r, Throwable t)
+    protected void afterExecute(Runnable r, Throwable t)
     {
         super.afterExecute(r,t);
         logExceptionsAfterExecute(r, t);

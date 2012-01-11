@@ -85,7 +85,7 @@ public class RemoveTest extends CleanupHelper
     {
         SinkManager.clear();
         MessagingService.instance().clearCallbacksUnsafe();
-        MessagingService.instance().waitForCallbacks();
+        MessagingService.instance().shutdown();
         ss.setPartitionerUnsafe(oldPartitioner);
     }
 

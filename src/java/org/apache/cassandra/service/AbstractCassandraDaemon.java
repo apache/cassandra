@@ -30,26 +30,26 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.google.common.collect.Iterables;
 import org.apache.log4j.PropertyConfigurator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
+import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.SystemTable;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.migration.Migration;
+import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.utils.CLibrary;
 import org.apache.cassandra.utils.Mx4jTool;
-
-import com.google.common.collect.Iterables;
 
 /**
  * The <code>CassandraDaemon</code> is an abstraction for a Cassandra daemon
@@ -403,13 +403,16 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
     /**
      * A subclass of Java's ThreadPoolExecutor which implements Jetty's ThreadPool
      * interface (for integration with Avro), and performs ClientState cleanup.
+     *
+     * (Note that the tasks being executed perform their own while-command-process
+     * loop until the client disconnects.)
      */
     public static class CleaningThreadPool extends ThreadPoolExecutor 
     {
         private ThreadLocal<ClientState> state;
         public CleaningThreadPool(ThreadLocal<ClientState> state, int minWorkerThread, int maxWorkerThreads)
         {
-            super(minWorkerThread, maxWorkerThreads, 60, TimeUnit.SECONDS, new SynchronousQueue<Runnable>());
+            super(minWorkerThread, maxWorkerThreads, 60, TimeUnit.SECONDS, new SynchronousQueue<Runnable>(), new NamedThreadFactory("Thrift"));
             this.state = state;
         }
 
@@ -420,7 +423,5 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
             DebuggableThreadPoolExecutor.logExceptionsAfterExecute(r, t);
             state.get().logout();
         }
-
-
     }
 }

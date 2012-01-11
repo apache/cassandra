@@ -1021,6 +1021,33 @@ class Shell(cmd.Cmd):
         Cassandra documentation.
         """
 
+    def help_insert(self):
+        print """
+        INSERT INTO <columnFamily>
+                    ( <keyname>, <colname1> [, <colname2> [, ...]] )
+               VALUES ( <keyval>, <colval1> [, <colval2> [, ...]] )
+               [USING CONSISTENCY <consistencylevel>
+                 [AND TIMESTAMP <timestamp>]
+                 [AND TTL <timeToLive]];
+
+        An INSERT is used to write one or more columns to a record in a
+        Cassandra column family. No results are returned.
+
+        The first column name in the INSERT list must be the name of the
+        column family key. Also, there must be more than one column name
+        specified (Cassandra rows are not considered to exist with only
+        a key and no associated columns).
+
+        Unlike in SQL, the semantics of INSERT and UPDATE are identical.
+        In either case a record is created if none existed before, and
+        udpated when it does. For more information, see one of the
+        following:
+
+          HELP UPDATE
+          HELP UPDATE_USING
+          HELP CONSISTENCYLEVEL
+        """
+
     def help_update(self):
         print """
         UPDATE <columnFamily> [USING CONSISTENCY <consistencylevel>

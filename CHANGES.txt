@@ -64,6 +64,13 @@
  * Don't ignore IOException during compaction (CASSANDRA-3655)
  * Fix assertion error for CF with gc_grace=0 (CASSANDRA-3579)
  * Shutdown ParallelCompaction reducer executor after use (CASSANDRA-3711)
+ * Avoid < 0 value for pending tasks in leveled compaction (CASSANDRA-3693)
+ * Support TimeUUID in CassandraStorage (CASSANDRA-3327)
+ * Check schema is ready before continuin boostrapping (CASSANDRA-3629)
+ * Catch overflows during parsing of chunk_length_kb (CASSANDRA-3644)
+ * Improve stream protocol mismatch errors (CASSANDRA-3652)
+ * Avoid multiple thread doing HH to the same target (CASSANDRA-3681)
+ * Add JMX property for rp_timeout_in_ms (CASSANDRA-2940)
 Merged from 0.8:
  * avoid logging (harmless) exception when GC takes < 1ms (CASSANDRA-3656)
  * prevent new nodes from thinking down nodes are up forever (CASSANDRA-3626)

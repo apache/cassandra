@@ -32,6 +32,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
+import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.db.columniterator.IColumnIterator;
 import org.apache.cassandra.db.columniterator.SimpleAbstractColumnIterator;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
@@ -58,7 +59,12 @@ public class Memtable
     // we're careful to only allow one count to run at a time because counting is slow
     // (can be minutes, for a large memtable and a busy server), so we could keep memtables
     // alive after they're flushed and would otherwise be GC'd.
-    private static final ExecutorService meterExecutor = new ThreadPoolExecutor(1, 1, Integer.MAX_VALUE, TimeUnit.MILLISECONDS, new SynchronousQueue<Runnable>())
+    private static final ExecutorService meterExecutor = new DebuggableThreadPoolExecutor(1,
+                                                                                          1,
+                                                                                          Integer.MAX_VALUE,
+                                                                                          TimeUnit.MILLISECONDS,
+                                                                                          new SynchronousQueue<Runnable>(),
+                                                                                          new NamedThreadFactory("MemoryMeter"))
     {
         @Override
         protected void afterExecute(Runnable r, Throwable t)
