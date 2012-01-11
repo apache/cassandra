@@ -8,6 +8,14 @@ upgrade, just in case you need to roll back to the previous version.
 (Cassandra version X + 1 will always be able to read data files created
 by version X, but the inverse is not necessarily the case.)
 
+1.0.7
+=====
+
+Upgrading
+---------
+    - Nothing specific to 1.0.7, please report to instruction for 1.0.6
+
+
 1.0.6
 =====
 
@@ -20,6 +28,13 @@ Upgrading
       not be set correctly, you should update the column family definition,
       setting the right value and then run scrub on the column family.
     - Please report to instruction for 1.0.5 if coming from an older version.
+
+Other
+-----
+    - Adds new setstreamthroughput to nodetool to configure streaming
+      throttling
+    - Adds JMX property to get/set rpc_timeout_in_ms at runtime
+    - Allow configuring (per-CF) bloom_filter_fp_chance
 
 
 1.0.5
