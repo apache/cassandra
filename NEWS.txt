@@ -51,6 +51,8 @@ Features
       a single row have always been *atomic* (either all will be applied,
       or none) thanks to the CommitLog, but until 1.1 they were not *isolated*
       -- a reader may see mixed old and new values while the update happens.
+    - Finer-grained control over data directories, allowing a ColumnFamily to
+      be pinned to specfic media.
     - Hadoop: a new BulkOutputFormat is included which will directly write
       SSTables locally and then stream them into the cluster.
     - The bulk loader is not longer a fat client; it can be run from an
