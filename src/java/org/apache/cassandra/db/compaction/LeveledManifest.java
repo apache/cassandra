@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.util.*;
 
 import com.google.common.collect.Iterables;
+import com.google.common.primitives.Ints;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -202,11 +203,14 @@ public class LeveledManifest
         return builder.toString();
     }
 
-    private double maxBytesForLevel (int level)
+    private long maxBytesForLevel(int level)
     {
-        return level == 0
-               ? 4 * maxSSTableSizeInMB * 1024 * 1024
-               : Math.pow(10, level) * maxSSTableSizeInMB * 1024 * 1024;
+        if (level == 0)
+            return 4 * maxSSTableSizeInMB * 1024 * 1024;
+        double bytes = Math.pow(10, level) * maxSSTableSizeInMB * 1024 * 1024;
+        if (bytes > Long.MAX_VALUE)
+            throw new RuntimeException("At most " + Long.MAX_VALUE + " bytes may be in a compaction level; your maxSSTableSize must be absurdly high to compute " + bytes);
+        return (long) bytes;
     }
 
     public synchronized Collection<SSTableReader> getCompactionCandidates()
@@ -424,12 +428,14 @@ public class LeveledManifest
 
     public int getEstimatedTasks()
     {
-        int n = 0;
+        long tasks = 0;
         for (int i = generations.length - 1; i >= 0; i--)
         {
             List<SSTableReader> sstables = generations[i];
-            n += Math.max(0L, SSTableReader.getTotalBytes(sstables) - maxBytesForLevel(i)) / (maxSSTableSizeInMB * 1024 * 1024);
+            long n = Math.max(0L, SSTableReader.getTotalBytes(sstables) - maxBytesForLevel(i)) / (maxSSTableSizeInMB * 1024 * 1024);
+            logger.debug("Estimating " + n + " compaction tasks in level " + i);
+            tasks += n;
         }
-        return n;
+        return Ints.checkedCast(tasks);
     }
 }
