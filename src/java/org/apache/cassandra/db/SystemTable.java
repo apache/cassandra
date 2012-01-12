@@ -382,7 +382,7 @@ public class SystemTable
         QueryFilter filter = QueryFilter.getNamesFilter(decorate(ByteBufferUtil.bytes(table)),
                                                         new QueryPath(INDEX_CF),
                                                         ByteBufferUtil.bytes(indexName));
-        return cfs.getColumnFamily(filter) != null;
+        return ColumnFamilyStore.removeDeleted(cfs.getColumnFamily(filter), Integer.MAX_VALUE) != null;
     }
 
     public static void setIndexBuilt(String table, String indexName)
