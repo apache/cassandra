@@ -228,6 +228,7 @@ public final class MessagingService implements MessagingServiceMBean
      */
     public void listen(InetAddress localEp) throws IOException, ConfigurationException
     {
+        callbacks.reset(); // hack to allow tests to stop/restart MS
         for (ServerSocket ss: getServerSocket(localEp))
         {
             SocketThread th = new SocketThread(ss, "ACCEPT-" + localEp);
@@ -471,7 +472,7 @@ public final class MessagingService implements MessagingServiceMBean
 
     public void clearCallbacksUnsafe()
     {
-        callbacks.clear();
+        callbacks.reset();
     }
 
     /**
@@ -496,7 +497,6 @@ public final class MessagingService implements MessagingServiceMBean
         {
             throw new IOError(e);
         }
-
     }
 
     public void receive(Message message, String id)
