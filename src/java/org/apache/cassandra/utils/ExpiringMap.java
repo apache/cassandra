@@ -121,8 +121,9 @@ public class ExpiringMap<K, V>
         timer.cancel();
     }
 
-    public void clear()
+    public void reset()
     {
+        shutdown = false;
         cache.clear();
     }
 

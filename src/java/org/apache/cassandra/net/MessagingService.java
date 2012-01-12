@@ -245,6 +245,7 @@ public final class MessagingService implements MessagingServiceMBean
      */
     public void listen(InetAddress localEp) throws IOException, ConfigurationException
     {
+        callbacks.reset(); // hack to allow tests to stop/restart MS
         for (ServerSocket ss: getServerSocket(localEp))
         {
             SocketThread th = new SocketThread(ss, "ACCEPT-" + localEp);
@@ -515,7 +516,7 @@ public final class MessagingService implements MessagingServiceMBean
 
     public void clearCallbacksUnsafe()
     {
-        callbacks.clear();
+        callbacks.reset();
     }
 
     public void waitForStreaming() throws InterruptedException
@@ -540,7 +541,20 @@ public final class MessagingService implements MessagingServiceMBean
         logger_.info("Waiting for messaging service to quiesce");
         // We may need to schedule hints on the mutation stage, so it's erroneous to shut down the mutation stage first
         assert !StageManager.getStage(Stage.MUTATION).isShutdown();
+
+        // the important part
         callbacks.shutdown();
+
+        // attempt to humor tests that try to stop and restart MS
+        try
+        {
+            for (SocketThread th : socketThreads)
+                th.close();
+        }
+        catch (IOException e)
+        {
+            throw new IOError(e);
+        }
     }
 
     public void receive(Message message, String id)
