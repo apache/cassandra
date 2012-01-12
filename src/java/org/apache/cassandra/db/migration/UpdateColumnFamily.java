@@ -28,7 +28,6 @@ import org.apache.cassandra.utils.UUIDGen;
  * limitations under the License.
  */
 
-/** todo: doesn't work with secondary indices yet. See CASSANDRA-1415. */
 public class UpdateColumnFamily extends Migration
 {
     // does not point to a CFM stored in DatabaseDescriptor.
