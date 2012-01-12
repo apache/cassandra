@@ -179,7 +179,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                 {
                     logger_.info("Deleting any stored hints for " + endpoint);
                     rm.apply();
-                    hintStore.forceFlush();
+                    hintStore.forceBlockingFlush();
                     CompactionManager.instance.submitMaximal(hintStore, Integer.MAX_VALUE);
                 }
                 catch (Exception e)
@@ -359,9 +359,9 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
 
         if (rowsReplayed > 0)
         {
-            hintStore.forceFlush();
             try
             {
+                hintStore.forceBlockingFlush();
                 CompactionManager.instance.submitMaximal(hintStore, Integer.MAX_VALUE).get();
             }
             catch (Exception e)
