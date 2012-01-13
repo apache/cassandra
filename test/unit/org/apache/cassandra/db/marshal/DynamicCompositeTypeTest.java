@@ -192,6 +192,34 @@ public class DynamicCompositeTypeTest extends CleanupHelper
         assert iter.next().name().equals(cname5);
     }
 
+    @Test
+    public void testUncomparableColumns()
+    {
+        ByteBuffer bytes = ByteBuffer.allocate(2 + 2 + 4 + 1);
+        bytes.putShort((short)(0x8000 | 'b'));
+        bytes.putShort((short) 4);
+        bytes.put(new byte[4]);
+        bytes.put((byte) 0);
+        bytes.rewind();
+
+        ByteBuffer uuid = ByteBuffer.allocate(2 + 2 + 16 + 1);
+        uuid.putShort((short)(0x8000 | 't'));
+        uuid.putShort((short) 16);
+        uuid.put(UUIDGen.decompose(uuids[0]));
+        uuid.put((byte) 0);
+        uuid.rewind();
+
+        try
+        {
+            int c = comparator.compare(bytes, uuid);
+            assert c == -1 : "Expecting bytes to sort before uuid, but got " + c;
+        }
+        catch (Exception e)
+        {
+            fail("Shouldn't throw exception");
+        }
+    }
+
     private void addColumn(RowMutation rm, ByteBuffer cname)
     {
         rm.add(new QueryPath(cfName, null , cname), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
