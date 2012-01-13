@@ -48,7 +48,7 @@ public class AlterTableStatement
         this.columnFamily = columnFamily;
         this.oType = type;
         this.columnName = columnName;
-        this.validator = CreateColumnFamilyStatement.comparators.get(validator); // used only for ADD/ALTER commands
+        this.validator = CFPropDefs.comparators.get(validator); // used only for ADD/ALTER commands
     }
 
     public CfDef getCfDef(String keyspace) throws ConfigurationException, InvalidRequestException
