@@ -121,7 +121,7 @@ public class Memtable
     {
         // 25% fudge factor on the base throughput * liveRatio calculation.  (Based on observed
         // pre-slabbing behavior -- not sure what accounts for this. May have changed with introduction of slabbing.)
-        return (long) (currentThroughput.get() * cfs.liveRatio * 1.25);
+        return (long) (currentThroughput.get() * cfs.liveRatio * 1.25 + currentOperations.get() * 20);
     }
 
     public long getSerializedSize()
