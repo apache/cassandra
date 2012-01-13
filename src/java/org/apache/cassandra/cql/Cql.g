@@ -426,6 +426,7 @@ alterTableStatement returns [AlterTableStatement expr]
     {
         OperationType type = null;
         String columnFamily = null, columnName = null, validator = null;
+        Map<String, String> propertyMap = null;
     }
     K_ALTER K_COLUMNFAMILY name=( IDENT | STRING_LITERAL | INTEGER ) { columnFamily = $name.text; }
           ( K_ALTER { type = OperationType.ALTER; }
@@ -435,12 +436,16 @@ alterTableStatement returns [AlterTableStatement expr]
                (col=( IDENT | STRING_LITERAL | INTEGER ) { columnName = $col.text; })
                addValidator=comparatorType { validator = $addValidator.text; }
           | K_DROP { type = OperationType.DROP; }
-               (col=( IDENT | STRING_LITERAL | INTEGER ) { columnName = $col.text; }))
+               (col=( IDENT | STRING_LITERAL | INTEGER ) { columnName = $col.text; })
+          | K_WITH { type = OperationType.OPTS; propertyMap = new HashMap<String, String>(); }
+               prop1=(COMPIDENT | IDENT) '=' arg1=createCfamKeywordArgument { propertyMap.put($prop1.text, $arg1.arg); }
+               ( K_AND propN=(COMPIDENT | IDENT) '=' argN=createCfamKeywordArgument { propertyMap.put($propN.text, $argN.arg); } )* )
     endStmnt
       {
-          $expr = new AlterTableStatement(columnFamily, type, columnName, validator);
+          $expr = new AlterTableStatement(columnFamily, type, columnName, validator, propertyMap);
       }
     ;
+
 /** DROP COLUMNFAMILY <CF>; */
 dropColumnFamilyStatement returns [String cfam]
     : K_DROP K_COLUMNFAMILY name=( IDENT | STRING_LITERAL | INTEGER ) endStmnt { $cfam = $name.text; }

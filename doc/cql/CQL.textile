@@ -533,7 +533,7 @@ CREATE ... ( ... , name1 type1, name2 type2, ... ) ...
 
 It is possible to assign columns a type during column family creation. Columns configured with a type are validated accordingly when a write occurs, and intelligent CQL drivers and interfaces will be able to decode the column values correctly when receiving them. Column types are specified as a parenthesized, comma-separated list of column term and type pairs. See "Data Storage Types":#storageTypes for the list of recognized types.
 
-h3. Column Family Options (optional)
+h3(#cfopts). Column Family Options (optional)
 
 bc(sample). 
 CREATE COLUMNFAMILY ... WITH keyword1 = arg1 AND keyword2 = arg2;
@@ -621,11 +621,13 @@ bc(syntax).
 <alterInstructions> ::= "ALTER" <name> "TYPE" <storageType>
                       | "ADD" <name> <storageType>
                       | "DROP" <name>
+                      | "WITH" <optionName> "=" <cfOptionVal>
+                               ( "AND" <optionName> "=" <cfOptionVal> )*
                       ;
 
-An @ALTER@ statement is used to manipulate column family column metadata. It allows you to add new columns, drop existing columns, or change the data storage type of existing columns. No results are returned.
+An @ALTER@ statement is used to manipulate column family column metadata. It allows you to add new columns, drop existing columns, data storage type of existing columns, or change the column family properties. No results are returned.
 
-Specify the name of the column family to be changed after the @ALTER COLUMNFAMILY@ keywords, and the name of the column to be changed, added, or dropped after the keyword corresponding to the type of change desired (@ALTER@, @ADD@, @DROP@).
+Specify the name of the column family to be changed after the @ALTER COLUMNFAMILY@ keywords, followed by the type of change desired (@ALTER@, @ADD@, @DROP@, or @WITH@), and provide the rest of the needed information, as explained below.
 
 h3. Changing the type of a typed column
 
@@ -647,6 +649,15 @@ bc(sample).
 ALTER COLUMNFAMILY addamsFamily DROP gender;
 
 An @ALTER COLUMNFAMILY ... DROP@ statement removes the type of a column from the column family metadata. Note that this does _not_ remove the column from current rows; it just removes the metadata saying that the bytes stored under that column are expected to be deserializable according to a certain type.
+
+h3. Modifying column family properties
+
+bc(sample). 
+ALTER COLUMNFAMILY addamsFamily WITH comment = 'A most excellent and useful column family' AND read_repair_chance = 0.2;
+
+An @ALTER COLUMNFAMILY ... WITH@ statement makes adjustments to the column family properties, as defined when the column family was created (see "CREATE COLUMNFAMILY options":#cfopts for information about the supported options and values).
+
+Note that setting any @compaction_strategy_options:*@ parameters has the effect of erasing all previous @compaction_strategy_options:*@ parameters, so you will need to re-specify any such parameters which have already been set, if you want to keep them. The same note applies to the set of @compression_parameters:*@ parameters.
 
 h2. Common Idioms
 

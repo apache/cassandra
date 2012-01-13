@@ -172,6 +172,11 @@ public class CFPropDefs {
         properties.put(name, value);
     }
 
+    public Boolean hasProperty(String name)
+    {
+        return properties.containsKey(name);
+    }
+
     /* If not comparator/validator is not specified, default to text (BytesType is the wrong default for CQL
      * since it uses hex terms).  If the value specified is not found in the comparators map, assume the user
      * knows what they are doing (a custom comparator/validator for example), and pass it on as-is.

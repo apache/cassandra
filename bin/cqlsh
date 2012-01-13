@@ -1366,17 +1366,19 @@ class Shell(cmd.Cmd):
         ALTER COLUMNFAMILY <cfname> ALTER <columnname> TYPE <type>;
         ALTER COLUMNFAMILY <cfname> ADD <columnname> <type>;
         ALTER COLUMNFAMILY <cfname> DROP <columnname>;
+        ALTER COLUMNFAMILY <cfname> WITH <optionname> = <val> [AND <optionname> = <val> [...]];
 
         An ALTER statement is used to manipulate column family column
-        metadata. It allows you to add new columns, drop existing columns, or
-        change the data storage type of existing columns. No results are
-        returned.
+        metadata. It allows you to add new columns, drop existing columns,
+        change the data storage type of existing columns, or change column
+        family properties. No results are returned.
 
         See one of the following for more information:
 
           HELP ALTER_ALTER;
           HELP ALTER_ADD;
           HELP ALTER_DROP;
+          HELP ALTER_WITH;
         """
 
     def help_alter_alter(self):
@@ -1417,6 +1419,19 @@ class Shell(cmd.Cmd):
         column from current rows; it just removes the metadata saying that the
         bytes stored under that column are expected to be deserializable
         according to a certain type.
+        """
+
+    def help_alter_with(self):
+        print """
+        ALTER COLUMNFAMILY: changing column family properties
+
+          ALTER COLUMNFAMILY addamsFamily WITH comment = 'Glad to be here!'
+                                           AND read_repair_chance = 0.2;
+
+        An ALTER COLUMNFAMILY ... WITH statement makes adjustments to the
+        column family properties, as defined when the column family was created
+        (see HELP CREATE_COLUMNFAMILY_OPTIONS, and your Cassandra documentation
+        for information about the supported parameter names and values).
         """
 
     def printout(self, text, color=None, newline=True, out=sys.stdout):
