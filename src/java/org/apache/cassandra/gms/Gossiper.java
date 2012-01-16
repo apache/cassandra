@@ -622,19 +622,15 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                 long duration = now - epState.getUpdateTimestamp();
 
                 // check if this is a fat client. fat clients are removed automatically from
-                // gosip after FatClientTimeout
-                if (!epState.hasToken() && !epState.isAlive() && !justRemovedEndpoints.containsKey(endpoint) && (duration > FatClientTimeout))
+                // gossip after FatClientTimeout.  Do not remove dead states here.
+                if (!isDeadState(epState) && !epState.isAlive() && !StorageService.instance.getTokenMetadata().isMember(endpoint) && !justRemovedEndpoints.containsKey(endpoint) && (duration > FatClientTimeout))
                 {
-                    if (StorageService.instance.getTokenMetadata().isMember(endpoint))
-                        epState.setHasToken(true);
-                    else
-                    {
-                        logger.info("FatClient " + endpoint + " has been silent for " + FatClientTimeout + "ms, removing from gossip");
-                        removeEndpoint(endpoint); // will put it in justRemovedEndpoints to respect quarantine delay
-                        evictFromMembership(endpoint); // can get rid of the state immediately
-                    }
+                    logger.info("FatClient " + endpoint + " has been silent for " + FatClientTimeout + "ms, removing from gossip");
+                    removeEndpoint(endpoint); // will put it in justRemovedEndpoints to respect quarantine delay
+                    evictFromMembership(endpoint); // can get rid of the state immediately
                 }
 
+                // check for dead state removal
                 long expireTime = getExpireTimeForEndpoint(endpoint);
                 if (!epState.isAlive() && (now > expireTime)
                         && (!StorageService.instance.getTokenMetadata().isMember(endpoint)))
@@ -851,7 +847,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         {
             logger.debug("Not marking " + ep + " alive due to dead state");
             markDead(ep, epState);
-            epState.setHasToken(true); // fat clients won't have a dead state
         }
         for (IEndpointStateChangeSubscriber subscriber : subscribers)
             subscriber.onJoin(ep, epState);
@@ -1102,7 +1097,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         }
         EndpointState epState = new EndpointState(new HeartBeatState(0));
         epState.markDead();
-        epState.setHasToken(true);
         endpointStateMap.put(ep, epState);
         unreachableEndpoints.put(ep, System.currentTimeMillis());
         if (logger.isTraceEnabled())

@@ -46,12 +46,6 @@ public class EndpointState
     private volatile long updateTimestamp;
     private volatile boolean isAlive;
 
-    // whether this endpoint has token associated with it or not. Initially set false for all
-    // endpoints. After certain time of inactivity, gossiper will examine if this node has a
-    // token or not and will set this true if token is found. If there is no token, this is a
-    // fat client and will be removed automatically from gossip.
-    private volatile boolean hasToken;
-
     public static IVersionedSerializer<EndpointState> serializer()
     {
         return serializer;
@@ -62,7 +56,6 @@ public class EndpointState
         hbState = initialHbState;
         updateTimestamp = System.currentTimeMillis();
         isAlive = true;
-        hasToken = false;
     }
         
     HeartBeatState getHeartBeatState()
@@ -119,16 +112,6 @@ public class EndpointState
     void markDead()
     {        
         isAlive = false;
-    }
-
-    void setHasToken(boolean value)
-    {
-        hasToken = value;
-    }
-
-    boolean hasToken()
-    {
-        return hasToken;
     }
 }
 
