@@ -20,25 +20,25 @@
  * Fix assertion error for CF with gc_grace=0 (CASSANDRA-3579)
  * Shutdown ParallelCompaction reducer executor after use (CASSANDRA-3711)
  * Avoid < 0 value for pending tasks in leveled compaction (CASSANDRA-3693)
- * Support TimeUUID in CassandraStorage (CASSANDRA-3327)
- * Check schema is ready before continuin boostrapping (CASSANDRA-3629)
+ * (Hadoop) Support TimeUUID in Pig CassandraStorage (CASSANDRA-3327)
+ * Check schema is ready before continuing boostrapping (CASSANDRA-3629)
  * Catch overflows during parsing of chunk_length_kb (CASSANDRA-3644)
  * Improve stream protocol mismatch errors (CASSANDRA-3652)
  * Avoid multiple thread doing HH to the same target (CASSANDRA-3681)
  * Add JMX property for rp_timeout_in_ms (CASSANDRA-2940)
  * Allow DynamicCompositeType to compare component of different types
    (CASSANDRA-3625)
-Merged from 0.8:
- * avoid logging (harmless) exception when GC takes < 1ms (CASSANDRA-3656)
- * prevent new nodes from thinking down nodes are up forever (CASSANDRA-3626)
  * Flush non-cfs backed secondary indexes (CASSANDRA-3659)
  * Secondary Indexes should report memory consumption (CASSANDRA-3155)
- * use correct list of replicas for LOCAL_QUORUM reads when read repair
-   is disabled (CASSANDRA-3696)
  * fix for SelectStatement start/end key are not set correctly
    when a key alias is involved (CASSANDRA-3700)
  * fix CLI `show schema` command insert of an extra comma in
    column_metadata (CASSANDRA-3714)
+Merged from 0.8:
+ * avoid logging (harmless) exception when GC takes < 1ms (CASSANDRA-3656)
+ * prevent new nodes from thinking down nodes are up forever (CASSANDRA-3626)
+ * use correct list of replicas for LOCAL_QUORUM reads when read repair
+   is disabled (CASSANDRA-3696)
  * block on flush before compacting hints (may prevent OOM) (CASSANDRA-3733)
 
 
