@@ -55,6 +55,7 @@
  * Add SnapshotCommand to trigger snapshot on remote node (CASSANDRA-3721)
  * Make CFMetaData conversions to/from thrift/native schema inverses
    (CASSANDRA_3559)
+ * Add initial code for CQL 3.0-beta (CASSANDRA-3781)
 
 
 1.0.8

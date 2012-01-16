@@ -1182,7 +1182,10 @@ public class CassandraServer implements Cassandra.Iface
                 
         try
         {
-            return QueryProcessor.process(queryString, state());
+            if (state().getCQLVersion().major == 2)
+                return QueryProcessor.process(queryString, state());
+            else
+                return org.apache.cassandra.cql3.QueryProcessor.process(queryString, state());
         }
         catch (RecognitionException e)
         {
@@ -1201,7 +1204,10 @@ public class CassandraServer implements Cassandra.Iface
         
         try
         {
-            return QueryProcessor.prepare(queryString, state());
+            if (state().getCQLVersion().major == 2)
+                return QueryProcessor.prepare(queryString, state());
+            else
+                return org.apache.cassandra.cql3.QueryProcessor.prepare(queryString, state());
         }
         catch (RecognitionException e)
         {
@@ -1215,14 +1221,34 @@ public class CassandraServer implements Cassandra.Iface
     throws InvalidRequestException, UnavailableException, TimedOutException, SchemaDisagreementException, TException
     {
         if (logger.isDebugEnabled()) logger.debug("execute_prepared_cql_query");
-        
-        CQLStatement statement = state().getPrepared().get(itemId);
 
-        if (statement == null)
-            throw new InvalidRequestException(String.format("Prepared query with ID %d not found", itemId));
-        logger.trace("Retrieved prepared statement #{} with {} bind markers", itemId, state().getPrepared().size());
+        if (state().getCQLVersion().major == 2)
+        {
+            CQLStatement statement = state().getPrepared().get(itemId);
 
-        return QueryProcessor.processPrepared(statement, state(), bindVariables);
+            if (statement == null)
+                throw new InvalidRequestException(String.format("Prepared query with ID %d not found", itemId));
+            logger.trace("Retrieved prepared statement #{} with {} bind markers", itemId, statement.boundTerms);
+
+            return QueryProcessor.processPrepared(statement, state(), bindVariables);
+        }
+        else
+        {
+            org.apache.cassandra.cql3.CQLStatement statement = state().getCQL3Prepared().get(itemId);
+
+            if (statement == null)
+                throw new InvalidRequestException(String.format("Prepared query with ID %d not found", itemId));
+            logger.trace("Retrieved prepared statement #{} with {} bind markers", itemId, statement.getBoundsTerms());
+
+            return org.apache.cassandra.cql3.QueryProcessor.processPrepared(statement, state(), bindVariables);
+        }
+    }
+
+    public void set_cql_version(String version) throws InvalidRequestException
+    {
+        logger.debug("set_cql_version: " + version);
+
+        state().setCQLVersion(version);
     }
 
     // main method moved to CassandraDaemon

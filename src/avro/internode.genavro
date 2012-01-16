@@ -67,6 +67,8 @@ protocol InterNode {
         union { null, map<string> } compression_options = null;
         union { null, double } bloom_filter_fp_chance = null;
         union { null, string } caching = null;
+        union { null, array<bytes> } column_aliases = null;
+        union { null, bytes } value_alias = null;
     }
 
     @aliases(["org.apache.cassandra.config.avro.KsDef"])

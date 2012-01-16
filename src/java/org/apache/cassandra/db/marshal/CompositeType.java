@@ -18,12 +18,17 @@
  */
 package org.apache.cassandra.db.marshal;
 
+import java.io.*;
 import java.nio.ByteBuffer;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
+import org.apache.cassandra.cql3.ColumnNameBuilder;
+import org.apache.cassandra.cql3.Relation;
+import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.io.util.FastByteArrayOutputStream;
+import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.thrift.InvalidRequestException;
 
 /*
  * The encoding of a CompositeType column name should be:
@@ -47,8 +52,7 @@ import org.apache.cassandra.config.ConfigurationException;
  */
 public class CompositeType extends AbstractCompositeType
 {
-    // package protected for unit tests sake
-    final List<AbstractType<?>> types;
+    public final List<AbstractType<?>> types;
 
     // interning instances
     private static final Map<List<AbstractType<?>>, CompositeType> instances = new HashMap<List<AbstractType<?>>, CompositeType>();
@@ -137,5 +141,119 @@ public class CompositeType extends AbstractCompositeType
     public String toString()
     {
         return getClass().getName() + TypeParser.stringifyTypeParameters(types);
+    }
+
+    public static class Builder implements ColumnNameBuilder
+    {
+        private final CompositeType composite;
+        private int current;
+
+        private final FastByteArrayOutputStream baos = new FastByteArrayOutputStream();
+        private final DataOutput out = new DataOutputStream(baos);
+
+        public Builder(CompositeType composite)
+        {
+            this.composite = composite;
+        }
+
+        private Builder(Builder b)
+        {
+            this(b.composite);
+            this.current = b.current;
+            try
+            {
+                out.write(b.baos.toByteArray());
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
+
+        public Builder add(Term t, Relation.Type op, List<ByteBuffer> variables) throws InvalidRequestException
+        {
+            if (current >= composite.types.size())
+                throw new IllegalStateException("Composite column is already fully constructed");
+
+            AbstractType currentType = composite.types.get(current++);
+            ByteBuffer buffer = t.getByteBuffer(currentType, variables);
+            try
+            {
+                ByteBufferUtil.writeWithShortLength(buffer, out);
+
+                /*
+                 * Given the rules for eoc (end-of-component, see AbstractCompositeType.compare()),
+                 * We can select:
+                 *   - = 'a' by using <'a'><0>
+                 *   - < 'a' by using <'a'><-1>
+                 *   - <= 'a' by using <'a'><1>
+                 *   - > 'a' by using <'a'><1>
+                 *   - >= 'a' by using <'a'><0>
+                 */
+                switch (op)
+                {
+                    case LT:
+                        out.write((byte) -1);
+                        break;
+                    case GT:
+                    case LTE:
+                        out.write((byte) 1);
+                        break;
+                    default:
+                        out.write((byte) 0);
+                        break;
+                }
+                return this;
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
+
+        public Builder add(ByteBuffer bb)
+        {
+            if (current >= composite.types.size())
+                throw new IllegalStateException("Composite column is already fully constructed");
+
+            try
+            {
+                ByteBufferUtil.writeWithShortLength(bb, out);
+                out.write((byte) 0);
+                return this;
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
+
+        public int componentCount()
+        {
+            return current;
+        }
+
+        public ByteBuffer build()
+        {
+            return ByteBuffer.wrap(baos.toByteArray());
+        }
+
+        public ByteBuffer buildAsEndOfRange()
+        {
+            if (current >= composite.types.size())
+                throw new IllegalStateException("Composite column is already fully constructed");
+
+            if (current == 0)
+                return ByteBufferUtil.EMPTY_BYTE_BUFFER;
+
+            ByteBuffer bb = build();
+            bb.put(bb.remaining() - 1, (byte)1);
+            return bb;
+        }
+
+        public Builder copy()
+        {
+            return new Builder(this);
+        }
     }
 }

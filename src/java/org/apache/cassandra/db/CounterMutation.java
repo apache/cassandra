@@ -147,6 +147,15 @@ public class CounterMutation implements IMutation
         rm.apply();
     }
 
+    public void addAll(IMutation m)
+    {
+        if (!(m instanceof CounterMutation))
+            throw new IllegalArgumentException();
+
+        CounterMutation cm = (CounterMutation)m;
+        rowMutation.addAll(cm.rowMutation);
+    }
+
     @Override
     public String toString()
     {

@@ -53,6 +53,7 @@ import org.apache.cassandra.thrift.Column;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.SemanticVersion;
 
 import com.google.common.base.Predicates;
 import com.google.common.collect.Maps;
@@ -65,7 +66,7 @@ import static org.apache.cassandra.thrift.ThriftValidation.validateColumnFamily;
 
 public class QueryProcessor
 {
-    public static final String CQL_VERSION = "2.0.0";
+    public static final SemanticVersion CQL_VERSION = new SemanticVersion("2.0.0");
 
     private static final Logger logger = LoggerFactory.getLogger(QueryProcessor.class);
 

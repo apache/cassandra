@@ -108,6 +108,23 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
         return 1;
     }
 
+    /**
+     * Split a composite column names into it's components.
+     */
+    public ByteBuffer[] split(ByteBuffer name)
+    {
+        List<ByteBuffer> l = new ArrayList<ByteBuffer>();
+        ByteBuffer bb = name.duplicate();
+        int i = 0;
+        while (bb.remaining() > 0)
+        {
+            getNextComparator(i++, bb);
+            l.add(getWithShortLength(bb));
+            bb.get(); // skip end-of-component
+        }
+        return l.toArray(new ByteBuffer[l.size()]);
+    }
+
     public String getString(ByteBuffer bytes)
     {
         StringBuilder sb = new StringBuilder();

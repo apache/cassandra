@@ -202,6 +202,9 @@
       <uptodate property="cqlcurrent" 
                 srcfile="${build.src.java}/org/apache/cassandra/cql/Cql.g" 
                 targetfile="${build.src.gen-java}/org/apache/cassandra/cql/Cql.tokens"/>
+      <uptodate property="cqlcurrent"
+                srcfile="${build.src.java}/org/apache/cassandra/cql3/Cql.g"
+                targetfile="${build.src.gen-java}/org/apache/cassandra/cql3/Cql.tokens"/>
     </target>
  
     <target name="gen-cql-grammar" depends="check-gen-cql-grammar" unless="cqlcurrent">
@@ -213,9 +216,17 @@
          <arg value="${build.src.java}/org/apache/cassandra/cql/Cql.g" />
          <arg value="-fo" />
          <arg value="${build.src.gen-java}/org/apache/cassandra/cql/" />
-      </java> 
+      </java>
+      <java classname="org.antlr.Tool"
+            classpath="${build.lib}/antlr-3.2.jar"
+            fork="true"
+            failonerror="true">
+         <arg value="${build.src.java}/org/apache/cassandra/cql3/Cql.g" />
+         <arg value="-fo" />
+         <arg value="${build.src.gen-java}/org/apache/cassandra/cql3/" />
+      </java>
     </target>
-	
+
 	<target name="generate-cql-html" depends="maven-ant-tasks-init" description="Generate HTML from textile source">
 	  <artifact:dependencies pathId="wikitext.classpath">
 	    <dependency groupId="com.datastax.wikitext" artifactId="wikitext-core-ant" version="1.3"/>	    	  

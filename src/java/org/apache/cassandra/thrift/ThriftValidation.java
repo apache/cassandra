@@ -617,10 +617,6 @@ public class ThriftValidation
             if (cf_def.column_metadata == null)
                 return;
 
-            AbstractType<?> comparator = cfType == ColumnFamilyType.Standard
-                                    ? TypeParser.parse(cf_def.comparator_type)
-                                    : TypeParser.parse(cf_def.subcomparator_type);
-
             if (cf_def.key_alias != null)
             {
                 // check if any of the columns has name equal to the cf.key_alias
@@ -642,6 +638,8 @@ public class ThriftValidation
                         indexNames.add(cd.getIndexName());
             }
 
+            AbstractType<?> comparator = CFMetaData.getColumnDefinitionComparator(cf_def);
+
             for (ColumnDef c : cf_def.column_metadata)
             {
                 TypeParser.parse(c.validation_class);
@@ -653,7 +651,7 @@ public class ThriftValidation
                 catch (MarshalException e)
                 {
                     throw new InvalidRequestException(String.format("Column name %s is not valid for comparator %s",
-                                                                    ByteBufferUtil.bytesToHex(c.name), cf_def.comparator_type));
+                                                                    ByteBufferUtil.bytesToHex(c.name), comparator));
                 }
 
                 if (c.index_type == null)

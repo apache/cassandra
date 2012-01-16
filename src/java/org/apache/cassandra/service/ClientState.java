@@ -20,6 +20,8 @@ package org.apache.cassandra.service;
 
 import java.util.*;
 
+import com.google.common.collect.Sets;
+import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -32,6 +34,7 @@ import org.apache.cassandra.cql.CQLStatement;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.thrift.AuthenticationException;
 import org.apache.cassandra.thrift.InvalidRequestException;
+import org.apache.cassandra.utils.SemanticVersion;
 
 /**
  * A container for per-client, thread-local state that Avro/Thrift threads must hold.
@@ -41,16 +44,24 @@ public class ClientState
 {
     private static final int MAX_CACHE_PREPARED = 10000;    // Enough to keep buggy clients from OOM'ing us
     private static Logger logger = LoggerFactory.getLogger(ClientState.class);
+    public static final SemanticVersion DEFAULT_CQL_VERSION = org.apache.cassandra.cql.QueryProcessor.CQL_VERSION;
 
     // Current user for the session
     private AuthenticatedUser user;
     private String keyspace;
     // Reusable array for authorization
     private final List<Object> resource = new ArrayList<Object>();
+    private SemanticVersion cqlVersion = DEFAULT_CQL_VERSION;
 
     // An LRU map of prepared statements
     private Map<Integer, CQLStatement> prepared = new LinkedHashMap<Integer, CQLStatement>(16, 0.75f, true) {
         protected boolean removeEldestEntry(Map.Entry<Integer, CQLStatement> eldest) {
+            return size() > MAX_CACHE_PREPARED;
+        }
+    };
+
+    private Map<Integer, org.apache.cassandra.cql3.CQLStatement> cql3Prepared = new LinkedHashMap<Integer, org.apache.cassandra.cql3.CQLStatement>(16, 0.75f, true) {
+        protected boolean removeEldestEntry(Map.Entry<Integer, org.apache.cassandra.cql3.CQLStatement> eldest) {
             return size() > MAX_CACHE_PREPARED;
         }
     };
@@ -69,7 +80,12 @@ public class ClientState
     {
         return prepared;
     }
-    
+
+    public Map<Integer, org.apache.cassandra.cql3.CQLStatement> getCQL3Prepared()
+    {
+        return cql3Prepared;
+    }
+
     public String getRawKeyspace()
     {
         return keyspace;
@@ -129,6 +145,7 @@ public class ClientState
         keyspace = null;
         resourceClear();
         prepared.clear();
+        cql3Prepared.clear();
     }
 
     /**
@@ -218,5 +235,43 @@ public class ClientState
         long current = System.currentTimeMillis() * 1000;
         clock = clock >= current ? clock + 1 : current;
         return clock;
+    }
+
+    public void setCQLVersion(String str) throws InvalidRequestException
+    {
+        SemanticVersion version;
+        try
+        {
+            version = new SemanticVersion(str);
+        }
+        catch (IllegalArgumentException e)
+        {
+            throw new InvalidRequestException(e.getMessage());
+        }
+
+        SemanticVersion cql = org.apache.cassandra.cql.QueryProcessor.CQL_VERSION;
+        SemanticVersion cql3 = org.apache.cassandra.cql3.QueryProcessor.CQL_VERSION;
+
+        if (version.isSupportedBy(cql))
+            cqlVersion = cql;
+        else if (version.isSupportedBy(cql3))
+            cqlVersion = cql3;
+        else
+            throw new InvalidRequestException(String.format("Provided version %s is not supported by this server (supported: %s)",
+                                                            version,
+                                                            StringUtils.join(getCQLSupportedVersion(), ", ")));
+    }
+
+    public SemanticVersion getCQLVersion()
+    {
+        return cqlVersion;
+    }
+
+    public static SemanticVersion[] getCQLSupportedVersion()
+    {
+        SemanticVersion cql = org.apache.cassandra.cql.QueryProcessor.CQL_VERSION;
+        SemanticVersion cql3 = org.apache.cassandra.cql3.QueryProcessor.CQL_VERSION;
+
+        return new SemanticVersion[]{ cql, cql3 };
     }
 }

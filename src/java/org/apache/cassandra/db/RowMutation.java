@@ -245,6 +245,25 @@ public class RowMutation implements IMutation, MessageProducer
         }
     }
 
+    public void addAll(IMutation m)
+    {
+        if (!(m instanceof RowMutation))
+            throw new IllegalArgumentException();
+
+        RowMutation rm = (RowMutation)m;
+        if (!table_.equals(rm.table_) || !key_.equals(rm.key_))
+            throw new IllegalArgumentException();
+
+        for (Map.Entry<Integer, ColumnFamily> entry : rm.modifications_.entrySet())
+        {
+            // It's slighty faster to assume the key wasn't present and fix if
+            // not in the case where it wasn't there indeed.
+            ColumnFamily cf = modifications_.put(entry.getKey(), entry.getValue());
+            if (cf != null)
+                entry.getValue().resolve(cf);
+        }
+    }
+
     /*
      * This is equivalent to calling commit. Applies the changes to
      * to the table that is obtained by calling Table.open().

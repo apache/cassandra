@@ -94,7 +94,7 @@ public class SystemTable
 
         rm = new RowMutation(Table.SYSTEM_TABLE, ByteBufferUtil.bytes("cql"));
         cf = ColumnFamily.create(Table.SYSTEM_TABLE, VERSION_CF);
-        cf.addColumn(new Column(ByteBufferUtil.bytes("version"), ByteBufferUtil.bytes(QueryProcessor.CQL_VERSION)));
+        cf.addColumn(new Column(ByteBufferUtil.bytes("version"), ByteBufferUtil.bytes(QueryProcessor.CQL_VERSION.toString())));
         rm.add(cf);
         rm.apply();
 

@@ -29,4 +29,5 @@ public interface IMutation
     public ByteBuffer key();
     public void apply() throws IOException;
     public String toString(boolean shallow);
+    public void addAll(IMutation m);
 }
