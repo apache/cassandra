@@ -66,8 +66,8 @@ public class ScrubTest extends CleanupHelper
             if (srcFile.getName().equals(".svn"))
                 continue;
             File destFile = new File(destDir, srcFile.getName());
-            CLibrary.createHardLinkWithExec(srcFile, destFile);
-                        
+            CLibrary.createHardLink(srcFile, destFile);
+
             assert destFile.exists() : destFile.getAbsoluteFile();
             
             if(destFile.getName().endsWith("Data.db"))

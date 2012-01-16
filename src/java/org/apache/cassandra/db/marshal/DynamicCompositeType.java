@@ -117,11 +117,25 @@ public class DynamicCompositeType extends AbstractCompositeType
         AbstractType comp1 = getComparator(bb1);
         AbstractType comp2 = getComparator(bb2);
 
-        // This rely on comparator always being singleton instances
+        // Fast test if the comparator uses singleton instances
         if (comp1 != comp2)
         {
-            logger.error("Mismatch between {} and {}", comp1, comp2);
-            throw new RuntimeException("Comparator mismatch while comparing two DynamicCompositeType colum name");
+            /*
+             * We compare component of different types by comparing the
+             * comparator class names. We start with the simple classname
+             * first because that will be faster in almost all cases, but
+             * allback on the full name if necessary
+            */
+            int cmp = comp1.getClass().getSimpleName().compareTo(comp2.getClass().getSimpleName());
+            if (cmp != 0)
+                return cmp < 0 ? FixedValueComparator.instance : ReversedType.getInstance(FixedValueComparator.instance);
+
+            cmp = comp1.getClass().getName().compareTo(comp2.getClass().getName());
+            if (cmp != 0)
+                return cmp < 0 ? FixedValueComparator.instance : ReversedType.getInstance(FixedValueComparator.instance);
+
+            // if cmp == 0, we're actually having the same type, but one that
+            // did not have a singleton instance. It's ok (though inefficient).
         }
         return comp1;
     }
@@ -262,5 +276,39 @@ public class DynamicCompositeType extends AbstractCompositeType
     public String toString()
     {
         return getClass().getName() + TypeParser.stringifyAliasesParameters(aliases);
+    }
+
+    /*
+     * A comparator that always sorts it's first argument before the second
+     * one.
+     */
+    private static class FixedValueComparator extends AbstractType<Void>
+    {
+        public static final FixedValueComparator instance = new FixedValueComparator();
+
+        public int compare(ByteBuffer v1, ByteBuffer v2)
+        {
+            return -1;
+        }
+
+        public Void compose(ByteBuffer bytes)
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        public ByteBuffer decompose(Void value)
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        public String getString(ByteBuffer bytes)
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        public void validate(ByteBuffer bytes)
+        {
+            throw new UnsupportedOperationException();
+        }
     }
 }

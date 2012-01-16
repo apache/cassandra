@@ -230,7 +230,7 @@ public class SSTableReaderTest extends CleanupHelper
             if (!srcFile.getName().startsWith("Indexed1"))
                 continue;
             File destFile = new File(destDir, srcFile.getName());
-            CLibrary.createHardLinkWithExec(srcFile, destFile);
+            CLibrary.createHardLink(srcFile, destFile);
 
             assert destFile.exists() : destFile.getAbsoluteFile();
         }
