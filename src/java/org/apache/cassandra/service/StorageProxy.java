@@ -826,7 +826,8 @@ public class StorageProxy implements StorageProxyMBean
         // now scan until we have enough results
         try
         {
-            rows = new ArrayList<Row>(command.max_keys);
+            int columnsCount = 0;
+            rows = new ArrayList<Row>();
             List<AbstractBounds<RowPosition>> ranges = getRestrictedRanges(command.range);
             for (AbstractBounds<RowPosition> range : ranges)
             {
@@ -836,7 +837,8 @@ public class StorageProxy implements StorageProxyMBean
                                                                   command.predicate,
                                                                   range,
                                                                   command.row_filter,
-                                                                  command.max_keys);
+                                                                  command.maxResults,
+                                                                  command.maxIsColumns);
 
                 List<InetAddress> liveEndpoints = StorageService.instance.getLiveNaturalEndpoints(nodeCmd.keyspace, range.right);
                 DatabaseDescriptor.getEndpointSnitch().sortByProximity(FBUtilities.getBroadcastAddress(), liveEndpoints);
@@ -849,6 +851,8 @@ public class StorageProxy implements StorageProxyMBean
                     try
                     {
                         rows.addAll(RangeSliceVerbHandler.executeLocally(nodeCmd));
+                        for (Row row : rows)
+                            columnsCount += row.getLiveColumnCount();
                     }
                     catch (ExecutionException e)
                     {
@@ -877,6 +881,7 @@ public class StorageProxy implements StorageProxyMBean
                         for (Row row : handler.get())
                         {
                             rows.add(row);
+                            columnsCount += row.getLiveColumnCount();
                             logger.debug("range slices read {}", row.key);
                         }
                         FBUtilities.waitOnFutures(resolver.repairResults, DatabaseDescriptor.getRpcTimeout());
@@ -894,7 +899,8 @@ public class StorageProxy implements StorageProxyMBean
                 }
 
                 // if we're done, great, otherwise, move to the next range
-                if (rows.size() >= nodeCmd.max_keys)
+                int count = nodeCmd.maxIsColumns ? columnsCount : rows.size();
+                if (count >= nodeCmd.maxResults)
                     break;
             }
         }
@@ -902,7 +908,16 @@ public class StorageProxy implements StorageProxyMBean
         {
             rangeStats.addNano(System.nanoTime() - startTime);
         }
-        return rows.size() > command.max_keys ? rows.subList(0, command.max_keys) : rows;
+        return trim(command, rows);
+    }
+
+    private static List<Row> trim(RangeSliceCommand command, List<Row> rows)
+    {
+        // When maxIsColumns, we let the caller trim the result.
+        if (command.maxIsColumns)
+            return rows;
+        else
+            return rows.size() > command.maxResults ? rows.subList(0, command.maxResults) : rows;
     }
 
     /**

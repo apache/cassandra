@@ -84,10 +84,10 @@ public class KeysSearcher extends SecondaryIndexSearcher
     }
 
     @Override
-    public List<Row> search(List<IndexExpression> clause, AbstractBounds<RowPosition> range, int maxResults, IFilter dataFilter)
+    public List<Row> search(List<IndexExpression> clause, AbstractBounds<RowPosition> range, int maxResults, IFilter dataFilter, boolean maxIsColumns)
     {
         assert clause != null && !clause.isEmpty();
-        ExtendedFilter filter = ExtendedFilter.create(baseCfs, dataFilter, clause, maxResults);
+        ExtendedFilter filter = ExtendedFilter.create(baseCfs, dataFilter, clause, maxResults, maxIsColumns);
         return baseCfs.filter(getIndexedIterator(range, filter), filter);
     }
 
@@ -121,13 +121,16 @@ public class KeysSearcher extends SecondaryIndexSearcher
 
             protected Row computeNext()
             {
+                int meanColumns = Math.max(index.getIndexCfs().getMeanColumns(), 1);
+                // We shouldn't fetch only 1 row as this provides buggy paging in case the first row doesn't satisfy all clauses
+                int rowsPerQuery = Math.max(Math.min(filter.maxRows(), filter.maxColumns() / meanColumns), 2);
                 while (true)
                 {
                     if (indexColumns == null || !indexColumns.hasNext())
                     {
-                        if (columnsRead < filter.maxResults)
+                        if (columnsRead < rowsPerQuery)
                         {
-                            logger.debug("Read only {} (< {}) last page through, must be done", columnsRead, filter.maxResults);
+                            logger.debug("Read only {} (< {}) last page through, must be done", columnsRead, rowsPerQuery);
                             return endOfData();
                         }
 
@@ -135,14 +138,12 @@ public class KeysSearcher extends SecondaryIndexSearcher
                             logger.debug(String.format("Scanning index %s starting with %s",
                                                        expressionString(primary), index.getBaseCfs().metadata.getKeyValidator().getString(startKey)));
 
-                        // We shouldn't fetch only 1 row as this provides buggy paging in case the first row doesn't satisfy all clauses
-                        int count = Math.max(filter.maxResults, 2);
                         QueryFilter indexFilter = QueryFilter.getSliceFilter(indexKey,
                                                                              new QueryPath(index.getIndexCfs().getColumnFamilyName()),
                                                                              lastSeenKey,
                                                                              endKey,
                                                                              false,
-                                                                             count);
+                                                                             rowsPerQuery);
                         ColumnFamily indexRow = index.getIndexCfs().getColumnFamily(indexFilter);
                         logger.debug("fetched {}", indexRow);
                         if (indexRow == null)

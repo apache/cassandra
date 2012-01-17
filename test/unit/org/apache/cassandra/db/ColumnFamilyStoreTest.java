@@ -193,7 +193,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         IFilter filter = new IdentityQueryFilter();
         IPartitioner p = StorageService.getPartitioner();
         Range<RowPosition> range = Util.range("", "");
-        List<Row> rows = Table.open("Keyspace1").getColumnFamilyStore("Indexed1").indexManager.search(clause, range, 100, filter);
+        List<Row> rows = Table.open("Keyspace1").getColumnFamilyStore("Indexed1").search(clause, range, 100, filter);
 
         assert rows != null;
         assert rows.size() == 2 : StringUtils.join(rows, ",");
@@ -785,5 +785,61 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         ColumnFamily cf = cmd.getRow(table).cf;
         Column column = (Column) cf.getColumn(cname);
         assert column.value().equals(ByteBufferUtil.bytes("a")) : "expecting a, got " + ByteBufferUtil.string(column.value());
+    }
+
+    private static void assertTotalColCount(Collection<Row> rows, int expectedCount) throws CharacterCodingException
+    {
+        int columns = 0;
+        for (Row row : rows)
+        {
+            columns += row.getLiveColumnCount();
+        }
+        assert columns == expectedCount : "Expected " + expectedCount + " live columns but got " + columns + ": " + rows;
+    }
+
+    @Test
+    public void testRangeSliceColumnsLimit() throws Throwable
+    {
+        String tableName = "Keyspace1";
+        String cfName = "Standard1";
+        Table table = Table.open(tableName);
+        ColumnFamilyStore cfs = table.getColumnFamilyStore(cfName);
+        cfs.clearUnsafe();
+
+        Column[] cols = new Column[5];
+        for (int i = 0; i < 5; i++)
+            cols[i] = column("c" + i, "value", 1);
+
+        putColsStandard(cfs, Util.dk("a"), cols[0], cols[1], cols[2], cols[3], cols[4]);
+        putColsStandard(cfs, Util.dk("b"), cols[0], cols[1]);
+        putColsStandard(cfs, Util.dk("c"), cols[0], cols[1], cols[2], cols[3]);
+        cfs.forceBlockingFlush();
+
+        SlicePredicate sp = new SlicePredicate();
+        sp.setSlice_range(new SliceRange());
+        sp.getSlice_range().setCount(1);
+        sp.getSlice_range().setStart(ArrayUtils.EMPTY_BYTE_ARRAY);
+        sp.getSlice_range().setFinish(ArrayUtils.EMPTY_BYTE_ARRAY);
+
+        assertTotalColCount(cfs.getRangeSlice(null, Util.range("", ""), 3, QueryFilter.getFilter(sp, cfs.getComparator()), null, true), 3);
+        assertTotalColCount(cfs.getRangeSlice(null, Util.range("", ""), 5, QueryFilter.getFilter(sp, cfs.getComparator()), null, true), 5);
+        assertTotalColCount(cfs.getRangeSlice(null, Util.range("", ""), 8, QueryFilter.getFilter(sp, cfs.getComparator()), null, true), 8);
+        assertTotalColCount(cfs.getRangeSlice(null, Util.range("", ""), 10, QueryFilter.getFilter(sp, cfs.getComparator()), null, true), 10);
+        assertTotalColCount(cfs.getRangeSlice(null, Util.range("", ""), 100, QueryFilter.getFilter(sp, cfs.getComparator()), null, true), 11);
+
+        // Check that when querying by name, we always include all names for a
+        // gien row even if it means returning more columns than requested (this is necesseray for CQL)
+        sp = new SlicePredicate();
+        sp.setColumn_names(Arrays.asList(
+            ByteBufferUtil.bytes("c0"),
+            ByteBufferUtil.bytes("c1"),
+            ByteBufferUtil.bytes("c2")
+        ));
+
+        assertTotalColCount(cfs.getRangeSlice(null, Util.range("", ""), 1, QueryFilter.getFilter(sp, cfs.getComparator()), null, true), 3);
+        assertTotalColCount(cfs.getRangeSlice(null, Util.range("", ""), 4, QueryFilter.getFilter(sp, cfs.getComparator()), null, true), 5);
+        assertTotalColCount(cfs.getRangeSlice(null, Util.range("", ""), 5, QueryFilter.getFilter(sp, cfs.getComparator()), null, true), 5);
+        assertTotalColCount(cfs.getRangeSlice(null, Util.range("", ""), 6, QueryFilter.getFilter(sp, cfs.getComparator()), null, true), 8);
+        assertTotalColCount(cfs.getRangeSlice(null, Util.range("", ""), 100, QueryFilter.getFilter(sp, cfs.getComparator()), null, true), 8);
     }
 }

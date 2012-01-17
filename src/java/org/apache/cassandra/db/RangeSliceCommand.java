@@ -74,27 +74,44 @@ public class RangeSliceCommand implements MessageProducer, IReadCommand
     public final List<IndexExpression> row_filter;
 
     public final AbstractBounds<RowPosition> range;
-    public final int max_keys;
+    public final int maxResults;
+    public final boolean maxIsColumns;
 
-    public RangeSliceCommand(String keyspace, String column_family, ByteBuffer super_column, SlicePredicate predicate, AbstractBounds<RowPosition> range, int max_keys)
+    public RangeSliceCommand(String keyspace, String column_family, ByteBuffer super_column, SlicePredicate predicate, AbstractBounds<RowPosition> range, int maxResults)
     {
-        this(keyspace, column_family, super_column, predicate, range, null, max_keys);
+        this(keyspace, column_family, super_column, predicate, range, null, maxResults, false);
     }
 
-    public RangeSliceCommand(String keyspace, ColumnParent column_parent, SlicePredicate predicate, AbstractBounds<RowPosition> range, List<IndexExpression> row_filter, int max_keys)
+    public RangeSliceCommand(String keyspace, String column_family, ByteBuffer super_column, SlicePredicate predicate, AbstractBounds<RowPosition> range, int maxResults, boolean maxIsColumns)
     {
-        this(keyspace, column_parent.getColumn_family(), column_parent.super_column, predicate, range, row_filter, max_keys);
+        this(keyspace, column_family, super_column, predicate, range, null, maxResults, maxIsColumns);
     }
 
-    public RangeSliceCommand(String keyspace, String column_family, ByteBuffer super_column, SlicePredicate predicate, AbstractBounds<RowPosition> range, List<IndexExpression> row_filter, int max_keys)
+    public RangeSliceCommand(String keyspace, ColumnParent column_parent, SlicePredicate predicate, AbstractBounds<RowPosition> range, List<IndexExpression> row_filter, int maxResults)
+    {
+        this(keyspace, column_parent.getColumn_family(), column_parent.super_column, predicate, range, row_filter, maxResults, false);
+    }
+
+    public RangeSliceCommand(String keyspace, ColumnParent column_parent, SlicePredicate predicate, AbstractBounds<RowPosition> range, List<IndexExpression> row_filter, int maxResults, boolean maxIsColumns)
+    {
+        this(keyspace, column_parent.getColumn_family(), column_parent.super_column, predicate, range, row_filter, maxResults, maxIsColumns);
+    }
+
+    public RangeSliceCommand(String keyspace, String column_family, ByteBuffer super_column, SlicePredicate predicate, AbstractBounds<RowPosition> range, List<IndexExpression> row_filter, int maxResults)
+    {
+        this(keyspace, column_family, super_column, predicate, range, row_filter, maxResults, false);
+    }
+
+    public RangeSliceCommand(String keyspace, String column_family, ByteBuffer super_column, SlicePredicate predicate, AbstractBounds<RowPosition> range, List<IndexExpression> row_filter, int maxResults, boolean maxIsColumns)
     {
         this.keyspace = keyspace;
         this.column_family = column_family;
         this.super_column = super_column;
         this.predicate = predicate;
         this.range = range;
-        this.max_keys = max_keys;
         this.row_filter = row_filter;
+        this.maxResults = maxResults;
+        this.maxIsColumns = maxIsColumns;
     }
 
     public Message getMessage(Integer version) throws IOException
@@ -115,8 +132,9 @@ public class RangeSliceCommand implements MessageProducer, IReadCommand
                ", super_column=" + super_column +
                ", predicate=" + predicate +
                ", range=" + range +
-               ", max_keys=" + max_keys +
                ", row_filter =" + row_filter +
+               ", maxResults=" + maxResults +
+               ", maxIsColumns=" + maxIsColumns +
                '}';
     }
 
@@ -161,7 +179,11 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
             }
         }
         AbstractBounds.serializer().serialize(sliceCommand.range, dos, version);
-        dos.writeInt(sliceCommand.max_keys);
+        dos.writeInt(sliceCommand.maxResults);
+        if (version >= MessagingService.VERSION_11)
+        {
+            dos.writeBoolean(sliceCommand.maxIsColumns);
+        }
     }
 
     public RangeSliceCommand deserialize(DataInput dis, int version) throws IOException
@@ -196,8 +218,13 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
         }
         AbstractBounds<RowPosition> range = AbstractBounds.serializer().deserialize(dis, version).toRowBounds();
 
-        int maxKeys = dis.readInt();
-        return new RangeSliceCommand(keyspace, columnFamily, superColumn, pred, range, rowFilter, maxKeys);
+        int maxResults = dis.readInt();
+        boolean maxIsColumns = false;
+        if (version >= MessagingService.VERSION_11)
+        {
+            maxIsColumns = dis.readBoolean();
+        }
+        return new RangeSliceCommand(keyspace, columnFamily, superColumn, pred, range, rowFilter, maxResults, maxIsColumns);
     }
 
     public long serializedSize(RangeSliceCommand rangeSliceCommand, int version)

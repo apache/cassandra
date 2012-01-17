@@ -124,10 +124,6 @@ public class ColumnFamily extends AbstractColumnContainer
         return cfm;
     }
 
-    /**
-     * FIXME: shouldn't need to hold a reference to a serializer; worse, for super cfs,
-     * it will be a _unique_ serializer object per row
-     */
     public IColumnSerializer getColumnSerializer()
     {
         return cfm.getColumnSerializer();

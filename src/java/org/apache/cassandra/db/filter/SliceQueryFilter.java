@@ -43,10 +43,9 @@ public class SliceQueryFilter implements IFilter
 {
     private static Logger logger = LoggerFactory.getLogger(SliceQueryFilter.class);
 
-    public final ByteBuffer start;
-    public final ByteBuffer finish;
+    public final ByteBuffer start; public final ByteBuffer finish;
     public final boolean reversed;
-    public final int count;
+    public volatile int count;
 
     public SliceQueryFilter(ByteBuffer start, ByteBuffer finish, boolean reversed, int count)
     {
@@ -154,5 +153,10 @@ public class SliceQueryFilter implements IFilter
     public boolean isReversed()
     {
         return reversed;
+    }
+
+    public void updateColumnsLimit(int newLimit)
+    {
+        count = newLimit;
     }
 }

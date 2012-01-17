@@ -75,4 +75,5 @@ public interface IFilter
     public Comparator<IColumn> getColumnComparator(AbstractType comparator);
 
     public boolean isReversed();
+    public void updateColumnsLimit(int newLimit);
 }

@@ -23,24 +23,51 @@ public abstract class ExtendedFilter
     private static Logger logger = LoggerFactory.getLogger(ExtendedFilter.class);
 
     public final ColumnFamilyStore cfs;
-    public final int maxResults;
     protected final IFilter originalFilter;
+    private final int maxResults;
+    private final boolean maxIsColumns;
 
-    public static ExtendedFilter create(ColumnFamilyStore cfs, IFilter filter, List<IndexExpression> clause, int maxResults)
+    public static ExtendedFilter create(ColumnFamilyStore cfs, IFilter filter, List<IndexExpression> clause, int maxResults, boolean maxIsColumns)
     {
         if (clause == null || clause.isEmpty())
-            return new EmptyClauseFilter(cfs, filter, maxResults);
+            return new EmptyClauseFilter(cfs, filter, maxResults, maxIsColumns);
         else
-            return new FilterWithClauses(cfs, filter, clause, maxResults);
+            return new FilterWithClauses(cfs, filter, clause, maxResults, maxIsColumns);
     }
 
-    protected ExtendedFilter(ColumnFamilyStore cfs, IFilter filter, int maxResults)
+    protected ExtendedFilter(ColumnFamilyStore cfs, IFilter filter, int maxResults, boolean maxIsColumns)
     {
         assert cfs != null;
         assert filter != null;
         this.cfs = cfs;
         this.originalFilter = filter;
         this.maxResults = maxResults;
+        this.maxIsColumns = maxIsColumns;
+        if (maxIsColumns)
+            originalFilter.updateColumnsLimit(maxResults);
+    }
+
+    public int maxRows()
+    {
+        return maxIsColumns ? Integer.MAX_VALUE : maxResults;
+    }
+
+    public int maxColumns()
+    {
+        return maxIsColumns ? maxResults : Integer.MAX_VALUE;
+    }
+
+    /**
+     * Update the filter if necessary given the number of column already
+     * fetched.
+     */
+    public void updateColumnsLimit(int columnsCount)
+    {
+        if (!maxIsColumns)
+            return;
+
+        int remaining = maxResults - columnsCount;
+        initialFilter().updateColumnsLimit(remaining);
     }
 
     /** The initial filter we'll do our first slice with (either the original or a superset of it) */
@@ -90,9 +117,9 @@ public abstract class ExtendedFilter
         protected final List<IndexExpression> clause;
         protected final IFilter initialFilter;
 
-        public FilterWithClauses(ColumnFamilyStore cfs, IFilter filter, List<IndexExpression> clause, int maxResults)
+        public FilterWithClauses(ColumnFamilyStore cfs, IFilter filter, List<IndexExpression> clause, int maxResults, boolean maxIsColumns)
         {
-            super(cfs, filter, maxResults);
+            super(cfs, filter, maxResults, maxIsColumns);
             assert clause != null;
             this.clause = clause;
             this.initialFilter = computeInitialFilter();
@@ -217,9 +244,9 @@ public abstract class ExtendedFilter
 
     private static class EmptyClauseFilter extends ExtendedFilter
     {
-        public EmptyClauseFilter(ColumnFamilyStore cfs, IFilter filter, int maxResults)
+        public EmptyClauseFilter(ColumnFamilyStore cfs, IFilter filter, int maxResults, boolean maxIsColumns)
         {
-            super(cfs, filter, maxResults);
+            super(cfs, filter, maxResults, maxIsColumns);
         }
 
         public IFilter initialFilter()

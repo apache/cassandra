@@ -45,9 +45,9 @@ public class RangeSliceVerbHandler implements IVerbHandler
         IFilter columnFilter = QueryFilter.getFilter(command.predicate, cfs.getComparator());
 
         if (cfs.indexManager.hasIndexFor(command.row_filter))
-            return cfs.search(command.row_filter, command.range, command.max_keys, columnFilter);
+            return cfs.search(command.row_filter, command.range, command.maxResults, columnFilter, command.maxIsColumns);
         else
-            return cfs.getRangeSlice(command.super_column, command.range, command.max_keys, columnFilter, command.row_filter);
+            return cfs.getRangeSlice(command.super_column, command.range, command.maxResults, columnFilter, command.row_filter, command.maxIsColumns);
     }
 
     public void doVerb(Message message, String id)

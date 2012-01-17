@@ -550,7 +550,7 @@ public class SecondaryIndexManager
      * @param dataFilter the column range to restrict to
      * @return found indexed rows
      */
-    public List<Row> search(List<IndexExpression> clause, AbstractBounds<RowPosition> range, int maxResults, IFilter dataFilter)
+    public List<Row> search(List<IndexExpression> clause, AbstractBounds<RowPosition> range, int maxResults, IFilter dataFilter, boolean maxIsColumns)
     {
         List<SecondaryIndexSearcher> indexSearchers = getIndexSearchersForQuery(clause);
                
@@ -562,6 +562,6 @@ public class SecondaryIndexManager
             throw new RuntimeException("Unable to search across multiple secondary index types");
         
         
-        return indexSearchers.get(0).search(clause, range, maxResults, dataFilter);
+        return indexSearchers.get(0).search(clause, range, maxResults, dataFilter, maxIsColumns);
     }
 }

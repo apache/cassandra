@@ -43,6 +43,8 @@
  * Fix ClassCastException during hinted handoff (CASSANDRA-3694)
  * Upgrade Thrift to 0.7 (CASSANDRA-3213)
  * Make stress.java insert operation to use microseconds (CASSANDRA-3725)
+ * Allows (internally) doing a range query with a limit of columns instead of
+   rows (CASSANDRA-3742)
 
 
 1.0.7

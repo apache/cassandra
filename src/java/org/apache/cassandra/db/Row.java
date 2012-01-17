@@ -45,6 +45,11 @@ public class Row
         this.cf = cf;
     }
 
+    public int getLiveColumnCount()
+    {
+        return cf == null ? 0 : cf.getLiveColumnCount();
+    }
+
     @Override
     public String toString()
     {

@@ -1290,20 +1290,31 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public List<Row> getRangeSlice(ByteBuffer superColumn, final AbstractBounds<RowPosition> range, int maxResults, IFilter columnFilter, List<IndexExpression> rowFilter)
     {
-        return filter(getSequentialIterator(superColumn, range, columnFilter), ExtendedFilter.create(this, columnFilter, rowFilter, maxResults));
+        return getRangeSlice(superColumn, range, maxResults, columnFilter, rowFilter, false);
+    }
+
+    public List<Row> getRangeSlice(ByteBuffer superColumn, final AbstractBounds<RowPosition> range, int maxResults, IFilter columnFilter, List<IndexExpression> rowFilter, boolean maxIsColumns)
+    {
+        return filter(getSequentialIterator(superColumn, range, columnFilter), ExtendedFilter.create(this, columnFilter, rowFilter, maxResults, maxIsColumns));
     }
 
     public List<Row> search(List<IndexExpression> clause, AbstractBounds<RowPosition> range, int maxResults, IFilter dataFilter)
     {
-        return indexManager.search(clause, range, maxResults, dataFilter);
+        return search(clause, range, maxResults, dataFilter, false);
+    }
+
+    public List<Row> search(List<IndexExpression> clause, AbstractBounds<RowPosition> range, int maxResults, IFilter dataFilter, boolean maxIsColumns)
+    {
+        return indexManager.search(clause, range, maxResults, dataFilter, maxIsColumns);
     }
 
     public List<Row> filter(AbstractScanIterator rowIterator, ExtendedFilter filter)
     {
          List<Row> rows = new ArrayList<Row>();
+         int columnsCount = 0;
          try
          {
-             while (rowIterator.hasNext() && rows.size() < filter.maxResults)
+             while (rowIterator.hasNext() && rows.size() < filter.maxRows() && columnsCount < filter.maxColumns())
              {
                  // get the raw columns requested, and additional columns for the expressions if necessary
                  Row rawRow = rowIterator.next();
@@ -1326,6 +1337,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                  // cut the resultset back to what was requested, if necessary
                  data = filter.prune(data);
                  rows.add(new Row(rawRow.key, data));
+                 if (data != null)
+                     columnsCount += data.getLiveColumnCount();
+                 // Update the underlying filter to avoid querying more columns per slice than necessary
+                 filter.updateColumnsLimit(columnsCount);
              }
              return rows;
          }

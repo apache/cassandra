@@ -104,4 +104,8 @@ public class NamesQueryFilter implements IFilter
     {
         return false;
     }
+
+    public void updateColumnsLimit(int newLimit)
+    {
+    }
 }
