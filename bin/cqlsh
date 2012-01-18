@@ -44,6 +44,8 @@ import string
 import time
 import optparse
 import ConfigParser
+import codecs
+import re
 
 # cqlsh should run correctly when run out of a Cassandra source tree,
 # out of an unpacked Cassandra tarball, and after a proper package install.
@@ -51,7 +53,7 @@ cqlshlibdir = os.path.join(os.path.dirname(__file__), '..', 'pylib')
 if os.path.isdir(cqlshlibdir):
     sys.path.insert(0, cqlshlibdir)
 
-from cqlshlib import cqlhandling, pylexotron
+from cqlshlib import cqlhandling, pylexotron, wcwidth
 from cqlshlib.cqlhandling import (token_dequote, cql_dequote, cql_escape,
                                   maybe_cql_escape, cql_typename)
 
@@ -94,12 +96,14 @@ parser.add_option('--debug', action='store_true',
                   help='Show additional debugging information')
 
 
-RED = "\033[1;31m%s\033[0m"
-GREEN = "\033[1;32m%s\033[0m"
-BLUE = "\033[1;34m%s\033[0m"
-YELLOW = "\033[1;33m%s\033[0m"
-CYAN = "\033[1;36m%s\033[0m"
-MAGENTA = "\033[1;35m%s\033[0m"
+RED = '\033[0;1;31m'
+GREEN = '\033[0;1;32m'
+YELLOW = '\033[0;1;33m'
+BLUE = '\033[0;1;34m'
+MAGENTA = '\033[0;1;35m'
+CYAN = '\033[0;1;36m'
+WHITE = '\033[0;1;37m'
+ANSI_RESET = '\033[0m'
 
 CQL_ERRORS = (cql.Error,)
 try:
@@ -215,16 +219,113 @@ def trim_if_present(s, prefix):
         return s[len(prefix):]
     return s
 
+class FormattedValue:
+    def __init__(self, strval, coloredval, displaywidth):
+        self.strval = strval
+        self.coloredval = coloredval
+        self.displaywidth = displaywidth
+
+    def _pad(self, width, fill=' '):
+        if width > self.displaywidth:
+            return fill * (width - self.displaywidth)
+        else:
+            return ''
+
+    def rjust(self, width, fill=' '):
+        """
+        Similar to self.strval.rjust(width), but takes expected terminal
+        display width into account for special characters, and does not
+        take color escape codes into account.
+        """
+        return self._pad(width, fill) + self.strval
+
+    def color_rjust(self, width, fill=' '):
+        """
+        Similar to self.rjust(width), but uses this value's colored
+        representation, and does not take color escape codes into account
+        in determining width.
+        """
+        return self._pad(width, fill) + self.coloredval
+
+controlchars_re = re.compile(r'[\x00-\x31\x7f-\xa0]')
+
+def _show_control_chars(match):
+    txt = repr(match.group(0))
+    if txt.startswith('u'):
+        txt = txt[2:-1]
+    else:
+        txt = txt[1:-1]
+    return txt
+
+bits_to_turn_red_re = re.compile(r'\\([^uUx]|u[0-9a-fA-F]{4}|x[0-9a-fA-F]{2}|U[0-9a-fA-F]{8})')
+
+def _turn_bits_red(match):
+    txt = match.group(0)
+    if txt == '\\\\':
+        return '\\'
+    return RED + txt + YELLOW
+
+def format_value(val, casstype, output_encoding, addcolor=False, time_format='', float_precision=3):
+    color = YELLOW
+    coloredval = None
+    displaywidth = None
+
+    if val is None:
+        bval = 'null'
+        color = RED
+    elif casstype == 'UTF8Type':
+        escapedval = val.replace(u'\\', u'\\\\')
+        escapedval = controlchars_re.sub(_show_control_chars, escapedval)
+        bval = escapedval.encode(output_encoding, errors='backslashreplace')
+        displaywidth = wcwidth.wcswidth(bval.decode(output_encoding))
+        if addcolor:
+            coloredval = YELLOW + bits_to_turn_red_re.sub(_turn_bits_red, bval) + ANSI_RESET
+    elif casstype == 'DateType':
+        timestamp = time.localtime(val)
+        bval = time.strftime(time_format, timestamp)
+        color = GREEN
+    elif casstype in ('LongType', 'Int32Type', 'IntegerType'):
+        # base-10 only for now; support others?
+        bval = str(val)
+        color = GREEN
+    elif casstype in ('FloatType', 'DoubleType'):
+        bval = '%.*g' % (float_precision, val)
+        color = GREEN
+    elif casstype in ('DecimalType', 'UUIDType', 'BooleanType'):
+        # let python do these for us
+        bval = str(val)
+        color = GREEN
+    elif casstype == 'BytesType':
+        bval = ''.join('%02x' % ord(c) for c in val)
+        color = RED
+    else:
+        # AsciiType is the only other one known right now, but handle others
+        escapedval = val.replace('\\', '\\\\')
+        bval = controlchars_re.sub(_show_control_chars, escapedval)
+        if addcolor:
+            coloredval = YELLOW + bits_to_turn_red_re.sub(_turn_bits_red, bval) + ANSI_RESET
+
+    if displaywidth is None:
+        displaywidth = len(bval)
+    if not addcolor:
+        coloredval = bval
+    elif coloredval is None:
+        coloredval = color + bval + ANSI_RESET
+
+    return FormattedValue(bval, coloredval, displaywidth)
+
 class Shell(cmd.Cmd):
     default_prompt  = "cqlsh> "
     continue_prompt = "   ... "
     keyspace_prompt          = "cqlsh:%s> "
     keyspace_continue_prompt = "%s    ... "
+    display_time_format = '%Y-%m-%d %H:%M:%S%z'
+    display_float_precision = 3
     num_retries = 4
     debug = False
 
     def __init__(self, hostname, port, color=False, username=None,
-            password=None, completekey='tab'):
+                 password=None, encoding=None, completekey='tab'):
         cmd.Cmd.__init__(self, completekey=completekey)
         self.hostname = hostname
         self.port = port
@@ -233,8 +334,13 @@ class Shell(cmd.Cmd):
 
         self.current_keyspace = None
 
-        self.statement = StringIO()
         self.color = color
+        if encoding is None:
+            encoding = sys.stdout.encoding
+        self.encoding = encoding
+        self.output_codec = codecs.lookup(encoding)
+
+        self.statement = StringIO()
         self.in_comment = False
         self.schema_overrides = {}
 
@@ -244,6 +350,11 @@ class Shell(cmd.Cmd):
             self.printout('Use HELP for help.')
         else:
             self.prompt = ""
+
+    def myformat_value(self, val, casstype):
+        return format_value(val, casstype, self.output_codec.name,
+                            addcolor=self.color, time_format=self.display_time_format,
+                            float_precision=self.display_float_precision)
 
     def report_connection(self):
         self.show_host()
@@ -562,43 +673,32 @@ class Shell(cmd.Cmd):
         self.printout("")
 
     def print_static_result(self):
-        # first pass, get widths
-        widths = defaultdict(lambda: 0)
-        for row in self.cursor:
-            for desc, value in zip(self.cursor.description, row):
-                name = desc[0]
-                widths[name] = max(widths[name], len(str(name)), len(str(value)))
-        self.cursor._reset()
+        colnames, coltypes = zip(*self.cursor.description)[:2]
+        formatted_data = [map(self.myformat_value, row, coltypes) for row in self.cursor]
+
+        # determine column widths
+        widths = map(len, colnames)
+        for fmtrow in formatted_data:
+            for num, col in enumerate(fmtrow):
+                widths[num] = max(widths[num], len(col.strval))
 
         # print header
-        for desc in self.cursor.description:
-            name = desc[0]
-            width = widths[name]
-            self.printout(" ", newline=False)
-            self.printout(string.rjust(str(name), width), MAGENTA, False)
-            self.printout(" |", newline=False)
-        self.printout("")
+        header = ' | '.join(self.applycolor(name.ljust(w), MAGENTA) for (name, w) in zip(colnames, widths))
+        print ' ' + header.rstrip()
+        print '-%s-' % '-+-'.join('-' * w for w in widths)
 
         # print row data
-        for row in self.cursor:
-            for desc, value in zip(self.cursor.description, row):
-                name = desc[0]
-                width = widths[desc[0]]
-                self.printout(" ", newline=False)
-                self.printout(string.rjust(str(value), width), YELLOW, False)
-                self.printout(" |", newline=False)
-            self.printout("")
+        for row in formatted_data:
+            line = ' | '.join(col.color_rjust(w) for (col, w) in zip(row, widths))
+            print ' ' + line
 
     def print_dynamic_result(self):
         for row in self.cursor:
-            self.printout(" ", newline=False)
-            for desc, value in zip(self.cursor.description, row):
-                name = desc[0]
-                self.printout(str(name), MAGENTA, False)
-                self.printout(",", newline=False)
-                self.printout(str(value), YELLOW, False)
-                self.printout(" | ", newline=False)
-            self.printout("")
+            colnames, coltypes = zip(*self.cursor.description)[:2]
+            colnames = [self.applycolor(name, MAGENTA) for name in colnames]
+            colvals = [self.myformat_value(val, casstype) for (val, casstype) in zip(row, coltypes)]
+            line = ' | '.join(name + ',' + col.coloredval for (col, name) in zip(colvals, colnames))
+            print ' ' + line
 
     def emptyline(self):
         pass
@@ -946,10 +1046,109 @@ class Shell(cmd.Cmd):
             cmd.Cmd.do_help(self, cql_dequote(t).lower())
 
     def help_types(self):
-        self.printout("CQL types recognized by this version of cqlsh:\n")
+        self.printout("\n        CQL types recognized by this version of cqlsh:\n")
         for t in cqlhandling.cql_types:
-            self.printout('  ' + t)
-        self.printout('')
+            self.printout('          ' + t)
+        print """
+        For information on the various recognizable input formats for these
+        types, or on controlling the formatting of cqlsh query output, see
+        one of the following topics:
+
+          HELP TIMESTAMP_INPUT
+          HELP BLOB_INPUT
+          HELP UUID_INPUT
+          HELP BOOLEAN_INPUT
+
+          HELP TEXT_OUTPUT
+          HELP TIMESTAMP_OUTPUT
+        """
+
+    def help_timestamp_input(self):
+        print """
+        Timestamp input
+
+        CQL supports any of the following ISO 8601 formats for timestamp
+        specification:
+
+          yyyy-mm-dd HH:mm
+          yyyy-mm-dd HH:mm:ss
+          yyyy-mm-dd HH:mmZ
+          yyyy-mm-dd HH:mm:ssZ
+          yyyy-mm-dd'T'HH:mm
+          yyyy-mm-dd'T'HH:mmZ
+          yyyy-mm-dd'T'HH:mm:ss
+          yyyy-mm-dd'T'HH:mm:ssZ
+          yyyy-mm-dd
+          yyyy-mm-ddZ
+
+        The Z in these formats refers to an RFC-822 4-digit time zone,
+        expressing the time zone's difference from UTC. For example, a
+        timestamp in Pacific Standard Time might be given thus:
+
+          2012-01-20 16:14:12-0800
+
+        If no time zone is supplied, the current time zone for the Cassandra
+        server node will be used.
+        """
+
+    def help_blob_input(self):
+        print """
+        Blob input
+
+        CQL blob data must be specified in a string literal as hexidecimal
+        data. Example: to store the ASCII values for the characters in the
+        string "CQL", use '43514c'.
+        """
+
+    def help_uuid_input(self):
+        print """
+        UUID input
+
+        UUIDs may be specified in CQL using 32 hexidecimal characters,
+        split up using dashes in the standard UUID format:
+
+          XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
+        """
+
+    def help_boolean_input(self):
+        print """
+        Boolean input
+
+        CQL accepts the strings 'true' and 'false' (case insensitive)
+        as input for boolean types.
+        """
+
+    def help_text_output(self):
+        print """
+        Textual output
+
+        When control characters, or other characters which can't be encoded
+        in your current locale, are found in values of 'text' or 'ascii'
+        types, it will be shown as a backslash escape. If color is enabled,
+        any such backslash escapes will be shown in a different color from
+        the surrounding text.
+
+        Unicode code points in your data will be output intact, if the
+        encoding for your locale is capable of decoding them. If you prefer
+        that non-ascii characters be shown with Python-style "\\uABCD"
+        escape sequences, invoke cqlsh with an ASCII locale (for example,
+        by setting the $LANG environment variable to "C").
+        """
+
+    help_ascii_output = help_text_output
+
+    def help_timestamp_output(self):
+        print """
+        Timestamp output
+
+        Cqlsh will display timestamps in this format:
+
+          yyyy-mm-dd HH:mm:ssZ
+
+        which is a format acceptable as CQL timestamp input as well. It is
+        planned that cqlsh should allow the user to change that output format
+        if desired, but that feature is not yet available.
+        """
 
     def help_select_expr(self):
         print """
@@ -1451,17 +1650,31 @@ class Shell(cmd.Cmd):
         according to a certain type.
         """
 
-    def printout(self, text, color=None, newline=True, out=sys.stdout):
-        if not color or not self.color:
-            out.write(text)
-        else:
-            out.write(color % text)
+    def help_alter_with(self):
+        print """
+        ALTER COLUMNFAMILY: changing column family properties
 
-        if newline:
-            out.write("\n")
+          ALTER COLUMNFAMILY addamsFamily WITH comment = 'Glad to be here!'
+                                           AND read_repair_chance = 0.2;
+
+        An ALTER COLUMNFAMILY ... WITH statement makes adjustments to the
+        column family properties, as defined when the column family was created
+        (see HELP CREATE_COLUMNFAMILY_OPTIONS, and your Cassandra documentation
+        for information about the supported parameter names and values).
+        """
+
+    def applycolor(self, text, color=None):
+        if not color or not self.color:
+            return text
+        return color + text + ANSI_RESET
+
+    def printout(self, text, color=None, newline=True, out=None):
+        if out is None:
+            out = sys.stdout
+        out.write(self.applycolor(str(text), color) + ('\n' if newline else ''))
 
     def printerr(self, text, color=RED, newline=True):
-        self.printout(text, color, newline, sys.stderr)
+        self.printout(text, color, newline=newline, out=sys.stderr)
 
     def add_assumption(self, ksname, cfname, colname, valtype, valclass):
         try:
