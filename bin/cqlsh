@@ -116,6 +116,7 @@ cqlhandling.commands_end_with_newline.update((
     'help',
     '?',
     'describe',
+    'desc',
     'show',
     'assume',
     'eof',
@@ -134,7 +135,7 @@ cqlhandling.CqlRuleSet.append_rules(r'''
                    | <exitCommand>
                    ;
 
-<describeCommand> ::= "DESCRIBE" ( "KEYSPACE" ksname=<name>?
+<describeCommand> ::= ( "DESCRIBE" | "DESC" ) ( "KEYSPACE" ksname=<name>?
                                   | "COLUMNFAMILY" cfname=<name>
                                   | "COLUMNFAMILIES"
                                   | "SCHEMA"
@@ -741,6 +742,8 @@ class Shell(cmd.Cmd):
         """
         DESCRIBE [cqlsh only]
 
+        (DESC may be used as a shorthand.)
+
           Outputs information about the connected Cassandra cluster, or about
           the data stored on it. Use in one of the following ways:
 
@@ -797,6 +800,8 @@ class Shell(cmd.Cmd):
             self.describe_cluster()
         elif what == 'schema':
             self.describe_schema()
+
+    do_desc = do_describe
 
     def do_show(self, parsed):
         """
