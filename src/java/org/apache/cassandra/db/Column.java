@@ -244,7 +244,7 @@ public class Column implements IColumn
         return new Column(cfs.internOrCopy(name, allocator), allocator.clone(value), timestamp);
     }
 
-    public String getString(AbstractType comparator)
+    public String getString(AbstractType<?> comparator)
     {
         StringBuilder sb = new StringBuilder();
         sb.append(comparator.getString(name));
@@ -264,14 +264,14 @@ public class Column implements IColumn
 
     protected void validateName(CFMetaData metadata) throws MarshalException
     {
-        AbstractType nameValidator = metadata.cfType == ColumnFamilyType.Super ? metadata.subcolumnComparator : metadata.comparator;
+        AbstractType<?> nameValidator = metadata.cfType == ColumnFamilyType.Super ? metadata.subcolumnComparator : metadata.comparator;
         nameValidator.validate(name());
     }
 
     public void validateFields(CFMetaData metadata) throws MarshalException
     {
         validateName(metadata);
-        AbstractType valueValidator = metadata.getValueValidator(name());
+        AbstractType<?> valueValidator = metadata.getValueValidator(name());
         if (valueValidator != null)
             valueValidator.validate(value());
     }

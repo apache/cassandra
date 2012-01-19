@@ -19,14 +19,11 @@
 package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
-import java.util.Iterator;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.utils.ByteBufferUtil;
 
 /*
  * The encoding of a CompositeType column name should be:
@@ -51,17 +48,17 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 public class CompositeType extends AbstractCompositeType
 {
     // package protected for unit tests sake
-    final List<AbstractType> types;
+    final List<AbstractType<?>> types;
 
     // interning instances
-    private static final Map<List<AbstractType>, CompositeType> instances = new HashMap<List<AbstractType>, CompositeType>();
+    private static final Map<List<AbstractType<?>>, CompositeType> instances = new HashMap<List<AbstractType<?>>, CompositeType>();
 
     public static CompositeType getInstance(TypeParser parser) throws ConfigurationException
     {
         return getInstance(parser.getTypeParameters());
     }
 
-    public static synchronized CompositeType getInstance(List<AbstractType> types) throws ConfigurationException
+    public static synchronized CompositeType getInstance(List<AbstractType<?>> types) throws ConfigurationException
     {
         if (types == null || types.isEmpty())
             throw new ConfigurationException("Nonsensical empty parameter list for CompositeType");
@@ -75,22 +72,22 @@ public class CompositeType extends AbstractCompositeType
         return ct;
     }
 
-    private CompositeType(List<AbstractType> types)
+    private CompositeType(List<AbstractType<?>> types)
     {
         this.types = types;
     }
 
-    protected AbstractType getNextComparator(int i, ByteBuffer bb)
+    protected AbstractType<?> getNextComparator(int i, ByteBuffer bb)
     {
         return types.get(i);
     }
 
-    protected AbstractType getNextComparator(int i, ByteBuffer bb1, ByteBuffer bb2)
+    protected AbstractType<?> getNextComparator(int i, ByteBuffer bb1, ByteBuffer bb2)
     {
         return types.get(i);
     }
 
-    protected AbstractType getAndAppendNextComparator(int i, ByteBuffer bb, StringBuilder sb)
+    protected AbstractType<?> getAndAppendNextComparator(int i, ByteBuffer bb, StringBuilder sb)
     {
         return types.get(i);
     }
@@ -100,7 +97,7 @@ public class CompositeType extends AbstractCompositeType
         return new StaticParsedComparator(types.get(i), part);
     }
 
-    protected AbstractType validateNextComparator(int i, ByteBuffer bb) throws MarshalException
+    protected AbstractType<?> validateNextComparator(int i, ByteBuffer bb) throws MarshalException
     {
         if (i >= types.size())
             throw new MarshalException("Too many bytes for comparator");
@@ -109,16 +106,16 @@ public class CompositeType extends AbstractCompositeType
 
     private static class StaticParsedComparator implements ParsedComparator
     {
-        final AbstractType type;
+        final AbstractType<?> type;
         final String part;
 
-        StaticParsedComparator(AbstractType type, String part)
+        StaticParsedComparator(AbstractType<?> type, String part)
         {
             this.type = type;
             this.part = part;
         }
 
-        public AbstractType getAbstractType()
+        public AbstractType<?> getAbstractType()
         {
             return type;
         }

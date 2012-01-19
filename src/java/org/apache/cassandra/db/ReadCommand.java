@@ -87,7 +87,7 @@ public abstract class ReadCommand implements MessageProducer, IReadCommand
 
     public abstract Row getRow(Table table) throws IOException;
 
-    protected AbstractType getComparator()
+    protected AbstractType<?> getComparator()
     {
         return ColumnFamily.getComparatorFor(table, getColumnFamilyName(), queryPath.superColumnName);
     }

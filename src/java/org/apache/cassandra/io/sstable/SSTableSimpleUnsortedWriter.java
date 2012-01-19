@@ -70,8 +70,8 @@ public class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
     public SSTableSimpleUnsortedWriter(File directory,
                                        String keyspace,
                                        String columnFamily,
-                                       AbstractType comparator,
-                                       AbstractType subComparator,
+                                       AbstractType<?> comparator,
+                                       AbstractType<?> subComparator,
                                        int bufferSizeInMB) throws IOException
     {
         super(directory, new CFMetaData(keyspace, columnFamily, subComparator == null ? ColumnFamilyType.Standard : ColumnFamilyType.Super, comparator, subComparator));

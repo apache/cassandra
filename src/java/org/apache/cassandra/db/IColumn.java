@@ -51,7 +51,7 @@ public interface IColumn
     public IColumn reconcile(IColumn column, Allocator allocator);
     public void updateDigest(MessageDigest digest);
     public int getLocalDeletionTime(); // for tombstone GC, so int is sufficient granularity
-    public String getString(AbstractType comparator);
+    public String getString(AbstractType<?> comparator);
     public void validateFields(CFMetaData metadata) throws MarshalException;
 
     /** clones the column for the row cache, interning column names and making copies of other underlying byte buffers */

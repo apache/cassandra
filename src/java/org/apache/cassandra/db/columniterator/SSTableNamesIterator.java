@@ -155,7 +155,7 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
         file.readInt(); // column count
 
         /* get the various column ranges we have to read */
-        AbstractType comparator = metadata.comparator;
+        AbstractType<?> comparator = metadata.comparator;
         SortedSet<IndexHelper.IndexInfo> ranges = new TreeSet<IndexHelper.IndexInfo>(IndexHelper.getComparator(comparator, false));
         for (ByteBuffer name : filteredColumnNames)
         {

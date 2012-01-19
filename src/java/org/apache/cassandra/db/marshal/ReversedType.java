@@ -28,25 +28,25 @@ import org.apache.cassandra.config.ConfigurationException;
 public class ReversedType<T> extends AbstractType<T>
 {
     // interning instances
-    private static final Map<AbstractType, ReversedType> instances = new HashMap<AbstractType, ReversedType>();
+    private static final Map<AbstractType<?>, ReversedType> instances = new HashMap<AbstractType<?>, ReversedType>();
 
     // package protected for unit tests sake
     final AbstractType<T> baseType;
 
     public static <T> ReversedType<T> getInstance(TypeParser parser) throws ConfigurationException
     {
-        List<AbstractType> types = parser.getTypeParameters();
+        List<AbstractType<?>> types = parser.getTypeParameters();
         if (types.size() != 1)
             throw new ConfigurationException("ReversedType takes exactly one argument, " + types.size() + " given");
-        return getInstance(types.get(0));
+        return getInstance((AbstractType<T>) types.get(0));
     }
 
     public static synchronized <T> ReversedType<T> getInstance(AbstractType<T> baseType)
     {
-        ReversedType type = instances.get(baseType);
+        ReversedType<T> type = instances.get(baseType);
         if (type == null)
         {
-            type = new ReversedType(baseType);
+            type = new ReversedType<T>(baseType);
             instances.put(baseType, type);
         }
         return (ReversedType<T>) type;

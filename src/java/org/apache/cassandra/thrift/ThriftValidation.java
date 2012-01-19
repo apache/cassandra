@@ -235,7 +235,7 @@ public class ThriftValidation
             if (metadata.cfType == ColumnFamilyType.Standard)
                 throw new InvalidRequestException("supercolumn specified to ColumnFamily " + metadata.cfName + " containing normal columns");
         }
-        AbstractType comparator = metadata.getComparatorFor(superColumnName);
+        AbstractType<?> comparator = metadata.getComparatorFor(superColumnName);
         for (ByteBuffer name : column_names)
         {
             if (name.remaining() > IColumn.MAX_NAME_LENGTH)
@@ -260,7 +260,7 @@ public class ThriftValidation
 
     public static void validateRange(CFMetaData metadata, ColumnParent column_parent, SliceRange range) throws InvalidRequestException
     {
-        AbstractType comparator = metadata.getComparatorFor(column_parent.super_column);
+        AbstractType<?> comparator = metadata.getComparatorFor(column_parent.super_column);
         try
         {
             comparator.validate(range.start);
@@ -428,7 +428,7 @@ public class ThriftValidation
         ColumnDefinition columnDef = metadata.getColumnDefinition(column.name);
         try
         {
-            AbstractType validator = metadata.getValueValidator(columnDef);
+            AbstractType<?> validator = metadata.getValueValidator(columnDef);
             if (validator != null)
                 validator.validate(column.value);
         }
@@ -552,7 +552,7 @@ public class ThriftValidation
             return false;
 
         Set<ByteBuffer> indexedColumns = Table.open(metadata.ksName).getColumnFamilyStore(metadata.cfName).indexManager.getIndexedColumns();
-        AbstractType nameValidator =  ColumnFamily.getComparatorFor(metadata.ksName, metadata.cfName, null);
+        AbstractType<?> nameValidator =  ColumnFamily.getComparatorFor(metadata.ksName, metadata.cfName, null);
 
         boolean isIndexed = false;
         for (IndexExpression expression : index_clause)
@@ -569,7 +569,7 @@ public class ThriftValidation
                                                                 me.getMessage()));
             }
 
-            AbstractType valueValidator = Schema.instance.getValueValidator(metadata.ksName, metadata.cfName, expression.column_name);
+            AbstractType<?> valueValidator = Schema.instance.getValueValidator(metadata.ksName, metadata.cfName, expression.column_name);
             try
             {
                 valueValidator.validate(expression.value);
@@ -624,7 +624,7 @@ public class ThriftValidation
             if (cf_def.column_metadata == null)
                 return;
 
-            AbstractType comparator = cfType == ColumnFamilyType.Standard
+            AbstractType<?> comparator = cfType == ColumnFamilyType.Standard
                                     ? TypeParser.parse(cf_def.comparator_type)
                                     : TypeParser.parse(cf_def.subcomparator_type);
 

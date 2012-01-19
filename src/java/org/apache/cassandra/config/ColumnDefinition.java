@@ -35,12 +35,12 @@ public class ColumnDefinition
 {
     
     public final ByteBuffer name;
-    private AbstractType validator;
+    private AbstractType<?> validator;
     private IndexType index_type;
     private Map<String,String> index_options;
     private String index_name;
     
-    public ColumnDefinition(ByteBuffer name, AbstractType validator, IndexType index_type, Map<String, String> index_options, String index_name) throws ConfigurationException
+    public ColumnDefinition(ByteBuffer name, AbstractType<?> validator, IndexType index_type, Map<String, String> index_options, String index_name) throws ConfigurationException
     {
         this.name = name;
         this.index_name = index_name;
@@ -99,7 +99,7 @@ public class ColumnDefinition
         String index_name = cd.index_name == null ? null : cd.index_name.toString();
         try
         {
-            AbstractType validatorType = TypeParser.parse(cd.validation_class);
+            AbstractType<?> validatorType = TypeParser.parse(cd.validation_class);
             return new ColumnDefinition(ByteBufferUtil.clone(cd.name), validatorType, index_type, getStringMap(cd.index_options), index_name);
         }
         catch (ConfigurationException e)
@@ -166,12 +166,12 @@ public class ColumnDefinition
         return index_options;
     }
     
-    public AbstractType getValidator()
+    public AbstractType<?> getValidator()
     {
         return validator;
     }
 
-    public void setValidator(AbstractType validator)
+    public void setValidator(AbstractType<?> validator)
     {
         this.validator = validator;
     }

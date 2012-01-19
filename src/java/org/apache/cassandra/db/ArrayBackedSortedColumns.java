@@ -47,7 +47,7 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns 
 
         public ISortedColumns fromSorted(SortedMap<ByteBuffer, IColumn> sortedMap, boolean insertReversed)
         {
-            return new ArrayBackedSortedColumns(sortedMap.values(), (AbstractType)sortedMap.comparator(), insertReversed);
+            return new ArrayBackedSortedColumns(sortedMap.values(), (AbstractType<?>)sortedMap.comparator(), insertReversed);
         }
     };
 

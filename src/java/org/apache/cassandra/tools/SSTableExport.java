@@ -100,7 +100,7 @@ public class SSTableExport
      * @param comparator columns comparator
      * @param cfMetaData Column Family metadata (to get validator)
      */
-    private static void serializeColumns(Iterator<IColumn> columns, PrintStream out, AbstractType comparator, CFMetaData cfMetaData)
+    private static void serializeColumns(Iterator<IColumn> columns, PrintStream out, AbstractType<?> comparator, CFMetaData cfMetaData)
     {
         while (columns.hasNext())
         {
@@ -120,7 +120,7 @@ public class SSTableExport
      *
      * @return column as serialized list
      */
-    private static List<Object> serializeColumn(IColumn column, AbstractType comparator, CFMetaData cfMetaData)
+    private static List<Object> serializeColumn(IColumn column, AbstractType<?> comparator, CFMetaData cfMetaData)
     {
         ArrayList<Object> serializedColumn = new ArrayList<Object>();
 
@@ -134,7 +134,7 @@ public class SSTableExport
         }
         else
         {
-            AbstractType validator = cfMetaData.getValueValidator(name);
+            AbstractType<?> validator = cfMetaData.getValueValidator(name);
             serializedColumn.add(validator.getString(value));
         }
         serializedColumn.add(column.timestamp());
@@ -169,7 +169,7 @@ public class SSTableExport
         ColumnFamily columnFamily = row.getColumnFamily();
         boolean isSuperCF = columnFamily.isSuper();
         CFMetaData cfMetaData = columnFamily.metadata();
-        AbstractType comparator = columnFamily.getComparator();
+        AbstractType<?> comparator = columnFamily.getComparator();
 
         writeKey(out, bytesToHex(key.key));
         out.print(isSuperCF ? "{" : "[");

@@ -26,7 +26,6 @@ import java.util.Iterator;
 import java.util.NoSuchElementException;
 
 import org.apache.cassandra.config.Config;
-import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.utils.Pair;
 
 /**
@@ -84,7 +83,7 @@ public abstract class SegmentedFile
      */
     public Iterator<FileDataInput> iterator(long position, int bufferSize)
     {
-        return new SegmentIterator(position, bufferSize);
+        return new SegmentIterator(position);
     }
 
     /**
@@ -130,11 +129,9 @@ public abstract class SegmentedFile
     final class SegmentIterator implements Iterator<FileDataInput>
     {
         private long nextpos;
-        private final int bufferSize;
-        public SegmentIterator(long position, int bufferSize)
+        public SegmentIterator(long position)
         {
             this.nextpos = position;
-            this.bufferSize = bufferSize;
         }
 
         public boolean hasNext()

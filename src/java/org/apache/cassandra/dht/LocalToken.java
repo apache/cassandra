@@ -26,9 +26,9 @@ public class LocalToken extends Token<ByteBuffer>
 {
     static final long serialVersionUID = 8437543776403014875L;
 
-    private final AbstractType comparator;
+    private final AbstractType<?> comparator;
 
-    public LocalToken(AbstractType comparator, ByteBuffer token)
+    public LocalToken(AbstractType<?> comparator, ByteBuffer token)
     {
         super(token);
         this.comparator = comparator;

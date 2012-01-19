@@ -63,7 +63,7 @@ public class KeysIndex extends PerColumnSecondaryIndex
                                                              indexedCfMetadata);
     }
 
-    public static AbstractType indexComparator()
+    public static AbstractType<?> indexComparator()
     {
         IPartitioner rowPartitioner = StorageService.getPartitioner();
         return (rowPartitioner instanceof OrderPreservingPartitioner || rowPartitioner instanceof ByteOrderedPartitioner)

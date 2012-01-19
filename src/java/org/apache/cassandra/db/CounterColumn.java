@@ -208,7 +208,7 @@ public class CounterColumn extends Column
     }
 
     @Override
-    public String getString(AbstractType comparator)
+    public String getString(AbstractType<?> comparator)
     {
         StringBuilder sb = new StringBuilder();
         sb.append(comparator.getString(name));

@@ -72,14 +72,14 @@ public class CliClient
         ASCII         (AsciiType.instance),
         COUNTERCOLUMN (CounterColumnType.instance);
 
-        private AbstractType validator;
+        private AbstractType<?> validator;
 
-        Function(AbstractType validator)
+        Function(AbstractType<?> validator)
         {
             this.validator = validator;
         }
 
-        public AbstractType getValidator()
+        public AbstractType<?> getValidator()
         {
             return this.validator;
         }
@@ -151,14 +151,14 @@ public class CliClient
     private String keySpace = null;
     private String username = null;
     private Map<String, KsDef> keyspacesMap = new HashMap<String, KsDef>();
-    private Map<String, AbstractType> cfKeysComparators;
+    private Map<String, AbstractType<?>> cfKeysComparators;
     private ConsistencyLevel consistencyLevel = ConsistencyLevel.ONE;
     private CliUserHelp help;
     public CliClient(CliSessionState cliSessionState, Cassandra.Client thriftClient)
     {
         this.sessionState = cliSessionState;
         this.thriftClient = thriftClient;
-        this.cfKeysComparators = new HashMap<String, AbstractType>();
+        this.cfKeysComparators = new HashMap<String, AbstractType<?>>();
     }
 
     private CliUserHelp getHelp()
@@ -464,7 +464,7 @@ public class CliClient
         boolean isSuperCF = cfDef.column_type.equals("Super");
 
         List<ColumnOrSuperColumn> columns = thriftClient.get_slice(key, parent, predicate, consistencyLevel);
-        AbstractType validator;
+        AbstractType<?> validator;
 
         // Print out super columns or columns.
         for (ColumnOrSuperColumn cosc : columns)
@@ -525,7 +525,7 @@ public class CliClient
         elapsedTime(startTime);
     }
 
-    private AbstractType getFormatType(String compareWith)
+    private AbstractType<?> getFormatType(String compareWith)
     {
         Function function;
 
@@ -627,7 +627,7 @@ public class CliClient
             return;
         }
 
-        AbstractType validator = getValidatorForValue(cfDef, TBaseHelper.byteBufferToByteArray(columnName));
+        AbstractType<?> validator = getValidatorForValue(cfDef, TBaseHelper.byteBufferToByteArray(columnName));
 
         // Perform a get()
         ColumnPath path = new ColumnPath(columnFamily);
@@ -664,7 +664,7 @@ public class CliClient
             // .getText() will give us <type>
             String typeName = CliUtils.unescapeSQLString(typeTree.getText());
             // building AbstractType from <type>
-            AbstractType valueValidator = getFormatType(typeName);
+            AbstractType<?> valueValidator = getFormatType(typeName);
 
             // setting value for output
             valueAsString = valueValidator.getString(ByteBuffer.wrap(columnValue));
@@ -1365,7 +1365,7 @@ public class CliClient
 
         // set the key range
         KeyRange range = new KeyRange(limitCount);
-        AbstractType keyComparator = this.cfKeysComparators.get(columnFamily);
+        AbstractType<?> keyComparator = this.cfKeysComparators.get(columnFamily);
         ByteBuffer startKey = rawStartKey.isEmpty() ? ByteBufferUtil.EMPTY_BYTE_BUFFER : getBytesAccordingToType(rawStartKey, keyComparator);
         ByteBuffer endKey = rawEndKey.isEmpty() ? ByteBufferUtil.EMPTY_BYTE_BUFFER : getBytesAccordingToType(rawEndKey, keyComparator);
         range.setStart_key(startKey).setEnd_key(endKey);
@@ -1472,7 +1472,7 @@ public class CliClient
         // VALIDATOR | COMPARATOR | KEYS | SUB_COMPARATOR
         String assumptionElement = statement.getChild(1).getText().toUpperCase();
         // used to store in this.cfKeysComparator
-        AbstractType comparator;
+        AbstractType<?> comparator;
 
         // Could be UTF8Type, IntegerType, LexicalUUIDType etc.
         String defaultType = statement.getChild(2).getText();
@@ -1725,7 +1725,7 @@ public class CliClient
     {
         sb.append(NEWLINE + TAB + TAB + "{");
 
-        final AbstractType comparator = getFormatType(cfDef.column_type.equals("Super")
+        final AbstractType<?> comparator = getFormatType(cfDef.column_type.equals("Super")
                                                       ? cfDef.subcomparator_type
                                                       : cfDef.comparator_type);
         sb.append("column_name : '" + CliUtils.escapeSQLString(comparator.getString(colDef.name)) + "'," + NEWLINE);
@@ -1991,7 +1991,7 @@ public class CliClient
 
             String compareWith = isSuper ? cf_def.subcomparator_type
                     : cf_def.comparator_type;
-            AbstractType columnNameValidator = getFormatType(compareWith);
+            AbstractType<?> columnNameValidator = getFormatType(compareWith);
 
             sessionState.out.println(leftSpace + "Column Metadata:");
             for (ColumnDef columnDef : cf_def.getColumn_metadata())
@@ -2315,7 +2315,7 @@ public class CliClient
      * @param comparator - comparator used to convert object
      * @return byte[] - object in the byte array representation
      */
-    private ByteBuffer getBytesAccordingToType(String object, AbstractType comparator)
+    private ByteBuffer getBytesAccordingToType(String object, AbstractType<?> comparator)
     {
         if (comparator == null) // default comparator is BytesType
             comparator = BytesType.instance;
@@ -2427,7 +2427,7 @@ public class CliClient
     private ByteBuffer columnValueAsBytes(ByteBuffer columnName, String columnFamilyName, String columnValue)
     {
         CfDef columnFamilyDef = getCfDef(columnFamilyName);
-        AbstractType defaultValidator = getFormatType(columnFamilyDef.default_validation_class);
+        AbstractType<?> defaultValidator = getFormatType(columnFamilyDef.default_validation_class);
 
         for (ColumnDef columnDefinition : columnFamilyDef.getColumn_metadata())
         {
@@ -2456,7 +2456,7 @@ public class CliClient
      * @param columnNameInBytes - column name as byte array
      * @return AbstractType - validator for column value
      */
-    private AbstractType getValidatorForValue(CfDef ColumnFamilyDef, byte[] columnNameInBytes)
+    private AbstractType<?> getValidatorForValue(CfDef ColumnFamilyDef, byte[] columnNameInBytes)
     {
         String defaultValidator = ColumnFamilyDef.default_validation_class;
         
@@ -2541,7 +2541,7 @@ public class CliClient
         String functionName = functionCall.getChild(0).getText();
         Tree argumentTree = functionCall.getChild(1);
         String functionArg  = (argumentTree == null) ? "" : CliUtils.unescapeSQLString(argumentTree.getText());
-        AbstractType validator = getTypeByFunction(functionName);
+        AbstractType<?> validator = getTypeByFunction(functionName);
 
         try
         {
@@ -2591,7 +2591,7 @@ public class CliClient
      * @param functionName - name of the function e.g. utf8, integer, long etc.
      * @return AbstractType type corresponding to the function name
      */
-    public static AbstractType getTypeByFunction(String functionName)
+    public static AbstractType<?> getTypeByFunction(String functionName)
     {
         Function function;
 
@@ -2669,9 +2669,9 @@ public class CliClient
     private void printSliceList(CfDef columnFamilyDef, List<KeySlice> slices)
             throws NotFoundException, TException, IllegalAccessException, InstantiationException, NoSuchFieldException, CharacterCodingException
     {
-        AbstractType validator;
+        AbstractType<?> validator;
         String columnFamilyName = columnFamilyDef.getName();
-        AbstractType keyComparator = getKeyComparatorForCF(columnFamilyName);
+        AbstractType<?> keyComparator = getKeyComparatorForCF(columnFamilyName);
 
         for (KeySlice ks : slices)
         {
@@ -2772,9 +2772,9 @@ public class CliClient
         return getBytesAccordingToType(key, getKeyComparatorForCF(columnFamily));
     }
 
-    private AbstractType getKeyComparatorForCF(String columnFamily)
+    private AbstractType<?> getKeyComparatorForCF(String columnFamily)
     {
-        AbstractType keyComparator = cfKeysComparators.get(columnFamily);
+        AbstractType<?> keyComparator = cfKeysComparators.get(columnFamily);
 
         if (keyComparator == null)
         {

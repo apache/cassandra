@@ -28,5 +28,5 @@ public interface IIterableColumns extends Iterable<IColumn>
 {
     public int getEstimatedColumnCount();
 
-    AbstractType getComparator();
+    AbstractType<?> getComparator();
 }

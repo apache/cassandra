@@ -109,16 +109,16 @@ public final class CFMetaData
     public final String ksName;                       // name of keyspace
     public final String cfName;                       // name of this column family
     public final ColumnFamilyType cfType;             // standard, super
-    public final AbstractType comparator;             // bytes, long, timeuuid, utf8, etc.
-    public final AbstractType subcolumnComparator;    // like comparator, for supercolumns
+    public final AbstractType<?> comparator;          // bytes, long, timeuuid, utf8, etc.
+    public final AbstractType<?> subcolumnComparator; // like comparator, for supercolumns
 
     //OPTIONAL
     private String comment;                           // default none, for humans only
     private double readRepairChance;                  // default 1.0 (always), chance [0.0,1.0] of read repair
     private boolean replicateOnWrite;                 // default false
     private int gcGraceSeconds;                       // default 864000 (ten days)
-    private AbstractType defaultValidator;            // default BytesType (no-op), use comparator types
-    private AbstractType keyValidator;                // default BytesType (no-op), use comparator types
+    private AbstractType<?> defaultValidator;         // default BytesType (no-op), use comparator types
+    private AbstractType<?> keyValidator;             // default BytesType (no-op), use comparator types
     private int minCompactionThreshold;               // default 4
     private int maxCompactionThreshold;               // default 32
     // mergeShardsChance is now obsolete, but left here so as to not break
@@ -138,8 +138,8 @@ public final class CFMetaData
     public CFMetaData readRepairChance(double prop) {readRepairChance = prop; return this;}
     public CFMetaData replicateOnWrite(boolean prop) {replicateOnWrite = prop; return this;}
     public CFMetaData gcGraceSeconds(int prop) {gcGraceSeconds = prop; return this;}
-    public CFMetaData defaultValidator(AbstractType prop) {defaultValidator = prop; return this;}
-    public CFMetaData keyValidator(AbstractType prop) {keyValidator = prop; return this;}
+    public CFMetaData defaultValidator(AbstractType<?> prop) {defaultValidator = prop; return this;}
+    public CFMetaData keyValidator(AbstractType<?> prop) {keyValidator = prop; return this;}
     public CFMetaData minCompactionThreshold(int prop) {minCompactionThreshold = prop; return this;}
     public CFMetaData maxCompactionThreshold(int prop) {maxCompactionThreshold = prop; return this;}
     public CFMetaData mergeShardsChance(double prop) {mergeShardsChance = prop; return this;}
@@ -151,12 +151,12 @@ public final class CFMetaData
     public CFMetaData bloomFilterFpChance(Double prop) {bloomFilterFpChance = prop; return this;}
     public CFMetaData caching(Caching prop) {caching = prop; return this;}
 
-    public CFMetaData(String keyspace, String name, ColumnFamilyType type, AbstractType comp, AbstractType subcc)
+    public CFMetaData(String keyspace, String name, ColumnFamilyType type, AbstractType<?> comp, AbstractType<?> subcc)
     {
         this(keyspace, name, type, comp, subcc, Schema.instance.nextCFId());
     }
 
-    private CFMetaData(String keyspace, String name, ColumnFamilyType type, AbstractType comp, AbstractType subcc, int id)
+    private CFMetaData(String keyspace, String name, ColumnFamilyType type, AbstractType<?> comp, AbstractType<?> subcc, int id)
     {
         // Final fields must be set in constructor
         ksName = keyspace;
@@ -173,7 +173,7 @@ public final class CFMetaData
         this.init();
     }
 
-    private AbstractType enforceSubccDefault(ColumnFamilyType cftype, AbstractType subcc)
+    private AbstractType<?> enforceSubccDefault(ColumnFamilyType cftype, AbstractType<?> subcc)
     {
         return (subcc == null) && (cftype == ColumnFamilyType.Super) ? BytesType.instance : subcc;
     }
@@ -213,7 +213,7 @@ public final class CFMetaData
         compressionParameters = new CompressionParameters(null);
     }
 
-    private static CFMetaData newSystemMetadata(String cfName, int cfId, String comment, AbstractType comparator, AbstractType subcc)
+    private static CFMetaData newSystemMetadata(String cfName, int cfId, String comment, AbstractType<?> comparator, AbstractType<?> subcc)
     {
         ColumnFamilyType type = subcc == null ? ColumnFamilyType.Standard : ColumnFamilyType.Super;
         CFMetaData newCFMD = new CFMetaData(Table.SYSTEM_TABLE, cfName, type, comparator,  subcc, cfId);
@@ -224,7 +224,7 @@ public final class CFMetaData
                       .mergeShardsChance(0.0);
     }
 
-    public static CFMetaData newIndexMetadata(CFMetaData parent, ColumnDefinition info, AbstractType columnComparator)
+    public static CFMetaData newIndexMetadata(CFMetaData parent, ColumnDefinition info, AbstractType<?> columnComparator)
     {
         return new CFMetaData(parent.ksName, parent.indexColumnFamilyName(info), ColumnFamilyType.Standard, columnComparator, null)
                              .keyValidator(info.getValidator())
@@ -320,10 +320,10 @@ public final class CFMetaData
 
     public static CFMetaData fromAvro(org.apache.cassandra.db.migration.avro.CfDef cf)
     {
-        AbstractType comparator;
-        AbstractType subcolumnComparator = null;
-        AbstractType validator;
-        AbstractType keyValidator;
+        AbstractType<?> comparator;
+        AbstractType<?> subcolumnComparator = null;
+        AbstractType<?> validator;
+        AbstractType<?> keyValidator;
 
         try
         {
@@ -436,12 +436,12 @@ public final class CFMetaData
         return gcGraceSeconds;
     }
 
-    public AbstractType getDefaultValidator()
+    public AbstractType<?> getDefaultValidator()
     {
         return defaultValidator;
     }
 
-    public AbstractType getKeyValidator()
+    public AbstractType<?> getKeyValidator()
     {
         return keyValidator;
     }
@@ -471,7 +471,7 @@ public final class CFMetaData
         return Collections.unmodifiableMap(column_metadata);
     }
 
-    public AbstractType getComparatorFor(ByteBuffer superColumnName)
+    public AbstractType<?> getComparatorFor(ByteBuffer superColumnName)
     {
         return superColumnName == null ? comparator : subcolumnComparator;
     }
@@ -552,12 +552,12 @@ public final class CFMetaData
             .toHashCode();
     }
 
-    public AbstractType getValueValidator(ByteBuffer column)
+    public AbstractType<?> getValueValidator(ByteBuffer column)
     {
         return getValueValidator(column_metadata.get(column));
     }
 
-    public AbstractType getValueValidator(ColumnDefinition columnDefinition)
+    public AbstractType<?> getValueValidator(ColumnDefinition columnDefinition)
     {
         return columnDefinition == null
                ? defaultValidator
@@ -704,7 +704,7 @@ public final class CFMetaData
         // add the new ones coming in.
         for (org.apache.cassandra.db.migration.avro.ColumnDef def : toAdd)
         {
-            AbstractType dValidClass = TypeParser.parse(def.validation_class);
+            AbstractType<?> dValidClass = TypeParser.parse(def.validation_class);
             ColumnDefinition cd = new ColumnDefinition(def.name, 
                                                        dValidClass,
                                                        def.index_type == null ? null : org.apache.cassandra.thrift.IndexType.valueOf(def.index_type.toString()), 
@@ -745,7 +745,7 @@ public final class CFMetaData
     {
         try
         {
-            Constructor constructor = compactionStrategyClass.getConstructor(new Class[] {
+            Constructor<? extends AbstractCompactionStrategy> constructor = compactionStrategyClass.getConstructor(new Class[] {
                 ColumnFamilyStore.class,
                 Map.class // options
             });
@@ -869,24 +869,23 @@ public final class CFMetaData
         if (cf_def.column_metadata == null)
             return;
 
-        AbstractType comparator;
         try
         {
-            comparator = TypeParser.parse(cf_def.comparator_type);
+            AbstractType<?> comparator = TypeParser.parse(cf_def.comparator_type);
+            
+            for (org.apache.cassandra.thrift.ColumnDef column : cf_def.column_metadata)
+            {
+                if (column.index_type != null && column.index_name == null)
+                    column.index_name = getDefaultIndexName(cf_def.name, comparator, column.name);
+            }
         }
         catch (ConfigurationException e)
         {
             throw new InvalidRequestException(e.getMessage());
         }
-
-        for (org.apache.cassandra.thrift.ColumnDef column : cf_def.column_metadata)
-        {
-            if (column.index_type != null && column.index_name == null)
-                column.index_name = getDefaultIndexName(cf_def.name, comparator, column.name);
-        }
     }
 
-    public static String getDefaultIndexName(String cfName, AbstractType comparator, ByteBuffer columnName)
+    public static String getDefaultIndexName(String cfName, AbstractType<?> comparator, ByteBuffer columnName)
     {
         return (cfName + "_" + comparator.getString(columnName) + "_idx").replaceAll("\\W", "");
     }

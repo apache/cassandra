@@ -30,7 +30,6 @@ import java.util.List;
 
 import com.google.common.collect.AbstractIterator;
 
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IColumn;
@@ -58,7 +57,7 @@ class IndexedSliceReader extends AbstractIterator<IColumn> implements IColumnIte
 
     private BlockFetcher fetcher;
     private Deque<IColumn> blockColumns = new ArrayDeque<IColumn>();
-    private AbstractType comparator;
+    private AbstractType<?> comparator;
 
     public IndexedSliceReader(SSTableReader sstable, FileDataInput input, ByteBuffer startColumn, ByteBuffer finishColumn, boolean reversed)
     {

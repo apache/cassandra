@@ -46,7 +46,7 @@ public interface IColumnContainer
     public long getMarkedForDeleteAt();
     public boolean hasExpiredTombstones(int gcBefore);
 
-    public AbstractType getComparator();
+    public AbstractType<?> getComparator();
 
     public Collection<IColumn> getSortedColumns();
 }

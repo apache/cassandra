@@ -84,7 +84,7 @@ public class AtomicSortedColumns implements ISortedColumns
 
     public AbstractType<?> getComparator()
     {
-        return (AbstractType)ref.get().map.comparator();
+        return (AbstractType<?>)ref.get().map.comparator();
     }
 
     public ISortedColumns.Factory getFactory()

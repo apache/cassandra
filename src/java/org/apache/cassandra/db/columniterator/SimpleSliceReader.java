@@ -41,7 +41,7 @@ class SimpleSliceReader extends AbstractIterator<IColumn> implements IColumnIter
 {
     private final FileDataInput file;
     private final ByteBuffer finishColumn;
-    private final AbstractType comparator;
+    private final AbstractType<?> comparator;
     private final ColumnFamily emptyColumnFamily;
     private final int columns;
     private int i;

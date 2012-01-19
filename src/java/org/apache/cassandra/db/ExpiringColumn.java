@@ -145,7 +145,7 @@ public class ExpiringColumn extends Column
     }
     
     @Override
-    public String getString(AbstractType comparator)
+    public String getString(AbstractType<?> comparator)
     {
         StringBuilder sb = new StringBuilder();
         sb.append(super.getString(comparator));

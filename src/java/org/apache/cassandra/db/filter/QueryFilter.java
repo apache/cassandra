@@ -187,7 +187,7 @@ public class QueryFilter
         return new QueryFilter(key, path, new NamesQueryFilter(columns));
     }
 
-    public static IFilter getFilter(SlicePredicate predicate, AbstractType comparator)
+    public static IFilter getFilter(SlicePredicate predicate, AbstractType<?> comparator)
     {
         if (predicate.column_names != null)
         {

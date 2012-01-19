@@ -69,7 +69,7 @@ public abstract class AbstractColumnContainer implements IColumnContainer, IIter
         return columns.getDeletionInfo().localDeletionTime;
     }
 
-    public AbstractType getComparator()
+    public AbstractType<?> getComparator()
     {
         return columns.getComparator();
     }

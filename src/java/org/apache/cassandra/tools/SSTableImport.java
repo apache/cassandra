@@ -98,7 +98,7 @@ public class SSTableImport
         {
             if (json instanceof List)
             {
-                AbstractType comparator = (isSubColumn) ? meta.subcolumnComparator : meta.comparator;
+                AbstractType<?> comparator = (isSubColumn) ? meta.subcolumnComparator : meta.comparator;
                 List fields = (List<?>) json;
 
                 assert fields.size() >= 3 : "Column definition should have at least 3";
@@ -221,7 +221,7 @@ public class SSTableImport
         CFMetaData metaData = cfamily.metadata();
         assert metaData != null;
 
-        AbstractType comparator = metaData.comparator;
+        AbstractType<?> comparator = metaData.comparator;
 
         // Super columns
         for (Map.Entry<?, ?> entry : row.entrySet())
@@ -516,7 +516,7 @@ public class SSTableImport
      * @param type type to use for conversion
      * @return byte buffer representation of the given string
      */
-    private static ByteBuffer stringAsType(String content, AbstractType type)
+    private static ByteBuffer stringAsType(String content, AbstractType<?> type)
     {
         try
         {

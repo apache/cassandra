@@ -215,7 +215,7 @@ public class Schema
      *
      * @return The comparator of the ColumnFamily
      */
-    public AbstractType getComparator(String ksName, String cfName)
+    public AbstractType<?> getComparator(String ksName, String cfName)
     {
         assert ksName != null;
         CFMetaData cfmd = getCFMetaData(ksName, cfName);
@@ -232,7 +232,7 @@ public class Schema
      *
      * @return The subComparator of the ColumnFamily
      */
-    public AbstractType getSubComparator(String ksName, String cfName)
+    public AbstractType<?> getSubComparator(String ksName, String cfName)
     {
         assert ksName != null;
         return getCFMetaData(ksName, cfName).subcolumnComparator;
@@ -247,7 +247,7 @@ public class Schema
      *
      * @return value validator specific to the column or default (per-cf) one
      */
-    public AbstractType getValueValidator(String ksName, String cfName, ByteBuffer column)
+    public AbstractType<?> getValueValidator(String ksName, String cfName, ByteBuffer column)
     {
         return getCFMetaData(ksName, cfName).getValueValidator(column);
     }

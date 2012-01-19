@@ -93,7 +93,7 @@ public class ColumnFamily extends AbstractColumnContainer
         return cloneMeShallow(columns.getFactory(), columns.isInsertReversed());
     }
 
-    public AbstractType getSubComparator()
+    public AbstractType<?> getSubComparator()
     {
         IColumnSerializer s = getColumnSerializer();
         return (s instanceof SuperColumnSerializer) ? ((SuperColumnSerializer) s).getComparator() : null;
@@ -292,7 +292,7 @@ public class ColumnFamily extends AbstractColumnContainer
             column.updateDigest(digest);
     }
 
-    public static AbstractType getComparatorFor(String table, String columnFamilyName, ByteBuffer superColumnName)
+    public static AbstractType<?> getComparatorFor(String table, String columnFamilyName, ByteBuffer superColumnName)
     {
         return superColumnName == null
                ? Schema.instance.getComparator(table, columnFamilyName)

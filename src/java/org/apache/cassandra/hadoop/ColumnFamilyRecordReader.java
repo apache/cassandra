@@ -225,8 +225,8 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
         private String startToken;
         private int totalRead = 0;
         private int i = 0;
-        private final AbstractType comparator;
-        private final AbstractType subComparator;
+        private final AbstractType<?> comparator;
+        private final AbstractType<?> subComparator;
         private final IPartitioner partitioner;
 
         private RowIterator()

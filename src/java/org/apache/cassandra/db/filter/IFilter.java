@@ -72,7 +72,7 @@ public interface IFilter
      */
     public abstract SuperColumn filterSuperColumn(SuperColumn superColumn, int gcBefore);
 
-    public Comparator<IColumn> getColumnComparator(AbstractType comparator);
+    public Comparator<IColumn> getColumnComparator(AbstractType<?> comparator);
 
     public boolean isReversed();
     public void updateColumnsLimit(int newLimit);

@@ -144,7 +144,7 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>
         return false;
     }
 
-    public static AbstractType parseDefaultParameters(AbstractType baseType, TypeParser parser) throws ConfigurationException
+    public static AbstractType<?> parseDefaultParameters(AbstractType<?> baseType, TypeParser parser) throws ConfigurationException
     {
         Map<String, String> parameters = parser.getKeyValueParameters();
         String reversed = parameters.get("reversed");

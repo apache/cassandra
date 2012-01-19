@@ -53,7 +53,7 @@ public class TreeMapBackedSortedColumns extends AbstractThreadUnsafeSortedColumn
 
     public AbstractType<?> getComparator()
     {
-        return (AbstractType)map.comparator();
+        return (AbstractType<?>)map.comparator();
     }
 
     private TreeMapBackedSortedColumns(AbstractType<?> comparator)

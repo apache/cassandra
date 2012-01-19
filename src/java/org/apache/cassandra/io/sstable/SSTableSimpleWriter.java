@@ -20,7 +20,6 @@ package org.apache.cassandra.io.sstable;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
@@ -52,8 +51,8 @@ public class SSTableSimpleWriter extends AbstractSSTableSimpleWriter
     public SSTableSimpleWriter(File directory,
                                String keyspace,
                                String columnFamily,
-                               AbstractType comparator,
-                               AbstractType subComparator) throws IOException
+                               AbstractType<?> comparator,
+                               AbstractType<?> subComparator) throws IOException
     {
         this(directory,
              new CFMetaData(keyspace, columnFamily, subComparator == null ? ColumnFamilyType.Standard : ColumnFamilyType.Super, comparator, subComparator));

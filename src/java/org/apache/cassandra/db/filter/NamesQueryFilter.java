@@ -87,7 +87,7 @@ public class NamesQueryFilter implements IFilter
         }
     }
 
-    public Comparator<IColumn> getColumnComparator(AbstractType comparator)
+    public Comparator<IColumn> getColumnComparator(AbstractType<?> comparator)
     {
         return comparator.columnComparator;
     }

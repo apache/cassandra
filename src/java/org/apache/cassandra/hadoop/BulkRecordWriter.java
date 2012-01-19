@@ -75,7 +75,7 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<Mutation>>
         File outputdir = new File(getOutputLocation() + File.separator + keyspace); //dir must be named by ks for the loader
         outputdir.mkdirs();
         this.isSuper = Boolean.valueOf(conf.get(IS_SUPERCF));
-        AbstractType subcomparator = null;
+        AbstractType<?> subcomparator = null;
         if (isSuper)
             subcomparator = BytesType.instance;
         this.writer = new SSTableSimpleUnsortedWriter(
@@ -184,7 +184,7 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<Mutation>>
 
                     for (TokenRange tr : tokenRanges)
                     {
-                        Range range = new Range(tkFactory.fromString(tr.start_token), tkFactory.fromString(tr.end_token));
+                        Range<Token> range = new Range<Token>(tkFactory.fromString(tr.start_token), tkFactory.fromString(tr.end_token));
                         for (String ep : tr.endpoints)
                         {
                             addRangeForEndpoint(range, InetAddress.getByName(ep));

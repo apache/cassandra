@@ -30,9 +30,9 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class LocalPartitioner extends AbstractPartitioner<LocalToken>
 {
-    private final AbstractType comparator;
+    private final AbstractType<?> comparator;
 
-    public LocalPartitioner(AbstractType comparator)
+    public LocalPartitioner(AbstractType<?> comparator)
     {
         this.comparator = comparator;
     }

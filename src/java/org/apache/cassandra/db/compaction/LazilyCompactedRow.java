@@ -170,7 +170,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements IIterabl
         return n;
     }
 
-    public AbstractType getComparator()
+    public AbstractType<?> getComparator()
     {
         return emptyColumnFamily.getComparator();
     }

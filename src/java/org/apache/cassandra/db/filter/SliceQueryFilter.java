@@ -102,7 +102,7 @@ public class SliceQueryFilter implements IFilter
         return scFiltered;
     }
 
-    public Comparator<IColumn> getColumnComparator(AbstractType comparator)
+    public Comparator<IColumn> getColumnComparator(AbstractType<?> comparator)
     {
         return reversed ? comparator.columnReverseComparator : comparator.columnComparator;
     }
@@ -110,7 +110,7 @@ public class SliceQueryFilter implements IFilter
     public void collectReducedColumns(IColumnContainer container, Iterator<IColumn> reducedColumns, int gcBefore)
     {
         int liveColumns = 0;
-        AbstractType comparator = container.getComparator();
+        AbstractType<?> comparator = container.getComparator();
 
         while (reducedColumns.hasNext())
         {

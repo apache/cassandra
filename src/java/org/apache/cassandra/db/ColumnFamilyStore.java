@@ -1351,7 +1351,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
          }
     }
 
-    public AbstractType getComparator()
+    public AbstractType<?> getComparator()
     {
         return metadata.comparator;
     }

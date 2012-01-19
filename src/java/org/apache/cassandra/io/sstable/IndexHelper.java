@@ -152,7 +152,7 @@ public class IndexHelper
      *
      * @return int index
      */
-    public static int indexFor(ByteBuffer name, List<IndexInfo> indexList, AbstractType comparator, boolean reversed)
+    public static int indexFor(ByteBuffer name, List<IndexInfo> indexList, AbstractType<?> comparator, boolean reversed)
     {
         if (name.remaining() == 0 && reversed)
             return indexList.size() - 1;
@@ -174,7 +174,7 @@ public class IndexHelper
         return index < 0 ? -index - (reversed ? 2 : 1) : index;
     }
 
-    public static Comparator<IndexInfo> getComparator(final AbstractType nameComparator, boolean reversed)
+    public static Comparator<IndexInfo> getComparator(final AbstractType<?> nameComparator, boolean reversed)
     {
         return reversed ? nameComparator.indexReverseComparator : nameComparator.indexComparator;
     }
