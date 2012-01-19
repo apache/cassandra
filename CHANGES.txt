@@ -48,6 +48,10 @@
  * Allow rangeSlice queries to be start/end inclusive/exclusive (CASSANDRA-3749)
 
 
+1.0.8
+ * (cqlsh) add DESCRIBE COLUMNFAMILIES (CASSANDRA-3586)
+
+
 1.0.7
  * fix regression in HH page size calculation (CASSANDRA-3624)
  * retry failed stream on IOException (CASSANDRA-3686)

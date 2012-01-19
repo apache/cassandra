@@ -116,6 +116,7 @@ cqlhandling.commands_end_with_newline.update((
     'help',
     '?',
     'describe',
+    'desc',
     'show',
     'assume',
     'eof',
@@ -134,8 +135,9 @@ cqlhandling.CqlRuleSet.append_rules(r'''
                    | <exitCommand>
                    ;
 
-<describeCommand> ::= "DESCRIBE" ( "KEYSPACE" ksname=<name>?
+<describeCommand> ::= ( "DESCRIBE" | "DESC" ) ( "KEYSPACE" ksname=<name>?
                                   | "COLUMNFAMILY" cfname=<name>
+                                  | "COLUMNFAMILIES"
                                   | "SCHEMA"
                                   | "CLUSTER" )
                     ;
@@ -203,6 +205,9 @@ def complete_assume_col(ctxt, cqlsh):
     return map(maybe_cql_escape, cols)
 
 class NoKeyspaceError(Exception):
+    pass
+
+class KeyspaceNotFound(Exception):
     pass
 
 def trim_if_present(s, prefix):
@@ -697,6 +702,22 @@ class Shell(cmd.Cmd):
         self.print_recreate_columnfamily(self.get_columnfamily(cfname))
         self.printout('')
 
+    def describe_columnfamilies(self, ksname):
+        if ksname is None:
+            for k in self.get_keyspaces():
+                self.printout('Keyspace %s' % (k.name,))
+                self.printout('---------%s\n' % ('-' * len(k.name)))
+                cmd.Cmd.columnize(self, [c.name for c in k.cf_defs])
+                self.printout('')
+        else:
+            try:
+                names = self.get_columnfamily_names(ksname)
+            except cql.cassandra.ttypes.NotFoundException:
+                raise KeyspaceNotFound('Keyspace %s not found.' % (ksname,))
+            self.printout('')
+            cmd.Cmd.columnize(self, names)
+            self.printout('')
+
     def describe_cluster(self):
         self.printout('Cluster: %s' % self.get_cluster_name())
         p = trim_if_present(self.get_partitioner(), 'org.apache.cassandra.dht.')
@@ -721,10 +742,12 @@ class Shell(cmd.Cmd):
         """
         DESCRIBE [cqlsh only]
 
+        (DESC may be used as a shorthand.)
+
           Outputs information about the connected Cassandra cluster, or about
           the data stored on it. Use in one of the following ways:
 
-        DESCRIBE KEYSPACE <keyspacename>
+        DESCRIBE KEYSPACE [<keyspacename>]
 
           Output CQL commands that could be used to recreate the given
           keyspace, and the columnfamilies in it. In some cases, as the CQL
@@ -733,6 +756,11 @@ class Shell(cmd.Cmd):
 
           The '<keyspacename>' argument may be omitted when using a non-system
           keyspace; in that case, the current keyspace will be described.
+
+        DESCRIBE COLUMNFAMILIES
+
+          Output the names of all column families in the current keyspace, or
+          in all keyspaces if there is no current keyspace.
 
         DESCRIBE COLUMNFAMILY <columnfamilyname>
 
@@ -766,10 +794,14 @@ class Shell(cmd.Cmd):
         elif what == 'columnfamily':
             cfname = cql_dequote(parsed.get_binding('cfname'))
             self.describe_columnfamily(cfname)
+        elif what == 'columnfamilies':
+            self.describe_columnfamilies(self.current_keyspace)
         elif what == 'cluster':
             self.describe_cluster()
         elif what == 'schema':
             self.describe_schema()
+
+    do_desc = do_describe
 
     def do_show(self, parsed):
         """
