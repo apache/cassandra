@@ -2657,22 +2657,24 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     private CountDownLatch streamRanges(final Map<String, Multimap<Range<Token>, InetAddress>> rangesToStreamByTable)
     {
         final CountDownLatch latch = new CountDownLatch(rangesToStreamByTable.keySet().size());
-        for (final String table : rangesToStreamByTable.keySet())
+        for (Map.Entry<String, Multimap<Range<Token>, InetAddress>> entry : rangesToStreamByTable.entrySet())
         {
-            Multimap<Range<Token>, InetAddress> rangesWithEndpoints = rangesToStreamByTable.get(table);
+            Multimap<Range<Token>, InetAddress> rangesWithEndpoints = entry.getValue();
 
             if (rangesWithEndpoints.isEmpty())
             {
                 latch.countDown();
                 continue;
             }
+            
+            final String table = entry.getKey();
 
             final Set<Map.Entry<Range<Token>, InetAddress>> pending = new HashSet<Map.Entry<Range<Token>, InetAddress>>(rangesWithEndpoints.entries());
 
-            for (final Map.Entry<Range<Token>, InetAddress> entry : rangesWithEndpoints.entries())
+            for (final Map.Entry<Range<Token>, InetAddress> endPointEntry : rangesWithEndpoints.entries())
             {
-                final Range<Token> range = entry.getKey();
-                final InetAddress newEndpoint = entry.getValue();
+                final Range<Token> range = endPointEntry.getKey();
+                final InetAddress newEndpoint = endPointEntry.getValue();
 
                 final Runnable callback = new Runnable()
                 {
@@ -2680,7 +2682,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                     {
                         synchronized (pending)
                         {
-                            pending.remove(entry);
+                            pending.remove(endPointEntry);
 
                             if (pending.isEmpty())
                                 latch.countDown();
@@ -2709,9 +2711,9 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     private CountDownLatch requestRanges(final Map<String, Multimap<InetAddress, Range<Token>>> ranges)
     {
         final CountDownLatch latch = new CountDownLatch(ranges.keySet().size());
-        for (final String table : ranges.keySet())
+        for (Map.Entry<String, Multimap<InetAddress, Range<Token>>> entry : ranges.entrySet())
         {
-            Multimap<InetAddress, Range<Token>> endpointWithRanges = ranges.get(table);
+            Multimap<InetAddress, Range<Token>> endpointWithRanges = entry.getValue();
 
             if (endpointWithRanges.isEmpty())
             {
@@ -2719,6 +2721,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                 continue;
             }
 
+            final String table = entry.getKey();
             final Set<InetAddress> pending = new HashSet<InetAddress>(endpointWithRanges.keySet());
 
             // Send messages to respective folks to stream data over to me
