@@ -1218,9 +1218,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public AbstractScanIterator getSequentialIterator(ByteBuffer superColumn, final AbstractBounds<RowPosition> range, IFilter columnFilter)
     {
-        assert range instanceof Bounds
-               || !((Range)range).isWrapAround() || range.right.isMinimum()
-               : range;
+        assert !(range instanceof Range) || !((Range)range).isWrapAround() || range.right.isMinimum() : range;
 
         final RowPosition startWith = range.left;
         final RowPosition stopAt = range.right;
@@ -1236,8 +1234,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
             return new AbstractScanIterator()
             {
-                boolean first = true;
-
                 protected Row computeNext()
                 {
                     // pull a row out of the iterator
@@ -1250,20 +1246,18 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     if (!stopAt.isMinimum() && stopAt.compareTo(key) < 0)
                         return endOfData();
 
-                    // skip first one
-                    if (range instanceof Bounds || !first || !key.equals(startWith))
-                    {
-                        if (logger.isDebugEnabled())
-                            logger.debug("scanned " + key);
-                        // TODO this is necessary because when we collate supercolumns together, we don't check
-                        // their subcolumns for relevance, so we need to do a second prune post facto here.
-                        return current.cf != null && current.cf.isSuper()
-                             ? new Row(current.key, removeDeleted(current.cf, gcBefore))
-                             : current;
-                    }
-                    first = false;
+                    // skipping outside of assigned range
+                    if (!range.contains(key))
+                        return computeNext();
 
-                    return computeNext();
+                    if (logger.isDebugEnabled())
+                        logger.debug("scanned " + key);
+
+                    // TODO this is necessary because when we collate supercolumns together, we don't check
+                    // their subcolumns for relevance, so we need to do a second prune post facto here.
+                    return current.cf != null && current.cf.isSuper()
+                        ? new Row(current.key, removeDeleted(current.cf, gcBefore))
+                        : current;
                 }
 
                 public void close() throws IOException

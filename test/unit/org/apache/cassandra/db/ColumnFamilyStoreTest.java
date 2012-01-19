@@ -36,8 +36,7 @@ import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.LexicalUUIDType;
-import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.*;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableReader;
@@ -53,6 +52,7 @@ import static junit.framework.Assert.assertEquals;
 import static junit.framework.Assert.assertTrue;
 import static org.apache.cassandra.Util.column;
 import static org.apache.cassandra.Util.getBytes;
+import static org.apache.cassandra.Util.rp;
 import static org.apache.cassandra.db.TableTest.assertColumns;
 import static org.junit.Assert.assertNull;
 
@@ -841,5 +841,71 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         assertTotalColCount(cfs.getRangeSlice(null, Util.range("", ""), 5, QueryFilter.getFilter(sp, cfs.getComparator()), null, true), 5);
         assertTotalColCount(cfs.getRangeSlice(null, Util.range("", ""), 6, QueryFilter.getFilter(sp, cfs.getComparator()), null, true), 8);
         assertTotalColCount(cfs.getRangeSlice(null, Util.range("", ""), 100, QueryFilter.getFilter(sp, cfs.getComparator()), null, true), 8);
+    }
+
+    private static DecoratedKey idk(int i)
+    {
+        return Util.dk(String.valueOf(i));
+    }
+
+    @Test
+    public void testRangeSliceInclusionExclusion() throws Throwable
+    {
+        String tableName = "Keyspace1";
+        String cfName = "Standard1";
+        Table table = Table.open(tableName);
+        ColumnFamilyStore cfs = table.getColumnFamilyStore(cfName);
+        cfs.clearUnsafe();
+
+        Column[] cols = new Column[5];
+        for (int i = 0; i < 5; i++)
+            cols[i] = column("c" + i, "value", 1);
+
+        for (int i = 0; i <= 9; i++)
+        {
+            putColsStandard(cfs, idk(i), column("name", "value", 1));
+        }
+        cfs.forceBlockingFlush();
+
+        SlicePredicate sp = new SlicePredicate();
+        sp.setSlice_range(new SliceRange());
+        sp.getSlice_range().setCount(1);
+        sp.getSlice_range().setStart(ArrayUtils.EMPTY_BYTE_ARRAY);
+        sp.getSlice_range().setFinish(ArrayUtils.EMPTY_BYTE_ARRAY);
+        IFilter qf = QueryFilter.getFilter(sp, cfs.getComparator());
+
+        List<Row> rows;
+
+        // Start and end inclusive
+        rows = cfs.getRangeSlice(null, new Bounds<RowPosition>(rp("2"), rp("7")), 100, qf, null);
+        assert rows.size() == 6;
+        assert rows.get(0).key.equals(idk(2));
+        assert rows.get(rows.size() - 1).key.equals(idk(7));
+
+        // Start and end excluded
+        rows = cfs.getRangeSlice(null, new ExcludingBounds<RowPosition>(rp("2"), rp("7")), 100, qf, null);
+        assert rows.size() == 4;
+        assert rows.get(0).key.equals(idk(3));
+        assert rows.get(rows.size() - 1).key.equals(idk(6));
+
+        // Start excluded, end included
+        rows = cfs.getRangeSlice(null, new Range<RowPosition>(rp("2"), rp("7")), 100, qf, null);
+        assert rows.size() == 5;
+        assert rows.get(0).key.equals(idk(3));
+        assert rows.get(rows.size() - 1).key.equals(idk(7));
+
+        // Start included, end excluded
+        rows = cfs.getRangeSlice(null, new IncludingExcludingBounds<RowPosition>(rp("2"), rp("7")), 100, qf, null);
+        assert rows.size() == 5;
+        assert rows.get(0).key.equals(idk(2));
+        assert rows.get(rows.size() - 1).key.equals(idk(6));
+    }
+
+    private static String keys(List<Row> rows) throws Throwable
+    {
+        String k = "";
+        for (Row r : rows)
+            k += " " + ByteBufferUtil.string(r.key.key);
+        return k;
     }
 }

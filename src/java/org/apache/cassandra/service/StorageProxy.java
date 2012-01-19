@@ -46,7 +46,6 @@ import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.IPartitioner;
@@ -1025,28 +1024,29 @@ public class StorageProxy implements StorageProxyMBean
         AbstractBounds<T> remainder = queryRange;
         while (ringIter.hasNext())
         {
-            Token token = ringIter.next();
             /*
              * remainder can be a range/bounds of token _or_ keys and we want to split it with a token:
              *   - if remainder is tokens, then we'll just split using the provided token.
-             *   - if reaminer is keys, we want to split using token.upperBoundKey. For instance, if remainder
+             *   - if remainder is keys, we want to split using token.upperBoundKey. For instance, if remainder
              *     is [DK(10, 'foo'), DK(20, 'bar')], and we have 3 nodes with tokens 0, 15, 30. We want to
              *     split remainder to A=[DK(10, 'foo'), 15] and B=(15, DK(20, 'bar')]. But since we can't mix
              *     tokens and keys at the same time in a range, we uses 15.upperBoundKey() to have A include all
              *     keys having 15 as token and B include none of those (since that is what our node owns).
              * asSplitValue() abstracts that choice.
              */
-            T splitValue = (T)token.asSplitValue(queryRange.left.getClass());
-            if (remainder == null || !(remainder.left.equals(splitValue) || remainder.contains(splitValue)))
+            Token upperBoundToken = ringIter.next();
+            T upperBound = (T)upperBoundToken.upperBound(queryRange.left.getClass());
+            if (!remainder.left.equals(upperBound) && !remainder.contains(upperBound))
                 // no more splits
                 break;
-            Pair<AbstractBounds<T>,AbstractBounds<T>> splits = remainder.split(splitValue);
-            if (splits.left != null)
-                ranges.add(splits.left);
+            Pair<AbstractBounds<T>,AbstractBounds<T>> splits = remainder.split(upperBound);
+            if (splits == null)
+                continue;
+
+            ranges.add(splits.left);
             remainder = splits.right;
         }
-        if (remainder != null)
-            ranges.add(remainder);
+        ranges.add(remainder);
         if (logger.isDebugEnabled())
             logger.debug("restricted ranges for query {} are {}", queryRange, ranges);
 

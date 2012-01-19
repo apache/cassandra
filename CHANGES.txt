@@ -45,6 +45,7 @@
  * Make stress.java insert operation to use microseconds (CASSANDRA-3725)
  * Allows (internally) doing a range query with a limit of columns instead of
    rows (CASSANDRA-3742)
+ * Allow rangeSlice queries to be start/end inclusive/exclusive (CASSANDRA-3749)
 
 
 1.0.7

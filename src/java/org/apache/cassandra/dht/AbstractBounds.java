@@ -61,19 +61,20 @@ public abstract class AbstractBounds<T extends RingPosition> implements Serializ
     }
 
     /**
-     * Given token T and AbstractBounds ?L,R], returns Pair(?L,T], ]T,R])
-     * (where ? means that the same type of Bounds is returned -- Range or Bounds -- as the original.)
-     * The original AbstractBounds must contain the token T.
-     * If the split would cause one of the left or right side to be empty, it will be null in the result pair.
+     * Given token T and AbstractBounds ?L,R?, returns Pair(?L,T], (T,R?),
+     * where ? means that the same type of AbstractBounds is returned as the original.
+     *
+     * Put another way, returns a Pair of everything this AbstractBounds contains
+     * up to and including the split position, and everything it contains after
+     * (not including the split position).
+     *
+     * The original AbstractBounds must either contain the position T, or T
+     * should be equals to the left bound L.
+     *
+     * If the split would only yield the same AbstractBound, null is returned
+     * instead.
      */
-    public Pair<AbstractBounds<T>,AbstractBounds<T>> split(T pos)
-    {
-        assert left.equals(pos) || contains(pos);
-        AbstractBounds<T> lb = createFrom(pos);
-        // we contain this token, so only one of the left or right can be empty
-        AbstractBounds<T> rb = lb != null && pos.equals(right) ? null : new Range<T>(pos, right);
-        return new Pair<AbstractBounds<T>,AbstractBounds<T>>(lb, rb);
-    }
+    public abstract Pair<AbstractBounds<T>, AbstractBounds<T>> split(T position);
 
     @Override
     public int hashCode()
@@ -83,87 +84,7 @@ public abstract class AbstractBounds<T extends RingPosition> implements Serializ
 
     public abstract boolean contains(T start);
 
-    /** @return A clone of this AbstractBounds with a new right T, or null if an identical range would be created. */
-    public abstract AbstractBounds<T> createFrom(T right);
-
     public abstract List<? extends AbstractBounds<T>> unwrap();
-
-    /**
-     * @return A copy of the given list of with all bounds unwrapped, sorted by bound.left and with overlapping bounds merged.
-     * This method does not allow allow to mix Range and Bound in the input list.
-     */
-    public static <T extends RingPosition> List<AbstractBounds<T>> normalize(Collection<? extends AbstractBounds<T>> bounds)
-    {
-        // unwrap all
-        List<AbstractBounds<T>> output = new ArrayList<AbstractBounds<T>>();
-        for (AbstractBounds<T> bound : bounds)
-            output.addAll(bound.unwrap());
-
-        // sort by left
-        Collections.sort(output, new Comparator<AbstractBounds<T>>()
-        {
-            public int compare(AbstractBounds<T> b1, AbstractBounds<T> b2)
-            {
-                return b1.left.compareTo(b2.left);
-            }
-        });
-
-        // deoverlap
-        return deoverlap(output);
-    }
-
-    /**
-     * Given a list of unwrapped bounds sorted by left token, return a list a equivalent
-     * list of bounds but with no overlapping bounds.
-     */
-    private static <T extends RingPosition> List<AbstractBounds<T>> deoverlap(List<AbstractBounds<T>> bounds)
-    {
-        if (bounds.isEmpty())
-            return bounds;
-
-        List<AbstractBounds<T>> output = new ArrayList<AbstractBounds<T>>();
-
-        Iterator<AbstractBounds<T>> iter = bounds.iterator();
-        AbstractBounds<T> current = iter.next();
-        boolean isRange = current instanceof Range;
-
-        T min = (T) current.partitioner.minValue(current.left.getClass());
-        while (iter.hasNext())
-        {
-            if (current.right.equals(min))
-            {
-                // If one of the bound is the full range, we return only that
-                if (current.left.equals(min))
-                    return Collections.<AbstractBounds<T>>singletonList(current);
-
-                output.add(current.createFrom(min));
-                return output;
-            }
-
-            AbstractBounds<T> next = iter.next();
-            assert isRange ? next instanceof Range : next instanceof Bounds;
-
-            // For Ranges, if next left is equal to current right, we do not intersect per se, but replacing (A, B] and (B, C] by (A, C] is
-            // legit, and since this actually avoid special casing and will result in more "optimal" ranges, we do this transformation
-            if (next.left.compareTo(current.right) <= 0)
-            {
-                // We do overlap
-                // (we've handler current.right.equals(min) already)
-                T newRight = next.right.equals(min) || current.right.compareTo(next.right) < 0 ? next.right : current.right;
-                current = current.createFrom(newRight);
-                if (current == null)
-                    // current is the full ring, can only happen for Range
-                    return Collections.<AbstractBounds<T>>singletonList(new Range<T>(min, min));
-            }
-            else
-            {
-                output.add(current);
-                current = next;
-            }
-        }
-        output.add(current);
-        return output;
-    }
 
     /**
      * Transform this abstract bounds to equivalent covering bounds of row positions.

@@ -20,10 +20,16 @@ package org.apache.cassandra.dht;
 
 import java.nio.ByteBuffer;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
+import static java.util.Arrays.asList;
 
 import org.apache.commons.lang.StringUtils;
 import org.junit.Test;
+
+import org.apache.cassandra.db.RowPosition;
+import static org.apache.cassandra.Util.range;
+
 
 public class RangeTest
 {
@@ -458,5 +464,76 @@ public class RangeTest
         String[][] newTokens6 = { { "30", "20" }, { "40", "20" } };
         String[][] expected6 = { { "40", "20" } };
         checkDifference(oldRange, newTokens6, expected6);
+    }
+
+    private <T extends RingPosition> void assertNormalize(List<Range<T>> input, List<Range<T>> expected)
+    {
+        List<Range<T>> result = Range.normalize(input);
+        assert result.equals(expected) : "Expecting " + expected + " but got " + result;
+    }
+
+    @Test
+    public void testNormalizeNoop()
+    {
+        List<Range<RowPosition>> l;
+
+        l = asList(range("1", "3"), range("4", "5"));
+        assertNormalize(l, l);
+    }
+
+    @Test
+    public void testNormalizeSimpleOverlap()
+    {
+        List<Range<RowPosition>> input, expected;
+
+        input = asList(range("1", "4"), range("3", "5"));
+        expected = asList(range("1", "5"));
+        assertNormalize(input, expected);
+
+        input = asList(range("1", "4"), range("1", "4"));
+        expected = asList(range("1", "4"));
+        assertNormalize(input, expected);
+    }
+
+    @Test
+    public void testNormalizeSort()
+    {
+        List<Range<RowPosition>> input, expected;
+
+        input = asList(range("4", "5"), range("1", "3"));
+        expected = asList(range("1", "3"), range("4", "5"));
+        assertNormalize(input, expected);
+    }
+
+    @Test
+    public void testNormalizeUnwrap()
+    {
+        List<Range<RowPosition>> input, expected;
+
+        input = asList(range("9", "2"));
+        expected = asList(range("", "2"), range("9", ""));
+        assertNormalize(input, expected);
+    }
+
+    @Test
+    public void testNormalizeComplex()
+    {
+        List<Range<RowPosition>> input, expected;
+
+        input = asList(range("8", "2"), range("7", "9"), range("4", "5"));
+        expected = asList(range("", "2"), range("4", "5"), range("7", ""));
+        assertNormalize(input, expected);
+
+        input = asList(range("5", "9"), range("2", "5"));
+        expected = asList(range("2", "9"));
+        assertNormalize(input, expected);
+
+        input = asList(range ("", "1"), range("9", "2"), range("4", "5"), range("", ""));
+        expected = asList(range("", ""));
+        assertNormalize(input, expected);
+
+        input = asList(range ("", "1"), range("1", "4"), range("4", "5"), range("5", ""));
+        expected = asList(range("", ""));
+        assertNormalize(input, expected);
     }
 }

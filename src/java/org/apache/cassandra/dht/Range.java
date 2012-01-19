@@ -28,11 +28,14 @@ import org.apache.commons.lang.ObjectUtils;
 import org.apache.cassandra.db.RowPosition;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
 
 /**
  * A representation of the range that a node is responsible for on the DHT ring.
  *
  * A Range is responsible for the tokens between (left, right].
+ *
+ * Used by the partitioner and by map/reduce by-token range scans.
  */
 public class Range<T extends RingPosition> extends AbstractBounds<T> implements Comparable<Range<T>>, Serializable
 {
@@ -197,19 +200,24 @@ public class Range<T extends RingPosition> extends AbstractBounds<T> implements 
         return Collections.unmodifiableSet(intersection);
     }
 
-    public AbstractBounds<T> createFrom(T pos)
+    public Pair<AbstractBounds<T>, AbstractBounds<T>> split(T position)
     {
-        if (pos.equals(left))
+        assert contains(position) || left.equals(position);
+        // Check if the split would have no effect on the range
+        if (position.equals(left) || position.equals(right))
             return null;
-        return new Range<T>(left, pos, partitioner);
+
+        AbstractBounds<T> lb = new Range<T>(left, position, partitioner);
+        AbstractBounds<T> rb = new Range<T>(position, right, partitioner);
+        return new Pair<AbstractBounds<T>, AbstractBounds<T>>(lb, rb);
     }
 
-    public List<? extends AbstractBounds<T>> unwrap()
+    public List<Range<T>> unwrap()
     {
         T minValue = (T) partitioner.minValue(right.getClass());
         if (!isWrapAround() || right.equals(minValue))
             return Arrays.asList(this);
-        List<AbstractBounds<T>> unwrapped = new ArrayList<AbstractBounds<T>>(2);
+        List<Range<T>> unwrapped = new ArrayList<Range<T>>(2);
         unwrapped.add(new Range<T>(left, minValue, partitioner));
         unwrapped.add(new Range<T>(minValue, right, partitioner));
         return unwrapped;
@@ -338,6 +346,79 @@ public class Range<T extends RingPosition> extends AbstractBounds<T> implements 
     {
         return isWrapAround(left, right);
     }
+
+    /**
+     * @return A copy of the given list of with all ranges unwrapped, sorted by left bound and with overlapping bounds merged.
+     */
+    public static <T extends RingPosition> List<Range<T>> normalize(Collection<Range<T>> ranges)
+    {
+        // unwrap all
+        List<Range<T>> output = new ArrayList<Range<T>>();
+        for (Range<T> range : ranges)
+            output.addAll(range.unwrap());
+
+        // sort by left
+        Collections.sort(output, new Comparator<Range<T>>()
+        {
+            public int compare(Range<T> b1, Range<T> b2)
+            {
+                return b1.left.compareTo(b2.left);
+            }
+        });
+
+        // deoverlap
+        return deoverlap(output);
+    }
+
+    /**
+     * Given a list of unwrapped ranges sorted by left position, return an
+     * equivalent list of ranges but with no overlapping ranges.
+     */
+    private static <T extends RingPosition> List<Range<T>> deoverlap(List<Range<T>> ranges)
+    {
+        if (ranges.isEmpty())
+            return ranges;
+
+        List<Range<T>> output = new ArrayList<Range<T>>();
+
+        Iterator<Range<T>> iter = ranges.iterator();
+        Range<T> current = iter.next();
+
+        T min = (T) current.partitioner.minValue(current.left.getClass());
+        while (iter.hasNext())
+        {
+            // If current goes to the end of the ring, we're done
+            if (current.right.equals(min))
+            {
+                // If one range is the full range, we return only that
+                if (current.left.equals(min))
+                    return Collections.<Range<T>>singletonList(current);
+
+                output.add(new Range<T>(current.left, min));
+                return output;
+            }
+
+            Range<T> next = iter.next();
+
+            // if next left is equal to current right, we do not intersect per se, but replacing (A, B] and (B, C] by (A, C] is
+            // legit, and since this avoid special casing and will result in more "optimal" ranges, we do the transformation
+            if (next.left.compareTo(current.right) <= 0)
+            {
+                // We do overlap
+                // (we've handled current.right.equals(min) already)
+                if (next.right.equals(min) || current.right.compareTo(next.right) < 0)
+                    current = new Range<T>(current.left, next.right);
+            }
+            else
+            {
+                output.add(current);
+                current = next;
+            }
+        }
+        output.add(current);
+        return output;
+    }
+
 
     /**
      * Compute a range of keys corresponding to a given range of token.

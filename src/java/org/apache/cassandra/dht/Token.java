@@ -42,9 +42,6 @@ public abstract class Token<T> implements RingPosition<Token<T>>, Serializable
 
     public final T token;
 
-    private final transient KeyBound minimumBound = new KeyBound(true);
-    private final transient KeyBound maximumBound = new KeyBound(false);
-
     protected Token(T token)
     {
         this.token = token;
@@ -143,7 +140,7 @@ public abstract class Token<T> implements RingPosition<Token<T>>, Serializable
      */
     public KeyBound minKeyBound(IPartitioner partitioner)
     {
-        return minimumBound;
+        return new KeyBound(this, true);
     }
 
     public KeyBound minKeyBound()
@@ -161,8 +158,8 @@ public abstract class Token<T> implements RingPosition<Token<T>>, Serializable
          * maxKeyBound for the minimun token.
          */
         if (isMinimum(partitioner))
-            return minimumBound;
-        return maximumBound;
+            return minKeyBound();
+        return new KeyBound(this, false);
     }
 
     public KeyBound maxKeyBound()
@@ -170,7 +167,7 @@ public abstract class Token<T> implements RingPosition<Token<T>>, Serializable
         return maxKeyBound(StorageService.getPartitioner());
     }
 
-    public <T extends RingPosition> T asSplitValue(Class<T> klass)
+    public <T extends RingPosition> T upperBound(Class<T> klass)
     {
         if (klass.equals(getClass()))
             return (T)this;
@@ -178,18 +175,20 @@ public abstract class Token<T> implements RingPosition<Token<T>>, Serializable
             return (T)maxKeyBound();
     }
 
-    public class KeyBound extends RowPosition
+    public static class KeyBound extends RowPosition
     {
+        private final Token token;
         public final boolean isMinimumBound;
 
-        private KeyBound(boolean isMinimumBound)
+        private KeyBound(Token t, boolean isMinimumBound)
         {
+            this.token = t;
             this.isMinimumBound = isMinimumBound;
         }
 
         public Token getToken()
         {
-            return Token.this;
+            return token;
         }
 
         public int compareTo(RowPosition pos)
@@ -201,8 +200,10 @@ public abstract class Token<T> implements RingPosition<Token<T>>, Serializable
             if (cmp != 0)
                 return cmp;
 
-            // We've already eliminated the == case
-            return isMinimumBound ? -1 : 1;
+            if (isMinimumBound)
+                return ((pos instanceof KeyBound) && ((KeyBound)pos).isMinimumBound) ? 0 : -1;
+            else
+                return ((pos instanceof KeyBound) && !((KeyBound)pos).isMinimumBound) ? 0 : 1;
         }
 
         public boolean isMinimum(IPartitioner partitioner)
@@ -224,7 +225,7 @@ public abstract class Token<T> implements RingPosition<Token<T>>, Serializable
                 return false;
 
             KeyBound other = (KeyBound)obj;
-            return getToken().equals(other.getToken());
+            return token.equals(other.token) && isMinimumBound == other.isMinimumBound;
         }
 
         @Override

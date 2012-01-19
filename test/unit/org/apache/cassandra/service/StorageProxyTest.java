@@ -35,6 +35,8 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.dht.ExcludingBounds;
+import org.apache.cassandra.dht.IncludingExcludingBounds;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -50,6 +52,16 @@ public class StorageProxyTest extends CleanupHelper
     private static Bounds<RowPosition> bounds(RowPosition left, RowPosition right)
     {
         return new Bounds<RowPosition>(left, right);
+    }
+
+    private static ExcludingBounds<RowPosition> exBounds(RowPosition left, RowPosition right)
+    {
+        return new ExcludingBounds<RowPosition>(left, right);
+    }
+
+    private static IncludingExcludingBounds<RowPosition> incExBounds(RowPosition left, RowPosition right)
+    {
+        return new IncludingExcludingBounds<RowPosition>(left, right);
     }
 
     private static RowPosition startOf(String key)
@@ -125,18 +137,26 @@ public class StorageProxyTest extends CleanupHelper
         // no splits
         testGRRKeys(range(rp("2"), rp("5")), range(rp("2"), rp("5")));
         testGRRKeys(bounds(rp("2"), rp("5")), bounds(rp("2"), rp("5")));
+        testGRRKeys(exBounds(rp("2"), rp("5")), exBounds(rp("2"), rp("5")));
         // single split testGRRKeys(range("2", "7"), range(rp("2"), endOf("6")), range(endOf("6"), rp("7")));
         testGRRKeys(bounds(rp("2"), rp("7")), bounds(rp("2"), endOf("6")), range(endOf("6"), rp("7")));
+        testGRRKeys(exBounds(rp("2"), rp("7")), range(rp("2"), endOf("6")), exBounds(endOf("6"), rp("7")));
+        testGRRKeys(incExBounds(rp("2"), rp("7")), bounds(rp("2"), endOf("6")), exBounds(endOf("6"), rp("7")));
         // single split starting from min
         testGRRKeys(range(rp(""), rp("2")), range(rp(""), endOf("1")), range(endOf("1"), rp("2")));
         testGRRKeys(bounds(rp(""), rp("2")), bounds(rp(""), endOf("1")), range(endOf("1"), rp("2")));
+        testGRRKeys(exBounds(rp(""), rp("2")), range(rp(""), endOf("1")), exBounds(endOf("1"), rp("2")));
+        testGRRKeys(incExBounds(rp(""), rp("2")), bounds(rp(""), endOf("1")), exBounds(endOf("1"), rp("2")));
         // single split ending with max
         testGRRKeys(range(rp("5"), rp("")), range(rp("5"), endOf("6")), range(endOf("6"), rp("")));
         testGRRKeys(bounds(rp("5"), rp("")), bounds(rp("5"), endOf("6")), range(endOf("6"), rp("")));
+        testGRRKeys(exBounds(rp("5"), rp("")), range(rp("5"), endOf("6")), exBounds(endOf("6"), rp("")));
+        testGRRKeys(incExBounds(rp("5"), rp("")), bounds(rp("5"), endOf("6")), exBounds(endOf("6"), rp("")));
         // two splits
         testGRRKeys(range(rp("0"), rp("7")), range(rp("0"), endOf("1")), range(endOf("1"), endOf("6")), range(endOf("6"), rp("7")));
         testGRRKeys(bounds(rp("0"), rp("7")), bounds(rp("0"), endOf("1")), range(endOf("1"), endOf("6")), range(endOf("6"), rp("7")));
-
+        testGRRKeys(exBounds(rp("0"), rp("7")), range(rp("0"), endOf("1")), range(endOf("1"), endOf("6")), exBounds(endOf("6"), rp("7")));
+        testGRRKeys(incExBounds(rp("0"), rp("7")), bounds(rp("0"), endOf("1")), range(endOf("1"), endOf("6")), exBounds(endOf("6"), rp("7")));
     }
 
     @Test
@@ -158,12 +178,20 @@ public class StorageProxyTest extends CleanupHelper
         testGRRKeys(range(endOf("1"), endOf("5")), range(endOf("1"), endOf("5")));
         testGRRKeys(range(rp("1"), endOf("5")), range(rp("1"), endOf("1")), range(endOf("1"), endOf("5")));
         testGRRKeys(bounds(startOf("1"), endOf("5")), bounds(startOf("1"), endOf("1")), range(endOf("1"), endOf("5")));
+        testGRRKeys(exBounds(endOf("1"), rp("5")), exBounds(endOf("1"), rp("5")));
+        testGRRKeys(exBounds(rp("1"), rp("5")), range(rp("1"), endOf("1")), exBounds(endOf("1"), rp("5")));
+        testGRRKeys(exBounds(startOf("1"), endOf("5")), range(startOf("1"), endOf("1")), exBounds(endOf("1"), endOf("5")));
+        testGRRKeys(incExBounds(rp("1"), rp("5")), bounds(rp("1"), endOf("1")), exBounds(endOf("1"), rp("5")));
         // max
         testGRRKeys(range(endOf("2"), endOf("6")), range(endOf("2"), endOf("6")));
         testGRRKeys(bounds(startOf("2"), endOf("6")), bounds(startOf("2"), endOf("6")));
+        testGRRKeys(exBounds(rp("2"), rp("6")), exBounds(rp("2"), rp("6")));
+        testGRRKeys(incExBounds(rp("2"), rp("6")), incExBounds(rp("2"), rp("6")));
         // bothKeys
         testGRRKeys(range(rp("1"), rp("6")), range(rp("1"), endOf("1")), range(endOf("1"), rp("6")));
         testGRRKeys(bounds(rp("1"), rp("6")), bounds(rp("1"), endOf("1")), range(endOf("1"), rp("6")));
+        testGRRKeys(exBounds(rp("1"), rp("6")), range(rp("1"), endOf("1")), exBounds(endOf("1"), rp("6")));
+        testGRRKeys(incExBounds(rp("1"), rp("6")), bounds(rp("1"), endOf("1")), exBounds(endOf("1"), rp("6")));
     }
 
     @Test
@@ -212,5 +240,7 @@ public class StorageProxyTest extends CleanupHelper
         testGRRKeys(bounds(rp("0"), rp("0")), bounds(rp("0"), rp("0")));
         // completely empty bounds match everything
         testGRRKeys(bounds(rp(""), rp("")), bounds(rp(""), endOf("1")), range(endOf("1"), endOf("6")), range(endOf("6"), rp("")));
+        testGRRKeys(exBounds(rp(""), rp("")), range(rp(""), endOf("1")), range(endOf("1"), endOf("6")), exBounds(endOf("6"), rp("")));
+        testGRRKeys(incExBounds(rp(""), rp("")), bounds(rp(""), endOf("1")), range(endOf("1"), endOf("6")), exBounds(endOf("6"), rp("")));
     }
 }

@@ -490,7 +490,7 @@ public class SSTableReader extends SSTable
         if (samples.isEmpty())
             return positions;
 
-        for (AbstractBounds<Token> range : AbstractBounds.<Token>normalize(ranges))
+        for (Range<Token> range : Range.<Token>normalize(ranges))
         {
             RowPosition leftPosition = range.left.maxKeyBound();
             RowPosition rightPosition = range.left.maxKeyBound();
@@ -587,7 +587,7 @@ public class SSTableReader extends SSTable
     {
         // use the index to determine a minimal section for each range
         List<Pair<Long,Long>> positions = new ArrayList<Pair<Long,Long>>();
-        for (AbstractBounds<Token> range : AbstractBounds.normalize(ranges))
+        for (Range<Token> range : Range.normalize(ranges))
         {
             AbstractBounds<RowPosition> keyRange = range.toRowBounds();
             long left = getPosition(keyRange.left, Operator.GT);
