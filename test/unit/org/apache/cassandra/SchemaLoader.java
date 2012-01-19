@@ -92,11 +92,11 @@ public class SchemaLoader
         ColumnFamilyType su = ColumnFamilyType.Super;
         AbstractType bytes = BytesType.instance;
 
-        AbstractType composite = CompositeType.getInstance(Arrays.asList(new AbstractType[]{BytesType.instance, TimeUUIDType.instance, IntegerType.instance}));
-        Map<Byte, AbstractType> aliases = new HashMap<Byte, AbstractType>();
+        AbstractType<?> composite = CompositeType.getInstance(Arrays.asList(new AbstractType<?>[]{BytesType.instance, TimeUUIDType.instance, IntegerType.instance}));
+        Map<Byte, AbstractType<?>> aliases = new HashMap<Byte, AbstractType<?>>();
         aliases.put((byte)'b', BytesType.instance);
         aliases.put((byte)'t', TimeUUIDType.instance);
-        AbstractType dynamicComposite = DynamicCompositeType.getInstance(aliases);
+        AbstractType<?> dynamicComposite = DynamicCompositeType.getInstance(aliases);
       
         // these column definitions will will be applied to the jdbc utf and integer column familes respectively.
         Map<ByteBuffer, ColumnDefinition> integerColumn = new HashMap<ByteBuffer, ColumnDefinition>();

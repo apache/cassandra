@@ -42,7 +42,7 @@ public class DynamicCompositeTypeTest extends CleanupHelper
     private static final DynamicCompositeType comparator;
     static
     {
-        Map<Byte, AbstractType> aliases = new HashMap<Byte, AbstractType>();
+        Map<Byte, AbstractType<?>> aliases = new HashMap<Byte, AbstractType<?>>();
         aliases.put((byte)'b', BytesType.instance);
         aliases.put((byte)'t', TimeUUIDType.instance);
         comparator = DynamicCompositeType.getInstance(aliases);

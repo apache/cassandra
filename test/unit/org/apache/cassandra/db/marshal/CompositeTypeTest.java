@@ -42,7 +42,7 @@ public class CompositeTypeTest extends CleanupHelper
     private static final CompositeType comparator;
     static
     {
-        List<AbstractType> subComparators = new ArrayList<AbstractType>();
+        List<AbstractType<?>> subComparators = new ArrayList<AbstractType<?>>();
         subComparators.add(BytesType.instance);
         subComparators.add(TimeUUIDType.instance);
         subComparators.add(IntegerType.instance);
