@@ -1,4 +1,5 @@
 1.0.8
+ * allow using sstable2json on secondary index data (CASSANDRA-3738)
  * (cqlsh) add DESCRIBE COLUMNFAMILIES (CASSANDRA-3586)
  * (cqlsh) format blobs correctly and use colors to improve output
    readability (CASSANDRA-3726)

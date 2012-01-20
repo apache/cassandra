@@ -25,13 +25,10 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.index.keys.KeysIndex;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.service.StorageService;
 
 import org.apache.commons.cli.*;
 
@@ -246,7 +243,7 @@ public class SSTableExport
         SSTableReader reader = SSTableReader.open(Descriptor.fromFilename(ssTableFile));
         SSTableScanner scanner = reader.getDirectScanner();
 
-        IPartitioner<?> partitioner = StorageService.getPartitioner();
+        IPartitioner<?> partitioner = reader.partitioner;
 
         if (excludes != null)
             toExport.removeAll(Arrays.asList(excludes));
@@ -329,7 +326,7 @@ public class SSTableExport
 
         scanner.close();
     }
-    
+
     /**
      * Export an SSTable and write the resulting JSON to a PrintStream.
      * 
@@ -341,23 +338,7 @@ public class SSTableExport
      */
     public static void export(String ssTableFile, PrintStream outs, String[] excludes) throws IOException
     {
-        Descriptor descriptor = Descriptor.fromFilename(ssTableFile);
-        CFMetaData metadata;
-        if (descriptor.cfname.contains("."))
-        {
-            // look up index metadata from parent
-            int i = descriptor.cfname.indexOf(".");
-            String parentName = descriptor.cfname.substring(0, i);
-            CFMetaData parent = Schema.instance.getCFMetaData(descriptor.ksname, parentName);
-            ColumnDefinition def = parent.getColumnDefinitionForIndex(descriptor.cfname.substring(i + 1));
-            metadata = CFMetaData.newIndexMetadata(parent, def, KeysIndex.indexComparator());
-        }
-        else
-        {
-            metadata = Schema.instance.getCFMetaData(descriptor.ksname, descriptor.cfname);
-        }
-
-        export(SSTableReader.open(descriptor, metadata), outs, excludes);
+        export(SSTableReader.open(Descriptor.fromFilename(ssTableFile)), outs, excludes);
     }
 
     /**
