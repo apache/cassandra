@@ -21,7 +21,6 @@ package org.apache.cassandra.db.marshal;
  */
 
 import java.math.BigDecimal;
-import java.math.BigInteger;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.cql.jdbc.JdbcDecimal;
@@ -58,18 +57,7 @@ public class DecimalType extends AbstractType<BigDecimal>
      */
     public ByteBuffer decompose(BigDecimal value)
     {
-        if (value == null) return ByteBufferUtil.EMPTY_BYTE_BUFFER;
-        
-        BigInteger bi = value.unscaledValue();
-        Integer scale = value.scale();
-        byte[] bibytes = bi.toByteArray();
-        byte[] sbytes = ByteBufferUtil.bytes(scale).array();
-        byte[] bytes = new byte[bi.toByteArray().length+4];
-        
-        for (int i = 0 ; i < 4 ; i++) bytes[i] = sbytes[i];
-        for (int i = 4 ; i < bibytes.length+4 ; i++) bytes[i] = bibytes[i-4];
-        
-        return ByteBuffer.wrap(bytes);
+        return JdbcDecimal.instance.decompose(value);
     }
 
     public String getString(ByteBuffer bytes)

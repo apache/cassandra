@@ -113,4 +113,11 @@ public class JdbcDate extends AbstractJdbcType<Date>
     {
         return new Date(ByteBufferUtil.toLong(bytes));
     }
+    
+    public ByteBuffer decompose(Date value)
+    {
+      return (value==null) ? ByteBufferUtil.EMPTY_BYTE_BUFFER
+                           : ByteBufferUtil.bytes(value.getTime());
+    }
+
 }

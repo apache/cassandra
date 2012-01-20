@@ -24,6 +24,8 @@ package org.apache.cassandra.cql.jdbc;
 import java.nio.ByteBuffer;
 import java.util.UUID;
 
+import org.apache.cassandra.utils.UUIDGen;
+
 public class JdbcUUID extends AbstractJdbcUUID
 {
     public static final JdbcUUID instance = new JdbcUUID();
@@ -50,5 +52,10 @@ public class JdbcUUID extends AbstractJdbcUUID
         }
         
         return compose(bytes).toString();
+    }
+
+    public ByteBuffer decompose(UUID value)
+    {
+        return ByteBuffer.wrap(UUIDGen.decompose(value));
     }
 }

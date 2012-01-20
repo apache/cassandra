@@ -96,5 +96,9 @@ public class JdbcAscii extends AbstractJdbcType<String>
     {
         return getString(bytes);
     }
-
+    
+    public ByteBuffer decompose(String value)
+    {
+        return ByteBufferUtil.bytes(value, Charsets.US_ASCII);
+    }
 }

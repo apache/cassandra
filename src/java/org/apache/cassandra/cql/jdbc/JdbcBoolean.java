@@ -24,6 +24,8 @@ package org.apache.cassandra.cql.jdbc;
 import java.nio.ByteBuffer;
 import java.sql.Types;
 
+import org.apache.cassandra.utils.ByteBufferUtil;
+
 public class JdbcBoolean extends AbstractJdbcType<Boolean>
 {
     public static final JdbcBoolean instance = new JdbcBoolean();
@@ -95,5 +97,11 @@ public class JdbcBoolean extends AbstractJdbcType<Boolean>
         byte value = bytes.get(bytes.position());
         return Boolean.valueOf(value ==0 ? false:true);
     }
-
+    
+    public ByteBuffer decompose(Boolean value)
+    {
+      return (value==null) ? ByteBufferUtil.EMPTY_BYTE_BUFFER
+                           : value ? ByteBuffer.wrap(new byte[]{1})  // true
+                                   : ByteBuffer.wrap(new byte[]{0}); // false
+    }
 }

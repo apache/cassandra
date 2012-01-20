@@ -64,7 +64,7 @@ public final class IntegerType extends AbstractType<BigInteger>
 
     public ByteBuffer decompose(BigInteger value)
     {
-        return ByteBuffer.wrap(value.toByteArray());
+        return JdbcInteger.instance.decompose(value);
     }
 
     public int compare(ByteBuffer lhs, ByteBuffer rhs)

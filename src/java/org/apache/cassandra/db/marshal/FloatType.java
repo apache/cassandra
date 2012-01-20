@@ -39,9 +39,8 @@ public class FloatType extends AbstractType<Float>
     
     public ByteBuffer decompose(Float value)
     {
-        return (value==null) ? ByteBufferUtil.EMPTY_BYTE_BUFFER : ByteBufferUtil.bytes(value);
-    }
-    
+        return JdbcFloat.instance.decompose(value);
+    }    
 
     public int compare(ByteBuffer o1, ByteBuffer o2)
     {

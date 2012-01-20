@@ -22,10 +22,7 @@ package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
 
-import com.google.common.base.Charsets;
-
 import org.apache.cassandra.cql.jdbc.JdbcUTF8;
-import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class UTF8Type extends AbstractType<String>
 {
@@ -40,7 +37,7 @@ public class UTF8Type extends AbstractType<String>
 
     public ByteBuffer decompose(String value)
     {
-        return ByteBufferUtil.bytes(value, Charsets.UTF_8);
+        return JdbcUTF8.instance.decompose(value);
     }
 
     public int compare(ByteBuffer o1, ByteBuffer o2)

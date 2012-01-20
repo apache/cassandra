@@ -34,12 +34,12 @@ public class Int32Type extends AbstractType<Integer>
 
     public Integer compose(ByteBuffer bytes)
     {
-        return ByteBufferUtil.toInt(bytes);
+        return JdbcInt32.instance.compose(bytes);
     }
 
     public ByteBuffer decompose(Integer value)
     {
-        return ByteBufferUtil.bytes(value);
+        return JdbcInt32.instance.decompose(value);
     }
 
     public int compare(ByteBuffer o1, ByteBuffer o2)

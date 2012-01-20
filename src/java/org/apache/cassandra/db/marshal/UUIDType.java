@@ -187,7 +187,7 @@ public class UUIDType extends AbstractType<UUID>
 
     public ByteBuffer decompose(UUID value)
     {
-        return ByteBuffer.wrap(UUIDGen.decompose(value));
+        return JdbcUUID.instance.decompose(value);
     }
 
     @Override

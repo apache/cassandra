@@ -41,7 +41,7 @@ public class LexicalUUIDType extends AbstractType<UUID>
 
     public ByteBuffer decompose(UUID value)
     {
-        return ByteBuffer.wrap(UUIDGen.decompose(value));
+        return JdbcLexicalUUID.instance.decompose(value);
     }
 
     public int compare(ByteBuffer o1, ByteBuffer o2)

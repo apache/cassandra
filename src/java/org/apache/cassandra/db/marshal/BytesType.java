@@ -40,7 +40,7 @@ public class BytesType extends AbstractType<ByteBuffer>
 
     public ByteBuffer decompose(ByteBuffer value)
     {
-        return value;
+        return JdbcBytes.instance.decompose(value);
     }
     
     public int compare(ByteBuffer o1, ByteBuffer o2)

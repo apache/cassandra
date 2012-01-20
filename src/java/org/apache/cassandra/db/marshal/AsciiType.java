@@ -23,10 +23,7 @@ package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
 
-import com.google.common.base.Charsets;
-
 import org.apache.cassandra.cql.jdbc.JdbcAscii;
-import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class AsciiType extends AbstractType<String>
 {
@@ -58,7 +55,7 @@ public class AsciiType extends AbstractType<String>
 
     public ByteBuffer decompose(String value)
     {
-        return ByteBufferUtil.bytes(value, Charsets.US_ASCII);
+        return JdbcAscii.instance.decompose(value);
     }
 
     public ByteBuffer fromString(String source)

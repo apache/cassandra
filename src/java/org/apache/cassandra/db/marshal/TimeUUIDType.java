@@ -49,7 +49,7 @@ public class TimeUUIDType extends AbstractType<UUID>
 
     public ByteBuffer decompose(UUID value)
     {
-        return ByteBuffer.wrap(UUIDGen.decompose(value));
+        return JdbcTimeUUID.instance.decompose(value);
     }
 
     public int compare(ByteBuffer o1, ByteBuffer o2)

@@ -54,4 +54,9 @@ public class JdbcTimeUUID extends AbstractJdbcUUID
     {
         return UUIDGen.getUUID(bytes);
     }
+
+    public ByteBuffer decompose(UUID value)
+    {
+        return ByteBuffer.wrap(UUIDGen.decompose(value));
+    }
 }

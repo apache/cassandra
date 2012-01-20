@@ -92,4 +92,9 @@ public class JdbcInteger extends AbstractJdbcType<BigInteger>
     {
         return new BigInteger(ByteBufferUtil.getArray(bytes));
     }
+
+    public ByteBuffer decompose(BigInteger value)
+    {
+        return ByteBuffer.wrap(value.toByteArray());
+    }
 }

@@ -97,4 +97,9 @@ public class JdbcInt32 extends AbstractJdbcType<Integer>
     {
         return ByteBufferUtil.toInt(bytes);
     }
+
+    public ByteBuffer decompose(Integer value)
+    {
+        return ByteBufferUtil.bytes(value);
+    }
 }

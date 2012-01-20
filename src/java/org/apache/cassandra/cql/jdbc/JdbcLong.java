@@ -97,4 +97,9 @@ public class JdbcLong extends AbstractJdbcType<Long>
     {
         return ByteBufferUtil.toLong(bytes);
     }
+
+    public ByteBuffer decompose(Long value)
+    {
+        return ByteBufferUtil.bytes(value);
+    }
 }

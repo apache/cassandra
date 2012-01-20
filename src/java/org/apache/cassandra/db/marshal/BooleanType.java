@@ -23,7 +23,6 @@ package org.apache.cassandra.db.marshal;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.cql.jdbc.JdbcBoolean;
-import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class BooleanType extends AbstractType<Boolean>
 {
@@ -38,9 +37,7 @@ public class BooleanType extends AbstractType<Boolean>
 
   public ByteBuffer decompose(Boolean value)
   {
-    return (value==null) ? ByteBufferUtil.EMPTY_BYTE_BUFFER
-                         : value ? ByteBuffer.wrap(new byte[]{1})  // true
-                                 : ByteBuffer.wrap(new byte[]{0}); // false
+      return JdbcBoolean.instance.decompose(value);
   }
   
   public int compare(ByteBuffer o1, ByteBuffer o2)

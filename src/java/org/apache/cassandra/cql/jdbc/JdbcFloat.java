@@ -95,4 +95,9 @@ public class JdbcFloat extends AbstractJdbcType<Float>
     {
         return ByteBufferUtil.toFloat(bytes);
     }
+    
+    public ByteBuffer decompose(Float value)
+    {
+        return (value==null) ? ByteBufferUtil.EMPTY_BYTE_BUFFER : ByteBufferUtil.bytes(value);
+    }
 }

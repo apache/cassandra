@@ -87,4 +87,9 @@ public class JdbcBytes extends AbstractJdbcType<ByteBuffer>
     {
         return bytes.duplicate();
     }
+    
+    public ByteBuffer decompose(ByteBuffer value)
+    {
+        return value;
+    }
 }

@@ -47,11 +47,9 @@ public class DateType extends AbstractType<Date>
     
     public ByteBuffer decompose(Date value)
     {
-      return (value==null) ? ByteBufferUtil.EMPTY_BYTE_BUFFER
-                           : ByteBufferUtil.bytes(value.getTime());
+        return JdbcDate.instance.decompose(value);
     }
     
-
     public int compare(ByteBuffer o1, ByteBuffer o2)
     {
         if (o1.remaining() == 0)

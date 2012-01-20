@@ -25,6 +25,8 @@ import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.sql.Types;
 
+import org.apache.cassandra.utils.ByteBufferUtil;
+
 public class JdbcDecimal extends AbstractJdbcType<BigDecimal>
 {
     public static final JdbcDecimal instance = new JdbcDecimal();
@@ -96,4 +98,25 @@ public class JdbcDecimal extends AbstractJdbcType<BigDecimal>
         BigInteger bi = new BigInteger(bibytes);
         return new BigDecimal(bi,scale);
     }
+
+    /**
+     * The bytes of the ByteBuffer are made up of 4 bytes of int containing the scale
+     * followed by the n bytes it takes to store a BigInteger.
+     */
+    public ByteBuffer decompose(BigDecimal value)
+    {
+        if (value == null) return ByteBufferUtil.EMPTY_BYTE_BUFFER;
+        
+        BigInteger bi = value.unscaledValue();
+        Integer scale = value.scale();
+        byte[] bibytes = bi.toByteArray();
+        byte[] sbytes = ByteBufferUtil.bytes(scale).array();
+        byte[] bytes = new byte[bi.toByteArray().length+4];
+        
+        for (int i = 0 ; i < 4 ; i++) bytes[i] = sbytes[i];
+        for (int i = 4 ; i < bibytes.length+4 ; i++) bytes[i] = bibytes[i-4];
+        
+        return ByteBuffer.wrap(bytes);
+    }
+
 }

@@ -38,9 +38,8 @@ public class DoubleType extends AbstractType<Double>
     
     public ByteBuffer decompose(Double value)
     {
-        return (value==null) ? ByteBufferUtil.EMPTY_BYTE_BUFFER : ByteBufferUtil.bytes(value);
-    }
-    
+        return JdbcDouble.instance.decompose(value);
+    }    
 
     public int compare(ByteBuffer o1, ByteBuffer o2)
     {

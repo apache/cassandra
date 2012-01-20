@@ -36,4 +36,5 @@ public abstract class AbstractJdbcType<T>
     public abstract Class<T> getType();
     public abstract int getJdbcType();
     public abstract T compose(ByteBuffer bytes);
+    public abstract ByteBuffer decompose(T obj);
 }

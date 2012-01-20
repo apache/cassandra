@@ -34,12 +34,12 @@ public class LongType extends AbstractType<Long>
 
     public Long compose(ByteBuffer bytes)
     {
-        return ByteBufferUtil.toLong(bytes);
+        return JdbcLong.instance.compose(bytes);
     }
 
     public ByteBuffer decompose(Long value)
     {
-        return ByteBufferUtil.bytes(value);
+        return JdbcLong.instance.decompose(value);
     }
 
     public int compare(ByteBuffer o1, ByteBuffer o2)

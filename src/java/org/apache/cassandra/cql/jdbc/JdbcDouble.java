@@ -95,4 +95,9 @@ public class JdbcDouble extends AbstractJdbcType<Double>
     {
         return ByteBufferUtil.toDouble(bytes);
     }
+    
+    public ByteBuffer decompose(Double value)
+    {
+        return (value==null) ? ByteBufferUtil.EMPTY_BYTE_BUFFER : ByteBufferUtil.bytes(value);
+    }
 }
