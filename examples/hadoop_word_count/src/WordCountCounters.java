@@ -87,10 +87,9 @@ public class WordCountCounters extends Configured implements Tool
 
         job.setInputFormatClass(ColumnFamilyInputFormat.class);
 
-
-        ConfigHelper.setRpcPort(job.getConfiguration(), "9160");
-        ConfigHelper.setInitialAddress(job.getConfiguration(), "localhost");
-        ConfigHelper.setPartitioner(job.getConfiguration(), "org.apache.cassandra.dht.RandomPartitioner");
+        ConfigHelper.setInputRpcPort(job.getConfiguration(), "9160");
+        ConfigHelper.setInputInitialAddress(job.getConfiguration(), "localhost");
+        ConfigHelper.setInputPartitioner(job.getConfiguration(), "org.apache.cassandra.dht.RandomPartitioner");
         ConfigHelper.setInputColumnFamily(job.getConfiguration(), WordCount.KEYSPACE, WordCountCounters.COUNTER_COLUMN_FAMILY);
         SlicePredicate predicate = new SlicePredicate().setSlice_range(
                                                                         new SliceRange().
