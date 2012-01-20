@@ -50,6 +50,8 @@
 
 1.0.8
  * (cqlsh) add DESCRIBE COLUMNFAMILIES (CASSANDRA-3586)
+ * (cqlsh) format blobs correctly and use colors to improve output
+   readability (CASSANDRA-3726)
 
 
 1.0.7
