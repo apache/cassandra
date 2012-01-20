@@ -132,10 +132,12 @@ public class WordCountSetup
         input.setComparator_type("AsciiType");
         input.setDefault_validation_class("AsciiType");
         cfDefList.add(input);
+
         CfDef output = new CfDef(WordCount.KEYSPACE, WordCount.OUTPUT_COLUMN_FAMILY);
         output.setComparator_type("AsciiType");
-        output.setDefault_validation_class("AsciiType");
+        output.setDefault_validation_class("Int32Type");
         cfDefList.add(output);
+
         CfDef counterInput = new CfDef(WordCount.KEYSPACE, WordCountCounters.COUNTER_COLUMN_FAMILY);
         counterInput.setComparator_type("UTF8Type");
         counterInput.setDefault_validation_class("CounterColumnType");

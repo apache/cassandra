@@ -137,7 +137,7 @@ public class WordCount extends Configured implements Tool
         {
             Column c = new Column();
             c.setName(Arrays.copyOf(word.getBytes(), word.getLength()));
-            c.setValue(ByteBufferUtil.bytes(String.valueOf(sum)));
+            c.setValue(ByteBufferUtil.bytes(sum));
             c.setTimestamp(System.currentTimeMillis());
 
             Mutation m = new Mutation();
