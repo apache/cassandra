@@ -36,7 +36,7 @@ public class WordCountSetup
 {
     private static final Logger logger = LoggerFactory.getLogger(WordCountSetup.class);
 
-    public static final int TEST_COUNT = 4;
+    public static final int TEST_COUNT = 5;
 
     public static void main(String[] args) throws Exception
     {
@@ -81,6 +81,25 @@ public class WordCountSetup
         }
         client.batch_mutate(mutationMap, ConsistencyLevel.ONE);
         logger.info("added text3");
+
+        // text4: 1000 rows, 1 word, one column to filter on
+        mutationMap = new HashMap<ByteBuffer, Map<String, List<Mutation>>>();
+        for (int i = 0; i < 1000; i++)
+        {
+            Column c1 = new Column()
+                       .setName(ByteBufferUtil.bytes("text4"))
+                       .setValue(ByteBufferUtil.bytes("word1"))
+                       .setTimestamp(System.currentTimeMillis());
+            Column c2 = new Column()
+                       .setName(ByteBufferUtil.bytes("int4"))
+                       .setValue(ByteBufferUtil.bytes(i % 4))
+                       .setTimestamp(System.currentTimeMillis());
+            ByteBuffer key = ByteBufferUtil.bytes("key" + i);
+            addToMutationMap(mutationMap, key, WordCount.COLUMN_FAMILY, c1);
+            addToMutationMap(mutationMap, key, WordCount.COLUMN_FAMILY, c2);
+        }
+        client.batch_mutate(mutationMap, ConsistencyLevel.ONE);
+        logger.info("added text4");
 
         // sentence data for the counters
         final ByteBuffer key = ByteBufferUtil.bytes("key-if-verse1");
@@ -134,7 +153,11 @@ public class WordCountSetup
         List<CfDef> cfDefList = new ArrayList<CfDef>();
         CfDef input = new CfDef(WordCount.KEYSPACE, WordCount.COLUMN_FAMILY);
         input.setComparator_type("AsciiType");
-        input.setDefault_validation_class("AsciiType");
+        input.setColumn_metadata(Arrays.asList(new ColumnDef(ByteBufferUtil.bytes("text1"), "AsciiType"),
+                                               new ColumnDef(ByteBufferUtil.bytes("text2"), "AsciiType"),
+                                               new ColumnDef(ByteBufferUtil.bytes("text3"), "AsciiType"),
+                                               new ColumnDef(ByteBufferUtil.bytes("text4"), "AsciiType"),
+                                               new ColumnDef(ByteBufferUtil.bytes("int4"), "Int32Type").setIndex_name("int4idx").setIndex_type(IndexType.KEYS)));
         cfDefList.add(input);
 
         CfDef output = new CfDef(WordCount.KEYSPACE, WordCount.OUTPUT_COLUMN_FAMILY);
