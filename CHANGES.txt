@@ -20,6 +20,7 @@
  * Use faster bytes comparison (CASSANDRA-3434)
  * Bulk loader is no longer a fat client, (HADOOP) bulk load output format
    (CASSANDRA-3045)
+ * (Hadoop) add support for KeyRange.filter
  * remove assumption that keys and token are in bijection
    (CASSANDRA-1034, 3574, 3604)
  * always remove endpoints from delevery queue in HH (CASSANDRA-3546)

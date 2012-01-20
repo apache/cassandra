@@ -68,6 +68,7 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
     private Cassandra.Client client;
     private ConsistencyLevel consistencyLevel;
     private int keyBufferSize = 8192;
+    private List<IndexExpression> filter;
 
     public ColumnFamilyRecordReader()
     {
@@ -131,6 +132,8 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
     {
         this.split = (ColumnFamilySplit) split;
         Configuration conf = context.getConfiguration();
+        KeyRange jobRange = ConfigHelper.getInputKeyRange(conf);
+        filter = jobRange == null ? null : jobRange.row_filter;
         predicate = ConfigHelper.getInputSlicePredicate(conf);
         isEmptyPredicate = isEmptyPredicate(predicate);
         totalRowCount = ConfigHelper.getInputSplitSize(conf);
@@ -283,7 +286,8 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
             
             KeyRange keyRange = new KeyRange(batchRowCount)
                                 .setStart_token(startToken)
-                                .setEnd_token(split.getEndToken());
+                                .setEnd_token(split.getEndToken())
+                                .setRow_filter(filter);
             try
             {
                 rows = client.get_range_slices(new ColumnParent(cfName),

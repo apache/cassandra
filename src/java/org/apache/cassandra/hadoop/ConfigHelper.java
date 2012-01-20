@@ -25,10 +25,7 @@ import java.util.List;
 
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.thrift.Cassandra;
-import org.apache.cassandra.thrift.KeyRange;
-import org.apache.cassandra.thrift.SlicePredicate;
-import org.apache.cassandra.thrift.TBinaryProtocol;
+import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Hex;
 import org.apache.hadoop.conf.Configuration;
@@ -222,6 +219,26 @@ public class ConfigHelper
     public static void setInputRange(Configuration conf, String startToken, String endToken)
     {
         KeyRange range = new KeyRange().setStart_token(startToken).setEnd_token(endToken);
+        conf.set(INPUT_KEYRANGE_CONFIG, thriftToString(range));
+    }
+
+    /**
+     * Set the KeyRange to limit the rows.
+     * @param conf Job configuration you are about to run
+     */
+    public static void setInputRange(Configuration conf, String startToken, String endToken, List<IndexExpression> filter)
+    {
+        KeyRange range = new KeyRange().setStart_token(startToken).setEnd_token(endToken).setRow_filter(filter);
+        conf.set(INPUT_KEYRANGE_CONFIG, thriftToString(range));
+    }
+
+    /**
+     * Set the KeyRange to limit the rows.
+     * @param conf Job configuration you are about to run
+     */
+    public static void setInputRange(Configuration conf, List<IndexExpression> filter)
+    {
+        KeyRange range = new KeyRange().setRow_filter(filter);
         conf.set(INPUT_KEYRANGE_CONFIG, thriftToString(range));
     }
 

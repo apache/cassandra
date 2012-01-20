@@ -124,7 +124,7 @@ public class ColumnFamilyInputFormat extends InputFormat<ByteBuffer, SortedMap<B
             KeyRange jobKeyRange = ConfigHelper.getInputKeyRange(conf);
             IPartitioner partitioner = null;
             Range<Token> jobRange = null;
-            if (jobKeyRange != null)
+            if (jobKeyRange != null && jobKeyRange.start_token != null)
             {
                 partitioner = ConfigHelper.getInputPartitioner(context.getConfiguration());
                 assert partitioner.preservesOrder() : "ConfigHelper.setInputKeyRange(..) can only be used with a order preserving paritioner";

@@ -1304,6 +1304,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public List<Row> filter(AbstractScanIterator rowIterator, ExtendedFilter filter)
     {
+        if (logger.isDebugEnabled())
+            logger.debug("Filtering {} for rows matching {}", rowIterator, filter);
          List<Row> rows = new ArrayList<Row>();
          int columnsCount = 0;
          try

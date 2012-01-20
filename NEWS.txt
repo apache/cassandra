@@ -55,6 +55,7 @@ Features
       be pinned to specfic media.
     - Hadoop: a new BulkOutputFormat is included which will directly write
       SSTables locally and then stream them into the cluster.
+    - Hadoop: KeyRange.filter is now supported with ColumnFamilyInputFormat
     - The bulk loader is not longer a fat client; it can be run from an
       existing machine in a cluster.
     - A new write survey mode has been added, similar to bootstrap (enabled via

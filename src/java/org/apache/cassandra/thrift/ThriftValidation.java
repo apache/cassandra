@@ -514,13 +514,6 @@ public class ThriftValidation
         {
             throw new InvalidRequestException("super columns are not yet supported for indexing");
         }
-        if (!isEmpty(range.row_filter) && range.start_key == null)
-        {
-            // TODO: our current KEYS indexes can't do that efficiently
-            // (without scanning *all* the keys in the range and simply applying the filter to discard them when they don't match)
-            // See KeySearcher.search()
-            throw new InvalidRequestException("filtered queries must use concrete keys rather than tokens");
-        }
 
         if (range.count <= 0)
         {
