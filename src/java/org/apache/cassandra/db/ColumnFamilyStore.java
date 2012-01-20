@@ -1306,51 +1306,51 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         if (logger.isDebugEnabled())
             logger.debug("Filtering {} for rows matching {}", rowIterator, filter);
-         List<Row> rows = new ArrayList<Row>();
-         int columnsCount = 0;
-         try
-         {
-             while (rowIterator.hasNext() && rows.size() < filter.maxRows() && columnsCount < filter.maxColumns())
-             {
-                 // get the raw columns requested, and additional columns for the expressions if necessary
-                 Row rawRow = rowIterator.next();
-                 ColumnFamily data = rawRow.cf;
+        List<Row> rows = new ArrayList<Row>();
+        int columnsCount = 0;
+        try
+        {
+            while (rowIterator.hasNext() && rows.size() < filter.maxRows() && columnsCount < filter.maxColumns())
+            {
+                // get the raw columns requested, and additional columns for the expressions if necessary
+                Row rawRow = rowIterator.next();
+                ColumnFamily data = rawRow.cf;
 
-                 // roughtly
-                 IFilter extraFilter = filter.getExtraFilter(data);
-                 if (extraFilter != null)
-                 {
-                     QueryPath path = new QueryPath(columnFamily);
-                     ColumnFamily cf = filter.cfs.getColumnFamily(new QueryFilter(rawRow.key, path, extraFilter));
-                     if (cf != null)
-                         data.addAll(cf, HeapAllocator.instance);
-                 }
+                // roughtly
+                IFilter extraFilter = filter.getExtraFilter(data);
+                if (extraFilter != null)
+                {
+                    QueryPath path = new QueryPath(columnFamily);
+                    ColumnFamily cf = filter.cfs.getColumnFamily(new QueryFilter(rawRow.key, path, extraFilter));
+                    if (cf != null)
+                        data.addAll(cf, HeapAllocator.instance);
+                }
 
-                 if (!filter.isSatisfiedBy(data))
-                     continue;
+                if (!filter.isSatisfiedBy(data))
+                    continue;
 
-                 logger.debug("{} satisfies all filter expressions", data);
-                 // cut the resultset back to what was requested, if necessary
-                 data = filter.prune(data);
-                 rows.add(new Row(rawRow.key, data));
-                 if (data != null)
-                     columnsCount += data.getLiveColumnCount();
-                 // Update the underlying filter to avoid querying more columns per slice than necessary
-                 filter.updateColumnsLimit(columnsCount);
-             }
-             return rows;
-         }
-         finally
-         {
-             try
-             {
-                 rowIterator.close();
-             }
-             catch (IOException e)
-             {
-                 throw new IOError(e);
-             }
-         }
+                logger.debug("{} satisfies all filter expressions", data);
+                // cut the resultset back to what was requested, if necessary
+                data = filter.prune(data);
+                rows.add(new Row(rawRow.key, data));
+                if (data != null)
+                    columnsCount += data.getLiveColumnCount();
+                // Update the underlying filter to avoid querying more columns per slice than necessary
+                filter.updateColumnsLimit(columnsCount);
+            }
+            return rows;
+        }
+        finally
+        {
+            try
+            {
+                rowIterator.close();
+            }
+            catch (IOException e)
+            {
+                throw new IOError(e);
+            }
+        }
     }
 
     public AbstractType<?> getComparator()
