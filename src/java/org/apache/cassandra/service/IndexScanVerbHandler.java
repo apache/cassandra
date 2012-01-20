@@ -29,6 +29,7 @@ import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 
+@Deprecated // 1.1 implements index scan with RangeSliceVerb instead
 public class IndexScanVerbHandler implements IVerbHandler
 {
     private static final Logger logger = LoggerFactory.getLogger(IndexScanVerbHandler.class);

@@ -736,14 +736,20 @@ public class CassandraServer implements Cassandra.Iface
         ThriftValidation.validateIndexClauses(metadata, index_clause);
         ThriftValidation.validateConsistencyLevel(keyspace, consistency_level, RequestType.READ);
 
+        IPartitioner p = StorageService.getPartitioner();
+        AbstractBounds<RowPosition> bounds = new Bounds<RowPosition>(RowPosition.forKey(index_clause.start_key, p),
+                                                                     p.getMinimumToken().minKeyBound());
+        RangeSliceCommand command = new RangeSliceCommand(keyspace,
+                                                          column_parent.column_family,
+                                                          null,
+                                                          column_predicate,
+                                                          bounds,
+                                                          index_clause.count);
+
         List<Row> rows;
         try
         {
-            rows = StorageProxy.scan(keyspace,
-                                     column_parent.column_family,
-                                     index_clause,
-                                     column_predicate,
-                                     consistency_level);
+            rows = StorageProxy.getRangeSlice(command, consistency_level);
         }
         catch (IOException e)
         {
@@ -754,6 +760,7 @@ public class CassandraServer implements Cassandra.Iface
             logger.debug("... timed out");
             throw new TimedOutException();
         }
+
         return thriftifyKeySlices(rows, column_parent, column_predicate);
     }
 

@@ -535,7 +535,7 @@ service Cassandra {
 
   /**
     Returns the subset of columns specified in SlicePredicate for the rows matching the IndexClause
-    @Deprecated; use get_range_slices instead with row_filter specified
+    @Deprecated; use get_range_slices instead with range.row_filter specified
     */
   list<KeySlice> get_indexed_slices(1:required ColumnParent column_parent,
                                     2:required IndexClause index_clause,

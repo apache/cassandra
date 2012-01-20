@@ -105,7 +105,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         DEFINITIONS_UPDATE,
         TRUNCATE,
         SCHEMA_CHECK,
-        INDEX_SCAN,
+        INDEX_SCAN, // Deprecated
         REPLICATION_FINISHED,
         INTERNAL_RESPONSE, // responses to internal calls
         COUNTER_MUTATION,

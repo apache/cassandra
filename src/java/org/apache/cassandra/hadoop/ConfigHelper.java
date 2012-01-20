@@ -32,6 +32,7 @@ import org.apache.cassandra.thrift.TBinaryProtocol;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Hex;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.thrift.TBase;
 import org.apache.thrift.TDeserializer;
 import org.apache.thrift.TException;
 import org.apache.thrift.TSerializer;
@@ -170,7 +171,7 @@ public class ConfigHelper
      */
     public static void setInputSlicePredicate(Configuration conf, SlicePredicate predicate)
     {
-        conf.set(INPUT_PREDICATE_CONFIG, predicateToString(predicate));
+        conf.set(INPUT_PREDICATE_CONFIG, thriftToString(predicate));
     }
 
     public static SlicePredicate getInputSlicePredicate(Configuration conf)
@@ -183,14 +184,14 @@ public class ConfigHelper
         return conf.get(INPUT_PREDICATE_CONFIG);
     }
 
-    private static String predicateToString(SlicePredicate predicate)
+    private static String thriftToString(TBase object)
     {
-        assert predicate != null;
+        assert object != null;
         // this is so awful it's kind of cool!
         TSerializer serializer = new TSerializer(new TBinaryProtocol.Factory());
         try
         {
-            return Hex.bytesToHex(serializer.serialize(predicate));
+            return Hex.bytesToHex(serializer.serialize(object));
         }
         catch (TException e)
         {
@@ -221,7 +222,7 @@ public class ConfigHelper
     public static void setInputRange(Configuration conf, String startToken, String endToken)
     {
         KeyRange range = new KeyRange().setStart_token(startToken).setEnd_token(endToken);
-        conf.set(INPUT_KEYRANGE_CONFIG, keyRangeToString(range));
+        conf.set(INPUT_KEYRANGE_CONFIG, thriftToString(range));
     }
 
     /** may be null if unset */
@@ -229,20 +230,6 @@ public class ConfigHelper
     {
         String str = conf.get(INPUT_KEYRANGE_CONFIG);
         return null != str ? keyRangeFromString(str) : null;
-    }
-
-    private static String keyRangeToString(KeyRange keyRange)
-    {
-        assert keyRange != null;
-        TSerializer serializer = new TSerializer(new TBinaryProtocol.Factory());
-        try
-        {
-            return Hex.bytesToHex(serializer.serialize(keyRange));
-        }
-        catch (TException e)
-        {
-            throw new RuntimeException(e);
-        }
     }
 
     private static KeyRange keyRangeFromString(String st)

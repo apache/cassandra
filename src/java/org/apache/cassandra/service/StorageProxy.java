@@ -811,10 +811,6 @@ public class StorageProxy implements StorageProxyMBean
         return new ReadCallback(resolver, consistencyLevel, command, endpoints);
     }
 
-    /*
-    * This function executes the read protocol locally.  Consistency checks are performed in the background.
-    */
-
     public static List<Row> getRangeSlice(RangeSliceCommand command, ConsistencyLevel consistency_level)
     throws IOException, UnavailableException, TimeoutException
     {
@@ -1126,69 +1122,6 @@ public class StorageProxy implements StorageProxyMBean
     public long[] getRecentWriteLatencyHistogramMicros()
     {
         return writeStats.getRecentLatencyHistogramMicros();
-    }
-
-    public static List<Row> scan(final String keyspace, String column_family, IndexClause index_clause, SlicePredicate column_predicate, ConsistencyLevel consistency_level)
-    throws IOException, TimeoutException, UnavailableException
-    {
-        IPartitioner p = StorageService.getPartitioner();
-
-        RowPosition leftPos = RowPosition.forKey(index_clause.start_key, p);
-        List<AbstractBounds<RowPosition>> ranges = getRestrictedRanges(new Bounds<RowPosition>(leftPos, p.getMinimumToken().minKeyBound()));
-        logger.debug("scan ranges are {}", StringUtils.join(ranges, ","));
-
-        // now scan until we have enough results
-        List<Row> rows = new ArrayList<Row>(index_clause.count);
-        for (AbstractBounds<RowPosition> range : ranges)
-        {
-            List<InetAddress> liveEndpoints = StorageService.instance.getLiveNaturalEndpoints(keyspace, range.right);
-            DatabaseDescriptor.getEndpointSnitch().sortByProximity(FBUtilities.getBroadcastAddress(), liveEndpoints);
-
-            // collect replies and resolve according to consistency level
-            RangeSliceResponseResolver resolver = new RangeSliceResponseResolver(keyspace, liveEndpoints);
-            IReadCommand iCommand = new IReadCommand()
-            {
-                public String getKeyspace()
-                {
-                    return keyspace;
-                }
-            };
-            ReadCallback<Iterable<Row>> handler = getReadCallback(resolver, iCommand, consistency_level, liveEndpoints);
-            handler.assureSufficientLiveNodes();
-
-            IndexScanCommand command = new IndexScanCommand(keyspace, column_family, index_clause, column_predicate, range);
-            MessageProducer producer = new CachingMessageProducer(command);
-            for (InetAddress endpoint : handler.endpoints)
-            {
-                MessagingService.instance().sendRR(producer, endpoint, handler);
-                if (logger.isDebugEnabled())
-                    logger.debug("reading {} from {}", command, endpoint);
-            }
-
-            try
-            {
-                for (Row row : handler.get())
-                {
-                    rows.add(row);
-                    logger.debug("read {}", row);
-                }
-                FBUtilities.waitOnFutures(resolver.repairResults, DatabaseDescriptor.getRpcTimeout());
-            }
-            catch (TimeoutException ex)
-            {
-                if (logger.isDebugEnabled())
-                    logger.debug("Index scan timeout: {}", ex.toString());
-                throw ex;
-            }
-            catch (DigestMismatchException e)
-            {
-                throw new AssertionError(e);
-            }
-            if (rows.size() >= index_clause.count)
-                return rows.subList(0, index_clause.count);
-        }
-
-        return rows;
     }
 
     public boolean getHintedHandoffEnabled()
