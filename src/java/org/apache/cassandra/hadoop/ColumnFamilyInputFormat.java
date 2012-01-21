@@ -100,6 +100,10 @@ public class ColumnFamilyInputFormat extends InputFormat<ByteBuffer, SortedMap<B
         {
             throw new UnsupportedOperationException("you must set the predicate with setPredicate");
         }
+        if (ConfigHelper.getInputInitialAddress(conf) == null)
+            throw new UnsupportedOperationException("You must set the initial output address to a Cassandra node");
+
+        // input partitioner is optional -- used only if requesting an ordered key scan
     }
 
     public List<InputSplit> getSplits(JobContext context) throws IOException

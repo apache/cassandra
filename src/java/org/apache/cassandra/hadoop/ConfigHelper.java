@@ -317,7 +317,7 @@ public class ConfigHelper
 
     public static int getInputRpcPort(Configuration conf)
     {
-        return Integer.parseInt(conf.get(INPUT_THRIFT_PORT));
+        return Integer.parseInt(conf.get(INPUT_THRIFT_PORT, "9160"));
     }
 
     public static void setInputRpcPort(Configuration conf, String port)
@@ -354,7 +354,7 @@ public class ConfigHelper
     
     public static int getOutputRpcPort(Configuration conf)
     {
-        return Integer.parseInt(conf.get(OUTPUT_THRIFT_PORT));
+        return Integer.parseInt(conf.get(OUTPUT_THRIFT_PORT, "9160"));
     }
 
     public static void setOutputRpcPort(Configuration conf, String port)

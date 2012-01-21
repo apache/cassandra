@@ -190,7 +190,7 @@ public class WordCount extends Configured implements Tool
 
             ConfigHelper.setInputRpcPort(job.getConfiguration(), "9160");
             ConfigHelper.setInputInitialAddress(job.getConfiguration(), "localhost");
-            ConfigHelper.setInputPartitioner(job.getConfiguration(), "org.apache.cassandra.dht.RandomPartitioner");
+            ConfigHelper.setInputPartitioner(job.getConfiguration(), "RandomPartitioner");
             ConfigHelper.setInputColumnFamily(job.getConfiguration(), KEYSPACE, COLUMN_FAMILY);
             SlicePredicate predicate = new SlicePredicate().setColumn_names(Arrays.asList(ByteBufferUtil.bytes(columnName)));
             ConfigHelper.setInputSlicePredicate(job.getConfiguration(), predicate);
@@ -199,6 +199,9 @@ public class WordCount extends Configured implements Tool
                 IndexExpression expr = new IndexExpression(ByteBufferUtil.bytes("int4"), IndexOperator.EQ, ByteBufferUtil.bytes(0));
                 ConfigHelper.setInputRange(job.getConfiguration(), Arrays.asList(expr));
             }
+
+            ConfigHelper.setOutputInitialAddress(job.getConfiguration(), "localhost");
+            ConfigHelper.setOutputPartitioner(job.getConfiguration(), "RandomPartitioner");
 
             job.waitForCompletion(true);
         }
