@@ -50,7 +50,7 @@ public class SSTableLoader
     public SSTableLoader(File directory, Client client, OutputHandler outputHandler)
     {
         this.directory = directory;
-        this.keyspace = directory.getName();
+        this.keyspace = directory.getParentFile().getName();
         this.client = client;
         this.outputHandler = outputHandler;
     }

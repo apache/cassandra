@@ -46,6 +46,8 @@
  * Allows (internally) doing a range query with a limit of columns instead of
    rows (CASSANDRA-3742)
  * Allow rangeSlice queries to be start/end inclusive/exclusive (CASSANDRA-3749)
+ * Fix BulkLoader to support new SSTable layout and add stream
+   throttling to prevent an NPE when there is no yaml config (CASSANDRA-3752)
 
 
 1.0.8
