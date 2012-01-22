@@ -18,29 +18,37 @@
 
 package org.apache.cassandra.config;
 
+import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import com.google.common.base.Objects;
+import com.google.common.collect.MapDifference;
+import com.google.common.collect.Maps;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.builder.EqualsBuilder;
 import org.apache.commons.lang.builder.HashCodeBuilder;
 import org.apache.commons.lang.builder.ToStringBuilder;
 
-import org.apache.avro.util.Utf8;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.migration.Migration;
-import org.apache.cassandra.db.migration.avro.ColumnDef;
 import org.apache.cassandra.io.IColumnSerializer;
 import org.apache.cassandra.io.compress.CompressionParameters;
+import org.apache.cassandra.thrift.CfDef;
+import org.apache.cassandra.thrift.ColumnDef;
+import org.apache.cassandra.thrift.IndexType;
 import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import static org.apache.cassandra.db.migration.MigrationHelper.*;
 
 public final class CFMetaData
 {
@@ -63,11 +71,51 @@ public final class CFMetaData
 
     public static final CFMetaData StatusCf = newSystemMetadata(SystemTable.STATUS_CF, 0, "persistent metadata for the local node", BytesType.instance, null);
     public static final CFMetaData HintsCf = newSystemMetadata(HintedHandOffManager.HINTS_CF, 1, "hinted handoff data", BytesType.instance, BytesType.instance);
+    @Deprecated
     public static final CFMetaData MigrationsCf = newSystemMetadata(Migration.MIGRATIONS_CF, 2, "individual schema mutations", TimeUUIDType.instance, null);
+    @Deprecated
     public static final CFMetaData SchemaCf = newSystemMetadata(Migration.SCHEMA_CF, 3, "current state of the schema", UTF8Type.instance, null);
     public static final CFMetaData IndexCf = newSystemMetadata(SystemTable.INDEX_CF, 5, "indexes that have been completed", UTF8Type.instance, null);
     public static final CFMetaData NodeIdCf = newSystemMetadata(SystemTable.NODE_ID_CF, 6, "nodeId and their metadata", TimeUUIDType.instance, null);
     public static final CFMetaData VersionCf = newSystemMetadata(SystemTable.VERSION_CF, 7, "server version information", UTF8Type.instance, null);
+    public static final CFMetaData SchemaKeyspacesCf = schemaCFDefinition(SystemTable.SCHEMA_KEYSPACES_CF, 8, "keyspace attributes of the schema", AsciiType.instance, 1);
+    public static final CFMetaData SchemaColumnFamiliesCf = schemaCFDefinition(SystemTable.SCHEMA_COLUMNFAMILIES_CF, 9, "ColumnFamily attributes of the schema", AsciiType.instance, 2);
+    public static final CFMetaData SchemaColumnsCf = schemaCFDefinition(SystemTable.SCHEMA_COLUMNS_CF, 10, "ColumnFamily column attributes of the schema", AsciiType.instance, 3);
+
+    private static CFMetaData schemaCFDefinition(String name, int index, String comment, AbstractType<?> comp, int nestingLevel)
+    {
+        try
+        {
+            AbstractType<?> comparator;
+
+            if (nestingLevel == 1)
+            {
+                comparator = comp;
+            }
+            else
+            {
+                List<AbstractType<?>> composite = new ArrayList<AbstractType<?>>(nestingLevel);
+
+                for (int i = 0; i < nestingLevel; i++)
+                    composite.add(comp);
+
+                comparator = CompositeType.getInstance(composite);
+            }
+
+            return newSystemMetadata(name,
+                                     index,
+                                     comment,
+                                     comparator,
+                                     null)
+                                     .keyValidator(AsciiType.instance)
+                                     .defaultValidator(UTF8Type.instance);
+        }
+        catch (ConfigurationException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
     static
     {
         try
@@ -277,47 +325,7 @@ public final class CFMetaData
         return cfName + Directories.SECONDARY_INDEX_NAME_SEPARATOR + (info.getIndexName() == null ? ByteBufferUtil.bytesToHex(info.name) : info.getIndexName());
     }
 
-    // converts CFM to avro CfDef
-    public org.apache.cassandra.db.migration.avro.CfDef toAvro()
-    {
-        org.apache.cassandra.db.migration.avro.CfDef cf = new org.apache.cassandra.db.migration.avro.CfDef();
-        cf.id = cfId;
-        cf.keyspace = new Utf8(ksName);
-        cf.name = new Utf8(cfName);
-        cf.column_type = new Utf8(cfType.name());
-        cf.comparator_type = new Utf8(comparator.toString());
-        if (subcolumnComparator != null)
-        {
-            assert cfType == ColumnFamilyType.Super
-                   : String.format("%s CF %s should not have subcomparator %s defined", cfType, cfName, subcolumnComparator);
-            cf.subcomparator_type = new Utf8(subcolumnComparator.toString());
-        }
-        cf.comment = new Utf8(enforceCommentNotNull(comment));
-        cf.read_repair_chance = readRepairChance;
-        cf.replicate_on_write = replicateOnWrite;
-        cf.gc_grace_seconds = gcGraceSeconds;
-        cf.default_validation_class = defaultValidator == null ? null : new Utf8(defaultValidator.toString());
-        cf.key_validation_class = new Utf8(keyValidator.toString());
-        cf.min_compaction_threshold = minCompactionThreshold;
-        cf.max_compaction_threshold = maxCompactionThreshold;
-        cf.merge_shards_chance = mergeShardsChance;
-        cf.key_alias = keyAlias;
-        cf.column_metadata = new ArrayList<ColumnDef>(column_metadata.size());
-        for (ColumnDefinition cd : column_metadata.values())
-            cf.column_metadata.add(cd.toAvro());
-        cf.compaction_strategy = new Utf8(compactionStrategyClass.getName());
-        if (compactionStrategyOptions != null)
-        {
-            cf.compaction_strategy_options = new HashMap<CharSequence, CharSequence>();
-            for (Map.Entry<String, String> e : compactionStrategyOptions.entrySet())
-                cf.compaction_strategy_options.put(new Utf8(e.getKey()), new Utf8(e.getValue()));
-        }
-        cf.compression_options = compressionParameters.asAvroOptions();
-        cf.bloom_filter_fp_chance = bloomFilterFpChance;
-        cf.caching = new Utf8(caching.toString());
-        return cf;
-    }
-
+    @Deprecated
     public static CFMetaData fromAvro(org.apache.cassandra.db.migration.avro.CfDef cf)
     {
         AbstractType<?> comparator;
@@ -338,7 +346,7 @@ public final class CFMetaData
             throw new RuntimeException("Could not inflate CFMetaData for " + cf, ex);
         }
         Map<ByteBuffer, ColumnDefinition> column_metadata = new TreeMap<ByteBuffer, ColumnDefinition>(BytesType.instance);
-        for (ColumnDef aColumn_metadata : cf.column_metadata)
+        for (org.apache.cassandra.db.migration.avro.ColumnDef aColumn_metadata : cf.column_metadata)
         {
             ColumnDefinition cd = ColumnDefinition.fromAvro(aColumn_metadata);
             if (cd.getIndexType() != null && cd.getIndexName() == null)
@@ -627,22 +635,45 @@ public final class CFMetaData
                       .validate();
     }
 
-    /** updates CFMetaData in-place to match cf_def */
-    public void apply(org.apache.cassandra.db.migration.avro.CfDef cf_def) throws ConfigurationException
+    public void reload() throws IOException
+    {
+        Row cfDefRow = SystemTable.readSchemaRow(ksName, cfName);
+
+        if (cfDefRow.cf == null || cfDefRow.cf.isEmpty())
+            throw new IOException(String.format("%s not found in the schema definitions table.", ksName + ":" + cfName));
+
+        try
+        {
+            apply(fromSchema(cfDefRow.cf));
+        }
+        catch (ConfigurationException e)
+        {
+            throw new IOException(e);
+        }
+    }
+
+    /**
+     * Updates CFMetaData in-place to match cf_def
+     *
+     * *Note*: This method left public only for DefsTest, don't use directly!
+     *
+     * @throws ConfigurationException if ks/cf names or cf ids didn't match
+     */
+    public void apply(CfDef cf_def) throws ConfigurationException
     {
         logger.debug("applying {} to {}", cf_def, this);
         // validate
-        if (!cf_def.keyspace.toString().equals(ksName))
+        if (!cf_def.keyspace.equals(ksName))
             throw new ConfigurationException(String.format("Keyspace mismatch (found %s; expected %s)",
                                                            cf_def.keyspace, ksName));
-        if (!cf_def.name.toString().equals(cfName))
+        if (!cf_def.name.equals(cfName))
             throw new ConfigurationException(String.format("Column family mismatch (found %s; expected %s)",
                                                            cf_def.name, cfName));
-        if (!cf_def.id.equals(cfId))
+        if (cf_def.id != cfId)
             throw new ConfigurationException(String.format("Column family ID mismatch (found %s; expected %s)",
                                                            cf_def.id, cfId));
 
-        if (!cf_def.column_type.toString().equals(cfType.name()))
+        if (!cf_def.column_type.equals(cfType.name()))
             throw new ConfigurationException("types do not match.");
         if (comparator != TypeParser.parse(cf_def.comparator_type))
             throw new ConfigurationException("comparators do not match.");
@@ -667,15 +698,18 @@ public final class CFMetaData
         maxCompactionThreshold = cf_def.max_compaction_threshold;
         mergeShardsChance = cf_def.merge_shards_chance;
         keyAlias = cf_def.key_alias;
-        if (cf_def.bloom_filter_fp_chance != null)
+        if (cf_def.isSetBloom_filter_fp_chance())
             bloomFilterFpChance = cf_def.bloom_filter_fp_chance;
-        caching = Caching.fromString(cf_def.caching.toString());
+        caching = Caching.fromString(cf_def.caching);
+
+        if (!cf_def.isSetColumn_metadata())
+            cf_def.setColumn_metadata(new ArrayList<ColumnDef>());
 
         // adjust column definitions. figure out who is coming and going.
         Set<ByteBuffer> toRemove = new HashSet<ByteBuffer>();
         Set<ByteBuffer> newColumns = new HashSet<ByteBuffer>();
-        Set<org.apache.cassandra.db.migration.avro.ColumnDef> toAdd = new HashSet<org.apache.cassandra.db.migration.avro.ColumnDef>();
-        for (org.apache.cassandra.db.migration.avro.ColumnDef def : cf_def.column_metadata)
+        Set<ColumnDef> toAdd = new HashSet<ColumnDef>();
+        for (ColumnDef def : cf_def.column_metadata)
         {
             newColumns.add(def.name);
             if (!column_metadata.containsKey(def.name))
@@ -691,36 +725,36 @@ public final class CFMetaData
             column_metadata.remove(indexName);
         }
         // update the ones staying
-        for (org.apache.cassandra.db.migration.avro.ColumnDef def : cf_def.column_metadata)
+        for (ColumnDef def : cf_def.column_metadata)
         {
             ColumnDefinition oldDef = column_metadata.get(def.name);
             if (oldDef == null)
                 continue;
             oldDef.setValidator(TypeParser.parse(def.validation_class));
-            oldDef.setIndexType(def.index_type == null ? null : org.apache.cassandra.thrift.IndexType.valueOf(def.index_type.name()),
-                                ColumnDefinition.getStringMap(def.index_options));
-            oldDef.setIndexName(def.index_name == null ? null : def.index_name.toString());
+            oldDef.setIndexType(def.index_type == null ? null : IndexType.valueOf(def.index_type.name()),
+                                def.index_options);
+            oldDef.setIndexName(def.index_name == null ? null : def.index_name);
         }
         // add the new ones coming in.
-        for (org.apache.cassandra.db.migration.avro.ColumnDef def : toAdd)
+        for (ColumnDef def : toAdd)
         {
             AbstractType<?> dValidClass = TypeParser.parse(def.validation_class);
             ColumnDefinition cd = new ColumnDefinition(def.name, 
                                                        dValidClass,
-                                                       def.index_type == null ? null : org.apache.cassandra.thrift.IndexType.valueOf(def.index_type.toString()), 
-                                                       ColumnDefinition.getStringMap(def.index_options),
-                                                       def.index_name == null ? null : def.index_name.toString());
+                                                       def.index_type == null ? null : IndexType.valueOf(def.index_type.name()),
+                                                       def.index_options,
+                                                       def.index_name == null ? null : def.index_name);
             column_metadata.put(cd.name, cd);
         }
 
         if (cf_def.compaction_strategy != null)
-            compactionStrategyClass = createCompactionStrategy(cf_def.compaction_strategy.toString());
+            compactionStrategyClass = createCompactionStrategy(cf_def.compaction_strategy);
 
         if (null != cf_def.compaction_strategy_options)
         {
             compactionStrategyOptions = new HashMap<String, String>();
-            for (Map.Entry<CharSequence, CharSequence> e : cf_def.compaction_strategy_options.entrySet())
-                compactionStrategyOptions.put(e.getKey().toString(), e.getValue().toString());
+            for (Map.Entry<String, String> e : cf_def.compaction_strategy_options.entrySet())
+                compactionStrategyOptions.put(e.getKey(), e.getValue());
         }
 
         compressionParameters = CompressionParameters.create(cf_def.compression_options);
@@ -749,9 +783,7 @@ public final class CFMetaData
                 ColumnFamilyStore.class,
                 Map.class // options
             });
-            return (AbstractCompactionStrategy)constructor.newInstance(new Object[] {
-                cfs,
-                compactionStrategyOptions});
+            return (AbstractCompactionStrategy)constructor.newInstance(cfs, compactionStrategyOptions);
         }
         catch (NoSuchMethodException e)
         {
@@ -788,7 +820,7 @@ public final class CFMetaData
         def.setRead_repair_chance(readRepairChance);
         def.setReplicate_on_write(replicateOnWrite);
         def.setGc_grace_seconds(gcGraceSeconds);
-        def.setDefault_validation_class(defaultValidator.toString());
+        def.setDefault_validation_class(defaultValidator == null ? null : defaultValidator.toString());
         def.setKey_validation_class(keyValidator.toString());
         def.setMin_compaction_threshold(minCompactionThreshold);
         def.setMax_compaction_threshold(maxCompactionThreshold);
@@ -815,9 +847,9 @@ public final class CFMetaData
         return def;
     }
 
-    public static void validateMinMaxCompactionThresholds(org.apache.cassandra.db.migration.avro.CfDef cf_def) throws ConfigurationException
+    public static void validateMinMaxCompactionThresholds(CfDef cf_def) throws ConfigurationException
     {
-        if (cf_def.min_compaction_threshold != null && cf_def.max_compaction_threshold != null)
+        if (cf_def.isSetMin_compaction_threshold() && cf_def.isSetMax_compaction_threshold())
         {
             if ((cf_def.min_compaction_threshold > cf_def.max_compaction_threshold) &&
                     cf_def.max_compaction_threshold != 0)
@@ -825,15 +857,15 @@ public final class CFMetaData
                 throw new ConfigurationException("min_compaction_threshold cannot be greater than max_compaction_threshold");
             }
         }
-        else if (cf_def.min_compaction_threshold != null)
+        else if (cf_def.isSetMin_compaction_threshold())
         {
             if (cf_def.min_compaction_threshold > DEFAULT_MAX_COMPACTION_THRESHOLD)
             {
-                throw new ConfigurationException("min_compaction_threshold cannot be greather than max_compaction_threshold (default " +
+                throw new ConfigurationException("min_compaction_threshold cannot be greater than max_compaction_threshold (default " +
                                                   DEFAULT_MAX_COMPACTION_THRESHOLD + ")");
             }
         }
-        else if (cf_def.max_compaction_threshold != null)
+        else if (cf_def.isSetMax_compaction_threshold())
         {
             if (cf_def.max_compaction_threshold < DEFAULT_MIN_COMPACTION_THRESHOLD && cf_def.max_compaction_threshold != 0) {
                 throw new ConfigurationException("max_compaction_threshold cannot be less than min_compaction_threshold");
@@ -921,6 +953,167 @@ public final class CFMetaData
         }
 
         return this;
+    }
+
+    /**
+     * Calculate the difference between current metadata and given and serialize it as schema RowMutation
+     *
+     * @param newState The new metadata (for the same CF)
+     * @param modificationTimestamp Timestamp to use for mutation
+     *
+     * @return Difference between attributes in form of schema mutation
+     *
+     * @throws ConfigurationException if any of the attributes didn't pass validation
+     */
+    public RowMutation diff(CfDef newState, long modificationTimestamp) throws ConfigurationException
+    {
+        CfDef curState = toThrift();
+        RowMutation m = new RowMutation(Table.SYSTEM_TABLE, SystemTable.getSchemaKSKey(ksName));
+
+        for (CfDef._Fields field : CfDef._Fields.values())
+        {
+            if (field.equals(CfDef._Fields.COLUMN_METADATA))
+                continue; // deal with columns after main attributes
+
+            Object curValue = curState.getFieldValue(field);
+            Object newValue = newState.getFieldValue(field);
+
+            if (Objects.equal(curValue, newValue))
+                continue;
+
+            m.add(new QueryPath(SystemTable.SCHEMA_COLUMNFAMILIES_CF, null, compositeNameFor(curState.name, field.getFieldName())),
+                  valueAsBytes(newValue),
+                  modificationTimestamp);
+        }
+
+        AbstractType nameComparator = cfType.equals(ColumnFamilyType.Super)
+                                        ? subcolumnComparator
+                                        : comparator;
+
+        MapDifference<ByteBuffer, ColumnDefinition> columnDiff = Maps.difference(column_metadata, ColumnDefinition.fromThrift(newState.column_metadata));
+        Map<ByteBuffer, ColumnDef> columnDefMap = ColumnDefinition.toMap(newState.column_metadata);
+
+        // columns that are no longer needed
+        for (ByteBuffer name : columnDiff.entriesOnlyOnLeft().keySet())
+            ColumnDefinition.deleteFromSchema(m, curState.name, nameComparator, name, modificationTimestamp);
+
+        // newly added columns
+        for (ByteBuffer name : columnDiff.entriesOnlyOnRight().keySet())
+            ColumnDefinition.addToSchema(m, curState.name, nameComparator, columnDefMap.get(name), modificationTimestamp);
+
+        // old columns with updated attributes
+        for (ByteBuffer name : columnDiff.entriesDiffering().keySet())
+            ColumnDefinition.addToSchema(m, curState.name, nameComparator, columnDefMap.get(name), modificationTimestamp);
+
+        return m;
+    }
+
+    /**
+     * Remove all CF attributes from schema
+     *
+     * @param timestamp Timestamp to use
+     *
+     * @return RowMutation to use to completely remove cf from schema
+     */
+    public RowMutation dropFromSchema(long timestamp)
+    {
+        RowMutation m = new RowMutation(Table.SYSTEM_TABLE, SystemTable.getSchemaKSKey(ksName));
+
+        for (CfDef._Fields field : CfDef._Fields.values())
+            m.delete(new QueryPath(SystemTable.SCHEMA_COLUMNFAMILIES_CF, null, compositeNameFor(cfName, field.getFieldName())), timestamp);
+
+        for (ColumnDefinition columnDefinition : column_metadata.values())
+            ColumnDefinition.deleteFromSchema(m, cfName, comparator, columnDefinition.name, timestamp);
+
+        return m;
+    }
+
+    /**
+     * Convert current metadata into schema mutation
+     *
+     * @param timestamp Timestamp to use
+     *
+     * @return Low-level representation of the CF
+     *
+     * @throws ConfigurationException if any of the attributes didn't pass validation
+     */
+    public RowMutation toSchema(long timestamp) throws ConfigurationException
+    {
+        RowMutation mutation = new RowMutation(Table.SYSTEM_TABLE, SystemTable.getSchemaKSKey(ksName));
+
+        toSchema(mutation, toThrift(), timestamp);
+
+        return mutation;
+    }
+
+    /**
+     * Convert given Thrift-serialized metadata into schema mutation
+     *
+     * @param mutation The mutation to include ColumnFamily attributes into (can contain keyspace attributes already)
+     * @param cfDef Thrift-serialized metadata to use as source for schema mutation
+     * @param timestamp Timestamp to use
+     *
+     * @throws ConfigurationException if any of the attributes didn't pass validation
+     */
+    public static void toSchema(RowMutation mutation, CfDef cfDef, long timestamp) throws ConfigurationException
+    {
+        applyImplicitDefaults(cfDef);
+
+        for (CfDef._Fields field : CfDef._Fields.values())
+        {
+            if (field.equals(CfDef._Fields.COLUMN_METADATA))
+                continue;
+
+            mutation.add(new QueryPath(SystemTable.SCHEMA_COLUMNFAMILIES_CF, null, compositeNameFor(cfDef.name, field.getFieldName())),
+                         valueAsBytes(cfDef.getFieldValue(field)),
+                         timestamp);
+        }
+
+        if (!cfDef.isSetColumn_metadata())
+            return;
+
+        AbstractType comparator = TypeParser.parse(cfDef.column_type.equals("Super")
+                                           ? cfDef.subcomparator_type
+                                           : cfDef.comparator_type);
+
+        for (ColumnDef columnDef : cfDef.column_metadata)
+            ColumnDefinition.addToSchema(mutation, cfDef.name, comparator, columnDef, timestamp);
+    }
+
+    /**
+     * Deserialize CF metadata from low-level representation
+     *
+     * @param serializedCfDef The data to use for deserialization
+     *
+     * @return Thrift-based metadata deserialized from schema
+     *
+     * @throws IOException on any I/O related error
+     */
+    public static CfDef fromSchema(ColumnFamily serializedCfDef) throws IOException
+    {
+        assert serializedCfDef != null;
+
+        CfDef cfDef = new CfDef();
+
+        AbstractType sysComparator = serializedCfDef.getComparator();
+
+        for (IColumn cfAttr : serializedCfDef.getSortedColumns())
+        {
+            if (cfAttr == null || cfAttr.isMarkedForDelete())
+                continue;
+
+            // column name format is <cf>:<attribute name>
+            String[] attr = sysComparator.getString(cfAttr.name()).split(":");
+            assert attr.length == 2;
+
+            CfDef._Fields field = CfDef._Fields.findByName(attr[1]);
+            cfDef.setFieldValue(field, deserializeValue(cfAttr.value(), getValueClass(CfDef.class, field.getFieldName())));
+        }
+
+        for (ColumnDef columnDef : ColumnDefinition.fromSchema(cfDef.keyspace, cfDef.name))
+            cfDef.addToColumn_metadata(columnDef);
+
+        return cfDef;
     }
 
     @Override

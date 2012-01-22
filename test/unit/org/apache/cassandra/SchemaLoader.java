@@ -58,7 +58,7 @@ public class SchemaLoader
 
         try
         {
-            Schema.instance.load(schemaDefinition(), Schema.instance.getVersion());
+            Schema.instance.load(schemaDefinition());
         }
         catch (ConfigurationException e)
         {

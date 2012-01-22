@@ -20,11 +20,10 @@
  */
 package org.apache.cassandra.cql;
 
-import org.apache.avro.util.Utf8;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.marshal.TypeParser;
-import org.apache.cassandra.db.migration.avro.CfDef;
-import org.apache.cassandra.db.migration.avro.ColumnDef;
+import org.apache.cassandra.thrift.CfDef;
+import org.apache.cassandra.thrift.ColumnDef;
 import org.apache.cassandra.thrift.InvalidRequestException;
 
 import java.nio.ByteBuffer;
@@ -72,7 +71,7 @@ public class AlterTableStatement
     {
         CFMetaData meta = Schema.instance.getCFMetaData(keyspace, columnFamily);
 
-        CfDef cfDef = meta.toAvro();
+        CfDef cfDef = meta.toThrift();
 
         ByteBuffer columnName = this.oType == OperationType.OPTS ? null
                                                                  : meta.comparator.fromString(this.columnName);
@@ -89,20 +88,27 @@ public class AlterTableStatement
                                                                TypeParser.parse(validator),
                                                                null,
                                                                null,
-                                                               null).toAvro());
+                                                               null).toThrift());
                 break;
 
             case ALTER:
-                ColumnDefinition column = meta.getColumnDefinition(columnName);
+                ColumnDef toUpdate = null;
 
-                if (column == null)
+                for (ColumnDef columnDef : cfDef.column_metadata)
+                {
+                    if (columnDef.name.equals(columnName))
+                    {
+                        toUpdate = columnDef;
+                        break;
+                    }
+                }
+
+                if (toUpdate == null)
                     throw new InvalidRequestException(String.format("Column '%s' was not found in CF '%s'",
                                                                     this.columnName,
                                                                     columnFamily));
 
-                column.setValidator(TypeParser.parse(validator));
-
-                cfDef.column_metadata.add(column.toAvro());
+                toUpdate.setValidation_class(TypeParser.parse(validator).toString());
                 break;
 
             case DROP:
@@ -121,9 +127,6 @@ public class AlterTableStatement
                                                                     this.columnName,
                                                                     columnFamily));
 
-                // it is impossible to use ColumnDefinition.deflate() in remove() method
-                // it will throw java.lang.ClassCastException: java.lang.String cannot be cast to org.apache.avro.util.Utf8
-                // some where deep inside of Avro
                 cfDef.column_metadata.remove(toDelete);
                 break;
 
@@ -156,13 +159,13 @@ public class AlterTableStatement
         }
         if (cfProps.hasProperty(CFPropDefs.KW_COMMENT))
         {
-            cfDef.comment = new Utf8(cfProps.getProperty(CFPropDefs.KW_COMMENT));
+            cfDef.comment = cfProps.getProperty(CFPropDefs.KW_COMMENT);
         }
         if (cfProps.hasProperty(CFPropDefs.KW_DEFAULTVALIDATION))
         {
             try
             {
-                cfDef.default_validation_class = new Utf8(cfProps.getValidator().toString());
+                cfDef.default_validation_class = cfProps.getValidator().toString();
             }
             catch (ConfigurationException e)
             {
@@ -179,20 +182,16 @@ public class AlterTableStatement
 
         if (!cfProps.compactionStrategyOptions.isEmpty())
         {
-            cfDef.compaction_strategy_options = new HashMap<CharSequence, CharSequence>();
+            cfDef.compaction_strategy_options = new HashMap<String, String>();
             for (Map.Entry<String, String> entry : cfProps.compactionStrategyOptions.entrySet())
-            {
-                cfDef.compaction_strategy_options.put(new Utf8(entry.getKey()), new Utf8(entry.getValue()));
-            }
+                cfDef.compaction_strategy_options.put(entry.getKey(), entry.getValue());
         }
 
         if (!cfProps.compressionParameters.isEmpty())
         {
-            cfDef.compression_options = new HashMap<CharSequence, CharSequence>();
+            cfDef.compression_options = new HashMap<String, String>();
             for (Map.Entry<String, String> entry : cfProps.compressionParameters.entrySet())
-            {
-                cfDef.compression_options.put(new Utf8(entry.getKey()), new Utf8(entry.getValue()));
-            }
+                cfDef.compression_options.put(entry.getKey(), entry.getValue());
         }
     }
 }

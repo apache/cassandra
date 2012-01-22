@@ -18,120 +18,130 @@
 
 package org.apache.cassandra.service;
 
-import java.io.*;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.IOError;
+import java.io.IOException;
 import java.net.InetAddress;
-import java.nio.ByteBuffer;
-import java.util.*;
-import java.util.concurrent.ExecutionException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.UUID;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
-import com.google.common.collect.Iterables;
-import com.google.common.collect.MapMaker;
-import org.apache.cassandra.config.Schema;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
-import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.db.Column;
-import org.apache.cassandra.db.IColumn;
-import org.apache.cassandra.db.marshal.TimeUUIDType;
-import org.apache.cassandra.db.migration.Migration;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.db.DefsTable;
+import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.gms.*;
 import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.io.util.FastByteArrayOutputStream;
+import org.apache.cassandra.net.IAsyncResult;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.WrappedRunnable;
+import org.apache.commons.lang.ArrayUtils;
 
 public class MigrationManager implements IEndpointStateChangeSubscriber
 {
     private static final Logger logger = LoggerFactory.getLogger(MigrationManager.class);
 
-    // avoids re-pushing migrations that we're waiting on target to apply already
-    private static Map<InetAddress,UUID> lastPushed = new MapMaker().expiration(1, TimeUnit.MINUTES).makeMap();
-    
-    private static UUID highestKnown;
+    // try that many times to send migration request to the node before giving up
+    private static final int MIGRATION_REQUEST_RETRIES = 3;
 
-    public void onJoin(InetAddress endpoint, EndpointState epState) { 
-        VersionedValue value = epState.getApplicationState(ApplicationState.SCHEMA);
-        if (value != null)
-        {
-            UUID theirVersion = UUID.fromString(value.value);
-            rectify(theirVersion, endpoint);
-        }
-    }
+    public void onJoin(InetAddress endpoint, EndpointState epState)
+    {}
 
     public void onChange(InetAddress endpoint, ApplicationState state, VersionedValue value)
     {
-        if (state != ApplicationState.SCHEMA)
+        if (state != ApplicationState.SCHEMA || endpoint.equals(FBUtilities.getBroadcastAddress()))
             return;
-        UUID theirVersion = UUID.fromString(value.value);
-        rectify(theirVersion, endpoint);
+
+        rectifySchema(UUID.fromString(value.value), endpoint);
     }
 
-    /** gets called after a this node joins a cluster */
     public void onAlive(InetAddress endpoint, EndpointState state)
-    { 
+    {
         VersionedValue value = state.getApplicationState(ApplicationState.SCHEMA);
+
         if (value != null)
-        {
-            UUID theirVersion = UUID.fromString(value.value);
-            rectify(theirVersion, endpoint);
-        }
+            rectifySchema(UUID.fromString(value.value), endpoint);
     }
 
-    public void onDead(InetAddress endpoint, EndpointState state) { }
+    public void onDead(InetAddress endpoint, EndpointState state)
+    {}
 
-    public void onRestart(InetAddress endpoint, EndpointState state) { }
+    public void onRestart(InetAddress endpoint, EndpointState state)
+    {}
 
-    public void onRemove(InetAddress endpoint) { }
-    
-    /** 
-     * will either push or pull an updating depending on who is behind.
-     * fat clients should never push their schemas (since they have no local storage).
-     */
-    public static void rectify(UUID theirVersion, InetAddress endpoint)
+    public void onRemove(InetAddress endpoint)
+    {}
+
+    public static void rectifySchema(UUID theirVersion, final InetAddress endpoint)
     {
-        updateHighestKnown(theirVersion);
-        UUID myVersion = Schema.instance.getVersion();
-        if (theirVersion.timestamp() < myVersion.timestamp()
-            && !StorageService.instance.isClientMode())
+        if (Schema.instance.getVersion().equals(theirVersion))
+            return;
+
+        /**
+         * if versions differ this node sends request with local migration list to the endpoint
+         * and expecting to receive a list of migrations to apply locally
+         */
+
+        Future f = StageManager.getStage(Stage.MIGRATION).submit(new WrappedRunnable()
         {
-            if (lastPushed.get(endpoint) == null || theirVersion.timestamp() >= lastPushed.get(endpoint).timestamp())
+            public void runMayThrow() throws Exception
             {
-                logger.debug("Schema on {} is old. Sending updates since {}", endpoint, theirVersion);
-                Collection<IColumn> migrations = Migration.getLocalMigrations(theirVersion, myVersion);
-                pushMigrations(endpoint, migrations);
-                lastPushed.put(endpoint, TimeUUIDType.instance.compose(Iterables.getLast(migrations).name()));
+                Message message = new Message(FBUtilities.getBroadcastAddress(),
+                                              StorageService.Verb.MIGRATION_REQUEST,
+                                              ArrayUtils.EMPTY_BYTE_ARRAY,
+                                              Gossiper.instance.getVersion(endpoint));
+
+                int retries = 0;
+                while (retries < MIGRATION_REQUEST_RETRIES)
+                {
+                    if (!FailureDetector.instance.isAlive(endpoint))
+                    {
+                        logger.error("Can't send migration request: node {} is down.", endpoint);
+                        return;
+                    }
+
+                    IAsyncResult iar = MessagingService.instance().sendRR(message, endpoint);
+
+                    try
+                    {
+                        byte[] reply = iar.get(DatabaseDescriptor.getRpcTimeout(), TimeUnit.MILLISECONDS);
+
+                        DefsTable.mergeRemoteSchema(reply, message.getVersion());
+                        return;
+                    }
+                    catch(TimeoutException e)
+                    {
+                        retries++;
+                    }
+                }
             }
-            else
-            {
-                logger.debug("Waiting for {} to process migrations up to {} before sending more",
-                             endpoint, lastPushed.get(endpoint));
-            }
-        }
-    }
-    
-    private static void updateHighestKnown(UUID theirversion)
-    {
-        if (highestKnown == null || theirversion.timestamp() > highestKnown.timestamp())
-            highestKnown = theirversion;
+        });
+
+        FBUtilities.waitOnFuture(f);
     }
 
     public static boolean isReadyForBootstrap()
     {
-        return highestKnown.compareTo(Schema.instance.getVersion()) == 0;
+        return StageManager.getStage(Stage.MIGRATION).getActiveCount() == 0;
     }
 
-    private static void pushMigrations(InetAddress endpoint, Collection<IColumn> migrations)
+    private static void pushSchemaMutation(InetAddress endpoint, Collection<RowMutation> schema)
     {
         try
         {
-            Message msg = makeMigrationMessage(migrations, Gossiper.instance.getVersion(endpoint));
+            Message msg = makeMigrationMessage(schema, Gossiper.instance.getVersion(endpoint));
             MessagingService.instance().sendOneWay(msg, endpoint);
         }
         catch (IOException ex)
@@ -140,118 +150,96 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
         }
     }
 
-    /** actively announce a new version to active hosts via rpc */
-    public static void announce(IColumn column)
+    /**
+     * actively announce a new version to active hosts via rpc
+     * @param schema The list of schema mutations to be applied on the recipient
+     */
+    public static void announce(Collection<RowMutation> schema)
     {
-
-        Collection<IColumn> migrations = Collections.singleton(column);
         for (InetAddress endpoint : Gossiper.instance.getLiveMembers())
-            pushMigrations(endpoint, migrations);
+        {
+            if (endpoint.equals(FBUtilities.getBroadcastAddress()))
+                continue; // don't push schema mutation to self
+
+            pushSchemaMutation(endpoint, schema);
+        }
     }
 
-    /** announce my version passively over gossip **/
+    /**
+     * Announce my version passively over gossip.
+     * Used to notify nodes as they arrive in the cluster.
+     *
+     * @param version The schema version to announce
+     */
     public static void passiveAnnounce(UUID version)
     {
-        // this is for notifying nodes as they arrive in the cluster.
         Gossiper.instance.addLocalApplicationState(ApplicationState.SCHEMA, StorageService.instance.valueFactory.migration(version));
         logger.debug("Gossiping my schema version " + version);
     }
 
     /**
-     * gets called during startup if we notice a mismatch between the current migration version and the one saved. This
-     * can only happen as a result of the commit log recovering schema updates, which overwrites lastVersionId.
-     * 
-     * This method silently eats IOExceptions thrown by Migration.apply() as a result of applying a migration out of
-     * order.
+     * Serialize given row mutations into raw bytes and make a migration message
+     * (other half of transformation is in DefinitionsUpdateResponseVerbHandler.)
+     *
+     * @param schema The row mutations to send to remote nodes
+     * @param version The version to use for message
+     *
+     * @return Serialized migration containing schema mutations
+     *
+     * @throws IOException on failed serialization
      */
-    public static void applyMigrations(final UUID from, final UUID to) throws IOException
+    private static Message makeMigrationMessage(Collection<RowMutation> schema, int version) throws IOException
     {
-        List<Future<?>> updates = new ArrayList<Future<?>>();
-        Collection<IColumn> migrations = Migration.getLocalMigrations(from, to);
-        for (IColumn col : migrations)
-        {
-            // assuming MessagingService.version_ is a bit of a risk, but you're playing with fire if you purposefully
-            // take down a node to upgrade it during the middle of a schema update.
-            final Migration migration = Migration.deserialize(col.value(), MessagingService.version_);
-            Future<?> update = StageManager.getStage(Stage.MIGRATION).submit(new Runnable()
-            {
-                public void run()
-                {
-                    try
-                    {
-                        migration.apply();
-                    }
-                    catch (ConfigurationException ex)
-                    {
-                        // this happens if we try to apply something that's already been applied. ignore and proceed.
-                        logger.debug("Migration not applied " + ex.getMessage());
-                    }
-                    catch (IOException ex)
-                    {
-                        throw new RuntimeException(ex);
-                    }
-                }
-            });
-            updates.add(update);
-        }
-        
-        // wait on all the updates before proceeding.
-        for (Future<?> f : updates)
-        {
-            try
-            {
-                f.get();
-            }
-            catch (InterruptedException e)
-            {
-                throw new IOException(e);
-            }
-            catch (ExecutionException e)
-            {
-                throw new IOException(e);
-            }
-        }
-        passiveAnnounce(to); // we don't need to send rpcs, but we need to update gossip
+        return new Message(FBUtilities.getBroadcastAddress(), StorageService.Verb.DEFINITIONS_UPDATE, serializeSchema(schema, version), version);
     }
 
-    // other half of transformation is in DefinitionsUpdateResponseVerbHandler.
-    private static Message makeMigrationMessage(Collection<IColumn> migrations, int version) throws IOException
+    /**
+     * Serialize given row mutations into raw bytes
+     *
+     * @param schema The row mutations to serialize
+     * @param version The version of the message service to use for serialization
+     *
+     * @return serialized mutations
+     *
+     * @throws IOException on failed serialization
+     */
+    public static byte[] serializeSchema(Collection<RowMutation> schema, int version) throws IOException
     {
-    	FastByteArrayOutputStream bout = new FastByteArrayOutputStream();
+        FastByteArrayOutputStream bout = new FastByteArrayOutputStream();
         DataOutputStream dout = new DataOutputStream(bout);
-        dout.writeInt(migrations.size());
-        // riddle me this: how do we know that these binary values (which contained serialized row mutations) are compatible
-        // with the destination?  Further, since these migrations may be old, how do we know if they are compatible with
-        // the current version?  The bottom line is that we don't.  For this reason, running migrations from a new node
-        // to an old node will be a crap shoot.  Pushing migrations from an old node to a new node should work, so long
-        // as the oldest migrations are only one version old.  We need a way of flattening schemas so that this isn't a
-        // problem during upgrades.
-        for (IColumn col : migrations)
-        {
-            assert col instanceof Column;
-            ByteBufferUtil.writeWithLength(col.name(), dout);
-            ByteBufferUtil.writeWithLength(col.value(), dout);
-        }
+        dout.writeInt(schema.size());
+
+        for (RowMutation mutation : schema)
+            RowMutation.serializer().serialize(mutation, dout, version);
+
         dout.close();
-        byte[] body = bout.toByteArray();
-        return new Message(FBUtilities.getBroadcastAddress(), StorageService.Verb.DEFINITIONS_UPDATE, body, version);
+
+        return bout.toByteArray();
     }
-    
-    // other half of this transformation is in MigrationManager.
-    public static Collection<Column> makeColumns(Message msg) throws IOException
+
+    /**
+     * Deserialize migration message considering data compatibility starting from version 1.1
+     *
+     * @param data The data of the message from coordinator which hold schema mutations to apply
+     * @param version The version of the message
+     *
+     * @return The collection of the row mutations to apply on the node (aka schema)
+     *
+     * @throws IOException if message is of incompatible version or data is corrupted
+     */
+    public static Collection<RowMutation> deserializeMigrationMessage(byte[] data, int version) throws IOException
     {
-        Collection<Column> cols = new ArrayList<Column>();
-        DataInputStream in = new DataInputStream(new FastByteArrayInputStream(msg.getMessageBody()));
+        if (version < MessagingService.VERSION_11)
+            throw new IOException("Can't accept schema migrations from Cassandra versions previous to 1.1, please update first.");
+
+        Collection<RowMutation> schema = new ArrayList<RowMutation>();
+        DataInputStream in = new DataInputStream(new FastByteArrayInputStream(data));
+
         int count = in.readInt();
+
         for (int i = 0; i < count; i++)
-        {
-            byte[] name = new byte[in.readInt()];
-            in.readFully(name);
-            byte[] value = new byte[in.readInt()];
-            in.readFully(value);
-            cols.add(new Column(ByteBuffer.wrap(name), ByteBuffer.wrap(value)));
-        }
-        in.close();
-        return cols;
+            schema.add(RowMutation.serializer().deserialize(in, version));
+
+        return schema;
     }
 }

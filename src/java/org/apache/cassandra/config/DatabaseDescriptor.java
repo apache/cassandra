@@ -36,7 +36,9 @@ import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.auth.IAuthority;
 import org.apache.cassandra.cache.IRowCacheProvider;
 import org.apache.cassandra.config.Config.RequestSchedulerId;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DefsTable;
+import org.apache.cassandra.db.SystemTable;
 import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.util.FileUtils;
@@ -425,6 +427,9 @@ public class DatabaseDescriptor
             Schema.instance.load(CFMetaData.IndexCf);
             Schema.instance.load(CFMetaData.NodeIdCf);
             Schema.instance.load(CFMetaData.VersionCf);
+            Schema.instance.load(CFMetaData.SchemaKeyspacesCf);
+            Schema.instance.load(CFMetaData.SchemaColumnFamiliesCf);
+            Schema.instance.load(CFMetaData.SchemaColumnsCf);
 
             Schema.instance.addSystemTable(systemMeta);
 
@@ -471,61 +476,72 @@ public class DatabaseDescriptor
     /** load keyspace (table) definitions, but do not initialize the table instances. */
     public static void loadSchemas() throws IOException                         
     {
-        // we can load tables from local storage if a version is set in the system table and that acutally maps to
-        // real data in the definitions table.  If we do end up loading from xml, store the defintions so that we
-        // don't load from xml anymore.
-        UUID uuid = Migration.getLastMigrationId();
-        if (uuid == null)
+        ColumnFamilyStore schemaCFS = SystemTable.schemaCFS(SystemTable.SCHEMA_KEYSPACES_CF);
+
+        // if table with definitions is empty try loading the old way
+        if (schemaCFS.estimateKeys() == 0)
         {
-            logger.info("Couldn't detect any schema definitions in local storage.");
-            // peek around the data directories to see if anything is there.
-            boolean hasExistingTables = false;
-            for (String dataDir : getAllDataFileLocations())
+            // we can load tables from local storage if a version is set in the system table and that actually maps to
+            // real data in the definitions table.  If we do end up loading from xml, store the definitions so that we
+            // don't load from xml anymore.
+            UUID uuid = Migration.getLastMigrationId();
+
+            if (uuid == null)
             {
-                File dataPath = new File(dataDir);
-                if (dataPath.exists() && dataPath.isDirectory())
+                logger.info("Couldn't detect any schema definitions in local storage.");
+                // peek around the data directories to see if anything is there.
+                if (hasExistingNoSystemTables())
+                    logger.info("Found table data in data directories. Consider using the CLI to define your schema.");
+                else
+                    logger.info("To create keyspaces and column families, see 'help create keyspace' in the CLI, or set up a schema using the thrift system_* calls.");
+            }
+            else
+            {
+                logger.info("Loading schema version " + uuid.toString());
+                Collection<KSMetaData> tableDefs = DefsTable.loadFromStorage(uuid);
+
+                // happens when someone manually deletes all tables and restarts.
+                if (tableDefs.size() == 0)
                 {
-                    // see if there are other directories present.
-                    int dirCount = dataPath.listFiles(new FileFilter()
-                    {
-                        public boolean accept(File pathname)
-                        {
-                            return pathname.isDirectory();
-                        }
-                    }).length;
-                    if (dirCount > 0)
-                        hasExistingTables = true;
+                    logger.warn("No schema definitions were found in local storage.");
                 }
-                if (hasExistingTables)
+                else // if non-system tables where found, trying to load them
                 {
-                    break;
+                    Schema.instance.load(tableDefs);
                 }
             }
-            
-            if (hasExistingTables)
-                logger.info("Found table data in data directories. Consider using the CLI to define your schema.");
-            else
-                logger.info("To create keyspaces and column families, see 'help create keyspace' in the CLI, or set up a schema using the thrift system_* calls.");
         }
         else
         {
-            logger.info("Loading schema version " + uuid.toString());
-            Collection<KSMetaData> tableDefs = DefsTable.loadFromStorage(uuid);   
+            Schema.instance.load(DefsTable.loadFromTable());
+        }
 
-            // happens when someone manually deletes all tables and restarts.
-            if (tableDefs.size() == 0)
+        Schema.instance.updateVersion();
+        Schema.instance.fixCFMaxId();
+    }
+
+    private static boolean hasExistingNoSystemTables()
+    {
+        for (String dataDir : getAllDataFileLocations())
+        {
+            File dataPath = new File(dataDir);
+            if (dataPath.exists() && dataPath.isDirectory())
             {
-                logger.warn("No schema definitions were found in local storage.");
-                // set version so that migrations leading up to emptiness aren't replayed.
-                Schema.instance.setVersion(uuid);
-            }
-            else // if non-system tables where found, trying to load them
-            {
-                Schema.instance.load(tableDefs, uuid);
+                // see if there are other directories present.
+                int dirCount = dataPath.listFiles(new FileFilter()
+                {
+                    public boolean accept(File pathname)
+                    {
+                        return pathname.isDirectory();
+                    }
+                }).length;
+
+                if (dirCount > 0)
+                    return true;
             }
         }
 
-        Schema.instance.fixCFMaxId();
+        return false;
     }
 
     public static IAuthenticator getAuthenticator()

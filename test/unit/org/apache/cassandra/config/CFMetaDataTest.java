@@ -21,7 +21,6 @@ package org.apache.cassandra.config;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.apache.avro.util.Utf8;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.thrift.CfDef;
@@ -64,28 +63,28 @@ public class CFMetaDataTest
         CFMetaData cfMetaData = CFMetaData.fromThrift(cfDef);
 
         // make a correct Avro object
-        org.apache.cassandra.db.migration.avro.CfDef avroCfDef = new org.apache.cassandra.db.migration.avro.CfDef();
-        avroCfDef.keyspace = new Utf8(KEYSPACE);
-        avroCfDef.name = new Utf8(COLUMN_FAMILY);
-        avroCfDef.default_validation_class = new Utf8(cfDef.default_validation_class);
-        avroCfDef.comment = new Utf8(cfDef.comment);
-        avroCfDef.column_metadata = new ArrayList<org.apache.cassandra.db.migration.avro.ColumnDef>();
+        CfDef thriftCfDef = new CfDef();
+        thriftCfDef.keyspace = KEYSPACE;
+        thriftCfDef.name = COLUMN_FAMILY;
+        thriftCfDef.default_validation_class = cfDef.default_validation_class;
+        thriftCfDef.comment = cfDef.comment;
+        thriftCfDef.column_metadata = new ArrayList<ColumnDef>();
         for (ColumnDef columnDef : columnDefs)
         {
-            org.apache.cassandra.db.migration.avro.ColumnDef c = new org.apache.cassandra.db.migration.avro.ColumnDef();
+            ColumnDef c = new ColumnDef();
             c.name = ByteBufferUtil.clone(columnDef.name);
-            c.validation_class = new Utf8(columnDef.getValidation_class());
-            c.index_name = new Utf8(columnDef.getIndex_name());
-            c.index_type = org.apache.cassandra.db.migration.avro.IndexType.KEYS;
-            avroCfDef.column_metadata.add(c);
+            c.validation_class = columnDef.getValidation_class();
+            c.index_name = columnDef.getIndex_name();
+            c.index_type = IndexType.KEYS;
+            thriftCfDef.column_metadata.add(c);
         }
 
-        org.apache.cassandra.db.migration.avro.CfDef converted = cfMetaData.toAvro();
+        CfDef converted = cfMetaData.toThrift();
 
-        assertEquals(avroCfDef.keyspace, converted.keyspace);
-        assertEquals(avroCfDef.name, converted.name);
-        assertEquals(avroCfDef.default_validation_class, converted.default_validation_class);
-        assertEquals(avroCfDef.comment, converted.comment);
-        assertEquals(avroCfDef.column_metadata, converted.column_metadata);
+        assertEquals(thriftCfDef.keyspace, converted.keyspace);
+        assertEquals(thriftCfDef.name, converted.name);
+        assertEquals(thriftCfDef.default_validation_class, converted.default_validation_class);
+        assertEquals(thriftCfDef.comment, converted.comment);
+        assertEquals(thriftCfDef.column_metadata, converted.column_metadata);
     }
 }

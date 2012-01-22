@@ -731,12 +731,6 @@ public class QueryProcessor
                     ex.initCause(e);
                     throw ex;
                 }
-                catch (IOException e)
-                {
-                    InvalidRequestException ex = new InvalidRequestException(e.getMessage());
-                    ex.initCause(e);
-                    throw ex;
-                }
                 
                 result.type = CqlResultType.VOID;
                 return result;
@@ -753,12 +747,6 @@ public class QueryProcessor
                     applyMigrationOnStage(new AddColumnFamily(cfmd));
                 }
                 catch (ConfigurationException e)
-                {
-                    InvalidRequestException ex = new InvalidRequestException(e.toString());
-                    ex.initCause(e);
-                    throw ex;
-                }
-                catch (IOException e)
                 {
                     InvalidRequestException ex = new InvalidRequestException(e.toString());
                     ex.initCause(e);
@@ -802,24 +790,9 @@ public class QueryProcessor
                 ThriftValidation.validateCfDef(cf_def, oldCfm);
                 try
                 {
-                    org.apache.cassandra.db.migration.avro.CfDef result1;
-                    try
-                    {
-                        result1 = CFMetaData.fromThrift(cf_def).toAvro();
-                    }
-                    catch (Exception e)
-                    {
-                        throw new RuntimeException(e);
-                    }
-                    applyMigrationOnStage(new UpdateColumnFamily(result1));
+                    applyMigrationOnStage(new UpdateColumnFamily(cf_def));
                 }
                 catch (ConfigurationException e)
-                {
-                    InvalidRequestException ex = new InvalidRequestException(e.toString());
-                    ex.initCause(e);
-                    throw ex;
-                }
-                catch (IOException e)
                 {
                     InvalidRequestException ex = new InvalidRequestException(e.toString());
                     ex.initCause(e);
@@ -870,12 +843,6 @@ public class QueryProcessor
                     ex.initCause(e);
                     throw ex;
                 }
-                catch (IOException e)
-                {
-                    InvalidRequestException ex = new InvalidRequestException(e.getMessage());
-                    ex.initCause(e);
-                    throw ex;
-                }
                 
                 result.type = CqlResultType.VOID;
                 return result;
@@ -890,12 +857,6 @@ public class QueryProcessor
                     applyMigrationOnStage(new DropColumnFamily(keyspace, deleteColumnFamily));
                 }
                 catch (ConfigurationException e)
-                {
-                    InvalidRequestException ex = new InvalidRequestException(e.getMessage());
-                    ex.initCause(e);
-                    throw ex;
-                }
-                catch (IOException e)
                 {
                     InvalidRequestException ex = new InvalidRequestException(e.getMessage());
                     ex.initCause(e);
@@ -917,12 +878,6 @@ public class QueryProcessor
                     applyMigrationOnStage(new UpdateColumnFamily(alterTable.getCfDef(keyspace)));
                 }
                 catch (ConfigurationException e)
-                {
-                    InvalidRequestException ex = new InvalidRequestException(e.getMessage());
-                    ex.initCause(e);
-                    throw ex;
-                }
-                catch (IOException e)
                 {
                     InvalidRequestException ex = new InvalidRequestException(e.getMessage());
                     ex.initCause(e);

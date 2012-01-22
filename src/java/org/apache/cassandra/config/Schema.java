@@ -20,20 +20,25 @@ package org.apache.cassandra.config;
 
 import java.io.IOError;
 import java.nio.ByteBuffer;
+import java.security.MessageDigest;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
-
-import org.apache.cassandra.db.ColumnFamilyType;
-import org.apache.cassandra.db.Table;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.migration.Migration;
-import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.utils.Pair;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.db.ColumnFamilyType;
+import org.apache.cassandra.db.Row;
+import org.apache.cassandra.db.SystemTable;
+import org.apache.cassandra.db.Table;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.migration.Migration;
+import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.utils.Pair;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
@@ -41,9 +46,7 @@ public class Schema
 {
     private static final Logger logger = LoggerFactory.getLogger(Schema.class);
 
-    public static final UUID INITIAL_VERSION = new UUID(4096, 0); // has type nibble set to 1, everything else to zero.
-
-    public static final Schema instance = new Schema(INITIAL_VERSION);
+    public static final Schema instance = new Schema();
 
     private static final int MIN_CF_ID = 1000;
     private final AtomicInteger cfIdGen = new AtomicInteger(MIN_CF_ID);
@@ -58,50 +61,60 @@ public class Schema
     private final BiMap<Pair<String, String>, Integer> cfIdMap = HashBiMap.create();
 
     private volatile UUID version;
+    private final ReadWriteLock versionLock = new ReentrantReadWriteLock();
+
 
     /**
-     * Initialize empty schema object with given version
-     * @param initialVersion The initial version of the schema
+     * Initialize empty schema object
      */
-    public Schema(UUID initialVersion)
-    {
-        version = initialVersion;
-    }
+    public Schema()
+    {}
 
     /**
-     * Load up non-system tables and set schema version to the given value
+     * Load up non-system tables
      *
      * @param tableDefs The non-system table definitions
-     * @param version The version of the schema
      *
      * @return self to support chaining calls
      */
-    public Schema load(Collection<KSMetaData> tableDefs, UUID version)
+    public Schema load(Collection<KSMetaData> tableDefs)
     {
         for (KSMetaData def : tableDefs)
+            load(def);
+
+        return this;
+    }
+
+    /**
+     * Load specific keyspace into Schema
+     *
+     * @param keyspaceDef The keyspace to load up
+     *
+     * @return self to support chaining calls
+     */
+    public Schema load(KSMetaData keyspaceDef)
+    {
+        if (!Migration.isLegalName(keyspaceDef.name))
+            throw new RuntimeException("invalid keyspace name: " + keyspaceDef.name);
+
+        for (CFMetaData cfm : keyspaceDef.cfMetaData().values())
         {
-            if (!Migration.isLegalName(def.name))
-                throw new RuntimeException("invalid keyspace name: " + def.name);
+            if (!Migration.isLegalName(cfm.cfName))
+                throw new RuntimeException("invalid column family name: " + cfm.cfName);
 
-            for (CFMetaData cfm : def.cfMetaData().values())
+            try
             {
-                if (!Migration.isLegalName(cfm.cfName))
-                    throw new RuntimeException("invalid column family name: " + cfm.cfName);
-
-                try
-                {
-                    load(cfm);
-                }
-                catch (ConfigurationException ex)
-                {
-                    throw new IOError(ex);
-                }
+                load(cfm);
             }
-
-            setTableDefinition(def, version);
+            catch (ConfigurationException ex)
+            {
+                throw new IOError(ex);
+            }
         }
 
-        setVersion(version);
+        setTableDefinition(keyspaceDef);
+
+        fixCFMaxId();
 
         return this;
     }
@@ -146,15 +159,13 @@ public class Schema
     }
 
     /**
-     * Remove table definition from system and update schema version
+     * Remove table definition from system
      *
      * @param ksm The table definition to remove
-     * @param newVersion New version of the system
      */
-    public void clearTableDefinition(KSMetaData ksm, UUID newVersion)
+    public void clearTableDefinition(KSMetaData ksm)
     {
         tables.remove(ksm.name);
-        version = newVersion;
     }
 
     /**
@@ -319,16 +330,14 @@ public class Schema
     }
 
     /**
-     * Update (or insert) new table definition and change schema version
+     * Update (or insert) new table definition
      *
      * @param ksm The metadata about table
-     * @param newVersion New schema version
      */
-    public void setTableDefinition(KSMetaData ksm, UUID newVersion)
+    public void setTableDefinition(KSMetaData ksm)
     {
         if (ksm != null)
             tables.put(ksm.name, ksm);
-        version = newVersion;
     }
 
     /**
@@ -381,6 +390,8 @@ public class Schema
 
         logger.debug("Adding {} to cfIdMap", cfm);
         cfIdMap.put(key, cfm.cfId);
+
+        fixCFMaxId();
     }
 
     /**
@@ -417,15 +428,47 @@ public class Schema
      */
     public UUID getVersion()
     {
-        return version;
+        versionLock.readLock().lock();
+
+        try
+        {
+            return version;
+        }
+        finally
+        {
+            versionLock.readLock().unlock();
+        }
     }
 
     /**
-     * Set new version of the schema
-     * @param newVersion New version of the schema
+     * Read schema from system table and calculate MD5 digest of every row, resulting digest
+     * will be converted into UUID which would act as content-based version of the schema.
      */
-    public void setVersion(UUID newVersion)
+    public void updateVersion()
     {
-        version = newVersion;
+        versionLock.writeLock().lock();
+
+        try
+        {
+            MessageDigest versionDigest = MessageDigest.getInstance("MD5");
+
+            for (Row row : SystemTable.serializedSchema())
+            {
+                if (row.cf == null || row.cf.getColumnCount() == 0)
+                    continue;
+
+                row.cf.updateDigest(versionDigest);
+            }
+
+            version = UUID.nameUUIDFromBytes(versionDigest.digest());
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException(e);
+        }
+        finally
+        {
+            versionLock.writeLock().unlock();
+        }
     }
 }

@@ -24,7 +24,6 @@ import java.net.InetAddress;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.Arrays;
-import java.util.UUID;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -46,8 +45,6 @@ import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.SystemTable;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.commitlog.CommitLog;
-import org.apache.cassandra.db.migration.Migration;
-import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.utils.CLibrary;
 import org.apache.cassandra.utils.Mx4jTool;
 
@@ -225,17 +222,6 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
         // replay the log if necessary
         CommitLog.instance.recover();
 
-        // check to see if CL.recovery modified the lastMigrationId. if it did, we need to re apply migrations. this isn't
-        // the same as merely reloading the schema (which wouldn't perform file deletion after a DROP). The solution
-        // is to read those migrations from disk and apply them.
-        UUID currentMigration = Schema.instance.getVersion();
-        UUID lastMigration = Migration.getLastMigrationId();
-        if ((lastMigration != null) && (lastMigration.timestamp() > currentMigration.timestamp()))
-        {
-            Gossiper.instance.maybeInitializeLocalState(SystemTable.incrementAndGetGeneration());
-            MigrationManager.applyMigrations(currentMigration, lastMigration);
-        }
-        
         SystemTable.finishStartup();
 
         // start server internals

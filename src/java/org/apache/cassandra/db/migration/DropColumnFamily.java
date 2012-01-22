@@ -1,17 +1,3 @@
-package org.apache.cassandra.db.migration;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-
-import org.apache.cassandra.config.*;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.compaction.CompactionManager;
-import org.apache.cassandra.db.Table;
-import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.UUIDGen;
-
 /**
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -29,78 +15,41 @@ import org.apache.cassandra.utils.UUIDGen;
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package org.apache.cassandra.db.migration;
 
+import java.io.IOException;
+
+import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.config.Schema;
 
 public class DropColumnFamily extends Migration
 {
-    private String tableName;
-    private String cfName;
+    private final String ksName;
+    private final String cfName;
     
-    /** Required no-arg constructor */
-    protected DropColumnFamily() { /* pass */ }
-    
-    public DropColumnFamily(String tableName, String cfName) throws ConfigurationException, IOException
+    public DropColumnFamily(String ksName, String cfName) throws ConfigurationException
     {
-        super(UUIDGen.makeType1UUIDFromHost(FBUtilities.getBroadcastAddress()), Schema.instance.getVersion());
-        this.tableName = tableName;
-        this.cfName = cfName;
-        
-        KSMetaData ksm = schema.getTableDefinition(tableName);
+        super(System.nanoTime());
+
+        KSMetaData ksm = Schema.instance.getTableDefinition(ksName);
         if (ksm == null)
-            throw new ConfigurationException("No such keyspace: " + tableName);
+            throw new ConfigurationException("Can't drop ColumnFamily: No such keyspace '" + ksName + "'.");
         else if (!ksm.cfMetaData().containsKey(cfName))
-            throw new ConfigurationException("CF is not defined in that keyspace.");
-        
-        KSMetaData newKsm = makeNewKeyspaceDefinition(ksm);
-        rm = makeDefinitionMutation(newKsm, null, newVersion);
+            throw new ConfigurationException(String.format("Can't drop ColumnFamily (ks=%s, cf=%s) : Not defined in that keyspace.", ksName, cfName));
+
+        this.ksName = ksName;
+        this.cfName = cfName;
     }
 
-    private KSMetaData makeNewKeyspaceDefinition(KSMetaData ksm)
+    protected void applyImpl() throws ConfigurationException, IOException
     {
-        // clone ksm but do not include the new def
-        CFMetaData cfm = ksm.cfMetaData().get(cfName);
-        List<CFMetaData> newCfs = new ArrayList<CFMetaData>(ksm.cfMetaData().values());
-        newCfs.remove(cfm);
-        assert newCfs.size() == ksm.cfMetaData().size() - 1;
-        return KSMetaData.cloneWith(ksm, newCfs);
-    }
-
-    public void applyModels() throws IOException
-    {
-        ColumnFamilyStore cfs = Table.open(tableName, schema).getColumnFamilyStore(cfName);
-
-        // reinitialize the table.
-        KSMetaData existing = schema.getTableDefinition(tableName);
-        CFMetaData cfm = existing.cfMetaData().get(cfName);
-        KSMetaData ksm = makeNewKeyspaceDefinition(existing);
-        schema.purge(cfm);
-        schema.setTableDefinition(ksm, newVersion);
-
-        if (!StorageService.instance.isClientMode())
-        {
-            cfs.snapshot(Table.getTimestampedSnapshotName(cfs.columnFamily));
-            Table.open(ksm.name, schema).dropCf(cfm.cfId);
-        }
-    }
-    
-    public void subdeflate(org.apache.cassandra.db.migration.avro.Migration mi)
-    {
-        org.apache.cassandra.db.migration.avro.DropColumnFamily dcf = new org.apache.cassandra.db.migration.avro.DropColumnFamily();
-        dcf.ksname = new org.apache.avro.util.Utf8(tableName);
-        dcf.cfname = new org.apache.avro.util.Utf8(cfName);
-        mi.migration = dcf;
-    }
-
-    public void subinflate(org.apache.cassandra.db.migration.avro.Migration mi)
-    {
-        org.apache.cassandra.db.migration.avro.DropColumnFamily dcf = (org.apache.cassandra.db.migration.avro.DropColumnFamily)mi.migration;
-        tableName = dcf.ksname.toString();
-        cfName = dcf.cfname.toString();
+        MigrationHelper.dropColumnFamily(ksName, cfName, timestamp);
     }
 
     @Override
     public String toString()
     {
-        return String.format("Drop column family: %s.%s", tableName, cfName);
+        return String.format("Drop column family: %s.%s", ksName, cfName);
     }
 }

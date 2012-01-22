@@ -24,16 +24,22 @@ package org.apache.cassandra.config;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import org.apache.avro.util.Utf8;
+import com.google.common.collect.Maps;
+
+import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.TypeParser;
+import org.apache.cassandra.db.migration.MigrationHelper;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.ColumnDef;
 import org.apache.cassandra.thrift.IndexType;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import static org.apache.cassandra.db.migration.MigrationHelper.*;
+
 public class ColumnDefinition
 {
-    
     public final ByteBuffer name;
     private AbstractType<?> validator;
     private IndexType index_type;
@@ -80,19 +86,7 @@ public class ColumnDefinition
         return result;
     }
 
-    public org.apache.cassandra.db.migration.avro.ColumnDef toAvro()
-    {
-        org.apache.cassandra.db.migration.avro.ColumnDef cd = new org.apache.cassandra.db.migration.avro.ColumnDef();
-        cd.name = ByteBufferUtil.clone(name);
-        cd.validation_class = new Utf8(validator.toString());
-        cd.index_type = index_type == null
-                      ? null
-                      : org.apache.cassandra.db.migration.avro.IndexType.valueOf(index_type.name());
-        cd.index_name = index_name == null ? null : new Utf8(index_name);
-        cd.index_options = getCharSequenceMap(index_options);
-        return cd;
-    }
-
+    @Deprecated
     public static ColumnDefinition fromAvro(org.apache.cassandra.db.migration.avro.ColumnDef cd)
     {
         IndexType index_type = cd.index_type == null ? null : Enum.valueOf(IndexType.class, cd.index_type.name());
@@ -106,6 +100,22 @@ public class ColumnDefinition
         {
             throw new RuntimeException(e);
         }
+    }
+
+    public ColumnDef toThrift()
+    {
+        ColumnDef cd = new ColumnDef();
+
+        cd.setName(ByteBufferUtil.clone(name));
+        cd.setValidation_class(validator.toString());
+
+        cd.setIndex_type(index_type == null
+                            ? null
+                            : IndexType.valueOf(index_type.name()));
+        cd.setIndex_name(index_name == null ? null : index_name);
+        cd.setIndex_options(index_options == null ? null : Maps.newHashMap(index_options));
+
+        return cd;
     }
 
     public static ColumnDefinition fromThrift(ColumnDef thriftColumnDef) throws ConfigurationException
@@ -127,6 +137,133 @@ public class ColumnDefinition
             cds.put(ByteBufferUtil.clone(thriftColumnDef.name), fromThrift(thriftColumnDef));
 
         return cds;
+    }
+
+    public static Map<ByteBuffer, ColumnDef> toMap(List<ColumnDef> columnDefs)
+    {
+        Map<ByteBuffer, ColumnDef> map = new HashMap<ByteBuffer, ColumnDef>();
+
+        if (columnDefs == null)
+            return map;
+
+        for (ColumnDef columnDef : columnDefs)
+            map.put(columnDef.name, columnDef);
+
+        return map;
+    }
+
+    /**
+     * Drop specified column from the schema using given row mutation.
+     *
+     * @param mutation   The schema row mutation
+     * @param cfName     The name of the parent ColumnFamily
+     * @param comparator The comparator to serialize column name in human-readable format
+     * @param columnName The column name as String
+     * @param timestamp  The timestamp to use for column modification
+     */
+    public static void deleteFromSchema(RowMutation mutation, String cfName, AbstractType comparator, ByteBuffer columnName, long timestamp)
+    {
+        toSchema(mutation, comparator, cfName, columnName, null, timestamp, true);
+    }
+
+    /**
+     * Add new/update column to/in the schema.
+     *
+     * @param mutation   The schema row mutation
+     * @param cfName     The name of the parent ColumnFamily
+     * @param comparator The comparator to serialize column name in human-readable format
+     * @param columnDef  The Thrift-based column definition that contains all attributes
+     * @param timestamp  The timestamp to use for column modification
+     */
+    public static void addToSchema(RowMutation mutation, String cfName, AbstractType comparator, ColumnDef columnDef, long timestamp)
+    {
+        toSchema(mutation, comparator, cfName, columnDef.name, columnDef, timestamp, false);
+    }
+
+    /**
+     * Serialize given ColumnDef into given schema row mutation to add or drop it.
+     *
+     * @param mutation   The mutation to use for serialization
+     * @param comparator The comparator to serialize column name in human-readable format
+     * @param cfName     The name of the parent ColumnFamily
+     * @param columnName The column name as String
+     * @param columnDef  The Thrift-based column definition that contains all attributes
+     * @param timestamp  The timestamp to use for column modification
+     * @param delete     The flag which indicates if column should be deleted or added to the schema
+     */
+    private static void toSchema(RowMutation mutation, AbstractType comparator, String cfName, ByteBuffer columnName, ColumnDef columnDef, long timestamp, boolean delete)
+    {
+        for (ColumnDef._Fields field : ColumnDef._Fields.values())
+        {
+            QueryPath path = new QueryPath(SystemTable.SCHEMA_COLUMNS_CF,
+                                           null,
+                                           compositeNameFor(cfName,
+                                                            readableColumnName(columnName, comparator),
+                                                            field.getFieldName()));
+
+            if (delete)
+                mutation.delete(path, timestamp);
+            else
+                mutation.add(path, valueAsBytes(columnDef.getFieldValue(field)), timestamp);
+        }
+    }
+
+    /**
+     * Deserialize columns from low-level representation
+     *
+     * @param ksName The corresponding Keyspace
+     * @param cfName The name of the parent ColumnFamily
+     *
+     * @return Thrift-based deserialized representation of the column
+     */
+    public static List<ColumnDef> fromSchema(String ksName, String cfName)
+    {
+        DecoratedKey key = StorageService.getPartitioner().decorateKey(SystemTable.getSchemaKSKey(ksName));
+        ColumnFamilyStore columnsStore = SystemTable.schemaCFS(SystemTable.SCHEMA_COLUMNS_CF);
+        ColumnFamily columns = columnsStore.getColumnFamily(key,
+                                                            new QueryPath(SystemTable.SCHEMA_COLUMNS_CF),
+                                                            MigrationHelper.searchComposite(cfName, true),
+                                                            MigrationHelper.searchComposite(cfName, false),
+                                                            false,
+                                                            Integer.MAX_VALUE);
+
+        if (columns == null || columns.isEmpty())
+            return Collections.emptyList();
+
+        // contenders to be a valid columns, re-check is done after all attributes
+        // were read from serialized state, if ColumnDef has all required fields it gets promoted to be returned
+        Map<String, ColumnDef> contenders = new HashMap<String, ColumnDef>();
+
+        for (IColumn column : columns.getSortedColumns())
+        {
+            if (column.isMarkedForDelete())
+                continue;
+
+            // column name format <cf>:<column name>:<attribute name>
+            String[] components = columns.getComparator().getString(column.name()).split(":");
+            assert components.length == 3;
+
+            ColumnDef columnDef = contenders.get(components[1]);
+
+            if (columnDef == null)
+            {
+                columnDef = new ColumnDef();
+                contenders.put(components[1], columnDef);
+            }
+
+            ColumnDef._Fields field = ColumnDef._Fields.findByName(components[2]);
+            columnDef.setFieldValue(field, deserializeValue(column.value(), getValueClass(ColumnDef.class, field.getFieldName())));
+        }
+
+        List<ColumnDef> columnDefs = new ArrayList<ColumnDef>();
+
+        for (ColumnDef columnDef : contenders.values())
+        {
+            if (columnDef.isSetName() && columnDef.isSetValidation_class())
+                columnDefs.add(columnDef);
+        }
+
+        return columnDefs;
     }
 
     @Override
@@ -188,18 +325,5 @@ public class ColumnDefinition
             
             
         return stringMap;
-    }
-    
-    private static Map<CharSequence, CharSequence> getCharSequenceMap(Map<String,String> stringMap)
-    {
-        if (stringMap == null)
-            return null;
-        
-        Map<CharSequence, CharSequence> charMap = new HashMap<CharSequence, CharSequence>();
-        
-        for (Map.Entry<String, String> entry : stringMap.entrySet())
-            charMap.put(new Utf8(entry.getKey()), new Utf8(entry.getValue()));
-        
-        return charMap;
     }
 }

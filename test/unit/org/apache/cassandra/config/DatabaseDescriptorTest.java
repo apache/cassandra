@@ -18,40 +18,26 @@
 */
 package org.apache.cassandra.config;
 
-import static org.junit.Assert.assertNotNull;
-
-import org.apache.avro.specific.SpecificRecord;
-
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.db.migration.AddKeyspace;
 import org.apache.cassandra.locator.SimpleStrategy;
-import org.apache.cassandra.io.SerDeUtils;
+import org.apache.cassandra.thrift.InvalidRequestException;
 
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.UUID;
 
 public class DatabaseDescriptorTest
 {
-    protected <D extends SpecificRecord> D serDe(D record, D newInstance) throws IOException
-    {
-        D actual = SerDeUtils.deserialize(record.getSchema(),
-                                              SerDeUtils.serialize(record),
-                                              newInstance);
-        assert actual.equals(record) : actual + " != " + record;
-        return actual;
-    }
-    
     @Test
-    public void testCFMetaDataSerialization() throws IOException, ConfigurationException
+    public void testCFMetaDataSerialization() throws IOException, ConfigurationException, InvalidRequestException
     {
         // test serialization of all defined test CFs.
         for (String table : Schema.instance.getNonSystemTables())
         {
             for (CFMetaData cfm : Schema.instance.getTableMetaData(table).values())
             {
-                CFMetaData cfmDupe = CFMetaData.fromAvro(serDe(cfm.toAvro(), new org.apache.cassandra.db.migration.avro.CfDef()));
+                CFMetaData cfmDupe = CFMetaData.fromThrift(cfm.toThrift());
                 assert cfmDupe != null;
                 assert cfmDupe.equals(cfm);
             }
@@ -65,7 +51,7 @@ public class DatabaseDescriptorTest
         {
             // Not testing round-trip on the KsDef via serDe() because maps
             //  cannot be compared in avro.
-            KSMetaData ksmDupe = KSMetaData.fromAvro(ksm.toAvro());
+            KSMetaData ksmDupe = KSMetaData.fromThrift(ksm.toThrift());
             assert ksmDupe != null;
             assert ksmDupe.equals(ksm);
         }
@@ -88,8 +74,8 @@ public class DatabaseDescriptorTest
         assert Schema.instance.getTableDefinition("ks0") != null;
         assert Schema.instance.getTableDefinition("ks1") != null;
 
-        Schema.instance.clearTableDefinition(Schema.instance.getTableDefinition("ks0"), new UUID(4096, 0));
-        Schema.instance.clearTableDefinition(Schema.instance.getTableDefinition("ks1"), new UUID(4096, 0));
+        Schema.instance.clearTableDefinition(Schema.instance.getTableDefinition("ks0"));
+        Schema.instance.clearTableDefinition(Schema.instance.getTableDefinition("ks1"));
 
         assert Schema.instance.getTableDefinition("ks0") == null;
         assert Schema.instance.getTableDefinition("ks1") == null;

@@ -23,6 +23,8 @@ import static org.apache.cassandra.db.DBConstants.*;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 
+import org.apache.commons.lang.builder.HashCodeBuilder;
+
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.filter.QueryPath;
@@ -30,6 +32,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.io.IColumnSerializer;
 import org.apache.cassandra.utils.Allocator;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.HeapAllocator;
 
@@ -255,13 +258,25 @@ public class ColumnFamily extends AbstractColumnContainer
     @Override
     public int hashCode()
     {
-        throw new RuntimeException("Not implemented.");
+        return new HashCodeBuilder(373, 75437)
+                    .append(cfm)
+                    .append(getMarkedForDeleteAt())
+                    .append(columns).toHashCode();
     }
 
     @Override
     public boolean equals(Object o)
     {
-        throw new RuntimeException("Not implemented.");
+        if (this == o)
+            return true;
+        if (o == null || this.getClass() != o.getClass())
+            return false;
+
+        ColumnFamily comparison = (ColumnFamily) o;
+
+        return cfm.equals(comparison.cfm)
+                && getMarkedForDeleteAt() == comparison.getMarkedForDeleteAt()
+                && ByteBufferUtil.compareUnsigned(digest(this), digest(comparison)) == 0;
     }
 
     @Override

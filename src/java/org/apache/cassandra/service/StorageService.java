@@ -103,6 +103,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         GOSSIP_DIGEST_ACK2,
         DEFINITIONS_ANNOUNCE, // Deprecated
         DEFINITIONS_UPDATE,
+        MIGRATION_REQUEST,
         TRUNCATE,
         SCHEMA_CHECK,
         INDEX_SCAN, // Deprecated
@@ -125,6 +126,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         put(Verb.MUTATION, Stage.MUTATION);
         put(Verb.BINARY, Stage.MUTATION);
         put(Verb.READ_REPAIR, Stage.MUTATION);
+        put(Verb.TRUNCATE, Stage.MUTATION);
         put(Verb.READ, Stage.READ);
         put(Verb.REQUEST_RESPONSE, Stage.REQUEST_RESPONSE);
         put(Verb.STREAM_REPLY, Stage.MISC); // TODO does this really belong on misc? I've just copied old behavior here
@@ -138,9 +140,9 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         put(Verb.GOSSIP_DIGEST_ACK, Stage.GOSSIP);
         put(Verb.GOSSIP_DIGEST_ACK2, Stage.GOSSIP);
         put(Verb.GOSSIP_DIGEST_SYN, Stage.GOSSIP);
-        put(Verb.DEFINITIONS_UPDATE, Stage.READ);
-        put(Verb.TRUNCATE, Stage.MUTATION);
+        put(Verb.DEFINITIONS_UPDATE, Stage.MIGRATION);
         put(Verb.SCHEMA_CHECK, Stage.MIGRATION);
+        put(Verb.MIGRATION_REQUEST, Stage.MIGRATION);
         put(Verb.INDEX_SCAN, Stage.READ);
         put(Verb.REPLICATION_FINISHED, Stage.MISC);
         put(Verb.INTERNAL_RESPONSE, Stage.INTERNAL_RESPONSE);
@@ -265,6 +267,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         MessagingService.instance().registerVerbHandlers(Verb.RANGE_SLICE, new RangeSliceVerbHandler());
         MessagingService.instance().registerVerbHandlers(Verb.INDEX_SCAN, new IndexScanVerbHandler());
         MessagingService.instance().registerVerbHandlers(Verb.COUNTER_MUTATION, new CounterMutationVerbHandler());
+        MessagingService.instance().registerVerbHandlers(Verb.TRUNCATE, new TruncateVerbHandler());
+
         // see BootStrapper for a summary of how the bootstrap verbs interact
         MessagingService.instance().registerVerbHandlers(Verb.BOOTSTRAP_TOKEN, new BootStrapper.BootstrapTokenVerbHandler());
         MessagingService.instance().registerVerbHandlers(Verb.STREAM_REQUEST, new StreamRequestVerbHandler());
@@ -282,8 +286,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         MessagingService.instance().registerVerbHandlers(Verb.GOSSIP_DIGEST_ACK2, new GossipDigestAck2VerbHandler());
 
         MessagingService.instance().registerVerbHandlers(Verb.DEFINITIONS_UPDATE, new DefinitionsUpdateVerbHandler());
-        MessagingService.instance().registerVerbHandlers(Verb.TRUNCATE, new TruncateVerbHandler());
         MessagingService.instance().registerVerbHandlers(Verb.SCHEMA_CHECK, new SchemaCheckVerbHandler());
+        MessagingService.instance().registerVerbHandlers(Verb.MIGRATION_REQUEST, new MigrationRequestVerbHandler());
 
         // spin up the streaming service so it is available for jmx tools.
         if (StreamingService.instance == null)
@@ -391,6 +395,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         {
             throw new IOError(ex);
         }
+
+        Schema.instance.updateVersion();
         MigrationManager.passiveAnnounce(Schema.instance.getVersion());
     }
 
@@ -498,6 +504,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     {
         logger_.info("Starting up server gossip");
         joined = true;
+
+        Schema.instance.updateVersion();
 
         // have to start the gossip service before we can see any info on other nodes.  this is necessary
         // for bootstrap to get the load info it needs.

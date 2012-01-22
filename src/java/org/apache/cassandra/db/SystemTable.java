@@ -23,11 +23,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
-import java.util.HashMap;
-import java.util.List;
-import java.util.ArrayList;
-import java.util.SortedSet;
-import java.util.TreeSet;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 
 import org.slf4j.Logger;
@@ -36,10 +32,14 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql.QueryProcessor;
+import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.db.migration.MigrationHelper;
 import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.Constants;
@@ -54,6 +54,11 @@ public class SystemTable
     public static final String INDEX_CF = "IndexInfo";
     public static final String NODE_ID_CF = "NodeIdInfo";
     public static final String VERSION_CF = "Versions";
+    // see layout description in the DefsTable class header
+    public static final String SCHEMA_KEYSPACES_CF = "schema_keyspaces";
+    public static final String SCHEMA_COLUMNFAMILIES_CF = "schema_columnfamilies";
+    public static final String SCHEMA_COLUMNS_CF = "schema_columns";
+
     private static final ByteBuffer LOCATION_KEY = ByteBufferUtil.bytes("L");
     private static final ByteBuffer RING_KEY = ByteBufferUtil.bytes("Ring");
     private static final ByteBuffer BOOTSTRAP_KEY = ByteBufferUtil.bytes("Bootstrap");
@@ -505,5 +510,108 @@ public class SystemTable
             previous = NodeId.wrap(c.name());
         }
         return l;
+    }
+
+    /**
+     * @param cfName The name of the ColumnFamily responsible for part of the schema (keyspace, ColumnFamily, columns)
+     * @return CFS responsible to hold low-level serialized schema
+     */
+    public static ColumnFamilyStore schemaCFS(String cfName)
+    {
+        return Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(cfName);
+    }
+
+    public static List<Row> serializedSchema()
+    {
+        List<Row> schema = new ArrayList<Row>();
+
+        schema.addAll(serializedSchema(SCHEMA_KEYSPACES_CF));
+        schema.addAll(serializedSchema(SCHEMA_COLUMNFAMILIES_CF));
+        schema.addAll(serializedSchema(SCHEMA_COLUMNS_CF));
+
+        return schema;
+    }
+
+    /**
+     * @param schemaCfName The name of the ColumnFamily responsible for part of the schema (keyspace, ColumnFamily, columns)
+     * @return low-level schema representation (each row represents individual Keyspace or ColumnFamily)
+     */
+    public static List<Row> serializedSchema(String schemaCfName)
+    {
+        Token minToken = StorageService.getPartitioner().getMinimumToken();
+
+        return schemaCFS(schemaCfName).getRangeSlice(null,
+                                                     new Range<RowPosition>(minToken.minKeyBound(),
+                                                                            minToken.maxKeyBound()),
+                                                     Integer.MAX_VALUE,
+                                                     new IdentityQueryFilter(),
+                                                     null);
+    }
+
+    public static Collection<RowMutation> serializeSchema()
+    {
+        Map<DecoratedKey, RowMutation> mutationMap = new HashMap<DecoratedKey, RowMutation>();
+
+        serializeSchema(mutationMap, SCHEMA_KEYSPACES_CF);
+        serializeSchema(mutationMap, SCHEMA_COLUMNFAMILIES_CF);
+        serializeSchema(mutationMap, SCHEMA_COLUMNS_CF);
+
+        return mutationMap.values();
+    }
+
+    private static void serializeSchema(Map<DecoratedKey, RowMutation> mutationMap, String schemaCfName)
+    {
+        for (Row schemaRow : serializedSchema(schemaCfName))
+        {
+            RowMutation mutation = mutationMap.get(schemaRow.key);
+
+            if (mutation == null)
+            {
+                mutationMap.put(schemaRow.key, new RowMutation(Table.SYSTEM_TABLE, schemaRow));
+                continue;
+            }
+
+            mutation.add(schemaRow.cf);
+        }
+    }
+
+    public static Map<DecoratedKey, ColumnFamily> getSchema(String cfName)
+    {
+        Map<DecoratedKey, ColumnFamily> schema = new HashMap<DecoratedKey, ColumnFamily>();
+
+        for (Row schemaEntity : SystemTable.serializedSchema(cfName))
+            schema.put(schemaEntity.key, schemaEntity.cf);
+
+        return schema;
+    }
+
+    public static ByteBuffer getSchemaKSKey(String ksName)
+    {
+        return AsciiType.instance.fromString(ksName);
+    }
+
+    public static Row readSchemaRow(String ksName)
+    {
+        DecoratedKey key = StorageService.getPartitioner().decorateKey(getSchemaKSKey(ksName));
+
+        ColumnFamilyStore schemaCFS = SystemTable.schemaCFS(SCHEMA_KEYSPACES_CF);
+        ColumnFamily result = schemaCFS.getColumnFamily(QueryFilter.getIdentityFilter(key, new QueryPath(SCHEMA_KEYSPACES_CF)));
+
+        return new Row(key, result);
+    }
+
+    public static Row readSchemaRow(String ksName, String cfName)
+    {
+        DecoratedKey key = StorageService.getPartitioner().decorateKey(getSchemaKSKey(ksName));
+
+        ColumnFamilyStore schemaCFS = SystemTable.schemaCFS(SCHEMA_COLUMNFAMILIES_CF);
+        ColumnFamily result = schemaCFS.getColumnFamily(key,
+                                                        new QueryPath(SCHEMA_COLUMNFAMILIES_CF),
+                                                        MigrationHelper.searchComposite(cfName, true),
+                                                        MigrationHelper.searchComposite(cfName, false),
+                                                        false,
+                                                        Integer.MAX_VALUE);
+
+        return new Row(key, result);
     }
 }

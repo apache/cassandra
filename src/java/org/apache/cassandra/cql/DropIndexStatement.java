@@ -22,20 +22,19 @@ package org.apache.cassandra.cql;
 
 import java.io.IOException;
 
-import org.apache.avro.util.Utf8;
 import org.apache.cassandra.config.*;
-import org.apache.cassandra.db.migration.avro.CfDef;
-import org.apache.cassandra.db.migration.avro.ColumnDef;
 import org.apache.cassandra.db.migration.UpdateColumnFamily;
+import org.apache.cassandra.thrift.CfDef;
+import org.apache.cassandra.thrift.ColumnDef;
 import org.apache.cassandra.thrift.InvalidRequestException;
 
 public class DropIndexStatement
 {
-    public final CharSequence index;
+    public final String index;
 
     public DropIndexStatement(String indexName)
     {
-        index = new Utf8(indexName);
+        index = indexName;
     }
 
     public UpdateColumnFamily generateMutation(String keyspace)
@@ -47,7 +46,7 @@ public class DropIndexStatement
 
         for (CFMetaData cfm : ksm.cfMetaData().values())
         {
-            cfDef = getUpdatedCFDef(cfm.toAvro());
+            cfDef = getUpdatedCFDef(cfm.toThrift());
             if (cfDef != null)
                 break;
         }
@@ -62,10 +61,10 @@ public class DropIndexStatement
     {
         for (ColumnDef column : cfDef.column_metadata)
         {
-            if (column.index_type != null && column.index_name != null && column.index_name.equals(index))
+            if (column.isSetIndex_type() && column.isSetIndex_name() && column.index_name.equals(index))
             {
-                column.index_name = null;
-                column.index_type = null;
+                column.unsetIndex_name();
+                column.unsetIndex_type();
                 return cfDef;
             }
         }

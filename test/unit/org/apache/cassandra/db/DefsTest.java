@@ -18,15 +18,12 @@
 
 package org.apache.cassandra.db;
 
-import static org.junit.Assert.assertEquals;
-
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 
-import org.apache.avro.util.Utf8;
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.*;
@@ -41,38 +38,20 @@ import org.apache.cassandra.db.migration.DropKeyspace;
 import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.db.migration.UpdateColumnFamily;
 import org.apache.cassandra.db.migration.UpdateKeyspace;
-import org.apache.cassandra.io.SerDeUtils;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableDeletingTask;
 import org.apache.cassandra.locator.OldNetworkTopologyStrategy;
 import org.apache.cassandra.locator.SimpleStrategy;
-import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.thrift.CfDef;
+import org.apache.cassandra.thrift.ColumnDef;
 import org.apache.cassandra.thrift.IndexType;
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.UUIDGen;
-import org.junit.Test;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import org.junit.Test;
 
 public class DefsTest extends CleanupHelper
 {
-    @Test
-    public void testZeroInjection() throws IOException
-    {
-        org.apache.cassandra.db.migration.avro.CfDef cd = new org.apache.cassandra.db.migration.avro.CfDef();
-        // populate only fields that must be non-null.
-        cd.keyspace = new Utf8("Lest Ks");
-        cd.name = new Utf8("Mest Cf");
-        
-        org.apache.cassandra.db.migration.avro.CfDef cd2 = SerDeUtils.deserializeWithSchema(SerDeUtils.serializeWithSchema(cd), new org.apache.cassandra.db.migration.avro.CfDef());
-        assert cd.equals(cd2);
-        // make sure some of the fields didn't get unexpected zeros put in during [de]serialize operations.
-        assert cd.min_compaction_threshold == null;
-        assert cd2.min_compaction_threshold == null;
-        assert cd.compaction_strategy == null;
-    }
-    
     @Test
     public void ensureStaticCFMIdsAreLessThan1000()
     {
@@ -109,22 +88,22 @@ public class DefsTest extends CleanupHelper
 
         // we'll be adding this one later. make sure it's not already there.
         assert cfm.getColumn_metadata().get(ByteBuffer.wrap(new byte[] { 5 })) == null;
-        org.apache.cassandra.db.migration.avro.CfDef cfDef = cfm.toAvro();
+        CfDef cfDef = cfm.toThrift();
         
         // add one.
-        org.apache.cassandra.db.migration.avro.ColumnDef addIndexDef = new org.apache.cassandra.db.migration.avro.ColumnDef();
+        ColumnDef addIndexDef = new ColumnDef();
         addIndexDef.index_name = "5";
-        addIndexDef.index_type = org.apache.cassandra.db.migration.avro.IndexType.KEYS;
+        addIndexDef.index_type = IndexType.KEYS;
         addIndexDef.name = ByteBuffer.wrap(new byte[] { 5 });
         addIndexDef.validation_class = BytesType.class.getName();
         cfDef.column_metadata.add(addIndexDef);
         
         // remove one.
-        org.apache.cassandra.db.migration.avro.ColumnDef removeIndexDef = new org.apache.cassandra.db.migration.avro.ColumnDef();
-        removeIndexDef.index_name = new Utf8("0");
-        removeIndexDef.index_type = org.apache.cassandra.db.migration.avro.IndexType.KEYS;
+        ColumnDef removeIndexDef = new ColumnDef();
+        removeIndexDef.index_name = "0";
+        removeIndexDef.index_type = IndexType.KEYS;
         removeIndexDef.name = ByteBuffer.wrap(new byte[] { 0 });
-        removeIndexDef.validation_class = new Utf8(BytesType.class.getName());
+        removeIndexDef.validation_class = BytesType.class.getName();
         assert cfDef.column_metadata.remove(removeIndexDef);
         
         cfm.apply(cfDef);
@@ -146,10 +125,11 @@ public class DefsTest extends CleanupHelper
         for (String s : invalid)
             assert !Migration.isLegalName(s);
     }
-    
+
     @Test
     public void saveAndRestore() throws IOException
     {
+        /*
         // verify dump and reload.
         UUID first = UUIDGen.makeType1UUIDFromHost(FBUtilities.getBroadcastAddress());
         DefsTable.dumpToStorage(first);
@@ -162,8 +142,9 @@ public class DefsTest extends CleanupHelper
             KSMetaData defined = Schema.instance.getTableDefinition(loaded.name);
             assert defined.equals(loaded) : String.format("%s != %s", loaded, defined);
         }
+        */
     }
-    
+
     @Test
     public void addNewCfToBogusTable() throws InterruptedException
     {
@@ -180,52 +161,6 @@ public class DefsTest extends CleanupHelper
         {
             throw new AssertionError("Unexpected exception.");
         }
-    }
-
-    @Test
-    public void testMigrations() throws IOException, ConfigurationException
-    {
-        // do a save. make sure it doesn't mess with the defs version.
-        UUID prior = Schema.instance.getVersion();
-        UUID ver0 = UUIDGen.makeType1UUIDFromHost(FBUtilities.getBroadcastAddress());
-        DefsTable.dumpToStorage(ver0);
-        assert Schema.instance.getVersion().equals(prior);
-
-        // add a cf.
-        CFMetaData newCf1 = addTestCF("Keyspace1", "MigrationCf_1", "Migration CF");
-
-        Migration m1 = new AddColumnFamily(newCf1);
-        m1.apply();
-        UUID ver1 = m1.getVersion();
-        assert Schema.instance.getVersion().equals(ver1);
-        
-        // drop it.
-        Migration m3 = new DropColumnFamily("Keyspace1", "MigrationCf_1");
-        m3.apply();
-        UUID ver3 = m3.getVersion();
-        assert Schema.instance.getVersion().equals(ver3);
-        
-        // now lets load the older migrations to see if that code works.
-        Collection<IColumn> serializedMigrations = Migration.getLocalMigrations(ver1, ver3);
-        assert serializedMigrations.size() == 2;
-        
-        // test deserialization of the migrations.
-        Migration[] reconstituded = new Migration[2];
-        int i = 0;
-        for (IColumn col : serializedMigrations)
-        {
-            UUID version = UUIDGen.getUUID(col.name());
-            reconstituded[i] = Migration.deserialize(col.value(), MessagingService.version_);
-            assert version.equals(reconstituded[i].getVersion());
-            i++;
-        }
-        
-        assert m1.getClass().equals(reconstituded[0].getClass());
-        assert m3.getClass().equals(reconstituded[1].getClass());
-        
-        // verify that the row mutations are the same. rather than exposing the private fields, serialize and verify.
-        assert m1.serialize().equals(reconstituded[0].serialize());
-        assert m3.serialize().equals(reconstituded[1].serialize());
     }
     
     @Test
@@ -473,7 +408,7 @@ public class DefsTest extends CleanupHelper
         KSMetaData newBadKs = KSMetaData.testMetadata(cf.ksName, SimpleStrategy.class, KSMetaData.optsWithRF(4), cf2);
         try
         {
-            new UpdateKeyspace(newBadKs).apply();
+            new UpdateKeyspace(newBadKs.toThrift()).apply();
             throw new AssertionError("Should not have been able to update a KS with a KS that described column families.");
         }
         catch (ConfigurationException ex)
@@ -485,7 +420,7 @@ public class DefsTest extends CleanupHelper
         KSMetaData newBadKs2 = KSMetaData.testMetadata(cf.ksName + "trash", SimpleStrategy.class, KSMetaData.optsWithRF(4));
         try
         {
-            new UpdateKeyspace(newBadKs2).apply();
+            new UpdateKeyspace(newBadKs2.toThrift()).apply();
             throw new AssertionError("Should not have been able to update a KS with an invalid KS name.");
         }
         catch (ConfigurationException ex)
@@ -494,7 +429,7 @@ public class DefsTest extends CleanupHelper
         }
         
         KSMetaData newKs = KSMetaData.testMetadata(cf.ksName, OldNetworkTopologyStrategy.class, KSMetaData.optsWithRF(1));
-        new UpdateKeyspace(newKs).apply();
+        new UpdateKeyspace(newKs.toThrift()).apply();
 
         KSMetaData newFetchedKs = Schema.instance.getKSMetaData(newKs.name);
         assert newFetchedKs.strategyClass.equals(newKs.strategyClass);
@@ -514,8 +449,8 @@ public class DefsTest extends CleanupHelper
         assert Schema.instance.getCFMetaData(cf.ksName, cf.cfName) != null;
         
         // updating certain fields should fail.
-        org.apache.cassandra.db.migration.avro.CfDef cf_def = cf.toAvro();
-        cf_def.column_metadata = new ArrayList<org.apache.cassandra.db.migration.avro.ColumnDef>();
+        CfDef cf_def = cf.toThrift();
+        cf_def.column_metadata = new ArrayList<ColumnDef>();
         cf_def.default_validation_class ="BytesType";
         cf_def.min_compaction_threshold = 5;
         cf_def.max_compaction_threshold = 31;
@@ -561,7 +496,7 @@ public class DefsTest extends CleanupHelper
             cf_def.id = oldId;    
         }
         
-        CharSequence oldStr = cf_def.name;
+        String oldStr = cf_def.name;
         try
         {
             cf_def.name = cf_def.name + "_renamed";
@@ -634,6 +569,9 @@ public class DefsTest extends CleanupHelper
     @Test
     public void testDropIndex() throws IOException, ExecutionException, InterruptedException, ConfigurationException
     {
+        // persist keyspace definition in the system table
+        Schema.instance.getKSMetaData("Keyspace6").toSchema(System.currentTimeMillis()).apply();
+
         // insert some data.  save the sstable descriptor so we can make sure it's marked for delete after the drop
         RowMutation rm = new RowMutation("Keyspace6", ByteBufferUtil.bytes("k1"));
         rm.add(new QueryPath("Indexed1", null, ByteBufferUtil.bytes("notbirthdate")), ByteBufferUtil.bytes(1L), 0);
@@ -649,7 +587,7 @@ public class DefsTest extends CleanupHelper
         ColumnDefinition cdOld = meta.getColumn_metadata().values().iterator().next();
         ColumnDefinition cdNew = new ColumnDefinition(cdOld.name, cdOld.getValidator(), null, null, null);
         meta.columnMetadata(Collections.singletonMap(cdOld.name, cdNew));
-        UpdateColumnFamily update = new UpdateColumnFamily(meta.toAvro());
+        UpdateColumnFamily update = new UpdateColumnFamily(meta.toThrift());
         update.apply();
 
         // check

@@ -24,8 +24,6 @@ import java.net.SocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.util.*;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
 import java.util.zip.DataFormatException;
@@ -57,6 +55,8 @@ import org.apache.cassandra.service.SocketSessionManagementService;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.WrappedRunnable;
 import org.apache.thrift.TException;
 
 public class CassandraServer implements Cassandra.Iface
@@ -850,27 +850,16 @@ public class CassandraServer implements Cassandra.Iface
     // InvalidRequestException. atypical failures will throw a RuntimeException.
     private static void applyMigrationOnStage(final Migration m)
     {
-        Future f = StageManager.getStage(Stage.MIGRATION).submit(new Callable()
+        Future f = StageManager.getStage(Stage.MIGRATION).submit(new WrappedRunnable()
         {
-            public Object call() throws Exception
+            public void runMayThrow() throws Exception
             {
                 m.apply();
                 m.announce();
-                return null;
             }
         });
-        try
-        {
-            f.get();
-        }
-        catch (InterruptedException e)
-        {
-            throw new AssertionError(e);
-        }
-        catch (ExecutionException e)
-        {
-            throw new RuntimeException(e);
-        }
+
+        FBUtilities.waitOnFuture(f);
     }
 
     public synchronized String system_add_column_family(CfDef cf_def)
@@ -894,12 +883,6 @@ public class CassandraServer implements Cassandra.Iface
             ex.initCause(e);
             throw ex;
         }
-        catch (IOException e)
-        {
-            InvalidRequestException ex = new InvalidRequestException(e.getMessage());
-            ex.initCause(e);
-            throw ex;
-        }
     }
 
     public synchronized String system_drop_column_family(String column_family)
@@ -915,12 +898,6 @@ public class CassandraServer implements Cassandra.Iface
             return Schema.instance.getVersion().toString();
         }
         catch (ConfigurationException e)
-        {
-            InvalidRequestException ex = new InvalidRequestException(e.getMessage());
-            ex.initCause(e);
-            throw ex;
-        }
-        catch (IOException e)
         {
             InvalidRequestException ex = new InvalidRequestException(e.getMessage());
             ex.initCause(e);
@@ -967,12 +944,6 @@ public class CassandraServer implements Cassandra.Iface
             ex.initCause(e);
             throw ex;
         }
-        catch (IOException e)
-        {
-            InvalidRequestException ex = new InvalidRequestException(e.getMessage());
-            ex.initCause(e);
-            throw ex;
-        }
     }
 
     public synchronized String system_drop_keyspace(String keyspace)
@@ -989,12 +960,6 @@ public class CassandraServer implements Cassandra.Iface
             return Schema.instance.getVersion().toString();
         }
         catch (ConfigurationException e)
-        {
-            InvalidRequestException ex = new InvalidRequestException(e.getMessage());
-            ex.initCause(e);
-            throw ex;
-        }
-        catch (IOException e)
         {
             InvalidRequestException ex = new InvalidRequestException(e.getMessage());
             ex.initCause(e);
@@ -1019,16 +984,10 @@ public class CassandraServer implements Cassandra.Iface
         try
         {
             ThriftValidation.validateKsDef(ks_def);
-            applyMigrationOnStage(new UpdateKeyspace(KSMetaData.fromThrift(ks_def)));
+            applyMigrationOnStage(new UpdateKeyspace(ks_def));
             return Schema.instance.getVersion().toString();
         }
         catch (ConfigurationException e)
-        {
-            InvalidRequestException ex = new InvalidRequestException(e.getMessage());
-            ex.initCause(e);
-            throw ex;
-        }
-        catch (IOException e)
         {
             InvalidRequestException ex = new InvalidRequestException(e.getMessage());
             ex.initCause(e);
@@ -1054,26 +1013,11 @@ public class CassandraServer implements Cassandra.Iface
         {
             // ideally, apply() would happen on the stage with the
             CFMetaData.applyImplicitDefaults(cf_def);
-            org.apache.cassandra.db.migration.avro.CfDef result;
-            try
-            {
-                result = CFMetaData.fromThrift(cf_def).toAvro();
-            }
-            catch (Exception e)
-            {
-                throw new RuntimeException(e);
-            }
-            UpdateColumnFamily update = new UpdateColumnFamily(result);
+            UpdateColumnFamily update = new UpdateColumnFamily(cf_def);
             applyMigrationOnStage(update);
             return Schema.instance.getVersion().toString();
         }
         catch (ConfigurationException e)
-        {
-            InvalidRequestException ex = new InvalidRequestException(e.getMessage());
-            ex.initCause(e);
-            throw ex;
-        }
-        catch (IOException e)
         {
             InvalidRequestException ex = new InvalidRequestException(e.getMessage());
             ex.initCause(e);

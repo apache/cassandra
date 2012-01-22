@@ -354,19 +354,22 @@ public class FBUtilities
     public static void waitOnFutures(Iterable<Future<?>> futures)
     {
         for (Future f : futures)
+            waitOnFuture(f);
+    }
+
+    public static void waitOnFuture(Future<?> future)
+    {
+        try
         {
-            try
-            {
-                f.get();
-            }
-            catch (ExecutionException ee)
-            {
-                throw new RuntimeException(ee);
-            }
-            catch (InterruptedException ie)
-            {
-                throw new AssertionError(ie);
-            }
+            future.get();
+        }
+        catch (ExecutionException ee)
+        {
+            throw new RuntimeException(ee);
+        }
+        catch (InterruptedException ie)
+        {
+            throw new AssertionError(ie);
         }
     }
 
