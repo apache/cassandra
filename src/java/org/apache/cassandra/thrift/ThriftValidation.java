@@ -737,4 +737,10 @@ public class ThriftValidation
                                                                 ksName));
         }
     }
+
+    public static void validateKeyspaceNotSystem(String modifiedKeyspace) throws InvalidRequestException
+    {
+        if (modifiedKeyspace.equalsIgnoreCase(Table.SYSTEM_TABLE))
+            throw new InvalidRequestException("system keyspace is not user-modifiable");
+    }
 }
