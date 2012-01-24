@@ -378,6 +378,7 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
              <exclusion groupId="commons-lang" artifactId="commons-lang"/>
           </dependency>
           <dependency groupId="org.apache.hadoop" artifactId="hadoop-core" version="0.20.203.0"/>
+          <dependency groupId="org.apache.pig" artifactId="pig" version="0.8.3"/>
           <dependency groupId="net.sf.jopt-simple" artifactId="jopt-simple" version="3.2"/>
           <dependency groupId="net.java.dev.jna" artifactId="jna" version="3.2.7"/>
 
@@ -420,6 +421,7 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
         <dependency groupId="commons-logging" artifactId="commons-logging"/>
         <dependency groupId="org.apache.rat" artifactId="apache-rat"/>
         <dependency groupId="org.apache.hadoop" artifactId="hadoop-core"/>
+        <dependency groupId="org.apache.pig" artifactId="pig"/>
         <dependency groupId="net.sf.jopt-simple" artifactId="jopt-simple"/>
 
         <dependency groupId="net.java.dev.jna" artifactId="jna"/>
@@ -479,6 +481,7 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
         
         <!-- don't need hadoop classes to run, but if you use the hadoop stuff -->
         <dependency groupId="org.apache.hadoop" artifactId="hadoop-core" optional="true"/>
+        <dependency groupId="org.apache.pig" artifactId="pig" optional="true"/>
 
         <!-- don't need jna to run, but nice to have -->
         <dependency groupId="net.java.dev.jna" artifactId="jna" optional="true"/>
