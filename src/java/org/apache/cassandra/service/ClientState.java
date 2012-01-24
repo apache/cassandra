@@ -124,7 +124,7 @@ public class ClientState
         validateLogin();
         
         // hardcode disallowing messing with system keyspace
-        if (keyspace.equalsIgnoreCase(Table.SYSTEM_TABLE) && perm == Permission.WRITE)
+        if (keyspace != null && keyspace.equalsIgnoreCase(Table.SYSTEM_TABLE) && perm == Permission.WRITE)
             throw new InvalidRequestException("system keyspace is not user-modifiable");
 
         resourceClear();
