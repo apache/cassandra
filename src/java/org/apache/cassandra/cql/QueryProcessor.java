@@ -711,6 +711,7 @@ public class QueryProcessor
             case CREATE_KEYSPACE:
                 CreateKeyspaceStatement create = (CreateKeyspaceStatement)statement.statement;
                 create.validate();
+                ThriftValidation.validateKeyspaceNotSystem(create.getName());
                 clientState.hasKeyspaceSchemaAccess(Permission.WRITE);
                 validateSchemaAgreement();
                 
@@ -855,6 +856,7 @@ public class QueryProcessor
 
             case DROP_KEYSPACE:
                 String deleteKeyspace = (String)statement.statement;
+                ThriftValidation.validateKeyspaceNotSystem(deleteKeyspace);
                 clientState.hasKeyspaceSchemaAccess(Permission.WRITE);
                 validateSchemaAgreement();
                 

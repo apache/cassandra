@@ -932,6 +932,7 @@ public class CassandraServer implements Cassandra.Iface
     throws InvalidRequestException, SchemaDisagreementException, TException
     {
         logger.debug("add_keyspace");
+        ThriftValidation.validateKeyspaceNotSystem(ks_def.name);
         state().hasKeyspaceSchemaAccess(Permission.WRITE);
         validateSchemaAgreement();
         ThriftValidation.validateKeyspaceNotYetExisting(ks_def.name);
@@ -978,6 +979,7 @@ public class CassandraServer implements Cassandra.Iface
     throws InvalidRequestException, SchemaDisagreementException, TException
     {
         logger.debug("drop_keyspace");
+        ThriftValidation.validateKeyspaceNotSystem(keyspace);
         state().hasKeyspaceSchemaAccess(Permission.WRITE);
         validateSchemaAgreement();
         
@@ -1007,6 +1009,7 @@ public class CassandraServer implements Cassandra.Iface
     throws InvalidRequestException, SchemaDisagreementException, TException
     {
         logger.debug("update_keyspace");
+        ThriftValidation.validateKeyspaceNotSystem(ks_def.name);
         state().hasKeyspaceSchemaAccess(Permission.WRITE);
         ThriftValidation.validateTable(ks_def.name);
         if (ks_def.getCf_defs() != null && ks_def.getCf_defs().size() > 0)
