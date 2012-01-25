@@ -30,6 +30,9 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import com.google.common.collect.AbstractIterator;
+import com.google.common.collect.ImmutableSortedMap;
+import com.google.common.collect.Iterables;
+import org.apache.commons.lang.ArrayUtils;
 
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.config.ConfigurationException;
@@ -41,7 +44,6 @@ import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
-import org.apache.commons.lang.ArrayUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.InputSplit;
 import org.apache.hadoop.mapreduce.RecordReader;
@@ -61,7 +63,7 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
     private SlicePredicate predicate;
     private boolean isEmptyPredicate;
     private int totalRowCount; // total number of rows to fetch
-    private int batchRowCount; // fetch this many per batch
+    private int batchSize; // fetch this many per batch
     private String cfName;
     private String keyspace;
     private TSocket socket;
@@ -69,6 +71,7 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
     private ConsistencyLevel consistencyLevel;
     private int keyBufferSize = 8192;
     private List<IndexExpression> filter;
+    private boolean widerows;
 
     public ColumnFamilyRecordReader()
     {
@@ -103,6 +106,7 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
     
     public float getProgress()
     {
+        // TODO this is totally broken for wide rows
         // the progress is likely to be reported slightly off the actual but close enough
         return ((float)iter.rowsRead()) / totalRowCount;
     }
@@ -135,9 +139,10 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
         KeyRange jobRange = ConfigHelper.getInputKeyRange(conf);
         filter = jobRange == null ? null : jobRange.row_filter;
         predicate = ConfigHelper.getInputSlicePredicate(conf);
+        widerows = ConfigHelper.getInputIsWide(conf);
         isEmptyPredicate = isEmptyPredicate(predicate);
         totalRowCount = ConfigHelper.getInputSplitSize(conf);
-        batchRowCount = ConfigHelper.getRangeBatchSize(conf);
+        batchSize = ConfigHelper.getRangeBatchSize(conf);
         cfName = ConfigHelper.getInputColumnFamily(conf);
         consistencyLevel = ConsistencyLevel.valueOf(ConfigHelper.getReadConsistencyLevel(conf));
         
@@ -173,7 +178,7 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
             throw new RuntimeException(e);
         }
 
-        iter = new RowIterator();
+        iter = widerows ? new WideRowIterator() : new StaticRowIterator();
     }
     
     public boolean nextKeyValue() throws IOException
@@ -222,15 +227,15 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
         return split.getLocations()[0];
     }
 
-    private class RowIterator extends AbstractIterator<Pair<ByteBuffer, SortedMap<ByteBuffer, IColumn>>>
+    private abstract class RowIterator extends AbstractIterator<Pair<ByteBuffer, SortedMap<ByteBuffer, IColumn>>>
     {
-        private List<KeySlice> rows;
-        private String startToken;
-        private int totalRead = 0;
-        private int i = 0;
-        private final AbstractType<?> comparator;
-        private final AbstractType<?> subComparator;
-        private final IPartitioner partitioner;
+        protected List<KeySlice> rows;
+        protected KeySlice lastRow;
+        protected int totalRead = 0;
+        protected int i = 0;
+        protected final AbstractType<?> comparator;
+        protected final AbstractType<?> subComparator;
+        protected final IPartitioner partitioner;
 
         private RowIterator()
         {
@@ -264,81 +269,6 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
             }
         }
 
-        private void maybeInit()
-        {
-            // check if we need another batch 
-            if (rows != null && i >= rows.size())
-                rows = null;
-            
-            if (rows != null)
-                return;
-
-            if (startToken == null)
-            {
-                startToken = split.getStartToken();
-            } 
-            else if (startToken.equals(split.getEndToken()))
-            {
-                // reached end of the split
-                rows = null;
-                return;
-            }
-            
-            KeyRange keyRange = new KeyRange(batchRowCount)
-                                .setStart_token(startToken)
-                                .setEnd_token(split.getEndToken())
-                                .setRow_filter(filter);
-            try
-            {
-                rows = client.get_range_slices(new ColumnParent(cfName),
-                                               predicate,
-                                               keyRange,
-                                               consistencyLevel);
-                  
-                // nothing new? reached the end
-                if (rows.isEmpty())
-                {
-                    rows = null;
-                    return;
-                }
-                
-                // prepare for the next slice to be read
-                KeySlice lastRow = rows.get(rows.size() - 1);
-                ByteBuffer rowkey = lastRow.key;
-                startToken = partitioner.getTokenFactory().toString(partitioner.getToken(rowkey));
-                
-                // remove ghosts when fetching all columns
-                if (isEmptyPredicate)
-                {
-                    Iterator<KeySlice> it = rows.iterator();
-                    
-                    while(it.hasNext())
-                    {
-                        KeySlice ks = it.next();
-                        
-                        if (ks.getColumnsSize() == 0)
-                        {
-                           it.remove();
-                        }
-                    }
-                
-                    // all ghosts, spooky
-                    if (rows.isEmpty())
-                    {
-                        maybeInit();
-                        return;
-                    }
-                }
-                
-                // reset to iterate through this new batch
-                i = 0;             
-            }
-            catch (Exception e)
-            {
-                throw new RuntimeException(e);
-            }
-        }
-
         /**
          * @return total number of rows read by this record reader
          */
@@ -347,24 +277,7 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
             return totalRead;
         }
 
-        protected Pair<ByteBuffer, SortedMap<ByteBuffer, IColumn>> computeNext()
-        {
-            maybeInit();
-            if (rows == null)
-                return endOfData();
-            
-            totalRead++;
-            KeySlice ks = rows.get(i++);
-            SortedMap<ByteBuffer, IColumn> map = new TreeMap<ByteBuffer, IColumn>(comparator);
-            for (ColumnOrSuperColumn cosc : ks.columns)
-            {
-                IColumn column = unthriftify(cosc);
-                map.put(column.name(), column);
-            }
-            return new Pair<ByteBuffer, SortedMap<ByteBuffer, IColumn>>(ks.key, map);
-        }
-
-        private IColumn unthriftify(ColumnOrSuperColumn cosc)
+        protected IColumn unthriftify(ColumnOrSuperColumn cosc)
         {
             if (cosc.counter_column != null)
                 return unthriftifyCounter(cosc.counter_column);
@@ -407,6 +320,178 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
         }
     }
 
+    private class StaticRowIterator extends RowIterator
+    {
+        private void maybeInit()
+        {
+            // check if we need another batch
+            if (rows != null && i >= rows.size())
+                rows = null;
+
+            if (rows != null)
+                return;
+
+            String startToken;
+            if (lastRow == null)
+            {
+                startToken = split.getStartToken();
+            }
+            else
+            {
+                startToken = partitioner.getTokenFactory().toString(partitioner.getToken(lastRow.key));
+                if (startToken.equals(split.getEndToken()))
+                {
+                    // reached end of the split
+                    rows = null;
+                    return;
+                }
+            }
+
+            KeyRange keyRange = new KeyRange(batchSize)
+                                .setStart_token(startToken)
+                                .setEnd_token(split.getEndToken())
+                                .setRow_filter(filter);
+            try
+            {
+                rows = client.get_range_slices(new ColumnParent(cfName), predicate, keyRange, consistencyLevel);
+
+                // nothing new? reached the end
+                if (rows.isEmpty())
+                {
+                    rows = null;
+                    return;
+                }
+
+                // prepare for the next slice to be read
+                lastRow = Iterables.getLast(rows);
+
+                // remove ghosts when fetching all columns
+                if (isEmptyPredicate)
+                {
+                    Iterator<KeySlice> it = rows.iterator();
+                    while (it.hasNext())
+                    {
+                        KeySlice ks = it.next();
+                        if (ks.getColumnsSize() == 0)
+                        {
+                           it.remove();
+                        }
+                    }
+
+                    // all ghosts, spooky
+                    if (rows.isEmpty())
+                    {
+                        maybeInit();
+                        return;
+                    }
+                }
+
+                // reset to iterate through this new batch
+                i = 0;
+            }
+            catch (Exception e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
+
+        protected Pair<ByteBuffer, SortedMap<ByteBuffer, IColumn>> computeNext()
+        {
+            maybeInit();
+            if (rows == null)
+                return endOfData();
+
+            totalRead++;
+            KeySlice ks = rows.get(i++);
+            SortedMap<ByteBuffer, IColumn> map = new TreeMap<ByteBuffer, IColumn>(comparator);
+            for (ColumnOrSuperColumn cosc : ks.columns)
+            {
+                IColumn column = unthriftify(cosc);
+                map.put(column.name(), column);
+            }
+            return new Pair<ByteBuffer, SortedMap<ByteBuffer, IColumn>>(ks.key, map);
+        }
+    }
+
+    private class WideRowIterator extends RowIterator
+    {
+        private Iterator<ColumnOrSuperColumn> wideColumns;
+
+        private void maybeInit()
+        {
+            if (wideColumns != null && wideColumns.hasNext())
+                return;
+
+            // check if we need another batch
+            if (rows != null && ++i >= rows.size())
+                rows = null;
+
+            if (rows != null)
+            {
+                wideColumns = rows.get(i).columns.iterator();
+                return;
+            }
+
+            String startToken;
+            ByteBuffer startColumn;
+            if (lastRow == null)
+            {
+                startToken = split.getStartToken();
+                startColumn = ByteBufferUtil.EMPTY_BYTE_BUFFER;
+            }
+            else
+            {
+                startToken = partitioner.getTokenFactory().toString(partitioner.getToken(lastRow.key));
+                startColumn = Iterables.getLast(lastRow.columns).column.name;
+            }
+
+            KeyRange keyRange = new KeyRange(batchSize)
+                                .setStart_token(startToken)
+                                .setEnd_token(split.getEndToken())
+                                .setRow_filter(filter);
+            try
+            {
+                rows = client.get_paged_slice(cfName, keyRange, startColumn, consistencyLevel);
+
+                // nothing found?
+                if (rows == null || rows.isEmpty() || rows.get(0).columns.isEmpty())
+                {
+                    rows = null;
+                    return;
+                }
+                    
+                // nothing new? reached the end
+                if (lastRow != null && (rows.get(0).key.equals(lastRow.key) || rows.get(0).columns.get(0).column.equals(startColumn)))
+                {
+                    rows = null;
+                    return;
+                }
+
+                // prepare for the next slice to be read
+                lastRow = Iterables.getLast(rows);
+
+                // reset to iterate through this new batch
+                i = 0;
+                wideColumns = rows.get(i).columns.iterator();
+            }
+            catch (Exception e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
+
+        protected Pair<ByteBuffer, SortedMap<ByteBuffer, IColumn>> computeNext()
+        {
+            maybeInit();
+            if (rows == null)
+                return endOfData();
+
+            totalRead++;
+            ColumnOrSuperColumn cosc = wideColumns.next();
+            ImmutableSortedMap<ByteBuffer, IColumn> map = ImmutableSortedMap.of(cosc.column.name, unthriftify(cosc));
+            return Pair.<ByteBuffer, SortedMap<ByteBuffer, IColumn>>create(rows.get(i).key, map);
+        }
+    }
 
     // Because the old Hadoop API wants us to write to the key and value
     // and the new asks for them, we need to copy the output of the new API

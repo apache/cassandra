@@ -19,9 +19,13 @@ package org.apache.cassandra.hadoop;
  * under the License.
  * 
  */
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.dht.IPartitioner;
@@ -37,8 +41,6 @@ import org.apache.thrift.transport.TFramedTransport;
 import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransport;
 import org.apache.thrift.transport.TTransportException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 
 public class ConfigHelper
@@ -56,6 +58,7 @@ public class ConfigHelper
     private static final String INPUT_PREDICATE_CONFIG = "cassandra.input.predicate";
     private static final String INPUT_KEYRANGE_CONFIG = "cassandra.input.keyRange";
     private static final String INPUT_SPLIT_SIZE_CONFIG = "cassandra.input.split.size";
+    private static final String INPUT_WIDEROWS_CONFIG = "cassandra.input.widerows";
     private static final int DEFAULT_SPLIT_SIZE = 64 * 1024;
     private static final String RANGE_BATCH_SIZE_CONFIG = "cassandra.range.batch.size";
     private static final int DEFAULT_RANGE_BATCH_SIZE = 4096;
@@ -71,13 +74,13 @@ public class ConfigHelper
 
     /**
      * Set the keyspace and column family for the input of this job.
-     * Comparator and Partitioner types will be read from storage-conf.xml.
      *
      * @param conf         Job configuration you are about to run
      * @param keyspace
      * @param columnFamily
+     * @param widerows
      */
-    public static void setInputColumnFamily(Configuration conf, String keyspace, String columnFamily)
+    public static void setInputColumnFamily(Configuration conf, String keyspace, String columnFamily, boolean widerows)
     {
         if (keyspace == null)
         {
@@ -90,6 +93,19 @@ public class ConfigHelper
 
         conf.set(INPUT_KEYSPACE_CONFIG, keyspace);
         conf.set(INPUT_COLUMNFAMILY_CONFIG, columnFamily);
+        conf.set(INPUT_WIDEROWS_CONFIG, String.valueOf(widerows));
+    }
+
+    /**
+     * Set the keyspace and column family for the input of this job.
+     *
+     * @param conf         Job configuration you are about to run
+     * @param keyspace
+     * @param columnFamily
+     */
+    public static void setInputColumnFamily(Configuration conf, String keyspace, String columnFamily)
+    {
+        setInputColumnFamily(conf, keyspace, columnFamily, false);
     }
 
     /**
@@ -175,7 +191,7 @@ public class ConfigHelper
     {
         return predicateFromString(conf.get(INPUT_PREDICATE_CONFIG));
     }
-
+    
     public static String getRawInputSlicePredicate(Configuration conf)
     {
         return conf.get(INPUT_PREDICATE_CONFIG);
@@ -298,6 +314,11 @@ public class ConfigHelper
     public static String getInputColumnFamily(Configuration conf)
     {
         return conf.get(INPUT_COLUMNFAMILY_CONFIG);
+    }
+
+    public static boolean getInputIsWide(Configuration conf)
+    {
+        return Boolean.valueOf(conf.get(INPUT_WIDEROWS_CONFIG));
     }
     
     public static String getOutputColumnFamily(Configuration conf)

@@ -36,7 +36,7 @@ public class WordCountSetup
 {
     private static final Logger logger = LoggerFactory.getLogger(WordCountSetup.class);
 
-    public static final int TEST_COUNT = 5;
+    public static final int TEST_COUNT = 6;
 
     public static void main(String[] args) throws Exception
     {

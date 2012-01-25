@@ -46,7 +46,7 @@ namespace rb CassandraThrift
 #           for every edit that doesn't result in a change to major/minor.
 #
 # See the Semantic Versioning Specification (SemVer) http://semver.org.
-const string VERSION = "19.26.0"
+const string VERSION = "19.27.0"
 
 
 #
@@ -533,6 +533,15 @@ service Cassandra {
                                   2:required SlicePredicate predicate,
                                   3:required KeyRange range,
                                   4:required ConsistencyLevel consistency_level=ConsistencyLevel.ONE)
+                 throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
+
+  /**
+   returns a range of columns, wrapping to the next rows if necessary to collect max_results.
+  */
+  list<KeySlice> get_paged_slice(1:required string column_family,
+                                 2:required KeyRange range,
+                                 3:required binary start_column,
+                                 4:required ConsistencyLevel consistency_level=ConsistencyLevel.ONE)
                  throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
   /**

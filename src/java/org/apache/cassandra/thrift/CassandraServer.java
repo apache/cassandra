@@ -711,6 +711,61 @@ public class CassandraServer implements Cassandra.Iface
         return thriftifyKeySlices(rows, column_parent, predicate);
     }
 
+    public List<KeySlice> get_paged_slice(String column_family, KeyRange range, ByteBuffer start_column, ConsistencyLevel consistency_level)
+    throws InvalidRequestException, UnavailableException, TimedOutException, TException
+    {
+        logger.debug("get_paged_slice");
+
+        String keyspace = state().getKeyspace();
+        state().hasColumnFamilyAccess(column_family, Permission.READ);
+
+        CFMetaData metadata = ThriftValidation.validateColumnFamily(keyspace, column_family);
+        ThriftValidation.validateKeyRange(metadata, null, range);
+        ThriftValidation.validateConsistencyLevel(keyspace, consistency_level, RequestType.READ);
+
+        SlicePredicate predicate = new SlicePredicate().setSlice_range(new SliceRange(start_column, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, -1));
+
+        IPartitioner p = StorageService.getPartitioner();
+        AbstractBounds<RowPosition> bounds;
+        if (range.start_key == null)
+        {
+            Token.TokenFactory tokenFactory = p.getTokenFactory();
+            Token left = tokenFactory.fromString(range.start_token);
+            Token right = tokenFactory.fromString(range.end_token);
+            bounds = Range.makeRowRange(left, right, p);
+        }
+        else
+        {
+            bounds = new Bounds<RowPosition>(RowPosition.forKey(range.start_key, p), RowPosition.forKey(range.end_key, p));
+        }
+
+        List<Row> rows;
+        try
+        {
+            schedule(DatabaseDescriptor.getRpcTimeout());
+            try
+            {
+                rows = StorageProxy.getRangeSlice(new RangeSliceCommand(keyspace, column_family, null, predicate, bounds, range.row_filter, range.count, true), consistency_level);
+            }
+            finally
+            {
+                release();
+            }
+            assert rows != null;
+        }
+        catch (TimeoutException e)
+        {
+            logger.debug("... timed out");
+        	throw new TimedOutException();
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+
+        return thriftifyKeySlices(rows, new ColumnParent(column_family), predicate);
+    }
+
     private List<KeySlice> thriftifyKeySlices(List<Row> rows, ColumnParent column_parent, SlicePredicate predicate)
     {
         List<KeySlice> keySlices = new ArrayList<KeySlice>(rows.size());
