@@ -20,9 +20,18 @@ package org.apache.cassandra.config;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.HashMap;
 
+import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.RowMutation;
+import org.apache.cassandra.db.SystemTable;
+import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.io.compress.*;
 import org.apache.cassandra.thrift.CfDef;
 import org.apache.cassandra.thrift.ColumnDef;
 import org.apache.cassandra.thrift.IndexType;
@@ -32,7 +41,7 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 
-public class CFMetaDataTest
+public class CFMetaDataTest extends CleanupHelper
 {
     private static String KEYSPACE = "Keyspace1";
     private static String COLUMN_FAMILY = "Standard1";
@@ -86,5 +95,36 @@ public class CFMetaDataTest
         assertEquals(thriftCfDef.default_validation_class, converted.default_validation_class);
         assertEquals(thriftCfDef.comment, converted.comment);
         assertEquals(thriftCfDef.column_metadata, converted.column_metadata);
+    }
+
+    @Test
+    public void testConversionsInverses() throws Exception
+    {
+        for (String table : Schema.instance.getNonSystemTables())
+        {
+            for (ColumnFamilyStore cfs : Table.open(table).getColumnFamilyStores())
+            {
+                CFMetaData cfm = cfs.metadata;
+                checkInverses(cfm);
+
+                // Testing with compression to catch #3558
+                CFMetaData withCompression = CFMetaData.rename(cfm, cfm.cfName); // basically a clone
+                withCompression.compressionParameters(new CompressionParameters(SnappyCompressor.instance, 32768, new HashMap<String, String>()));
+                checkInverses(withCompression);
+            }
+        }
+    }
+
+    private void checkInverses(CFMetaData cfm) throws Exception
+    {
+        // Test thrift conversion
+        assert cfm.equals(CFMetaData.fromThrift(cfm.toThrift())) : String.format("\n%s\n!=\n%s", cfm, CFMetaData.fromThrift(cfm.toThrift()));
+
+        // Test schema conversion
+        RowMutation rm = cfm.toSchema(System.currentTimeMillis());
+        ColumnFamily serializedCf = rm.getColumnFamily(Schema.instance.getId(Table.SYSTEM_TABLE, SystemTable.SCHEMA_COLUMNFAMILIES_CF));
+        ColumnFamily serializedCD = rm.getColumnFamily(Schema.instance.getId(Table.SYSTEM_TABLE, SystemTable.SCHEMA_COLUMNS_CF));
+        CfDef cfDef = CFMetaData.addColumnDefinitionSchema(CFMetaData.fromSchema(serializedCf), serializedCD);
+        assert cfm.equals(CFMetaData.fromThrift(cfDef)) : String.format("\n%s\n!=\n%s", cfm, CFMetaData.fromThrift(cfDef));
     }
 }

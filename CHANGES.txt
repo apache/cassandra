@@ -53,6 +53,8 @@
    throttling to prevent an NPE when there is no yaml config (CASSANDRA-3752)
  * Allow concurrent schema migrations (CASSANDRA-1391)
  * Add SnapshotCommand to trigger snapshot on remote node (CASSANDRA-3721)
+ * Make CFMetaData conversions to/from thrift/native schema inverses
+   (CASSANDRA_3559)
 
 
 1.0.8

@@ -825,7 +825,7 @@ public final class CFMetaData
         def.setMin_compaction_threshold(minCompactionThreshold);
         def.setMax_compaction_threshold(maxCompactionThreshold);
         def.setMerge_shards_chance(mergeShardsChance);
-        def.setKey_alias(getKeyName());
+        def.setKey_alias(keyAlias);
         List<org.apache.cassandra.thrift.ColumnDef> column_meta = new ArrayList<org.apache.cassandra.thrift.ColumnDef>(column_metadata.size());
         for (ColumnDefinition cd : column_metadata.values())
         {
@@ -975,8 +975,8 @@ public final class CFMetaData
             if (field.equals(CfDef._Fields.COLUMN_METADATA))
                 continue; // deal with columns after main attributes
 
-            Object curValue = curState.getFieldValue(field);
-            Object newValue = newState.getFieldValue(field);
+            Object curValue = curState.isSet(field) ? curState.getFieldValue(field) : null;
+            Object newValue = newState.isSet(field) ? newState.getFieldValue(field) : null;
 
             if (Objects.equal(curValue, newValue))
                 continue;
@@ -1064,8 +1064,9 @@ public final class CFMetaData
             if (field.equals(CfDef._Fields.COLUMN_METADATA))
                 continue;
 
+            Object value = cfDef.isSet(field) ? cfDef.getFieldValue(field) : null;
             mutation.add(new QueryPath(SystemTable.SCHEMA_COLUMNFAMILIES_CF, null, compositeNameFor(cfDef.name, field.getFieldName())),
-                         valueAsBytes(cfDef.getFieldValue(field)),
+                         valueAsBytes(value),
                          timestamp);
         }
 
@@ -1091,6 +1092,15 @@ public final class CFMetaData
      */
     public static CfDef fromSchema(ColumnFamily serializedCfDef) throws IOException
     {
+        CfDef cfDef = fromSchemaNoColumnDefinition(serializedCfDef);
+
+        ColumnFamily serializedColumnDefinitions = ColumnDefinition.readSchema(cfDef.keyspace, cfDef.name);
+        return addColumnDefinitionSchema(cfDef, serializedColumnDefinitions);
+    }
+
+    // Package protected for use by tests
+    static CfDef fromSchemaNoColumnDefinition(ColumnFamily serializedCfDef)
+    {
         assert serializedCfDef != null;
 
         CfDef cfDef = new CfDef();
@@ -1109,10 +1119,14 @@ public final class CFMetaData
             CfDef._Fields field = CfDef._Fields.findByName(attr[1]);
             cfDef.setFieldValue(field, deserializeValue(cfAttr.value(), getValueClass(CfDef.class, field.getFieldName())));
         }
+        return cfDef;
+    }
 
-        for (ColumnDef columnDef : ColumnDefinition.fromSchema(cfDef.keyspace, cfDef.name))
+    // Package protected for use by tests
+    static CfDef addColumnDefinitionSchema(CfDef cfDef, ColumnFamily serializedColumnDefinitions)
+    {
+        for (ColumnDef columnDef : ColumnDefinition.fromSchema(serializedColumnDefinitions))
             cfDef.addToColumn_metadata(columnDef);
-
         return cfDef;
     }
 

@@ -21,7 +21,9 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Future;
 
 import com.google.common.collect.Iterables;
@@ -47,6 +49,18 @@ import org.codehaus.jackson.map.ObjectMapper;
 public class MigrationHelper
 {
     private static final ObjectMapper jsonMapper = new ObjectMapper();
+    private static final Map<Class<?>, Class<?>> primitiveToWrapper = new HashMap<Class<?>, Class<?>>();
+    static
+    {
+        primitiveToWrapper.put(boolean.class, Boolean.class);
+        primitiveToWrapper.put(byte.class, Byte.class);
+        primitiveToWrapper.put(short.class, Short.class);
+        primitiveToWrapper.put(char.class, Character.class);
+        primitiveToWrapper.put(int.class, Integer.class);
+        primitiveToWrapper.put(long.class, Long.class);
+        primitiveToWrapper.put(float.class, Float.class);
+        primitiveToWrapper.put(double.class, Double.class);
+    }
 
     public static ByteBuffer readableColumnName(ByteBuffer columnName, AbstractType comparator)
     {
@@ -71,7 +85,10 @@ public class MigrationHelper
         {
             // because jackson serialized ByteBuffer as byte[] and needs help with deserialization later
             if (valueClass.equals(ByteBuffer.class))
-                return ByteBuffer.wrap((byte[]) deserializeValue(value, byte[].class));
+            {
+                byte[] bvalue = (byte[]) deserializeValue(value, byte[].class);
+                return bvalue == null ? null : ByteBuffer.wrap(bvalue);
+            }
 
             return jsonMapper.readValue(ByteBufferUtil.getArray(value), valueClass);
         }
@@ -85,12 +102,19 @@ public class MigrationHelper
     {
         try
         {
-            return klass.getField(name).getType();
+            // We want to keep null values, so we must not return a primitive type
+            return maybeConvertToWrapperClass(klass.getField(name).getType());
         }
         catch (NoSuchFieldException e)
         {
             throw new RuntimeException(e); // never happens
         }
+    }
+
+    private static Class<?> maybeConvertToWrapperClass(Class<?> klass)
+    {
+        Class<?> cl = primitiveToWrapper.get(klass);
+        return cl == null ? klass : cl;
     }
 
     public static ByteBuffer searchComposite(String comp1, boolean start)

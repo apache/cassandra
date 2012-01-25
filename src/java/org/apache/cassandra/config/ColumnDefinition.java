@@ -208,6 +208,18 @@ public class ColumnDefinition
         }
     }
 
+    public static ColumnFamily readSchema(String ksName, String cfName)
+    {
+        DecoratedKey key = StorageService.getPartitioner().decorateKey(SystemTable.getSchemaKSKey(ksName));
+        ColumnFamilyStore columnsStore = SystemTable.schemaCFS(SystemTable.SCHEMA_COLUMNS_CF);
+        return columnsStore.getColumnFamily(key,
+                                            new QueryPath(SystemTable.SCHEMA_COLUMNS_CF),
+                                            MigrationHelper.searchComposite(cfName, true),
+                                            MigrationHelper.searchComposite(cfName, false),
+                                            false,
+                                            Integer.MAX_VALUE);
+    }
+
     /**
      * Deserialize columns from low-level representation
      *
@@ -216,16 +228,8 @@ public class ColumnDefinition
      *
      * @return Thrift-based deserialized representation of the column
      */
-    public static List<ColumnDef> fromSchema(String ksName, String cfName)
+    public static List<ColumnDef> fromSchema(ColumnFamily columns)
     {
-        DecoratedKey key = StorageService.getPartitioner().decorateKey(SystemTable.getSchemaKSKey(ksName));
-        ColumnFamilyStore columnsStore = SystemTable.schemaCFS(SystemTable.SCHEMA_COLUMNS_CF);
-        ColumnFamily columns = columnsStore.getColumnFamily(key,
-                                                            new QueryPath(SystemTable.SCHEMA_COLUMNS_CF),
-                                                            MigrationHelper.searchComposite(cfName, true),
-                                                            MigrationHelper.searchComposite(cfName, false),
-                                                            false,
-                                                            Integer.MAX_VALUE);
 
         if (columns == null || columns.isEmpty())
             return Collections.emptyList();

@@ -406,7 +406,7 @@ public final class KSMetaData
 
         for (CfDef cfDef : cfs.values())
         {
-            for (ColumnDef columnDef : ColumnDefinition.fromSchema(cfDef.keyspace, cfDef.name))
+            for (ColumnDef columnDef : ColumnDefinition.fromSchema(ColumnDefinition.readSchema(cfDef.keyspace, cfDef.name)))
                 cfDef.addToColumn_metadata(columnDef);
         }
 
