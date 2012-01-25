@@ -88,19 +88,19 @@ public class SystemTable
 
         rm = new RowMutation(Table.SYSTEM_TABLE, ByteBufferUtil.bytes("build"));
         cf = ColumnFamily.create(Table.SYSTEM_TABLE, VERSION_CF);
-        cf.addColumn(new Column(ByteBufferUtil.bytes("version"), ByteBufferUtil.bytes(FBUtilities.getReleaseVersionString())));
+        cf.addColumn(new Column(ByteBufferUtil.bytes("version"), ByteBufferUtil.bytes(FBUtilities.getReleaseVersionString()), FBUtilities.timestampMicros()));
         rm.add(cf);
         rm.apply();
 
         rm = new RowMutation(Table.SYSTEM_TABLE, ByteBufferUtil.bytes("cql"));
         cf = ColumnFamily.create(Table.SYSTEM_TABLE, VERSION_CF);
-        cf.addColumn(new Column(ByteBufferUtil.bytes("version"), ByteBufferUtil.bytes(QueryProcessor.CQL_VERSION.toString())));
+        cf.addColumn(new Column(ByteBufferUtil.bytes("version"), ByteBufferUtil.bytes(QueryProcessor.CQL_VERSION.toString()), FBUtilities.timestampMicros()));
         rm.add(cf);
         rm.apply();
 
         rm = new RowMutation(Table.SYSTEM_TABLE, ByteBufferUtil.bytes("thrift"));
         cf = ColumnFamily.create(Table.SYSTEM_TABLE, VERSION_CF);
-        cf.addColumn(new Column(ByteBufferUtil.bytes("version"), ByteBufferUtil.bytes(Constants.VERSION)));
+        cf.addColumn(new Column(ByteBufferUtil.bytes("version"), ByteBufferUtil.bytes(Constants.VERSION), FBUtilities.timestampMicros()));
         rm.add(cf);
         rm.apply();
     }
@@ -134,7 +134,7 @@ public class SystemTable
         }
         logger.debug("Marking pre-1.0 hints purged");
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, COOKIE_KEY);
-        rm.add(new QueryPath(STATUS_CF, null, upgradeMarker), ByteBufferUtil.bytes("oh yes, they were purged"), System.currentTimeMillis());
+        rm.add(new QueryPath(STATUS_CF, null, upgradeMarker), ByteBufferUtil.bytes("oh yes, they were purged"), FBUtilities.timestampMicros());
         rm.apply();
     }
 
@@ -150,7 +150,7 @@ public class SystemTable
         }
         IPartitioner p = StorageService.getPartitioner();
         ColumnFamily cf = ColumnFamily.create(Table.SYSTEM_TABLE, STATUS_CF);
-        cf.addColumn(new Column(p.getTokenFactory().toByteArray(token), ByteBuffer.wrap(ep.getAddress()), System.currentTimeMillis()));
+        cf.addColumn(new Column(p.getTokenFactory().toByteArray(token), ByteBuffer.wrap(ep.getAddress()), FBUtilities.timestampMicros()));
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, RING_KEY);
         rm.add(cf);
         try
@@ -171,7 +171,7 @@ public class SystemTable
     {
         IPartitioner p = StorageService.getPartitioner();
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, RING_KEY);
-        rm.delete(new QueryPath(STATUS_CF, null, p.getTokenFactory().toByteArray(token)), System.currentTimeMillis());
+        rm.delete(new QueryPath(STATUS_CF, null, p.getTokenFactory().toByteArray(token)), FBUtilities.timestampMicros());
         try
         {
             rm.apply();
@@ -190,7 +190,7 @@ public class SystemTable
     {
         IPartitioner p = StorageService.getPartitioner();
         ColumnFamily cf = ColumnFamily.create(Table.SYSTEM_TABLE, STATUS_CF);
-        cf.addColumn(new Column(SystemTable.TOKEN, p.getTokenFactory().toByteArray(token), System.currentTimeMillis()));
+        cf.addColumn(new Column(SystemTable.TOKEN, p.getTokenFactory().toByteArray(token), FBUtilities.timestampMicros()));
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, LOCATION_KEY);
         rm.add(cf);
         try
@@ -370,8 +370,8 @@ public class SystemTable
     {
         ColumnFamily cf = ColumnFamily.create(Table.SYSTEM_TABLE, STATUS_CF);
         cf.addColumn(new Column(BOOTSTRAP, 
-                                ByteBuffer.wrap(new byte[] { (byte) (isBootstrapped ? 1 : 0) }), 
-                                System.currentTimeMillis()));
+                                ByteBuffer.wrap(new byte[] { (byte) (isBootstrapped ? 1 : 0) }),
+                                FBUtilities.timestampMicros()));
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, BOOTSTRAP_KEY);
         rm.add(cf);
         try
@@ -396,7 +396,7 @@ public class SystemTable
     public static void setIndexBuilt(String table, String indexName)
     {
         ColumnFamily cf = ColumnFamily.create(Table.SYSTEM_TABLE, INDEX_CF);
-        cf.addColumn(new Column(ByteBufferUtil.bytes(indexName), ByteBufferUtil.EMPTY_BYTE_BUFFER, System.currentTimeMillis()));
+        cf.addColumn(new Column(ByteBufferUtil.bytes(indexName), ByteBufferUtil.EMPTY_BYTE_BUFFER, FBUtilities.timestampMicros()));
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, ByteBufferUtil.bytes(table));
         rm.add(cf);
         try
@@ -414,7 +414,7 @@ public class SystemTable
     public static void setIndexRemoved(String table, String indexName)
     {
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, ByteBufferUtil.bytes(table));
-        rm.delete(new QueryPath(INDEX_CF, null, ByteBufferUtil.bytes(indexName)), System.currentTimeMillis());
+        rm.delete(new QueryPath(INDEX_CF, null, ByteBufferUtil.bytes(indexName)), FBUtilities.timestampMicros());
         try
         {
             rm.apply();
@@ -463,6 +463,7 @@ public class SystemTable
      * replace) or null if no such node id exists (new node or removed system
      * table)
      * @param newNodeId the new current local node id to record
+     * @param now microsecond time stamp.
      */
     public static void writeCurrentLocalNodeId(NodeId oldNodeId, NodeId newNodeId, long now)
     {
@@ -473,7 +474,9 @@ public class SystemTable
         ColumnFamily cf2 = cf.cloneMe();
         if (oldNodeId != null)
         {
-            cf2.addColumn(new DeletedColumn(oldNodeId.bytes(), (int) (now / 1000), now));
+            // previously used (int)(now /1000) for the localDeletionTime
+            // tests use single digit long values for now, so use actual time.
+            cf2.addColumn(new DeletedColumn(oldNodeId.bytes(), (int)(System.currentTimeMillis() / 1000), now));
         }
         RowMutation rmCurrent = new RowMutation(Table.SYSTEM_TABLE, CURRENT_LOCAL_NODE_ID_KEY);
         RowMutation rmAll = new RowMutation(Table.SYSTEM_TABLE, ALL_LOCAL_NODE_ID_KEY);
