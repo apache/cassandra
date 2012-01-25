@@ -179,9 +179,9 @@ public class RangeTest
         assert not.intersects(twowrap);
     }
 
-    static void assertIntersection(Range one, Range two, Range ... ranges)
+    static <T extends RingPosition> void assertIntersection(Range one, Range two, Range<T> ... ranges)
     {
-        Set<Range> correct = Range.rangeSet(ranges);
+        Set<Range<T>> correct = Range.rangeSet(ranges);
         Set<Range> result1 = one.intersectionWith(two);
         assert result1.equals(correct) : String.format("%s != %s",
                                                        StringUtils.join(result1, ","),
