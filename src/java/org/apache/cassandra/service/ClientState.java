@@ -18,12 +18,7 @@
 
 package org.apache.cassandra.service;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,6 +27,7 @@ import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.auth.Resources;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql.CQLStatement;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.thrift.AuthenticationException;
@@ -86,8 +82,10 @@ public class ClientState
         return keyspace;
     }
 
-    public void setKeyspace(String ks)
+    public void setKeyspace(String ks) throws InvalidRequestException
     {
+        if (Schema.instance.getKSMetaData(ks) == null)
+            throw new InvalidRequestException("Keyspace '" + ks + "' does not exist");
         keyspace = ks;
     }
 
