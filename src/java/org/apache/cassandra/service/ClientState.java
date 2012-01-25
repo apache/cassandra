@@ -20,7 +20,6 @@ package org.apache.cassandra.service;
 
 import java.util.*;
 
-import com.google.common.collect.Sets;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
