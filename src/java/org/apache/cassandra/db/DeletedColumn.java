@@ -39,12 +39,6 @@ public class DeletedColumn extends Column
     }
 
     @Override
-    public boolean isMarkedForDelete()
-    {
-        return true;
-    }
-
-    @Override
     public long getMarkedForDeleteAt()
     {
         return timestamp;

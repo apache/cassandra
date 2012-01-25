@@ -106,7 +106,7 @@ public class Column implements IColumn
 
     public boolean isMarkedForDelete()
     {
-        return false;
+        return (int) (System.currentTimeMillis() / 1000) >= getLocalDeletionTime();
     }
 
     public long getMarkedForDeleteAt()
@@ -185,7 +185,7 @@ public class Column implements IColumn
 
     public int getLocalDeletionTime()
     {
-        throw new IllegalStateException("column is not marked for delete");
+        return Integer.MAX_VALUE;
     }
 
     public IColumn reconcile(IColumn column)
@@ -278,7 +278,7 @@ public class Column implements IColumn
 
     public boolean hasExpiredTombstones(int gcBefore)
     {
-        return isMarkedForDelete() && getLocalDeletionTime() < gcBefore;
+        return getLocalDeletionTime() < gcBefore;
     }
 }
 

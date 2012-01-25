@@ -750,10 +750,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             // remove columns if
             // (a) the column itself is tombstoned or
             // (b) the CF is tombstoned and the column is not newer than it
-            //
-            // Note that we need the inequality below for case (a) to be strict for expiring columns
-            // to work correctly  -- see the comment in ExpiringColumn.isMarkedForDelete().
-            if ((c.isMarkedForDelete() && c.getLocalDeletionTime() < gcBefore)
+            if (c.getLocalDeletionTime() < gcBefore
                 || c.timestamp() <= cf.getMarkedForDeleteAt())
             {
                 iter.remove();
@@ -779,7 +776,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 // (a) the subcolumn itself is tombstoned or
                 // (b) the supercolumn is tombstoned and the subcolumn is not newer than it
                 if (subColumn.timestamp() <= minTimestamp
-                    || (subColumn.isMarkedForDelete() && subColumn.getLocalDeletionTime() < gcBefore))
+                    || subColumn.getLocalDeletionTime() < gcBefore)
                 {
                     subIter.remove();
                 }

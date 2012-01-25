@@ -197,7 +197,7 @@ public abstract class AbstractColumnContainer implements IColumnContainer, IIter
 
     public boolean hasExpiredTombstones(int gcBefore)
     {
-        if (isMarkedForDelete() && getLocalDeletionTime() < gcBefore)
+        if (getLocalDeletionTime() < gcBefore)
             return true;
 
         for (IColumn column : columns)

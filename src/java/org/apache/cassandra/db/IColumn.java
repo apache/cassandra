@@ -33,7 +33,12 @@ public interface IColumn
 {
     public static final int MAX_NAME_LENGTH = FBUtilities.MAX_UNSIGNED_SHORT;
 
+    /**
+     * @return true if the column has been deleted (is a tombstone).  This depends on comparing the server clock
+     * with getLocalDeletionTime, so it can change during a single request if you're not careful.
+     */
     public boolean isMarkedForDelete();
+
     public long getMarkedForDeleteAt();
     public long mostRecentLiveChangeAt();
     public ByteBuffer name();
