@@ -52,6 +52,7 @@
  * Fix BulkLoader to support new SSTable layout and add stream
    throttling to prevent an NPE when there is no yaml config (CASSANDRA-3752)
  * Allow concurrent schema migrations (CASSANDRA-1391)
+ * Add SnapshotCommand to trigger snapshot on remote node (CASSANDRA-3721)
 
 
 1.0.8
