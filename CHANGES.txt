@@ -1,4 +1,6 @@
 1.0.8
+ * Return InvalidRequest when using a keyspace that doesn't exist
+   (CASSANDRA-3764)
  * disallow user modification of System keyspace (CASSANDRA-3738)
  * allow using sstable2json on secondary index data (CASSANDRA-3738)
  * (cqlsh) add DESCRIBE COLUMNFAMILIES (CASSANDRA-3586)

@@ -30,6 +30,7 @@ import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.auth.Resources;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.thrift.AuthenticationException;
 import org.apache.cassandra.thrift.InvalidRequestException;
@@ -70,8 +71,10 @@ public class ClientState
         return keyspace;
     }
 
-    public void setKeyspace(String ks)
+    public void setKeyspace(String ks) throws InvalidRequestException
     {
+        if (Schema.instance.getKSMetaData(ks) == null)
+            throw new InvalidRequestException("Keyspace '" + ks + "' does not exist");
         keyspace = ks;
     }
 
