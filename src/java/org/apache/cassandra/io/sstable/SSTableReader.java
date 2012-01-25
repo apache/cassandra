@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -413,22 +413,22 @@ public class SSTableReader extends SSTable
     }
 
     /** get the position in the index file to start scanning to find the given key (at most indexInterval keys away) */
-    private IndexSummary.KeyPosition getIndexScanPosition(RowPosition key)
+    private long getIndexScanPosition(RowPosition key)
     {
-        assert indexSummary.getIndexPositions() != null && indexSummary.getIndexPositions().size() > 0;
-        int index = Collections.binarySearch(indexSummary.getIndexPositions(), new IndexSummary.KeyPosition(key, -1));
+        assert indexSummary.getKeys() != null && indexSummary.getKeys().size() > 0;
+        int index = Collections.binarySearch(indexSummary.getKeys(), key);
         if (index < 0)
         {
             // binary search gives us the first index _greater_ than the key searched for,
             // i.e., its insertion position
             int greaterThan = (index + 1) * -1;
             if (greaterThan == 0)
-                return null;
-            return indexSummary.getIndexPositions().get(greaterThan - 1);
+                return -1;
+            return indexSummary.getPosition(greaterThan - 1);
         }
         else
         {
-            return indexSummary.getIndexPositions().get(index);
+            return indexSummary.getPosition(index);
         }
     }
 
@@ -470,7 +470,7 @@ public class SSTableReader extends SSTable
      */
     public long estimatedKeys()
     {
-        return indexSummary.getIndexPositions().size() * DatabaseDescriptor.getIndexInterval();
+        return indexSummary.getKeys().size() * DatabaseDescriptor.getIndexInterval();
     }
 
     /**
@@ -480,7 +480,7 @@ public class SSTableReader extends SSTable
     public long estimatedKeysForRanges(Collection<Range<Token>> ranges)
     {
         long sampleKeyCount = 0;
-        List<Pair<Integer, Integer>> sampleIndexes = getSampleIndexesForRanges(indexSummary.getIndexPositions(), ranges);
+        List<Pair<Integer, Integer>> sampleIndexes = getSampleIndexesForRanges(indexSummary.getKeys(), ranges);
         for (Pair<Integer, Integer> sampleIndexRange : sampleIndexes)
             sampleKeyCount += (sampleIndexRange.right - sampleIndexRange.left + 1);
         return Math.max(1, sampleKeyCount * DatabaseDescriptor.getIndexInterval());
@@ -491,18 +491,10 @@ public class SSTableReader extends SSTable
      */
     public Collection<DecoratedKey> getKeySamples()
     {
-        return Collections2.transform(indexSummary.getIndexPositions(),
-                                      new Function<IndexSummary.KeyPosition, DecoratedKey>(){
-                                          public DecoratedKey apply(IndexSummary.KeyPosition kp)
-                                          {
-                                              // the index should only contain valid row key, we only allow RowPosition in KeyPosition for search purposes
-                                              assert kp.key instanceof DecoratedKey;
-                                              return (DecoratedKey)kp.key;
-                                          }
-                                      });
+        return indexSummary.getKeys();
     }
 
-    private static List<Pair<Integer,Integer>> getSampleIndexesForRanges(List<IndexSummary.KeyPosition> samples, Collection<Range<Token>> ranges)
+    private static List<Pair<Integer,Integer>> getSampleIndexesForRanges(List<DecoratedKey> samples, Collection<Range<Token>> ranges)
     {
         // use the index to determine a minimal section for each range
         List<Pair<Integer,Integer>> positions = new ArrayList<Pair<Integer,Integer>>();
@@ -514,7 +506,7 @@ public class SSTableReader extends SSTable
             RowPosition leftPosition = range.left.maxKeyBound();
             RowPosition rightPosition = range.left.maxKeyBound();
 
-            int left = Collections.binarySearch(samples, new IndexSummary.KeyPosition(leftPosition, -1));
+            int left = Collections.binarySearch(samples, leftPosition);
             if (left < 0)
                 left = (left + 1) * -1;
             else
@@ -526,7 +518,7 @@ public class SSTableReader extends SSTable
 
             int right = Range.isWrapAround(range.left, range.right)
                       ? samples.size() - 1
-                      : Collections.binarySearch(samples, new IndexSummary.KeyPosition(rightPosition, -1));
+                      : Collections.binarySearch(samples, rightPosition);
             if (right < 0)
             {
                 // range are end inclusive so we use the previous index from what binarySearch give us
@@ -548,7 +540,7 @@ public class SSTableReader extends SSTable
 
     public Iterable<DecoratedKey> getKeySamples(final Range<Token> range)
     {
-        final List<IndexSummary.KeyPosition> samples = indexSummary.getIndexPositions();
+        final List<DecoratedKey> samples = indexSummary.getKeys();
 
         final List<Pair<Integer, Integer>> indexRanges = getSampleIndexesForRanges(samples, Collections.singletonList(range));
 
@@ -583,7 +575,7 @@ public class SSTableReader extends SSTable
 
                     public DecoratedKey next()
                     {
-                        RowPosition k = samples.get(idx++).key;
+                        RowPosition k = samples.get(idx++);
                         // the index should only contain valid row key, we only allow RowPosition in KeyPosition for search purposes
                         assert k instanceof DecoratedKey;
                         return (DecoratedKey)k;
@@ -674,8 +666,8 @@ public class SSTableReader extends SSTable
         }
 
         // next, see if the sampled index says it's impossible for the key to be present
-        IndexSummary.KeyPosition sampledPosition = getIndexScanPosition(key);
-        if (sampledPosition == null)
+        long sampledPosition = getIndexScanPosition(key);
+        if (sampledPosition == -1)
         {
             if (op == Operator.EQ)
                 bloomFilterTracker.addFalsePositive();
@@ -684,7 +676,7 @@ public class SSTableReader extends SSTable
         }
 
         // scan the on-disk index, starting at the nearest sampled position
-        Iterator<FileDataInput> segments = ifile.iterator(sampledPosition.indexPosition, INDEX_FILE_BUFFER_BYTES);
+        Iterator<FileDataInput> segments = ifile.iterator(sampledPosition, INDEX_FILE_BUFFER_BYTES);
         while (segments.hasNext())
         {
             FileDataInput input = segments.next();

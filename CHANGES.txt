@@ -1,4 +1,5 @@
 1.1-dev
+ * Reduce memory used by primary index sample (CASSANDRA-3743)
  * (Hadoop) separate input/output configurations (CASSANDRA-3197, 3765)
  * avoid returning internal Cassandra classes over JMX (CASSANDRA-2805)
  * add row-level isolation via SnapTree (CASSANDRA-2893)
