@@ -61,7 +61,18 @@ public class CFDefinition implements Iterable<CFDefinition.Name>
         {
             this.isComposite = true;
             CompositeType composite = (CompositeType)cfm.comparator;
-            if (!cfm.getColumn_metadata().isEmpty())
+            if (cfm.getColumn_metadata().isEmpty())
+            {
+                // "dense" composite
+                this.isCompact = true;
+                for (int i = 0; i < composite.types.size(); i++)
+                {
+                    ColumnIdentifier id = getColumnId(cfm, i);
+                    this.columns.put(id, new Name(id, Name.Kind.COLUMN_ALIAS, i, composite.types.get(i)));
+                }
+                this.value = new Name(getValueId(cfm), Name.Kind.VALUE_ALIAS, cfm.getDefaultValidator());
+            }
+            else
             {
                 // "sparse" composite
                 this.isCompact = false;
@@ -79,22 +90,20 @@ public class CFDefinition implements Iterable<CFDefinition.Name>
                     this.metadata.put(id, new Name(id, Name.Kind.COLUMN_METADATA, def.getValue().getValidator()));
                 }
             }
-            else
-            {
-                // "dense" composite
-                this.isCompact = true;
-                for (int i = 0; i < composite.types.size(); i++)
-                {
-                    ColumnIdentifier id = getColumnId(cfm, i);
-                    this.columns.put(id, new Name(id, Name.Kind.COLUMN_ALIAS, i, composite.types.get(i)));
-                }
-                this.value = new Name(getValueId(cfm), Name.Kind.VALUE_ALIAS, cfm.getDefaultValidator());
-            }
         }
         else
         {
             this.isComposite = false;
-            if (!cfm.getColumn_metadata().isEmpty())
+            if (cfm.getColumn_metadata().isEmpty())
+            {
+                // dynamic CF
+                this.isCompact = true;
+                ColumnIdentifier id = getColumnId(cfm, 0);
+                Name name = new Name(id, Name.Kind.COLUMN_ALIAS, 0, cfm.comparator);
+                this.columns.put(id, name);
+                this.value = new Name(getValueId(cfm), Name.Kind.VALUE_ALIAS, cfm.getDefaultValidator());
+            }
+            else
             {
                 // static CF
                 this.isCompact = false;
@@ -106,15 +115,6 @@ public class CFDefinition implements Iterable<CFDefinition.Name>
                     ColumnIdentifier id = new ColumnIdentifier(def.getKey());
                     this.metadata.put(id, new Name(id, Name.Kind.COLUMN_METADATA, def.getValue().getValidator()));
                 }
-            }
-            else
-            {
-                // dynamic CF
-                this.isCompact = true;
-                ColumnIdentifier id = getColumnId(cfm, 0);
-                Name name = new Name(id, Name.Kind.COLUMN_ALIAS, 0, cfm.comparator);
-                this.columns.put(id, name);
-                this.value = new Name(getValueId(cfm), Name.Kind.VALUE_ALIAS, cfm.getDefaultValidator());
             }
         }
         assert value == null || metadata.isEmpty();
