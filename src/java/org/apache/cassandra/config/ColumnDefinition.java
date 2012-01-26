@@ -46,7 +46,7 @@ public class ColumnDefinition
     private Map<String,String> index_options;
     private String index_name;
     
-    public ColumnDefinition(ByteBuffer name, AbstractType<?> validator, IndexType index_type, Map<String, String> index_options, String index_name) throws ConfigurationException
+    public ColumnDefinition(ByteBuffer name, AbstractType<?> validator, IndexType index_type, Map<String, String> index_options, String index_name)
     {
         this.name = name;
         this.index_name = index_name;
@@ -223,9 +223,6 @@ public class ColumnDefinition
     /**
      * Deserialize columns from low-level representation
      *
-     * @param ksName The corresponding Keyspace
-     * @param cfName The name of the parent ColumnFamily
-     *
      * @return Thrift-based deserialized representation of the column
      */
     public static List<ColumnDef> fromSchema(ColumnFamily columns)
@@ -291,7 +288,7 @@ public class ColumnDefinition
         index_name = s;
     }
 
-    public void setIndexType(IndexType index_type, Map<String,String> index_options) throws ConfigurationException
+    public void setIndexType(IndexType index_type, Map<String,String> index_options)
     {
         this.index_type = index_type;
         this.index_options = index_options;         
