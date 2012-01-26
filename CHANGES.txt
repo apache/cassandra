@@ -61,6 +61,7 @@
 
 
 1.0.8
+ * Compute more accurate compaction score per level (CASSANDRA-3790)
  * Return InvalidRequest when using a keyspace that doesn't exist
    (CASSANDRA-3764)
  * disallow user modification of System keyspace (CASSANDRA-3738)
