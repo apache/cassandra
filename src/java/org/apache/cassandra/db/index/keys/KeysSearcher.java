@@ -162,7 +162,7 @@ public class KeysSearcher extends SecondaryIndexSearcher
                             columnsRead--;
                             logger.debug("Skipping {}", baseCfs.metadata.getKeyValidator().getString(firstColumn.name()));
                         }
-                        else if (range instanceof Range && indexColumns.hasNext() && firstColumn.equals(startKey))
+                        else if (range instanceof Range && indexColumns.hasNext() && firstColumn.name().equals(startKey))
                         {
                             // skip key excluded by range
                             indexColumns.next();
