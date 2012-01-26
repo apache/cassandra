@@ -47,6 +47,7 @@ public class CliOptions
     private static final String SCHEMA_MIGRATION_WAIT_TIME = "schema-mwt";
 
     // Default values for optional command line arguments
+    private static final String DEFAULT_HOST        = "127.0.0.1";
     private static final int    DEFAULT_THRIFT_PORT = 9160;
 
     // Register the command line options and their properties (such as
@@ -91,10 +92,7 @@ public class CliOptions
             }
             else
             {
-                // host name not specified in command line.
-                // In this case, we don't implicitly connect at CLI startup. In this case,
-                // the user must use the "connect" CLI statement to connect.
-                css.hostName = null;
+                css.hostName = DEFAULT_HOST;
             }
 
             // Look to see if frame has been specified

@@ -53,6 +53,8 @@ public class NodeCmd
     private static final Pair<String, String> PASSWORD_OPT = new Pair<String, String>("pw", "password");
     private static final Pair<String, String> TAG_OPT = new Pair<String, String>("t", "tag");
     private static final Pair<String, String> PRIMARY_RANGE_OPT = new Pair<String, String>("pr", "partitioner-range");
+
+    private static final String DEFAULT_HOST = "127.0.0.1";
     private static final int DEFAULT_PORT = 7199;
 
     private static ToolOptions options = null;
@@ -63,7 +65,7 @@ public class NodeCmd
     {
         options = new ToolOptions();
 
-        options.addOption(HOST_OPT,     true, "node hostname or ip address", true);
+        options.addOption(HOST_OPT,     true, "node hostname or ip address");
         options.addOption(PORT_OPT,     true, "remote jmx agent port number");
         options.addOption(USERNAME_OPT, true, "remote jmx agent username");
         options.addOption(PASSWORD_OPT, true, "remote jmx agent password");
@@ -598,7 +600,8 @@ public class NodeCmd
             badUse(p.getMessage());
         }
 
-        String host = cmd.getOptionValue(HOST_OPT.left);
+        String host = cmd.hasOption(HOST_OPT.left) ? cmd.getOptionValue(HOST_OPT.left) : DEFAULT_HOST;
+
         int port = DEFAULT_PORT;
         
         String portNum = cmd.getOptionValue(PORT_OPT.left);

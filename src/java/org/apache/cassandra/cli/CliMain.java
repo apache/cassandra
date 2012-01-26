@@ -57,7 +57,6 @@ public class CliMain
      */
     public static void connect(String server, int port)
     {
-
         TSocket socket = new TSocket(server, port);
 
         if (transport != null)
@@ -258,7 +257,6 @@ public class CliMain
             catch (RuntimeException e)
             {
                 sessionState.err.println(e.getMessage());
-                System.exit(-1);
             }
         }
         
