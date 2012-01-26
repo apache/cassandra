@@ -748,7 +748,10 @@ public class SelectStatement extends CQLStatement
             // Select clause
             if (parameters.isCount)
             {
-                if (selectClause.size() != 1 || (!selectClause.get(0).equals("*") && !selectClause.get(0).equals("1")))
+                if (selectClause.size() != 1)
+                    throw new InvalidRequestException("Only COUNT(*) and COUNT(1) operations are currently supported.");
+                String columnName = selectClause.get(0).toString();
+                if (!columnName.equals("*") && !columnName.equals("1"))
                     throw new InvalidRequestException("Only COUNT(*) and COUNT(1) operations are currently supported.");
             }
             else
