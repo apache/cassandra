@@ -373,7 +373,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
             tupleFields.add(colSchema);
 
             valSchema = new ResourceFieldSchema();
-            validator = validators.get(cdef.getName());
+            validator = validators.get(ByteBuffer.wrap(cdef.getName()));
             if (validator == null)
                 validator = marshallers.get(1);
             valSchema.setName("value");
