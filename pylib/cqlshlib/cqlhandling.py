@@ -715,9 +715,10 @@ def cql_complete_single(text, partial, init_bindings={}, ignore_case=True, start
         partial = prefix + partial
     if tokens and tokens[-1][0] == 'unclosedComment':
         return []
+    bindings['partial'] = partial
 
     # find completions for the position
-    completions = CqlRuleSet.complete(startsymbol, tokens, init_bindings)
+    completions = CqlRuleSet.complete(startsymbol, tokens, bindings)
 
     hints, strcompletes = list_bifilter(pylexotron.is_hint, completions)
 
@@ -742,6 +743,10 @@ def cql_complete_single(text, partial, init_bindings={}, ignore_case=True, start
         # line and not part of the word under completion, and readline
         # fills in the closing quote for us.
         candidates = [cql_escape(cql_dequote(c))[len(prefix)+1:-1] for c in candidates]
+
+        # the above process can result in an empty string; this doesn't help for
+        # completions
+        candidates = filter(None, candidates)
 
     # prefix a space when desirable for pleasant cql formatting
     if tokens:

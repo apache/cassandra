@@ -29,13 +29,15 @@ echo "No appropriate python interpreter found." >&2
 exit 1
 ":"""
 
+from __future__ import with_statement
+
 description = "CQL Shell for Apache Cassandra"
 version = "2.0.0"
 
 from collections import defaultdict
 from StringIO import StringIO
 from itertools import groupby
-from functools import partial
+from contextlib import contextmanager
 
 import cmd
 import sys
@@ -92,6 +94,8 @@ parser.add_option("-C", "--color", action="store_true",
                   help="Enable color output.")
 parser.add_option("-u", "--username", help="Authenticate as user.")
 parser.add_option("-p", "--password", help="Authenticate using password.")
+parser.add_option("-f", "--file",
+                  help="Execute commands from FILE, then exit")
 parser.add_option('--debug', action='store_true',
                   help='Show additional debugging information')
 
@@ -123,7 +127,8 @@ cqlhandling.commands_end_with_newline.update((
     'desc',
     'show',
     'assume',
-    'eof',
+    'source',
+    'capture',
     'exit',
     'quit'
 ))
@@ -135,6 +140,8 @@ cqlhandling.CqlRuleSet.append_rules(r'''
 <specialCommand> ::= <describeCommand>
                    | <showCommand>
                    | <assumeCommand>
+                   | <sourceCommand>
+                   | <captureCommand>
                    | <helpCommand>
                    | <exitCommand>
                    ;
@@ -158,19 +165,20 @@ cqlhandling.CqlRuleSet.append_rules(r'''
                   | "(" colname=<name> ")" "VALUES" "ARE" colvalues=<storageType>
                   ;
 
-<helpCommand> ::= "HELP" [topic]=( <identifier> | <stringLiteral> )*
-                | "?"
+<sourceCommand> ::= "SOURCE" fname=<stringLiteral>
+                  ;
+
+<captureCommand> ::= "CAPTURE" ( fname=( <stringLiteral> | "OFF" ) )?
+                   ;
+
+<helpCommand> ::= ( "HELP" | "?" ) [topic]=( <identifier> | <stringLiteral> )*
                 ;
 
-<exitCommand> ::= ( eof=@"EOF" | "exit" | "quit" )
+<exitCommand> ::= "exit" | "quit"
                 ;
 
 <qmark> ::= "?" ;
 ''')
-
-@cqlhandling.cql_add_completer('exitCommand', 'eof')
-def hide_eof_from_completion(ctxt, cqlsh):
-    return ()
 
 @cqlhandling.cql_add_completer('helpCommand', 'topic')
 def complete_help(ctxt, cqlsh):
@@ -207,6 +215,28 @@ def complete_assume_col(ctxt, cqlsh):
     cols = [cm.name for cm in cfdef.column_metadata]
     cols.append(cfdef.key_alias or 'KEY')
     return map(maybe_cql_escape, cols)
+
+def complete_source_quoted_filename(ctxt, cqlsh):
+    partial = ctxt.get_binding('partial', '')
+    head, tail = os.path.split(partial)
+    exhead = os.path.expanduser(head)
+    try:
+        contents = os.listdir(exhead or '.')
+    except OSError:
+        return ()
+    matches = filter(lambda f: f.startswith(tail), contents)
+    annotated = []
+    for f in matches:
+        match = os.path.join(head, f)
+        if os.path.isdir(os.path.join(exhead, f)):
+            match += '/'
+        annotated.append(match)
+    return annotated
+
+cqlhandling.cql_add_completer('sourceCommand', 'fname') \
+        (complete_source_quoted_filename)
+cqlhandling.cql_add_completer('captureCommand', 'fname') \
+        (complete_source_quoted_filename)
 
 class NoKeyspaceError(Exception):
     pass
@@ -322,34 +352,48 @@ class Shell(cmd.Cmd):
     display_time_format = '%Y-%m-%d %H:%M:%S%z'
     display_float_precision = 3
     num_retries = 4
+    show_line_nums = False
     debug = False
+    stop = False
+    shunted_query_out = None
 
     def __init__(self, hostname, port, color=False, username=None,
-                 password=None, encoding=None, completekey='tab'):
+                 password=None, encoding=None, stdin=None, tty=True,
+                 completekey='tab', use_conn=None):
         cmd.Cmd.__init__(self, completekey=completekey)
         self.hostname = hostname
         self.port = port
-        self.conn = cql.connect(hostname, port, user=username, password=password)
+        if use_conn is not None:
+            self.conn = use_conn
+        else:
+            self.conn = cql.connect(hostname, port, user=username, password=password)
         self.cursor = self.conn.cursor()
 
         self.current_keyspace = None
 
         self.color = color
         if encoding is None:
-            encoding = sys.stdout.encoding
+            encoding = sys.stdout.encoding or 'ascii'
         self.encoding = encoding
         self.output_codec = codecs.lookup(encoding)
 
         self.statement = StringIO()
+        self.lineno = 1
         self.in_comment = False
         self.schema_overrides = {}
 
-        if sys.stdin.isatty():
-            self.prompt = Shell.default_prompt
+        self.prompt = ''
+        if stdin is None:
+            stdin = sys.stdin
+        self.tty = tty
+        if tty:
+            self.prompt = self.default_prompt
             self.report_connection()
-            self.printout('Use HELP for help.')
+            print 'Use HELP for help.'
         else:
-            self.prompt = ""
+            self.show_line_nums = True
+        self.stdin = stdin
+        self.query_out = sys.stdout
 
     def myformat_value(self, val, casstype):
         return format_value(val, casstype, self.output_codec.name,
@@ -361,40 +405,41 @@ class Shell(cmd.Cmd):
         self.show_version()
 
     def show_host(self):
-        self.printout("Connected to ", newline=False)
-        self.printout(self.get_cluster_name(), color=BLUE, newline=False)
-        self.printout(" at %s:%d." % (self.hostname, self.port))
+        print "Connected to %s at %s:%d." % \
+               (self.applycolor(self.get_cluster_name(), BLUE),
+                self.hostname,
+                self.port)
 
     def show_version(self):
         vers = self.get_cluster_versions()
         vers['shver'] = version
-        self.printout("[cqlsh %(shver)s | Cassandra %(build)s | CQL spec %(cql)s | Thrift protocol %(thrift)s]" % vers)
+        print "[cqlsh %(shver)s | Cassandra %(build)s | CQL spec %(cql)s | Thrift protocol %(thrift)s]" % vers
 
     def show_assumptions(self):
         all_overrides = self.schema_overrides.items()
         all_overrides.sort()
         if all_overrides:
-            self.printout('')
+            print
         else:
-            self.printout('No overrides.')
+            print 'No overrides.'
             return
         for keyspace, ksoverrides in groupby(all_overrides, key=lambda x:x[0][0]):
             keyspace = maybe_cql_escape(keyspace)
-            self.printout('USE %s;' % keyspace)
-            self.printout('')
+            print 'USE %s;' % keyspace
+            print
             for (ks, cf), override in ksoverrides:
                 cf = maybe_cql_escape(cf)
                 if override.default_name_type:
-                    self.printout('ASSUME %s NAMES ARE %s;'
-                                  % (cf, cql_typename(override.default_name_type)))
+                    print 'ASSUME %s NAMES ARE %s;' \
+                          % (cf, cql_typename(override.default_name_type))
                 if override.default_value_type:
-                    self.printout('ASSUME %s VALUES ARE %s;'
-                                  % (cf, cql_typename(override.default_value_type)))
+                    print 'ASSUME %s VALUES ARE %s;' \
+                          % (cf, cql_typename(override.default_value_type))
                 for colname, vtype in override.value_types.items():
                     colname = maybe_cql_escape(colname)
-                    self.printout('ASSUME %s(%s) VALUES ARE %s;'
-                                  % (cf, colname, cql_typename(vtype)))
-        self.printout('')
+                    print 'ASSUME %s(%s) VALUES ARE %s;' \
+                          % (cf, colname, cql_typename(vtype))
+        print
 
     def get_cluster_versions(self):
         try:
@@ -483,66 +528,124 @@ class Shell(cmd.Cmd):
     # ===== end thrift-dependent parts =====
 
     def reset_statement(self):
-        if self.current_keyspace is None:
-            self.set_prompt(Shell.default_prompt)
-        else:
-            self.set_prompt(Shell.keyspace_prompt % self.current_keyspace)
+        self.reset_prompt()
         self.statement.truncate(0)
 
-    def continue_statement(self):
+    def reset_prompt(self):
         if self.current_keyspace is None:
-            self.set_prompt(Shell.continue_prompt)
+            self.set_prompt(self.default_prompt)
+        else:
+            self.set_prompt(self.keyspace_prompt % self.current_keyspace)
+
+    def set_continue_prompt(self):
+        if self.current_keyspace is None:
+            self.set_prompt(self.continue_prompt)
         else:
             spaces = ' ' * len(str(self.current_keyspace))
-            self.set_prompt(Shell.keyspace_continue_prompt % spaces)
+            self.set_prompt(self.keyspace_continue_prompt % spaces)
 
-    def precmd(self, line):
-        self.statement.write(line + '\n')
-        return self.statement.getvalue()
-
-    def onecmd(self, line):
+    @contextmanager
+    def prepare_loop(self):
+        readline = None
+        if self.tty and self.completekey:
+            try:
+                import readline
+            except ImportError:
+                pass
+            else:
+                old_completer = readline.get_completer()
+                readline.set_completer(self.complete)
+                readline.parse_and_bind(self.completekey+": complete")
         try:
-            statements, in_batch = cqlhandling.cql_split_statements(line)
+            yield
+        finally:
+            if readline is not None:
+                readline.set_completer(old_completer)
+
+    def get_input_line(self, prompt=''):
+        if self.tty:
+            line = raw_input(self.prompt) + '\n'
+        else:
+            sys.stdout.write(self.prompt)
+            sys.stdout.flush()
+            line = self.stdin.readline()
+            if not len(line):
+                raise EOFError
+        self.lineno += 1
+        return line
+
+    def cmdloop(self):
+        """
+        Adapted from cmd.Cmd's version, because there is literally no way with
+        cmd.Cmd.cmdloop() to tell the difference between "EOF" showing up in
+        input and an actual EOF.
+        """
+        with self.prepare_loop():
+            while not self.stop:
+                try:
+                    line = self.get_input_line(self.prompt)
+                    self.statement.write(line)
+                    if self.onecmd(self.statement.getvalue()):
+                        self.reset_statement()
+                except EOFError:
+                    self.handle_eof()
+                except cql.Error, cqlerr:
+                    self.printerr(str(cqlerr))
+                except KeyboardInterrupt:
+                    self.reset_statement()
+                    print
+
+    def onecmd(self, statement):
+        """
+        Returns true if the statement is complete and was handled (meaning it
+        can be reset).
+        """
+
+        try:
+            statements, in_batch = cqlhandling.cql_split_statements(statement)
         except pylexotron.LexingError, e:
-            self.printerr('Invalid syntax at line %d, char %d' % (e.linenum, e.charnum))
-            line = line.split('\n')[e.linenum - 1]
-            self.printerr('  %s' % line)
+            if self.show_line_nums:
+                self.printerr('Invalid syntax at char %d' % (e.charnum,))
+            else:
+                self.printerr('Invalid syntax at line %d, char %d'
+                              % (e.linenum, e.charnum))
+            statement = statement.split('\n')[e.linenum - 1]
+            self.printerr('  %s' % statement)
             self.printerr(' %s^' % (' ' * e.charnum))
-            self.reset_statement()
-            return
+            return True
 
         while statements and not statements[-1]:
             statements = statements[:-1]
         if not statements:
-            self.reset_statement()
-            return
+            return True
         if in_batch or statements[-1][-1][0] != 'endtoken':
-            self.continue_statement()
+            self.set_continue_prompt()
             return
-        try:
-            for st in statements:
-                try:
-                    self.handle_statement(st)
-                except Exception, e:
-                    if self.debug:
-                        import traceback
-                        traceback.print_exc()
-                    else:
-                        self.printerr(e)
-        finally:
-            self.reset_statement()
+        for st in statements:
+            try:
+                self.handle_statement(st)
+            except Exception, e:
+                if self.debug:
+                    import traceback
+                    traceback.print_exc()
+                else:
+                    self.printerr(e)
+        return True
+
+    def handle_eof(self):
+        if self.tty:
+            print
+        statement = self.statement.getvalue()
+        if statement.strip():
+            if not self.onecmd(statement + ';'):
+                self.printerr('Incomplete statement at end of file')
+        self.do_exit()
 
     def handle_statement(self, tokens):
         cmdword = tokens[0][1]
-        if cmdword != 'EOF':
-            # and why yes, it /is/ brain-molestingly stupid that cmd uses
-            # the string "EOF" as a sentinel, so that there's no clear way
-            # to tell the difference between someone typing "EOF" and a
-            # real EOF.
-            cmdword = cmdword.lower()
         if cmdword == '?':
             cmdword = 'help'
-        custom_handler = getattr(self, 'do_' + cmdword, None)
+        custom_handler = getattr(self, 'do_' + cmdword.lower(), None)
         if custom_handler:
             parsed = cqlhandling.cql_whole_parse_tokens(tokens, startsymbol='cqlshCommand')
             if parsed and not parsed.remainder:
@@ -649,10 +752,10 @@ class Shell(cmd.Cmd):
     def print_count_result(self):
         if not self.cursor.result:
             return
-        self.printout('count')
-        self.printout('-----')
-        self.printout(self.cursor.result[0])
-        self.printout("")
+        self.writeresult('count')
+        self.writeresult('-----')
+        self.writeresult(self.cursor.result[0])
+        self.writeresult("")
 
     def print_result(self):
         # first pass: see if we have a static column set
@@ -670,7 +773,7 @@ class Shell(cmd.Cmd):
             self.print_static_result()
         else:
             self.print_dynamic_result()
-        self.printout("")
+        self.writeresult("")
 
     def print_static_result(self):
         colnames, coltypes = zip(*self.cursor.description)[:2]
@@ -684,13 +787,13 @@ class Shell(cmd.Cmd):
 
         # print header
         header = ' | '.join(self.applycolor(name.ljust(w), MAGENTA) for (name, w) in zip(colnames, widths))
-        print ' ' + header.rstrip()
-        print '-%s-' % '-+-'.join('-' * w for w in widths)
+        self.writeresult(' ' + header.rstrip())
+        self.writeresult('-%s-' % '-+-'.join('-' * w for w in widths))
 
         # print row data
         for row in formatted_data:
             line = ' | '.join(col.color_rjust(w) for (col, w) in zip(row, widths))
-            print ' ' + line
+            self.writeresult(' ' + line)
 
     def print_dynamic_result(self):
         for row in self.cursor:
@@ -698,7 +801,7 @@ class Shell(cmd.Cmd):
             colnames = [self.applycolor(name, MAGENTA) for name in colnames]
             colvals = [self.myformat_value(val, casstype) for (val, casstype) in zip(row, coltypes)]
             line = ' | '.join(name + ',' + col.coloredval for (col, name) in zip(colvals, colnames))
-            print ' ' + line
+            self.writeresult(' ' + line)
 
     def emptyline(self):
         pass
@@ -735,37 +838,34 @@ class Shell(cmd.Cmd):
                                         debug=debug_completion, startsymbol='cqlshCommand')
 
     def set_prompt(self, prompt):
-        if sys.stdin.isatty():
+        if self.prompt != '':
             self.prompt = prompt
 
-    def print_recreate_keyspace(self, ksdef):
+    def print_recreate_keyspace(self, ksdef, out):
         stratclass = trim_if_present(ksdef.strategy_class, 'org.apache.cassandra.locator.')
         ksname = maybe_cql_escape(ksdef.name)
-        self.printout("CREATE KEYSPACE %s WITH strategy_class = %s"
-                         % (ksname, cql_escape(stratclass)),
-                      newline=False)
+        out.write("CREATE KEYSPACE %s WITH strategy_class = %s"
+                   % (ksname, cql_escape(stratclass)))
         for opname, opval in ksdef.strategy_options.iteritems():
-            self.printout("\n  AND strategy_options:%s = %s" % (opname, cql_escape(opval)),
-                          newline=False)
-        self.printout(';')
+            out.write("\n  AND strategy_options:%s = %s" % (opname, cql_escape(opval)))
+        out.write(';\n')
 
         if ksdef.cf_defs:
-            self.printout('\nUSE %s;' % ksname)
+            out.write('\nUSE %s;\n' % ksname)
             for cf in ksdef.cf_defs:
-                self.printout('')
-                self.print_recreate_columnfamily(cf)
+                out.write('\n')
+                self.print_recreate_columnfamily(cf, out)
 
-    def print_recreate_columnfamily(self, cfdef):
+    def print_recreate_columnfamily(self, cfdef, out):
         cfname = maybe_cql_escape(cfdef.name)
-        self.printout("CREATE COLUMNFAMILY %s (" % cfname)
+        out.write("CREATE COLUMNFAMILY %s (\n" % cfname)
         alias = cfdef.key_alias if cfdef.key_alias else 'KEY'
         keytype = cql_typename(cfdef.key_validation_class)
-        self.printout("  %s %s PRIMARY KEY" % (alias, keytype), newline=False)
+        out.write("  %s %s PRIMARY KEY" % (alias, keytype))
         indexed_columns = []
         for col in cfdef.column_metadata:
             colname = maybe_cql_escape(col.name)
-            self.printout(",\n  %s %s" % (colname, cql_typename(col.validation_class)),
-                          newline=False)
+            out.write(",\n  %s %s" % (colname, cql_typename(col.validation_class)))
             if col.index_name is not None:
                 indexed_columns.append(col)
         notable_columns = []
@@ -778,65 +878,64 @@ class Shell(cmd.Cmd):
             else:
                 optval = cql_escape(optval)
             notable_columns.append((option, optval))
-        self.printout('\n)', newline=False)
+        out.write('\n)')
         if notable_columns:
             joiner = 'WITH'
             for optname, optval in notable_columns:
-                self.printout(" %s\n  %s=%s" % (joiner, optname, optval), newline=False)
+                out.write(" %s\n  %s=%s" % (joiner, optname, optval))
                 joiner = 'AND'
-        self.printout(";")
+        out.write(";\n")
 
         for col in indexed_columns:
-            self.printout('')
+            out.write('\n')
             # guess CQL can't represent index_type or index_options
-            self.printout('CREATE INDEX %s ON %s (%s);'
-                          % (col.index_name, cfname, maybe_cql_escape(col.name)))
+            out.write('CREATE INDEX %s ON %s (%s);\n'
+                         % (col.index_name, cfname, maybe_cql_escape(col.name)))
 
     def describe_keyspace(self, ksname):
-        self.printout('')
-        self.print_recreate_keyspace(self.get_keyspace(ksname))
-        self.printout('')
+        print
+        self.print_recreate_keyspace(self.get_keyspace(ksname), sys.stdout)
+        print
 
     def describe_columnfamily(self, cfname):
-        self.printout('')
-        self.print_recreate_columnfamily(self.get_columnfamily(cfname))
-        self.printout('')
+        print
+        self.print_recreate_columnfamily(self.get_columnfamily(cfname), sys.stdout)
+        print
 
     def describe_columnfamilies(self, ksname):
         if ksname is None:
             for k in self.get_keyspaces():
-                self.printout('Keyspace %s' % (k.name,))
-                self.printout('---------%s\n' % ('-' * len(k.name)))
+                print 'Keyspace %s' % (k.name,)
+                print '---------%s\n' % ('-' * len(k.name))
                 cmd.Cmd.columnize(self, [c.name for c in k.cf_defs])
-                self.printout('')
+                print
         else:
             try:
                 names = self.get_columnfamily_names(ksname)
             except cql.cassandra.ttypes.NotFoundException:
                 raise KeyspaceNotFound('Keyspace %s not found.' % (ksname,))
-            self.printout('')
+            print
             cmd.Cmd.columnize(self, names)
-            self.printout('')
+            print
 
     def describe_cluster(self):
-        self.printout('Cluster: %s' % self.get_cluster_name())
+        print 'Cluster: %s' % self.get_cluster_name()
         p = trim_if_present(self.get_partitioner(), 'org.apache.cassandra.dht.')
-        self.printout('Partitioner: %s' % p)
+        print 'Partitioner: %s' % p
         snitch = trim_if_present(self.get_snitch(), 'org.apache.cassandra.locator.')
-        self.printout('Snitch: %s' % snitch)
-        self.printout('')
+        print 'Snitch: %s\n' % snitch
         if self.current_keyspace is not None and self.current_keyspace != 'system':
-            self.printout("Range ownership:")
+            print "Range ownership:"
             ring = self.get_ring()
             for entry in ring:
-                self.printout(' %39s  [%s]' % (entry.start_token, ', '.join(entry.endpoints)))
-            self.printout('')
+                print ' %39s  [%s]' % (entry.start_token, ', '.join(entry.endpoints))
+            print
 
     def describe_schema(self):
-        self.printout('')
+        print
         for k in self.get_keyspaces():
-            self.print_recreate_keyspace(k)
-            self.printout('')
+            self.print_recreate_keyspace(k, sys.stdout)
+            print
 
     def do_describe(self, parsed):
         """
@@ -998,33 +1097,116 @@ class Shell(cmd.Cmd):
             self.add_assumption(params['ks'], params['cf'], params['colname'],
                                 overridetype, validator_class)
 
-    def do_EOF(self, parsed):
+    def do_source(self, parsed):
         """
-        EOF [cqlsh only]
+        SOURCE [cqlsh only]
 
-        An end-of-file condition on the input stream causes cqlsh to exit.
+        Executes a file containing CQL statements. Gives the output for each
+        statement in turn, if any, or any errors that occur along the way.
 
-        The command 'EOF' also exits cqlsh, but this is only because of an
-        annoying feature of Python's cmd.Cmd, and it is not expected to
-        stay this way. See also 'EXIT', which will continue to work.
+        Errors do NOT abort execution of the CQL source file.
+
+        Usage:
+
+          SOURCE '<file>';
+
+        That is, the path to the file to be executed must be given inside a
+        string literal. The path is interpreted relative to the current working
+        directory. The tilde shorthand notation ("~/mydir") is supported for
+        referring to $HOME.
+
+        See also the --file option to cqlsh.
         """
 
-        if sys.stdin.isatty(): print
-        self.do_exit(None)
+        fname = parsed.get_binding('fname')
+        fname = os.path.expanduser(cql_dequote(fname))
+        try:
+            f = open(fname, 'r')
+        except IOError, e:
+            self.printerr('Could not open %r: %s' % (fname, e))
+            return
+        subshell = Shell(self.hostname, self.port, color=self.color,
+                         encoding=self.encoding, stdin=f, tty=False,
+                         use_conn=self.conn)
+        subshell.cmdloop()
+        f.close()
 
-    def do_exit(self, parsed):
+    def do_capture(self, parsed):
+        """
+        CAPTURE [cqlsh only]
+
+        Begins capturing command output and appending it to a specified file.
+        Output will not be shown at the console while it is captured.
+
+        Usage:
+
+          CAPTURE '<file>';
+          CAPTURE OFF;
+          CAPTURE;
+
+        That is, the path to the file to be executed must be given inside a
+        string literal. The path is interpreted relative to the current working
+        directory. The tilde shorthand notation ("~/mydir") is supported for
+        referring to $HOME.
+
+        Only query result output is captured. Errors and output from cqlsh-only
+        commands will still be shown in the cqlsh session.
+
+        To stop capturing output and show it in the cqlsh session again, use
+        CAPTURE OFF.
+
+        To inspect the current capture configuration, use CAPTURE with no
+        arguments.
+        """
+
+        fname = parsed.get_binding('fname')
+        if fname is None:
+            if self.shunted_query_out is not None:
+                print "Currently capturing query output to %r." % (self.query_out.name,)
+            else:
+                print "Currently not capturing query output."
+            return
+
+        if fname.upper() == 'OFF':
+            if self.shunted_query_out is None:
+                self.printerr('Not currently capturing output.')
+                return
+            self.query_out.close()
+            self.query_out = self.shunted_query_out
+            self.color = self.shunted_color
+            self.shunted_query_out = None
+            del self.shunted_color
+            return
+
+        if self.shunted_query_out is not None:
+            self.printerr('Already capturing output to %s. Use CAPTURE OFF'
+                          ' to disable.' % (self.query_out.name,))
+            return
+
+        fname = os.path.expanduser(cql_dequote(fname))
+        try:
+            f = open(fname, 'a')
+        except IOError, e:
+            self.printerr('Could not open %r for append: %s' % (fname, e))
+            return
+        self.shunted_query_out = self.query_out
+        self.shunted_color = self.color
+        self.query_out = f
+        self.color = False
+        print 'Now capturing query output to %r.' % (fname,)
+
+    def do_exit(self, parsed=None):
         """
         EXIT/QUIT [cqlsh only]
 
         Exits cqlsh.
         """
-
-        sys.exit()
+        self.stop = True
     do_quit = do_exit
 
     def get_names(self):
         names = cmd.Cmd.get_names(self)
-        for hide_from_help in ('do_EOF', 'do_quit'):
+        for hide_from_help in ('do_quit',):
             names.remove(hide_from_help)
         return names
 
@@ -1046,9 +1228,9 @@ class Shell(cmd.Cmd):
             cmd.Cmd.do_help(self, cql_dequote(t).lower())
 
     def help_types(self):
-        self.printout("\n        CQL types recognized by this version of cqlsh:\n")
+        print "\n        CQL types recognized by this version of cqlsh:\n"
         for t in cqlhandling.cql_types:
-            self.printout('          ' + t)
+            print '          ' + t
         print """
         For information on the various recognizable input formats for these
         types, or on controlling the formatting of cqlsh query output, see
@@ -1670,13 +1852,17 @@ class Shell(cmd.Cmd):
             return text
         return color + text + ANSI_RESET
 
-    def printout(self, text, color=None, newline=True, out=None):
+    def writeresult(self, text, color=None, newline=True, out=None):
         if out is None:
-            out = sys.stdout
+            out = self.query_out
         out.write(self.applycolor(str(text), color) + ('\n' if newline else ''))
 
-    def printerr(self, text, color=RED, newline=True):
-        self.printout(text, color, newline=newline, out=sys.stderr)
+    def printerr(self, text, color=RED, newline=True, shownum=None):
+        if shownum is None:
+            shownum = self.show_line_nums
+        if shownum:
+            text = '%s:%d:%s' % (self.stdin.name, self.lineno, text)
+        self.writeresult(text, color, newline=newline, out=sys.stderr)
 
     def add_assumption(self, ksname, cfname, colname, valtype, valclass):
         try:
@@ -1716,7 +1902,7 @@ def option_with_default(cparser_getter, section, option, default=None):
         return default
 
 def should_use_color():
-    if not sys.stdin.isatty():
+    if not sys.stdout.isatty():
         return False
     if os.environ.get('TERM', 'dumb') == 'dumb':
         return False
@@ -1745,6 +1931,8 @@ def read_options(cmdlineargs, environment):
         # default yes if tty
         optvalues.color = should_use_color()
     optvalues.debug = False
+    optvalues.file = None
+    optvalues.tty = sys.stdin.isatty()
 
     (options, arguments) = parser.parse_args(cmdlineargs, values=optvalues)
 
@@ -1758,6 +1946,10 @@ def read_options(cmdlineargs, environment):
         hostname = arguments[0]
     if len(arguments) > 1:
         port = arguments[1]
+
+    if options.file is not None:
+        options.color = False
+        options.tty = False
 
     try:
         port = int(port)
@@ -1774,12 +1966,22 @@ def main(options, hostname, port):
         delims += '.'
         readline.set_completer_delims(delims)
 
+    if options.file is None:
+        stdin = None
+    else:
+        try:
+            stdin = open(options.file, 'r')
+        except IOError, e:
+            sys.exit("Can't open %r: %s" % (options.file, e))
+
     try:
         shell = Shell(hostname,
                       port,
                       color=options.color,
                       username=options.username,
                       password=options.password,
+                      stdin=stdin,
+                      tty=options.tty,
                       completekey=options.completekey)
     except KeyboardInterrupt:
         sys.exit('Connection aborted.')
@@ -1788,24 +1990,10 @@ def main(options, hostname, port):
     if options.debug:
         shell.debug = True
 
-    while True:
-        try:
-            shell.cmdloop()
-        except SystemExit:
-            if readline is not None:
-                readline.write_history_file(HISTORY)
-            break
-        except cql.Error, cqlerr:
-            shell.printerr(str(cqlerr))
-        except KeyboardInterrupt:
-            shell.reset_statement()
-            print
-        except Exception, err:
-            if options.debug:
-                import traceback
-                traceback.print_exc()
-            else:
-                shell.printerr("Exception: %s" % err)
+    shell.cmdloop()
+
+    if readline is not None:
+        readline.write_history_file(HISTORY)
 
 if __name__ == '__main__':
     main(*read_options(sys.argv[1:], os.environ))

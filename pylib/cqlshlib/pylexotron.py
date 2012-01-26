@@ -89,8 +89,8 @@ class ParseContext:
                               self.remainder, newname)
 
     def __repr__(self):
-        return '<%s matched=%r remainder=%r prodname=%r>' % (self.__class__.__name__, self.matched, self.remainder,
-                                                             self.productionname)
+        return '<%s matched=%r remainder=%r prodname=%r bindings=%r>' \
+               % (self.__class__.__name__, self.matched, self.remainder, self.productionname, self.bindings)
 
 class matcher:
     def __init__(self, arg):
