@@ -481,7 +481,7 @@ relation returns [Relation rel]
     ;
 
 comparatorType returns [String str]
-    : c=(IDENT | STRING_LITERAL) { $str = $c.text; }
+    : c=(IDENT | STRING_LITERAL | K_TIMESTAMP) { $str = $c.text; }
     ;
 
 
