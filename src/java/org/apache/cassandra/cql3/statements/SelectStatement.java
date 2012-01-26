@@ -91,6 +91,7 @@ public class SelectStatement implements CQLStatement
     private Restriction keyRestriction;
     private final Restriction[] columnRestrictions;
     private final Map<CFDefinition.Name, Restriction> metadataRestrictions = new HashMap<CFDefinition.Name, Restriction>();
+    private Restriction sliceRestriction;
 
     private static enum Bound
     {
@@ -323,10 +324,13 @@ public class SelectStatement implements CQLStatement
 
     private int getLimit()
     {
+        // Internally, we don't support exclusive bounds for slices. Instead,
+        // we query one more element if necessary and exclude
+        int limit = sliceRestriction != null && !sliceRestriction.isInclusive(Bound.START) ? parameters.limit + 1 : parameters.limit;
         // For sparse, we'll end up merging all defined colums into the same CqlRow. Thus we should query up
         // to 'defined columns' * 'asked limit' to be sure to have enough columns. We'll trim after query if
         // this end being too much.
-        return cfDef.isCompact ? parameters.limit : cfDef.metadata.size() * parameters.limit;
+        return cfDef.isCompact ? limit : cfDef.metadata.size() * limit;
     }
 
     private boolean isKeyRange()
@@ -602,9 +606,20 @@ public class SelectStatement implements CQLStatement
 
                     thriftColumns = new ArrayList<Column>();
 
-                    ByteBuffer[] components = cfDef.isComposite
-                                            ? ((CompositeType)cfDef.cfm.comparator).split(c.name())
-                                            : null;
+                    ByteBuffer[] components = null;
+
+                    if (cfDef.isComposite)
+                    {
+                        components = ((CompositeType)cfDef.cfm.comparator).split(c.name());
+                    }
+                    else if (sliceRestriction != null)
+                    {
+                        // For dynamic CF, the column could be out of the requested bounds, filter here
+                        if (!sliceRestriction.isInclusive(Bound.START) && c.name().equals(sliceRestriction.bound(Bound.START).getByteBuffer(cfDef.cfm.comparator, variables)))
+                            continue;
+                        if (!sliceRestriction.isInclusive(Bound.END) && c.name().equals(sliceRestriction.bound(Bound.END).getByteBuffer(cfDef.cfm.comparator, variables)))
+                            continue;
+                    }
 
                     // Respect selection order
                     for (Pair<CFDefinition.Name, ColumnIdentifier> p : selection)
@@ -711,9 +726,9 @@ public class SelectStatement implements CQLStatement
         if (parameters.isColumnsReversed)
             Collections.reverse(cqlRows);
 
+        // Trim result if needed to respect the limit
         cqlRows = cqlRows.size() > parameters.limit ? cqlRows.subList(0, parameters.limit) : cqlRows;
 
-        // Trim result if needed to respect the limit
         return cqlRows;
     }
 
@@ -880,14 +895,26 @@ public class SelectStatement implements CQLStatement
                 CFDefinition.Name cname = iter.next();
                 Restriction restriction = stmt.columnRestrictions[i];
                 if (restriction == null)
+                {
                     shouldBeDone = true;
+                }
                 else if (shouldBeDone)
+                {
                     throw new InvalidRequestException(String.format("PRIMARY KEY part %s cannot be restricted (preceding part %s is either not restricted or by a non-EQ relation)", cname, previous));
+                }
                 else if (!restriction.isEquality())
+                {
                     shouldBeDone = true;
+                    // For non-composite slices, we don't support internally the difference between exclusive and
+                    // inclusive bounds, so we deal with it manually.
+                    if (!cfDef.isComposite && (!restriction.isInclusive(Bound.START) || !restriction.isInclusive(Bound.END)))
+                        stmt.sliceRestriction = restriction;
+                }
                 // We only support IN for the last name so far
                 else if (restriction.eqValues.size() > 1 && i != stmt.columnRestrictions.length - 1)
+                {
                     throw new InvalidRequestException(String.format("PRIMARY KEY part %s cannot be restricted by IN relation (only the first and last parts can)", cname));
+                }
 
                 previous = cname;
             }
@@ -1039,7 +1066,7 @@ public class SelectStatement implements CQLStatement
 
         public boolean isInclusive(Bound b)
         {
-            return boundInclusive[b.idx];
+            return bounds[b.idx] == null || boundInclusive[b.idx];
         }
 
         public Relation.Type getRelation(Bound b)
@@ -1080,11 +1107,11 @@ public class SelectStatement implements CQLStatement
                     b = Bound.START;
                     inclusive = true;
                     break;
-                case LTE:
-                    b = Bound.END;
-                    inclusive = true;
-                    break;
                 case LT:
+                    b = Bound.END;
+                    inclusive = false;
+                    break;
+                case LTE:
                     b = Bound.END;
                     inclusive = true;
                     break;
@@ -1094,6 +1121,22 @@ public class SelectStatement implements CQLStatement
                 throw new InvalidRequestException(String.format("Invalid restrictions found on %s", name));
             bounds[b.idx] = t;
             boundInclusive[b.idx] = inclusive;
+        }
+
+        @Override
+        public String toString()
+        {
+            if (eqValues == null)
+            {
+                return String.format("SLICE(%s %s, %s %s)", boundInclusive[0] ? ">=" : ">",
+                                                            bounds[0],
+                                                            boundInclusive[1] ? "<=" : "<",
+                                                            bounds[1]);
+            }
+            else
+            {
+                return String.format("EQ(%s)", eqValues);
+            }
         }
     }
 
