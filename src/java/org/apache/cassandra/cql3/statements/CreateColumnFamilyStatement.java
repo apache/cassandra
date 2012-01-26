@@ -207,6 +207,8 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
                         if (!useCompactStorage)
                             types.add(CFDefinition.definitionType);
 
+                        if (types.isEmpty())
+                            throw new IllegalStateException("Nonsensical empty parameter list for CompositeType");
                         stmt.comparator = CompositeType.getInstance(types);
                     }
                 }

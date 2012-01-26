@@ -57,15 +57,9 @@ public class CompositeType extends AbstractCompositeType
     // interning instances
     private static final Map<List<AbstractType<?>>, CompositeType> instances = new HashMap<List<AbstractType<?>>, CompositeType>();
 
-    public static CompositeType getInstance(TypeParser parser) throws ConfigurationException
+    public static synchronized CompositeType getInstance(List<AbstractType<?>> types)
     {
-        return getInstance(parser.getTypeParameters());
-    }
-
-    public static synchronized CompositeType getInstance(List<AbstractType<?>> types) throws ConfigurationException
-    {
-        if (types == null || types.isEmpty())
-            throw new ConfigurationException("Nonsensical empty parameter list for CompositeType");
+        assert types != null && !types.isEmpty();
 
         CompositeType ct = instances.get(types);
         if (ct == null)

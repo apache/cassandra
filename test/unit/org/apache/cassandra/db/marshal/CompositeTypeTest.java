@@ -46,14 +46,7 @@ public class CompositeTypeTest extends CleanupHelper
         subComparators.add(BytesType.instance);
         subComparators.add(TimeUUIDType.instance);
         subComparators.add(IntegerType.instance);
-        try
-        {
-            comparator = CompositeType.getInstance(subComparators);
-        }
-        catch (ConfigurationException e)
-        {
-            throw new RuntimeException(e);
-        }
+        comparator = CompositeType.getInstance(subComparators);
 
     }
 

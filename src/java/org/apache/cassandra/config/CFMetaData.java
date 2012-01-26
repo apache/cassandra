@@ -85,36 +85,29 @@ public final class CFMetaData
 
     private static CFMetaData schemaCFDefinition(String name, int index, String comment, AbstractType<?> comp, int nestingLevel)
     {
-        try
+        AbstractType<?> comparator;
+
+        if (nestingLevel == 1)
         {
-            AbstractType<?> comparator;
-
-            if (nestingLevel == 1)
-            {
-                comparator = comp;
-            }
-            else
-            {
-                List<AbstractType<?>> composite = new ArrayList<AbstractType<?>>(nestingLevel);
-
-                for (int i = 0; i < nestingLevel; i++)
-                    composite.add(comp);
-
-                comparator = CompositeType.getInstance(composite);
-            }
-
-            return newSystemMetadata(name,
-                                     index,
-                                     comment,
-                                     comparator,
-                                     null)
-                                     .keyValidator(AsciiType.instance)
-                                     .defaultValidator(UTF8Type.instance);
+            comparator = comp;
         }
-        catch (ConfigurationException e)
+        else
         {
-            throw new RuntimeException(e);
+            List<AbstractType<?>> composite = new ArrayList<AbstractType<?>>(nestingLevel);
+
+            for (int i = 0; i < nestingLevel; i++)
+                composite.add(comp);
+
+            comparator = CompositeType.getInstance(composite);
         }
+
+        return newSystemMetadata(name,
+                                 index,
+                                 comment,
+                                 comparator,
+                                 null)
+                                 .keyValidator(AsciiType.instance)
+                                 .defaultValidator(UTF8Type.instance);
     }
 
     static
