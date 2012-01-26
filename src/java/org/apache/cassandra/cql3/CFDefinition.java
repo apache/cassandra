@@ -195,6 +195,17 @@ public class CFDefinition implements Iterable<CFDefinition.Name>
              : new NonCompositeBuilder(cfm.comparator);
     }
 
+    public AbstractType<?> getNameComparatorForResultSet(Name name)
+    {
+        // In the resultSet, a name should always be UTF8. However, for
+        // backward compatibility sake, this method allows to support non UTF8
+        // names for static CF column names.
+        if (!isCompact && !isComposite)
+            return cfm.comparator;
+        else
+            return definitionType;
+    }
+
     public static class Name
     {
         public static enum Kind

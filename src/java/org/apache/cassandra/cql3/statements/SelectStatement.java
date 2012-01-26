@@ -522,7 +522,7 @@ public class SelectStatement extends CQLStatement
     private void addToSchema(CqlMetadata schema, Pair<CFDefinition.Name, ColumnIdentifier> p)
     {
         ByteBuffer nameAsRequested = p.right.key;
-        schema.name_types.put(nameAsRequested, TypeParser.getShortName(cfDef.cfm.comparator));
+        schema.name_types.put(nameAsRequested, TypeParser.getShortName(cfDef.getNameComparatorForResultSet(p.left)));
         schema.value_types.put(nameAsRequested, TypeParser.getShortName(p.left.type));
     }
 
