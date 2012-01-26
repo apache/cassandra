@@ -66,8 +66,9 @@ public class StatusLogger
                                       poolName, threadPoolProxy.getActiveCount(), threadPoolProxy.getPendingTasks(), threadPoolProxy.getCurrentlyBlockedTasks()));
         }
         // one offs
+        CompactionManager cm = CompactionManager.instance;
         logger.info(String.format("%-25s%10s%10s",
-                                  "CompactionManager", "n/a", CompactionManager.instance.getPendingTasks()));
+                                  "CompactionManager", cm.getActiveCompactions(), cm.getPendingTasks()));
         int pendingCommands = 0;
         for (int n : MessagingService.instance().getCommandPendingTasks().values())
         {

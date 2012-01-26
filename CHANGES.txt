@@ -1,4 +1,5 @@
 1.0.8
+ * Log active compactions in StatusLogger (CASSANDRA-3703)
  * Compute more accurate compaction score per level (CASSANDRA-3790)
  * Return InvalidRequest when using a keyspace that doesn't exist
    (CASSANDRA-3764)
