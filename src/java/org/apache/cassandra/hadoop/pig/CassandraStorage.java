@@ -325,7 +325,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
     {
         conf = job.getConfiguration();
         setLocationFromUri(location);
-        if (ConfigHelper.getRawInputSlicePredicate(conf) == null)
+        if (ConfigHelper.getInputSlicePredicate(conf) == null)
         {
             SliceRange range = new SliceRange(slice_start, slice_end, slice_reverse, limit);
             SlicePredicate predicate = new SlicePredicate().setSlice_range(range);

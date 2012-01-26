@@ -189,14 +189,10 @@ public class ConfigHelper
 
     public static SlicePredicate getInputSlicePredicate(Configuration conf)
     {
-        return predicateFromString(conf.get(INPUT_PREDICATE_CONFIG));
+        String s = conf.get(INPUT_PREDICATE_CONFIG);
+        return s == null ? null : predicateFromString(s);
     }
     
-    public static String getRawInputSlicePredicate(Configuration conf)
-    {
-        return conf.get(INPUT_PREDICATE_CONFIG);
-    }
-
     private static String thriftToString(TBase object)
     {
         assert object != null;
