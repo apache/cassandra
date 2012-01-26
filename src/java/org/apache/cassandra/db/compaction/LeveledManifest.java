@@ -241,7 +241,7 @@ public class LeveledManifest
             List<SSTableReader> sstables = generations[i];
             if (sstables.isEmpty())
                 continue; // mostly this just avoids polluting the debug log with zero scores
-            double score = SSTableReader.getTotalBytes(sstables) / maxBytesForLevel(i);
+            double score = (double)SSTableReader.getTotalBytes(sstables) / (double)maxBytesForLevel(i);
             logger.debug("Compaction score for level {} is {}", i, score);
 
             // L0 gets a special case that if we don't have anything more important to do,
