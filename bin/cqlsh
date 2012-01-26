@@ -47,6 +47,7 @@ import optparse
 import ConfigParser
 import codecs
 import re
+import platform
 
 # cqlsh should run correctly when run out of a Cassandra source tree,
 # out of an unpacked Cassandra tarball, and after a proper package install.
@@ -66,16 +67,25 @@ except ImportError:
 CQL_LIB_PREFIX = 'cql-internal-only-'
 THRIFT_LIB_PREFIX = 'thrift-python-internal-only-'
 
-# use bundled libs for python-cql and thrift, if available
-ziplibdir = os.path.join(os.path.dirname(__file__), '..', 'lib')
-cql_zips = glob(os.path.join(ziplibdir, CQL_LIB_PREFIX + '*.zip'))
-if cql_zips:
-    cql_zip = cql_zips[0]
+# use bundled libs for python-cql and thrift, if available. if there
+# is a ../lib dir, use bundled libs there preferentially.
+ZIPLIB_DIRS = [os.path.join(os.path.dirname(__file__), '..', 'lib')]
+myplatform = platform.system()
+if myplatform == 'Linux':
+    ZIPLIB_DIRS.append('/usr/share/cassandra/lib')
+
+def find_zip(libprefix):
+    for ziplibdir in ZIPLIB_DIRS:
+        zips = glob(os.path.join(ziplibdir, libprefix + '*.zip'))
+        if zips:
+            return max(zips)   # probably the highest version, if multiple
+
+cql_zip = find_zip(CQL_LIB_PREFIX)
+if cql_zip:
     ver = os.path.splitext(os.path.basename(cql_zip))[0][len(CQL_LIB_PREFIX):]
     sys.path.insert(0, os.path.join(cql_zip, 'cql-' + ver))
-thrift_zips = glob(os.path.join(ziplibdir, THRIFT_LIB_PREFIX + '*.zip'))
-if thrift_zips:
-    thrift_zip = thrift_zips[0]
+thrift_zip = find_zip(THRIFT_LIB_PREFIX)
+if thrift_zip:
     sys.path.insert(0, thrift_zip)
 
 try:

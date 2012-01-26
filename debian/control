@@ -2,7 +2,8 @@ Source: cassandra
 Section: misc
 Priority: extra
 Maintainer: Eric Evans <eevans@apache.org>
-Build-Depends: debhelper (>= 5), openjdk-6-jdk (>= 6b11) | java6-sdk, ant (>= 1.7), ant-optional (>= 1.7), subversion
+Uploaders: Sylvain Lebresne <slebresne@apache.org>
+Build-Depends: debhelper (>= 5), openjdk-6-jdk (>= 6b11) | java6-sdk, ant (>= 1.7), ant-optional (>= 1.7), subversion, python-support
 Homepage: http://cassandra.apache.org
 Vcs-Svn: https://svn.apache.org/repos/asf/cassandra/trunk
 Vcs-Browser: http://svn.apache.org/viewvc/cassandra/trunk
@@ -10,7 +11,7 @@ Standards-Version: 3.8.3
 
 Package: cassandra
 Architecture: all
-Depends: openjdk-6-jre-headless (>= 6b11) | java6-runtime, jsvc (>= 1.0), libcommons-daemon-java (>= 1.0), adduser, libjna-java
+Depends: openjdk-6-jre-headless (>= 6b11) | java6-runtime, jsvc (>= 1.0), libcommons-daemon-java (>= 1.0), adduser, libjna-java, python (>= 2.5), python-support (>= 0.90.0), ${misc:Depends}
 Conflicts: apache-cassandra1
 Replaces: apache-cassandra1
 Description: distributed storage system for structured data
