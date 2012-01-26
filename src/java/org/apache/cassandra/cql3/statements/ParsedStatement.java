@@ -16,12 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.cassandra.cql3;
+package org.apache.cassandra.cql3.statements;
 
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
 
+import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.thrift.CqlResult;
@@ -31,34 +32,37 @@ import org.apache.cassandra.thrift.TimedOutException;
 import org.apache.cassandra.thrift.UnavailableException;
 import org.apache.cassandra.utils.Pair;
 
-public interface CQLStatement
+public abstract class ParsedStatement
 {
-    /**
-     * Returns the number of bound terms in this statement.
-     */
-    public int getBoundsTerms();
+    private int boundTerms;
 
-    /**
-     * Perform any access verification necessary for the statement.
-     *
-     * @param state the current client state
-     */
-    public void checkAccess(ClientState state) throws InvalidRequestException;
+    public int getBoundsTerms()
+    {
+        return boundTerms;
+    }
 
-    /**
-     * Perform additional validation required by the statment.
-     * To be overriden by subclasses if needed.
-     *
-     * @param state the current client state
-     */
-    public void validate(ClientState state) throws InvalidRequestException, SchemaDisagreementException;
+    // Used by the parser and preparable statement
+    public void setBoundTerms(int boundTerms)
+    {
+        this.boundTerms = boundTerms;
+    }
 
-    /**
-     * Execute the statement and return the resulting result or null if there is no result.
-     *
-     * @param state the current client state
-     * @param variables the values for bounded variables. The implementation
-     * can assume that each bound term have a corresponding value.
-     */
-    public CqlResult execute(ClientState state, List<ByteBuffer> variables) throws InvalidRequestException, UnavailableException, TimedOutException, SchemaDisagreementException;
+    public abstract Prepared prepare() throws InvalidRequestException;
+
+    public static class Prepared
+    {
+        public final CQLStatement statement;
+        public final List<AbstractType<?>> boundTypes;
+
+        public Prepared(CQLStatement statement, List<AbstractType<?>> boundTypes)
+        {
+            this.statement = statement;
+            this.boundTypes = boundTypes;
+        }
+
+        public Prepared(CQLStatement statement)
+        {
+            this(statement, Collections.<AbstractType<?>>emptyList());
+        }
+    }
 }

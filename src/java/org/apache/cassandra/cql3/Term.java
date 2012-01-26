@@ -34,12 +34,13 @@ public class Term
 {
     private final String text;
     private final TermType type;
-    private int bindIndex = -1;
+    public final int bindIndex;
 
     public Term(String text, TermType type)
     {
         this.text = text == null ? "" : text;
         this.type = type;
+        this.bindIndex = -1;
     }
 
     /**
@@ -51,7 +52,7 @@ public class Term
      */
     public Term(String text, int type)
     {
-        this(text == null ? "" : text, TermType.forInt(type));
+        this(text, TermType.forInt(type));
     }
 
     public Term(long value, TermType type)
@@ -61,7 +62,8 @@ public class Term
 
     public Term(String text, int type, int index)
     {
-        this(text, type);
+        this.text = text == null ? "" : text;
+        this.type = TermType.forInt(type);
         this.bindIndex = index;
     }
 

@@ -31,6 +31,7 @@ import org.apache.cassandra.cql3.statements.*;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.thrift.Column;
@@ -122,7 +123,7 @@ public class QueryProcessor
     throws RecognitionException, UnavailableException, InvalidRequestException, TimedOutException, SchemaDisagreementException
     {
         logger.trace("CQL QUERY: {}", queryString);
-        return processStatement(getStatement(queryString, clientState), clientState, Collections.<ByteBuffer>emptyList());
+        return processStatement(getStatement(queryString, clientState).statement, clientState, Collections.<ByteBuffer>emptyList());
     }
 
     public static CqlPreparedResult prepare(String queryString, ClientState clientState)
@@ -130,16 +131,18 @@ public class QueryProcessor
     {
         logger.trace("CQL QUERY: {}", queryString);
 
-        CQLStatement statement = getStatement(queryString, clientState);
+        ParsedStatement.Prepared prepared = getStatement(queryString, clientState);
         int statementId = makeStatementId(queryString);
-        logger.trace("Discovered "+ statement.getBoundsTerms() + " bound variables.");
-
-        clientState.getCQL3Prepared().put(statementId, statement);
+        clientState.getCQL3Prepared().put(statementId, prepared.statement);
         logger.trace(String.format("Stored prepared statement #%d with %d bind markers",
                                    statementId,
-                                   statement.getBoundsTerms()));
+                                   prepared.statement.getBoundsTerms()));
 
-        return new CqlPreparedResult(statementId, statement.getBoundsTerms());
+        assert prepared.statement.getBoundsTerms() == prepared.boundTypes.size();
+        List<String> types = new ArrayList<String>(prepared.boundTypes.size());
+        for (AbstractType<?> t : prepared.boundTypes)
+            types.add(TypeParser.getShortName(t));
+        return new CqlPreparedResult(statementId, types.size()).setVariable_types(types);
     }
 
     public static CqlResult processPrepared(CQLStatement statement, ClientState clientState, List<ByteBuffer> variables)
@@ -169,21 +172,18 @@ public class QueryProcessor
         return cql.hashCode();
     }
 
-    private static CQLStatement getStatement(String queryStr, ClientState clientState) throws InvalidRequestException, RecognitionException
+    private static ParsedStatement.Prepared getStatement(String queryStr, ClientState clientState) throws InvalidRequestException, RecognitionException
     {
-        CQLStatement statement = parseStatement(queryStr);
+        ParsedStatement statement = parseStatement(queryStr);
 
         // Set keyspace for statement that require login
         if (statement instanceof CFStatement)
             ((CFStatement)statement).prepareKeyspace(clientState);
 
-        if (statement instanceof Preprocessable)
-            statement = ((Preprocessable)statement).preprocess();
-
-        return statement;
+        return statement.prepare();
     }
 
-    private static CQLStatement parseStatement(String queryStr) throws InvalidRequestException, RecognitionException
+    private static ParsedStatement parseStatement(String queryStr) throws InvalidRequestException, RecognitionException
     {
         // Lexer and parser
         CharStream stream = new ANTLRStringStream(queryStr);
@@ -192,7 +192,7 @@ public class QueryProcessor
         CqlParser parser = new CqlParser(tokenStream);
 
         // Parse the query string to a statement instance
-        CQLStatement statement = parser.query();
+        ParsedStatement statement = parser.query();
 
         // The lexer and parser queue up any errors they may have encountered
         // along the way, if necessary, we turn them into exceptions here.

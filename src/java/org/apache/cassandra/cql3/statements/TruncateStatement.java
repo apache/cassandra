@@ -32,11 +32,16 @@ import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.thrift.ThriftValidation;
 import org.apache.cassandra.thrift.UnavailableException;
 
-public class TruncateStatement extends CFStatement
+public class TruncateStatement extends CFStatement implements CQLStatement
 {
     public TruncateStatement(CFName name)
     {
         super(name);
+    }
+
+    public Prepared prepare() throws InvalidRequestException
+    {
+        return new Prepared(this);
     }
 
     public void checkAccess(ClientState state) throws InvalidRequestException

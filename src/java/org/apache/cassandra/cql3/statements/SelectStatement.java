@@ -40,6 +40,7 @@ import org.apache.cassandra.db.SliceFromReadCommand;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.dht.AbstractBounds;
@@ -75,26 +76,38 @@ import org.apache.cassandra.utils.Pair;
  * column family, expression, result count, and ordering clause.
  *
  */
-public class SelectStatement extends CQLStatement
+public class SelectStatement implements CQLStatement
 {
     private static final Logger logger = LoggerFactory.getLogger(SelectStatement.class);
     private final static ByteBuffer countColumn = ByteBufferUtil.bytes("count");
 
+    private final int boundTerms;
     public final CFDefinition cfDef;
     public final Parameters parameters;
     private final List<Pair<CFDefinition.Name, ColumnIdentifier>> selectedNames = new ArrayList<Pair<CFDefinition.Name, ColumnIdentifier>>(); // empty => wildcard
     private final Map<ColumnIdentifier, Restriction> restrictions = new HashMap<ColumnIdentifier, Restriction>();
     private boolean hasIndexedExpression;
 
-    public SelectStatement(CFDefinition cfDef, Parameters parameters)
+    public SelectStatement(CFDefinition cfDef, int boundTerms, Parameters parameters)
     {
         this.cfDef = cfDef;
+        this.boundTerms = boundTerms;
         this.parameters = parameters;
+    }
+
+    public int getBoundsTerms()
+    {
+        return boundTerms;
     }
 
     public void checkAccess(ClientState state) throws InvalidRequestException
     {
         state.hasColumnFamilyAccess(keyspace(), columnFamily(), Permission.READ);
+    }
+
+    public void validate(ClientState state) throws InvalidRequestException
+    {
+        // Nothing to do, all validation has been done by RawStatement.prepare()
     }
 
     public CqlResult execute(ClientState state, List<ByteBuffer> variables) throws InvalidRequestException, UnavailableException, TimedOutException
@@ -719,7 +732,7 @@ public class SelectStatement extends CQLStatement
         return new CqlRow(key, thriftColumns);
     }
 
-    public static class RawStatement extends CFStatement implements Preprocessable
+    public static class RawStatement extends CFStatement
     {
         private final Parameters parameters;
         private final List<ColumnIdentifier> selectClause;
@@ -733,7 +746,7 @@ public class SelectStatement extends CQLStatement
             this.whereClause = whereClause == null ? Collections.<Relation>emptyList() : whereClause;
         }
 
-        public SelectStatement preprocess() throws InvalidRequestException
+        public ParsedStatement.Prepared prepare() throws InvalidRequestException
         {
             CFMetaData cfm = ThriftValidation.validateColumnFamily(keyspace(), columnFamily());
             ThriftValidation.validateConsistencyLevel(keyspace(), parameters.consistencyLevel, RequestType.READ);
@@ -742,8 +755,8 @@ public class SelectStatement extends CQLStatement
                 throw new InvalidRequestException("LIMIT must be strictly positive");
 
             CFDefinition cfDef = cfm.getCfDef();
-            SelectStatement stmt = new SelectStatement(cfDef, parameters);
-            stmt.setBoundTerms(getBoundsTerms());
+            SelectStatement stmt = new SelectStatement(cfDef, getBoundsTerms(), parameters);
+            AbstractType[] types = new AbstractType[getBoundsTerms()];
 
             // Select clause
             if (parameters.isCount)
@@ -782,6 +795,19 @@ public class SelectStatement extends CQLStatement
 
                 if (name.kind == CFDefinition.Name.Kind.VALUE_ALIAS)
                     throw new InvalidRequestException(String.format("Restricting the value of a compact CF (%s) is not supported", name.name));
+
+                if (rel.operator() == Relation.Type.IN)
+                {
+                    for (Term value : rel.getInValues())
+                        if (value.isBindMarker())
+                            types[value.bindIndex] = name.type;
+                }
+                else
+                {
+                    Term value = rel.getValue();
+                    if (value.isBindMarker())
+                        types[value.bindIndex] = name.type;
+                }
 
                 Restriction restriction = stmt.restrictions.get(name.name);
                 switch (rel.operator())
@@ -902,7 +928,8 @@ public class SelectStatement extends CQLStatement
                 if (r == null || !r.isEquality())
                     throw new InvalidRequestException("Descending order is only supported is the first part of the PRIMARY KEY is restricted by an Equal or a IN");
             }
-            return stmt;
+
+            return new ParsedStatement.Prepared(stmt, Arrays.<AbstractType<?>>asList(types));
         }
 
         @Override
@@ -915,16 +942,6 @@ public class SelectStatement extends CQLStatement
                     parameters.isCount,
                     parameters.consistencyLevel,
                     parameters.limit);
-        }
-
-        public void checkAccess(ClientState state)
-        {
-            throw new UnsupportedOperationException();
-        }
-
-        public CqlResult execute(ClientState state, List<ByteBuffer> variables)
-        {
-            throw new UnsupportedOperationException();
         }
     }
 

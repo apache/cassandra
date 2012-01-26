@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3.statements;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.HashMap;
@@ -31,6 +32,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.IMutation;
 import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.thrift.ThriftValidation;
@@ -40,6 +42,7 @@ import org.apache.cassandra.thrift.ThriftValidation;
  */
 public class DeleteStatement extends ModificationStatement
 {
+    private CFDefinition cfDef;
     private final List<ColumnIdentifier> columns;
     private final List<Relation> whereClause;
 
@@ -55,11 +58,6 @@ public class DeleteStatement extends ModificationStatement
 
     public List<IMutation> getMutations(ClientState clientState, List<ByteBuffer> variables) throws InvalidRequestException
     {
-        clientState.hasColumnFamilyAccess(columnFamily(), Permission.WRITE);
-        CFMetaData metadata = ThriftValidation.validateColumnFamily(keyspace(), columnFamily());
-        CFDefinition cfDef = metadata.getCfDef();
-
-        preprocess(cfDef);
 
         // Check key
         List<Term> keys = processedKeys.get(cfDef.key.name);
@@ -148,9 +146,13 @@ public class DeleteStatement extends ModificationStatement
         return rm;
     }
 
-    private void preprocess(CFDefinition cfDef) throws InvalidRequestException
+    public ParsedStatement.Prepared prepare() throws InvalidRequestException
     {
-        UpdateStatement.processKeys(cfDef, whereClause, processedKeys);
+        CFMetaData metadata = ThriftValidation.validateColumnFamily(keyspace(), columnFamily());
+        cfDef = metadata.getCfDef();
+        AbstractType[] types = new AbstractType[getBoundsTerms()];
+        UpdateStatement.processKeys(cfDef, whereClause, processedKeys, types);
+        return new ParsedStatement.Prepared(this, Arrays.<AbstractType<?>>asList(types));
     }
 
     public String toString()

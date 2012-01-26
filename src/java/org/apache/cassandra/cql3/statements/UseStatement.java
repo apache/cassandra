@@ -26,7 +26,7 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.thrift.CqlResult;
 import org.apache.cassandra.thrift.InvalidRequestException;
 
-public class UseStatement extends CQLStatement
+public class UseStatement extends ParsedStatement implements CQLStatement
 {
     private final String keyspace;
 
@@ -35,9 +35,18 @@ public class UseStatement extends CQLStatement
         this.keyspace = keyspace;
     }
 
+    public Prepared prepare() throws InvalidRequestException
+    {
+        return new Prepared(this);
+    }
+
     public void checkAccess(ClientState state)
     {
         // No specific access
+    }
+
+    public void validate(ClientState state) throws InvalidRequestException
+    {
     }
 
     public CqlResult execute(ClientState state, List<ByteBuffer> variables) throws InvalidRequestException

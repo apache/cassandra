@@ -137,7 +137,7 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
         return newCFMD;
     }
 
-    public static class RawStatement extends CFStatement implements Preprocessable
+    public static class RawStatement extends CFStatement
     {
         private final Map<ColumnIdentifier, String> definitions = new HashMap<ColumnIdentifier, String>();
         private final CFPropDefs properties = new CFPropDefs();
@@ -156,7 +156,7 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
         /**
          * Transform this raw statement into a CreateColumnFamilyStatement.
          */
-        public CreateColumnFamilyStatement preprocess() throws InvalidRequestException
+        public ParsedStatement.Prepared prepare() throws InvalidRequestException
         {
             try
             {
@@ -238,7 +238,7 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
                     stmt.defaultValidator = CFDefinition.definitionType;
                 }
 
-                return stmt;
+                return new ParsedStatement.Prepared(stmt);
             }
             catch (ConfigurationException e)
             {

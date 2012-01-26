@@ -27,6 +27,7 @@ import org.apache.cassandra.db.CounterMutation;
 import org.apache.cassandra.db.IMutation;
 import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.thrift.InvalidRequestException;
@@ -43,6 +44,7 @@ import static org.apache.cassandra.thrift.ThriftValidation.validateCommutativeFo
  */
 public class UpdateStatement extends ModificationStatement
 {
+    private CFDefinition cfDef;
     private final Map<ColumnIdentifier, Operation> columns;
     private final List<ColumnIdentifier> columnNames;
     private final List<Term> columnValues;
@@ -101,29 +103,6 @@ public class UpdateStatement extends ModificationStatement
     /** {@inheritDoc} */
     public List<IMutation> getMutations(ClientState clientState, List<ByteBuffer> variables) throws InvalidRequestException
     {
-        boolean hasCommutativeOperation = false;
-
-        if (columns != null)
-        {
-            for (Map.Entry<ColumnIdentifier, Operation> column : columns.entrySet())
-            {
-                if (!column.getValue().isUnary())
-                    hasCommutativeOperation = true;
-
-                if (hasCommutativeOperation && column.getValue().isUnary())
-                    throw new InvalidRequestException("Mix of commutative and non-commutative operations is not allowed.");
-            }
-
-        }
-
-        // Deal here with the keyspace overwrite thingy to avoid mistake
-        CFMetaData metadata = validateColumnFamily(keyspace(), columnFamily(), hasCommutativeOperation);
-        if (hasCommutativeOperation)
-            validateCommutativeForWrite(metadata, cLevel);
-
-        CFDefinition cfDef = metadata.getCfDef();
-        preprocess(cfDef);
-
         // Check key
         List<Term> keys = processedKeys.get(cfDef.key.name);
         if (keys == null || keys.isEmpty())
@@ -254,8 +233,30 @@ public class UpdateStatement extends ModificationStatement
         }
     }
 
-    private void preprocess(CFDefinition cfDef) throws InvalidRequestException
+    public ParsedStatement.Prepared prepare() throws InvalidRequestException
     {
+        boolean hasCommutativeOperation = false;
+        AbstractType[] types = new AbstractType[getBoundsTerms()];
+
+        if (columns != null)
+        {
+            for (Map.Entry<ColumnIdentifier, Operation> column : columns.entrySet())
+            {
+                if (!column.getValue().isUnary())
+                    hasCommutativeOperation = true;
+
+                if (hasCommutativeOperation && column.getValue().isUnary())
+                    throw new InvalidRequestException("Mix of commutative and non-commutative operations is not allowed.");
+            }
+        }
+
+        // Deal here with the keyspace overwrite thingy to avoid mistake
+        CFMetaData metadata = validateColumnFamily(keyspace(), columnFamily(), hasCommutativeOperation);
+        if (hasCommutativeOperation)
+            validateCommutativeForWrite(metadata, cLevel);
+
+        cfDef = metadata.getCfDef();
+
         if (columns == null)
         {
             // Created from an INSERT
@@ -271,19 +272,23 @@ public class UpdateStatement extends ModificationStatement
                 if (name == null)
                     throw new InvalidRequestException(String.format("Unknown identifier %s", columnNames.get(i)));
 
+                Term value = columnValues.get(i);
+                if (value.isBindMarker())
+                    types[value.bindIndex] = name.type;
+
                 switch (name.kind)
                 {
                     case KEY_ALIAS:
                     case COLUMN_ALIAS:
                         if (processedKeys.containsKey(name.name))
                             throw new InvalidRequestException(String.format("Multiple definition found for PRIMARY KEY part %s", name));
-                        processedKeys.put(name.name, Collections.singletonList(columnValues.get(i)));
+                        processedKeys.put(name.name, Collections.singletonList(value));
                         break;
                     case VALUE_ALIAS:
                     case COLUMN_METADATA:
                         if (processedColumns.containsKey(name.name))
                             throw new InvalidRequestException(String.format("Multiple definition found for column %s", name));
-                        processedColumns.put(name.name, new Operation(columnValues.get(i)));
+                        processedColumns.put(name.name, new Operation(value));
                         break;
                 }
             }
@@ -306,16 +311,21 @@ public class UpdateStatement extends ModificationStatement
                     case COLUMN_METADATA:
                         if (processedColumns.containsKey(name.name))
                             throw new InvalidRequestException(String.format("Multiple definition found for column %s", name));
-                        processedColumns.put(name.name, entry.getValue());
+                        Operation op = entry.getValue();
+                        if (op.value.isBindMarker())
+                            types[op.value.bindIndex] = name.type;
+                        processedColumns.put(name.name, op);
                         break;
                 }
             }
-            processKeys(cfDef, whereClause, processedKeys);
+            processKeys(cfDef, whereClause, processedKeys, types);
         }
+
+        return new ParsedStatement.Prepared(this, Arrays.<AbstractType<?>>asList(types));
     }
 
     // Reused by DeleteStatement
-    static void processKeys(CFDefinition cfDef, List<Relation> keys, Map<ColumnIdentifier, List<Term>> processed) throws InvalidRequestException
+    static void processKeys(CFDefinition cfDef, List<Relation> keys, Map<ColumnIdentifier, List<Term>> processed, AbstractType[] types) throws InvalidRequestException
     {
         for (Relation rel : keys)
         {
@@ -337,6 +347,9 @@ public class UpdateStatement extends ModificationStatement
 
                     if (processed.containsKey(name.name))
                         throw new InvalidRequestException(String.format("Multiple definition found for PRIMARY KEY part %s", name));
+                    for (Term value : values)
+                        if (value.isBindMarker())
+                            types[value.bindIndex] = name.type;
                     processed.put(name.name, values);
                     break;
                 case VALUE_ALIAS:

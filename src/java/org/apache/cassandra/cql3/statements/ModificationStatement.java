@@ -38,7 +38,7 @@ import org.apache.cassandra.thrift.UnavailableException;
 /**
  * Abstract class for statements that apply on a given column family.
  */
-public abstract class ModificationStatement extends CFStatement
+public abstract class ModificationStatement extends CFStatement implements CQLStatement
 {
     public static final ConsistencyLevel defaultConsistency = ConsistencyLevel.ONE;
 

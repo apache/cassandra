@@ -26,7 +26,7 @@ import org.apache.cassandra.thrift.InvalidRequestException;
 /**
  * Abstract class for statements that apply on a given column family.
  */
-public abstract class CFStatement extends CQLStatement
+public abstract class CFStatement extends ParsedStatement
 {
     protected final CFName cfName;
 

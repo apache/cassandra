@@ -466,7 +466,8 @@ struct CqlResult {
 
 struct CqlPreparedResult {
     1: required i32 itemId,
-    2: required i32 count
+    2: required i32 count,
+    3: optional list<string> variable_types
 }
 
 

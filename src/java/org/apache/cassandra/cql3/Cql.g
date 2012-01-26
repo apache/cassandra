@@ -115,11 +115,11 @@ options {
 
 /** STATEMENTS **/
 
-query returns [CQLStatement stmnt]
+query returns [ParsedStatement stmnt]
     : st=cqlStatement (';')* EOF { $stmnt = st; }
     ;
 
-cqlStatement returns [CQLStatement stmt]
+cqlStatement returns [ParsedStatement stmt]
     @after{ if (stmt != null) stmt.setBoundTerms(currentBindMarkerIdx + 1); }
     : st1= selectStatement             { $stmt = st1; }
     | st2= insertStatement             { $stmt = st2; }

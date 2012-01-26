@@ -19,18 +19,14 @@
 package org.apache.cassandra.cql3.statements;
 
 import java.nio.ByteBuffer;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.IMutation;
 import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.CounterMutation;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.thrift.RequestType;
@@ -81,7 +77,6 @@ public class BatchStatement extends ModificationStatement
         }
     }
 
-    @Override
     public void validate(ClientState state) throws InvalidRequestException
     {
         if (getTimeToLive() != 0)
@@ -105,7 +100,6 @@ public class BatchStatement extends ModificationStatement
     public List<IMutation> getMutations(ClientState clientState, List<ByteBuffer> variables)
     throws InvalidRequestException
     {
-
         Map<Pair<String, ByteBuffer>, RowAndCounterMutation> mutations = new HashMap<Pair<String, ByteBuffer>, RowAndCounterMutation>();
         for (ModificationStatement statement : statements)
         {
@@ -151,6 +145,18 @@ public class BatchStatement extends ModificationStatement
                 batch.add(racm.cm);
         }
         return batch;
+    }
+
+    public ParsedStatement.Prepared prepare() throws InvalidRequestException
+    {
+        List<AbstractType<?>> boundTypes = new ArrayList<AbstractType<?>>();
+        // XXX: we use our knowledge that Modification don't create new
+        // statement upon call to prepare()
+        for (ModificationStatement statement : statements)
+        {
+            boundTypes.addAll(statement.prepare().boundTypes);
+        }
+        return new ParsedStatement.Prepared(this, boundTypes);
     }
 
     public String toString()

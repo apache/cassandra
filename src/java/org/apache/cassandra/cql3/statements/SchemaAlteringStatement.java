@@ -20,12 +20,14 @@ package org.apache.cassandra.cql3.statements;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
+import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.db.migration.*;
 import org.apache.cassandra.concurrent.Stage;
@@ -45,7 +47,7 @@ import com.google.common.collect.Maps;
 /**
  * Abstract class for statements that alter the schema.
  */
-public abstract class SchemaAlteringStatement extends CFStatement
+public abstract class SchemaAlteringStatement extends CFStatement implements CQLStatement
 {
     private static final long timeLimitForSchemaAgreement = 10 * 1000;
 
@@ -68,6 +70,11 @@ public abstract class SchemaAlteringStatement extends CFStatement
     {
         if (isColumnFamilyLevel)
             super.prepareKeyspace(state);
+    }
+
+    public Prepared prepare() throws InvalidRequestException
+    {
+        return new Prepared(this);
     }
 
     public abstract Migration getMigration() throws InvalidRequestException, IOException, ConfigurationException;
