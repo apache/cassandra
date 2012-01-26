@@ -200,6 +200,33 @@ public class DynamicCompositeType extends AbstractCompositeType
             return comparator;
     }
 
+    @Override
+    public boolean isCompatibleWith(AbstractType<?> previous)
+    {
+        if (this == previous)
+            return true;
+
+        if (!(previous instanceof DynamicCompositeType))
+            return false;
+
+        // Adding new aliases is fine (but removing is not)
+        // Note that modifying the type for an alias to a compatible type is
+        // *not* fine since this would deal correctly with mixed aliased/not
+        // aliased component.
+        DynamicCompositeType cp = (DynamicCompositeType)previous;
+        if (aliases.size() < cp.aliases.size())
+            return false;
+
+        for (Map.Entry<Byte, AbstractType<?>> entry : cp.aliases.entrySet())
+        {
+            AbstractType<?> tprev = entry.getValue();
+            AbstractType<?> tnew = aliases.get(entry.getKey());
+            if (tnew == null || tnew != tprev)
+                return false;
+        }
+        return true;
+    }
+
     private class DynamicParsedComparator implements ParsedComparator
     {
         final AbstractType<?> type;

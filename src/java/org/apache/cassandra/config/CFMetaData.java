@@ -158,8 +158,8 @@ public final class CFMetaData
     public final String ksName;                       // name of keyspace
     public final String cfName;                       // name of this column family
     public final ColumnFamilyType cfType;             // standard, super
-    public final AbstractType<?> comparator;          // bytes, long, timeuuid, utf8, etc.
-    public final AbstractType<?> subcolumnComparator; // like comparator, for supercolumns
+    public AbstractType<?> comparator;          // bytes, long, timeuuid, utf8, etc.
+    public AbstractType<?> subcolumnComparator; // like comparator, for supercolumns
 
     //OPTIONAL
     private String comment;                           // default none, for humans only
@@ -722,16 +722,28 @@ public final class CFMetaData
 
         if (!cf_def.column_type.equals(cfType.name()))
             throw new ConfigurationException("types do not match.");
-        if (comparator != TypeParser.parse(cf_def.comparator_type))
-            throw new ConfigurationException("comparators do not match.");
-        if (cf_def.subcomparator_type == null || cf_def.subcomparator_type.equals(""))
+
+        AbstractType<?> newComparator = TypeParser.parse(cf_def.comparator_type);
+        AbstractType<?> newSubComparator = (cf_def.subcomparator_type == null || cf_def.subcomparator_type.equals(""))
+                                         ? null
+                                         : TypeParser.parse(cf_def.subcomparator_type);
+
+        if (!newComparator.isCompatibleWith(comparator))
+            throw new ConfigurationException("comparators do not match or are not compatible.");
+        if (newSubComparator == null)
         {
             if (subcolumnComparator != null)
                 throw new ConfigurationException("subcolumncomparators do not match.");
             // else, it's null and we're good.
         }
-        else if (subcolumnComparator != TypeParser.parse(cf_def.subcomparator_type))
-            throw new ConfigurationException("subcolumncomparators do not match.");
+        else if (!newSubComparator.isCompatibleWith(subcolumnComparator))
+            throw new ConfigurationException("subcolumncomparators do not match or are note compatible.");
+
+        // TODO: this method should probably return a new CFMetaData so that
+        // 1) we can keep comparator and subcolumnComparator final
+        // 2) updates are applied atomically
+        comparator = newComparator;
+        subcolumnComparator = newSubComparator;
 
         validateMinMaxCompactionThresholds(cf_def);
 

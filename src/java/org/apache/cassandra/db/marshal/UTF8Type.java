@@ -185,4 +185,12 @@ public class UTF8Type extends AbstractType<String>
             return state == State.START;
         }
     }
+
+    @Override
+    public boolean isCompatibleWith(AbstractType<?> previous)
+    {
+        // Anything that is ascii is also utf8, and they both use bytes
+        // comparison
+        return this == previous || previous == AsciiType.instance;
+    }
 }

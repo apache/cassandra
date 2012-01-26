@@ -108,6 +108,30 @@ public class CompositeType extends AbstractCompositeType
         return types.get(i);
     }
 
+    @Override
+    public boolean isCompatibleWith(AbstractType<?> previous)
+    {
+        if (this == previous)
+            return true;
+
+        if (!(previous instanceof CompositeType))
+            return false;
+
+        // Extending with new components is fine
+        CompositeType cp = (CompositeType)previous;
+        if (types.size() < cp.types.size())
+            return false;
+
+        for (int i = 0; i < cp.types.size(); i++)
+        {
+            AbstractType tprev = cp.types.get(i);
+            AbstractType tnew = types.get(i);
+            if (!tnew.isCompatibleWith(tprev))
+                return false;
+        }
+        return true;
+    }
+
     private static class StaticParsedComparator implements ParsedComparator
     {
         final AbstractType<?> type;

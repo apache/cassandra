@@ -58,6 +58,7 @@
    (CASSANDRA_3559)
  * Add initial code for CQL 3.0-beta (CASSANDRA-3781)
  * Add wide row support for ColumnFamilyInputFormat (CASSANDRA-3264)
+ * Allow extending CompositeType comparator (CASSANDRA-3657)
 
 
 1.0.8
