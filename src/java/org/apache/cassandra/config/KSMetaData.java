@@ -88,23 +88,6 @@ public final class KSMetaData
         return new KSMetaData(name, strategyClass, strategyOptions, false, Arrays.asList(cfDefs));
     }
 
-    public static Map<String, String> forwardsCompatibleOptions(KsDef ks_def)
-    {
-        Map<String, String> options;
-        options = ks_def.strategy_options == null
-                ? new HashMap<String, String>()
-                : new HashMap<String, String>(ks_def.strategy_options);
-        maybeAddReplicationFactor(options, ks_def.strategy_class, ks_def.isSetReplication_factor() ? ks_def.replication_factor : null);
-        return options;
-    }
-
-    // TODO remove this for 1.0
-    private static void maybeAddReplicationFactor(Map<String, String> options, String cls, Integer rf)
-    {
-        if (rf != null && (cls.endsWith("SimpleStrategy") || cls.endsWith("OldNetworkTopologyStrategy")))
-            options.put("replication_factor", rf.toString());
-    }
-
     public int hashCode()
     {
         return name.hashCode();
@@ -172,7 +155,6 @@ public final class KSMetaData
                 strategyOptions.put(name, e.getValue().toString());
             }
         }
-        maybeAddReplicationFactor(strategyOptions, ks.strategy_class.toString(), ks.replication_factor);
 
         int cfsz = ks.cf_defs.size();
         List<CFMetaData> cfMetaData = new ArrayList<CFMetaData>(cfsz);
@@ -200,7 +182,7 @@ public final class KSMetaData
     {
         return new KSMetaData(ksd.name,
                               AbstractReplicationStrategy.getClass(ksd.strategy_class),
-                              forwardsCompatibleOptions(ksd),
+                              ksd.strategy_options == null ? Collections.<String, String>emptyMap() : ksd.strategy_options,
                               ksd.durable_writes,
                               Arrays.asList(cfDefs));
     }
@@ -212,8 +194,6 @@ public final class KSMetaData
             cfDefs.add(cfm.toThrift());
         KsDef ksdef = new KsDef(name, strategyClass.getName(), cfDefs);
         ksdef.setStrategy_options(strategyOptions);
-        if (strategyOptions != null && strategyOptions.containsKey("replication_factor"))
-            ksdef.setReplication_factor(Integer.parseInt(strategyOptions.get("replication_factor")));
         ksdef.setDurable_writes(durableWrites);
 
         return ksdef;

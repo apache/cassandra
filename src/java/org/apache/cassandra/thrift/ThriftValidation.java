@@ -722,7 +722,7 @@ public class ThriftValidation
 
         // Attempt to instantiate the ARS, which will throw a ConfigException if
         //  the strategy_options aren't fully formed or if the ARS Classname is invalid.
-        Map<String, String> options = KSMetaData.forwardsCompatibleOptions(ks_def);
+        Map<String, String> options = ks_def.strategy_options == null ? Collections.<String, String>emptyMap() : ks_def.strategy_options;
         TokenMetadata tmd = StorageService.instance.getTokenMetadata();
         IEndpointSnitch eps = DatabaseDescriptor.getEndpointSnitch();
         Class<? extends AbstractReplicationStrategy> cls = AbstractReplicationStrategy.getClass(ks_def.strategy_class);
