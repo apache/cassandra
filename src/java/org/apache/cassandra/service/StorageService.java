@@ -69,7 +69,7 @@ import org.apache.cassandra.utils.NodeId;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.WrappedRunnable;
 
-/*
+/**
  * This abstraction contains the token/identifier of this node
  * on the identifier space. This token gets gossiped around.
  * This class will also maintain histograms of the load information
@@ -2701,8 +2701,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                 final Range<Token> range = endPointEntry.getKey();
                 final InetAddress newEndpoint = endPointEntry.getValue();
 
-                final Runnable callback = new RangeDoneCallback(pending, entry, latch);
-                final Runnable rangeErrorCallback = new RangeDoneCallback(pending, entry, latch, errorCallback);
+                final Runnable callback = new RangeDoneCallback(pending, endPointEntry, latch);
+                final Runnable rangeErrorCallback = new RangeDoneCallback(pending, endPointEntry, latch, errorCallback);
 
                 StageManager.getStage(Stage.STREAM).execute(new Runnable()
                 {
