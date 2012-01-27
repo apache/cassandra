@@ -434,8 +434,9 @@ public class CassandraServer implements Cassandra.Iface
                                                    false,
                                                    Integer.MAX_VALUE);
         }
-        
+
         int requestedCount = predicate.slice_range.count;
+        int pages = 0;
         while (true)
         {
             predicate.slice_range.count = Math.min(pageSize, requestedCount);
@@ -443,27 +444,29 @@ public class CassandraServer implements Cassandra.Iface
             if (columns.isEmpty())
                 break;
 
-            totalCount += columns.size();
-            requestedCount -= columns.size();
-            ColumnOrSuperColumn lastColumn = columns.get(columns.size() - 1);
-            ByteBuffer lastName =
-                    lastColumn.isSetSuper_column() ? lastColumn.super_column.name :
-                        (lastColumn.isSetColumn() ? lastColumn.column.name :
-                            (lastColumn.isSetCounter_column() ? lastColumn.counter_column.name : lastColumn.counter_super_column.name));
-            if ((requestedCount == 0) || ((columns.size() == 1) && (lastName.equals(predicate.slice_range.start))))
-            {
+            ColumnOrSuperColumn firstColumn = columns.get(columns.size() - 1);
+            ByteBuffer firstName = getName(columns.get(0));
+            int newColumns = pages == 0 || !firstName.equals(predicate.slice_range.start) ? columns.size() : columns.size() - 1;
+            totalCount += newColumns;
+            requestedCount -= newColumns;
+            pages++;
+            // We're done if either:
+            //   - We've querying the number of columns requested by the user
+            //   - The last page wasn't full
+            if (requestedCount == 0 || columns.size() < predicate.slice_range.count)
                 break;
-            }
             else
-            {
-                predicate.slice_range.start = lastName;
-                // remove the count for the column that starts the next slice
-                totalCount--;
-                requestedCount++;
-            }
+                predicate.slice_range.start = getName(columns.get(columns.size() - 1));
         }
 
         return totalCount;
+    }
+
+    private static ByteBuffer getName(ColumnOrSuperColumn cosc)
+    {
+        return cosc.isSetSuper_column() ? cosc.super_column.name :
+                   (cosc.isSetColumn() ? cosc.column.name :
+                       (cosc.isSetCounter_column() ? cosc.counter_column.name : cosc.counter_super_column.name));
     }
 
     public Map<ByteBuffer, Integer> multiget_count(List<ByteBuffer> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level)
