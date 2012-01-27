@@ -81,9 +81,9 @@ public class StreamOut
     /**
      * Stream the given ranges to the target endpoint from each CF in the given keyspace.
     */
-    public static void transferRanges(InetAddress target, Table table, Collection<Range<Token>> ranges, Runnable callback, OperationType type)
+    public static void transferRanges(InetAddress target, Table table, Collection<Range<Token>> ranges, Runnable callback, Runnable errorCallback, OperationType type)
     {
-        StreamOutSession session = StreamOutSession.create(table.name, target, callback);
+        StreamOutSession session = StreamOutSession.create(table.name, target, callback, errorCallback);
         transferRanges(session, table.getColumnFamilyStores(), ranges, type);
     }
 

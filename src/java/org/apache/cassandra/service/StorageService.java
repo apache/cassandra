@@ -69,7 +69,7 @@ import org.apache.cassandra.utils.NodeId;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.WrappedRunnable;
 
-/**
+/*
  * This abstraction contains the token/identifier of this node
  * on the identifier space. This token gets gossiped around.
  * This class will also maintain histograms of the load information
@@ -2174,7 +2174,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
         setMode(Mode.LEAVING, "streaming data to other nodes", true);
 
-        CountDownLatch latch = streamRanges(rangesToStream);
+        ErrorMemoryCallback errorCallback = new ErrorMemoryCallback();
+        CountDownLatch latch = streamRanges(rangesToStream, errorCallback);
 
         // wait for the transfer runnables to signal the latch.
         logger_.debug("waiting for stream aks.");
@@ -2185,6 +2186,10 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         catch (InterruptedException e)
         {
             throw new RuntimeException(e);
+        }
+        if (errorCallback.isError()) {
+            setMode(Mode.NORMAL, "Decommission was unsuccessfull. Returning to normal state.", true);
+            throw new RuntimeException("There was an error while streaming to other nodes.");
         }
         logger_.debug("stream acks all received.");
         leaveRing();
@@ -2311,7 +2316,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             if (logger_.isDebugEnabled())
                 logger_.debug("[Move->STREAMING] Work Map: " + rangesToStreamByTable);
 
-            CountDownLatch streamLatch = streamRanges(rangesToStreamByTable);
+            ErrorMemoryCallback errorCallback = new ErrorMemoryCallback();
+            CountDownLatch streamLatch = streamRanges(rangesToStreamByTable, errorCallback);
 
             if (logger_.isDebugEnabled())
                 logger_.debug("[Move->FETCHING] Work Map: " + rangesToFetch);
@@ -2326,6 +2332,10 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             catch (InterruptedException e)
             {
                 throw new RuntimeException("Interrupted latch while waiting for stream/fetch ranges to finish: " + e.getMessage());
+            }
+            if (errorCallback.isError()) {
+                setToken(getLocalToken());
+                throw new IOException("There was an error while streaming to other nodes");
             }
         }
 
@@ -2664,10 +2674,12 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     /**
      * Seed data to the endpoints that will be responsible for it at the future
      *
+     *
      * @param rangesToStreamByTable tables and data ranges with endpoints included for each
+     * @param errorCallback
      * @return latch to count down
      */
-    private CountDownLatch streamRanges(final Map<String, Multimap<Range<Token>, InetAddress>> rangesToStreamByTable)
+    private CountDownLatch streamRanges(final Map<String, Multimap<Range<Token>, InetAddress>> rangesToStreamByTable, Runnable errorCallback)
     {
         final CountDownLatch latch = new CountDownLatch(rangesToStreamByTable.keySet().size());
         for (Map.Entry<String, Multimap<Range<Token>, InetAddress>> entry : rangesToStreamByTable.entrySet())
@@ -2689,26 +2701,15 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                 final Range<Token> range = endPointEntry.getKey();
                 final InetAddress newEndpoint = endPointEntry.getValue();
 
-                final Runnable callback = new Runnable()
-                {
-                    public void run()
-                    {
-                        synchronized (pending)
-                        {
-                            pending.remove(endPointEntry);
-
-                            if (pending.isEmpty())
-                                latch.countDown();
-                        }
-                    }
-                };
+                final Runnable callback = new RangeDoneCallback(pending, entry, latch);
+                final Runnable rangeErrorCallback = new RangeDoneCallback(pending, entry, latch, errorCallback);
 
                 StageManager.getStage(Stage.STREAM).execute(new Runnable()
                 {
                     public void run()
                     {
                         // TODO each call to transferRanges re-flushes, this is potentially a lot of waste
-                        StreamOut.transferRanges(newEndpoint, Table.open(table), Arrays.asList(range), callback, OperationType.UNBOOTSTRAP);
+                        StreamOut.transferRanges(newEndpoint, Table.open(table), Arrays.asList(range), callback, rangeErrorCallback, OperationType.UNBOOTSTRAP);
                     }
                 });
             }
@@ -2879,5 +2880,47 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     public void loadNewSSTables(String ksName, String cfName)
     {
         ColumnFamilyStore.loadNewSSTables(ksName, cfName);
+    }
+
+    private static class RangeDoneCallback implements Runnable {
+        private final Set<Map.Entry<Range<Token>, InetAddress>> pending;
+        private final Map.Entry<Range<Token>, InetAddress> entry;
+        private final CountDownLatch latch;
+        private final Runnable nextRunnable;
+
+        public RangeDoneCallback(Set<Map.Entry<Range<Token>, InetAddress>> pending, Map.Entry<Range<Token>, InetAddress> entry, CountDownLatch latch) {
+            this(pending, entry, latch, null);
+        }
+        public RangeDoneCallback(Set<Map.Entry<Range<Token>, InetAddress>> pending, Map.Entry<Range<Token>, InetAddress> entry, CountDownLatch latch, Runnable nextRunnable) {
+            this.pending = pending;
+            this.entry = entry;
+            this.latch = latch;
+            this.nextRunnable = nextRunnable;
+        }
+
+        public void run()
+        {
+            synchronized (pending)
+            {
+                pending.remove(entry);
+
+                if (pending.isEmpty())
+                    latch.countDown();
+            }
+            if (nextRunnable != null)
+                nextRunnable.run();
+        }
+    }
+
+    private static class ErrorMemoryCallback implements Runnable {
+        private boolean error = false;
+
+        public void run() {
+            error = true;
+        }
+
+        public boolean isError() {
+            return error;
+        }
     }
 }
