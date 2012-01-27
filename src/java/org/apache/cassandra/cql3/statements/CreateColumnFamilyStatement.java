@@ -70,17 +70,9 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
 
         for (Map.Entry<ColumnIdentifier, String> col : columns.entrySet())
         {
-            try
-            {
-                AbstractType<?> validator = CFPropDefs.parseType(col.getValue());
-                columnDefs.put(col.getKey().key, new ColumnDefinition(col.getKey().key, validator, null, null, null));
-            }
-            catch (ConfigurationException e)
-            {
-                InvalidRequestException ex = new InvalidRequestException(e.toString());
-                ex.initCause(e);
-                throw ex;
-            }
+            AbstractType<?> validator = CFPropDefs.parseType(col.getValue());
+            
+            columnDefs.put(col.getKey().key, new ColumnDefinition(col.getKey().key, validator, null, null, null));
         }
 
         return columnDefs;
