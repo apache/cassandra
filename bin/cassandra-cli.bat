@@ -19,7 +19,7 @@
 if "%OS%" == "Windows_NT" setlocal
 
 if NOT DEFINED CASSANDRA_HOME set CASSANDRA_HOME=%~dp0..
-if NOT DEFINED JAVA_HOME goto err
+if NOT DEFINED JAVA_HOME goto :err
 
 REM Ensure that any user defined CLASSPATH variables are not used on startup
 set CLASSPATH=
