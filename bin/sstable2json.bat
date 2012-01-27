@@ -20,7 +20,7 @@ if "%OS%" == "Windows_NT" setlocal
 if NOT DEFINED CASSANDRA_HOME set CASSANDRA_HOME=%~dp0..
 if NOT DEFINED CASSANDRA_CONF set CASSANDRA_CONF="%CASSANDRA_HOME%\conf"
 if NOT DEFINED CASSANDRA_MAIN set CASSANDRA_MAIN=org.apache.cassandra.tools.SSTableExport
-if NOT DEFINED JAVA_HOME goto err
+if NOT DEFINED JAVA_HOME goto :err
 
 REM ***** JAVA options *****
 set JAVA_OPTS=^
@@ -32,11 +32,11 @@ REM Ensure that any user defined CLASSPATH variables are not used on startup
 set CLASSPATH="%CASSANDRA_HOME%\conf"
 
 REM For each jar in the CASSANDRA_HOME lib directory call append to build the CLASSPATH variable.
-for %%i in ("%CASSANDRA_HOME%\lib\*.jar") do call :append %%~fi
+for %%i in ("%CASSANDRA_HOME%\lib\*.jar") do call :append "%%i"
 goto okClasspath
 
 :append
-set CLASSPATH=%CLASSPATH%;%1%2
+set CLASSPATH=%CLASSPATH%;%1
 goto :eof
 
 :okClasspath
@@ -55,7 +55,7 @@ set TOOLS_PARAMS=%TOOLS_PARAMS% %1
 goto :eof
 
 :runTool
-"%JAVA_HOME%\bin\java" %JAVA_OPTS% %CASSANDRA_PARAMS% -cp "%CASSANDRA_CLASSPATH%" "%CASSANDRA_MAIN%" %TOOLS_PARAMS%
+"%JAVA_HOME%\bin\java" %JAVA_OPTS% %CASSANDRA_PARAMS% -cp %CASSANDRA_CLASSPATH% "%CASSANDRA_MAIN%" %TOOLS_PARAMS%
 goto finally
 
 :err
