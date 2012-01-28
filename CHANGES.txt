@@ -8,6 +8,7 @@
  * (cqlsh) add DESCRIBE COLUMNFAMILIES (CASSANDRA-3586)
  * (cqlsh) format blobs correctly and use colors to improve output
    readability (CASSANDRA-3726)
+ * synchronize BiMap of bootstrapping tokens (CASSANDRA-3417)
 
 
 1.0.7
@@ -156,7 +157,6 @@ Merged from 0.8:
  * cleanup usage of StorageService.setMode() (CASANDRA-3388)
  * Add timing information to cassandra-cli GET/SET/LIST queries (CASSANDRA-3326)
  * Only create one CompressionMetadata object per sstable (CASSANDRA-3427)
- * synchronize BiMap of bootstrapping tokens (CASSANDRA-3417)
  * Avoid large array allocation for compressed chunk offsets (CASSANDRA-3432)
  * fix DecimalType bytebuffer marshalling (CASSANDRA-3421)
  * fix bug that caused first column in per row indexes to be ignored 

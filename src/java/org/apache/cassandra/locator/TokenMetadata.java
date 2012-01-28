@@ -109,9 +109,12 @@ public class TokenMetadata
     {
         int n = 0;
         Range sourceRange = getPrimaryRangeFor(getToken(source));
-        for (Token token : bootstrapTokens.keySet())
-            if (sourceRange.contains(token))
-                n++;
+        synchronized (bootstrapTokens)
+        {
+            for (Token token : bootstrapTokens.keySet())
+                if (sourceRange.contains(token))
+                    n++;
+        }
         return n;
     }
 
@@ -606,14 +609,17 @@ public class TokenMetadata
                 }
             }
 
-            if (!bootstrapTokens.isEmpty())
+            synchronized (bootstrapTokens)
             {
-                sb.append("Bootstrapping Tokens:" );
-                sb.append(System.getProperty("line.separator"));
-                for (Map.Entry<Token, InetAddress> entry : bootstrapTokens.entrySet())
+                if (!bootstrapTokens.isEmpty())
                 {
-                    sb.append(entry.getValue() + ":" + entry.getKey());
+                    sb.append("Bootstrapping Tokens:" );
                     sb.append(System.getProperty("line.separator"));
+                    for (Map.Entry<Token, InetAddress> entry : bootstrapTokens.entrySet())
+                    {
+                        sb.append(entry.getValue() + ":" + entry.getKey());
+                        sb.append(System.getProperty("line.separator"));
+                    }
                 }
             }
 
@@ -711,9 +717,20 @@ public class TokenMetadata
      */
     public Map<Token, InetAddress> getTokenToEndpointMap()
     {
-        Map<Token, InetAddress> map = new HashMap<Token, InetAddress>(tokenToEndpointMap.size() + bootstrapTokens.size());
-        map.putAll(tokenToEndpointMap);
-        map.putAll(bootstrapTokens);
-        return map;
+        lock.readLock().lock();
+        try
+        {
+            Map<Token, InetAddress> map = new HashMap<Token, InetAddress>(tokenToEndpointMap.size() + bootstrapTokens.size());
+            map.putAll(tokenToEndpointMap);
+            synchronized (bootstrapTokens)
+            {
+                map.putAll(bootstrapTokens);
+            }
+            return map;
+        }
+        finally
+        {
+            lock.readLock().unlock();
+        }
     }
 }
