@@ -1046,6 +1046,31 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
     </sequential>
   </macrodef>
 
+  <!--
+    This test target is a bit different.  It's purpose is to exercise the
+    clientutil jar in order to expose any new dependencies.  For that
+    reason we use the classes from the jar, and a carefully constructed
+    classpath which only contains what we expect users to need.
+  -->
+  <target name="test-clientutil-jar" depends="build-test,jar" description="Test clientutil jar">
+    <junit>
+      <test name="org.apache.cassandra.cql.jdbc.ClientUtilsTest" />
+      <formatter type="brief" usefile="false" />
+      <classpath>
+        <pathelement location="${test.classes}" />
+        <pathelement location="${build.dir}/${ant.project.name}-clientutil-${version}.jar" />
+
+        <fileset dir="${build.dir.lib}">
+          <include name="**/junit*.jar" />
+        </fileset>
+        <fileset dir="${build.lib}">
+          <include name="**/guava*.jar" />
+          <include name="**/commons-lang*.jar" />
+        </fileset>
+      </classpath>
+    </junit>
+  </target>
+
   <target name="test" depends="build-test" description="Execute unit tests">
     <testmacro suitename="unit" inputdir="${test.unit.src}" timeout="60000">
       <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>

@@ -23,6 +23,8 @@ package org.apache.cassandra.utils;
 import java.io.*;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
@@ -42,7 +44,31 @@ public class UUIDGen
     
     private long lastNanos;
     private final Map<InetAddress, Long> nodeCache = new HashMap<InetAddress, Long>();
-    
+
+    private static final ThreadLocal<MessageDigest> localMD5Digest = new ThreadLocal<MessageDigest>()
+    {
+        @Override
+        protected MessageDigest initialValue()
+        {
+            try
+            {
+                return MessageDigest.getInstance("MD5");
+            }
+            catch (NoSuchAlgorithmException nsae)
+            {
+                throw new RuntimeException("MD5 digest algorithm is not available", nsae);
+            }
+        }
+
+        @Override
+        public MessageDigest get()
+        {
+            MessageDigest digest = super.get();
+            digest.reset();
+            return digest;
+        }
+    };
+
     private UUIDGen()
     {
         // make sure someone didn't whack the clock by changing the order of instantiation.
@@ -195,7 +221,7 @@ public class UUIDGen
             return nodeCache.get(addr);
         
         // ideally, we'd use the MAC address, but java doesn't expose that.
-        byte[] hash = FBUtilities.hash(ByteBuffer.wrap(addr.toString().getBytes()));
+        byte[] hash = hash(addr.toString());
         long node = 0;
         for (int i = 0; i < Math.min(6, hash.length); i++)
             node |= (0x00000000000000ff & (long)hash[i]) << (5-i)*8;
@@ -204,6 +230,15 @@ public class UUIDGen
         nodeCache.put(addr, node);
         
         return node;
+    }
+
+    private static byte[] hash(String... data)
+    {
+        MessageDigest messageDigest = localMD5Digest.get();
+        for(String block : data)
+            messageDigest.update(block.getBytes());
+
+        return messageDigest.digest();
     }
 }
 

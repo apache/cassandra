@@ -1295,14 +1295,16 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
         // For each of the bootstrapping nodes, simply add and remove them one by one to
         // allLeftMetadata and check in between what their ranges would be.
-        for (Map.Entry<Token, InetAddress> entry : bootstrapTokens.entrySet())
+        synchronized (bootstrapTokens)
         {
-            InetAddress endpoint = entry.getValue();
+            for (Map.Entry<Token, InetAddress> entry : bootstrapTokens.entrySet())
+            {
+                InetAddress endpoint = entry.getValue();
 
-            allLeftMetadata.updateNormalToken(entry.getKey(), endpoint);
-            for (Range<Token> range : strategy.getAddressRanges(allLeftMetadata).get(endpoint))
-                pendingRanges.put(range, endpoint);
-            allLeftMetadata.removeEndpoint(endpoint);
+                allLeftMetadata.updateNormalToken(entry.getKey(), endpoint);
+                for (Range<Token> range : strategy.getAddressRanges(allLeftMetadata).get(endpoint))
+                    pendingRanges.put(range, endpoint);
+                allLeftMetadata.removeEndpoint(endpoint);
         }
 
         // At this stage pendingRanges has been updated according to leaving and bootstrapping nodes.
