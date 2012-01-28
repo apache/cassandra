@@ -1305,6 +1305,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                 for (Range<Token> range : strategy.getAddressRanges(allLeftMetadata).get(endpoint))
                     pendingRanges.put(range, endpoint);
                 allLeftMetadata.removeEndpoint(endpoint);
+            }
         }
 
         // At this stage pendingRanges has been updated according to leaving and bootstrapping nodes.
