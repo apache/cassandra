@@ -2018,6 +2018,9 @@ public class CliClient
 
                 if (columnDef.isSetIndex_type())
                     sessionState.out.println(columnLeftSpace + "Index Type: " + columnDef.getIndex_type().name());
+
+                if (columnDef.isSetIndex_options())
+                    sessionState.out.println(columnLeftSpace + "Index Options: " + columnDef.getIndex_options());
             }
         }
 

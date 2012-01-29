@@ -73,6 +73,7 @@
  * (cqlsh) format blobs correctly and use colors to improve output
    readability (CASSANDRA-3726)
  * synchronize BiMap of bootstrapping tokens (CASSANDRA-3417)
+ * show index options in CLI (CASSANDRA-3809)
 
 
 1.0.7
