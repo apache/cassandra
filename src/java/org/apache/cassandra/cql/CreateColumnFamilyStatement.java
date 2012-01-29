@@ -37,7 +37,6 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.ColumnFamilyType;
-import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.thrift.InvalidRequestException;
@@ -115,7 +114,6 @@ public class CreateColumnFamilyStatement
     private final Map<String, String> properties = new HashMap<String, String>();
     private List<String> keyValidator = new ArrayList<String>();
     private ByteBuffer keyAlias = null;
-    private Class<? extends AbstractCompactionStrategy> compactionStrategyClass;
     private final Map<String, String> compactionStrategyOptions = new HashMap<String, String>();
     private final Map<String, String> compressionParameters = new HashMap<String, String>();
 
@@ -127,17 +125,6 @@ public class CreateColumnFamilyStatement
     /** Perform validation of parsed params */
     private void validate() throws InvalidRequestException
     {
-        String compStrategy = getPropertyString(KW_COMPACTION_STRATEGY_CLASS, CFMetaData.DEFAULT_COMPACTION_STRATEGY_CLASS);
-
-        try
-        {
-            compactionStrategyClass = CFMetaData.createCompactionStrategy(compStrategy);
-        }
-        catch (ConfigurationException e)
-        {
-            throw new InvalidRequestException(e.getMessage());
-        }
-
         // we need to remove parent:key = value pairs from the main properties
         Set<String> propsToRemove = new HashSet<String>();
 
@@ -351,7 +338,6 @@ public class CreateColumnFamilyStatement
                    .keyValidator(TypeParser.parse(comparators.get(getKeyType())))
                    .rowCacheProvider(FBUtilities.newCacheProvider(getPropertyString(KW_ROW_CACHE_PROVIDER, CFMetaData.DEFAULT_ROW_CACHE_PROVIDER.getClass().getName())))
                    .keyAlias(keyAlias)
-                   .compactionStrategyClass(compactionStrategyClass)
                    .compactionStrategyOptions(compactionStrategyOptions)
                    .compressionParameters(CompressionParameters.create(compressionParameters))
                    .validate();
