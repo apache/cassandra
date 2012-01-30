@@ -619,22 +619,22 @@ class Shell(cmd.Cmd):
                     self.reset_statement()
                     print
 
-    def onecmd(self, statement):
+    def onecmd(self, statementtext):
         """
         Returns true if the statement is complete and was handled (meaning it
         can be reset).
         """
 
         try:
-            statements, in_batch = cqlhandling.cql_split_statements(statement)
+            statements, in_batch = cqlhandling.cql_split_statements(statementtext)
         except pylexotron.LexingError, e:
             if self.show_line_nums:
                 self.printerr('Invalid syntax at char %d' % (e.charnum,))
             else:
                 self.printerr('Invalid syntax at line %d, char %d'
                               % (e.linenum, e.charnum))
-            statement = statement.split('\n')[e.linenum - 1]
-            self.printerr('  %s' % statement)
+            statementline = statementtext.split('\n')[e.linenum - 1]
+            self.printerr('  %s' % statementline)
             self.printerr(' %s^' % (' ' * e.charnum))
             return True
 
@@ -647,7 +647,7 @@ class Shell(cmd.Cmd):
             return
         for st in statements:
             try:
-                self.handle_statement(st)
+                self.handle_statement(st, statementtext)
             except Exception, e:
                 if self.debug:
                     import traceback
@@ -665,25 +665,26 @@ class Shell(cmd.Cmd):
                 self.printerr('Incomplete statement at end of file')
         self.do_exit()
 
-    def handle_statement(self, tokens):
+    def handle_statement(self, tokens, srcstr):
         cmdword = tokens[0][1]
         if cmdword == '?':
             cmdword = 'help'
         custom_handler = getattr(self, 'do_' + cmdword.lower(), None)
         if custom_handler:
-            parsed = cqlhandling.cql_whole_parse_tokens(tokens, startsymbol='cqlshCommand')
+            parsed = cqlhandling.cql_whole_parse_tokens(tokens, srcstr=srcstr,
+                                                        startsymbol='cqlshCommand')
             if parsed and not parsed.remainder:
                 # successful complete parse
                 return custom_handler(parsed)
             else:
-                return self.handle_parse_error(cmdword, tokens, parsed)
-        return self.perform_statement_as_tokens(tokens)
+                return self.handle_parse_error(cmdword, tokens, parsed, srcstr)
+        return self.perform_statement(cqlhandling.cql_extract_orig(tokens, srcstr))
 
-    def handle_parse_error(self, cmdword, tokens, parsed):
+    def handle_parse_error(self, cmdword, tokens, parsed, srcstr):
         if cmdword == 'select':
             # hey, maybe they know about some new syntax we don't. type
             # assumptions won't work, but maybe the query will.
-            return self.perform_statement_as_tokens(tokens)
+            return self.perform_statement(cqlhandling.cql_extract_orig(tokens, srcstr))
         if parsed:
             self.printerr('Improper %s command (problem at %r).' % (cmdword, parsed.remainder[0]))
         else:
@@ -703,7 +704,7 @@ class Shell(cmd.Cmd):
         number, it can be enclosed in quotes and expressed as a string literal.
         """
         ksname = parsed.get_binding('ksname')
-        if self.perform_statement_as_tokens(parsed.matched):
+        if self.perform_statement(parsed.extract_orig()):
             self.current_keyspace = cql_dequote(ksname)
 
     def do_select(self, parsed):
@@ -731,10 +732,7 @@ class Shell(cmd.Cmd):
             ksname = cql_dequote(ksname)
         cfname = cql_dequote(parsed.get_binding('selectsource'))
         decoder = self.determine_decoder_for(cfname, ksname=ksname)
-        self.perform_statement_as_tokens(parsed.matched, decoder=decoder)
-
-    def perform_statement_as_tokens(self, tokens, decoder=None):
-        return self.perform_statement(cqlhandling.cql_detokenize(tokens), decoder=decoder)
+        self.perform_statement(parsed.extract_orig(), decoder=decoder)
 
     def perform_statement(self, statement, decoder=None):
         if not statement:
@@ -804,6 +802,7 @@ class Shell(cmd.Cmd):
         formatted_data = [map(self.myformat_value, row, coltypes) for row in self.cursor]
 
         # determine column widths
+        colnames = map(str, colnames)
         widths = map(len, colnames)
         for fmtrow in formatted_data:
             for num, col in enumerate(fmtrow):
@@ -902,6 +901,10 @@ class Shell(cmd.Cmd):
             else:
                 optval = cql_escape(optval)
             notable_columns.append((option, optval))
+        for option, thriftname, _ in cqlhandling.columnfamily_map_options:
+            optmap = getattr(cfdef, thriftname or option)
+            for k, v in optmap.items():
+                notable_columns.append(('%s:%s' % (option, k), cql_escape(v)))
         out.write('\n)')
         if notable_columns:
             joiner = 'WITH'

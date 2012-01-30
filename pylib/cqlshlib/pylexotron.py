@@ -88,6 +88,18 @@ class ParseContext:
         return self.__class__(self.ruleset, self.bindings, self.matched,
                               self.remainder, newname)
 
+    def extract_orig(self, tokens=None):
+        if tokens is None:
+            tokens = self.matched
+        if not tokens:
+            return ''
+        orig = self.bindings.get('*SRC*', None)
+        if orig is None:
+            # pretty much just guess
+            return ' '.join([t[1] for t in tokens])
+        # low end of span for first token, to high end of span for last token
+        return orig[tokens[0][2][0]:tokens[-1][2][1]]
+
     def __repr__(self):
         return '<%s matched=%r remainder=%r prodname=%r bindings=%r>' \
                % (self.__class__.__name__, self.matched, self.remainder, self.productionname, self.bindings)
@@ -183,7 +195,7 @@ class named_symbol(matcher):
             # don't collect other completions under this; use a dummy
             pass_in_compls = set()
         results = self.arg.match_with_results(ctxt, pass_in_compls)
-        return [c.with_binding(self.name, tokens_to_text(matchtoks)) for (c, matchtoks) in results]
+        return [c.with_binding(self.name, ctxt.extract_orig(matchtoks)) for (c, matchtoks) in results]
 
     def __repr__(self):
         return '%s(%r, %r)' % (self.__class__.__name__, self.name, self.arg)
@@ -197,7 +209,7 @@ class named_collector(named_symbol):
         output = []
         for ctxt, matchtoks in self.arg.match_with_results(ctxt, pass_in_compls):
             oldval = ctxt.get_binding(self.name, ())
-            output.append(ctxt.with_binding(self.name, oldval + (tokens_to_text(matchtoks),)))
+            output.append(ctxt.with_binding(self.name, oldval + (ctxt.extract_orig(matchtoks),)))
         return output
 
 class terminal_matcher(matcher):
@@ -256,9 +268,6 @@ class case_match(text_match):
 
     def pattern(self):
         return re.escape(self.arg)
-
-def tokens_to_text(toks):
-    return ' '.join([t[1] for t in toks])
 
 class ParsingRuleSet:
     RuleSpecScanner = SaferScanner([
@@ -381,7 +390,7 @@ class ParsingRuleSet:
         def make_handler(name):
             if name == 'JUNK':
                 return None
-            return lambda s, t: (name, t)
+            return lambda s, t: (name, t, s.match.span())
         regexes = [(p.pattern(), make_handler(name)) for (name, p) in self.terminals]
         return SaferScanner(regexes, re.I | re.S).scan
 
@@ -400,13 +409,16 @@ class ParsingRuleSet:
         pattern = self.ruleset[startsymbol]
         return pattern.match(ctxt, None)
 
-    def whole_match(self, startsymbol, tokens):
-        newctxts = [c for c in self.parse(startsymbol, tokens) if not c.remainder]
-        if newctxts:
-            return newctxts[0]
+    def whole_match(self, startsymbol, tokens, srcstr=None):
+        bindings = {}
+        if srcstr is not None:
+            bindings['*SRC*'] = srcstr
+        for c in self.parse(startsymbol, tokens, init_bindings=bindings):
+            if not c.remainder:
+                return c
 
     def lex_and_parse(self, text, startsymbol='Start'):
-        return self.parse(startsymbol, self.lex(text))
+        return self.parse(startsymbol, self.lex(text), init_bindings={'*SRC*': text})
 
     def complete(self, startsymbol, tokens, init_bindings=None):
         if init_bindings is None:
@@ -442,11 +454,12 @@ class Debugotron(set):
             lineno = frame.f_lineno
             if 'self' in frame.f_locals:
                 clsobj = frame.f_locals['self']
-                cls = clsobj.__class__
                 line = '%s.%s() (%s:%d)' % (clsobj, name, filename, lineno)
             else:
                 line = '%s (%s:%d)' % (name, filename, lineno)
-            self.stream.write('  %s\n' % (line,))
+            self.stream.write('  - %s\n' % (line,))
+            if i == 0 and 'ctxt' in frame.f_locals:
+                self.stream.write('    - %s\n' % (frame.f_locals['ctxt'],))
             frame = frame.f_back
 
     def update(self, items):
