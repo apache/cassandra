@@ -24,6 +24,7 @@ package org.apache.cassandra.cql;
 import com.google.common.collect.Sets;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.thrift.InvalidRequestException;
@@ -99,11 +100,23 @@ public class CFPropDefs {
     }
 
     public final Map<String, String> properties = new HashMap<String, String>();
+    public Class<? extends AbstractCompactionStrategy> compactionStrategyClass;
     public final Map<String, String> compactionStrategyOptions = new HashMap<String, String>();
     public final Map<String, String> compressionParameters = new HashMap<String, String>();
 
     public void validate() throws InvalidRequestException
     {
+        String compStrategy = getPropertyString(KW_COMPACTION_STRATEGY_CLASS, CFMetaData.DEFAULT_COMPACTION_STRATEGY_CLASS);
+
+        try
+        {
+            compactionStrategyClass = CFMetaData.createCompactionStrategy(compStrategy);
+        }
+        catch (ConfigurationException e)
+        {
+            throw new InvalidRequestException(e.getMessage());
+        }
+
         // we need to remove parent:key = value pairs from the main properties
         Set<String> propsToRemove = new HashSet<String>();
 
