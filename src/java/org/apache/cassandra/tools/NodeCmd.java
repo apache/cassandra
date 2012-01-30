@@ -102,6 +102,7 @@ public class NodeCmd
         JOIN,
         MOVE,
         NETSTATS,
+        REBUILD,
         REFRESH,
         REMOVETOKEN,
         REPAIR,
@@ -155,6 +156,7 @@ public class NodeCmd
         addCmdHelp(header, "setcompactionthroughput <value_in_mb>", "Set the MB/s throughput cap for compaction in the system, or 0 to disable throttling.");
         addCmdHelp(header, "setstreamthroughput <value_in_mb>", "Set the MB/s throughput cap for streaming in the system, or 0 to disable throttling.");
         addCmdHelp(header, "describering [keyspace]", "Shows the token ranges info of a given keyspace.");
+        addCmdHelp(header, "rebuild [src-dc-name]", "Rebuild data by streaming from other nodes (similarly to bootstrap)");
 
         // Two args
         addCmdHelp(header, "snapshot [keyspaces...] -t [snapshotName]", "Take a snapshot of the specified keyspaces using optional name snapshotName");
@@ -702,6 +704,10 @@ public class NodeCmd
                 case SETSTREAMTHROUGHPUT :
                     if (arguments.length != 1) { badUse("Missing value argument."); }
                     probe.setStreamThroughput(Integer.valueOf(arguments[0]));
+
+                case REBUILD :
+                    if (arguments.length > 1) { badUse("Too many arguments."); }
+                    probe.rebuild(arguments.length == 1 ? arguments[0] : null);
                     break;
 
                 case REMOVETOKEN :

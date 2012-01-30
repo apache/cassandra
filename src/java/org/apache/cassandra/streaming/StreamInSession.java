@@ -111,7 +111,7 @@ public class StreamInSession
     public void finished(PendingFile remoteFile, SSTableReader reader) throws IOException
     {
         if (logger.isDebugEnabled())
-            logger.debug("Finished {}. Sending ack to {}", remoteFile, this);
+            logger.debug("Finished {} (from {}). Sending ack to {}", new Object[] {remoteFile, getHost(), this});
 
         assert reader != null;
         readers.add(reader);

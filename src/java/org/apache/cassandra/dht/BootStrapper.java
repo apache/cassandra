@@ -58,9 +58,9 @@ public class BootStrapper
 {
     private static final Logger logger = LoggerFactory.getLogger(BootStrapper.class);
 
-    /* endpoints that need to be bootstrapped */
+    /* endpoint that needs to be bootstrapped */
     protected final InetAddress address;
-    /* tokens of the nodes being bootstrapped. */
+    /* token of the node being bootstrapped. */
     protected final Token<?> token;
     protected final TokenMetadata tokenMetadata;
     private static final long BOOTSTRAP_TIMEOUT = 30000; // default bootstrap timeout of 30s
@@ -80,52 +80,17 @@ public class BootStrapper
         if (logger.isDebugEnabled())
             logger.debug("Beginning bootstrap process");
 
-        final Multimap<String, Map.Entry<InetAddress, Collection<Range<Token>>>> rangesToFetch = HashMultimap.create();
+        RangeStreamer streamer = new RangeStreamer(tokenMetadata, address, OperationType.BOOTSTRAP);
+        streamer.addSourceFilter(new RangeStreamer.FailureDetectorSourceFilter(FailureDetector.instance));
 
-        int requests = 0;
         for (String table : Schema.instance.getNonSystemTables())
         {
-            Map<InetAddress, Collection<Range<Token>>> workMap = getWorkMap(getRangesWithSources(table)).asMap();
-            for (Map.Entry<InetAddress, Collection<Range<Token>>> entry : workMap.entrySet())
-            {
-                requests++;
-                rangesToFetch.put(table, entry);
-            }
+            AbstractReplicationStrategy strategy = Table.open(table).getReplicationStrategy();
+            streamer.addRanges(table, strategy.getPendingAddressRanges(tokenMetadata, token, address));
         }
 
-        final CountDownLatch latch = new CountDownLatch(requests);
-        for (final String table : rangesToFetch.keySet())
-        {
-            /* Send messages to respective folks to stream data over to me */
-            for (Map.Entry<InetAddress, Collection<Range<Token>>> entry : rangesToFetch.get(table))
-            {
-                final InetAddress source = entry.getKey();
-                Collection<Range<Token>> ranges = entry.getValue();
-                final Runnable callback = new Runnable()
-                {
-                    public void run()
-                    {
-                        latch.countDown();
-                        if (logger.isDebugEnabled())
-                            logger.debug(String.format("Removed %s/%s as a bootstrap source; remaining is %s",
-                                                       source, table, latch.getCount()));
-                    }
-                };
-                if (logger.isDebugEnabled())
-                    logger.debug("Bootstrapping from " + source + " ranges " + StringUtils.join(ranges, ", "));
-                StreamIn.requestRanges(source, table, ranges, callback, OperationType.BOOTSTRAP);
-            }
-        }
-
-        try
-        {
-            latch.await();
-            StorageService.instance.finishBootstrapping();
-        }
-        catch (InterruptedException e)
-        {
-            throw new AssertionError(e);
-        }
+        streamer.fetch();
+        StorageService.instance.finishBootstrapping();
     }
 
     /**
@@ -197,31 +162,6 @@ public class BootStrapper
         return maxEndpoint;
     }
 
-    /** get potential sources for each range, ordered by proximity (as determined by EndpointSnitch) */
-    Multimap<Range<Token>, InetAddress> getRangesWithSources(String table)
-    {
-        assert tokenMetadata.sortedTokens().size() > 0;
-        final AbstractReplicationStrategy strat = Table.open(table).getReplicationStrategy();
-        Collection<Range<Token>> myRanges = strat.getPendingAddressRanges(tokenMetadata, token, address);
-
-        Multimap<Range<Token>, InetAddress> myRangeAddresses = ArrayListMultimap.create();
-        Multimap<Range<Token>, InetAddress> rangeAddresses = strat.getRangeAddresses(tokenMetadata);
-        for (Range<Token> myRange : myRanges)
-        {
-            for (Range<Token> range : rangeAddresses.keySet())
-            {
-                if (range.contains(myRange))
-                {
-                    List<InetAddress> preferred = DatabaseDescriptor.getEndpointSnitch().getSortedListByProximity(address, rangeAddresses.get(range));
-                    myRangeAddresses.putAll(myRange, preferred);
-                    break;
-                }
-            }
-            assert myRangeAddresses.keySet().contains(myRange);
-        }
-        return myRangeAddresses;
-    }
-
     static Token<?> getBootstrapTokenFrom(InetAddress maxEndpoint)
     {
         Message message = new Message(FBUtilities.getBroadcastAddress(),
@@ -242,35 +182,6 @@ public class BootStrapper
             retries--;
         }
         throw new RuntimeException("Bootstrap failed, could not obtain token from: " + maxEndpoint);
-    }
-
-    public static Multimap<InetAddress, Range<Token>> getWorkMap(Multimap<Range<Token>, InetAddress> rangesWithSourceTarget)
-    {
-        return getWorkMap(rangesWithSourceTarget, FailureDetector.instance);
-    }
-
-    static Multimap<InetAddress, Range<Token>> getWorkMap(Multimap<Range<Token>, InetAddress> rangesWithSourceTarget, IFailureDetector failureDetector)
-    {
-        /*
-         * Map whose key is the source node and the value is a map whose key is the
-         * target and value is the list of ranges to be sent to it.
-        */
-        Multimap<InetAddress, Range<Token>> sources = ArrayListMultimap.create();
-
-        // TODO look for contiguous ranges and map them to the same source
-        for (Range<Token> range : rangesWithSourceTarget.keySet())
-        {
-            for (InetAddress source : rangesWithSourceTarget.get(range))
-            {
-                // ignore the local IP...
-                if (failureDetector.isAlive(source) && !source.equals(FBUtilities.getBroadcastAddress()))
-                {
-                    sources.put(source, range);
-                    break;
-                }
-            }
-        }
-        return sources;
     }
 
     public static class BootstrapTokenVerbHandler implements IVerbHandler

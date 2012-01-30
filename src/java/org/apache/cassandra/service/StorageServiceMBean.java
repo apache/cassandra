@@ -345,6 +345,15 @@ public interface StorageServiceMBean
     public boolean isIncrementalBackupsEnabled();
     public void setIncrementalBackupsEnabled(boolean value);
 
+    /**
+     * Initiate a process of streaming data for which we are responsible from other nodes. It is similar to bootstrap
+     * except meant to be used on a node which is already in the cluster (typically containing no data) as an
+     * alternative to running repair.
+     *
+     * @param sourceDc Name of DC from which to select sources for streaming or null to pick any node
+     */
+    public void rebuild(String sourceDc);
+
     public void bulkLoad(String directory);
 
     public void rescheduleFailedDeletions();

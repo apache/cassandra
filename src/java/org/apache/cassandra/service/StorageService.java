@@ -44,6 +44,8 @@ import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.db.migration.AddKeyspace;
+import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.gms.*;
 import org.apache.cassandra.io.sstable.SSTableDeletingTask;
@@ -665,6 +667,21 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     public boolean isJoined()
     {
         return joined;
+    }
+
+    public void rebuild(String sourceDc)
+    {
+        logger_.info("rebuild from dc: {}", sourceDc == null ? "(any dc)" : sourceDc);
+
+        RangeStreamer streamer = new RangeStreamer(tokenMetadata_, FBUtilities.getBroadcastAddress(), OperationType.REBUILD);
+        streamer.addSourceFilter(new RangeStreamer.FailureDetectorSourceFilter(FailureDetector.instance));
+        if (sourceDc != null)
+            streamer.addSourceFilter(new RangeStreamer.SingleDatacenterFilter(DatabaseDescriptor.getEndpointSnitch(), sourceDc));
+
+        for (String table : Schema.instance.getNonSystemTables())
+            streamer.addRanges(table, getLocalRanges(table));
+
+        streamer.fetch();
     }
 
     public void setStreamThroughputMbPerSec(int value)
@@ -2289,7 +2306,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             // associating table with range-to-endpoints map
             rangesToStreamByTable.put(table, rangeWithEndpoints);
 
-            Multimap<InetAddress, Range<Token>> workMap = BootStrapper.getWorkMap(rangesToFetchWithPreferredEndpoints);
+            Multimap<InetAddress, Range<Token>> workMap = RangeStreamer.getWorkMap(rangesToFetchWithPreferredEndpoints);
             rangesToFetch.put(table, workMap);
 
             if (logger_.isDebugEnabled())

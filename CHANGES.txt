@@ -60,6 +60,8 @@
  * Add wide row support for ColumnFamilyInputFormat (CASSANDRA-3264)
  * Allow extending CompositeType comparator (CASSANDRA-3657)
  * Avoids over-paging during get_count (CASSANDRA-3798)
+ * Add new command to rebuild a node without (repair) merkle tree calculations
+   (CASSANDRA-3483)
 
 
 1.0.8

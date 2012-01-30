@@ -638,6 +638,11 @@ public class NodeProbe
     {
         return ssProxy.describeRingJMX(keyspaceName);
     }
+
+    public void rebuild(String sourceDc)
+    {
+        ssProxy.rebuild(sourceDc);
+    }
 }
 
 class ColumnFamilyStoreMBeanIterator implements Iterator<Map.Entry<String, ColumnFamilyStoreMBean>>

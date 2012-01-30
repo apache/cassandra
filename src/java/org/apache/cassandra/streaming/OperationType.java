@@ -27,6 +27,7 @@ public enum OperationType
     BOOTSTRAP,
     UNBOOTSTRAP,
     RESTORE_REPLICA_COUNT,
-    BULK_LOAD;
+    BULK_LOAD,
+    REBUILD
 }
 

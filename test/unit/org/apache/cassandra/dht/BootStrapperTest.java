@@ -22,24 +22,25 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.HashMap;
+import java.util.Set;
 import java.util.Map;
+
+import org.junit.Test;
 
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.config.Schema;
-import org.apache.commons.lang.StringUtils;
-import static org.junit.Assert.assertEquals;
-import org.junit.Test;
-
-import com.google.common.collect.Multimap;
-
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.IFailureDetectionEventListener;
 import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.streaming.OperationType;
 import org.apache.cassandra.utils.FBUtilities;
+
+import static org.junit.Assert.assertEquals;
 
 public class BootStrapperTest extends CleanupHelper
 {
@@ -164,17 +165,7 @@ public class BootStrapperTest extends CleanupHelper
 
         TokenMetadata tmd = ss.getTokenMetadata();
         assertEquals(numOldNodes, tmd.sortedTokens().size());
-        BootStrapper b = new BootStrapper(myEndpoint, myToken, tmd);
-        Multimap<Range<Token>, InetAddress> res = b.getRangesWithSources(table);
-        
-        int transferCount = 0;
-        for (Map.Entry<Range<Token>, Collection<InetAddress>> e : res.asMap().entrySet())
-        {
-            assert e.getValue() != null && e.getValue().size() > 0 : StringUtils.join(e.getValue(), ", ");
-            transferCount++;
-        }
-
-        assertEquals(replicationFactor, transferCount);
+        RangeStreamer s = new RangeStreamer(tmd, myEndpoint, OperationType.BOOTSTRAP);
         IFailureDetector mockFailureDetector = new IFailureDetector()
         {
             public boolean isAlive(InetAddress ep)
@@ -189,12 +180,22 @@ public class BootStrapperTest extends CleanupHelper
             public void remove(InetAddress ep) { throw new UnsupportedOperationException(); }
             public void clear(InetAddress ep) { throw new UnsupportedOperationException(); }
         };
-        Multimap<InetAddress, Range<Token>> temp = BootStrapper.getWorkMap(res, mockFailureDetector);
+        s.addSourceFilter(new RangeStreamer.FailureDetectorSourceFilter(mockFailureDetector));
+        s.addRanges(table, Table.open(table).getReplicationStrategy().getPendingAddressRanges(tmd, myToken, myEndpoint));
+
+        Collection<Map.Entry<InetAddress, Collection<Range<Token>>>> toFetch = s.toFetch().get(table);
+
+        // Check we get get RF new ranges in total
+        Set<Range<Token>> ranges = new HashSet<Range<Token>>();
+        for (Map.Entry<InetAddress, Collection<Range<Token>>> e : toFetch)
+            ranges.addAll(e.getValue());
+
+        assertEquals(replicationFactor, ranges.size());
+
         // there isn't any point in testing the size of these collections for any specific size.  When a random partitioner
         // is used, they will vary.
-        assert temp.keySet().size() > 0;
-        assert temp.asMap().values().iterator().next().size() > 0;
-        assert !temp.keySet().iterator().next().equals(myEndpoint);
+        assert toFetch.iterator().next().getValue().size() > 0;
+        assert !toFetch.iterator().next().getKey().equals(myEndpoint);
     }
 
     private void generateFakeEndpoints(int numOldNodes) throws UnknownHostException
