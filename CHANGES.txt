@@ -10,6 +10,9 @@
    readability (CASSANDRA-3726)
  * synchronize BiMap of bootstrapping tokens (CASSANDRA-3417)
  * show index options in CLI (CASSANDRA-3809)
+Merged from 0.8:
+ * (Pig) fix CassandraStorage to use correct comparator in Super ColumnFamily
+   case (CASSANDRA-3251)
 
 
 1.0.7
@@ -54,8 +57,7 @@ Merged from 0.8:
  * use correct list of replicas for LOCAL_QUORUM reads when read repair
    is disabled (CASSANDRA-3696)
  * block on flush before compacting hints (may prevent OOM) (CASSANDRA-3733)
- * (Pig) fix CassandraStorage to use correct comparator in Super ColumnFamily
-   case (CASSANDRA-3251)
+
 
 1.0.6
  * (CQL) fix cqlsh support for replicate_on_write (CASSANDRA-3596)
