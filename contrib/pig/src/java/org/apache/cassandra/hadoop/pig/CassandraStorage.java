@@ -128,7 +128,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
             tuple.set(0, new DataByteArray(key.array(), key.position()+key.arrayOffset(), key.limit()+key.arrayOffset()));
             for (Map.Entry<ByteBuffer, IColumn> entry : cf.entrySet())
             {
-                columns.add(columnToTuple(entry.getKey(), entry.getValue(), cfDef));
+                columns.add(columnToTuple(entry.getValue(), cfDef, parseType(cfDef.getComparator_type())));
             }
 
             tuple.set(1, new DefaultDataBag(columns));
@@ -140,29 +140,31 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
         }
     }
 
-    private Tuple columnToTuple(ByteBuffer name, IColumn col, CfDef cfDef) throws IOException
+    private Tuple columnToTuple(IColumn col, CfDef cfDef, AbstractType comparator) throws IOException
     {
         Tuple pair = TupleFactory.getInstance().newTuple(2);
         List<AbstractType> marshallers = getDefaultMarshallers(cfDef);
         Map<ByteBuffer,AbstractType> validators = getValidatorMap(cfDef);
 
-        setTupleValue(pair, 0, marshallers.get(0).compose(name));
+        setTupleValue(pair, 0, comparator.compose(col.name()));
         if (col instanceof Column)
         {
             // standard
-            if (validators.get(name) == null)
+            if (validators.get(col.name()) == null)
                 setTupleValue(pair, 1, marshallers.get(1).compose(col.value()));
             else
-                setTupleValue(pair, 1, validators.get(name).compose(col.value()));
+                setTupleValue(pair, 1, validators.get(col.name()).compose(col.value()));
             return pair;
         }
+        else
+        {
+            // super
+            ArrayList<Tuple> subcols = new ArrayList<Tuple>();
+            for (IColumn subcol : col.getSubColumns())
+                subcols.add(columnToTuple(subcol, cfDef, parseType(cfDef.getSubcomparator_type())));
 
-        // super
-        ArrayList<Tuple> subcols = new ArrayList<Tuple>();
-        for (IColumn subcol : col.getSubColumns())
-            subcols.add(columnToTuple(subcol.name(), subcol, cfDef));
-        
-        pair.set(1, new DefaultDataBag(subcols));
+            pair.set(1, new DefaultDataBag(subcols));
+        }
         return pair;
     }
 
@@ -188,12 +190,14 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
     private List<AbstractType> getDefaultMarshallers(CfDef cfDef) throws IOException
     {
         ArrayList<AbstractType> marshallers = new ArrayList<AbstractType>();
-        AbstractType comparator = null;
-        AbstractType default_validator = null;
-        AbstractType key_validator = null;
+        AbstractType comparator;
+        AbstractType subcomparator;
+        AbstractType default_validator;
+        AbstractType key_validator;
         try
         {
             comparator = TypeParser.parse(cfDef.getComparator_type());
+            subcomparator = TypeParser.parse(cfDef.getSubcomparator_type());
             default_validator = TypeParser.parse(cfDef.getDefault_validation_class());
             key_validator = TypeParser.parse(cfDef.getKey_validation_class());
         }
@@ -205,6 +209,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
         marshallers.add(comparator);
         marshallers.add(default_validator);
         marshallers.add(key_validator);
+        marshallers.add(subcomparator);
         return marshallers;
     }
 
@@ -228,6 +233,18 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
             }
         }
         return validators;
+    }
+
+    private AbstractType parseType(String type) throws IOException
+    {
+        try
+        {
+            return TypeParser.parse(type);
+        }
+        catch (ConfigurationException e)
+        {
+            throw new IOException(e);
+        }
     }
 
     @Override
