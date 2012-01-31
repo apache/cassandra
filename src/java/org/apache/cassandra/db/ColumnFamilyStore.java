@@ -1046,9 +1046,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public ColumnFamily cacheRow(Integer cfId, DecoratedKey decoratedKey)
     {
         CFMetaData.Caching caching = metadata.getCaching();
-
-        if (caching == CFMetaData.Caching.NONE || caching == CFMetaData.Caching.KEYS_ONLY)
-            return null;
+        assert caching == CFMetaData.Caching.ALL || caching == CFMetaData.Caching.ROWS_ONLY
+                : String.format("Row cache is not enabled on column family [" + getColumnFamilyName() + "]");
 
         RowCacheKey key = new RowCacheKey(cfId, decoratedKey);
 
@@ -1078,7 +1077,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         long start = System.nanoTime();
         try
         {
-            if (CacheService.instance.rowCache.getCapacity() == 0)
+            CFMetaData.Caching caching = metadata.getCaching();
+            if (caching == CFMetaData.Caching.NONE
+                || caching == CFMetaData.Caching.KEYS_ONLY
+                || CacheService.instance.rowCache.getCapacity() == 0)
             {
                 ColumnFamily cf = getTopLevelColumns(filter, gcBefore, false);
 

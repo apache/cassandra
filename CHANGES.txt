@@ -62,6 +62,8 @@
  * Avoids over-paging during get_count (CASSANDRA-3798)
  * Add new command to rebuild a node without (repair) merkle tree calculations
    (CASSANDRA-3483)
+ * respect not only row cache capacity but caching mode when
+   trying to read data (CASSANDRA-3812)
 
 
 1.0.8
