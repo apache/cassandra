@@ -81,6 +81,8 @@
 Merged from 0.8:
  * (Pig) fix CassandraStorage to use correct comparator in Super ColumnFamily
    case (CASSANDRA-3251)
+ * fix thread safety issues in commitlog replay, primarily affecting
+   systems with many (100s) of CF definitions (CASSANDRA-3751)
 
 
 1.0.7
@@ -150,6 +152,19 @@ Merged from 0.8:
  * add back partitioner to sstable metadata (CASSANDRA-3540)
  * fix NPE in get_count for counters (CASSANDRA-3601)
 Merged from 0.8:
+||||||| merged common ancestors
+
+
+0.8.9
+ * avoid logging (harmless) exception when GC takes < 1ms (CASSANDRA-3656)
+=======
+ * block on flush before compacting hints (may prevent OOM) (CASSANDRA-3733)
+ * (Pig) fix CassandraStorage to use correct comparator in Super ColumnFamily
+   case (CASSANDRA-3251)
+
+0.8.9
+ * avoid logging (harmless) exception when GC takes < 1ms (CASSANDRA-3656)
+>>>>>>> cassandra-0.8
  * remove invalid assertion that table was opened before dropping it
    (CASSANDRA-3580)
  * range and index scans now only send requests to enough replicas to

@@ -47,6 +47,7 @@ import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.WrappedRunnable;
+import org.cliffc.high_scale_lib.NonBlockingHashSet;
 
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
@@ -158,7 +159,7 @@ public class CommitLog implements CommitLogMBean
      */
     public int recover(File[] clogs) throws IOException
     {
-        final Set<Table> tablesRecovered = new HashSet<Table>();
+        final Set<Table> tablesRecovered = new NonBlockingHashSet<Table>();
         List<Future<?>> futures = new ArrayList<Future<?>>();
         byte[] bytes = new byte[4096];
         Map<Integer, AtomicInteger> invalidMutations = new HashMap<Integer, AtomicInteger>();
