@@ -48,6 +48,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.WrappedRunnable;
+import org.cliffc.high_scale_lib.NonBlockingHashSet;
 
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
@@ -182,7 +183,7 @@ public class CommitLog implements CommitLogMBean
     // returns the number of replayed mutation (useful for tests in particular)
     public static int recover(File[] clogs) throws IOException
     {
-        final Set<Table> tablesRecovered = new HashSet<Table>();
+        final Set<Table> tablesRecovered = new NonBlockingHashSet<Table>();
         List<Future<?>> futures = new ArrayList<Future<?>>();
         byte[] bytes = new byte[4096];
         Map<Integer, AtomicInteger> invalidMutations = new HashMap<Integer, AtomicInteger>();
