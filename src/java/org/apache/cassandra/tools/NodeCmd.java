@@ -704,6 +704,7 @@ public class NodeCmd
                 case SETSTREAMTHROUGHPUT :
                     if (arguments.length != 1) { badUse("Missing value argument."); }
                     probe.setStreamThroughput(Integer.valueOf(arguments[0]));
+                    break;
 
                 case REBUILD :
                     if (arguments.length > 1) { badUse("Too many arguments."); }
