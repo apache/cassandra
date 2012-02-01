@@ -43,7 +43,13 @@ public class JdbcDate extends AbstractJdbcType<Date>
         "yyyy-MM-ddZ"
     };
     static final String DEFAULT_FORMAT = iso8601Patterns[3];
-    static final SimpleDateFormat FORMATTER = new SimpleDateFormat(DEFAULT_FORMAT);
+    static final ThreadLocal<SimpleDateFormat> FORMATTER = new ThreadLocal<SimpleDateFormat>()
+    {
+        protected SimpleDateFormat initialValue()
+        {
+            return new SimpleDateFormat(DEFAULT_FORMAT);
+        }
+    };
     
     public static final JdbcDate instance = new JdbcDate();
     
@@ -76,7 +82,7 @@ public class JdbcDate extends AbstractJdbcType<Date>
 
     public String toString(Date obj)
     {
-        return FORMATTER.format(obj);
+        return FORMATTER.get().format(obj);
     }
 
     public boolean needsQuotes()
@@ -96,7 +102,7 @@ public class JdbcDate extends AbstractJdbcType<Date>
         }
         
         // uses ISO-8601 formatted string
-        return FORMATTER.format(new Date(bytes.getLong(bytes.position())));
+        return FORMATTER.get().format(new Date(bytes.getLong(bytes.position())));
     }
 
     public Class<Date> getType()
