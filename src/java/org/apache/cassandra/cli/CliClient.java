@@ -1155,15 +1155,7 @@ public class CliClient
             {
                 SimpleSnitch snitch = new SimpleSnitch();
                 Map<String, String> options = new HashMap<String, String>();
-
-                try
-                {
-                    options.put(snitch.getDatacenter(InetAddress.getLocalHost()), "1");
-                }
-                catch (UnknownHostException e)
-                {
-                    throw new RuntimeException(e);
-                }
+                options.put(snitch.getDatacenter(FBUtilities.getBroadcastAddress()), "1");
 
                 ksDef.setStrategy_options(options);
             }
