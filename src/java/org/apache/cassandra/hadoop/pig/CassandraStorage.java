@@ -142,13 +142,14 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
     private Tuple columnToTuple(IColumn col, CfDef cfDef, AbstractType comparator) throws IOException
     {
         Tuple pair = TupleFactory.getInstance().newTuple(2);
-        List<AbstractType> marshallers = getDefaultMarshallers(cfDef);
-        Map<ByteBuffer,AbstractType> validators = getValidatorMap(cfDef);
 
         setTupleValue(pair, 0, comparator.compose(col.name()));
         if (col instanceof Column)
         {
             // standard
+            List<AbstractType> marshallers = getDefaultMarshallers(cfDef);
+            Map<ByteBuffer,AbstractType> validators = getValidatorMap(cfDef);
+
             if (validators.get(col.name()) == null)
                 setTupleValue(pair, 1, marshallers.get(1).compose(col.value()));
             else
