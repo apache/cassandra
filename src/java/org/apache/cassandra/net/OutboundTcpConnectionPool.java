@@ -68,7 +68,8 @@ public class OutboundTcpConnectionPool
     public void reset(InetAddress remoteEP)
     {
         resetedEndpoint = remoteEP;
-        reset();
+        for (OutboundTcpConnection con : new OutboundTcpConnection[] { cmdCon, ackCon })
+            con.softCloseSocket();
     }
     
     public Socket newSocket() throws IOException
@@ -78,7 +79,8 @@ public class OutboundTcpConnectionPool
         {
             return SSLFactory.getSocket(DatabaseDescriptor.getEncryptionOptions(), endPoint(), DatabaseDescriptor.getSSLStoragePort(), FBUtilities.getLocalAddress(), 0);
         }
-        else {
+        else 
+        {
             return new Socket(endPoint(), DatabaseDescriptor.getStoragePort(), FBUtilities.getLocalAddress(), 0);
         }
     }

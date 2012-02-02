@@ -54,7 +54,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
     // avoids re-pushing migrations that we're waiting on target to apply already
     private static Map<InetAddress,UUID> lastPushed = new MapMaker().expiration(1, TimeUnit.MINUTES).makeMap();
     
-    private static UUID highestKnown;
+    private static volatile UUID highestKnown;
 
     public void onJoin(InetAddress endpoint, EndpointState epState) { 
         VersionedValue value = epState.getApplicationState(ApplicationState.SCHEMA);
