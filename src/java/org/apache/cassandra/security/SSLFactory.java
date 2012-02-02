@@ -71,6 +71,16 @@ public final class SSLFactory
         return socket;
     }
 
+    /** Create a socket and connect, using any local address */
+    public static SSLSocket getSocket(EncryptionOptions options, InetAddress address, int port) throws IOException
+    {
+        SSLContext ctx = createSSLContext(options);
+        SSLSocket socket = (SSLSocket) ctx.getSocketFactory().createSocket(address, port);
+        String[] suits = filterCipherSuites(socket.getSupportedCipherSuites(), options.cipher_suites);
+        socket.setEnabledCipherSuites(suits);
+        return socket;
+    }
+
     /** Just create a socket */
     public static SSLSocket getSocket(EncryptionOptions options) throws IOException
     {

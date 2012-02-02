@@ -134,6 +134,18 @@ public class Config
     public int row_cache_keys_to_save = Integer.MAX_VALUE;
     public String row_cache_provider = ConcurrentLinkedHashCacheProvider.class.getSimpleName();
 
+    private static boolean outboundBindAny = false;
+
+    public static boolean getOutboundBindAny()
+    {
+        return outboundBindAny;
+    }
+
+    public static void setOutboundBindAny(boolean value)
+    {
+        outboundBindAny = value;
+    }
+
     public static enum CommitLogSync {
         periodic,
         batch
