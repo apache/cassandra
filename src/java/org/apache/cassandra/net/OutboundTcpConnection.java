@@ -86,6 +86,11 @@ public class OutboundTcpConnection extends Thread
         enqueue(CLOSE_SENTINEL, null);
     }
 
+    void softCloseSocket()
+    {
+        enqueue(CLOSE_SENTINEL, null);
+    }
+
     public void run()
     {
         while (true)
