@@ -20,7 +20,12 @@ public class ClientUtilsTest
         JdbcAscii.instance.compose(JdbcAscii.instance.decompose("string"));
         JdbcBoolean.instance.compose(JdbcBoolean.instance.decompose(true));
         JdbcBytes.instance.compose(JdbcBytes.instance.decompose(ByteBuffer.wrap("string".getBytes())));
-        JdbcDate.instance.compose(JdbcDate.instance.decompose(new Date(System.currentTimeMillis())));
+
+        Date date = new Date(System.currentTimeMillis());
+        ByteBuffer dateBB = JdbcDate.instance.decompose(date);
+        JdbcDate.instance.compose(dateBB);
+        assert (JdbcDate.instance.toString(date).equals(JdbcDate.instance.getString(dateBB)));
+
         JdbcDecimal.instance.compose(JdbcDecimal.instance.decompose(new BigDecimal(1)));
         JdbcDouble.instance.compose(JdbcDouble.instance.decompose(new Double(1.0d)));
         JdbcFloat.instance.compose(JdbcFloat.instance.decompose(new Float(1.0f)));

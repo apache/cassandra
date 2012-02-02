@@ -91,9 +91,9 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<Mutation>>
 
     private String getOutputLocation() throws IOException
     {
-        String dir = conf.get(OUTPUT_LOCATION, conf.get("mapred.local.dir"));
+        String dir = conf.get(OUTPUT_LOCATION, System.getProperty("java.io.tmpdir"));
         if (dir == null)
-            throw new IOException("Output directory not defined, if hadoop is not setting mapred.local.dir then define " + OUTPUT_LOCATION);
+            throw new IOException("Output directory not defined, if hadoop is not setting java.io.tmpdir then define " + OUTPUT_LOCATION);
         return dir;
     }
 
