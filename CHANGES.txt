@@ -52,7 +52,7 @@
  * Allow rangeSlice queries to be start/end inclusive/exclusive (CASSANDRA-3749)
  * Fix BulkLoader to support new SSTable layout and add stream
    throttling to prevent an NPE when there is no yaml config (CASSANDRA-3752)
- * Allow concurrent schema migrations (CASSANDRA-1391)
+ * Allow concurrent schema migrations (CASSANDRA-1391, 3832)
  * Add SnapshotCommand to trigger snapshot on remote node (CASSANDRA-3721)
  * Make CFMetaData conversions to/from thrift/native schema inverses
    (CASSANDRA_3559)
