@@ -1389,7 +1389,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return metadata.comparator;
     }
 
-    private void snapshotWithoutFlush(String snapshotName)
+    public void snapshotWithoutFlush(String snapshotName)
     {
         for (ColumnFamilyStore cfs : concatWithIndexes())
         {

@@ -1,3 +1,8 @@
+1.0.9
+ * Only snapshot CF being compacted for snapshot_before_compaction 
+   (CASSANDRA-3803)
+
+
 1.0.8
  * Log active compactions in StatusLogger (CASSANDRA-3703)
  * Compute more accurate compaction score per level (CASSANDRA-3790)
