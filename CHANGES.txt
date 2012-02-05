@@ -10,6 +10,7 @@
    readability (CASSANDRA-3726)
  * synchronize BiMap of bootstrapping tokens (CASSANDRA-3417)
  * show index options in CLI (CASSANDRA-3809)
+ * add optional socket timeout for streaming (CASSANDRA-3838)
 Merged from 0.8:
  * (Pig) fix CassandraStorage to use correct comparator in Super ColumnFamily
    case (CASSANDRA-3251)

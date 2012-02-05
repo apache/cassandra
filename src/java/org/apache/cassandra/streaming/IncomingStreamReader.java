@@ -55,6 +55,7 @@ public class IncomingStreamReader
 
     public IncomingStreamReader(StreamHeader header, Socket socket) throws IOException
     {
+        socket.setSoTimeout(DatabaseDescriptor.getStreamingSocketTimeout());
         this.socket = socket;
         InetSocketAddress remoteAddress = (InetSocketAddress)socket.getRemoteSocketAddress();
         session = StreamInSession.get(remoteAddress.getAddress(), header.sessionId);

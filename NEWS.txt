@@ -8,6 +8,13 @@ upgrade, just in case you need to roll back to the previous version.
 (Cassandra version X + 1 will always be able to read data files created
 by version X, but the inverse is not necessarily the case.)
 
+1.0.8
+=====
+
+Other
+-----
+    - Allow configuring socket timeout for streaming
+
 1.0.7
 =====
 

@@ -197,6 +197,7 @@ public class FileStreamTask extends WrappedRunnable
             try
             {
                 socket = MessagingService.instance().getConnectionPool(to).newSocket();
+                socket.setSoTimeout(DatabaseDescriptor.getStreamingSocketTimeout());
                 output = socket.getOutputStream();
                 break;
             }

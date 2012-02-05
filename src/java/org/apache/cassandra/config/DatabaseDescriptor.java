@@ -1008,4 +1008,9 @@ public class DatabaseDescriptor
     {
         return conf.commitlog_total_space_in_mb;
     }
+
+    public static int getStreamingSocketTimeout()
+    {
+        return conf.streaming_socket_timeout_in_ms;
+    }
 }
