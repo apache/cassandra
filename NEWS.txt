@@ -71,6 +71,14 @@ Features
     - Streaming is now multithreaded.
 
 
+1.0.8
+=====
+
+Other
+-----
+    - Allow configuring socket timeout for streaming
+
+
 1.0.7
 =====
 
