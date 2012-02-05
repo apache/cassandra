@@ -91,10 +91,13 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
 
         /**
          * if versions differ this node sends request with local migration list to the endpoint
-         * and expecting to receive a list of migrations to apply locally
+         * and expecting to receive a list of migrations to apply locally.
+         *
+         * Do not de-ref the future because that causes distributed deadlock (CASSANDRA-3832) because we are
+         * running in the gossip stage.
          */
 
-        Future f = StageManager.getStage(Stage.MIGRATION).submit(new WrappedRunnable()
+        StageManager.getStage(Stage.MIGRATION).submit(new WrappedRunnable()
         {
             public void runMayThrow() throws Exception
             {
@@ -128,8 +131,6 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
                 }
             }
         });
-
-        FBUtilities.waitOnFuture(f);
     }
 
     public static boolean isReadyForBootstrap()
