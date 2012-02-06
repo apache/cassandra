@@ -598,7 +598,10 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
                         break;
                     }
                 }
-                property.setProperty(signature, cfdefToString(cfDef));
+                if (cfDef != null)
+                    property.setProperty(signature, cfdefToString(cfDef));
+                else
+                    throw new RuntimeException("Column family '" + column_family + "' not found in keyspace '" + keyspace + "'");
             }
             catch (TException e)
             {
