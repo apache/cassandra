@@ -493,8 +493,18 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             SSTableReader.releaseReferences(sstables);
         }
 
-        logger.info("Setting up new generation: " + generation);
-        fileIndexGenerator.set(generation);
+        if (fileIndexGenerator.get() < generation)
+        {
+            // we don't bother with CAS here since if the generations used in the new files overlap with
+            // files that we create during load, we're already screwed
+            logger.info("Setting up new generation: " + generation);
+            fileIndexGenerator.set(generation);
+        }
+        else
+        {
+            logger.warn("Largest generation seen in loaded sstables was {}, which may overlap with native sstable files (generation {}).",
+                        generation, fileIndexGenerator.get());
+        }
 
         logger.info("Done loading load new SSTables for " + table.name + "/" + columnFamily);
     }
@@ -1513,6 +1523,17 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public void clearUnsafe()
     {
+        fileIndexGenerator.set(0); // Avoid unit test failures (see CASSANDRA-3735).
+
+        // Clear backups
+        Directories.SSTableLister lister = directories.sstableLister().onlyBackups(true);
+        for (Map.Entry<Descriptor, Set<Component>> entry : lister.list().entrySet())
+        {
+            Descriptor desc = entry.getKey();
+            for (Component comp : entry.getValue())
+                FileUtils.delete(desc.filenameFor(comp));
+        }
+
         for (ColumnFamilyStore cfs : concatWithIndexes())
             cfs.data.init();
     }

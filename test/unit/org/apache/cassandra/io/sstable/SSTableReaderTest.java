@@ -24,14 +24,17 @@ package org.apache.cassandra.io.sstable;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.concurrent.ExecutionException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ExecutionException;
 
 import org.junit.Test;
 
 import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
@@ -50,10 +53,6 @@ import org.apache.cassandra.thrift.IndexOperator;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CLibrary;
 import org.apache.cassandra.utils.Pair;
-
-import org.apache.cassandra.Util;
-
-import static org.junit.Assert.assertEquals;
 
 public class SSTableReaderTest extends CleanupHelper
 {
@@ -157,9 +156,14 @@ public class SSTableReaderTest extends CleanupHelper
         }
         store.forceBlockingFlush();
 
-        store.clearUnsafe();
-        store.loadNewSSTables();
+        clearAndLoad(store);
         assert store.getMaxRowSize() != 0;
+    }
+
+    private void clearAndLoad(ColumnFamilyStore cfs) throws IOException
+    {
+        cfs.clearUnsafe();
+        cfs.loadNewSSTables();
     }
 
     @Test
@@ -240,18 +244,13 @@ public class SSTableReaderTest extends CleanupHelper
         assertIndexQueryWorks(store);
     }
 
-    private void assertIndexQueryWorks(ColumnFamilyStore indexedCFS)
+    private void assertIndexQueryWorks(ColumnFamilyStore indexedCFS) throws IOException
     {
         assert "Indexed1".equals(indexedCFS.getColumnFamilyName());
 
         // make sure all sstables including 2ary indexes load from disk
-        indexedCFS.clearUnsafe();
-        for (ColumnFamilyStore indexCfs : indexedCFS.indexManager.getIndexesBackedByCfs())
-        {
-            indexCfs.clearUnsafe();
-            indexCfs.loadNewSSTables(); // v1.0.4 would fail here (see CASSANDRA-3540)
-        }
-        indexedCFS.loadNewSSTables();
+        for (ColumnFamilyStore cfs : indexedCFS.concatWithIndexes())
+            clearAndLoad(cfs);
 
         // query using index to see if sstable for secondary index opens
         IndexExpression expr = new IndexExpression(ByteBufferUtil.bytes("birthdate"), IndexOperator.EQ, ByteBufferUtil.bytes(1L));
