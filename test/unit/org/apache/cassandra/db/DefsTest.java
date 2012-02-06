@@ -31,6 +31,7 @@ import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.db.migration.AddColumnFamily;
 import org.apache.cassandra.db.migration.AddKeyspace;
 import org.apache.cassandra.db.migration.DropColumnFamily;
@@ -534,7 +535,7 @@ public class DefsTest extends CleanupHelper
         oldStr = cf_def.comparator_type;
         try 
         {
-            cf_def.comparator_type = BytesType.class.getSimpleName();
+            cf_def.comparator_type = TimeUUIDType.class.getSimpleName();
             cf.apply(cf_def);
             throw new AssertionError("Should have blown up when you used a different comparator.");
         }

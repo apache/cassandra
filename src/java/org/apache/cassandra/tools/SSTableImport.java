@@ -116,7 +116,7 @@ public class SSTableImport
                         {
                             kind = "e";
                             ttl = (Integer) fields.get(4);
-                            localExpirationTime = (int) (long) ((Long) fields.get(5));
+                            localExpirationTime = (Integer) fields.get(5);
                         }
                         else
                         {
@@ -129,7 +129,7 @@ public class SSTableImport
                         if (isExpiring())
                         {
                             ttl = (Integer) fields.get(4);
-                            localExpirationTime = (int) (long) ((Long) fields.get(5));
+                            localExpirationTime = (Integer) fields.get(5);
                         }
                         else if (isCounter())
                         {
