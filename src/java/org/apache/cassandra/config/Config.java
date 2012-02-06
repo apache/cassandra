@@ -53,6 +53,8 @@ public class Config
     
     public Long rpc_timeout_in_ms = new Long(2000);
 
+    public Integer streaming_socket_timeout_in_ms = new Integer(0);
+
     public Integer phi_convict_threshold = 8;
     
     public Integer concurrent_reads = 8;
@@ -133,6 +135,18 @@ public class Config
     public int row_cache_save_period = 0;
     public int row_cache_keys_to_save = Integer.MAX_VALUE;
     public String row_cache_provider = ConcurrentLinkedHashCacheProvider.class.getSimpleName();
+
+    private static boolean outboundBindAny = false;
+
+    public static boolean getOutboundBindAny()
+    {
+        return outboundBindAny;
+    }
+
+    public static void setOutboundBindAny(boolean value)
+    {
+        outboundBindAny = value;
+    }
 
     public static enum CommitLogSync {
         periodic,

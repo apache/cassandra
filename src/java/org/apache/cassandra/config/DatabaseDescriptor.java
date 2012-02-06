@@ -1017,4 +1017,9 @@ public class DatabaseDescriptor
     {
         return rowCacheProvider;
     }
+
+    public static int getStreamingSocketTimeout()
+    {
+        return conf.streaming_socket_timeout_in_ms;
+    }
 }

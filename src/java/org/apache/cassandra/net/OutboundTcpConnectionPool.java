@@ -23,6 +23,7 @@ import java.net.InetAddress;
 import java.net.Socket;
 
 import org.apache.cassandra.concurrent.Stage;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.security.SSLFactory;
@@ -68,7 +69,8 @@ public class OutboundTcpConnectionPool
     public void reset(InetAddress remoteEP)
     {
         resetedEndpoint = remoteEP;
-        reset();
+        for (OutboundTcpConnection con : new OutboundTcpConnection[] { cmdCon, ackCon })
+            con.softCloseSocket();
     }
     
     public Socket newSocket() throws IOException
@@ -76,10 +78,17 @@ public class OutboundTcpConnectionPool
         // zero means 'bind on any available port.'
         if (isEncryptedChannel())
         {
-            return SSLFactory.getSocket(DatabaseDescriptor.getEncryptionOptions(), endPoint(), DatabaseDescriptor.getSSLStoragePort(), FBUtilities.getLocalAddress(), 0);
+            if (Config.getOutboundBindAny())
+                return SSLFactory.getSocket(DatabaseDescriptor.getEncryptionOptions(), endPoint(), DatabaseDescriptor.getSSLStoragePort());
+            else
+                return SSLFactory.getSocket(DatabaseDescriptor.getEncryptionOptions(), endPoint(), DatabaseDescriptor.getSSLStoragePort(), FBUtilities.getLocalAddress(), 0);
         }
-        else {
-            return new Socket(endPoint(), DatabaseDescriptor.getStoragePort(), FBUtilities.getLocalAddress(), 0);
+        else
+        {
+            if (Config.getOutboundBindAny())
+                return new Socket(endPoint(), DatabaseDescriptor.getStoragePort());
+            else
+                return new Socket(endPoint(), DatabaseDescriptor.getStoragePort(), FBUtilities.getLocalAddress(), 0);
         }
     }
     

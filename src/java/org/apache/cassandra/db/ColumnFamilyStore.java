@@ -372,6 +372,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     // must be called after all sstables are loaded since row cache merges all row versions
     public void initRowCache()
     {
+        if (!isRowCacheEnabled())
+            return;
+
         long start = System.currentTimeMillis();
 
         AutoSavingCache<RowCacheKey, ColumnFamily> rowCache = CacheService.instance.rowCache;
@@ -389,11 +392,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                         cachedRowsRead,
                         table.name,
                         columnFamily));
-    }
-
-    public AutoSavingCache<KeyCacheKey, Long> getKeyCache()
-    {
-        return CacheService.instance.keyCache;
     }
 
     /**
@@ -1055,8 +1053,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public ColumnFamily cacheRow(Integer cfId, DecoratedKey decoratedKey)
     {
-        CFMetaData.Caching caching = metadata.getCaching();
-        assert caching == CFMetaData.Caching.ALL || caching == CFMetaData.Caching.ROWS_ONLY
+        assert isRowCacheEnabled()
                 : String.format("Row cache is not enabled on column family [" + getColumnFamilyName() + "]");
 
         RowCacheKey key = new RowCacheKey(cfId, decoratedKey);
@@ -1087,10 +1084,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         long start = System.nanoTime();
         try
         {
-            CFMetaData.Caching caching = metadata.getCaching();
-            if (caching == CFMetaData.Caching.NONE
-                || caching == CFMetaData.Caching.KEYS_ONLY
-                || CacheService.instance.rowCache.getCapacity() == 0)
+            if (!isRowCacheEnabled())
             {
                 ColumnFamily cf = getTopLevelColumns(filter, gcBefore, false);
 
@@ -1854,5 +1848,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         DataTracker.View view = data.getView();
         return view.sstables.isEmpty() && view.memtable.getOperations() == 0 && view.memtablesPendingFlush.isEmpty();
+    }
+
+    private boolean isRowCacheEnabled()
+    {
+        return !(metadata.getCaching() == CFMetaData.Caching.NONE
+              || metadata.getCaching() == CFMetaData.Caching.KEYS_ONLY
+              || CacheService.instance.rowCache.getCapacity() == 0);
     }
 }

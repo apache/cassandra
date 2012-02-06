@@ -36,7 +36,7 @@
  * Use separate writer thread in SSTableSimpleUnsortedWriter (CASSANDRA-3619)
  * fsync the directory after new sstable or commitlog segment are created (CASSANDRA-3250)
  * fix minor issues reported by FindBugs (CASSANDRA-3658)
- * global key/row caches (CASSANDRA-3143)
+ * global key/row caches (CASSANDRA-3143, 3849)
  * optimize memtable iteration during range scan (CASSANDRA-3638)
  * introduce 'crc_check_chance' in CompressionParameters to support
    a checksum percentage checking chance similarly to read-repair (CASSANDRA-3611)
@@ -64,7 +64,7 @@
    (CASSANDRA-3483)
  * respect not only row cache capacity but caching mode when
    trying to read data (CASSANDRA-3812)
-
+ * Use -XX:+ExplicitGCInvokesConcurrent by default. (CASSANDRA-3675)
 
 1.0.8
  * Log active compactions in StatusLogger (CASSANDRA-3703)
@@ -78,6 +78,12 @@
    readability (CASSANDRA-3726)
  * synchronize BiMap of bootstrapping tokens (CASSANDRA-3417)
  * show index options in CLI (CASSANDRA-3809)
+ * add optional socket timeout for streaming (CASSANDRA-3838)
+Merged from 0.8:
+ * (Pig) fix CassandraStorage to use correct comparator in Super ColumnFamily
+   case (CASSANDRA-3251)
+ * fix thread safety issues in commitlog replay, primarily affecting
+   systems with many (100s) of CF definitions (CASSANDRA-3751)
 
 
 1.0.7
@@ -147,6 +153,19 @@ Merged from 0.8:
  * add back partitioner to sstable metadata (CASSANDRA-3540)
  * fix NPE in get_count for counters (CASSANDRA-3601)
 Merged from 0.8:
+||||||| merged common ancestors
+
+
+0.8.9
+ * avoid logging (harmless) exception when GC takes < 1ms (CASSANDRA-3656)
+=======
+ * block on flush before compacting hints (may prevent OOM) (CASSANDRA-3733)
+ * (Pig) fix CassandraStorage to use correct comparator in Super ColumnFamily
+   case (CASSANDRA-3251)
+
+0.8.9
+ * avoid logging (harmless) exception when GC takes < 1ms (CASSANDRA-3656)
+>>>>>>> cassandra-0.8
  * remove invalid assertion that table was opened before dropping it
    (CASSANDRA-3580)
  * range and index scans now only send requests to enough replicas to

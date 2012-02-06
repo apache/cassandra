@@ -802,6 +802,7 @@ public class CassandraServer implements Cassandra.Iface
                                                           null,
                                                           column_predicate,
                                                           bounds,
+                                                          index_clause.expressions,
                                                           index_clause.count);
 
         List<Row> rows;

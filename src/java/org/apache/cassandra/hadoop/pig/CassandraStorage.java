@@ -26,6 +26,7 @@ import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.thrift.*;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Hex;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -71,7 +72,12 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
     public final static String PIG_RPC_PORT = "PIG_RPC_PORT";
     public final static String PIG_INITIAL_ADDRESS = "PIG_INITIAL_ADDRESS";
     public final static String PIG_PARTITIONER = "PIG_PARTITIONER";
+    public final static String PIG_INPUT_FORMAT = "PIG_INPUT_FORMAT";
+    public final static String PIG_OUTPUT_FORMAT = "PIG_OUTPUT_FORMAT";
 
+    private final static String DEFAULT_INPUT_FORMAT = "org.apache.cassandra.hadoop.ColumnFamilyInputFormat";
+    private final static String DEFAULT_OUTPUT_FORMAT = "org.apache.cassandra.hadoop.ColumnFamilyOutputFormat";
+    
     private final static ByteBuffer BOUND = ByteBufferUtil.EMPTY_BYTE_BUFFER;
     private static final Log logger = LogFactory.getLog(CassandraStorage.class);
 
@@ -86,6 +92,8 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
     private Configuration conf;
     private RecordReader reader;
     private RecordWriter writer;
+    private String inputFormatClass;
+    private String outputFormatClass;
     private int limit;
 
     public CassandraStorage()
@@ -127,7 +135,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
             tuple.set(0, new DataByteArray(key.array(), key.position()+key.arrayOffset(), key.limit()+key.arrayOffset()));
             for (Map.Entry<ByteBuffer, IColumn> entry : cf.entrySet())
             {
-                columns.add(columnToTuple(entry.getKey(), entry.getValue(), cfDef));
+                columns.add(columnToTuple(entry.getValue(), cfDef, parseType(cfDef.getComparator_type())));
             }
 
             tuple.set(1, new DefaultDataBag(columns));
@@ -139,29 +147,31 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
         }
     }
 
-    private Tuple columnToTuple(ByteBuffer name, IColumn col, CfDef cfDef) throws IOException
+    private Tuple columnToTuple(IColumn col, CfDef cfDef, AbstractType comparator) throws IOException
     {
         Tuple pair = TupleFactory.getInstance().newTuple(2);
         List<AbstractType> marshallers = getDefaultMarshallers(cfDef);
         Map<ByteBuffer,AbstractType> validators = getValidatorMap(cfDef);
 
-        setTupleValue(pair, 0, marshallers.get(0).compose(name));
+        setTupleValue(pair, 0, comparator.compose(col.name()));
         if (col instanceof Column)
         {
             // standard
-            if (validators.get(name) == null)
+            if (validators.get(col.name()) == null)
                 setTupleValue(pair, 1, marshallers.get(1).compose(col.value()));
             else
-                setTupleValue(pair, 1, validators.get(name).compose(col.value()));
+                setTupleValue(pair, 1, validators.get(col.name()).compose(col.value()));
             return pair;
         }
+        else
+        {
+            // super
+            ArrayList<Tuple> subcols = new ArrayList<Tuple>();
+            for (IColumn subcol : col.getSubColumns())
+                subcols.add(columnToTuple(subcol, cfDef, parseType(cfDef.getSubcomparator_type())));
 
-        // super
-        ArrayList<Tuple> subcols = new ArrayList<Tuple>();
-        for (IColumn subcol : col.getSubColumns())
-            subcols.add(columnToTuple(subcol.name(), subcol, cfDef));
-        
-        pair.set(1, new DefaultDataBag(subcols));
+            pair.set(1, new DefaultDataBag(subcols));
+        }
         return pair;
     }
 
@@ -185,12 +195,14 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
     private List<AbstractType> getDefaultMarshallers(CfDef cfDef) throws IOException
     {
         ArrayList<AbstractType> marshallers = new ArrayList<AbstractType>();
-        AbstractType comparator = null;
-        AbstractType default_validator = null;
-        AbstractType key_validator = null;
+        AbstractType comparator;
+        AbstractType subcomparator;
+        AbstractType default_validator;
+        AbstractType key_validator;
         try
         {
             comparator = TypeParser.parse(cfDef.getComparator_type());
+            subcomparator = TypeParser.parse(cfDef.getSubcomparator_type());
             default_validator = TypeParser.parse(cfDef.getDefault_validation_class());
             key_validator = TypeParser.parse(cfDef.getKey_validation_class());
         }
@@ -202,6 +214,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
         marshallers.add(comparator);
         marshallers.add(default_validator);
         marshallers.add(key_validator);
+        marshallers.add(subcomparator);
         return marshallers;
     }
 
@@ -227,10 +240,29 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
         return validators;
     }
 
+    private AbstractType parseType(String type) throws IOException
+    {
+        try
+        {
+            return TypeParser.parse(type);
+        }
+        catch (ConfigurationException e)
+        {
+            throw new IOException(e);
+        }
+    }
+
     @Override
     public InputFormat getInputFormat()
     {
-        return new ColumnFamilyInputFormat();
+        try
+        {
+            return FBUtilities.construct(inputFormatClass, "inputformat");
+        }
+        catch (ConfigurationException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override
@@ -312,12 +344,24 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
         {
             ConfigHelper.setInputPartitioner(conf, System.getenv(PIG_PARTITIONER));
             ConfigHelper.setOutputPartitioner(conf, System.getenv(PIG_PARTITIONER));
-    }
+        }
         if(System.getenv(PIG_INPUT_PARTITIONER) != null)
             ConfigHelper.setInputPartitioner(conf, System.getenv(PIG_INPUT_PARTITIONER));
         if(System.getenv(PIG_OUTPUT_PARTITIONER) != null)
             ConfigHelper.setOutputPartitioner(conf, System.getenv(PIG_OUTPUT_PARTITIONER));
-
+        if (System.getenv(PIG_INPUT_FORMAT) != null)
+            inputFormatClass = getFullyQualifiedClassName(System.getenv(PIG_INPUT_FORMAT));
+        else
+            inputFormatClass = DEFAULT_INPUT_FORMAT;
+        if (System.getenv(PIG_OUTPUT_FORMAT) != null)
+            outputFormatClass = getFullyQualifiedClassName(System.getenv(PIG_OUTPUT_FORMAT));
+        else
+            outputFormatClass = DEFAULT_OUTPUT_FORMAT;
+    }
+    
+    private String getFullyQualifiedClassName(String classname)
+    {
+        return classname.contains(".") ? classname : "org.apache.cassandra.hadoop." + classname;
     }
 
     @Override
@@ -488,7 +532,14 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
 
     public OutputFormat getOutputFormat()
     {
-        return new ColumnFamilyOutputFormat();
+        try
+        {
+            return FBUtilities.construct(outputFormatClass, "outputformat");
+        }
+        catch (ConfigurationException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
     public void checkSchema(ResourceSchema schema) throws IOException
