@@ -621,7 +621,10 @@ public class SSTableReader extends SSTable
     {
         CFMetaData.Caching caching = metadata.getCaching();
 
-        if (keyCache == null || caching == CFMetaData.Caching.NONE || caching == CFMetaData.Caching.ROWS_ONLY)
+        if (keyCache == null
+                || caching == CFMetaData.Caching.NONE
+                || caching == CFMetaData.Caching.ROWS_ONLY
+                || keyCache.getCapacity() == 0)
             return;
 
         // avoid keeping a permanent reference to the original key buffer
