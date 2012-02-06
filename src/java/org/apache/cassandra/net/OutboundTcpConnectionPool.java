@@ -83,7 +83,7 @@ public class OutboundTcpConnectionPool
             else
                 return SSLFactory.getSocket(DatabaseDescriptor.getEncryptionOptions(), endPoint(), DatabaseDescriptor.getSSLStoragePort(), FBUtilities.getLocalAddress(), 0);
         }
-        else 
+        else
         {
             if (Config.getOutboundBindAny())
                 return new Socket(endPoint(), DatabaseDescriptor.getStoragePort());

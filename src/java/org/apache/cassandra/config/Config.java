@@ -53,6 +53,8 @@ public class Config
     
     public Long rpc_timeout_in_ms = new Long(2000);
 
+    public Integer streaming_socket_timeout_in_ms = new Integer(0);
+
     public Integer phi_convict_threshold = 8;
     
     public Integer concurrent_reads = 8;
