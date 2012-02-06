@@ -181,6 +181,7 @@ public class Directories
         private boolean skipCompacted;
         private boolean skipTemporary;
         private boolean includeBackups;
+        private boolean onlyBackups;
         private int nbFiles;
         private final Map<Descriptor, Set<Component>> components = new HashMap<Descriptor, Set<Component>>();
         private boolean filtered;
@@ -205,6 +206,15 @@ public class Directories
         {
             if (filtered)
                 throw new IllegalStateException("list() has already been called");
+            includeBackups = b;
+            return this;
+        }
+
+        public SSTableLister onlyBackups(boolean b)
+        {
+            if (filtered)
+                throw new IllegalStateException("list() has already been called");
+            onlyBackups = b;
             includeBackups = b;
             return this;
         }
@@ -236,7 +246,8 @@ public class Directories
 
             for (File location : sstableDirectories)
             {
-                location.listFiles(getFilter());
+                if (!onlyBackups)
+                    location.listFiles(getFilter());
 
                 if (includeBackups)
                     new File(location, BACKUPS_SUBDIR).listFiles(getFilter());
