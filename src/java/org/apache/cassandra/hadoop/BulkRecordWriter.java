@@ -148,7 +148,12 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<Mutation>>
                     if (colType == ColType.COUNTER)
                         writer.addCounterColumn(column.name, column.value.getLong());
                     else
-                        writer.addColumn(column.name, column.value, column.timestamp);
+                    {
+                        if(0 == column.ttl)
+                            writer.addColumn(column.name, column.value, column.timestamp);
+                        else
+                            writer.addExpiringColumn(column.name, column.value, column.timestamp, column.ttl, System.currentTimeMillis() + (column.ttl * 1000));
+                    }
                 }
             }
             else
@@ -156,11 +161,15 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<Mutation>>
                 if (colType == ColType.COUNTER)
                     writer.addCounterColumn(mut.getColumn_or_supercolumn().column.name, mut.getColumn_or_supercolumn().column.value.getLong());
                 else
-                    writer.addColumn(mut.getColumn_or_supercolumn().column.name, mut.getColumn_or_supercolumn().column.value, mut.getColumn_or_supercolumn().column.timestamp);
+	            {
+                    if(0 == mut.getColumn_or_supercolumn().column.ttl)
+	                     writer.addColumn(mut.getColumn_or_supercolumn().column.name, mut.getColumn_or_supercolumn().column.value, mut.getColumn_or_supercolumn().column.timestamp);
+                    else
+                        writer.addExpiringColumn(mut.getColumn_or_supercolumn().column.name, mut.getColumn_or_supercolumn().column.value, mut.getColumn_or_supercolumn().column.timestamp, mut.getColumn_or_supercolumn().column.ttl, System.currentTimeMillis() + (mut.getColumn_or_supercolumn().column.ttl * 1000));
+	            }
             }
         }
     }
-
     @Override
     public void close(TaskAttemptContext context) throws IOException, InterruptedException
     {
