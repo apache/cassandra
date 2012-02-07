@@ -392,7 +392,9 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         {
             Token<?> token = StorageService.getPartitioner().getTokenFactory().fromByteArray(row.key.key);
             InetAddress target = StorageService.instance.getTokenMetadata().getEndpoint(token);
-            scheduleHintDelivery(target);
+            // token may have since been removed (in which case we have just read back a tombstone)
+            if (target != null)
+                scheduleHintDelivery(target);
         }
 
         if (logger_.isDebugEnabled())

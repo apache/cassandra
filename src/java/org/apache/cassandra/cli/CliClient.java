@@ -19,8 +19,7 @@ package org.apache.cassandra.cli;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.InetAddress;
-import java.net.UnknownHostException;
+import java.io.PrintStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.util.*;
@@ -1554,24 +1553,23 @@ public class CliClient
         else
             ksIter = keyspaces.iterator();
 
-
-        final StringBuilder sb = new StringBuilder();
         while (ksIter.hasNext())
-            showKeyspace(sb, ksIter.next());
+            showKeyspace(sessionState.out, ksIter.next());
 
-        sessionState.out.printf(sb.toString());
+        sessionState.out.flush();
     }
 
     /**
      * Creates a CLI script to create the Keyspace it's Column Families
-     * @param sb StringBuilder to write to.
+     *
+     * @param output StringBuilder to write to.
      * @param ksDef KsDef to create the cli script for.
      */
-    private void showKeyspace(StringBuilder sb, KsDef ksDef)
+    private void showKeyspace(PrintStream output, KsDef ksDef)
     {
-        sb.append("create keyspace " + ksDef.name);
+        output.append("create keyspace ").append(ksDef.name);
 
-        writeAttr(sb, true, "placement_strategy", normaliseType(ksDef.strategy_class, "org.apache.cassandra.locator"));
+        writeAttr(output, true, "placement_strategy", normaliseType(ksDef.strategy_class, "org.apache.cassandra.locator"));
 
         if (ksDef.strategy_options != null && !ksDef.strategy_options.isEmpty())
         {
@@ -1584,53 +1582,55 @@ public class CliClient
                 prefix = ", ";
             }
             opts.append("}");
-            writeAttrRaw(sb, false, "strategy_options", opts.toString());
+            writeAttrRaw(output, false, "strategy_options", opts.toString());
         }
 
-        writeAttr(sb, false, "durable_writes", ksDef.durable_writes);
+        writeAttr(output, false, "durable_writes", ksDef.durable_writes);
 
-        sb.append(";" + NEWLINE);
-        sb.append(NEWLINE);
+        output.append(";").append(NEWLINE);
+        output.append(NEWLINE);
 
-        sb.append("use " + ksDef.name + ";");
-        sb.append(NEWLINE);
-        sb.append(NEWLINE);
+        output.append("use " + ksDef.name + ";");
+        output.append(NEWLINE);
+        output.append(NEWLINE);
 
         Collections.sort(ksDef.cf_defs, new CfDefNamesComparator());
         for (CfDef cfDef : ksDef.cf_defs)
-            showColumnFamily(sb, cfDef);
-        sb.append(NEWLINE);
-        sb.append(NEWLINE);
+            showColumnFamily(output, cfDef);
+        output.append(NEWLINE);
+        output.append(NEWLINE);
     }
 
     /**
      * Creates a CLI script for the CfDef including meta data to the supplied StringBuilder.
-     * @param sb
-     * @param cfDef
+     *
+     * @param output File to write to.
+     * @param cfDef  CfDef to export attributes from.
      */
-    private void showColumnFamily(StringBuilder sb, CfDef cfDef)
+    private void showColumnFamily(PrintStream output, CfDef cfDef)
     {
-        sb.append("create column family " + CliUtils.escapeSQLString(cfDef.name));
+        output.append("create column family ").append(CliUtils.escapeSQLString(cfDef.name));
 
-        writeAttr(sb, true, "column_type", cfDef.column_type);
-        writeAttr(sb, false, "comparator", normaliseType(cfDef.comparator_type, "org.apache.cassandra.db.marshal"));
+        writeAttr(output, true, "column_type", cfDef.column_type);
+        writeAttr(output, false, "comparator", normaliseType(cfDef.comparator_type, "org.apache.cassandra.db.marshal"));
         if (cfDef.column_type.equals("Super"))
-            writeAttr(sb, false, "subcomparator", normaliseType(cfDef.subcomparator_type, "org.apache.cassandra.db.marshal"));
+            writeAttr(output, false, "subcomparator", normaliseType(cfDef.subcomparator_type, "org.apache.cassandra.db.marshal"));
         if (!StringUtils.isEmpty(cfDef.default_validation_class))
-            writeAttr(sb, false, "default_validation_class",
+            writeAttr(output, false, "default_validation_class",
                         normaliseType(cfDef.default_validation_class, "org.apache.cassandra.db.marshal"));
-        writeAttr(sb, false, "key_validation_class",
+        writeAttr(output, false, "key_validation_class",
                     normaliseType(cfDef.key_validation_class, "org.apache.cassandra.db.marshal"));
-        writeAttr(sb, false, "read_repair_chance", cfDef.read_repair_chance);
-        writeAttr(sb, false, "gc_grace", cfDef.gc_grace_seconds);
-        writeAttr(sb, false, "min_compaction_threshold", cfDef.min_compaction_threshold);
-        writeAttr(sb, false, "max_compaction_threshold", cfDef.max_compaction_threshold);
-        writeAttr(sb, false, "replicate_on_write", cfDef.replicate_on_write);
-        writeAttr(sb, false, "compaction_strategy", cfDef.compaction_strategy);
-        writeAttr(sb, false, "caching", cfDef.caching);
+
+        writeAttr(output, false, "read_repair_chance", cfDef.read_repair_chance);
+        writeAttr(output, false, "gc_grace", cfDef.gc_grace_seconds);
+        writeAttr(output, false, "min_compaction_threshold", cfDef.min_compaction_threshold);
+        writeAttr(output, false, "max_compaction_threshold", cfDef.max_compaction_threshold);
+        writeAttr(output, false, "replicate_on_write", cfDef.replicate_on_write);
+        writeAttr(output, false, "compaction_strategy", cfDef.compaction_strategy);
+        writeAttr(output, false, "caching", cfDef.caching);
 
         if (cfDef.isSetBloom_filter_fp_chance())
-            writeAttr(sb, false, "bloom_filter_fp_chance", cfDef.bloom_filter_fp_chance);
+            writeAttr(output, false, "bloom_filter_fp_chance", cfDef.bloom_filter_fp_chance);
 
         if (!cfDef.compaction_strategy_options.isEmpty())
         {
@@ -1654,26 +1654,28 @@ public class CliClient
 
             cOptions.append("}");
 
-            writeAttrRaw(sb, false, "compaction_strategy_options", cOptions.toString());
+            writeAttrRaw(output, false, "compaction_strategy_options", cOptions.toString());
         }
 
         if (!StringUtils.isEmpty(cfDef.comment))
-            writeAttr(sb, false, "comment", cfDef.comment);
+            writeAttr(output, false, "comment", cfDef.comment);
 
         if (!cfDef.column_metadata.isEmpty())
         {
-            StringBuilder colSb = new StringBuilder();
-            colSb.append("[");
+            output.append(NEWLINE)
+                  .append(TAB)
+                  .append("and column_metadata = [");
+
             boolean first = true;
             for (ColumnDef colDef : cfDef.column_metadata)
             {
                 if (!first)
-                    colSb.append(",");
+                    output.append(",");
                 first = false;
-                showColumnMeta(colSb, cfDef, colDef);
+                showColumnMeta(output, cfDef, colDef);
             }
-            colSb.append("]");
-            writeAttrRaw(sb, false, "column_metadata", colSb.toString());
+
+            output.append("]");
         }
 
         if (cfDef.compression_options != null && !cfDef.compression_options.isEmpty())
@@ -1696,51 +1698,59 @@ public class CliClient
 
             compOptions.append("}");
 
-            writeAttrRaw(sb, false, "compression_options", compOptions.toString());
+            writeAttrRaw(output, false, "compression_options", compOptions.toString());
         }
 
-        sb.append(";");
-        sb.append(NEWLINE);
-        sb.append(NEWLINE);
+        output.append(";");
+        output.append(NEWLINE);
+        output.append(NEWLINE);
     }
 
     /**
      * Writes the supplied ColumnDef to the StringBuilder as a cli script.
-     * @param sb
-     * @param cfDef
-     * @param colDef
+     *
+     * @param output The File to write to.
+     * @param cfDef  The CfDef as a source for comparator/validator
+     * @param colDef The Column Definition to export
      */
-    private void showColumnMeta(StringBuilder sb, CfDef cfDef, ColumnDef colDef)
+    private void showColumnMeta(PrintStream output, CfDef cfDef, ColumnDef colDef)
     {
-        sb.append(NEWLINE + TAB + TAB + "{");
+        output.append(NEWLINE + TAB + TAB + "{");
 
         final AbstractType<?> comparator = getFormatType(cfDef.column_type.equals("Super")
                                                       ? cfDef.subcomparator_type
                                                       : cfDef.comparator_type);
-        sb.append("column_name : '" + CliUtils.escapeSQLString(comparator.getString(colDef.name)) + "'," + NEWLINE);
+        output.append("column_name : '" + CliUtils.escapeSQLString(comparator.getString(colDef.name)) + "'," + NEWLINE);
         String validationClass = normaliseType(colDef.validation_class, "org.apache.cassandra.db.marshal");
-        sb.append(TAB + TAB + "validation_class : " + CliUtils.escapeSQLString(validationClass));
+        output.append(TAB + TAB + "validation_class : " + CliUtils.escapeSQLString(validationClass));
         if (colDef.isSetIndex_name())
         {
-            sb.append("," + NEWLINE);
-            sb.append(TAB + TAB + "index_name : '" + CliUtils.escapeSQLString(colDef.index_name) + "'," + NEWLINE);
-            sb.append(TAB + TAB + "index_type : " + CliUtils.escapeSQLString(Integer.toString(colDef.index_type.getValue())));
+            output.append(",").append(NEWLINE)
+                  .append(TAB + TAB + "index_name : '" + CliUtils.escapeSQLString(colDef.index_name) + "'," + NEWLINE)
+                  .append(TAB + TAB + "index_type : " + CliUtils.escapeSQLString(Integer.toString(colDef.index_type.getValue())));
 
             if (colDef.index_options != null)
             {
-                sb.append("," + NEWLINE);
-                sb.append(TAB + TAB + "index_options : {" + NEWLINE);
+                output.append(",").append(NEWLINE);
+                output.append(TAB + TAB + "index_options : {" + NEWLINE);
                 int numOpts = colDef.index_options.size();
                 for (Map.Entry<String, String> entry : colDef.index_options.entrySet())
                 {
-                    sb.append(TAB + TAB + TAB + CliUtils.escapeSQLString(entry.getKey()) + ": '" + CliUtils.escapeSQLString(entry.getValue()) + "'");
+                    String option = CliUtils.escapeSQLString(entry.getKey());
+                    String optionValue = CliUtils.escapeSQLString(entry.getValue());
+
+                    output.append(TAB + TAB + TAB)
+                          .append("'" + option + "' : '")
+                          .append(optionValue)
+                          .append("'");
+
                     if (--numOpts > 0)
-                        sb.append("," + NEWLINE);
+                        output.append(",").append(NEWLINE);
                 }
-                sb.append("}");
+                output.append("}");
             }
         }
-        sb.append("}");
+        output.append("}");
     }
 
     private String normaliseType(String path, String expectedPackage)
@@ -1751,26 +1761,26 @@ public class CliClient
         return path;
     }
 
-    private void writeAttr(StringBuilder sb, boolean first, String name, Boolean value)
+    private void writeAttr(PrintStream output, boolean first, String name, Boolean value)
     {
-        writeAttrRaw(sb, first, name, value.toString());
+        writeAttrRaw(output, first, name, value.toString());
     }
-    private void writeAttr(StringBuilder sb, boolean first, String name, Number value)
+    private void writeAttr(PrintStream output, boolean first, String name, Number value)
     {
-        writeAttrRaw(sb, first, name, value.toString());
-    }
-
-    private void writeAttr(StringBuilder sb, boolean first, String name, String value)
-    {
-        writeAttrRaw(sb, first, name, "'" + CliUtils.escapeSQLString(value) + "'");
+        writeAttrRaw(output, first, name, value.toString());
     }
 
-    private void writeAttrRaw(StringBuilder sb, boolean first, String name, String value)
+    private void writeAttr(PrintStream output, boolean first, String name, String value)
     {
-        sb.append(NEWLINE + TAB);
-        sb.append(first ? "with " : "and ");
-        sb.append(name + " = ");
-        sb.append(value);
+        writeAttrRaw(output, first, name, "'" + CliUtils.escapeSQLString(value) + "'");
+    }
+
+    private void writeAttrRaw(PrintStream output, boolean first, String name, String value)
+    {
+        output.append(NEWLINE).append(TAB);
+        output.append(first ? "with " : "and ");
+        output.append(name).append(" = ");
+        output.append(value);
     }
     /**
      * Returns true if this.keySpace is set, false otherwise
