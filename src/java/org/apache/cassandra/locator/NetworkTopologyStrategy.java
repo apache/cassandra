@@ -35,6 +35,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.*;
 import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
 
 /**
  * This Replication Strategy takes a property file that gives the intended
@@ -86,13 +87,16 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
             String dcName = dcEntry.getKey();
             int dcReplicas = dcEntry.getValue();
 
-            // collect endpoints in this DC
-            TokenMetadata dcTokens = new TokenMetadata();
+            // collect endpoints in this DC; add in bulk to token meta data for computational complexity
+            // reasons (CASSANDRA-3831).
+            Set<Pair<Token, InetAddress>> dcTokensToUpdate = new HashSet<Pair<Token, InetAddress>>();
             for (Entry<Token, InetAddress> tokenEntry : tokenMetadata.entrySet())
             {
                 if (snitch.getDatacenter(tokenEntry.getValue()).equals(dcName))
-                    dcTokens.updateNormalToken(tokenEntry.getKey(), tokenEntry.getValue());
+                    dcTokensToUpdate.add(Pair.create(tokenEntry.getKey(), tokenEntry.getValue()));
             }
+            TokenMetadata dcTokens = new TokenMetadata();
+            dcTokens.updateNormalTokens(dcTokensToUpdate);
 
             List<InetAddress> dcEndpoints = new ArrayList<InetAddress>(dcReplicas);
             Set<String> racks = new HashSet<String>();

@@ -118,26 +118,54 @@ public class TokenMetadata
         return n;
     }
 
+    /**
+     * Update token map with a single token/endpoint pair in normal state.
+     */
     public void updateNormalToken(Token token, InetAddress endpoint)
     {
-        assert token != null;
-        assert endpoint != null;
+        updateNormalTokens(Collections.singleton(Pair.create(token, endpoint)));
+    }
+
+    /**
+     * Update token map with a set of token/endpoint pairs in normal state.
+     *
+     * Prefer this whenever there are multiple pairs to update, as each update (whether a single or multiple)
+     * is expensive (CASSANDRA-3831).
+     *
+     * @param tokenPairs
+     */
+    public void updateNormalTokens(Set<Pair<Token, InetAddress>> tokenPairs)
+    {
+        if (tokenPairs.isEmpty())
+            return;
 
         lock.writeLock().lock();
         try
         {
-            bootstrapTokens.inverse().remove(endpoint);
-            tokenToEndpointMap.inverse().remove(endpoint);
-            InetAddress prev = tokenToEndpointMap.put(token, endpoint);
-            if (!endpoint.equals(prev))
+            boolean shouldSortTokens = false;
+            for (Pair<Token, InetAddress> tokenEndpointPair : tokenPairs)
             {
-                if (prev != null)
-                    logger.warn("Token " + token + " changing ownership from " + prev + " to " + endpoint);
-                sortedTokens = sortTokens();
+                Token token = tokenEndpointPair.left;
+                InetAddress endpoint = tokenEndpointPair.right;
+
+                assert token != null;
+                assert endpoint != null;
+
+                bootstrapTokens.inverse().remove(endpoint);
+                tokenToEndpointMap.inverse().remove(endpoint);
+                InetAddress prev = tokenToEndpointMap.put(token, endpoint);
+                if (!endpoint.equals(prev))
+                {
+                    if (prev != null)
+                        logger.warn("Token " + token + " changing ownership from " + prev + " to " + endpoint);
+                    shouldSortTokens = true;
+                }
+                leavingEndpoints.remove(endpoint);
+                removeFromMoving(endpoint); // also removing this endpoint from moving
             }
-            leavingEndpoints.remove(endpoint);
-            removeFromMoving(endpoint); // also removing this endpoint from moving
-            invalidateCaches();
+
+            if (shouldSortTokens)
+                sortedTokens = sortTokens();
         }
         finally
         {
