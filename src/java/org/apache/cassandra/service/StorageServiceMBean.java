@@ -143,7 +143,7 @@ public interface StorageServiceMBean
      * Retrieve a map of tokens to endpoints, including the bootstrapping
      * ones.
      *
-     * @return a map of tokens to endpoints
+     * @return a map of tokens to endpoints in ascending order
      */
     public Map<String, String> getTokenToEndpointMap();
 

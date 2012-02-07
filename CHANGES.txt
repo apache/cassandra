@@ -82,6 +82,8 @@
  * add optional socket timeout for streaming (CASSANDRA-3838)
  * fix truncate not to leave behind non-CFS backed secondary indexes
    (CASSANDRA-3844)
+ * make CLI `show schema` to use output stream directly instead
+   of StringBuilder (CASSANDRA-3842)
 Merged from 0.8:
  * (Pig) fix CassandraStorage to use correct comparator in Super ColumnFamily
    case (CASSANDRA-3251)
