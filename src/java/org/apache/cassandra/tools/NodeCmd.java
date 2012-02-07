@@ -203,7 +203,6 @@ public class NodeCmd
     {
         Map<String, String> tokenToEndpoint = probe.getTokenToEndpointMap();
         List<String> sortedTokens = new ArrayList<String>(tokenToEndpoint.keySet());
-        Collections.sort(sortedTokens);
 
         Collection<String> liveNodes = probe.getLiveNodes();
         Collection<String> deadNodes = probe.getUnreachableNodes();

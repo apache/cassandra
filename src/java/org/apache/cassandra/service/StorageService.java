@@ -915,10 +915,13 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     public Map<String, String> getTokenToEndpointMap()
     {
         Map<Token, InetAddress> mapInetAddress = tokenMetadata_.getTokenToEndpointMap();
-        Map<String, String> mapString = new HashMap<String, String>(mapInetAddress.size());
-        for (Map.Entry<Token, InetAddress> entry : mapInetAddress.entrySet())
+        // in order to preserve tokens in ascending order, we use LinkedHashMap here
+        Map<String, String> mapString = new LinkedHashMap<String, String>(mapInetAddress.size());
+        List<Token> tokens = new ArrayList<Token>(mapInetAddress.keySet());
+        Collections.sort(tokens);
+        for (Token token : tokens)
         {
-            mapString.put(entry.getKey().toString(), entry.getValue().getHostAddress());
+            mapString.put(token.toString(), mapInetAddress.get(token).getHostAddress());
         }
         return mapString;
     }
