@@ -222,13 +222,13 @@ public class CFDefinition implements Iterable<CFDefinition.Name>
         {
             this.kind = kind;
             this.name = name;
-            this.compositePosition = position;
+            this.position = position;
             this.type = type;
         }
 
         public final Kind kind;
         public final ColumnIdentifier name;
-        public final int compositePosition; // only make sense for COLUMN_ALIAS if CFDefinition.isComposite()
+        public final int position; // only make sense for COLUMN_ALIAS
         public final AbstractType<?> type;
 
         @Override
