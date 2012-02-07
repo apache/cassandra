@@ -346,7 +346,21 @@ public class SecondaryIndexManager
         
         return indexList.keySet();
     }
-    
+
+    /**
+     * @return all of the secondary indexes without distinction to the (non-)backed by secondary ColumnFamilyStore.
+     */
+    public Collection<SecondaryIndex> getIndexes()
+    {
+        // we use identity map because per row indexes use same instance across many columns
+        IdentityHashMap<SecondaryIndex, Object> indexList = new IdentityHashMap<SecondaryIndex, Object>();
+
+        for (Map.Entry<ByteBuffer, SecondaryIndex> entry : indexesByColumn.entrySet())
+            indexList.put(entry.getValue(), null);
+
+        return indexList.keySet();
+    }
+
     /**
      * @return total current ram size of all indexes
      */

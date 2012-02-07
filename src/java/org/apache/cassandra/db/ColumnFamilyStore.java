@@ -1856,4 +1856,24 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
               || metadata.getCaching() == CFMetaData.Caching.KEYS_ONLY
               || CacheService.instance.rowCache.getCapacity() == 0);
     }
+
+    /**
+     * Discard all SSTables that were created before given timestamp. Caller is responsible to obtain compactionLock.
+     *
+     * @param truncatedAt The timestamp of the truncation
+     *                    (all SSTables before that timestamp are going be marked as compacted)
+     */
+    public void discardSSTables(long truncatedAt)
+    {
+        List<SSTableReader> truncatedSSTables = new ArrayList<SSTableReader>();
+
+        for (SSTableReader sstable : getSSTables())
+        {
+            if (!sstable.newSince(truncatedAt))
+                truncatedSSTables.add(sstable);
+        }
+
+        if (!truncatedSSTables.isEmpty())
+            markCompacted(truncatedSSTables);
+    }
 }

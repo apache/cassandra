@@ -133,6 +133,11 @@ public class KeysIndex extends PerColumnSecondaryIndex
         indexCfs.invalidate();
     }
 
+    public void truncate(long truncatedAt)
+    {
+        indexCfs.discardSSTables(truncatedAt);
+    }
+
     public ColumnFamilyStore getIndexCfs()
     {
        return indexCfs;
