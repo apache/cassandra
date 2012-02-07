@@ -264,6 +264,12 @@ public class Range<T extends RingPosition> extends AbstractBounds<T> implements 
         return difference;
     }
 
+    public Set<Range<T>> subtract(Range<T> rhs)
+    {
+        return rhs.differenceToFetch(this);
+    }
+
+
     /**
      * Calculate set of the difference ranges of given two ranges
      * (as current (A, B] and rhs is (C, D])

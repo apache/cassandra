@@ -2786,12 +2786,6 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         return latch;
     }
 
-    // see calculateStreamAndFetchRanges(Iterator, Iterator) for description
-    private Pair<Set<Range<Token>>, Set<Range<Token>>> calculateStreamAndFetchRanges(Collection<Range<Token>> current, Collection<Range<Token>> updated)
-    {
-        return calculateStreamAndFetchRanges(current.iterator(), updated.iterator());
-    }
-
     /**
      * Calculate pair of ranges to stream/fetch for given two range collections
      * (current ranges for table and ranges after move to new token)
@@ -2800,42 +2794,47 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      * @param updated collection of the ranges after token is changed
      * @return pair of ranges to stream/fetch for given current and updated range collections
      */
-    private Pair<Set<Range<Token>>, Set<Range<Token>>> calculateStreamAndFetchRanges(Iterator<Range<Token>> current, Iterator<Range<Token>> updated)
+    public Pair<Set<Range<Token>>, Set<Range<Token>>> calculateStreamAndFetchRanges(Collection<Range<Token>> current, Collection<Range<Token>> updated)
     {
         Set<Range<Token>> toStream = new HashSet<Range<Token>>();
         Set<Range<Token>> toFetch  = new HashSet<Range<Token>>();
 
-        while (current.hasNext() && updated.hasNext())
+
+        for (Range r1 : current)
         {
-            Range<Token> r1 = current.next();
-            Range<Token> r2 = updated.next();
-
-            // if ranges intersect we need to fetch only missing part
-            if (r1.intersects(r2))
+            boolean intersect = false;
+            for (Range r2 : updated)
             {
-                // adding difference ranges to fetch from a ring
-                toFetch.addAll(r1.differenceToFetch(r2));
-
-                // if current range is a sub-range of a new range we don't need to seed
-                // otherwise we need to seed parts of the current range
-                if (!r2.contains(r1))
+                if (r1.intersects(r2))
                 {
-                    // (A, B] & (C, D]
-                    if (r1.left.compareTo(r2.left) < 0) // if A < C
-                    {
-                        toStream.add(new Range<Token>(r1.left, r2.left)); // seed (A, C]
-                    }
-
-                    if (r1.right.compareTo(r2.right) > 0) // if B > D
-                    {
-                        toStream.add(new Range<Token>(r2.right, r1.right)); // seed (D, B]
-                    }
+                    // adding difference ranges to fetch from a ring
+                    toStream.addAll(r1.subtract(r2));
+                    intersect = true;
+                    break;
                 }
             }
-            else // otherwise we need to fetch whole new range
+            if (!intersect)
             {
                 toStream.add(r1); // should seed whole old range
-                toFetch.add(r2);
+            }
+        }
+
+        for (Range r2 : updated)
+        {
+            boolean intersect = false;
+            for (Range r1 : current)
+            {
+                if (r2.intersects(r1))
+                {
+                    // adding difference ranges to fetch from a ring
+                    toFetch.addAll(r2.subtract(r1));
+                    intersect = true;
+                    break;
+                }
+            }
+            if (!intersect)
+            {
+                toFetch.add(r2); // should fetch whole old range
             }
         }
 
