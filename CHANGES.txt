@@ -64,7 +64,7 @@
    (CASSANDRA-3483)
  * respect not only row cache capacity but caching mode when
    trying to read data (CASSANDRA-3812)
- * Use -XX:+ExplicitGCInvokesConcurrent by default. (CASSANDRA-3675)
+
 
 1.0.8
  * Log active compactions in StatusLogger (CASSANDRA-3703)
