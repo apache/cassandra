@@ -1399,13 +1399,11 @@ class TestMutations(ThriftTester):
         
         # modify valid
         modified_cf.comparator_type = 'BytesType' # revert back to old value.
-        modified_cf.row_cache_size = 25
         modified_cf.gc_grace_seconds = 1
         client.system_update_column_family(modified_cf)
         ks1 = client.describe_keyspace('Keyspace1')
         server_cf = [x for x in ks1.cf_defs if x.name=='NewColumnFamily'][0]
         assert server_cf
-        assert server_cf.row_cache_size == 25
         assert server_cf.gc_grace_seconds == 1
         
         # drop
@@ -1487,8 +1485,8 @@ class TestMutations(ThriftTester):
         # First without index
         cp = ColumnParent('ToBeIndexed')
         sp = SlicePredicate(slice_range=SliceRange('', ''))
-        clause = FilterClause([IndexExpression('birthdate', IndexOperator.EQ, _i64(1))])
-        result = get_range_slice(client, cp, sp, '', '', 100, ConsistencyLevel.ONE, clause)
+        key_range = KeyRange('', '', None, None, [IndexExpression('birthdate', IndexOperator.EQ, _i64(1))], 100)
+        result = client.get_range_slices(cp, sp, key_range, ConsistencyLevel.ONE)
         assert len(result) == 1, result
         assert result[0].key == 'key1'
         assert len(result[0].columns) == 1, result[0].columns
@@ -1511,7 +1509,7 @@ class TestMutations(ThriftTester):
         time.sleep(0.5)
         
         # repeat query on one index expression
-        result = get_range_slice(client, cp, sp, '', '', 100, ConsistencyLevel.ONE, clause)
+        result = client.get_range_slices(cp, sp, key_range, ConsistencyLevel.ONE)
         assert len(result) == 1, result
         assert result[0].key == 'key1'
         assert len(result[0].columns) == 1, result[0].columns
@@ -1857,21 +1855,20 @@ class TestMutations(ThriftTester):
         # simple query on one index expression
         cp = ColumnParent('Indexed1')
         sp = SlicePredicate(slice_range=SliceRange('', ''))
-        clause = FilterClause([IndexExpression('birthdate', IndexOperator.EQ, _i64(1))])
-        result = get_range_slice(client, cp, sp, '', '', 100, ConsistencyLevel.ONE, clause)
+        key_range = KeyRange('', '', None, None, [IndexExpression('birthdate', IndexOperator.EQ, _i64(1))], 100)
+        result = client.get_range_slices(cp, sp, key_range, ConsistencyLevel.ONE)
         assert len(result) == 1, result
         assert result[0].key == 'key1'
         assert len(result[0].columns) == 1, result[0].columns
 
         # without index
-        clause = FilterClause([IndexExpression('b', IndexOperator.EQ, _i64(1))])
-        result = get_range_slice(client, cp, sp, '', '', 100, ConsistencyLevel.ONE, clause)
+        key_range = KeyRange('', '', None, None, [IndexExpression('b', IndexOperator.EQ, _i64(1))], 100)
+        result = client.get_range_slices(cp, sp, key_range, ConsistencyLevel.ONE)
         assert len(result) == 0, result
 
         # but unindexed expression added to indexed one is ok
-        clause = FilterClause([IndexExpression('b', IndexOperator.EQ, _i64(3)),
-                               IndexExpression('birthdate', IndexOperator.EQ, _i64(3))])
-        result = get_range_slice(client, cp, sp, '', '', 100, ConsistencyLevel.ONE, clause)
+        key_range = KeyRange('', '', None, None, [IndexExpression('b', IndexOperator.EQ, _i64(3)), IndexExpression('birthdate', IndexOperator.EQ, _i64(3))], 100)
+        result = client.get_range_slices(cp, sp, key_range, ConsistencyLevel.ONE)
         assert len(result) == 1, result
         assert result[0].key == 'key3'
         assert len(result[0].columns) == 2, result[0].columns
@@ -1885,20 +1882,19 @@ class TestMutations(ThriftTester):
         client.insert('key1', ColumnParent('Indexed3'), Column(u, 'a', 0), ConsistencyLevel.ONE)
         client.insert('key1', ColumnParent('Indexed3'), Column(u2, 'b', 0), ConsistencyLevel.ONE)
         # name comparator + data validator of incompatible types -- see CASSANDRA-2347
-        clause = FilterClause([IndexExpression(u, IndexOperator.EQ, 'a'),
-                              IndexExpression(u2, IndexOperator.EQ, 'b')])
-        result = get_range_slice(client, cp, sp, '', '', 100, ConsistencyLevel.ONE, clause)
+        key_range = KeyRange('', '', None, None, [IndexExpression(u, IndexOperator.EQ, 'a'), IndexExpression(u2, IndexOperator.EQ, 'b')], 100)
+        result = client.get_range_slices(cp, sp, key_range, ConsistencyLevel.ONE)
         assert len(result) == 1, result
 
         cp = ColumnParent('Indexed2') # timeuuid name, long values
 
         # name must be valid (TimeUUID)
-        clause = FilterClause([IndexExpression('foo', IndexOperator.EQ, uuid.UUID('00000000-0000-1000-0000-000000000000').bytes)])
-        _expect_exception(lambda: get_range_slice(client, cp, sp, '', '', 100, ConsistencyLevel.ONE, clause), InvalidRequestException)
+        key_range = KeyRange('', '', None, None, [IndexExpression('foo', IndexOperator.EQ, uuid.UUID('00000000-0000-1000-0000-000000000000').bytes)], 100)
+        _expect_exception(lambda: client.get_range_slices(cp, sp, key_range, ConsistencyLevel.ONE), InvalidRequestException)
         
         # value must be valid (TimeUUID)
-        clause = FilterClause([IndexExpression(uuid.UUID('00000000-0000-1000-0000-000000000000').bytes, IndexOperator.EQ, "foo")])
-        _expect_exception(lambda: get_range_slice(client, cp, sp, '', '', 100, ConsistencyLevel.ONE, clause), InvalidRequestException)
+        key_range = KeyRange('', '', None, None, [IndexExpression(uuid.UUID('00000000-0000-1000-0000-000000000000').bytes, IndexOperator.EQ, "foo")], 100)
+        _expect_exception(lambda: client.get_range_slices(cp, sp, key_range, ConsistencyLevel.ONE), InvalidRequestException)
         
     def test_index_scan_expiring(self):
         """ Test that column ttled expires from KEYS index"""
@@ -1906,13 +1902,13 @@ class TestMutations(ThriftTester):
         client.insert('key1', ColumnParent('Indexed1'), Column('birthdate', _i64(1), 0, 1), ConsistencyLevel.ONE)
         cp = ColumnParent('Indexed1')
         sp = SlicePredicate(slice_range=SliceRange('', ''))
-        clause = FilterClause([IndexExpression('birthdate', IndexOperator.EQ, _i64(1))])
+        key_range = KeyRange('', '', None, None, [IndexExpression('birthdate', IndexOperator.EQ, _i64(1))], 100)
         # query before expiration
-        result = get_range_slice(client, cp, sp, '', '', 100, ConsistencyLevel.ONE, clause)
+        result = client.get_range_slices(cp, sp, key_range, ConsistencyLevel.ONE)
         assert len(result) == 1, result
         # wait for expiration and requery
         time.sleep(2)
-        result = get_range_slice(client, cp, sp, '', '', 100, ConsistencyLevel.ONE, clause)
+        result = client.get_range_slices(cp, sp, key_range, ConsistencyLevel.ONE)
         assert len(result) == 0, result
      
     def test_column_not_found_quorum(self): 
