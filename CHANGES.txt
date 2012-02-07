@@ -64,6 +64,7 @@
    (CASSANDRA-3483)
  * respect not only row cache capacity but caching mode when
    trying to read data (CASSANDRA-3812)
+ * fix system tests (CASSANDRA-3827)
 
 
 1.0.8
