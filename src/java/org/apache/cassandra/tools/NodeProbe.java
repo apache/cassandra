@@ -643,6 +643,12 @@ public class NodeProbe
     {
         ssProxy.rebuild(sourceDc);
     }
+    
+    public List<String> getRangeKeySample()
+    {
+        return ssProxy.getRangeKeySample();
+    }
+
 }
 
 class ColumnFamilyStoreMBeanIterator implements Iterator<Map.Entry<String, ColumnFamilyStoreMBean>>

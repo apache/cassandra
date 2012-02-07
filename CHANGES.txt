@@ -1,4 +1,5 @@
 1.1-dev
+ * add nodetool rangekeysample (CASSANDRA-2917)
  * Fix streaming too much data during move operations (CASSANDRA-3639)
  * Nodetool and CLI connect to localhost by default (CASSANDRA-3568)
  * Reduce memory used by primary index sample (CASSANDRA-3743)
