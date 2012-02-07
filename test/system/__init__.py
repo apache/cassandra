@@ -155,7 +155,7 @@ class ThriftTester(BaseTester):
             Cassandra.CfDef('Keyspace1', 'StandardLong1', comparator_type='LongType'), 
             Cassandra.CfDef('Keyspace1', 'StandardLong2', comparator_type='LongType'), 
             Cassandra.CfDef('Keyspace1', 'StandardInteger1', comparator_type='IntegerType'),
-            Cassandra.CfDef('Keyspace1', 'Super1', column_type='Super', subcomparator_type='LongType', row_cache_size=1000, key_cache_size=0), 
+            Cassandra.CfDef('Keyspace1', 'Super1', column_type='Super', subcomparator_type='LongType'),
             Cassandra.CfDef('Keyspace1', 'Super2', column_type='Super', subcomparator_type='LongType'), 
             Cassandra.CfDef('Keyspace1', 'Super3', column_type='Super', subcomparator_type='LongType'), 
             Cassandra.CfDef('Keyspace1', 'Super4', column_type='Super', subcomparator_type='UTF8Type'),
