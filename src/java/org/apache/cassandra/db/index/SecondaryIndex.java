@@ -132,7 +132,13 @@ public abstract class SecondaryIndex
      * Remove the index and unregisters this index's mbean if one exists
      */
     public abstract void invalidate();
-    
+
+    /**
+     * Truncate all the data from the current index
+     *
+     * @param truncatedAt The truncation timestamp, all data before that timestamp should be rejected.
+     */
+    public abstract void truncate(long truncatedAt);
     
     /**
      * Builds the index using the data in the underlying CFS

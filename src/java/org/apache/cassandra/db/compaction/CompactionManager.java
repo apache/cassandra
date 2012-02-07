@@ -38,6 +38,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.CompactionInfo.Holder;
+import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndexBuilder;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -919,19 +920,13 @@ public class CompactionManager implements CompactionManagerMBean
             public void runMayThrow() throws InterruptedException, IOException
             {
                 compactionLock.writeLock().lock();
+
                 try
                 {
-                    for (ColumnFamilyStore cfs : main.concatWithIndexes())
-                    {
-                        List<SSTableReader> truncatedSSTables = new ArrayList<SSTableReader>();
-                        for (SSTableReader sstable : cfs.getSSTables())
-                        {
-                            if (!sstable.newSince(truncatedAt))
-                                truncatedSSTables.add(sstable);
-                        }
-                        if (!truncatedSSTables.isEmpty())
-                            cfs.markCompacted(truncatedSSTables);
-                    }
+                    main.discardSSTables(truncatedAt);
+
+                    for (SecondaryIndex index : main.indexManager.getIndexes())
+                        index.truncate(truncatedAt);
                 }
                 finally
                 {
