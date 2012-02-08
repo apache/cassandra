@@ -92,23 +92,30 @@ public class AlterTableStatement
                 break;
 
             case ALTER:
-                ColumnDef toUpdate = null;
-
-                for (ColumnDef columnDef : cfDef.column_metadata)
+                if (cfDef.key_alias != null && cfDef.key_alias.equals(columnName))
                 {
-                    if (columnDef.name.equals(columnName))
-                    {
-                        toUpdate = columnDef;
-                        break;
-                    }
+                    cfDef.setKey_validation_class(TypeParser.parse(validator).toString());
                 }
+                else
+                {
+                    ColumnDef toUpdate = null;
 
-                if (toUpdate == null)
-                    throw new InvalidRequestException(String.format("Column '%s' was not found in CF '%s'",
-                                                                    this.columnName,
-                                                                    columnFamily));
+                    for (ColumnDef columnDef : cfDef.column_metadata)
+                    {
+                        if (columnDef.name.equals(columnName))
+                        {
+                            toUpdate = columnDef;
+                            break;
+                        }
+                    }
 
-                toUpdate.setValidation_class(TypeParser.parse(validator).toString());
+                    if (toUpdate == null)
+                        throw new InvalidRequestException(String.format("Column '%s' was not found in CF '%s'",
+                                    this.columnName,
+                                    columnFamily));
+
+                    toUpdate.setValidation_class(TypeParser.parse(validator).toString());
+                }
                 break;
 
             case DROP:

@@ -66,6 +66,7 @@
  * respect not only row cache capacity but caching mode when
    trying to read data (CASSANDRA-3812)
  * fix system tests (CASSANDRA-3827)
+ * CQL support for altering key_validation_class in ALTER TABLE (CASSANDRA-3781)
 
 
 1.0.8

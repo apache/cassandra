@@ -90,6 +90,8 @@ public class AlterTableStatement extends SchemaAlteringStatement
                     switch (name.kind)
                     {
                         case KEY_ALIAS:
+                            thriftDef.key_validation_class = CFPropDefs.parseType(validator).toString();
+                            break;
                         case COLUMN_ALIAS:
                             throw new InvalidRequestException(String.format("Cannot alter PRIMARY KEY part %s", columnName));
                         case VALUE_ALIAS:
