@@ -36,6 +36,7 @@ public interface IColumn
     public boolean isMarkedForDelete();
     public long getMarkedForDeleteAt();
     public long mostRecentLiveChangeAt();
+    public long mostRecentNonGCableChangeAt(int gcbefore);
     public ByteBuffer name();
     public int size();
     public int serializedSize();
