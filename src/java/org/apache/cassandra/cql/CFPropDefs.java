@@ -27,6 +27,8 @@ import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.TypeParser;
+import org.apache.cassandra.io.compress.CompressionParameters;
+import org.apache.cassandra.io.compress.SnappyCompressor;
 import org.apache.cassandra.thrift.InvalidRequestException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -102,7 +104,10 @@ public class CFPropDefs {
     public final Map<String, String> properties = new HashMap<String, String>();
     public Class<? extends AbstractCompactionStrategy> compactionStrategyClass;
     public final Map<String, String> compactionStrategyOptions = new HashMap<String, String>();
-    public final Map<String, String> compressionParameters = new HashMap<String, String>();
+    public final Map<String, String> compressionParameters = new HashMap<String, String>()
+    {{
+        put(CompressionParameters.SSTABLE_COMPRESSION, SnappyCompressor.class.getCanonicalName());
+    }};
 
     public void validate() throws InvalidRequestException
     {

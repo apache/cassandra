@@ -82,7 +82,7 @@ public class CompressionParameters
 
     private static Class<? extends ICompressor> parseCompressorClass(String className) throws ConfigurationException
     {
-        if (className == null)
+        if (className == null || className.isEmpty())
             return null;
 
         className = className.contains(".") ? className : "org.apache.cassandra.io.compress." + className;
