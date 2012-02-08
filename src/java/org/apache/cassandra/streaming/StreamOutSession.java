@@ -49,6 +49,11 @@ public class StreamOutSession implements IEndpointStateChangeSubscriber, IFailur
         return create(table, host, System.nanoTime(), callback);
     }
 
+    public static StreamOutSession create(String table, InetAddress host, Runnable callback, Runnable errorCallback)
+    {
+        return create(table, host, System.nanoTime(), callback, errorCallback);
+    }
+
     public static StreamOutSession create(String table, InetAddress host, long sessionId)
     {
         return create(table, host, sessionId, null);
@@ -56,8 +61,13 @@ public class StreamOutSession implements IEndpointStateChangeSubscriber, IFailur
 
     public static StreamOutSession create(String table, InetAddress host, long sessionId, Runnable callback)
     {
+        return create(table, host, sessionId, callback, null);
+    }
+
+    public static StreamOutSession create(String table, InetAddress host, long sessionId, Runnable callback, Runnable errorCallback)
+    {
         Pair<InetAddress, Long> context = new Pair<InetAddress, Long>(host, sessionId);
-        StreamOutSession session = new StreamOutSession(table, context, callback);
+        StreamOutSession session = new StreamOutSession(table, context, callback, errorCallback);
         streams.put(context, session);
         return session;
     }
@@ -72,14 +82,16 @@ public class StreamOutSession implements IEndpointStateChangeSubscriber, IFailur
     public final String table;
     private final Pair<InetAddress, Long> context;
     private final Runnable callback;
+    private final Runnable errorCallback;
     private volatile String currentFile;
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
 
-    private StreamOutSession(String table, Pair<InetAddress, Long> context, Runnable callback)
+    private StreamOutSession(String table, Pair<InetAddress, Long> context, Runnable callback, Runnable errorCallback)
     {
         this.table = table;
         this.context = context;
         this.callback = callback;
+        this.errorCallback = errorCallback;
         Gossiper.instance.register(this);
         FailureDetector.instance.registerFailureDetectionEventListener(this);
     }
@@ -154,6 +166,8 @@ public class StreamOutSession implements IEndpointStateChangeSubscriber, IFailur
         // that to a future ticket (likely CASSANDRA-3112)
         if (callback != null && success)
             callback.run();
+        if (errorCallback != null && !success)
+            errorCallback.run();
     }
 
     /** convenience method for use when testing */
