@@ -119,6 +119,7 @@ public class NodeCmd
         UPGRADESSTABLES,
         VERSION,
         DESCRIBERING,
+        RANGEKEYSAMPLE,
     }
 
     
@@ -156,6 +157,7 @@ public class NodeCmd
         addCmdHelp(header, "setcompactionthroughput <value_in_mb>", "Set the MB/s throughput cap for compaction in the system, or 0 to disable throttling.");
         addCmdHelp(header, "setstreamthroughput <value_in_mb>", "Set the MB/s throughput cap for streaming in the system, or 0 to disable throttling.");
         addCmdHelp(header, "describering [keyspace]", "Shows the token ranges info of a given keyspace.");
+        addCmdHelp(header, "rangekeysample", "Shows the sampled keys held across all keyspaces.");
         addCmdHelp(header, "rebuild [src-dc-name]", "Rebuild data by streaming from other nodes (similarly to bootstrap)");
 
         // Two args
@@ -781,6 +783,10 @@ public class NodeCmd
                     nodeCmd.printDescribeRing(arguments[0], System.out);
                     break;
 
+                case RANGEKEYSAMPLE :
+                    nodeCmd.printRangeKeySample(System.out);
+                    break;
+
                 default :
                     throw new RuntimeException("Unreachable code.");
             }
@@ -818,6 +824,16 @@ public class NodeCmd
         }
     }
 
+    private void printRangeKeySample(PrintStream outs)
+    {
+        outs.println("RangeKeySample: ");
+        List<String> tokenStrings = this.probe.getRangeKeySample();
+        for (String tokenString : tokenStrings)
+        {
+            outs.println("\t" + tokenString);
+        }
+    }
+    
     private void printGossipInfo(PrintStream out) {
         out.println(probe.getGossipInfo());
     }

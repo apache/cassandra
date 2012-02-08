@@ -29,7 +29,10 @@ import java.util.regex.Pattern;
 import javax.management.*;
 
 import com.google.common.collect.AbstractIterator;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Sets;
+
 import org.apache.cassandra.db.compaction.LeveledManifest;
 import org.apache.cassandra.service.CacheService;
 import org.slf4j.Logger;
@@ -1493,16 +1496,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return Iterables.concat(stores);
     }
 
-    public Iterable<DecoratedKey<?>> allKeySamples()
+    public static List<ColumnFamilyStore> allUserDefined()
     {
-        Collection<SSTableReader> sstables = getSSTables();
-        Iterable<DecoratedKey<?>>[] samples = new Iterable[sstables.size()];
-        int i = 0;
-        for (SSTableReader sstable: sstables)
-        {
-            samples[i++] = sstable.getKeySamples();
-        }
-        return Iterables.concat(samples);
+        List<ColumnFamilyStore> cfses = new ArrayList<ColumnFamilyStore>();
+        for (Table table : Sets.difference(ImmutableSet.copyOf(Table.all()), ImmutableSet.of(Table.open(Table.SYSTEM_TABLE))))
+            cfses.addAll(table.getColumnFamilyStores());
+        return cfses;
     }
 
     public Iterable<DecoratedKey<?>> keySamples(Range<Token> range)
