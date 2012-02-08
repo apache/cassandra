@@ -2342,10 +2342,12 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             logger_.warn("Removal not confirmed for for " + StringUtils.join(this.replicatingNodes, ","));
             for (InetAddress endpoint : tokenMetadata_.getLeavingEndpoints())
             {
-                Gossiper.instance.advertiseTokenRemoved(endpoint, tokenMetadata_.getToken(endpoint));
-                tokenMetadata_.removeEndpoint(endpoint);
+                Token token = tokenMetadata_.getToken(endpoint);
+                Gossiper.instance.advertiseTokenRemoved(endpoint, token);
+                excise(token, endpoint);
             }
             replicatingNodes.clear();
+            removingNode = null;
         }
         else
         {
