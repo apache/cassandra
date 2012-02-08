@@ -58,4 +58,38 @@ public class RemoveSubColumnTest extends CleanupHelper
         assert retrieved.getColumn(ByteBufferUtil.bytes("SC1")).getSubColumn(getBytes(1L)).isMarkedForDelete();
         assertNull(Util.cloneAndRemoveDeleted(retrieved, Integer.MAX_VALUE));
     }
+
+    @Test
+    public void testRemoveSubColumnAndContainer() throws IOException, ExecutionException, InterruptedException
+    {
+        Table table = Table.open("Keyspace1");
+        ColumnFamilyStore store = table.getColumnFamilyStore("Super1");
+        RowMutation rm;
+        DecoratedKey dk = Util.dk("key2");
+
+        // add data
+        rm = new RowMutation("Keyspace1", dk.key);
+        Util.addMutation(rm, "Super1", "SC1", 1, "asdf", 0);
+        rm.apply();
+        store.forceBlockingFlush();
+
+        // remove the SC
+        rm = new RowMutation("Keyspace1", dk.key);
+        rm.delete(new QueryPath("Super1", ByteBufferUtil.bytes("SC1"), null), 1);
+        rm.apply();
+
+        // Mark current time and make sure the next insert happens at least
+        // one second after the previous one (since gc resolution is the second)
+        int gcbefore = (int)(System.currentTimeMillis() / 1000);
+        Thread.currentThread().sleep(1000);
+
+        // remove the column itself
+        rm = new RowMutation("Keyspace1", dk.key);
+        rm.delete(new QueryPath("Super1", ByteBufferUtil.bytes("SC1"), getBytes(1)), 2);
+        rm.apply();
+
+        ColumnFamily retrieved = store.getColumnFamily(QueryFilter.getIdentityFilter(dk, new QueryPath("Super1", ByteBufferUtil.bytes("SC1"))), gcbefore);
+        assert retrieved.getColumn(ByteBufferUtil.bytes("SC1")).getSubColumn(getBytes(1)).isMarkedForDelete();
+        assertNull(Util.cloneAndRemoveDeleted(retrieved, Integer.MAX_VALUE));
+    }
 }
