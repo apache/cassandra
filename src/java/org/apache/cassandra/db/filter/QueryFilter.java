@@ -152,7 +152,7 @@ public class QueryFilter
         // the column itself must be not gc-able (it is live, or a still relevant tombstone, or has live subcolumns), (1)
         // and if its container is deleted, the column must be changed more recently than the container tombstone (2)
         // (since otherwise, the only thing repair cares about is the container tombstone)
-        long maxChange = column.mostRecentLiveChangeAt();
+        long maxChange = column.mostRecentNonGCableChangeAt(gcBefore);
         return (!column.isMarkedForDelete() || column.getLocalDeletionTime() > gcBefore || maxChange > column.getMarkedForDeleteAt()) // (1)
                && (!container.isMarkedForDelete() || maxChange > container.getMarkedForDeleteAt()); // (2)
     }

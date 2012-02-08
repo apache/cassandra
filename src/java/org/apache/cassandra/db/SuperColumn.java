@@ -159,10 +159,15 @@ public class SuperColumn implements IColumn, IColumnContainer
 
     public long mostRecentLiveChangeAt()
     {
+        return mostRecentNonGCableChangeAt(Integer.MAX_VALUE);
+    }
+
+    public long mostRecentNonGCableChangeAt(int gcbefore)
+    {
         long max = Long.MIN_VALUE;
         for (IColumn column : columns_.values())
         {
-            if (!column.isMarkedForDelete() && column.timestamp() > max)
+            if ((!column.isMarkedForDelete() || column.getLocalDeletionTime() > gcbefore) && column.timestamp() > max)
             {
                 max = column.timestamp();
             }

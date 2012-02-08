@@ -1292,7 +1292,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return cached;
     }
 
-    private ColumnFamily getColumnFamily(QueryFilter filter, int gcBefore)
+    ColumnFamily getColumnFamily(QueryFilter filter, int gcBefore)
     {
         assert columnFamily.equals(filter.getColumnFamilyName()) : filter.getColumnFamilyName();
 

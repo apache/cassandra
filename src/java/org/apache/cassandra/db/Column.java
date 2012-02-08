@@ -113,6 +113,11 @@ public class Column implements IColumn
         return timestamp;
     }
 
+    public long mostRecentNonGCableChangeAt(int gcbefore)
+    {
+        return timestamp;
+    }
+
     public int size()
     {
         /*
