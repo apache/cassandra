@@ -69,6 +69,9 @@
  * fix system tests (CASSANDRA-3827)
  * CQL support for altering key_validation_class in ALTER TABLE (CASSANDRA-3781)
  * turn compression on by default (CASSANDRA-3871)
+Merged from 1.0:
+ * Only snapshot CF being compacted for snapshot_before_compaction 
+   (CASSANDRA-3803)
 
 
 1.0.8
