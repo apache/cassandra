@@ -102,7 +102,7 @@ public class CompactionTask extends AbstractCompactionTask
         }
 
         if (DatabaseDescriptor.isSnapshotBeforeCompaction())
-            cfs.table.snapshot(System.currentTimeMillis() + "-" + "compact-" + cfs.columnFamily);
+            cfs.snapshotWithoutFlush(System.currentTimeMillis() + "-" + "compact-" + cfs.columnFamily);
 
         // sanity check: all sstables must belong to the same cfs
         for (SSTableReader sstable : toCompact)
