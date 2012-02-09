@@ -120,6 +120,7 @@ public class NodeCmd
         VERSION,
         DESCRIBERING,
         RANGEKEYSAMPLE,
+        REBUILD_INDEX,
     }
 
     
@@ -173,6 +174,7 @@ public class NodeCmd
         addCmdHelp(header, "getcompactionthreshold <keyspace> <cfname>", "Print min and max compaction thresholds for a given column family");
         addCmdHelp(header, "cfhistograms <keyspace> <cfname>", "Print statistic histograms for a given column family");
         addCmdHelp(header, "refresh <keyspace> <cf-name>", "Load newly placed SSTables to the system without restart.");
+        addCmdHelp(header, "rebuild_index <keyspace> <cf-name> <idx1,idx1>", "a full rebuilds of native secondry index for a given column family. IndexNameExample: Standard3.IdxName,Standard3.IdxName1");
 
         // Three args
         addCmdHelp(header, "getendpoints <keyspace> <cf> <key>", "Print the end points that owns the key");
@@ -769,6 +771,15 @@ public class NodeCmd
                 case REFRESH:
                     if (arguments.length != 2) { badUse("load_new_sstables requires ks and cf args"); }
                     probe.loadNewSSTables(arguments[0], arguments[1]);
+                    break;
+
+                case REBUILD_INDEX:
+                    if (arguments.length < 2) { badUse("rebuild_index requires ks and cf args"); }
+                    if (arguments.length >= 3)
+                        probe.rebuildIndex(arguments[0], arguments[1], arguments[2].split(","));
+                    else
+                        probe.rebuildIndex(arguments[0], arguments[1]);
+                    
                     break;
 
                 case GOSSIPINFO : nodeCmd.printGossipInfo(System.out); break;

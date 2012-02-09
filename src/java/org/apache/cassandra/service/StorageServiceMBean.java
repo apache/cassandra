@@ -373,5 +373,9 @@ public interface StorageServiceMBean
      * @return set of Tokens as Strings
      */
     public List<String> getRangeKeySample();
-    
+
+    /**
+     * rebuild the specified indexes
+     */
+    public void rebuildSecondaryIndex(String ksName, String cfName, String... idxNames);
 }

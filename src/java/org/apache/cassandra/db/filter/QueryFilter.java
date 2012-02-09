@@ -180,7 +180,7 @@ public class QueryFilter
      * @return a QueryFilter object that will return columns matching the given names
      * @param key the row to slice
      * @param path path to the level to slice at (CF or SuperColumn)
-     * @param columns the column names to restrict the results to
+     * @param columns the column names to restrict the results to, sorted in comparator order
      */
     public static QueryFilter getNamesFilter(DecoratedKey<?> key, QueryPath path, SortedSet<ByteBuffer> columns)
     {

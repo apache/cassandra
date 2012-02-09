@@ -2904,4 +2904,9 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             sampledKeys.add(key.getToken().toString());
         return sampledKeys;
     }
+    
+    public void rebuildSecondaryIndex(String ksName, String cfName, String... idxNames)
+    {
+        ColumnFamilyStore.rebuildSecondaryIndex(ksName, cfName, idxNames);
+    }
 }

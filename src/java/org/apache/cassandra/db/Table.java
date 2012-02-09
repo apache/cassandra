@@ -486,6 +486,11 @@ public class Table
         return replicationStrategy;
     }
 
+    /**
+     * @param key row to index
+     * @param cfs ColumnFamily to index row in
+     * @param indexedColumns columns to index, in comparator order
+     */
     public static void indexRow(DecoratedKey<?> key, ColumnFamilyStore cfs, SortedSet<ByteBuffer> indexedColumns)
     {
         if (logger.isDebugEnabled())

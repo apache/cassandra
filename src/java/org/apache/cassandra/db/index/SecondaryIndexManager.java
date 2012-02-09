@@ -103,7 +103,7 @@ public class SecondaryIndexManager
      * Caller must acquire and release references to the sstables used here.
      *
      * @param sstables the data to build from
-     * @param columns the list of columns to index
+     * @param columns the list of columns to index, ordered by comparator
      * @throws IOException 
      */
     public void maybeBuildSecondaryIndexes(Collection<SSTableReader> sstables, SortedSet<ByteBuffer> columns) throws IOException
@@ -307,6 +307,16 @@ public class SecondaryIndexManager
         }
         
         return indexList;
+    }
+    
+    public ByteBuffer getColumnByIdxName(String idxName)
+    {        
+        for (Map.Entry<ByteBuffer, SecondaryIndex> entry : indexesByColumn.entrySet())
+        {
+            if (entry.getValue().getIndexName().equals(idxName)) 
+                return entry.getKey();
+        }
+        throw new RuntimeException("Unknown Index Name: " + idxName);
     }
     
     /**
@@ -577,5 +587,17 @@ public class SecondaryIndexManager
         
         
         return indexSearchers.get(0).search(clause, range, maxResults, dataFilter, maxIsColumns);
+    }
+
+    public void setIndexBuilt(Collection<ByteBuffer> indexes)
+    {
+        for (ByteBuffer colName : indexes)
+            indexesByColumn.get(colName).setIndexBuilt(colName);
+    }
+    
+    public void setIndexRemoved(Collection<ByteBuffer> indexes)
+    {
+        for (ByteBuffer colName : indexes)
+            indexesByColumn.get(colName).setIndexBuilt(colName);
     }
 }
