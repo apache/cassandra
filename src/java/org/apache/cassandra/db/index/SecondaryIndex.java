@@ -96,6 +96,16 @@ public abstract class SecondaryIndex
         return SystemTable.isIndexBuilt(baseCfs.table.name, getNameForSystemTable(columnName));
     }
     
+    public void setIndexBuilt(ByteBuffer columnName)
+    {
+        SystemTable.setIndexBuilt(baseCfs.table.name, getNameForSystemTable(columnName));
+    }
+
+    public void setIndexRemoved(ByteBuffer columnName)
+    {
+        SystemTable.setIndexRemoved(baseCfs.table.name, getNameForSystemTable(columnName));
+    }
+    
     /**
      * Called at query time
      * Creates a implementation specific searcher instance for this index type

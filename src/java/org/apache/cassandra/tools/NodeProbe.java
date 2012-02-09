@@ -619,6 +619,11 @@ public class NodeProbe
         ssProxy.loadNewSSTables(ksName, cfName);
     }
 
+    public void rebuildIndex(String ksName, String cfName, String... idxNames)
+    {
+        ssProxy.rebuildSecondaryIndex(ksName, cfName, idxNames);
+    }
+
     public String getGossipInfo()
     {
         return fdProxy.getAllEndpointStates();

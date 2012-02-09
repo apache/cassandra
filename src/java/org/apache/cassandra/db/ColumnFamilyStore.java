@@ -28,10 +28,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Pattern;
 import javax.management.*;
 
-import com.google.common.collect.AbstractIterator;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Sets;
+import com.google.common.collect.*;
 
 import org.apache.cassandra.db.compaction.LeveledManifest;
 import org.apache.cassandra.service.CacheService;
@@ -510,6 +507,35 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
 
         logger.info("Done loading load new SSTables for " + table.name + "/" + columnFamily);
+    }
+
+    public static void rebuildSecondaryIndex(String ksName, String cfName, String... idxNames)
+    {
+        ColumnFamilyStore cfs = Table.open(ksName).getColumnFamilyStore(cfName);
+
+        SortedSet<ByteBuffer> indexes = new TreeSet<ByteBuffer>(cfs.metadata.comparator);
+        if (idxNames.length == 0)
+            indexes.addAll(cfs.indexManager.getIndexedColumns());
+        for (String idxName : idxNames)
+            indexes.add(cfs.indexManager.getColumnByIdxName(idxName));
+
+        Collection<SSTableReader> sstables = cfs.getSSTables();    
+        try
+        {
+            cfs.indexManager.setIndexRemoved(indexes);
+            SSTableReader.acquireReferences(sstables);
+            logger.info(String.format("User Requested secondary index re-build for %s/%s indexes", ksName, cfName));
+            cfs.indexManager.maybeBuildSecondaryIndexes(sstables, indexes);
+            cfs.indexManager.setIndexBuilt(indexes);
+        }
+        catch (IOException e)
+        {
+            throw new IOError(e);
+        }
+        finally
+        {
+            SSTableReader.releaseReferences(sstables);
+        }
     }
 
     /**
