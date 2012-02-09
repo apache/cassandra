@@ -329,7 +329,7 @@ public class SelectStatement implements CQLStatement
 
     private Collection<ByteBuffer> getKeys(final List<ByteBuffer> variables) throws InvalidRequestException
     {
-        assert keyRestriction != null || keyRestriction.isEquality();
+        assert keyRestriction != null && keyRestriction.isEquality();
 
         List<ByteBuffer> keys = new ArrayList<ByteBuffer>(keyRestriction.eqValues.size());
         for (Term t : keyRestriction.eqValues)
