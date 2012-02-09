@@ -365,4 +365,13 @@ public interface StorageServiceMBean
      * @param cfName The ColumnFamily name where SSTables belong
      */
     public void loadNewSSTables(String ksName, String cfName);
+    
+    /**
+     * Return a List of Tokens representing a sample of keys
+     * across all ColumnFamilyStores
+     * 
+     * @return set of Tokens as Strings
+     */
+    public List<String> getRangeKeySample();
+    
 }

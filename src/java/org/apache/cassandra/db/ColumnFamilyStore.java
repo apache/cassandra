@@ -29,7 +29,10 @@ import java.util.regex.Pattern;
 import javax.management.*;
 
 import com.google.common.collect.AbstractIterator;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Sets;
+
 import org.apache.cassandra.db.compaction.LeveledManifest;
 import org.apache.cassandra.service.CacheService;
 import org.slf4j.Logger;
@@ -560,7 +563,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
          * all ongoing updates to memtables have completed. We can get the tail
          * of the log and use it as the starting position for log replay on recovery.
          *
-         * This is why we Table.flusherLock needs to be global instead of per-Table:
+         * This is why we Table.switchLock needs to be global instead of per-Table:
          * we need to schedule discardCompletedSegments calls in the same order as their
          * contexts (commitlog position) were read, even though the flush executor
          * is multithreaded.
@@ -1361,7 +1364,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return metadata.comparator;
     }
 
-    private void snapshotWithoutFlush(String snapshotName)
+    public void snapshotWithoutFlush(String snapshotName)
     {
         for (ColumnFamilyStore cfs : concatWithIndexes())
         {
@@ -1493,16 +1496,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return Iterables.concat(stores);
     }
 
-    public Iterable<DecoratedKey<?>> allKeySamples()
+    public static List<ColumnFamilyStore> allUserDefined()
     {
-        Collection<SSTableReader> sstables = getSSTables();
-        Iterable<DecoratedKey<?>>[] samples = new Iterable[sstables.size()];
-        int i = 0;
-        for (SSTableReader sstable: sstables)
-        {
-            samples[i++] = sstable.getKeySamples();
-        }
-        return Iterables.concat(samples);
+        List<ColumnFamilyStore> cfses = new ArrayList<ColumnFamilyStore>();
+        for (Table table : Sets.difference(ImmutableSet.copyOf(Table.all()), ImmutableSet.of(Table.open(Table.SYSTEM_TABLE))))
+            cfses.addAll(table.getColumnFamilyStores());
+        return cfses;
     }
 
     public Iterable<DecoratedKey<?>> keySamples(Range<Token> range)

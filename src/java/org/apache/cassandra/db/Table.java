@@ -65,7 +65,7 @@ public class Table
 
     /**
      * accesses to CFS.memtable should acquire this for thread safety.
-     * Table.maybeSwitchMemtable should aquire the writeLock; see that method for the full explanation.
+     * CFS.maybeSwitchMemtable should aquire the writeLock; see that method for the full explanation.
      *
      * (Enabling fairness in the RRWL is observed to decrease throughput, so we leave it off.)
      */

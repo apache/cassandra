@@ -40,6 +40,7 @@ import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.io.IColumnSerializer;
 import org.apache.cassandra.io.compress.CompressionParameters;
+import org.apache.cassandra.io.compress.SnappyCompressor;
 import org.apache.cassandra.thrift.CfDef;
 import org.apache.cassandra.thrift.ColumnDef;
 import org.apache.cassandra.thrift.IndexType;
@@ -617,6 +618,13 @@ public final class CFMetaData
             cf_def.compaction_strategy = DEFAULT_COMPACTION_STRATEGY_CLASS;
         if (null == cf_def.compaction_strategy_options)
             cf_def.compaction_strategy_options = Collections.emptyMap();
+        if (!cf_def.isSetCompression_options())
+        {
+            cf_def.setCompression_options(new HashMap<String, String>()
+            {{
+                put(CompressionParameters.SSTABLE_COMPRESSION, SnappyCompressor.class.getCanonicalName());
+            }});
+        }
     }
 
     public static CFMetaData fromThrift(org.apache.cassandra.thrift.CfDef cf_def) throws InvalidRequestException, ConfigurationException
