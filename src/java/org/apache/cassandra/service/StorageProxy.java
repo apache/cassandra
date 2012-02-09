@@ -861,9 +861,10 @@ public class StorageProxy implements StorageProxyMBean
                 else
                 {
                     // collect replies and resolve according to consistency level
-                    RangeSliceResponseResolver resolver = new RangeSliceResponseResolver(nodeCmd.keyspace, liveEndpoints);
+                    RangeSliceResponseResolver resolver = new RangeSliceResponseResolver(nodeCmd.keyspace);
                     ReadCallback<Iterable<Row>> handler = getReadCallback(resolver, nodeCmd, consistency_level, liveEndpoints);
                     handler.assureSufficientLiveNodes();
+                    resolver.setSources(handler.endpoints);
                     for (InetAddress endpoint : handler.endpoints)
                     {
                         MessagingService.instance().sendRR(nodeCmd, endpoint, handler);
