@@ -216,9 +216,12 @@ public class FBUtilities
     public static byte[] hash(ByteBuffer... data)
     {
         MessageDigest messageDigest = localMD5Digest.get();
-        for(ByteBuffer block : data)
+        for (ByteBuffer block : data)
         {
-            messageDigest.update(block.duplicate());
+            if (block.hasArray())
+                messageDigest.update(block.array(), block.position(), block.remaining());
+            else
+                messageDigest.update(block.duplicate());
         }
 
         return messageDigest.digest();
