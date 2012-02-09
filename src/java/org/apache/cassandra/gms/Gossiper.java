@@ -263,7 +263,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
      * This method is part of IFailureDetectionEventListener interface. This is invoked
      * by the Failure Detector when it convicts an end point.
      *
-     * param @ endpoint end point that is convicted.
+     * @param endpoint end point that is convicted.
     */
     public void convict(InetAddress endpoint, double phi)
     {
