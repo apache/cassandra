@@ -56,14 +56,18 @@ public class RangeSliceResponseResolver implements IResponseResolver<Iterable<Ro
     };
 
     private final String table;
-    private final List<InetAddress> sources;
+    private List<InetAddress> sources;
     protected final Collection<Message> responses = new LinkedBlockingQueue<Message>();;
     public final List<IAsyncResult> repairResults = new ArrayList<IAsyncResult>();
 
-    public RangeSliceResponseResolver(String table, List<InetAddress> sources)
+    public RangeSliceResponseResolver(String table)
     {
-        this.sources = sources;
         this.table = table;
+    }
+
+    public void setSources(List<InetAddress> endpoints)
+    {
+        this.sources = endpoints;
     }
 
     public List<Row> getData() throws IOException

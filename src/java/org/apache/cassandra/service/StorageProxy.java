@@ -814,9 +814,10 @@ public class StorageProxy implements StorageProxyMBean
                     RangeSliceCommand c2 = new RangeSliceCommand(command.keyspace, command.column_family, command.super_column, command.predicate, range, command.max_keys);
 
                     // collect replies and resolve according to consistency level
-                    RangeSliceResponseResolver resolver = new RangeSliceResponseResolver(command.keyspace, liveEndpoints);
+                    RangeSliceResponseResolver resolver = new RangeSliceResponseResolver(command.keyspace);
                     ReadCallback<Iterable<Row>> handler = getReadCallback(resolver, command, consistency_level, liveEndpoints);
                     handler.assureSufficientLiveNodes();
+                    resolver.setSources(handler.endpoints);
                     for (InetAddress endpoint : handler.endpoints)
                     {
                         MessagingService.instance().sendRR(c2, endpoint, handler);
@@ -1071,7 +1072,7 @@ public class StorageProxy implements StorageProxyMBean
             DatabaseDescriptor.getEndpointSnitch().sortByProximity(FBUtilities.getBroadcastAddress(), liveEndpoints);
 
             // collect replies and resolve according to consistency level
-            RangeSliceResponseResolver resolver = new RangeSliceResponseResolver(keyspace, liveEndpoints);
+            RangeSliceResponseResolver resolver = new RangeSliceResponseResolver(keyspace);
             IReadCommand iCommand = new IReadCommand()
             {
                 public String getKeyspace()
@@ -1081,6 +1082,7 @@ public class StorageProxy implements StorageProxyMBean
             };
             ReadCallback<Iterable<Row>> handler = getReadCallback(resolver, iCommand, consistency_level, liveEndpoints);
             handler.assureSufficientLiveNodes();
+            resolver.setSources(handler.endpoints);
 
             IndexScanCommand command = new IndexScanCommand(keyspace, column_family, index_clause, column_predicate, range);
             MessageProducer producer = new CachingMessageProducer(command);

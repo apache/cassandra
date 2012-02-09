@@ -1,9 +1,8 @@
-1.0.9
+1.0.8
+ * avoid including non-queried nodes in rangeslice read repair
+   (CASSANDRA-3843)
  * Only snapshot CF being compacted for snapshot_before_compaction 
    (CASSANDRA-3803)
-
-
-1.0.8
  * Log active compactions in StatusLogger (CASSANDRA-3703)
  * Compute more accurate compaction score per level (CASSANDRA-3790)
  * Return InvalidRequest when using a keyspace that doesn't exist
