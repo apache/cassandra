@@ -22,7 +22,6 @@ package org.apache.cassandra.service;
 
 
 import java.net.InetAddress;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
@@ -35,15 +34,12 @@ import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.thrift.UnavailableException;
-import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * Datacenter Quorum response handler blocks for a quorum of responses from the local DC
  */
 public class DatacenterReadCallback<T> extends ReadCallback<T>
 {
-    private static final IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
-    private static final String localdc = snitch.getDatacenter(FBUtilities.getBroadcastAddress());
     private static final Comparator<InetAddress> localComparator = new Comparator<InetAddress>()
     {
         public int compare(InetAddress endpoint1, InetAddress endpoint2)

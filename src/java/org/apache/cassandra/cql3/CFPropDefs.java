@@ -40,6 +40,7 @@ public class CFPropDefs
 
     public static final String KW_COMMENT = "comment";
     public static final String KW_READREPAIRCHANCE = "read_repair_chance";
+    public static final String KW_DCLOCALREADREPAIRCHANCE = "dclocal_read_repair_chance";
     public static final String KW_GCGRACESECONDS = "gc_grace_seconds";
     public static final String KW_MINCOMPACTIONTHRESHOLD = "min_compaction_threshold";
     public static final String KW_MAXCOMPACTIONTHRESHOLD = "max_compaction_threshold";
@@ -75,6 +76,7 @@ public class CFPropDefs
 
         keywords.add(KW_COMMENT);
         keywords.add(KW_READREPAIRCHANCE);
+        keywords.add(KW_DCLOCALREADREPAIRCHANCE);
         keywords.add(KW_GCGRACESECONDS);
         keywords.add(KW_MINCOMPACTIONTHRESHOLD);
         keywords.add(KW_MAXCOMPACTIONTHRESHOLD);
