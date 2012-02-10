@@ -679,6 +679,20 @@ commands:
           will not have any latency information from all the replicas to recognize
           when one is performing worse than usual.
 
+        - dclocal_read_repair_chance: Probability (0.0-1.0) with which to
+          perform read repairs against the node from the local data-center. If
+          this is lower than read_repair_chance, this will be ignored.
+
+          Example:
+            update column family Standard2
+                 with read_repair_chance=0.1
+                 and dclocal_read_repair_chance=0.5;
+
+            For 10 read queries, 1 will do read repair on all replicas (and
+            thus in particular on all replica of the local DC), 4 will only do
+            read repair on replica of the local DC and 5 will not do any read
+            repair.
+
         - subcomparator:  Validator to use to validate and compare sub column names
           in this column family. Only applied to Super column families. Default is
           BytesType, which is a straight forward lexical comparison of the bytes in

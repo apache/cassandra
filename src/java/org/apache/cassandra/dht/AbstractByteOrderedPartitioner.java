@@ -150,6 +150,8 @@ public abstract class AbstractByteOrderedPartitioner extends AbstractPartitioner
         {
             try
             {
+                if (token.length() % 2 == 1)
+                    token = "0" + token;
                 Hex.hexToBytes(token);
             }
             catch (NumberFormatException e)
@@ -160,6 +162,8 @@ public abstract class AbstractByteOrderedPartitioner extends AbstractPartitioner
 
         public Token<byte[]> fromString(String string)
         {
+            if (string.length() % 2 == 1)
+                string = "0" + string;
             return new BytesToken(Hex.hexToBytes(string));
         }
     };

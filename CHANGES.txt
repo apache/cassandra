@@ -70,6 +70,7 @@
  * fix system tests (CASSANDRA-3827)
  * CQL support for altering key_validation_class in ALTER TABLE (CASSANDRA-3781)
  * turn compression on by default (CASSANDRA-3871)
+ * make hexToBytes refuse invalid input (CASSANDRA-2851)
 
 
 1.0.8

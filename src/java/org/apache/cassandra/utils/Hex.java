@@ -49,7 +49,8 @@ public class Hex
     public static byte[] hexToBytes(String str)
     {
         if (str.length() % 2 == 1)
-            str = "0" + str;
+            throw new NumberFormatException("An hex string representing bytes must have an even length");
+
         byte[] bytes = new byte[str.length() / 2];
         for (int i = 0; i < bytes.length; i++)
         {
