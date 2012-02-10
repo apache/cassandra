@@ -124,6 +124,7 @@ public class CliClient
         KEYS_CACHED,
         KEY_CACHE_SAVE_PERIOD,
         READ_REPAIR_CHANCE,
+        DCLOCAL_READ_REPAIR_CHANCE,
         GC_GRACE,
         COLUMN_METADATA,
         MEMTABLE_OPERATIONS,
@@ -1196,6 +1197,14 @@ public class CliClient
 
                 cfDef.setRead_repair_chance(chance);
                 break;
+            case DCLOCAL_READ_REPAIR_CHANCE:
+                double localChance = Double.parseDouble(mValue);
+
+                if (localChance < 0 || localChance > 1)
+                    throw new RuntimeException("Error: dclocal_read_repair_chance must be between 0 and 1.");
+
+                cfDef.setDclocal_read_repair_chance(localChance);
+                break;
             case GC_GRACE:
                 cfDef.setGc_grace_seconds(Integer.parseInt(mValue));
                 break;
@@ -1622,6 +1631,7 @@ public class CliClient
                     normaliseType(cfDef.key_validation_class, "org.apache.cassandra.db.marshal"));
 
         writeAttr(output, false, "read_repair_chance", cfDef.read_repair_chance);
+        writeAttr(output, false, "dclocal_read_repair_chance", cfDef.dclocal_read_repair_chance);
         writeAttr(output, false, "gc_grace", cfDef.gc_grace_seconds);
         writeAttr(output, false, "min_compaction_threshold", cfDef.min_compaction_threshold);
         writeAttr(output, false, "max_compaction_threshold", cfDef.max_compaction_threshold);
@@ -1975,6 +1985,7 @@ public class CliClient
         sessionState.out.printf("      GC grace seconds: %s%n", cf_def.gc_grace_seconds);
         sessionState.out.printf("      Compaction min/max thresholds: %s/%s%n", cf_def.min_compaction_threshold, cf_def.max_compaction_threshold);
         sessionState.out.printf("      Read repair chance: %s%n", cf_def.read_repair_chance);
+        sessionState.out.printf("      DC Local Read repair chance: %s%n", cf_def.dclocal_read_repair_chance);
         sessionState.out.printf("      Replicate on write: %s%n", cf_def.replicate_on_write);
         sessionState.out.printf("      Caching: %s%n", cf_def.caching);
         sessionState.out.printf("      Bloom Filter FP chance: %s%n", cf_def.isSetBloom_filter_fp_chance() ? cf_def.bloom_filter_fp_chance : "default");

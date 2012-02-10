@@ -417,6 +417,7 @@ struct CfDef {
     34: optional string caching="keys_only",
     35: optional list<binary> column_aliases,
     36: optional binary value_alias,
+    37: optional double dclocal_read_repair_chance = 0.0,
 }
 
 /* describes a keyspace. */

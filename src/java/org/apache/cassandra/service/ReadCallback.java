@@ -37,6 +37,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.db.Table;
+import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.net.IAsyncCallback;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -46,9 +47,14 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.SimpleCondition;
 import org.apache.cassandra.utils.WrappedRunnable;
 
+import com.google.common.collect.Lists;
+
 public class ReadCallback<T> implements IAsyncCallback
 {
     protected static final Logger logger = LoggerFactory.getLogger( ReadCallback.class );
+
+    protected static final IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
+    protected static final String localdc = snitch.getDatacenter(FBUtilities.getBroadcastAddress());
 
     public final IResponseResolver<T> resolver;
     protected final SimpleCondition condition = new SimpleCondition();
@@ -67,15 +73,10 @@ public class ReadCallback<T> implements IAsyncCallback
         this.blockfor = determineBlockFor(consistencyLevel, command.getKeyspace());
         this.resolver = resolver;
         this.startTime = System.currentTimeMillis();
-        boolean repair = randomlyReadRepair();
         sortForConsistencyLevel(endpoints);
-        this.endpoints = repair || resolver instanceof RowRepairResolver
-                       ? endpoints
-                       : endpoints.subList(0, Math.min(endpoints.size(), blockfor));
-
+        this.endpoints = resolver instanceof RowRepairResolver ? endpoints : filterEndpoints(endpoints);
         if (logger.isDebugEnabled())
-            logger.debug(String.format("Blockfor/repair is %s/%s; setting up requests to %s",
-                                       blockfor, repair, StringUtils.join(this.endpoints, ",")));
+            logger.debug(String.format("Blockfor is %s; setting up requests to %s", blockfor, StringUtils.join(this.endpoints, ",")));
     }
 
     /**
@@ -89,7 +90,7 @@ public class ReadCallback<T> implements IAsyncCallback
         // no-op except in DRC
     }
 
-    private boolean randomlyReadRepair()
+    private List<InetAddress> filterEndpoints(List<InetAddress> ep)
     {
         if (resolver instanceof RowDigestResolver)
         {
@@ -97,10 +98,32 @@ public class ReadCallback<T> implements IAsyncCallback
             String table = ((RowDigestResolver) resolver).table;
             String columnFamily = ((ReadCommand) command).getColumnFamilyName();
             CFMetaData cfmd = Schema.instance.getTableMetaData(table).get(columnFamily);
-            return cfmd.getReadRepairChance() > FBUtilities.threadLocalRandom().nextDouble();
+            double chance = FBUtilities.threadLocalRandom().nextDouble();
+
+            // if global repair then just return all the ep's
+            if (cfmd.getReadRepairChance() > chance)
+                return ep;
+
+            // if local repair then just return localDC ep's
+            if (cfmd.getDcLocalReadRepair() > chance)
+            {
+                List<InetAddress> local = Lists.newArrayList();
+                List<InetAddress> other = Lists.newArrayList();
+                for (InetAddress add : ep)
+                {
+                    if (snitch.getDatacenter(add).equals(localdc))
+                        local.add(add);
+                    else
+                        other.add(add);
+                }
+                // check if blockfor more than we have localep's
+                if (local.size() < blockfor)
+                    local.addAll(other.subList(0, Math.min(blockfor - local.size(), other.size())));
+                return local;
+            }
         }
         // we don't read repair on range scans
-        return false;
+        return ep.subList(0, Math.min(ep.size(), blockfor));
     }
 
     public T get() throws TimeoutException, DigestMismatchException, IOException
