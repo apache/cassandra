@@ -42,11 +42,11 @@ public class HexTest
     {
         String[] values = new String[]
         {
-            "0",
+            "00",
             "10",
-            "100",
-            "101",
-            "f",
+            "0100",
+            "0101",
+            "0f",
             "ff"
         };
         byte[][] expected = new byte[][]
