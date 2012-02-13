@@ -177,6 +177,14 @@ public class CustomTHsHaServer extends TNonblockingServer
                 {
                     select();
                 }
+                try
+                {
+                    selector.close(); // CASSANDRA-3867
+                }
+                catch (IOException e)
+                {
+                    // ignore this exception.
+                }
             } 
             catch (Throwable t)
             {
