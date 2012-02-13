@@ -88,7 +88,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
 
             // collect endpoints in this DC
             TokenMetadata dcTokens = new TokenMetadata();
-            for (Entry<Token, InetAddress> tokenEntry : tokenMetadata.entrySet())
+            for (Entry<Token, InetAddress> tokenEntry : tokenMetadata.getTokenToEndpointMapForReading().entrySet())
             {
                 if (snitch.getDatacenter(tokenEntry.getValue()).equals(dcName))
                     dcTokens.updateNormalToken(tokenEntry.getKey(), tokenEntry.getValue());
