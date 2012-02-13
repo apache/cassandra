@@ -710,14 +710,13 @@ public class CompactionManager implements CompactionManagerMBean
                     }
                     else
                     {
-                                              
                         cfs.invalidateCachedRow(row.getKey());
-                                                
+
                         if (!indexedColumns.isEmpty() || isCommutative)
                         {
                             if (indexedColumnsInRow != null)
                                 indexedColumnsInRow.clear();
-                            
+
                             while (row.hasNext())
                             {
                                 IColumn column = row.next();
@@ -727,13 +726,24 @@ public class CompactionManager implements CompactionManagerMBean
                                 {
                                     if (indexedColumnsInRow == null)
                                         indexedColumnsInRow = new ArrayList<IColumn>();
-                                    
+
                                     indexedColumnsInRow.add(column);
                                 }
                             }
-                            
+
                             if (indexedColumnsInRow != null && !indexedColumnsInRow.isEmpty())
-                                cfs.indexManager.deleteFromIndexes(row.getKey(), indexedColumnsInRow);
+                            {
+                                // acquire memtable lock here because secondary index deletion may cause a race. See CASSANDRA-3712
+                                Table.switchLock.readLock().lock();
+                                try
+                                {
+                                    cfs.indexManager.deleteFromIndexes(row.getKey(), indexedColumnsInRow);
+                                }
+                                finally
+                                {
+                                    Table.switchLock.readLock().unlock();
+                                }
+                            }
                         }
                     }
                 }
@@ -749,7 +759,6 @@ public class CompactionManager implements CompactionManagerMBean
             finally
             {
                 scanner.close();
-                executor.finishCompaction(ci);
                 executor.finishCompaction(ci);
             }
 
@@ -768,7 +777,6 @@ public class CompactionManager implements CompactionManagerMBean
 
             // flush to ensure we don't lose the tombstones on a restart, since they are not commitlog'd         
             cfs.indexManager.flushIndexesBlocking();
-           
 
             cfs.replaceCompactedSSTables(Arrays.asList(sstable), results);
         }
