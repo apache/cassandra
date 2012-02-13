@@ -560,9 +560,9 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
         if (o == null)
             return (ByteBuffer)o;
         if (o instanceof java.lang.String)
-            return new ByteBuffer.wrap(DataByteArray((String)o).get());
+            return ByteBuffer.wrap(new DataByteArray((String)o).get());
         if (o instanceof Integer)
-            return IntegerType.instance.decompose((BigInteger)o);
+            return Int32Type.instance.decompose((Integer)o);
         if (o instanceof Long)
             return LongType.instance.decompose((Long)o);
         if (o instanceof Float)
@@ -571,7 +571,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
             return DoubleType.instance.decompose((Double)o);
         if (o instanceof UUID)
             return ByteBuffer.wrap(UUIDGen.decompose((UUID) o));
-        return null;
+        return ByteBuffer.wrap(((DataByteArray) o).get());
     }
 
     public void putNext(Tuple t) throws ExecException, IOException
