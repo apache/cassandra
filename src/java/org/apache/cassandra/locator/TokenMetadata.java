@@ -436,11 +436,6 @@ public class TokenMetadata
         }
     }
 
-    public Set<Map.Entry<Token,InetAddress>> entrySet()
-    {
-        return tokenToEndpointMap.entrySet();
-    }
-
     public InetAddress getEndpoint(Token token)
     {
         lock.readLock().lock();
@@ -741,9 +736,28 @@ public class TokenMetadata
     }
 
     /**
-     * Return the Token to Endpoint map for all the node in the cluster, including bootstrapping ones.
+     * @return a token to endpoint map to consider for read operations on the cluster.
      */
-    public Map<Token, InetAddress> getTokenToEndpointMap()
+    public Map<Token, InetAddress> getTokenToEndpointMapForReading()
+    {
+        lock.readLock().lock();
+        try
+        {
+            Map<Token, InetAddress> map = new HashMap<Token, InetAddress>(tokenToEndpointMap.size());
+            map.putAll(tokenToEndpointMap);
+            return map;
+        }
+        finally
+        {
+            lock.readLock().unlock();
+        }
+    }
+
+    /**
+     * @return a (stable copy, won't be modified) Token to Endpoint map for all the normal and bootstrapping nodes
+     *         in the cluster.
+     */
+    public Map<Token, InetAddress> getNormalAndBootstrappingTokenToEndpointMap()
     {
         lock.readLock().lock();
         try
