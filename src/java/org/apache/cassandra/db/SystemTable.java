@@ -277,12 +277,12 @@ public class SystemTable
         SortedSet<ByteBuffer> cols = new TreeSet<ByteBuffer>(BytesType.instance);
         cols.add(CLUSTERNAME);
         QueryFilter filter = QueryFilter.getNamesFilter(decorate(LOCATION_KEY), new QueryPath(STATUS_CF), cols);
-        ColumnFamily cf = table.getColumnFamilyStore(STATUS_CF).getColumnFamily(filter);
+        ColumnFamilyStore cfs = table.getColumnFamilyStore(STATUS_CF);
+        ColumnFamily cf = cfs.getColumnFamily(filter);
         
         if (cf == null)
         {
             // this is a brand new node
-            ColumnFamilyStore cfs = table.getColumnFamilyStore(STATUS_CF);
             if (!cfs.getSSTables().isEmpty())
                 throw new ConfigurationException("Found system table files, but they couldn't be loaded!");
 
