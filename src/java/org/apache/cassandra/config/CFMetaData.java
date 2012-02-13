@@ -279,9 +279,18 @@ public final class CFMetaData
                              .keyValidator(info.getValidator())
                              .readRepairChance(0.0)
                              .dclocalReadRepairChance(0.0)
-                             .gcGraceSeconds(parent.gcGraceSeconds)
-                             .minCompactionThreshold(parent.minCompactionThreshold)
-                             .maxCompactionThreshold(parent.maxCompactionThreshold);
+                             .reloadSecondaryIndexMetadata(parent);
+    }
+
+    public CFMetaData reloadSecondaryIndexMetadata(CFMetaData parent)
+    {
+        gcGraceSeconds(parent.gcGraceSeconds);
+        minCompactionThreshold(parent.minCompactionThreshold);
+        maxCompactionThreshold(parent.maxCompactionThreshold);
+        compactionStrategyClass(parent.compactionStrategyClass);
+        compactionStrategyOptions(parent.compactionStrategyOptions);
+        compressionParameters(parent.compressionParameters);;
+        return this;
     }
 
     // Create a new CFMD by changing just the cfName

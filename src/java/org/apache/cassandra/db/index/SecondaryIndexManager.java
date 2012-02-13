@@ -93,6 +93,12 @@ public class SecondaryIndexManager
         for (ColumnDefinition cdef : baseCfs.metadata.getColumn_metadata().values())
             if (cdef.getIndexType() != null && !indexedColumnNames.contains(cdef.name))
                 addIndexedColumn(cdef);
+
+        for (ColumnFamilyStore cfs : getIndexesBackedByCfs())
+        {
+            cfs.metadata.reloadSecondaryIndexMetadata(baseCfs.metadata);
+            cfs.reload();
+        }
     }
     
     
