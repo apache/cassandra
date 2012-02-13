@@ -502,7 +502,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
             return DoubleType.instance.decompose((Double)o);
         if (o instanceof UUID)
             return ByteBuffer.wrap(UUIDGen.decompose((UUID) o));
-        return null;
+        return ByteBuffer.wrap(((DataByteArray) o).get());
     }
 
     public void putNext(Tuple t) throws ExecException, IOException
