@@ -1,4 +1,5 @@
 1.0.8
+ * fix race between cleanup and flush on secondary index CFSes (CASSANDRA-3712)
  * avoid including non-queried nodes in rangeslice read repair
    (CASSANDRA-3843)
  * Only snapshot CF being compacted for snapshot_before_compaction 

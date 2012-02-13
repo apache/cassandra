@@ -71,7 +71,7 @@ public class Table
      *
      * (Enabling fairness in the RRWL is observed to decrease throughput, so we leave it off.)
      */
-    static final ReentrantReadWriteLock switchLock = new ReentrantReadWriteLock();
+    public static final ReentrantReadWriteLock switchLock = new ReentrantReadWriteLock();
 
     // It is possible to call Table.open without a running daemon, so it makes sense to ensure
     // proper directories here as well as in CassandraDaemon.
