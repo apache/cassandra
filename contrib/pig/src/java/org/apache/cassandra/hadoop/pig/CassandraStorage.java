@@ -491,7 +491,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
         if (o == null)
             return (ByteBuffer)o;
         if (o instanceof java.lang.String)
-            return new ByteBuffer.wrap(DataByteArray((String)o).get());
+            return ByteBuffer.wrap(new DataByteArray((String)o).get());
         if (o instanceof Integer)
             return IntegerType.instance.decompose((BigInteger)o);
         if (o instanceof Long)
