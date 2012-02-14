@@ -43,7 +43,7 @@ contrib/pig$ bin/pig_cassandra -x local
 Once the 'grunt>' shell has loaded, try a simple program like the
 following, which will determine the top 50 column names:
 
-grunt> rows = LOAD 'cassandra://MyKeyspace/MyColumnFamily' USING CassandraStorage() AS (key, columns: bag {T: tuple(name, value)});
+grunt> rows = LOAD 'cassandra://MyKeyspace/MyColumnFamily' USING CassandraStorage();
 grunt> cols = FOREACH rows GENERATE flatten(columns);
 grunt> colnames = FOREACH cols GENERATE $0;
 grunt> namegroups = GROUP colnames BY (chararray) $0;
@@ -53,7 +53,7 @@ grunt> topnames = LIMIT orderednames 50;
 grunt> dump topnames;
 
 Slices on columns can also be specified:
-grunt> rows = LOAD 'cassandra://MyKeyspace/MyColumnFamily&slice_start=C2&slice_end=C4&i&limit=1&reversed=true' USING CassandraStorage() AS (key, columns: bag {T: tuple(name, value)});
+grunt> rows = LOAD 'cassandra://MyKeyspace/MyColumnFamily&slice_start=C2&slice_end=C4&limit=1&reversed=true' USING CassandraStorage();
 
 Binary values for slice_start and slice_end can be escaped such as '\u0255'
 
@@ -64,3 +64,5 @@ grunt> STORE rows into 'cassandra://MyKeyspace/MyColumnFamily' USING CassandraSt
 
 Which will copy the ColumnFamily.  Note that the destination ColumnFamily must
 already exist for this to work.
+
+See the example in test/ to see how schema is inferred.
