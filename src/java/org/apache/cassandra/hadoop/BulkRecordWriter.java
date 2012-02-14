@@ -28,6 +28,7 @@ import java.nio.ByteBuffer;
 import java.net.UnknownHostException;
 import java.util.*;
 
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -73,10 +74,6 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<Mutation>>
     private CFType cfType;
     private ColType colType;
 
-    static {
-        DatabaseDescriptor.initDefaultsOnly(); // make sure DD doesn't load yaml
-    }
-
     BulkRecordWriter(TaskAttemptContext context) throws IOException
     {
         this(context.getConfiguration());
@@ -84,10 +81,12 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<Mutation>>
     
     BulkRecordWriter(Configuration conf) throws IOException
     {
+        Config.setLoadYaml(false);
+        Config.setOutboundBindAny(true);
         this.conf = conf;
         DatabaseDescriptor.setStreamThroughputOutboundMegabitsPerSec(Integer.valueOf(conf.get(STREAM_THROTTLE_MBITS, "0")));
         String keyspace = ConfigHelper.getOutputKeyspace(conf);
-        outputdir = new File(getOutputLocation() + File.separator + keyspace); //dir must be named by ks for the loader
+        outputdir = new File(getOutputLocation() + File.separator + keyspace + File.separator + ConfigHelper.getOutputColumnFamily(conf)); //dir must be named by ks/cf for the loader
         outputdir.mkdirs();
     }
 
@@ -123,11 +122,13 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<Mutation>>
                 subcomparator = BytesType.instance;
             this.writer = new SSTableSimpleUnsortedWriter(
                     outputdir,
+                    ConfigHelper.getOutputPartitioner(conf),
                     ConfigHelper.getOutputKeyspace(conf),
                     ConfigHelper.getOutputColumnFamily(conf),
                     BytesType.instance,
                     subcomparator,
-                    Integer.valueOf(conf.get(BUFFER_SIZE_IN_MB, "64")));
+                    Integer.valueOf(conf.get(BUFFER_SIZE_IN_MB, "64")),
+                    ConfigHelper.getOutputCompressionParamaters(conf));
             this.loader = new SSTableLoader(outputdir, new ExternalClient(ConfigHelper.getOutputInitialAddress(conf), ConfigHelper.getOutputRpcPort(conf)), new NullOutputHandler());
         }
     }
@@ -143,13 +144,14 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<Mutation>>
             if (cfType == CFType.SUPER)
             {
                 writer.newSuperColumn(mut.getColumn_or_supercolumn().getSuper_column().name);
-                for (Column column : mut.getColumn_or_supercolumn().getSuper_column().columns)
+                if (colType == ColType.COUNTER)
+                    for (CounterColumn column : mut.getColumn_or_supercolumn().getCounter_super_column().columns)
+                        writer.addCounterColumn(column.name, column.value);
+                else
                 {
-                    if (colType == ColType.COUNTER)
-                        writer.addCounterColumn(column.name, column.value.getLong());
-                    else
+                    for (Column column : mut.getColumn_or_supercolumn().getSuper_column().columns)
                     {
-                        if(0 == column.ttl)
+                        if(column.ttl == 0)
                             writer.addColumn(column.name, column.value, column.timestamp);
                         else
                             writer.addExpiringColumn(column.name, column.value, column.timestamp, column.ttl, System.currentTimeMillis() + (column.ttl * 1000));
@@ -159,10 +161,10 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<Mutation>>
             else
             {
                 if (colType == ColType.COUNTER)
-                    writer.addCounterColumn(mut.getColumn_or_supercolumn().column.name, mut.getColumn_or_supercolumn().column.value.getLong());
+                    writer.addCounterColumn(mut.getColumn_or_supercolumn().counter_column.name, mut.getColumn_or_supercolumn().counter_column.value);
                 else
 	            {
-                    if(0 == mut.getColumn_or_supercolumn().column.ttl)
+                    if(mut.getColumn_or_supercolumn().column.ttl == 0)
 	                     writer.addColumn(mut.getColumn_or_supercolumn().column.name, mut.getColumn_or_supercolumn().column.value, mut.getColumn_or_supercolumn().column.timestamp);
                     else
                         writer.addExpiringColumn(mut.getColumn_or_supercolumn().column.name, mut.getColumn_or_supercolumn().column.value, mut.getColumn_or_supercolumn().column.timestamp, mut.getColumn_or_supercolumn().column.ttl, System.currentTimeMillis() + (mut.getColumn_or_supercolumn().column.ttl * 1000));

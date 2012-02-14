@@ -90,7 +90,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
             // collect endpoints in this DC; add in bulk to token meta data for computational complexity
             // reasons (CASSANDRA-3831).
             Set<Pair<Token, InetAddress>> dcTokensToUpdate = new HashSet<Pair<Token, InetAddress>>();
-            for (Entry<Token, InetAddress> tokenEntry : tokenMetadata.entrySet())
+            for (Entry<Token, InetAddress> tokenEntry : tokenMetadata.getTokenToEndpointMapForReading().entrySet())
             {
                 if (snitch.getDatacenter(tokenEntry.getValue()).equals(dcName))
                     dcTokensToUpdate.add(Pair.create(tokenEntry.getKey(), tokenEntry.getValue()));

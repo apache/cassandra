@@ -1,0 +1,67 @@
+create keyspace PigTest;
+use PigTest;
+create column family SomeApp with
+key_validation_class = UTF8Type and
+default_validation_class = LexicalUUIDType and
+comparator = UTF8Type and
+column_metadata =
+[
+    {column_name: name, validation_class: UTF8Type, index_type: KEYS},
+    {column_name: vote_type, validation_class: UTF8Type},
+    {column_name: rating, validation_class: IntegerType},
+    {column_name: score, validation_class: LongType},
+    {column_name: percent, validation_class: FloatType},
+    {column_name: atomic_weight, validation_class: DoubleType},
+];
+
+create column family CopyOfSomeApp with
+key_validation_class = UTF8Type and
+default_validation_class = LexicalUUIDType and
+comparator = UTF8Type and
+column_metadata =
+[
+    {column_name: name, validation_class: UTF8Type, index_type: KEYS},
+    {column_name: vote_type, validation_class: UTF8Type},
+    {column_name: rating, validation_class: IntegerType},
+    {column_name: score, validation_class: LongType},
+    {column_name: percent, validation_class: FloatType},
+    {column_name: atomic_weight, validation_class: DoubleType},
+];
+
+set SomeApp['foo']['name'] = 'User Foo';
+set SomeApp['foo']['vote_type'] = 'like';
+set SomeApp['foo']['rating'] = 8;
+set SomeApp['foo']['score'] = 125000;
+set SomeApp['foo']['percent'] = '85.0';
+set SomeApp['foo']['atomic_weight'] = '2.7182818284590451';
+
+set SomeApp['bar']['name'] = 'User Bar';
+set SomeApp['bar']['vote_type'] = 'like';
+set SomeApp['bar']['rating'] = 9;
+set SomeApp['bar']['score'] = 15000;
+set SomeApp['bar']['percent'] = '35.0';
+set SomeApp['bar']['atomic_weight'] = '3.1415926535897931';
+
+set SomeApp['baz']['name'] = 'User Baz';
+set SomeApp['baz']['vote_type'] = 'dislike';
+set SomeApp['baz']['rating'] = 3;
+set SomeApp['baz']['score'] = 512000;
+set SomeApp['baz']['percent'] = '95.3';
+set SomeApp['baz']['atomic_weight'] = '1.61803399';
+set SomeApp['baz']['extra1'] = lexicaluuid();
+set SomeApp['baz']['extra2'] = lexicaluuid();
+set SomeApp['baz']['extra3'] = lexicaluuid();
+
+set SomeApp['qux']['name'] = 'User Qux';
+set SomeApp['qux']['vote_type'] = 'dislike';
+set SomeApp['qux']['rating'] = 2;
+set SomeApp['qux']['score'] = 12000;
+set SomeApp['qux']['percent'] = '64.7';
+set SomeApp['qux']['atomic_weight'] = '0.660161815846869';
+set SomeApp['qux']['extra1'] = lexicaluuid();
+set SomeApp['qux']['extra2'] = lexicaluuid();
+set SomeApp['qux']['extra3'] = lexicaluuid();
+set SomeApp['qux']['extra4'] = lexicaluuid();
+set SomeApp['qux']['extra5'] = lexicaluuid();
+set SomeApp['qux']['extra6'] = lexicaluuid();
+set SomeApp['qux']['extra7'] = lexicaluuid();

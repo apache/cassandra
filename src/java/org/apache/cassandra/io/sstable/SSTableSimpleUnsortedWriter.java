@@ -30,6 +30,8 @@ import java.util.concurrent.locks.Condition;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.io.compress.CompressionParameters;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.HeapAllocator;
 
@@ -59,6 +61,7 @@ public class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
     /**
      * Create a new buffering writer.
      * @param directory the directory where to write the sstables
+     * @param partitioner  the partitioner
      * @param keyspace the keyspace name
      * @param columnFamily the column family name
      * @param comparator the column family comparator
@@ -68,15 +71,28 @@ public class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
      * columns you add). For 1GB of heap, a 128 bufferSizeInMB is probably a reasonable choice. If you experience OOM, this value should be lowered.
      */
     public SSTableSimpleUnsortedWriter(File directory,
+                                       IPartitioner partitioner,
+                                       String keyspace,
+                                       String columnFamily,
+                                       AbstractType<?> comparator,
+                                       AbstractType<?> subComparator,
+                                       int bufferSizeInMB,
+                                       CompressionParameters compressParameters) throws IOException
+    {
+        super(directory, new CFMetaData(keyspace, columnFamily, subComparator == null ? ColumnFamilyType.Standard : ColumnFamilyType.Super, comparator, subComparator).compressionParameters(compressParameters), partitioner);
+        this.bufferSize = bufferSizeInMB * 1024L * 1024L;
+        this.diskWriter.start();
+    }
+
+    public SSTableSimpleUnsortedWriter(File directory,
+                                       IPartitioner partitioner,
                                        String keyspace,
                                        String columnFamily,
                                        AbstractType<?> comparator,
                                        AbstractType<?> subComparator,
                                        int bufferSizeInMB) throws IOException
     {
-        super(directory, new CFMetaData(keyspace, columnFamily, subComparator == null ? ColumnFamilyType.Standard : ColumnFamilyType.Super, comparator, subComparator));
-        this.bufferSize = bufferSizeInMB * 1024L * 1024L;
-        this.diskWriter.start();
+        this(directory, partitioner, keyspace, columnFamily, comparator, subComparator, bufferSizeInMB, new CompressionParameters(null));
     }
 
     protected void writeRow(DecoratedKey key, ColumnFamily columnFamily) throws IOException

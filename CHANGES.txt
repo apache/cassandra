@@ -73,12 +73,13 @@
  * make hexToBytes refuse invalid input (CASSANDRA-2851)
  * Make secondary indexes CF inherit compression and compaction from their
    parent CF (CASSANDRA-3877)
-Merged from 1.0:
- * Only snapshot CF being compacted for snapshot_before_compaction
-   (CASSANDRA-3803)
-
+ * Finish cleanup up tombstone purge code (CASSANDRA-3872)
+ * Avoid NPE on aboarted stream-out sessions (CASSANDRA-3904)
+ * BulkRecordWriter throws NPE for counter columns (CASSANDRA-3906)
+ * Support compression using BulkWriter (CASSANDRA-3907)
 
 1.0.8
+ * fix race between cleanup and flush on secondary index CFSes (CASSANDRA-3712)
  * avoid including non-queried nodes in rangeslice read repair
    (CASSANDRA-3843)
  * Only snapshot CF being compacted for snapshot_before_compaction 

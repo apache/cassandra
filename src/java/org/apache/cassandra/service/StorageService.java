@@ -184,14 +184,13 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     /* This abstraction maintains the token/endpoint metadata information */
     private TokenMetadata tokenMetadata_ = new TokenMetadata();
 
-    private IPartitioner partitioner = DatabaseDescriptor.getPartitioner();
-    public VersionedValue.VersionedValueFactory valueFactory = new VersionedValue.VersionedValueFactory(partitioner);
+    public VersionedValue.VersionedValueFactory valueFactory = new VersionedValue.VersionedValueFactory(getPartitioner());
 
     public static final StorageService instance = new StorageService();
 
     public static IPartitioner getPartitioner()
     {
-        return instance.partitioner;
+        return DatabaseDescriptor.getPartitioner();
     }
 
     public Collection<Range<Token>> getLocalRanges(String table)
@@ -609,12 +608,12 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                 String initialToken = DatabaseDescriptor.getInitialToken();
                 if (initialToken == null)
                 {
-                    token = partitioner.getRandomToken();
+                    token = getPartitioner().getRandomToken();
                     logger_.warn("Generated random token " + token + ". Random tokens will result in an unbalanced ring; see http://wiki.apache.org/cassandra/Operations");
                 }
                 else
                 {
-                    token = partitioner.getTokenFactory().fromString(initialToken);
+                    token = getPartitioner().getTokenFactory().fromString(initialToken);
                     logger_.info("Saved token not found. Using " + token + " from configuration");
                 }
             }
@@ -908,7 +907,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
     public Map<String, String> getTokenToEndpointMap()
     {
-        Map<Token, InetAddress> mapInetAddress = tokenMetadata_.getTokenToEndpointMap();
+        Map<Token, InetAddress> mapInetAddress = tokenMetadata_.getNormalAndBootstrappingTokenToEndpointMap();
         // in order to preserve tokens in ascending order, we use LinkedHashMap here
         Map<String, String> mapString = new LinkedHashMap<String, String>(mapInetAddress.size());
         List<Token> tokens = new ArrayList<Token>(mapInetAddress.keySet());
@@ -1986,12 +1985,12 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     public List<InetAddress> getNaturalEndpoints(String table, String cf, String key)
     {
         CFMetaData cfMetaData = Schema.instance.getTableDefinition(table).cfMetaData().get(cf);
-        return getNaturalEndpoints(table, partitioner.getToken(cfMetaData.getKeyValidator().fromString(key)));
+        return getNaturalEndpoints(table, getPartitioner().getToken(cfMetaData.getKeyValidator().fromString(key)));
     }
 
     public List<InetAddress> getNaturalEndpoints(String table, ByteBuffer key)
     {
-        return getNaturalEndpoints(table, partitioner.getToken(key));
+        return getNaturalEndpoints(table, getPartitioner().getToken(key));
     }
 
     /**
@@ -2017,7 +2016,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      */
     public List<InetAddress> getLiveNaturalEndpoints(String table, ByteBuffer key)
     {
-        return getLiveNaturalEndpoints(table, partitioner.decorateKey(key));
+        return getLiveNaturalEndpoints(table, getPartitioner().decorateKey(key));
     }
 
     public List<InetAddress> getLiveNaturalEndpoints(String table, RingPosition pos)
@@ -2087,7 +2086,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         Token token;
         if (keys.size() < 3)
         {
-            token = partitioner.midpoint(range.left, range.right);
+            token = getPartitioner().midpoint(range.left, range.right);
             logger_.debug("Used midpoint to assign token " + token);
         }
         else
@@ -2101,7 +2100,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         if (token instanceof StringToken)
         {
             token = new StringToken(((String)token.token).replaceAll(VersionedValue.DELIMITER_STR, ""));
-            if (tokenMetadata_.getTokenToEndpointMap().containsKey(token))
+            if (tokenMetadata_.getNormalAndBootstrappingTokenToEndpointMap().containsKey(token))
                 throw new RuntimeException("Unable to compute unique token for new node -- specify one manually with initial_token");
         }
         return token;
@@ -2202,8 +2201,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
     public void move(String newToken) throws IOException, InterruptedException, ConfigurationException
     {
-        partitioner.getTokenFactory().validate(newToken);
-        move(partitioner.getTokenFactory().fromString(newToken));
+        getPartitioner().getTokenFactory().validate(newToken);
+        move(getPartitioner().getTokenFactory().fromString(newToken));
     }
 
     /**
@@ -2395,7 +2394,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     {
         InetAddress myAddress = FBUtilities.getBroadcastAddress();
         Token localToken = tokenMetadata_.getToken(myAddress);
-        Token token = partitioner.getTokenFactory().fromString(tokenString);
+        Token token = getPartitioner().getTokenFactory().fromString(tokenString);
         InetAddress endpoint = tokenMetadata_.getEndpoint(token);
 
         if (endpoint == null)
@@ -2584,9 +2583,9 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     // Never ever do this at home. Used by tests.
     IPartitioner setPartitionerUnsafe(IPartitioner newPartitioner)
     {
-        IPartitioner oldPartitioner = partitioner;
-        partitioner = newPartitioner;
-        valueFactory = new VersionedValue.VersionedValueFactory(partitioner);
+        IPartitioner oldPartitioner = DatabaseDescriptor.getPartitioner();
+        DatabaseDescriptor.setPartitioner(newPartitioner);
+        valueFactory = new VersionedValue.VersionedValueFactory(getPartitioner());
         return oldPartitioner;
     }
 
@@ -2604,9 +2603,9 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
     public Map<String, Float> getOwnership()
     {
-        List<Token> sortedTokens = new ArrayList<Token>(tokenMetadata_.getTokenToEndpointMap().keySet());
+        List<Token> sortedTokens = new ArrayList<Token>(tokenMetadata_.getTokenToEndpointMapForReading().keySet());
         Collections.sort(sortedTokens);
-        Map<Token, Float> token_map = partitioner.describeOwnership(sortedTokens);
+        Map<Token, Float> token_map = getPartitioner().describeOwnership(sortedTokens);
         Map<String, Float> string_map = new HashMap<String, Float>();
         for(Map.Entry<Token, Float> entry : token_map.entrySet())
         {

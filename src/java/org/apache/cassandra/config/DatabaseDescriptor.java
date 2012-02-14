@@ -111,38 +111,36 @@ public class DatabaseDescriptor
         return url;
     }
 
-    public static void initDefaultsOnly()
-    {
-        conf = new Config();
-    }
-    
     static
+    {
+        if (Config.getLoadYaml())
+            loadYaml();
+        else
+            conf = new Config();
+    }
+    static void loadYaml()
     {
         try
         {
-            // only load yaml if conf wasn't already set
-            if (conf == null)
+            URL url = getStorageConfigURL();
+            logger.info("Loading settings from " + url);
+            InputStream input = null;
+            try
             {
-                URL url = getStorageConfigURL();
-                logger.info("Loading settings from " + url);
-                InputStream input = null;
-                try
-                {
-                    input = url.openStream();
-                }
-                catch (IOException e)
-                {
-                    // getStorageConfigURL should have ruled this out
-                    throw new AssertionError(e);
-                }
-                org.yaml.snakeyaml.constructor.Constructor constructor = new org.yaml.snakeyaml.constructor.Constructor(Config.class);
-                TypeDescription seedDesc = new TypeDescription(SeedProviderDef.class);
-                seedDesc.putMapPropertyType("parameters", String.class, String.class);
-                constructor.addTypeDescription(seedDesc);
-                Yaml yaml = new Yaml(new Loader(constructor));
-                conf = (Config)yaml.load(input);
+                input = url.openStream();
             }
-            
+            catch (IOException e)
+            {
+                // getStorageConfigURL should have ruled this out
+                throw new AssertionError(e);
+            }
+            org.yaml.snakeyaml.constructor.Constructor constructor = new org.yaml.snakeyaml.constructor.Constructor(Config.class);
+            TypeDescription seedDesc = new TypeDescription(SeedProviderDef.class);
+            seedDesc.putMapPropertyType("parameters", String.class, String.class);
+            constructor.addTypeDescription(seedDesc);
+            Yaml yaml = new Yaml(new Loader(constructor));
+            conf = (Config)yaml.load(input);
+
             if (conf.commitlog_sync == null)
             {
                 throw new ConfigurationException("Missing required directive CommitLogSync");
@@ -153,7 +151,7 @@ public class DatabaseDescriptor
                 if (conf.commitlog_sync_batch_window_in_ms == null)
                 {
                     throw new ConfigurationException("Missing value for commitlog_sync_batch_window_in_ms: Double expected.");
-                } 
+                }
                 else if (conf.commitlog_sync_period_in_ms != null)
                 {
                     throw new ConfigurationException("Batch sync specified, but commitlog_sync_period_in_ms found. Only specify commitlog_sync_batch_window_in_ms when using batch sync");
@@ -173,7 +171,7 @@ public class DatabaseDescriptor
                 logger.debug("Syncing log with a period of " + conf.commitlog_sync_period_in_ms);
             }
 
-            /* evaluate the DiskAccessMode Config directive, which also affects indexAccessMode selection */           
+            /* evaluate the DiskAccessMode Config directive, which also affects indexAccessMode selection */
             if (conf.disk_access_mode == Config.DiskAccessMode.auto)
             {
                 conf.disk_access_mode = System.getProperty("os.arch").contains("64") ? Config.DiskAccessMode.mmap : Config.DiskAccessMode.standard;
@@ -202,7 +200,7 @@ public class DatabaseDescriptor
                 authority = FBUtilities.<IAuthority>construct(conf.authority, "authority");
             authenticator.validateConfiguration();
             authority.validateConfiguration();
-            
+
             /* Hashing strategy */
             if (conf.partitioner == null)
             {
@@ -222,9 +220,9 @@ public class DatabaseDescriptor
             {
                 throw new ConfigurationException("phi_convict_threshold must be between 5 and 16");
             }
-            
+
             /* Thread per pool */
-            if (conf.concurrent_reads != null && conf.concurrent_reads < 2) 
+            if (conf.concurrent_reads != null && conf.concurrent_reads < 2)
             {
                 throw new ConfigurationException("concurrent_reads must be at least 2");
             }
@@ -275,7 +273,7 @@ public class DatabaseDescriptor
                 {
                     throw new ConfigurationException("broadcast_address cannot be 0.0.0.0!");
                 }
-                
+
                 try
                 {
                     broadcastAddress = InetAddress.getByName(conf.broadcast_address);
@@ -285,7 +283,7 @@ public class DatabaseDescriptor
                     throw new ConfigurationException("Unknown broadcast_address '" + conf.broadcast_address + "'");
                 }
             }
-            
+
             /* Local IP or hostname to bind RPC server to */
             if (conf.rpc_address != null)
             {
@@ -360,7 +358,7 @@ public class DatabaseDescriptor
             {
                 logger.debug("setting auto_bootstrap to " + conf.auto_bootstrap);
             }
-            
+
            if (conf.in_memory_compaction_limit_in_mb != null && conf.in_memory_compaction_limit_in_mb <= 0)
             {
                 throw new ConfigurationException("in_memory_compaction_limit_in_mb must be a positive integer");
@@ -438,7 +436,7 @@ public class DatabaseDescriptor
             {
                 throw new ConfigurationException("seeds configuration is missing; a minimum of one seed is required.");
             }
-            try 
+            try
             {
                 Class seedProviderClass = Class.forName(conf.seed_provider.class_name);
                 seedProvider = (SeedProvider)seedProviderClass.getConstructor(Map.class).newInstance(conf.seed_provider.parameters);
