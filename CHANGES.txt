@@ -74,6 +74,7 @@
  * Make secondary indexes CF inherit compression and compaction from their
    parent CF (CASSANDRA-3877)
  * Finish cleanup up tombstone purge code (CASSANDRA-3872)
+ * Avoid NPE on aboarted stream-out sessions (CASSANDRA-3904)
 
 
 1.0.8
