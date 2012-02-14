@@ -498,6 +498,13 @@ public class QueryProcessor
         logger.trace("CQL QUERY: {}", queryString);
         
         CQLStatement statement = getStatement(queryString);
+        
+        return process(statement, clientState);
+    }
+    
+    public static CqlResult process(CQLStatement statement, ClientState clientState)
+    throws RecognitionException, UnavailableException, InvalidRequestException, TimedOutException, SchemaDisagreementException
+    {      
         String keyspace = null;
         
         // Some statements won't have (or don't need) a keyspace (think USE, or CREATE).
