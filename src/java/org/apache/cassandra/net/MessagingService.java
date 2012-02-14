@@ -569,7 +569,7 @@ public final class MessagingService implements MessagingServiceMBean
 
         Runnable runnable = new MessageDeliveryTask(message, id);
         ExecutorService stage = StageManager.getStage(message.getMessageType());
-        assert stage != null : "No stage for message type " + message.getMessageType();
+        assert stage != null : "No stage for message type " + message.getVerb();
         stage.execute(runnable);
     }
 
