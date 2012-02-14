@@ -22,8 +22,11 @@ package org.apache.cassandra.hadoop;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
+import org.apache.cassandra.io.compress.CompressionParameters;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -68,6 +71,8 @@ public class ConfigHelper
     private static final String OUTPUT_INITIAL_THRIFT_ADDRESS = "cassandra.output.thrift.address";
     private static final String READ_CONSISTENCY_LEVEL = "cassandra.consistencylevel.read";
     private static final String WRITE_CONSISTENCY_LEVEL = "cassandra.consistencylevel.write";
+    private static final String OUTPUT_COMPRESSION_CLASS = "cassandra.output.compression.class";
+    private static final String OUTPUT_COMPRESSION_CHUNK_LENGTH = "cassandra.output.compression.length";
     
     private static final Logger logger = LoggerFactory.getLogger(ConfigHelper.class);
 
@@ -406,6 +411,41 @@ public class ConfigHelper
         }
     }
 
+    public static String getOutputCompressionClass(Configuration conf)
+    {
+        return conf.get(OUTPUT_COMPRESSION_CLASS);
+    }
+
+    public static String getOutputCompressionChunkLength(Configuration conf)
+    {
+        return conf.get(OUTPUT_COMPRESSION_CHUNK_LENGTH, String.valueOf(CompressionParameters.DEFAULT_CHUNK_LENGTH));
+    }
+
+    public static void setOutputCompressionClass(Configuration conf, String classname)
+    {
+        conf.set(OUTPUT_COMPRESSION_CLASS, classname);
+    }
+
+    public static void setOutputCompressionChunkLength(Configuration conf, String length)
+    {
+        conf.set(OUTPUT_COMPRESSION_CHUNK_LENGTH, length);
+    }
+
+    public static CompressionParameters getOutputCompressionParamaters(Configuration conf)
+    {
+        if (getOutputCompressionClass(conf) == null)
+            return new CompressionParameters(null);
+
+        Map<String, String> options = new HashMap<String, String>();
+        options.put(CompressionParameters.SSTABLE_COMPRESSION, getOutputCompressionClass(conf));
+        options.put(CompressionParameters.CHUNK_LENGTH_KB, getOutputCompressionChunkLength(conf));
+
+        try {
+            return CompressionParameters.create(options);
+        } catch (ConfigurationException e) {
+            throw new RuntimeException(e);
+        }
+    }
 
     public static Cassandra.Client getClientFromInputAddressList(Configuration conf) throws IOException
     {

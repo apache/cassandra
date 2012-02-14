@@ -127,7 +127,8 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<Mutation>>
                     ConfigHelper.getOutputColumnFamily(conf),
                     BytesType.instance,
                     subcomparator,
-                    Integer.valueOf(conf.get(BUFFER_SIZE_IN_MB, "64")));
+                    Integer.valueOf(conf.get(BUFFER_SIZE_IN_MB, "64")),
+                    ConfigHelper.getOutputCompressionParamaters(conf));
             this.loader = new SSTableLoader(outputdir, new ExternalClient(ConfigHelper.getOutputInitialAddress(conf), ConfigHelper.getOutputRpcPort(conf)), new NullOutputHandler());
         }
     }
