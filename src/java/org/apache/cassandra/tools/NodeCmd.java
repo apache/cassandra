@@ -165,7 +165,7 @@ public class NodeCmd
         addCmdHelp(header, "snapshot [keyspaces...] -t [snapshotName]", "Take a snapshot of the specified keyspaces using optional name snapshotName");
         addCmdHelp(header, "clearsnapshot [keyspaces...] -t [snapshotName]", "Remove snapshots for the specified keyspaces. Either remove all snapshots or remove the snapshots with the given name.");
         addCmdHelp(header, "flush [keyspace] [cfnames]", "Flush one or more column family");
-        addCmdHelp(header, "repair [keyspace] [cfnames]", "Repair one or more column family (use -rp to repair only the first range returned by the partitioner)");
+        addCmdHelp(header, "repair [keyspace] [cfnames]", "Repair one or more column family (use -pr to repair only the first range returned by the partitioner)");
         addCmdHelp(header, "cleanup [keyspace] [cfnames]", "Run cleanup on one or more column family");
         addCmdHelp(header, "compact [keyspace] [cfnames]", "Force a (major) compaction on one or more column family");
         addCmdHelp(header, "scrub [keyspace] [cfnames]", "Scrub (rebuild sstables for) one or more column family");
