@@ -75,7 +75,7 @@
    parent CF (CASSANDRA-3877)
  * Finish cleanup up tombstone purge code (CASSANDRA-3872)
  * Avoid NPE on aboarted stream-out sessions (CASSANDRA-3904)
-
+ * BulkRecordWriter throws NPE for counter columns (CASSANDRA-3906)
 
 1.0.8
  * fix race between cleanup and flush on secondary index CFSes (CASSANDRA-3712)
