@@ -94,7 +94,13 @@ public class FileStreamTask extends WrappedRunnable
             // successfully connected: stream.
             // (at this point, if we fail, it is the receiver's job to re-request)
             stream();
-            if (StreamOutSession.get(to, header.sessionId).getFiles().size() == 0)
+
+            StreamOutSession session = StreamOutSession.get(to, header.sessionId);
+            if (session == null)
+            {
+                logger.info("Found no stream out session at end of file stream task - this is expected if the receiver went down");
+            }
+            else if (session.getFiles().size() == 0)
             {
                 // we are the last of our kind, receive the final confirmation before closing
                 receiveReply();

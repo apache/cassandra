@@ -229,7 +229,8 @@ public class StreamOutSession implements IEndpointStateChangeSubscriber, IFailur
         if (phi < 2 * DatabaseDescriptor.getPhiConvictThreshold())
             return;
 
-        logger.error("StreamOutSession {} failed because {} died or was restarted/removed", endpoint);
+        logger.error("StreamOutSession {} failed because {} died or was restarted/removed (streams may still be active "
+                + "in background, but further streams won't be started)", endpoint);
         close(false);
     }
 }
