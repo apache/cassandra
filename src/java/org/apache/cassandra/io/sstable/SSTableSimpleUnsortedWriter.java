@@ -31,6 +31,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.io.compress.CompressionParameters;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.HeapAllocator;
 
@@ -75,11 +76,23 @@ public class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
                                        String columnFamily,
                                        AbstractType<?> comparator,
                                        AbstractType<?> subComparator,
-                                       int bufferSizeInMB) throws IOException
+                                       int bufferSizeInMB,
+                                       CompressionParameters compressParameters) throws IOException
     {
-        super(directory, new CFMetaData(keyspace, columnFamily, subComparator == null ? ColumnFamilyType.Standard : ColumnFamilyType.Super, comparator, subComparator), partitioner);
+        super(directory, new CFMetaData(keyspace, columnFamily, subComparator == null ? ColumnFamilyType.Standard : ColumnFamilyType.Super, comparator, subComparator).compressionParameters(compressParameters), partitioner);
         this.bufferSize = bufferSizeInMB * 1024L * 1024L;
         this.diskWriter.start();
+    }
+
+    public SSTableSimpleUnsortedWriter(File directory,
+                                       IPartitioner partitioner,
+                                       String keyspace,
+                                       String columnFamily,
+                                       AbstractType<?> comparator,
+                                       AbstractType<?> subComparator,
+                                       int bufferSizeInMB) throws IOException
+    {
+        this(directory, partitioner, keyspace, columnFamily, comparator, subComparator, bufferSizeInMB, new CompressionParameters(null));
     }
 
     protected void writeRow(DecoratedKey key, ColumnFamily columnFamily) throws IOException
