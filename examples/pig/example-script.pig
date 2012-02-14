@@ -1,4 +1,4 @@
-rows = LOAD 'cassandra://MyKeyspace/MyColumnFamily' USING CassandraStorage() AS (key, columns: bag {T: tuple(name, value)});
+rows = LOAD 'cassandra://MyKeyspace/MyColumnFamily' USING CassandraStorage();
 cols = FOREACH rows GENERATE flatten(columns);
 colnames = FOREACH cols GENERATE $0;
 namegroups = GROUP colnames BY (chararray) $0;
