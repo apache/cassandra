@@ -73,6 +73,7 @@
  * make hexToBytes refuse invalid input (CASSANDRA-2851)
  * Make secondary indexes CF inherit compression and compaction from their
    parent CF (CASSANDRA-3877)
+ * Finish cleanup up tombstone purge code (CASSANDRA-3872)
 
 
 1.0.8

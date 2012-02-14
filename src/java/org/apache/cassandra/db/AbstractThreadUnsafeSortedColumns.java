@@ -48,7 +48,7 @@ public abstract class AbstractThreadUnsafeSortedColumns implements ISortedColumn
     public void maybeResetDeletionTimes(int gcBefore)
     {
         // Update if it's not MIN_VALUE anymore and it has expired
-        if (deletionInfo.localDeletionTime != Integer.MIN_VALUE && deletionInfo.localDeletionTime <= gcBefore)
+        if (deletionInfo.localDeletionTime <= gcBefore)
             deletionInfo = new DeletionInfo();
     }
 

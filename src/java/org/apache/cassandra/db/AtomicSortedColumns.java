@@ -121,8 +121,8 @@ public class AtomicSortedColumns implements ISortedColumns
         do
         {
             current = ref.get();
-            // Stop if we don't need to change the deletion info (it's still MIN_VALUE or not expired yet)
-            if (current.deletionInfo.localDeletionTime == Integer.MIN_VALUE || current.deletionInfo.localDeletionTime > gcBefore)
+            // Stop if we don't need to change the deletion info (not expired yet)
+            if (current.deletionInfo.localDeletionTime > gcBefore)
                 break;
         }
         while (!ref.compareAndSet(current, current.with(new DeletionInfo())));

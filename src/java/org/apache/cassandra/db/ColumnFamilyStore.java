@@ -745,7 +745,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public static ColumnFamily removeDeletedCF(ColumnFamily cf, int gcBefore)
     {
-        if (cf.getColumnCount() == 0 && cf.getLocalDeletionTime() < gcBefore)
+        if (cf.getColumnCount() == 0 && (!cf.isMarkedForDelete() || cf.getLocalDeletionTime() < gcBefore))
             return null;
 
         cf.maybeResetDeletionTimes(gcBefore);
@@ -818,7 +818,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     subIter.remove();
                 }
             }
-            if (c.getSubColumns().isEmpty() && c.getLocalDeletionTime() < gcBefore)
+            if (c.getSubColumns().isEmpty() && (!c.isMarkedForDelete() || c.getLocalDeletionTime() < gcBefore))
             {
                 iter.remove();
             }
