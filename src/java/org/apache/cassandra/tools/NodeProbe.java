@@ -202,14 +202,14 @@ public class NodeProbe
         ssProxy.forceTableFlush(tableName, columnFamilies);
     }
 
-    public void forceTableRepair(String tableName, boolean isSequential, String... columnFamilies) throws IOException
+    public void forceTableRepair(String tableName, String... columnFamilies) throws IOException
     {
-        ssProxy.forceTableRepair(tableName, isSequential, columnFamilies);
+        ssProxy.forceTableRepair(tableName, columnFamilies);
     }
 
-    public void forceTableRepairPrimaryRange(String tableName, boolean isSequential, String... columnFamilies) throws IOException
+    public void forceTableRepairPrimaryRange(String tableName, String... columnFamilies) throws IOException
     {
-        ssProxy.forceTableRepairPrimaryRange(tableName, isSequential, columnFamilies);
+        ssProxy.forceTableRepairPrimaryRange(tableName, columnFamilies);
     }
 
     public void invalidateKeyCache() throws IOException

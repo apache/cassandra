@@ -185,7 +185,6 @@ public class Directories
         private int nbFiles;
         private final Map<Descriptor, Set<Component>> components = new HashMap<Descriptor, Set<Component>>();
         private boolean filtered;
-        private String snapshotName;
 
         public SSTableLister skipCompacted(boolean b)
         {
@@ -220,14 +219,6 @@ public class Directories
             return this;
         }
 
-        public SSTableLister snapshots(String sn)
-        {
-            if (filtered)
-                throw new IllegalStateException("list() has already been called");
-            snapshotName = sn;
-            return this;
-        }
-
         public Map<Descriptor, Set<Component>> list()
         {
             filter();
@@ -255,12 +246,6 @@ public class Directories
 
             for (File location : sstableDirectories)
             {
-                if (snapshotName != null)
-                {
-                    new File(location, join(SNAPSHOT_SUBDIR, snapshotName)).listFiles(getFilter());
-                    continue;
-                }
-
                 if (!onlyBackups)
                     location.listFiles(getFilter());
 

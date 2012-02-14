@@ -38,7 +38,6 @@ import org.apache.cassandra.db.compaction.AbstractCompactedRow;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Table;
-import org.apache.cassandra.db.SnapshotCommand;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Range;
@@ -48,7 +47,6 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.io.util.FastByteArrayOutputStream;
 import org.apache.cassandra.net.CompactEndpointSerializationHelper;
-import org.apache.cassandra.net.IAsyncCallback;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -121,9 +119,9 @@ public class AntiEntropyService
     /**
      * Requests repairs for the given table and column families, and blocks until all repairs have been completed.
      */
-    public RepairFuture submitRepairSession(Range<Token> range, String tablename, boolean isSequential, String... cfnames)
+    public RepairFuture submitRepairSession(Range<Token> range, String tablename, String... cfnames)
     {
-        RepairFuture futureTask = new RepairSession(range, tablename, isSequential, cfnames).getFuture();
+        RepairFuture futureTask = new RepairSession(range, tablename, cfnames).getFuture();
         executor.execute(futureTask);
         return futureTask;
     }
@@ -208,6 +206,16 @@ public class AntiEntropyService
             else
                 nextJob.sendTreeRequests();
         }
+    }
+
+    /**
+     * Requests a tree from the given node, and returns the request that was sent.
+     */
+    TreeRequest request(String sessionid, InetAddress remote, Range<Token> range, String ksname, String cfname)
+    {
+        TreeRequest request = new TreeRequest(sessionid, remote, range, new CFPair(ksname, cfname));
+        MessagingService.instance().sendOneWay(TreeRequestVerbHandler.makeVerb(request, Gossiper.instance.getVersion(remote)), remote);
+        return request;
     }
 
     /**
@@ -590,7 +598,6 @@ public class AntiEntropyService
     static class RepairSession extends WrappedRunnable implements IEndpointStateChangeSubscriber, IFailureDetectionEventListener
     {
         private final String sessionName;
-        private final boolean isSequential;
         private final String tablename;
         private final String[] cfnames;
         private final Range<Token> range;
@@ -608,19 +615,18 @@ public class AntiEntropyService
 
         public RepairSession(TreeRequest req, String tablename, String... cfnames)
         {
-            this(req.sessionid, req.range, tablename, false, cfnames);
+            this(req.sessionid, req.range, tablename, cfnames);
             AntiEntropyService.instance.sessions.put(getName(), this);
         }
 
-        public RepairSession(Range<Token> range, String tablename, boolean isSequential, String... cfnames)
+        public RepairSession(Range<Token> range, String tablename, String... cfnames)
         {
-            this(UUIDGen.makeType1UUIDFromHost(FBUtilities.getBroadcastAddress()).toString(), range, tablename, isSequential, cfnames);
+            this(UUIDGen.makeType1UUIDFromHost(FBUtilities.getBroadcastAddress()).toString(), range, tablename, cfnames);
         }
 
-        private RepairSession(String id, Range<Token> range, String tablename, boolean isSequential, String[] cfnames)
+        private RepairSession(String id, Range<Token> range, String tablename, String[] cfnames)
         {
             this.sessionName = id;
-            this.isSequential = isSequential;
             this.tablename = tablename;
             this.cfnames = cfnames;
             assert cfnames.length > 0 : "Repairing no column families seems pointless, doesn't it";
@@ -666,12 +672,6 @@ public class AntiEntropyService
                 {
                     differencingDone.signalAll();
                     logger.info(String.format("[repair #%s] Cannot proceed on repair because a neighbor (%s) is dead: session failed", getName(), endpoint));
-                    return;
-                }
-
-                if (Gossiper.instance.getVersion(endpoint) < MessagingService.VERSION_11 && isSequential)
-                {
-                    logger.info(String.format("[repair #%s] Cannot repair using snapshots as node %s is pre-1.1", getName(), endpoint));
                     return;
                 }
             }
@@ -729,8 +729,6 @@ public class AntiEntropyService
         public void terminate()
         {
             terminated = true;
-            for (RepairJob job : jobs)
-                job.terminate();
             jobs.clear();
             activeJobs.clear();
         }
@@ -812,32 +810,17 @@ public class AntiEntropyService
         {
             private final String cfname;
             // first we send tree requests.  this tracks the endpoints remaining to hear from
-            private final RequestCoordinator<TreeRequest> treeRequests;
+            private final Set<InetAddress> remainingEndpoints = new HashSet<InetAddress>();
             // tree responses are then tracked here
             private final List<TreeResponse> trees = new ArrayList<TreeResponse>(endpoints.size() + 1);
             // once all responses are received, each tree is compared with each other, and differencer tasks
             // are submitted.  the job is done when all differencers are complete.
-            private final RequestCoordinator<Differencer> differencers;
+            private final Set<Differencer> remainingDifferencers = new HashSet<Differencer>();
             private final Condition requestsSent = new SimpleCondition();
-            private CountDownLatch snapshotLatch = null;
 
             public RepairJob(String cfname)
             {
                 this.cfname = cfname;
-                this.treeRequests = new RequestCoordinator<TreeRequest>(isSequential)
-                {
-                    public void send(TreeRequest r)
-                    {
-                        MessagingService.instance().sendOneWay(TreeRequestVerbHandler.makeVerb(r, Gossiper.instance.getVersion(r.endpoint)), r.endpoint);
-                    }
-                };
-                this.differencers = new RequestCoordinator<Differencer>(isSequential)
-                {
-                    public void send(Differencer d)
-                    {
-                        StageManager.getStage(Stage.ANTI_ENTROPY).execute(d);
-                    }
-                };
             }
 
             /**
@@ -845,49 +828,15 @@ public class AntiEntropyService
              */
             public void sendTreeRequests()
             {
+                remainingEndpoints.addAll(endpoints);
+                remainingEndpoints.add(FBUtilities.getBroadcastAddress());
+
                 // send requests to all nodes
-                List<InetAddress> allEndpoints = new ArrayList<InetAddress>(endpoints);
-                allEndpoints.add(FBUtilities.getBroadcastAddress());
+                for (InetAddress endpoint : remainingEndpoints)
+                    AntiEntropyService.instance.request(getName(), endpoint, range, tablename, cfname);
 
-                if (isSequential)
-                    makeSnapshots(endpoints);
-
-                for (InetAddress endpoint : allEndpoints)
-                    treeRequests.add(new TreeRequest(getName(), endpoint, range, new CFPair(tablename, cfname)));
-
-                logger.info(String.format("[repair #%s] requesting merkle trees for %s (to %s)", getName(), cfname, allEndpoints));
-                treeRequests.start();
+                logger.info(String.format("[repair #%s] requests for merkle tree sent for %s (to %s)", getName(), cfname, remainingEndpoints));
                 requestsSent.signalAll();
-            }
-
-            public void makeSnapshots(Collection<InetAddress> endpoints)
-            {
-                try
-                {
-                    snapshotLatch = new CountDownLatch(endpoints.size());
-                    IAsyncCallback callback = new IAsyncCallback()
-                    {
-                        @Override
-                            public boolean isLatencyForSnitch()
-                            {
-                                return false;
-                            }
-
-                        @Override
-                            public void response(Message msg)
-                            {
-                                RepairJob.this.snapshotLatch.countDown();
-                            }
-                    };
-                    for (InetAddress endpoint : endpoints)
-                        MessagingService.instance().sendRR(new SnapshotCommand(tablename, cfname, sessionName, false), endpoint, callback);
-                    snapshotLatch.await();
-                    snapshotLatch = null;
-                }
-                catch (InterruptedException e)
-                {
-                    throw new RuntimeException(e);
-                }
             }
 
             /**
@@ -910,7 +859,8 @@ public class AntiEntropyService
 
                 assert request.cf.right.equals(cfname);
                 trees.add(new TreeResponse(request.endpoint, tree));
-                return treeRequests.completed(request);
+                remainingEndpoints.remove(request.endpoint);
+                return remainingEndpoints.size();
             }
 
             /**
@@ -919,6 +869,8 @@ public class AntiEntropyService
              */
             public void submitDifferencers()
             {
+                assert remainingEndpoints.isEmpty();
+
                 // We need to difference all trees one against another
                 for (int i = 0; i < trees.size() - 1; ++i)
                 {
@@ -928,10 +880,10 @@ public class AntiEntropyService
                         TreeResponse r2 = trees.get(j);
                         Differencer differencer = new Differencer(cfname, r1, r2);
                         logger.debug("Queueing comparison {}", differencer);
-                        differencers.add(differencer);
+                        remainingDifferencers.add(differencer);
+                        StageManager.getStage(Stage.ANTI_ENTROPY).execute(differencer);
                     }
                 }
-                differencers.start();
                 trees.clear(); // allows gc to do its thing
             }
 
@@ -940,16 +892,8 @@ public class AntiEntropyService
              */
             synchronized boolean completedSynchronization(Differencer differencer)
             {
-                return differencers.completed(differencer) == 0;
-            }
-
-            public void terminate()
-            {
-                if (snapshotLatch != null)
-                {
-                    while (snapshotLatch.getCount() > 0)
-                        snapshotLatch.countDown();
-                }
+                remainingDifferencers.remove(differencer);
+                return remainingDifferencers.isEmpty();
             }
         }
 
@@ -1047,108 +991,5 @@ public class AntiEntropyService
             super(session, null);
             this.session = session;
         }
-    }
-
-    public static abstract class RequestCoordinator<R>
-    {
-        private final Order<R> orderer;
-
-        protected RequestCoordinator(boolean isSequential)
-        {
-            this.orderer = isSequential ? new SequentialOrder<R>(this) : new ParallelOrder<R>(this);
-        }
-
-        public abstract void send(R request);
-
-        public void add(R request)
-        {
-            orderer.add(request);
-        }
-
-        public void start()
-        {
-            orderer.start();
-        }
-
-        // Returns how many request remains
-        public int completed(R request)
-        {
-            return orderer.completed(request);
-        }
-
-        private static abstract class Order<R>
-        {
-            protected final RequestCoordinator<R> coordinator;
-
-            Order(RequestCoordinator<R> coordinator)
-            {
-                this.coordinator = coordinator;
-            }
-
-            public abstract void add(R request);
-            public abstract void start();
-            public abstract int completed(R request);
-        }
-
-        private static class SequentialOrder<R> extends Order<R>
-        {
-            private final Queue<R> requests = new LinkedList<R>();
-
-            SequentialOrder(RequestCoordinator<R> coordinator)
-            {
-                super(coordinator);
-            }
-
-            public void add(R request)
-            {
-                requests.add(request);
-            }
-
-            public void start()
-            {
-                if (requests.isEmpty())
-                    return;
-
-                coordinator.send(requests.peek());
-            }
-
-            public int completed(R request)
-            {
-                assert request.equals(requests.peek());
-                requests.poll();
-                int remaining = requests.size();
-                if (remaining != 0)
-                    coordinator.send(requests.peek());
-                return remaining;
-            }
-        }
-
-        private static class ParallelOrder<R> extends Order<R>
-        {
-            private final Set<R> requests = new HashSet<R>();
-
-            ParallelOrder(RequestCoordinator<R> coordinator)
-            {
-                super(coordinator);
-            }
-
-            public void add(R request)
-            {
-                requests.add(request);
-            }
-
-            public void start()
-            {
-                for (R request : requests)
-                    coordinator.send(request);
-            }
-
-            public int completed(R request)
-            {
-                requests.remove(request);
-                return requests.size();
-            }
-        }
-
     }
 }
