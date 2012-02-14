@@ -136,6 +136,7 @@ public class Config
     public int row_cache_keys_to_save = Integer.MAX_VALUE;
     public String row_cache_provider = ConcurrentLinkedHashCacheProvider.class.getSimpleName();
 
+    private static boolean loadYaml = true;
     private static boolean outboundBindAny = false;
 
     public static boolean getOutboundBindAny()
@@ -146,6 +147,16 @@ public class Config
     public static void setOutboundBindAny(boolean value)
     {
         outboundBindAny = value;
+    }
+
+    public static boolean getLoadYaml()
+    {
+       return loadYaml;
+    }
+
+    public static void setLoadYaml(boolean value)
+    {
+        loadYaml = value;
     }
 
     public static enum CommitLogSync {

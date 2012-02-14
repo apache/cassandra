@@ -28,6 +28,7 @@ import java.nio.ByteBuffer;
 import java.net.UnknownHostException;
 import java.util.*;
 
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -73,10 +74,6 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<Mutation>>
     private CFType cfType;
     private ColType colType;
 
-    static {
-        DatabaseDescriptor.initDefaultsOnly(); // make sure DD doesn't load yaml
-    }
-
     BulkRecordWriter(TaskAttemptContext context) throws IOException
     {
         this(context.getConfiguration());
@@ -84,10 +81,12 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<Mutation>>
     
     BulkRecordWriter(Configuration conf) throws IOException
     {
+        Config.setLoadYaml(false);
+        Config.setOutboundBindAny(true);
         this.conf = conf;
         DatabaseDescriptor.setStreamThroughputOutboundMegabitsPerSec(Integer.valueOf(conf.get(STREAM_THROTTLE_MBITS, "0")));
         String keyspace = ConfigHelper.getOutputKeyspace(conf);
-        outputdir = new File(getOutputLocation() + File.separator + keyspace); //dir must be named by ks for the loader
+        outputdir = new File(getOutputLocation() + File.separator + keyspace + File.separator + ConfigHelper.getOutputColumnFamily(conf)); //dir must be named by ks/cf for the loader
         outputdir.mkdirs();
     }
 
@@ -123,6 +122,7 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<Mutation>>
                 subcomparator = BytesType.instance;
             this.writer = new SSTableSimpleUnsortedWriter(
                     outputdir,
+                    ConfigHelper.getOutputPartitioner(conf),
                     ConfigHelper.getOutputKeyspace(conf),
                     ConfigHelper.getOutputColumnFamily(conf),
                     BytesType.instance,

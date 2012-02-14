@@ -20,6 +20,8 @@ package org.apache.cassandra.io.sstable;
 
 import java.io.File;
 
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.RandomPartitioner;
 import org.junit.Test;
 
 import org.apache.cassandra.CleanupHelper;
@@ -44,7 +46,8 @@ public class SSTableSimpleWriterTest extends CleanupHelper
         File dir = Directories.create(tablename, cfname).getDirectoryForNewSSTables(0);
         assert dir.exists();
 
-        SSTableSimpleUnsortedWriter writer = new SSTableSimpleUnsortedWriter(dir, tablename, cfname, IntegerType.instance, null, 16);
+        IPartitioner partitioner = new RandomPartitioner();
+        SSTableSimpleUnsortedWriter writer = new SSTableSimpleUnsortedWriter(dir, partitioner, tablename, cfname, IntegerType.instance, null, 16);
 
         int k = 0;
 

@@ -26,9 +26,10 @@ import java.util.HashSet;
 import java.util.Set;
 
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.context.CounterContext;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.utils.NodeId;
 import org.apache.cassandra.utils.Pair;
 
@@ -41,10 +42,11 @@ public abstract class AbstractSSTableSimpleWriter
     protected SuperColumn currentSuperColumn;
     protected final NodeId nodeid = NodeId.generate();
 
-    public AbstractSSTableSimpleWriter(File directory, CFMetaData metadata)
+    public AbstractSSTableSimpleWriter(File directory, CFMetaData metadata, IPartitioner partitioner)
     {
         this.metadata = metadata;
         this.directory = directory;
+        DatabaseDescriptor.setPartitioner(partitioner);
     }
 
     protected SSTableWriter getWriter() throws IOException
@@ -53,7 +55,7 @@ public abstract class AbstractSSTableSimpleWriter
             makeFilename(directory, metadata.ksName, metadata.cfName),
             0, // We don't care about the bloom filter
             metadata,
-            StorageService.getPartitioner(),
+            DatabaseDescriptor.getPartitioner(),
             SSTableMetadata.createCollector());
     }
 
@@ -91,7 +93,7 @@ public abstract class AbstractSSTableSimpleWriter
         if (currentKey != null && !columnFamily.isEmpty())
             writeRow(currentKey, columnFamily);
 
-        currentKey = StorageService.getPartitioner().decorateKey(key);
+        currentKey = DatabaseDescriptor.getPartitioner().decorateKey(key);
         columnFamily = getColumnFamily();
     }
 
