@@ -66,7 +66,7 @@ public class LazilyCompactedRowTest extends CleanupHelper
         AbstractCompactionIterable lazy = new CompactionIterable(OperationType.UNKNOWN,
                                                                  sstables,
                                                                  new LazilyCompactingController(cfs, sstables, gcBefore, false));
-        assertBytes(sstables, eager, lazy);
+        assertBytes(cfs, sstables, eager, lazy);
 
         // compare eager and parallel-lazy compactions
         eager = new CompactionIterable(OperationType.UNKNOWN,
@@ -76,10 +76,10 @@ public class LazilyCompactedRowTest extends CleanupHelper
                                                                              sstables,
                                                                              new CompactionController(cfs, sstables, gcBefore, false),
                                                                              0);
-        assertBytes(sstables, eager, parallel);
+        assertBytes(cfs, sstables, eager, parallel);
     }
 
-    private static void assertBytes(Collection<SSTableReader> sstables, AbstractCompactionIterable ci1, AbstractCompactionIterable ci2) throws IOException
+    private static void assertBytes(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, AbstractCompactionIterable ci1, AbstractCompactionIterable ci2) throws IOException
     {
         CloseableIterator<AbstractCompactedRow> iter1 = ci1.iterator();
         CloseableIterator<AbstractCompactedRow> iter2 = ci2.iterator();
@@ -132,8 +132,8 @@ public class LazilyCompactedRowTest extends CleanupHelper
             assert bytes1.equals(bytes2);
 
             // cf metadata
-            ColumnFamily cf1 = ColumnFamily.create("Keyspace1", "Standard1");
-            ColumnFamily cf2 = ColumnFamily.create("Keyspace1", "Standard1");
+            ColumnFamily cf1 = ColumnFamily.create(cfs.metadata);
+            ColumnFamily cf2 = ColumnFamily.create(cfs.metadata);
             ColumnFamily.serializer().deserializeFromSSTableNoColumns(cf1, in1);
             ColumnFamily.serializer().deserializeFromSSTableNoColumns(cf2, in2);
             assert cf1.getLocalDeletionTime() == cf2.getLocalDeletionTime();
@@ -145,7 +145,7 @@ public class LazilyCompactedRowTest extends CleanupHelper
             {
                 IColumn c1 = cf1.getColumnSerializer().deserialize(in1);
                 IColumn c2 = cf2.getColumnSerializer().deserialize(in2);
-                assert c1.equals(c2);
+                assert c1.equals(c2) : c1.getString(cfs.metadata.comparator) + " != " + c2.getString(cfs.metadata.comparator);
             }
             // that should be everything
             assert in1.available() == 0;
