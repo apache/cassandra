@@ -1095,7 +1095,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
      */
     public void addSavedEndpoint(InetAddress ep)
     {
-        if (ep == FBUtilities.getBroadcastAddress())
+        if (ep.equals(FBUtilities.getBroadcastAddress()))
         {
             logger.debug("Attempt to add self as saved endpoint");
             return;
