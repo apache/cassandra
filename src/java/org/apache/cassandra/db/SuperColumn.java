@@ -26,6 +26,9 @@ import java.security.MessageDigest;
 import java.util.Collection;
 import java.util.Comparator;
 
+import com.google.common.base.Objects;
+import com.google.common.collect.Iterables;
+
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.MarshalException;
@@ -305,6 +308,31 @@ public class SuperColumn extends AbstractColumnContainer implements IColumn
         {
             column.validateFields(metadata);
         }
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
+
+        SuperColumn sc = (SuperColumn)o;
+
+        if (!name.equals(sc.name))
+            return false;
+        if (getMarkedForDeleteAt() != sc.getMarkedForDeleteAt())
+            return false;
+        if (getLocalDeletionTime() != sc.getLocalDeletionTime())
+            return false;
+        return Iterables.elementsEqual(columns, sc.columns);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hashCode(name, getMarkedForDeleteAt(), getLocalDeletionTime(), columns);
     }
 }
 

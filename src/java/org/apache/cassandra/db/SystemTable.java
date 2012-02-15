@@ -143,7 +143,7 @@ public class SystemTable
      */
     public static synchronized void updateToken(InetAddress ep, Token token)
     {
-        if (ep == FBUtilities.getBroadcastAddress())
+        if (ep.equals(FBUtilities.getBroadcastAddress()))
         {
             removeToken(token);
             return;
