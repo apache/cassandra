@@ -1,4 +1,4 @@
-1.1-dev
+1.1-beta1
  * add nodetool rebuild_index (CASSANDRA-3583)
  * add nodetool rangekeysample (CASSANDRA-2917)
  * Fix streaming too much data during move operations (CASSANDRA-3639)
