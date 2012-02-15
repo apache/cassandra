@@ -694,11 +694,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public void updateRowCache(DecoratedKey key, ColumnFamily columnFamily)
     {
-        Integer cfId = Schema.instance.getId(table.name, this.columnFamily);
-        if (cfId == null)
+        if (metadata.cfId == null)
             return; // secondary index
 
-        RowCacheKey cacheKey = new RowCacheKey(cfId, key);
+        RowCacheKey cacheKey = new RowCacheKey(metadata.cfId, key);
 
         if (CacheService.instance.rowCache.isPutCopying())
         {
@@ -1480,11 +1479,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public ColumnFamily getRawCachedRow(DecoratedKey key)
     {
-        Integer cfId = Schema.instance.getId(table.name, this.columnFamily);
-        if (cfId == null)
+        if (metadata.cfId == null)
             return null; // secondary index
 
-        return getRawCachedRow(new RowCacheKey(cfId, key));
+        return getRawCachedRow(new RowCacheKey(metadata.cfId, key));
     }
 
     public ColumnFamily getRawCachedRow(RowCacheKey key)
