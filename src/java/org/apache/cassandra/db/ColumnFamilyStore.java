@@ -1423,6 +1423,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
     }
 
+    public List<SSTableReader> getSnapshotSSTableReader(String tag) throws IOException
+    {
+        List<SSTableReader> readers = new ArrayList<SSTableReader>();
+        for (Map.Entry<Descriptor, Set<Component>> entries : directories.sstableLister().snapshots(tag).list().entrySet())
+            readers.add(SSTableReader.open(entries.getKey(), entries.getValue(), metadata, partitioner));
+        return readers;
+    }
+
     /**
      * Take a snap shot of this columnfamily store.
      *

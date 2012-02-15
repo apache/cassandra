@@ -1826,11 +1826,10 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      * @param columnFamilies
      * @throws IOException
      */
-    public void forceTableRepair(final String tableName, final String... columnFamilies) throws IOException
+    public void forceTableRepair(final String tableName, boolean isSequential, final String... columnFamilies) throws IOException
     {
         if (Table.SYSTEM_TABLE.equals(tableName))
             return;
-
 
         Collection<Range<Token>> ranges = getLocalRanges(tableName);
         int cmd = nextRepairCommand.incrementAndGet();
@@ -1839,7 +1838,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         List<AntiEntropyService.RepairFuture> futures = new ArrayList<AntiEntropyService.RepairFuture>(ranges.size());
         for (Range<Token> range : ranges)
         {
-            AntiEntropyService.RepairFuture future = forceTableRepair(range, tableName, columnFamilies);
+            AntiEntropyService.RepairFuture future = forceTableRepair(range, tableName, isSequential, columnFamilies);
             futures.add(future);
             // wait for a session to be done with its differencing before starting the next one
             try
@@ -1874,12 +1873,12 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             logger_.info("Repair command #{} completed successfully", cmd);
     }
 
-    public void forceTableRepairPrimaryRange(final String tableName, final String... columnFamilies) throws IOException
+    public void forceTableRepairPrimaryRange(final String tableName, boolean isSequential, final String... columnFamilies) throws IOException
     {
         if (Table.SYSTEM_TABLE.equals(tableName))
             return;
 
-        AntiEntropyService.RepairFuture future = forceTableRepair(getLocalPrimaryRange(), tableName, columnFamilies);
+        AntiEntropyService.RepairFuture future = forceTableRepair(getLocalPrimaryRange(), tableName, isSequential, columnFamilies);
         try
         {
             future.get();
@@ -1891,7 +1890,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         }
     }
 
-    public AntiEntropyService.RepairFuture forceTableRepair(final Range<Token> range, final String tableName, final String... columnFamilies) throws IOException
+    public AntiEntropyService.RepairFuture forceTableRepair(final Range<Token> range, final String tableName, boolean isSequential, final String... columnFamilies) throws IOException
     {
         ArrayList<String> names = new ArrayList<String>();
         for (ColumnFamilyStore cfStore : getValidColumnFamilies(tableName, columnFamilies))
@@ -1899,7 +1898,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             names.add(cfStore.getColumnFamilyName());
         }
 
-        return AntiEntropyService.instance.submitRepairSession(range, tableName, names.toArray(new String[names.size()]));
+        return AntiEntropyService.instance.submitRepairSession(range, tableName, isSequential, names.toArray(new String[names.size()]));
     }
 
     public void forceTerminateAllRepairSessions() {

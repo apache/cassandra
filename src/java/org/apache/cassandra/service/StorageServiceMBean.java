@@ -231,12 +231,12 @@ public interface StorageServiceMBean
      * @param columnFamilies
      * @throws IOException
      */
-    public void forceTableRepair(String tableName, String... columnFamilies) throws IOException;
+    public void forceTableRepair(String tableName, boolean isSequential, String... columnFamilies) throws IOException;
 
     /**
      * Triggers proactive repair but only for the node primary range.
      */
-    public void forceTableRepairPrimaryRange(String tableName, String... columnFamilies) throws IOException;
+    public void forceTableRepairPrimaryRange(String tableName, boolean isSequential, String... columnFamilies) throws IOException;
 
     public void forceTerminateAllRepairSessions();
 

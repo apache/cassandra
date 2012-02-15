@@ -53,6 +53,7 @@ public class NodeCmd
     private static final Pair<String, String> PASSWORD_OPT = new Pair<String, String>("pw", "password");
     private static final Pair<String, String> TAG_OPT = new Pair<String, String>("t", "tag");
     private static final Pair<String, String> PRIMARY_RANGE_OPT = new Pair<String, String>("pr", "partitioner-range");
+    private static final Pair<String, String> SNAPSHOT_REPAIR_OPT = new Pair<String, String>("snapshot", "with-snapshot");
 
     private static final String DEFAULT_HOST = "127.0.0.1";
     private static final int DEFAULT_PORT = 7199;
@@ -71,6 +72,7 @@ public class NodeCmd
         options.addOption(PASSWORD_OPT, true, "remote jmx agent password");
         options.addOption(TAG_OPT,      true, "optional name to give a snapshot");
         options.addOption(PRIMARY_RANGE_OPT, false, "only repair the first range returned by the partitioner for the node");
+        options.addOption(SNAPSHOT_REPAIR_OPT, false, "repair one node at a time using snapshots");
     }
     
     public NodeCmd(NodeProbe probe)
@@ -921,10 +923,11 @@ public class NodeCmd
             switch (nc)
             {
                 case REPAIR  :
+                    boolean snapshot = cmd.hasOption(SNAPSHOT_REPAIR_OPT.left);
                     if (cmd.hasOption(PRIMARY_RANGE_OPT.left))
-                        probe.forceTableRepairPrimaryRange(keyspace, columnFamilies);
+                        probe.forceTableRepairPrimaryRange(keyspace, snapshot, columnFamilies);
                     else
-                        probe.forceTableRepair(keyspace, columnFamilies);
+                        probe.forceTableRepair(keyspace, snapshot, columnFamilies);
                     break;
                 case FLUSH   :
                     try { probe.forceTableFlush(keyspace, columnFamilies); }

@@ -70,6 +70,7 @@ public class CompactSerializerTest extends CleanupHelper
         expectedClassNames.add("HashableSerializer");
         expectedClassNames.add("StreamingRepairTaskSerializer");
         expectedClassNames.add("AbstractBoundsSerializer");
+        expectedClassNames.add("SnapshotCommandSerializer");
         
         discoveredClassNames = new ArrayList<String>();
         String cp = System.getProperty("java.class.path");
