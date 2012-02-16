@@ -389,7 +389,7 @@ url=${svn.entry.url}?pathrev=${svn.entry.commit.revision}
              <exclusion groupId="commons-lang" artifactId="commons-lang"/>
           </dependency>
           <dependency groupId="org.apache.hadoop" artifactId="hadoop-core" version="0.20.203.0"/>
-          <dependency groupId="org.apache.pig" artifactId="pig" version="0.8.3"/>
+          <dependency groupId="org.apache.pig" artifactId="pig" version="0.9.2"/>
           <dependency groupId="net.sf.jopt-simple" artifactId="jopt-simple" version="3.2"/>
           <dependency groupId="net.java.dev.jna" artifactId="jna" version="3.2.7"/>
 
