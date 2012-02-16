@@ -64,7 +64,7 @@
  * Allow extending CompositeType comparator (CASSANDRA-3657)
  * Avoids over-paging during get_count (CASSANDRA-3798)
  * Add new command to rebuild a node without (repair) merkle tree calculations
-   (CASSANDRA-3483)
+   (CASSANDRA-3483, 3922)
  * respect not only row cache capacity but caching mode when
    trying to read data (CASSANDRA-3812)
  * fix system tests (CASSANDRA-3827)
