@@ -28,6 +28,7 @@ import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.IntegerType;
+import org.apache.cassandra.service.StorageService;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 import static org.apache.cassandra.utils.ByteBufferUtil.toInt;
 
@@ -46,7 +47,7 @@ public class SSTableSimpleWriterTest extends CleanupHelper
         File dir = Directories.create(tablename, cfname).getDirectoryForNewSSTables(0);
         assert dir.exists();
 
-        IPartitioner partitioner = new RandomPartitioner();
+        IPartitioner partitioner = StorageService.getPartitioner();
         SSTableSimpleUnsortedWriter writer = new SSTableSimpleUnsortedWriter(dir, partitioner, tablename, cfname, IntegerType.instance, null, 16);
 
         int k = 0;
