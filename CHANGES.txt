@@ -1,3 +1,8 @@
+1.1-dev
+ * avoid unproductive deserializing of cached rows during compaction
+   (CASSANDRA-3921)
+
+
 1.1-beta1
  * add nodetool rebuild_index (CASSANDRA-3583)
  * add nodetool rangekeysample (CASSANDRA-2917)
