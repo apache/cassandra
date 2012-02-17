@@ -1,7 +1,7 @@
 1.1-dev
  * avoid unproductive deserializing of cached rows during compaction
    (CASSANDRA-3921)
-
+ * Show Effective Owership via Nodetool ring <keyspace> (CASSANDRA-3412)
 
 1.1-beta1
  * add nodetool rebuild_index (CASSANDRA-3583)
@@ -82,7 +82,6 @@
  * Avoid NPE on aboarted stream-out sessions (CASSANDRA-3904)
  * BulkRecordWriter throws NPE for counter columns (CASSANDRA-3906)
  * Support compression using BulkWriter (CASSANDRA-3907)
- * Show Effective Owership via Nodetool ring <keyspace> (CASSANDRA-3412)
 
 1.0.8
  * fix race between cleanup and flush on secondary index CFSes (CASSANDRA-3712)
