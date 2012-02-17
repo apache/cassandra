@@ -1519,11 +1519,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public static Iterable<ColumnFamilyStore> all()
     {
-        Iterable<ColumnFamilyStore>[] stores = new Iterable[Schema.instance.getTables().size()];
-        int i = 0;
+        List<Iterable<ColumnFamilyStore>> stores = new ArrayList<Iterable<ColumnFamilyStore>>(Schema.instance.getTables().size());
         for (Table table : Table.all())
         {
-            stores[i++] = table.getColumnFamilyStores();
+            stores.add(table.getColumnFamilyStores());
         }
         return Iterables.concat(stores);
     }
