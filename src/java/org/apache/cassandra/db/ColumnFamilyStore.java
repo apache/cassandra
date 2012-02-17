@@ -31,6 +31,7 @@ import javax.management.*;
 import com.google.common.collect.*;
 
 import org.apache.cassandra.db.compaction.LeveledManifest;
+import org.apache.cassandra.io.compress.CompressionParameters;
 import org.apache.cassandra.service.CacheService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -180,6 +181,16 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public String getCompactionStrategyClass()
     {
         return metadata.compactionStrategyClass.getName();
+    }
+    
+    public Map<String,String> getCompressionParameters()
+    {
+        return metadata.compressionParameters().asThriftOptions();
+    }
+
+    public void setCompressionParameters(Map<String,String> opts) throws ConfigurationException
+    {
+        metadata.compressionParameters = CompressionParameters.create(opts);
     }
 
     private ColumnFamilyStore(Table table, String columnFamilyName, IPartitioner partitioner, int generation, CFMetaData metadata, Directories directories)

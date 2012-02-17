@@ -169,7 +169,7 @@ public final class CFMetaData
     public Class<? extends AbstractCompactionStrategy> compactionStrategyClass;
     public Map<String, String> compactionStrategyOptions;
 
-    private CompressionParameters compressionParameters;
+    public CompressionParameters compressionParameters;
 
     // Processed infos used by CQL. This can be fully reconstructed from the CFMedata,
     // so it's not saved on disk. It is however costlyish to recreate for each query
