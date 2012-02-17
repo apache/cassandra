@@ -1,6 +1,7 @@
 1.1-dev
  * avoid unproductive deserializing of cached rows during compaction
    (CASSANDRA-3921)
+ * fix concurrency issues with CQL keyspace creation (CASSANDRA-3903)
 
 
 1.1-beta1

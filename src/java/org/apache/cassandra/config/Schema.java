@@ -409,8 +409,15 @@ public class Schema
      */
     public void fixCFMaxId()
     {
-        // never set it to less than 1000. this ensures that we have enough system CFids for future use.
-        cfIdGen.set(cfIdMap.size() == 0 ? MIN_CF_ID : Math.max(Collections.max(cfIdMap.values()) + 1, MIN_CF_ID));
+        int cval, nval;
+        do
+        {
+            cval = cfIdGen.get();
+            int inMap = cfIdMap.isEmpty() ? 0 : Collections.max(cfIdMap.values()) + 1;
+            // never set it to less than 1000. this ensures that we have enough system CFids for future use.
+            nval = Math.max(Math.max(inMap, cval), MIN_CF_ID);
+        }
+        while (!cfIdGen.compareAndSet(cval, nval));
     }
 
     /**
