@@ -299,6 +299,15 @@ public interface StorageServiceMBean
      */
     public Map<String, Float> getOwnership();
 
+    /**
+     * Effective ownership is % of the data each node owns given the keyspace 
+     * we calculate the percentage using replication factor.
+     * If Keyspace == null, this method will try to verify if all the keyspaces
+     * in the cluster have the same replication strategies and if yes then we will
+     * use the first else a empty Map is returned.
+     */
+    public Map<String, Float> effectiveOwnership(String keyspace) throws ConfigurationException;
+
     public List<String> getKeyspaces();
 
     /**

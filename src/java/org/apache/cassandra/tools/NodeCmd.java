@@ -205,7 +205,7 @@ public class NodeCmd
      * 
      * @param outs the stream to write to
      */
-    public void printRing(PrintStream outs)
+    public void printRing(PrintStream outs, String keyspace)
     {
         Map<String, String> tokenToEndpoint = probe.getTokenToEndpointMap();
         List<String> sortedTokens = new ArrayList<String>(tokenToEndpoint.keySet());
@@ -217,15 +217,26 @@ public class NodeCmd
         Collection<String> movingNodes = probe.getMovingNodes();
         Map<String, String> loadMap = probe.getLoadMap();
 
-        String format = "%-16s%-12s%-12s%-7s%-8s%-16s%-8s%-44s%n";
-        outs.printf(format, "Address", "DC", "Rack", "Status", "State", "Load", "Owns", "Token");
+        String format = "%-16s%-12s%-12s%-7s%-8s%-16s%-20s%-44s%n";
+        
+        // Calculate per-token ownership of the ring
+        Map<String, Float> ownerships;
+        try
+        {
+            ownerships = probe.effectiveOwnership(keyspace);
+            outs.printf(format, "Address", "DC", "Rack", "Status", "State", "Load", "Effective-Owership", "Token");
+        }
+        catch (ConfigurationException ex)
+        {
+            ownerships = probe.getOwnership();
+            outs.printf("Note: Ownership information does not include topology, please specify a keyspace. \n");
+            outs.printf(format, "Address", "DC", "Rack", "Status", "State", "Load", "Owns", "Token");
+        }
+        
         // show pre-wrap token twice so you can always read a node's range as
         // (previous line token, current line token]
         if (sortedTokens.size() > 1)
             outs.printf(format, "", "", "", "", "", "", "", sortedTokens.get(sortedTokens.size() - 1));
-
-        // Calculate per-token ownership of the ring
-        Map<String, Float> ownerships = probe.getOwnership();
 
         for (String token : sortedTokens)
         {
@@ -266,7 +277,7 @@ public class NodeCmd
             String load = loadMap.containsKey(primaryEndpoint)
                           ? loadMap.get(primaryEndpoint)
                           : "?";
-            String owns = new DecimalFormat("##0.00%").format(ownerships.get(token));
+            String owns = new DecimalFormat("##0.00%").format(ownerships.get(token) == null ? 0.0F : ownerships.get(token));
             outs.printf(format, primaryEndpoint, dataCenter, rack, status, state, load, owns, token);
         }
     }
@@ -657,7 +668,11 @@ public class NodeCmd
 
             switch (command)
             {
-                case RING            : nodeCmd.printRing(System.out); break;
+                case RING : 
+                    if (arguments.length > 0) { nodeCmd.printRing(System.out, arguments[0]); }
+                    else                      { nodeCmd.printRing(System.out, null); };
+                    break;
+
                 case INFO            : nodeCmd.printInfo(System.out); break;
                 case CFSTATS         : nodeCmd.printColumnFamilyStats(System.out); break;
                 case DECOMMISSION    : probe.decommission(); break;

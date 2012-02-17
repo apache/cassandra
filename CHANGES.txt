@@ -77,6 +77,7 @@
  * Avoid NPE on aboarted stream-out sessions (CASSANDRA-3904)
  * BulkRecordWriter throws NPE for counter columns (CASSANDRA-3906)
  * Support compression using BulkWriter (CASSANDRA-3907)
+ * Show Effective Owership via Nodetool ring <keyspace> (CASSANDRA-3412)
 
 1.0.8
  * fix race between cleanup and flush on secondary index CFSes (CASSANDRA-3712)
