@@ -267,6 +267,11 @@ public class NodeProbe
         return ssProxy.getOwnership();
     }
 
+    public Map<String, Float> effectiveOwnership(String keyspace) throws ConfigurationException
+    {
+        return ssProxy.effectiveOwnership(keyspace);
+    }
+
     public CacheServiceMBean getCacheServiceMBean()
     {
         String cachePath = "org.apache.cassandra.db:type=Caches";

@@ -2,7 +2,7 @@
  * avoid unproductive deserializing of cached rows during compaction
    (CASSANDRA-3921)
  * fix concurrency issues with CQL keyspace creation (CASSANDRA-3903)
-
+ * Show Effective Owership via Nodetool ring <keyspace> (CASSANDRA-3412)
 
 1.1-beta1
  * add nodetool rebuild_index (CASSANDRA-3583)

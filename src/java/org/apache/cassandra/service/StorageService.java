@@ -26,12 +26,15 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.Map.Entry;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
+import com.google.common.base.Supplier;
 import com.google.common.collect.*;
+
 import org.apache.log4j.Level;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
@@ -933,6 +936,25 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             rangeToEndpointMap.put(range, Table.open(keyspace).getReplicationStrategy().getNaturalEndpoints(range.right));
         }
         return rangeToEndpointMap;
+    }
+
+    private Map<InetAddress, Collection<Range<Token>>> constructEndpointToRangeMap(String keyspace)
+    {
+        Multimap<InetAddress, Range<Token>> endpointToRangeMap = Multimaps.newListMultimap(new HashMap<InetAddress, Collection<Range<Token>>>(), new Supplier<List<Range<Token>>>()
+        {
+            public List<Range<Token>> get()
+            {
+                return Lists.newArrayList();
+            }
+        });
+        
+        List<Range<Token>> ranges = getAllRanges(tokenMetadata_.sortedTokens());
+        for (Range<Token> range : ranges)
+        {
+            for (InetAddress endpoint : Table.open(keyspace).getReplicationStrategy().getNaturalEndpoints(range.left))
+                endpointToRangeMap.put(endpoint, range);
+        }
+        return endpointToRangeMap.asMap();
     }
 
     /*
@@ -2613,6 +2635,49 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             string_map.put(entry.getKey().toString(), entry.getValue());
         }
         return string_map;
+    }
+
+    public Map<String, Float> effectiveOwnership(String keyspace) throws ConfigurationException
+    {   
+        Map<String, Float> effective = Maps.newHashMap();
+        if (Schema.instance.getNonSystemTables().size() <= 0)
+            throw new ConfigurationException("Couldn't find any Non System Keyspaces to infer replication topology");
+        if (keyspace == null && !hasSameReplication(Schema.instance.getNonSystemTables()))
+            throw new ConfigurationException("Non System keyspaces doesnt have the same topology");
+        
+        if (keyspace == null)
+            keyspace = Schema.instance.getNonSystemTables().get(0);
+        
+        List<Token> sortedTokens = new ArrayList<Token>(tokenMetadata_.getTokenToEndpointMapForReading().keySet());
+        Collections.sort(sortedTokens);
+        Map<Token, Float> ownership = getPartitioner().describeOwnership(sortedTokens);
+        
+        for (Entry<InetAddress, Collection<Range<Token>>> ranges : constructEndpointToRangeMap(keyspace).entrySet())
+        {
+            Token token = tokenMetadata_.getToken(ranges.getKey());
+            for (Range<Token> range: ranges.getValue())
+            {
+                float value = effective.get(token.toString()) == null ? 0.0F : effective.get(token.toString());
+                effective.put(token.toString(), value + ownership.get(range.left));
+            }
+        }
+        return effective;
+    }
+    
+    private boolean hasSameReplication(List<String> list)
+    {
+        if (list.isEmpty())
+            return false;
+        for (int i = 0; i < list.size() -1; i++)
+        {
+            KSMetaData ksm1 = Schema.instance.getKSMetaData(Schema.instance.getNonSystemTables().get(i));
+            KSMetaData ksm2 = Schema.instance.getKSMetaData(Schema.instance.getNonSystemTables().get(i + 1));
+            if (!ksm1.strategyClass.equals(ksm2.strategyClass) || 
+                    !Iterators.elementsEqual(ksm1.strategyOptions.entrySet().iterator(), 
+                                             ksm2.strategyOptions.entrySet().iterator()))
+                return false;
+        }
+        return true;
     }
 
     public List<String> getKeyspaces()
