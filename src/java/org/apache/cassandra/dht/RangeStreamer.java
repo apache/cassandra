@@ -189,6 +189,7 @@ public class RangeStreamer
 
                 rangeFetchMapMap.put(address, range);
                 foundSource = true;
+                break; // ensure we only stream from one other node for each range
             }
 
             if (!foundSource)
