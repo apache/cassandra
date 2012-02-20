@@ -157,16 +157,18 @@ selectStatement returns [SelectStatement.RawStatement expr]
         ConsistencyLevel cLevel = ConsistencyLevel.ONE;
         int limit = 10000;
         boolean reversed = false;
+        ColumnIdentifier orderBy = null;
     }
     : K_SELECT ( sclause=selectClause | (K_COUNT '(' sclause=selectClause ')' { isCount = true; }) )
       K_FROM cf=columnFamilyName
       ( K_USING K_CONSISTENCY K_LEVEL { cLevel = ConsistencyLevel.valueOf($K_LEVEL.text.toUpperCase()); } )?
       ( K_WHERE wclause=whereClause )?
-      ( K_ORDER (K_ASC | K_DESC { reversed = true; }) )?
+      ( K_ORDER K_BY c=cident { orderBy = c; } (K_ASC | K_DESC { reversed = true; })? )?
       ( K_LIMIT rows=INTEGER { limit = Integer.parseInt($rows.text); } )?
       {
           SelectStatement.Parameters params = new SelectStatement.Parameters(cLevel,
                                                                              limit,
+                                                                             orderBy,
                                                                              reversed,
                                                                              isCount);
           $expr = new SelectStatement.RawStatement(cf, params, sclause, wclause);
@@ -533,6 +535,7 @@ K_TYPE:        T Y P E;
 K_COMPACT:     C O M P A C T;
 K_STORAGE:     S T O R A G E;
 K_ORDER:       O R D E R;
+K_BY:          B Y;
 K_ASC:         A S C;
 K_DESC:        D E S C;
 

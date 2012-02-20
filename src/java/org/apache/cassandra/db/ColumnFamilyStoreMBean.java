@@ -20,6 +20,7 @@ package org.apache.cassandra.db;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
 import org.apache.cassandra.config.ConfigurationException;
@@ -200,6 +201,17 @@ public interface ColumnFamilyStoreMBean
      * Gets the compaction strategy class name
      */
     public String getCompactionStrategyClass();
+
+    /**
+     * Get the compression parameters
+     */
+    public Map<String,String> getCompressionParameters();
+
+    /**
+     * Set the compression parameters
+     * @param opts map of string names to values
+     */
+    public void setCompressionParameters(Map<String,String> opts) throws ConfigurationException;
 
     /**
      * Disable automatic compaction.
