@@ -915,6 +915,17 @@ public class SelectStatement implements CQLStatement
                 }
             }
 
+            // We only support order by on the the second PK column
+            if (stmt.parameters.orderBy != null)
+            {
+                CFDefinition.Name name = cfDef.get(stmt.parameters.orderBy);
+                if (name == null)
+                    throw new InvalidRequestException(String.format("Order by on unknown column %s", stmt.parameters.orderBy));
+
+                if (name.kind != CFDefinition.Name.Kind.COLUMN_ALIAS || name.position != 0)
+                    throw new InvalidRequestException(String.format("Order by is currently only supported on the second column of the PRIMARY KEY (if any), got %s", stmt.parameters.orderBy));
+            }
+
             // Only allow reversed if the row key restriction is an equality,
             // since we don't know how to reverse otherwise
             if (stmt.parameters.isColumnsReversed)
@@ -1079,13 +1090,15 @@ public class SelectStatement implements CQLStatement
     {
         private final int limit;
         private final ConsistencyLevel consistencyLevel;
+        private final ColumnIdentifier orderBy;
         private final boolean isColumnsReversed;
         private final boolean isCount;
 
-        public Parameters(ConsistencyLevel consistency, int limit, boolean reversed, boolean isCount)
+        public Parameters(ConsistencyLevel consistency, int limit, ColumnIdentifier orderBy, boolean reversed, boolean isCount)
         {
             this.consistencyLevel = consistency;
             this.limit = limit;
+            this.orderBy = orderBy;
             this.isColumnsReversed = reversed;
             this.isCount = isCount;
         }

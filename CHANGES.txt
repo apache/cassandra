@@ -3,6 +3,7 @@
    (CASSANDRA-3921)
  * fix concurrency issues with CQL keyspace creation (CASSANDRA-3903)
  * Show Effective Owership via Nodetool ring <keyspace> (CASSANDRA-3412)
+ * Update ORDER BY syntax for CQL3 (CASSANDRA-3925)
 
 1.1-beta1
  * add nodetool rebuild_index (CASSANDRA-3583)
