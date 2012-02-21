@@ -75,6 +75,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
     public final static String PIG_PARTITIONER = "PIG_PARTITIONER";
     public final static String PIG_INPUT_FORMAT = "PIG_INPUT_FORMAT";
     public final static String PIG_OUTPUT_FORMAT = "PIG_OUTPUT_FORMAT";
+    public final static String PIG_ALLOW_DELETES = "PIG_ALLOW_DELETES";
 
     private final static String DEFAULT_INPUT_FORMAT = "org.apache.cassandra.hadoop.ColumnFamilyInputFormat";
     private final static String DEFAULT_OUTPUT_FORMAT = "org.apache.cassandra.hadoop.ColumnFamilyOutputFormat";
@@ -85,6 +86,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
     private ByteBuffer slice_start = BOUND;
     private ByteBuffer slice_end = BOUND;
     private boolean slice_reverse = false;
+    private boolean allow_deletes = false;
     private String keyspace;
     private String column_family;
     private String loadSignature;
@@ -378,6 +380,8 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
             outputFormatClass = getFullyQualifiedClassName(System.getenv(PIG_OUTPUT_FORMAT));
         else
             outputFormatClass = DEFAULT_OUTPUT_FORMAT;
+        if (System.getenv(PIG_ALLOW_DELETES) != null)
+            allow_deletes = Boolean.valueOf(System.getenv(PIG_ALLOW_DELETES));
     }
     
     private String getFullyQualifiedClassName(String classname)
@@ -659,11 +663,15 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
         Mutation mutation = new Mutation();
         if (t.get(1) == null)
         {
-            // TODO: optional deletion
-            mutation.deletion = new Deletion();
-            mutation.deletion.predicate = new org.apache.cassandra.thrift.SlicePredicate();
-            mutation.deletion.predicate.column_names = Arrays.asList(objToBB(t.get(0)));
-            mutation.deletion.setTimestamp(FBUtilities.timestampMicros());
+            if (allow_deletes)
+            {
+                mutation.deletion = new Deletion();
+                mutation.deletion.predicate = new org.apache.cassandra.thrift.SlicePredicate();
+                mutation.deletion.predicate.column_names = Arrays.asList(objToBB(t.get(0)));
+                mutation.deletion.setTimestamp(FBUtilities.timestampMicros());
+            }
+            else
+                throw new IOException("null found but deletes are disabled, set " + PIG_ALLOW_DELETES + "=true to enable");
         }
         else
         {
@@ -696,11 +704,16 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
                     column.setTimestamp(FBUtilities.timestampMicros());
                     columns.add(column);
                 }
-                if (columns.isEmpty()) // TODO: optional deletion
+                if (columns.isEmpty())
                 {
-                    mutation.deletion = new Deletion();
-                    mutation.deletion.super_column = objToBB(pair.get(0));
-                    mutation.deletion.setTimestamp(FBUtilities.timestampMicros());
+                    if (allow_deletes)
+                    {
+                        mutation.deletion = new Deletion();
+                        mutation.deletion.super_column = objToBB(pair.get(0));
+                        mutation.deletion.setTimestamp(FBUtilities.timestampMicros());
+                    }
+                    else
+                        throw new IOException("SuperColumn deletion attempted with empty bag, but deletes are disabled, set " + PIG_ALLOW_DELETES + "=true to enable");
                 }
                 else
                 {
