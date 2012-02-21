@@ -835,11 +835,15 @@ class Shell(cmd.Cmd):
                 indexed_columns.append(col)
         notable_columns = []
         for (option, thriftname) in cqlhandling.columnfamily_options:
-            optval = getattr(cfdef, thriftname or option)
+            optval = getattr(cfdef, thriftname or option, None)
+            if optval is None:
+                continue
             if option in ('comparator', 'default_validation'):
                 optval = cql_typename(optval)
             elif option == 'row_cache_provider':
                 optval = cql_escape(trim_if_present(optval, 'org.apache.cassandra.cache.'))
+            elif option == 'compaction_strategy_class':
+                optval = cql_escape(trim_if_present(optval, 'org.apache.cassandra.db.compaction.'))
             else:
                 optval = cql_escape(optval)
             notable_columns.append((option, optval))
