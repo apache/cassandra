@@ -100,12 +100,14 @@ public class CompactionsTest extends CleanupHelper
         long maxTimestampExpected = Long.MIN_VALUE;
         Set<DecoratedKey> inserted = new HashSet<DecoratedKey>();
         ByteBuffer superColumn = ByteBufferUtil.bytes("TestSuperColumn");
-        for (int j = 0; j < SSTABLES; j++) {
-            for (int i = 0; i < ROWS_PER_SSTABLE; i++) {
+        for (int j = 0; j < SSTABLES; j++)
+        {
+            for (int i = 0; i < ROWS_PER_SSTABLE; i++)
+            {
                 DecoratedKey key = Util.dk(String.valueOf(i % 2));
                 RowMutation rm = new RowMutation(TABLE1, key.key);
                 long timestamp = j * ROWS_PER_SSTABLE + i;
-                rm.add(new QueryPath("Super1", superColumn, ByteBufferUtil.bytes(String.valueOf(i / 2))),
+                rm.add(new QueryPath("Super1", superColumn, ByteBufferUtil.bytes((long)(i / 2))),
                        ByteBufferUtil.EMPTY_BYTE_BUFFER,
                        timestamp);
                 maxTimestampExpected = Math.max(timestamp, maxTimestampExpected);
