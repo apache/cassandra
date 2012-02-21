@@ -398,8 +398,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             throw new IOError(ex);
         }
 
-        Schema.instance.updateVersion();
-        MigrationManager.passiveAnnounce(Schema.instance.getVersion());
+        Schema.instance.updateVersionAndAnnounce();
     }
 
     public synchronized void initServer() throws IOException, ConfigurationException
@@ -508,7 +507,6 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         logger_.info("Starting up server gossip");
         joined = true;
 
-        Schema.instance.updateVersion();
 
         // have to start the gossip service before we can see any info on other nodes.  this is necessary
         // for bootstrap to get the load info it needs.
@@ -516,6 +514,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         Gossiper.instance.register(this);
         Gossiper.instance.register(migrationManager);
         Gossiper.instance.start(SystemTable.incrementAndGetGeneration()); // needed for node-ring gathering.
+        // gossip schema version when gossiper is running
+        Schema.instance.updateVersionAndAnnounce();
         // add rpc listening info
         Gossiper.instance.addLocalApplicationState(ApplicationState.RPC_ADDRESS, valueFactory.rpcaddress(DatabaseDescriptor.getRpcAddress()));
         if (null != DatabaseDescriptor.getReplaceToken())

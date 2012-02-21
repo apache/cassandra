@@ -28,6 +28,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
+import org.apache.cassandra.service.MigrationManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -477,5 +478,13 @@ public class Schema
         {
             versionLock.writeLock().unlock();
         }
+    }
+    /*
+     * Like updateVersion, but also announces via gossip
+     */
+    public void updateVersionAndAnnounce()
+    {
+        updateVersion();
+        MigrationManager.passiveAnnounce(version);
     }
 }

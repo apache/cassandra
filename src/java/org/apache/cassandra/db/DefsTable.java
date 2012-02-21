@@ -234,7 +234,7 @@ public class DefsTable
         if (!StorageService.instance.isClientMode())
             MigrationHelper.flushSchemaCFs();
 
-        Schema.instance.updateVersion();
+        Schema.instance.updateVersionAndAnnounce();
 
         Set<String> keyspacesToDrop = mergeKeyspaces(oldKeyspaces, SystemTable.getSchema(SystemTable.SCHEMA_KEYSPACES_CF));
         mergeColumnFamilies(oldColumnFamilies, SystemTable.getSchema(SystemTable.SCHEMA_COLUMNFAMILIES_CF));
