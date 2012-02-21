@@ -174,10 +174,6 @@ public class CliOptions
             {
                 css.schema_mwt = Integer.parseInt(cmd.getOptionValue(SCHEMA_MIGRATION_WAIT_TIME)) * 1000;
             }
-            else
-            {
-                css.schema_mwt = 10 * 1000;
-            }
 
             // Abort if there are any unrecognized arguments left
             if (cmd.getArgs().length > 0)
