@@ -23,9 +23,8 @@ import java.io.DataOutputStream;
 import java.io.IOError;
 import java.io.IOException;
 import java.net.InetAddress;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.UUID;
+import java.util.*;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -37,8 +36,7 @@ import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.db.DefsTable;
-import org.apache.cassandra.db.RowMutation;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.gms.*;
 import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.io.util.FastByteArrayOutputStream;
@@ -96,41 +94,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
          * Do not de-ref the future because that causes distributed deadlock (CASSANDRA-3832) because we are
          * running in the gossip stage.
          */
-
-        StageManager.getStage(Stage.MIGRATION).submit(new WrappedRunnable()
-        {
-            public void runMayThrow() throws Exception
-            {
-                Message message = new Message(FBUtilities.getBroadcastAddress(),
-                                              StorageService.Verb.MIGRATION_REQUEST,
-                                              ArrayUtils.EMPTY_BYTE_ARRAY,
-                                              Gossiper.instance.getVersion(endpoint));
-
-                int retries = 0;
-                while (retries < MIGRATION_REQUEST_RETRIES)
-                {
-                    if (!FailureDetector.instance.isAlive(endpoint))
-                    {
-                        logger.error("Can't send migration request: node {} is down.", endpoint);
-                        return;
-                    }
-
-                    IAsyncResult iar = MessagingService.instance().sendRR(message, endpoint);
-
-                    try
-                    {
-                        byte[] reply = iar.get(DatabaseDescriptor.getRpcTimeout(), TimeUnit.MILLISECONDS);
-
-                        DefsTable.mergeRemoteSchema(reply, message.getVersion());
-                        return;
-                    }
-                    catch(TimeoutException e)
-                    {
-                        retries++;
-                    }
-                }
-            }
-        });
+        StageManager.getStage(Stage.MIGRATION).submit(new MigrationTask(endpoint));
     }
 
     public static boolean isReadyForBootstrap()
@@ -243,5 +207,105 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
             schema.add(RowMutation.serializer().deserialize(in, version));
 
         return schema;
+    }
+
+    /**
+     * Clear all locally stored schema information and reset schema to initial state.
+     * Called by user (via JMX) who wants to get rid of schema disagreement.
+     *
+     * @throws IOException if schema tables truncation fails
+     */
+    public static void resetLocalSchema() throws IOException
+    {
+        logger.info("Starting local schema reset...");
+
+        try
+        {
+            if (logger.isDebugEnabled())
+                logger.debug("Truncating schema tables...");
+
+            // truncate schema tables
+            FBUtilities.waitOnFutures(new ArrayList<Future<?>>()
+            {{
+                SystemTable.schemaCFS(SystemTable.SCHEMA_KEYSPACES_CF).truncate();
+                SystemTable.schemaCFS(SystemTable.SCHEMA_COLUMNFAMILIES_CF).truncate();
+                SystemTable.schemaCFS(SystemTable.SCHEMA_COLUMNS_CF).truncate();
+            }});
+
+            if (logger.isDebugEnabled())
+                logger.debug("Clearing local schema keyspace definitions...");
+
+            Schema.instance.clear();
+
+            Set<InetAddress> liveEndpoints = Gossiper.instance.getLiveMembers();
+            liveEndpoints.remove(FBUtilities.getBroadcastAddress());
+
+            // force migration is there are nodes around, first of all
+            // check if there are nodes with versions >= 1.1 to request migrations from,
+            // because migration format of the nodes with versions < 1.1 is incompatible with older versions
+            for (InetAddress node : liveEndpoints)
+            {
+                if (Gossiper.instance.getVersion(node) >= MessagingService.VERSION_11)
+                {
+                    if (logger.isDebugEnabled())
+                        logger.debug("Requesting schema from " + node);
+
+                    FBUtilities.waitOnFuture(StageManager.getStage(Stage.MIGRATION).submit(new MigrationTask(node)));
+                    break;
+                }
+            }
+
+            logger.info("Local schema reset is complete.");
+        }
+        catch (InterruptedException e)
+        {
+            throw new RuntimeException(e);
+        }
+        catch (ExecutionException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    static class MigrationTask extends WrappedRunnable
+    {
+        private final InetAddress endpoint;
+
+        MigrationTask(InetAddress endpoint)
+        {
+            this.endpoint = endpoint;
+        }
+
+        public void runMayThrow() throws Exception
+        {
+            Message message = new Message(FBUtilities.getBroadcastAddress(),
+                                          StorageService.Verb.MIGRATION_REQUEST,
+                                          ArrayUtils.EMPTY_BYTE_ARRAY,
+                                          Gossiper.instance.getVersion(endpoint));
+
+            int retries = 0;
+            while (retries < MIGRATION_REQUEST_RETRIES)
+            {
+                if (!FailureDetector.instance.isAlive(endpoint))
+                {
+                    logger.error("Can't send migration request: node {} is down.", endpoint);
+                    return;
+                }
+
+                IAsyncResult iar = MessagingService.instance().sendRR(message, endpoint);
+
+                try
+                {
+                    byte[] reply = iar.get(DatabaseDescriptor.getRpcTimeout(), TimeUnit.MILLISECONDS);
+
+                    DefsTable.mergeRemoteSchema(reply, message.getVersion());
+                    return;
+                }
+                catch(TimeoutException e)
+                {
+                    retries++;
+                }
+            }
+        }
     }
 }

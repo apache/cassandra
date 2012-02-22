@@ -479,6 +479,7 @@ public class Schema
             versionLock.writeLock().unlock();
         }
     }
+
     /*
      * Like updateVersion, but also announces via gossip
      */
@@ -486,5 +487,22 @@ public class Schema
     {
         updateVersion();
         MigrationManager.passiveAnnounce(version);
+    }
+
+    /**
+     * Clear all KS/CF metadata and reset version.
+     */
+    public synchronized void clear()
+    {
+        for (String table : getNonSystemTables())
+        {
+            KSMetaData ksm = getTableDefinition(table);
+            for (CFMetaData cfm : ksm.cfMetaData().values())
+                purge(cfm);
+            clearTableDefinition(ksm);
+        }
+
+        updateVersionAndAnnounce();
+        fixCFMaxId();
     }
 }

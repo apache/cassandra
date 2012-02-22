@@ -2954,7 +2954,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     {
         ColumnFamilyStore.loadNewSSTables(ksName, cfName);
     }
-    
+
     /**
      * #{@inheritDoc}
      */
@@ -2971,5 +2971,10 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     public void rebuildSecondaryIndex(String ksName, String cfName, String... idxNames)
     {
         ColumnFamilyStore.rebuildSecondaryIndex(ksName, cfName, idxNames);
+    }
+
+    public void resetLocalSchema() throws IOException
+    {
+        MigrationManager.resetLocalSchema();
     }
 }

@@ -374,7 +374,7 @@ public interface StorageServiceMBean
      * @param cfName The ColumnFamily name where SSTables belong
      */
     public void loadNewSSTables(String ksName, String cfName);
-    
+
     /**
      * Return a List of Tokens representing a sample of keys
      * across all ColumnFamilyStores
@@ -387,4 +387,6 @@ public interface StorageServiceMBean
      * rebuild the specified indexes
      */
     public void rebuildSecondaryIndex(String ksName, String cfName, String... idxNames);
+
+    public void resetLocalSchema() throws IOException;
 }

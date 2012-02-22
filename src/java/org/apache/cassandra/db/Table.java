@@ -47,6 +47,7 @@ import org.apache.cassandra.io.util.MmappedSegmentedFile;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.NodeId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -334,9 +335,27 @@ public class Table
     /** adds a cf to internal structures, ends up creating disk files). */
     public void initCf(Integer cfId, String cfName)
     {
-        assert !columnFamilyStores.containsKey(cfId) : String.format("tried to init %s as %s, but already used by %s",
-                                                                     cfName, cfId, columnFamilyStores.get(cfId));
-        columnFamilyStores.put(cfId, ColumnFamilyStore.createColumnFamilyStore(this, cfName));
+        if (columnFamilyStores.containsKey(cfId))
+        {
+            // this is the case when you reset local schema
+            // just reload metadata
+            ColumnFamilyStore cfs = columnFamilyStores.get(cfId);
+            assert cfs.getColumnFamilyName().equals(cfName);
+
+            try
+            {
+                cfs.metadata.reload();
+                cfs.reload();
+            }
+            catch (IOException e)
+            {
+                throw FBUtilities.unchecked(e);
+            }
+        }
+        else
+        {
+            columnFamilyStores.put(cfId, ColumnFamilyStore.createColumnFamilyStore(this, cfName));
+        }
     }
 
     public Row getRow(QueryFilter filter) throws IOException

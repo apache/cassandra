@@ -407,7 +407,6 @@ struct CfDef {
     17: optional i32 min_compaction_threshold,
     18: optional i32 max_compaction_threshold,
     24: optional bool replicate_on_write,
-    25: optional double merge_shards_chance,
     26: optional string key_validation_class,
     28: optional binary key_alias,
     29: optional string compaction_strategy,
