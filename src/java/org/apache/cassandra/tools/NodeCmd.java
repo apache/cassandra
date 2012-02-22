@@ -121,6 +121,7 @@ public class NodeCmd
         DESCRIBERING,
         RANGEKEYSAMPLE,
         REBUILD_INDEX,
+        RESETLOCALSCHEMA
     }
 
     
@@ -150,6 +151,7 @@ public class NodeCmd
         addCmdHelp(header, "gossipinfo", "Shows the gossip information for the cluster");
         addCmdHelp(header, "invalidatekeycache", "Invalidate the key cache");
         addCmdHelp(header, "invalidaterowcache", "Invalidate the row cache");
+        addCmdHelp(header, "resetlocalschema", "Reset node's local schema and resync");
 
         // One arg
         addCmdHelp(header, "netstats [host]", "Print network information on provided host (connecting node by default)");
@@ -682,6 +684,7 @@ public class NodeCmd
                 case DISABLETHRIFT   : probe.stopThriftServer(); break;
                 case ENABLETHRIFT    : probe.startThriftServer(); break;
                 case STATUSTHRIFT    : nodeCmd.printIsThriftServerRunning(System.out); break;
+                case RESETLOCALSCHEMA: probe.resetLocalSchema(); break;
     
                 case DRAIN :
                     try { probe.drain(); }

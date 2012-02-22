@@ -653,12 +653,16 @@ public class NodeProbe
     {
         ssProxy.rebuild(sourceDc);
     }
-    
+
     public List<String> getRangeKeySample()
     {
         return ssProxy.getRangeKeySample();
     }
 
+    public void resetLocalSchema() throws IOException
+    {
+        ssProxy.resetLocalSchema();
+    }
 }
 
 class ColumnFamilyStoreMBeanIterator implements Iterator<Map.Entry<String, ColumnFamilyStoreMBean>>
