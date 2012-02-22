@@ -11,9 +11,14 @@ by version X, but the inverse is not necessarily the case.)
 1.0.8
 =====
 
+Upgrading
+---------
+    - Nothing specific to 1.0.8
+
 Other
 -----
     - Allow configuring socket timeout for streaming
+
 
 1.0.7
 =====
