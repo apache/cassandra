@@ -187,14 +187,17 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<Mutation>>
 
     private void close() throws IOException
     {
-        writer.close();
-        try
+        if (writer != null)
         {
-            loader.stream().get();
-        }
-        catch (InterruptedException e)
-        {
-            throw new IOException(e);
+            writer.close();
+            try
+            {
+                loader.stream().get();
+            }
+            catch (InterruptedException e)
+            {
+                throw new IOException(e);
+            }
         }
     }
 
