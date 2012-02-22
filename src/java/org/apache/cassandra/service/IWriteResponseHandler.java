@@ -29,6 +29,5 @@ import org.apache.cassandra.thrift.UnavailableException;
 public interface IWriteResponseHandler extends IAsyncCallback
 {
     public void get() throws TimeoutException;
-    public void addFutureForHint(CreationTimeAwareFuture<?> hintFuture);
     public void assureSufficientLiveNodes() throws UnavailableException;
 }

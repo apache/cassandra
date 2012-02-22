@@ -20,6 +20,7 @@
    (CASSANDRA-3844)
  * make CLI `show schema` to use output stream directly instead
    of StringBuilder (CASSANDRA-3842)
+ * remove the wait on hint future during write (CASSANDRA-3870)
 Merged from 0.8:
  * (Pig) fix CassandraStorage to use correct comparator in Super ColumnFamily
    case (CASSANDRA-3251)
