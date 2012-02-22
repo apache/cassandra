@@ -68,7 +68,6 @@ public final class CFMetaData
     public final static int DEFAULT_GC_GRACE_SECONDS = 864000;
     public final static int DEFAULT_MIN_COMPACTION_THRESHOLD = 4;
     public final static int DEFAULT_MAX_COMPACTION_THRESHOLD = 32;
-    public final static double DEFAULT_MERGE_SHARDS_CHANCE = 0.1;
     public final static String DEFAULT_COMPACTION_STRATEGY_CLASS = "SizeTieredCompactionStrategy";
     public final static ByteBuffer DEFAULT_KEY_NAME = ByteBufferUtil.bytes("KEY");
 
@@ -156,9 +155,6 @@ public final class CFMetaData
     private AbstractType<?> keyValidator;             // default BytesType (no-op), use comparator types
     private int minCompactionThreshold;               // default 4
     private int maxCompactionThreshold;               // default 32
-    // mergeShardsChance is now obsolete, but left here so as to not break
-    // thrift compatibility
-    private double mergeShardsChance;                 // default 0.1, chance [0.0, 1.0] of merging old shards during replication
     private ByteBuffer keyAlias;                      // default NULL
     private List<ByteBuffer> columnAliases = new ArrayList<ByteBuffer>();
     private ByteBuffer valueAlias;                    // default NULL
@@ -185,7 +181,6 @@ public final class CFMetaData
     public CFMetaData keyValidator(AbstractType<?> prop) {keyValidator = prop; updateCfDef(); return this;}
     public CFMetaData minCompactionThreshold(int prop) {minCompactionThreshold = prop; return this;}
     public CFMetaData maxCompactionThreshold(int prop) {maxCompactionThreshold = prop; return this;}
-    public CFMetaData mergeShardsChance(double prop) {mergeShardsChance = prop; return this;}
     public CFMetaData keyAlias(ByteBuffer prop) {keyAlias = prop; updateCfDef(); return this;}
     public CFMetaData columnAliases(List<ByteBuffer> prop) {columnAliases = prop; updateCfDef(); return this;}
     public CFMetaData valueAlias(ByteBuffer prop) {valueAlias = prop; updateCfDef(); return this;}
@@ -237,7 +232,6 @@ public final class CFMetaData
         gcGraceSeconds               = DEFAULT_GC_GRACE_SECONDS;
         minCompactionThreshold       = DEFAULT_MIN_COMPACTION_THRESHOLD;
         maxCompactionThreshold       = DEFAULT_MAX_COMPACTION_THRESHOLD;
-        mergeShardsChance            = DEFAULT_MERGE_SHARDS_CHANCE;
 
         // Defaults strange or simple enough to not need a DEFAULT_T for
         defaultValidator = BytesType.instance;
@@ -269,8 +263,7 @@ public final class CFMetaData
         return newCFMD.comment(comment)
                       .readRepairChance(0)
                       .dclocalReadRepairChance(0)
-                      .gcGraceSeconds(0)
-                      .mergeShardsChance(0.0);
+                      .gcGraceSeconds(0);
     }
 
     public static CFMetaData newIndexMetadata(CFMetaData parent, ColumnDefinition info, AbstractType<?> columnComparator)
@@ -379,7 +372,6 @@ public final class CFMetaData
         //  Isn't AVRO supposed to handle stuff like this?
         if (cf.min_compaction_threshold != null) { newCFMD.minCompactionThreshold(cf.min_compaction_threshold); }
         if (cf.max_compaction_threshold != null) { newCFMD.maxCompactionThreshold(cf.max_compaction_threshold); }
-        if (cf.merge_shards_chance != null) { newCFMD.mergeShardsChance(cf.merge_shards_chance); }
         if (cf.key_alias != null) { newCFMD.keyAlias(cf.key_alias); }
         if (cf.column_aliases != null) { newCFMD.columnAliases(fixAvroRetardation(cf.column_aliases)); }
         if (cf.value_alias != null) { newCFMD.valueAlias(cf.value_alias); }
@@ -459,11 +451,6 @@ public final class CFMetaData
     public double getDcLocalReadRepair()
     {
         return dcLocalReadRepairChance;
-    }
-
-    public double getMergeShardsChance()
-    {
-        return mergeShardsChance;
     }
 
     public boolean getReplicateOnWrite()
@@ -570,7 +557,6 @@ public final class CFMetaData
             .append(maxCompactionThreshold, rhs.maxCompactionThreshold)
             .append(cfId.intValue(), rhs.cfId.intValue())
             .append(column_metadata, rhs.column_metadata)
-            .append(mergeShardsChance, rhs.mergeShardsChance)
             .append(keyAlias, rhs.keyAlias)
             .append(columnAliases, rhs.columnAliases)
             .append(valueAlias, rhs.valueAlias)
@@ -601,7 +587,6 @@ public final class CFMetaData
             .append(maxCompactionThreshold)
             .append(cfId)
             .append(column_metadata)
-            .append(mergeShardsChance)
             .append(keyAlias)
             .append(columnAliases)
             .append(valueAlias)
@@ -636,8 +621,6 @@ public final class CFMetaData
             cf_def.setMin_compaction_threshold(CFMetaData.DEFAULT_MIN_COMPACTION_THRESHOLD);
         if (!cf_def.isSetMax_compaction_threshold())
             cf_def.setMax_compaction_threshold(CFMetaData.DEFAULT_MAX_COMPACTION_THRESHOLD);
-        if (!cf_def.isSetMerge_shards_chance())
-            cf_def.setMerge_shards_chance(CFMetaData.DEFAULT_MERGE_SHARDS_CHANCE);
         if (null == cf_def.compaction_strategy)
             cf_def.compaction_strategy = DEFAULT_COMPACTION_STRATEGY_CLASS;
         if (null == cf_def.compaction_strategy_options)
@@ -673,7 +656,6 @@ public final class CFMetaData
         if (cf_def.isSetGc_grace_seconds()) { newCFMD.gcGraceSeconds(cf_def.gc_grace_seconds); }
         if (cf_def.isSetMin_compaction_threshold()) { newCFMD.minCompactionThreshold(cf_def.min_compaction_threshold); }
         if (cf_def.isSetMax_compaction_threshold()) { newCFMD.maxCompactionThreshold(cf_def.max_compaction_threshold); }
-        if (cf_def.isSetMerge_shards_chance()) { newCFMD.mergeShardsChance(cf_def.merge_shards_chance); }
         if (cf_def.isSetKey_alias()) { newCFMD.keyAlias(cf_def.key_alias); }
         if (cf_def.isSetColumn_aliases() && cf_def.column_aliases != null) { newCFMD.columnAliases(cf_def.column_aliases); }
         if (cf_def.isSetValue_alias()) { newCFMD.valueAlias(cf_def.value_alias); }
@@ -776,7 +758,6 @@ public final class CFMetaData
         keyValidator = TypeParser.parse(cf_def.key_validation_class);
         minCompactionThreshold = cf_def.min_compaction_threshold;
         maxCompactionThreshold = cf_def.max_compaction_threshold;
-        mergeShardsChance = cf_def.merge_shards_chance;
         keyAlias = cf_def.key_alias;
         columnAliases = cf_def.column_aliases;
         valueAlias = cf_def.value_alias;
@@ -907,7 +888,6 @@ public final class CFMetaData
         def.setKey_validation_class(keyValidator.toString());
         def.setMin_compaction_threshold(minCompactionThreshold);
         def.setMax_compaction_threshold(maxCompactionThreshold);
-        def.setMerge_shards_chance(mergeShardsChance);
         def.setKey_alias(keyAlias);
         List<org.apache.cassandra.thrift.ColumnDef> column_meta = new ArrayList<org.apache.cassandra.thrift.ColumnDef>(column_metadata.size());
         for (ColumnDefinition cd : column_metadata.values())
@@ -1258,7 +1238,6 @@ public final class CFMetaData
             .append("keyValidator", keyValidator)
             .append("minCompactionThreshold", minCompactionThreshold)
             .append("maxCompactionThreshold", maxCompactionThreshold)
-            .append("mergeShardsChance", mergeShardsChance)
             .append("keyAlias", keyAlias)
             .append("columnAliases", columnAliases)
             .append("valueAlias", keyAlias)

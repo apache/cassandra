@@ -59,7 +59,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
   private static final org.apache.thrift.protocol.TField MIN_COMPACTION_THRESHOLD_FIELD_DESC = new org.apache.thrift.protocol.TField("min_compaction_threshold", org.apache.thrift.protocol.TType.I32, (short)17);
   private static final org.apache.thrift.protocol.TField MAX_COMPACTION_THRESHOLD_FIELD_DESC = new org.apache.thrift.protocol.TField("max_compaction_threshold", org.apache.thrift.protocol.TType.I32, (short)18);
   private static final org.apache.thrift.protocol.TField REPLICATE_ON_WRITE_FIELD_DESC = new org.apache.thrift.protocol.TField("replicate_on_write", org.apache.thrift.protocol.TType.BOOL, (short)24);
-  private static final org.apache.thrift.protocol.TField MERGE_SHARDS_CHANCE_FIELD_DESC = new org.apache.thrift.protocol.TField("merge_shards_chance", org.apache.thrift.protocol.TType.DOUBLE, (short)25);
   private static final org.apache.thrift.protocol.TField KEY_VALIDATION_CLASS_FIELD_DESC = new org.apache.thrift.protocol.TField("key_validation_class", org.apache.thrift.protocol.TType.STRING, (short)26);
   private static final org.apache.thrift.protocol.TField KEY_ALIAS_FIELD_DESC = new org.apache.thrift.protocol.TField("key_alias", org.apache.thrift.protocol.TType.STRING, (short)28);
   private static final org.apache.thrift.protocol.TField COMPACTION_STRATEGY_FIELD_DESC = new org.apache.thrift.protocol.TField("compaction_strategy", org.apache.thrift.protocol.TType.STRING, (short)29);
@@ -85,7 +84,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
   public int min_compaction_threshold; // required
   public int max_compaction_threshold; // required
   public boolean replicate_on_write; // required
-  public double merge_shards_chance; // required
   public String key_validation_class; // required
   public ByteBuffer key_alias; // required
   public String compaction_strategy; // required
@@ -113,7 +111,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     MIN_COMPACTION_THRESHOLD((short)17, "min_compaction_threshold"),
     MAX_COMPACTION_THRESHOLD((short)18, "max_compaction_threshold"),
     REPLICATE_ON_WRITE((short)24, "replicate_on_write"),
-    MERGE_SHARDS_CHANCE((short)25, "merge_shards_chance"),
     KEY_VALIDATION_CLASS((short)26, "key_validation_class"),
     KEY_ALIAS((short)28, "key_alias"),
     COMPACTION_STRATEGY((short)29, "compaction_strategy"),
@@ -166,8 +163,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
           return MAX_COMPACTION_THRESHOLD;
         case 24: // REPLICATE_ON_WRITE
           return REPLICATE_ON_WRITE;
-        case 25: // MERGE_SHARDS_CHANCE
-          return MERGE_SHARDS_CHANCE;
         case 26: // KEY_VALIDATION_CLASS
           return KEY_VALIDATION_CLASS;
         case 28: // KEY_ALIAS
@@ -234,10 +229,9 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
   private static final int __MIN_COMPACTION_THRESHOLD_ISSET_ID = 3;
   private static final int __MAX_COMPACTION_THRESHOLD_ISSET_ID = 4;
   private static final int __REPLICATE_ON_WRITE_ISSET_ID = 5;
-  private static final int __MERGE_SHARDS_CHANCE_ISSET_ID = 6;
-  private static final int __BLOOM_FILTER_FP_CHANCE_ISSET_ID = 7;
-  private static final int __DCLOCAL_READ_REPAIR_CHANCE_ISSET_ID = 8;
-  private BitSet __isset_bit_vector = new BitSet(9);
+  private static final int __BLOOM_FILTER_FP_CHANCE_ISSET_ID = 6;
+  private static final int __DCLOCAL_READ_REPAIR_CHANCE_ISSET_ID = 7;
+  private BitSet __isset_bit_vector = new BitSet(8);
 
   public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
   static {
@@ -271,8 +265,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
         new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32)));
     tmpMap.put(_Fields.REPLICATE_ON_WRITE, new org.apache.thrift.meta_data.FieldMetaData("replicate_on_write", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
         new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.BOOL)));
-    tmpMap.put(_Fields.MERGE_SHARDS_CHANCE, new org.apache.thrift.meta_data.FieldMetaData("merge_shards_chance", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
-        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.DOUBLE)));
     tmpMap.put(_Fields.KEY_VALIDATION_CLASS, new org.apache.thrift.meta_data.FieldMetaData("key_validation_class", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
         new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
     tmpMap.put(_Fields.KEY_ALIAS, new org.apache.thrift.meta_data.FieldMetaData("key_alias", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
@@ -364,7 +356,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     this.min_compaction_threshold = other.min_compaction_threshold;
     this.max_compaction_threshold = other.max_compaction_threshold;
     this.replicate_on_write = other.replicate_on_write;
-    this.merge_shards_chance = other.merge_shards_chance;
     if (other.isSetKey_validation_class()) {
       this.key_validation_class = other.key_validation_class;
     }
@@ -453,8 +444,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     this.max_compaction_threshold = 0;
     setReplicate_on_writeIsSet(false);
     this.replicate_on_write = false;
-    setMerge_shards_chanceIsSet(false);
-    this.merge_shards_chance = 0.0;
     this.key_validation_class = null;
     this.key_alias = null;
     this.compaction_strategy = null;
@@ -813,29 +802,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
 
   public void setReplicate_on_writeIsSet(boolean value) {
     __isset_bit_vector.set(__REPLICATE_ON_WRITE_ISSET_ID, value);
-  }
-
-  public double getMerge_shards_chance() {
-    return this.merge_shards_chance;
-  }
-
-  public CfDef setMerge_shards_chance(double merge_shards_chance) {
-    this.merge_shards_chance = merge_shards_chance;
-    setMerge_shards_chanceIsSet(true);
-    return this;
-  }
-
-  public void unsetMerge_shards_chance() {
-    __isset_bit_vector.clear(__MERGE_SHARDS_CHANCE_ISSET_ID);
-  }
-
-  /** Returns true if field merge_shards_chance is set (has been assigned a value) and false otherwise */
-  public boolean isSetMerge_shards_chance() {
-    return __isset_bit_vector.get(__MERGE_SHARDS_CHANCE_ISSET_ID);
-  }
-
-  public void setMerge_shards_chanceIsSet(boolean value) {
-    __isset_bit_vector.set(__MERGE_SHARDS_CHANCE_ISSET_ID, value);
   }
 
   public String getKey_validation_class() {
@@ -1247,14 +1213,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       }
       break;
 
-    case MERGE_SHARDS_CHANCE:
-      if (value == null) {
-        unsetMerge_shards_chance();
-      } else {
-        setMerge_shards_chance((Double)value);
-      }
-      break;
-
     case KEY_VALIDATION_CLASS:
       if (value == null) {
         unsetKey_validation_class();
@@ -1382,9 +1340,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     case REPLICATE_ON_WRITE:
       return Boolean.valueOf(isReplicate_on_write());
 
-    case MERGE_SHARDS_CHANCE:
-      return Double.valueOf(getMerge_shards_chance());
-
     case KEY_VALIDATION_CLASS:
       return getKey_validation_class();
 
@@ -1454,8 +1409,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       return isSetMax_compaction_threshold();
     case REPLICATE_ON_WRITE:
       return isSetReplicate_on_write();
-    case MERGE_SHARDS_CHANCE:
-      return isSetMerge_shards_chance();
     case KEY_VALIDATION_CLASS:
       return isSetKey_validation_class();
     case KEY_ALIAS:
@@ -1616,15 +1569,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       if (!(this_present_replicate_on_write && that_present_replicate_on_write))
         return false;
       if (this.replicate_on_write != that.replicate_on_write)
-        return false;
-    }
-
-    boolean this_present_merge_shards_chance = true && this.isSetMerge_shards_chance();
-    boolean that_present_merge_shards_chance = true && that.isSetMerge_shards_chance();
-    if (this_present_merge_shards_chance || that_present_merge_shards_chance) {
-      if (!(this_present_merge_shards_chance && that_present_merge_shards_chance))
-        return false;
-      if (this.merge_shards_chance != that.merge_shards_chance)
         return false;
     }
 
@@ -1794,11 +1738,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     builder.append(present_replicate_on_write);
     if (present_replicate_on_write)
       builder.append(replicate_on_write);
-
-    boolean present_merge_shards_chance = true && (isSetMerge_shards_chance());
-    builder.append(present_merge_shards_chance);
-    if (present_merge_shards_chance)
-      builder.append(merge_shards_chance);
 
     boolean present_key_validation_class = true && (isSetKey_validation_class());
     builder.append(present_key_validation_class);
@@ -1997,16 +1936,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     }
     if (isSetReplicate_on_write()) {
       lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.replicate_on_write, typedOther.replicate_on_write);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-    }
-    lastComparison = Boolean.valueOf(isSetMerge_shards_chance()).compareTo(typedOther.isSetMerge_shards_chance());
-    if (lastComparison != 0) {
-      return lastComparison;
-    }
-    if (isSetMerge_shards_chance()) {
-      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.merge_shards_chance, typedOther.merge_shards_chance);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -2243,14 +2172,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
             org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
-        case 25: // MERGE_SHARDS_CHANCE
-          if (field.type == org.apache.thrift.protocol.TType.DOUBLE) {
-            this.merge_shards_chance = iprot.readDouble();
-            setMerge_shards_chanceIsSet(true);
-          } else { 
-            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
-          }
-          break;
         case 26: // KEY_VALIDATION_CLASS
           if (field.type == org.apache.thrift.protocol.TType.STRING) {
             this.key_validation_class = iprot.readString();
@@ -2461,11 +2382,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       oprot.writeBool(this.replicate_on_write);
       oprot.writeFieldEnd();
     }
-    if (isSetMerge_shards_chance()) {
-      oprot.writeFieldBegin(MERGE_SHARDS_CHANCE_FIELD_DESC);
-      oprot.writeDouble(this.merge_shards_chance);
-      oprot.writeFieldEnd();
-    }
     if (this.key_validation_class != null) {
       if (isSetKey_validation_class()) {
         oprot.writeFieldBegin(KEY_VALIDATION_CLASS_FIELD_DESC);
@@ -2673,12 +2589,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       if (!first) sb.append(", ");
       sb.append("replicate_on_write:");
       sb.append(this.replicate_on_write);
-      first = false;
-    }
-    if (isSetMerge_shards_chance()) {
-      if (!first) sb.append(", ");
-      sb.append("merge_shards_chance:");
-      sb.append(this.merge_shards_chance);
       first = false;
     }
     if (isSetKey_validation_class()) {

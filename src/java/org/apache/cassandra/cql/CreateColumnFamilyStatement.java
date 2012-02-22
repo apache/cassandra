@@ -183,7 +183,6 @@ public class CreateColumnFamilyStatement
                    .defaultValidator(cfProps.getValidator())
                    .minCompactionThreshold(getPropertyInt(CFPropDefs.KW_MINCOMPACTIONTHRESHOLD, CFMetaData.DEFAULT_MIN_COMPACTION_THRESHOLD))
                    .maxCompactionThreshold(getPropertyInt(CFPropDefs.KW_MAXCOMPACTIONTHRESHOLD, CFMetaData.DEFAULT_MAX_COMPACTION_THRESHOLD))
-                   .mergeShardsChance(0.0)
                    .columnMetadata(getColumns(comparator))
                    .keyValidator(TypeParser.parse(CFPropDefs.comparators.get(getKeyType())))
                    .keyAlias(keyAlias)

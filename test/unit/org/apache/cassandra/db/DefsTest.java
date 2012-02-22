@@ -84,7 +84,6 @@ public class DefsTest extends CleanupHelper
            .defaultValidator(null)
            .minCompactionThreshold(500)
            .maxCompactionThreshold(500)
-           .mergeShardsChance(0.0)
            .columnMetadata(indexes);
 
         // we'll be adding this one later. make sure it's not already there.
@@ -601,8 +600,7 @@ public class DefsTest extends CleanupHelper
     {
         CFMetaData newCFMD = new CFMetaData(ks, cf, ColumnFamilyType.Standard, UTF8Type.instance, null);
         newCFMD.comment(comment)
-               .readRepairChance(0.0)
-               .mergeShardsChance(0.0);
+               .readRepairChance(0.0);
 
         return newCFMD;
     }

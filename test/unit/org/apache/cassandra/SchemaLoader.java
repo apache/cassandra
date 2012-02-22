@@ -150,15 +150,13 @@ public class SchemaLoader
                                                           st,
                                                           bytes,
                                                           null)
-                                                   .defaultValidator(CounterColumnType.instance)
-                                                   .mergeShardsChance(1.0),
+                                                   .defaultValidator(CounterColumnType.instance),
                                            new CFMetaData(ks1,
                                                           "SuperCounter1",
                                                           su,
                                                           bytes,
                                                           bytes)
-                                                   .defaultValidator(CounterColumnType.instance)
-                                                   .mergeShardsChance(1.0),
+                                                   .defaultValidator(CounterColumnType.instance),
                                            superCFMD(ks1, "SuperDirectGC", BytesType.instance).gcGraceSeconds(0),
                                            jdbcCFMD(ks1, "JdbcInteger", IntegerType.instance).columnMetadata(integerColumn),
                                            jdbcCFMD(ks1, "JdbcUtf8", UTF8Type.instance).columnMetadata(utf8Column),

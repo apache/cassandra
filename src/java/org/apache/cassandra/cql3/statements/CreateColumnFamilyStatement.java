@@ -113,7 +113,6 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
                    .defaultValidator(defaultValidator)
                    .minCompactionThreshold(properties.getInt(CFPropDefs.KW_MINCOMPACTIONTHRESHOLD, CFMetaData.DEFAULT_MIN_COMPACTION_THRESHOLD))
                    .maxCompactionThreshold(properties.getInt(CFPropDefs.KW_MAXCOMPACTIONTHRESHOLD, CFMetaData.DEFAULT_MAX_COMPACTION_THRESHOLD))
-                   .mergeShardsChance(0.0)
                    .columnMetadata(getColumns())
                    .keyValidator(keyValidator)
                    .keyAlias(keyAlias)
