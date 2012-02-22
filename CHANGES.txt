@@ -8,6 +8,8 @@
  * Fix bug with counters in super columns (CASSANDRA-3821)
 Merged from 1.0:
  * remove the wait on hint future during write (CASSANDRA-3870)
+ * (cqlsh) ignore missing CfDef opts (CASSANDRA-3933)
+ * (cqlsh) look for cqlshlib relative to realpath (CASSANDRA-3767)
 
 
 1.1-beta1
