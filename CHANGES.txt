@@ -23,6 +23,7 @@
  * remove the wait on hint future during write (CASSANDRA-3870)
  * (cqlsh) ignore missing CfDef opts (CASSANDRA-3933)
  * (cqlsh) look for cqlshlib relative to realpath (CASSANDRA-3767)
+ * Fix short read protection (CASSANDRA-3934)
 Merged from 0.8:
  * (Pig) fix CassandraStorage to use correct comparator in Super ColumnFamily
    case (CASSANDRA-3251)
