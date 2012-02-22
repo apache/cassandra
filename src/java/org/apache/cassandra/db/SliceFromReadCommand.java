@@ -76,10 +76,16 @@ public class SliceFromReadCommand extends ReadCommand
         int liveColumnsInRow = row != null ? row.cf.getLiveColumnCount() : 0;
 
         assert maxLiveColumns <= count;
-        if ((maxLiveColumns == count) && (liveColumnsInRow < count))
+        // We generate a retry if at least one node reply with count live columns but after merge we have less
+        // than the total number of column we are interested in (which may be < count on a retry)
+        if ((maxLiveColumns == count) && (liveColumnsInRow < getOriginalRequestedCount()))
         {
-            int retryCount = count + count - liveColumnsInRow;
-            return new RetriedSliceFromReadCommand(table, key, queryPath, start, finish, reversed, count, retryCount);
+            // We asked t (= count) live columns and got l (=liveColumnsInRow) ones.
+            // From that, we can estimate that on this row, for x requested
+            // columns, only l/t end up live after reconciliation. So for next
+            // round we want to ask x column so that x * (l/t) == t, i.e. x = t^2/l.
+            int retryCount = ((count * count) / liveColumnsInRow) + 1;
+            return new RetriedSliceFromReadCommand(table, key, queryPath, start, finish, reversed, getOriginalRequestedCount(), retryCount);
         }
 
         return null;
@@ -93,11 +99,11 @@ public class SliceFromReadCommand extends ReadCommand
 
         int liveColumnsInRow = row.cf.getLiveColumnCount();
 
-        if (liveColumnsInRow > getRequestedCount())
+        if (liveColumnsInRow > getOriginalRequestedCount())
         {
-            int columnsToTrim = liveColumnsInRow - getRequestedCount();
+            int columnsToTrim = liveColumnsInRow - getOriginalRequestedCount();
 
-            logger.debug("trimming {} live columns to the originally requested {}", row.cf.getLiveColumnCount(), getRequestedCount());
+            logger.debug("trimming {} live columns to the originally requested {}", row.cf.getLiveColumnCount(), getOriginalRequestedCount());
 
             Collection<IColumn> columns;
             if (reversed)
@@ -122,7 +128,12 @@ public class SliceFromReadCommand extends ReadCommand
         }
     }
 
-    protected int getRequestedCount()
+    /**
+     * The original number of columns requested by the user.
+     * This can be different from count when the slice command is a retry (see
+     * RetriedSliceFromReadCommand)
+     */
+    protected int getOriginalRequestedCount()
     {
         return count;
     }
