@@ -961,16 +961,20 @@ class Shell(cmd.Cmd):
                 indexed_columns.append(col)
         notable_columns = []
         for (option, thriftname) in cqlhandling.columnfamily_options:
-            optval = getattr(cfdef, thriftname or option)
+            optval = getattr(cfdef, thriftname or option, None)
+            if optval is None:
+                continue
             if option in ('comparator', 'default_validation'):
                 optval = cql_typename(optval)
             elif option == 'row_cache_provider':
                 optval = cql_escape(trim_if_present(optval, 'org.apache.cassandra.cache.'))
+            elif option == 'compaction_strategy_class':
+                optval = cql_escape(trim_if_present(optval, 'org.apache.cassandra.db.compaction.'))
             else:
                 optval = cql_escape(optval)
             notable_columns.append((option, optval))
         for option, thriftname, _ in cqlhandling.columnfamily_map_options:
-            optmap = getattr(cfdef, thriftname or option)
+            optmap = getattr(cfdef, thriftname or option, {})
             for k, v in optmap.items():
                 notable_columns.append(('%s:%s' % (option, k), cql_escape(v)))
         out.write('\n)')
