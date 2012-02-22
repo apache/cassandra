@@ -974,7 +974,7 @@ class Shell(cmd.Cmd):
                 optval = cql_escape(optval)
             notable_columns.append((option, optval))
         for option, thriftname, _ in cqlhandling.columnfamily_map_options:
-            optmap = getattr(cfdef, thriftname or option)
+            optmap = getattr(cfdef, thriftname or option, {})
             for k, v in optmap.items():
                 notable_columns.append(('%s:%s' % (option, k), cql_escape(v)))
         out.write('\n)')
