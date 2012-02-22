@@ -5,6 +5,9 @@
  * Show Effective Owership via Nodetool ring <keyspace> (CASSANDRA-3412)
  * Update ORDER BY syntax for CQL3 (CASSANDRA-3925)
  * Fix BulkRecordWriter to not throw NPE if reducer gets no map data from Hadoop (CASSANDRA-3944)
+Merged from 1.0:
+ * remove the wait on hint future during write (CASSANDRA-3870)
+
 
 1.1-beta1
  * add nodetool rebuild_index (CASSANDRA-3583)
