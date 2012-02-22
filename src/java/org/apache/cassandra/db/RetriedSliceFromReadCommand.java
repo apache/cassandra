@@ -53,7 +53,7 @@ public class RetriedSliceFromReadCommand extends SliceFromReadCommand
     }
 
     @Override
-    public int getRequestedCount()
+    public int getOriginalRequestedCount()
     {
         return originalCount;
     }
