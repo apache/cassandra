@@ -5,6 +5,10 @@
  * Show Effective Owership via Nodetool ring <keyspace> (CASSANDRA-3412)
  * Update ORDER BY syntax for CQL3 (CASSANDRA-3925)
  * Fix BulkRecordWriter to not throw NPE if reducer gets no map data from Hadoop (CASSANDRA-3944)
+ * Fix bug with counters in super columns (CASSANDRA-3821)
+Merged from 1.0:
+ * remove the wait on hint future during write (CASSANDRA-3870)
+
 
 
 1.1-beta1
@@ -109,6 +113,7 @@
    (CASSANDRA-3844)
  * make CLI `show schema` to use output stream directly instead
    of StringBuilder (CASSANDRA-3842)
+ * remove the wait on hint future during write (CASSANDRA-3870)
 Merged from 0.8:
  * (Pig) fix CassandraStorage to use correct comparator in Super ColumnFamily
    case (CASSANDRA-3251)

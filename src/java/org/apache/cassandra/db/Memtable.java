@@ -223,7 +223,8 @@ public class Memtable
 
         if (previous == null)
         {
-            ColumnFamily empty = cf.cloneMeShallow(AtomicSortedColumns.factory(), false);
+            // AtomicSortedColumns doesn't work for super columns (see #3821)
+            ColumnFamily empty = cf.cloneMeShallow(cf.isSuper() ? ThreadSafeSortedColumns.factory() : AtomicSortedColumns.factory(), false);
             // We'll add the columns later. This avoids wasting works if we get beaten in the putIfAbsent
             previous = columnFamilies.putIfAbsent(new DecoratedKey(key.token, allocator.clone(key.key)), empty);
             if (previous == null)

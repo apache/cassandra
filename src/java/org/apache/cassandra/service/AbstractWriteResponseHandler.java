@@ -43,7 +43,6 @@ public abstract class AbstractWriteResponseHandler implements IWriteResponseHand
     protected final long startTime;
     protected final Collection<InetAddress> writeEndpoints;
     protected final ConsistencyLevel consistencyLevel;
-    protected List<CreationTimeAwareFuture<?>> hintFutures;
 
     protected AbstractWriteResponseHandler(Collection<InetAddress> writeEndpoints, ConsistencyLevel consistencyLevel)
     {
@@ -54,9 +53,6 @@ public abstract class AbstractWriteResponseHandler implements IWriteResponseHand
 
     public void get() throws TimeoutException
     {
-        if (hintFutures != null)
-            waitForHints(hintFutures);
-
         long timeout = DatabaseDescriptor.getRpcTimeout() - (System.currentTimeMillis() - startTime);
         boolean success;
         try
@@ -71,29 +67,6 @@ public abstract class AbstractWriteResponseHandler implements IWriteResponseHand
         if (!success)
         {
             throw new TimeoutException();
-        }
-    }
-
-    public void addFutureForHint(CreationTimeAwareFuture<?> hintFuture)
-    {
-        if (hintFutures == null)
-            hintFutures = new ArrayList<CreationTimeAwareFuture<?>>(writeEndpoints.size());
-        hintFutures.add(hintFuture);
-    }
-
-    protected static void waitForHints(List<CreationTimeAwareFuture<?>> hintFutures) throws TimeoutException
-    {
-        // Wait for hints
-        try
-        {
-            FBUtilities.waitOnFutures(hintFutures, DatabaseDescriptor.getRpcTimeout(), TimeUnit.MILLISECONDS);
-        } 
-        catch (RuntimeException e)
-        {
-            // ExecutionEx needs a special treatment. We need to inform the client to back off because this node is overwhelmed.
-            if (e.getCause() != null && e.getCause() instanceof ExecutionException)
-                throw new TimeoutException();
-            throw e;
         }
     }
 

@@ -330,9 +330,8 @@ public class StorageProxy implements StorageProxyMBean
                 if (!shouldHint(destination))
                     continue;
 
-                // Schedule a local hint and let the handler know it needs to wait for the hint to complete too
-                Future<Void> hintfuture = scheduleLocalHint(rm, destination, responseHandler, consistency_level);
-                responseHandler.addFutureForHint(new CreationTimeAwareFuture<Void>(hintfuture));
+                // Schedule a local hint
+                scheduleLocalHint(rm, destination, responseHandler, consistency_level);
             }
         }
 

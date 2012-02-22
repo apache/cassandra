@@ -75,8 +75,9 @@ public class CollationController
     {
         logger.debug("collectTimeOrderedData");
 
+        // AtomicSortedColumns doesn't work for super columns (see #3821)
         ISortedColumns.Factory factory = mutableColumns
-                                       ? AtomicSortedColumns.factory()
+                                       ? cfs.metadata.cfType == ColumnFamilyType.Super ? ThreadSafeSortedColumns.factory() : AtomicSortedColumns.factory()
                                        : TreeMapBackedSortedColumns.factory();
         ColumnFamily container = ColumnFamily.create(cfs.metadata, factory, filter.filter.isReversed());
         List<IColumnIterator> iterators = new ArrayList<IColumnIterator>();
@@ -208,8 +209,9 @@ public class CollationController
     private ColumnFamily collectAllData()
     {
         logger.debug("collectAllData");
+        // AtomicSortedColumns doesn't work for super columns (see #3821)
         ISortedColumns.Factory factory = mutableColumns
-                                       ? AtomicSortedColumns.factory()
+                                       ? cfs.metadata.cfType == ColumnFamilyType.Super ? ThreadSafeSortedColumns.factory() : AtomicSortedColumns.factory()
                                        : ArrayBackedSortedColumns.factory();
         List<IColumnIterator> iterators = new ArrayList<IColumnIterator>();
         ColumnFamily returnCF = ColumnFamily.create(cfs.metadata, factory, filter.filter.isReversed());
