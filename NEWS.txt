@@ -14,6 +14,8 @@ by version X, but the inverse is not necessarily the case.)
 
 Upgrading
 ---------
+    - Compression is enabled by default on newly created ColumnFamilies
+      (and unchanged for ColumnFamilies created prior to upgrading).
     - The KsDef.replication_factor field (deprecated since 0.8) has
       been removed.  Older clients will need to be updated to be able
       to continue to created and update keyspaces.
@@ -59,6 +61,7 @@ Features
     - Hadoop: a new BulkOutputFormat is included which will directly write
       SSTables locally and then stream them into the cluster.
     - Hadoop: KeyRange.filter is now supported with ColumnFamilyInputFormat
+    - Hadoop wide row mode added to ColumnFamilyInputFormat
     - The bulk loader is not longer a fat client; it can be run from an
       existing machine in a cluster.
     - A new write survey mode has been added, similar to bootstrap (enabled via
@@ -69,6 +72,7 @@ Features
       threshold.
     - Off-heap caches no longer require JNA.
     - Streaming is now multithreaded.
+    - Compactions may now be aborted via JMX or nodetool.
 
 
 1.0.8
