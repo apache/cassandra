@@ -332,7 +332,6 @@ public class QueryProcessor
             public Object call() throws Exception
             {
                 m.apply();
-                m.announce();
                 return null;
             }
         });

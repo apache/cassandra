@@ -18,9 +18,11 @@
 package org.apache.cassandra.db.migration;
 
 import java.io.IOException;
+import java.util.Collection;
 
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.thrift.KsDef;
 
 public class UpdateKeyspace extends Migration
@@ -40,11 +42,11 @@ public class UpdateKeyspace extends Migration
         this.newState = newState;
     }
 
-    protected void applyImpl() throws ConfigurationException, IOException
+    protected Collection<RowMutation> applyImpl() throws ConfigurationException, IOException
     {
-        MigrationHelper.updateKeyspace(newState, timestamp);
-
+        Collection<RowMutation> mutations = MigrationHelper.updateKeyspace(newState, timestamp);
         logger.info("Keyspace updated. Please perform any manual operations.");
+        return mutations;
     }
 
     @Override

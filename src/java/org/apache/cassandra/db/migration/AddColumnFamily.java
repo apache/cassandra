@@ -18,11 +18,13 @@
 package org.apache.cassandra.db.migration;
 
 import java.io.IOException;
+import java.util.Collection;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.db.RowMutation;
 
 public class  AddColumnFamily extends Migration
 {
@@ -44,9 +46,9 @@ public class  AddColumnFamily extends Migration
         this.cfm = cfm;
     }
 
-    protected void applyImpl() throws ConfigurationException, IOException
+    protected Collection<RowMutation> applyImpl() throws ConfigurationException, IOException
     {
-        MigrationHelper.addColumnFamily(cfm, timestamp);
+        return MigrationHelper.addColumnFamily(cfm, timestamp);
     }
 
     @Override
