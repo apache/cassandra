@@ -259,7 +259,7 @@ public class Table
      */
     public List<SSTableReader> getAllSSTables()
     {
-        List<SSTableReader> list = new ArrayList<SSTableReader>();
+        List<SSTableReader> list = new ArrayList<SSTableReader>(columnFamilyStores.size());
         for (ColumnFamilyStore cfStore : columnFamilyStores.values())
             list.addAll(cfStore.getSSTables());
         return list;

@@ -116,7 +116,7 @@ public class GossipDigestSynVerbHandler implements IVerbHandler
          * These digests have their maxVersion set to the difference of the version
          * of the local EndpointState and the version found in the GossipDigest.
         */
-        List<GossipDigest> diffDigests = new ArrayList<GossipDigest>();
+        List<GossipDigest> diffDigests = new ArrayList<GossipDigest>(gDigestList.size());
         for ( GossipDigest gDigest : gDigestList )
         {
             InetAddress ep = gDigest.getEndpoint();

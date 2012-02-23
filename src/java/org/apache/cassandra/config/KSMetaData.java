@@ -189,7 +189,7 @@ public final class KSMetaData
 
     public KsDef toThrift()
     {
-        List<CfDef> cfDefs = new ArrayList<CfDef>();
+        List<CfDef> cfDefs = new ArrayList<CfDef>(cfMetaData.size());
         for (CFMetaData cfm : cfMetaData().values())
             cfDefs.add(cfm.toThrift());
         KsDef ksdef = new KsDef(name, strategyClass.getName(), cfDefs);
@@ -235,7 +235,7 @@ public final class KSMetaData
 
     public List<RowMutation> dropFromSchema(long timestamp)
     {
-        List<RowMutation> mutations = new ArrayList<RowMutation>();
+        List<RowMutation> mutations = new ArrayList<RowMutation>(cfMetaData.size());
 
         RowMutation ksMutation = new RowMutation(Table.SYSTEM_TABLE, SystemTable.getSchemaKSKey(name));
         ksMutation.delete(new QueryPath(SystemTable.SCHEMA_KEYSPACES_CF), timestamp);

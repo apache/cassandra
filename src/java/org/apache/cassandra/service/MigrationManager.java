@@ -233,7 +233,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
                 logger.debug("Truncating schema tables...");
 
             // truncate schema tables
-            FBUtilities.waitOnFutures(new ArrayList<Future<?>>()
+            FBUtilities.waitOnFutures(new ArrayList<Future<?>>(3)
             {{
                 SystemTable.schemaCFS(SystemTable.SCHEMA_KEYSPACES_CF).truncate();
                 SystemTable.schemaCFS(SystemTable.SCHEMA_COLUMNFAMILIES_CF).truncate();

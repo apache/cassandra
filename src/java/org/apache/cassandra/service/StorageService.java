@@ -48,6 +48,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.dht.*;
+import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.gms.*;
 import org.apache.cassandra.io.sstable.SSTableDeletingTask;
 import org.apache.cassandra.io.sstable.SSTableLoader;
@@ -805,7 +806,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         Map<List<String>, List<String>> map = new HashMap<List<String>, List<String>>();
         for (Map.Entry<Range<Token>, List<InetAddress>> entry : getRangeToAddressMap(keyspace).entrySet())
         {
-            List<String> rpcaddrs = new ArrayList<String>();
+            List<String> rpcaddrs = new ArrayList<String>(entry.getValue().size());
             for (InetAddress endpoint: entry.getValue())
             {
                 rpcaddrs.add(getRpcaddress(endpoint));
@@ -853,9 +854,10 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
      */
     public List<String> describeRingJMX(String keyspace) throws InvalidRequestException
     {
-        List<String> result = new ArrayList<String>();
+        List<TokenRange> tokenRanges = describeRing(keyspace);
+        List<String> result = new ArrayList<String>(tokenRanges.size());
 
-        for (TokenRange tokenRange : describeRing(keyspace))
+        for (TokenRange tokenRange : tokenRanges)
             result.add(tokenRange.toString());
 
         return result;
@@ -881,11 +883,12 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         for (Map.Entry<Range<Token>, List<InetAddress>> entry : getRangeToAddressMap(keyspace).entrySet())
         {
             Range range = entry.getKey();
-            List<String> endpoints = new ArrayList<String>();
-            List<String> rpc_endpoints = new ArrayList<String>();
-            List<EndpointDetails> epDetails = new ArrayList<EndpointDetails>();
+            List<InetAddress> addresses = entry.getValue();
+            List<String> endpoints = new ArrayList<String>(addresses.size());
+            List<String> rpc_endpoints = new ArrayList<String>(addresses.size());
+            List<EndpointDetails> epDetails = new ArrayList<EndpointDetails>(addresses.size());
 
-            for (InetAddress endpoint : entry.getValue())
+            for (InetAddress endpoint : addresses)
             {
                 EndpointDetails details = new EndpointDetails();
                 details.host = endpoint.getHostAddress();
@@ -1748,7 +1751,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         }
         else
         {
-            ArrayList<Table> t = new ArrayList<Table>();
+            ArrayList<Table> t = new ArrayList<Table>(tableNames.length);
             for (String table : tableNames)
                 t.add(getValidTable(table));
             tables = t;
@@ -1789,7 +1792,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         }
         else
         {
-            ArrayList<Table> tempTables = new ArrayList<Table>();
+            ArrayList<Table> tempTables = new ArrayList<Table>(tableNames.length);
             for(String table : tableNames)
                 tempTables.add(getValidTable(table));
             tables = tempTables;
@@ -1982,8 +1985,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
         if (sortedTokens.isEmpty())
             return Collections.emptyList();
-        List<Range<Token>> ranges = new ArrayList<Range<Token>>();
         int size = sortedTokens.size();
+        List<Range<Token>> ranges = new ArrayList<Range<Token>>(size + 1);
         for (int i = 1; i < size; ++i)
         {
             Range<Token> range = new Range<Token>(sortedTokens.get(i - 1), sortedTokens.get(i));
@@ -2043,8 +2046,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
 
     public List<InetAddress> getLiveNaturalEndpoints(String table, RingPosition pos)
     {
-        List<InetAddress> liveEps = new ArrayList<InetAddress>();
         List<InetAddress> endpoints = Table.open(table).getReplicationStrategy().getNaturalEndpoints(pos);
+        List<InetAddress> liveEps = new ArrayList<InetAddress>(endpoints.size());
 
         for (InetAddress endpoint : endpoints)
         {
@@ -2962,7 +2965,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     {
         List<DecoratedKey> keys = keySamples(ColumnFamilyStore.allUserDefined(), getLocalPrimaryRange());
 
-        List<String> sampledKeys = new ArrayList<String>();
+        List<String> sampledKeys = new ArrayList<String>(keys.size());
         for (DecoratedKey key : keys)
             sampledKeys.add(key.getToken().toString());
         return sampledKeys;

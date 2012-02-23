@@ -98,7 +98,7 @@ class SliceByNamesReadCommandSerializer implements IVersionedSerializer<ReadComm
         QueryPath columnParent = QueryPath.deserialize(dis);
 
         int size = dis.readInt();
-        List<ByteBuffer> columns = new ArrayList<ByteBuffer>();
+        List<ByteBuffer> columns = new ArrayList<ByteBuffer>(size);
         for (int i = 0; i < size; ++i)
         {
             columns.add(ByteBufferUtil.readWithShortLength(dis));

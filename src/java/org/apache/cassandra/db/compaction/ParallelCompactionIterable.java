@@ -81,7 +81,7 @@ public class ParallelCompactionIterable extends AbstractCompactionIterable
 
     public CloseableIterator<AbstractCompactedRow> iterator()
     {
-        List<CloseableIterator<RowContainer>> sources = new ArrayList<CloseableIterator<RowContainer>>();
+        List<CloseableIterator<RowContainer>> sources = new ArrayList<CloseableIterator<RowContainer>>(scanners.size());
         for (SSTableScanner scanner : scanners)
             sources.add(new Deserializer(scanner, maxInMemorySize));
         return new Unwrapper(MergeIterator.get(sources, RowContainer.comparator, new Reducer()), controller);
@@ -189,7 +189,7 @@ public class ParallelCompactionIterable extends AbstractCompactionIterable
             if (inMemory)
                 return new CompactedRowContainer(rows.get(0).getKey(), executor.submit(new MergeTask(new ArrayList<RowContainer>(rows))));
 
-            List<ICountableColumnIterator> iterators = new ArrayList<ICountableColumnIterator>();
+            List<ICountableColumnIterator> iterators = new ArrayList<ICountableColumnIterator>(rows.size());
             for (RowContainer container : rows)
                 iterators.add(container.row == null ? container.wrapper : new DeserializedColumnIterator(container.row));
             return new CompactedRowContainer(new LazilyCompactedRow(controller, iterators));

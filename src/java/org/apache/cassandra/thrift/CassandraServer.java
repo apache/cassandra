@@ -336,7 +336,7 @@ public class CassandraServer implements Cassandra.Iface
         ThriftValidation.validatePredicate(metadata, column_parent, predicate);
         ThriftValidation.validateConsistencyLevel(keyspace, consistency_level, RequestType.READ);
 
-        List<ReadCommand> commands = new ArrayList<ReadCommand>();
+        List<ReadCommand> commands = new ArrayList<ReadCommand>(keys.size());
         if (predicate.column_names != null)
         {
             for (ByteBuffer key: keys)
@@ -834,7 +834,7 @@ public class CassandraServer implements Cassandra.Iface
         state().hasKeyspaceSchemaAccess(Permission.READ);
 
         Set<String> keyspaces = Schema.instance.getTables();
-        List<KsDef> ksset = new ArrayList<KsDef>();
+        List<KsDef> ksset = new ArrayList<KsDef>(keyspaces.size());
         for (String ks : keyspaces)
         {
             try

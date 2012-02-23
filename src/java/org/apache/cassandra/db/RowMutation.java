@@ -314,7 +314,7 @@ public class RowMutation implements IMutation, MessageProducer
         buff.append(", modifications=[");
         if (shallow)
         {
-            List<String> cfnames = new ArrayList<String>();
+            List<String> cfnames = new ArrayList<String>(modifications_.size());
             for (Integer cfid : modifications_.keySet())
             {
                 CFMetaData cfm = Schema.instance.getCFMetaData(cfid);
