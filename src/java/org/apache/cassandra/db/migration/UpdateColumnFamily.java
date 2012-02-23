@@ -18,9 +18,11 @@
 package org.apache.cassandra.db.migration;
 
 import java.io.IOException;
+import java.util.Collection;
 
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.thrift.CfDef;
 
 public class UpdateColumnFamily extends Migration
@@ -37,9 +39,9 @@ public class UpdateColumnFamily extends Migration
         this.newState = newState;
     }
 
-    protected void applyImpl() throws ConfigurationException, IOException
+    protected Collection<RowMutation> applyImpl() throws ConfigurationException, IOException
     {
-        MigrationHelper.updateColumnFamily(newState, timestamp);
+        return MigrationHelper.updateColumnFamily(newState, timestamp);
     }
 
     @Override

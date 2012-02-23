@@ -19,10 +19,12 @@
 package org.apache.cassandra.db.migration;
 
 import java.io.IOException;
+import java.util.Collection;
 
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.db.RowMutation;
 
 public class DropKeyspace extends Migration
 {
@@ -39,9 +41,9 @@ public class DropKeyspace extends Migration
         this.name = name;
     }
 
-    protected void applyImpl() throws ConfigurationException, IOException
+    protected Collection<RowMutation> applyImpl() throws ConfigurationException, IOException
     {
-        MigrationHelper.dropKeyspace(name, timestamp);
+        return MigrationHelper.dropKeyspace(name, timestamp);
     }
     
     @Override

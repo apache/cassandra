@@ -462,7 +462,7 @@ public class Schema
 
             for (Row row : SystemTable.serializedSchema())
             {
-                if (row.cf == null || row.cf.getColumnCount() == 0)
+                if (row.cf == null || row.cf.isMarkedForDelete() || row.cf.isEmpty())
                     continue;
 
                 row.cf.updateDigest(versionDigest);

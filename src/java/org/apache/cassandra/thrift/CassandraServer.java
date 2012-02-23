@@ -920,7 +920,6 @@ public class CassandraServer implements Cassandra.Iface
             public void runMayThrow() throws Exception
             {
                 m.apply();
-                m.announce();
             }
         });
 

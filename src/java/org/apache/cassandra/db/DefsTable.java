@@ -42,6 +42,7 @@ import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.migration.Migration;
 import org.apache.cassandra.db.migration.MigrationHelper;
 import org.apache.cassandra.db.migration.avro.KsDef;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.CfDef;
@@ -223,6 +224,12 @@ public class DefsTable
      */
     public static void mergeRemoteSchema(byte[] data, int version) throws ConfigurationException, IOException
     {
+        if (version < MessagingService.VERSION_11)
+        {
+            logger.error("Can't accept schema migrations from Cassandra versions previous to 1.1, please update first.");
+            return;
+        }
+
         // save current state of the schema
         Map<DecoratedKey, ColumnFamily> oldKeyspaces = SystemTable.getSchema(SystemTable.SCHEMA_KEYSPACES_CF);
         Map<DecoratedKey, ColumnFamily> oldColumnFamilies = SystemTable.getSchema(SystemTable.SCHEMA_COLUMNFAMILIES_CF);

@@ -102,7 +102,6 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         GOSSIP_DIGEST_ACK2,
         DEFINITIONS_ANNOUNCE, // Deprecated
         DEFINITIONS_UPDATE,
-        MIGRATION_REQUEST,
         TRUNCATE,
         SCHEMA_CHECK,
         INDEX_SCAN, // Deprecated
@@ -112,6 +111,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         STREAMING_REPAIR_REQUEST,
         STREAMING_REPAIR_RESPONSE,
         SNAPSHOT, // Similar to nt snapshot
+        MIGRATION_REQUEST,
         // use as padding for backwards compatability where a previous version needs to validate a verb from the future.
         UNUSED_1,
         UNUSED_2,

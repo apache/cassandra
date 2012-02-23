@@ -18,10 +18,12 @@
 package org.apache.cassandra.db.migration;
 
 import java.io.IOException;
+import java.util.Collection;
 
 import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.db.RowMutation;
 
 public class DropColumnFamily extends Migration
 {
@@ -42,9 +44,9 @@ public class DropColumnFamily extends Migration
         this.cfName = cfName;
     }
 
-    protected void applyImpl() throws ConfigurationException, IOException
+    protected Collection<RowMutation> applyImpl() throws ConfigurationException, IOException
     {
-        MigrationHelper.dropColumnFamily(ksName, cfName, timestamp);
+        return MigrationHelper.dropColumnFamily(ksName, cfName, timestamp);
     }
 
     @Override

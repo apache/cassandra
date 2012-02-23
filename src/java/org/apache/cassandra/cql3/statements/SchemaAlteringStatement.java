@@ -129,7 +129,6 @@ public abstract class SchemaAlteringStatement extends CFStatement implements CQL
             public Object call() throws Exception
             {
                 m.apply();
-                m.announce();
                 return null;
             }
         });

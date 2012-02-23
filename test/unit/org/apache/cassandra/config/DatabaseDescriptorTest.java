@@ -20,6 +20,7 @@ package org.apache.cassandra.config;
 
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.db.migration.AddKeyspace;
+import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.thrift.InvalidRequestException;
 
@@ -64,25 +65,34 @@ public class DatabaseDescriptorTest
         CleanupHelper.cleanupAndLeaveDirs();
         DatabaseDescriptor.loadSchemas();
         assert Schema.instance.getNonSystemTables().size() == 0;
-        
-        // add a few.
-        AddKeyspace ks0 = new AddKeyspace(KSMetaData.testMetadata("ks0", SimpleStrategy.class, KSMetaData.optsWithRF(3)));
-        ks0.apply();
-        AddKeyspace ks1 = new AddKeyspace(KSMetaData.testMetadata("ks1", SimpleStrategy.class, KSMetaData.optsWithRF(3)));
-        ks1.apply();
 
-        assert Schema.instance.getTableDefinition("ks0") != null;
-        assert Schema.instance.getTableDefinition("ks1") != null;
+        Gossiper.instance.start((int)(System.currentTimeMillis() / 1000));
 
-        Schema.instance.clearTableDefinition(Schema.instance.getTableDefinition("ks0"));
-        Schema.instance.clearTableDefinition(Schema.instance.getTableDefinition("ks1"));
+        try
+        {
+            // add a few.
+            AddKeyspace ks0 = new AddKeyspace(KSMetaData.testMetadata("ks0", SimpleStrategy.class, KSMetaData.optsWithRF(3)));
+            ks0.apply();
+            AddKeyspace ks1 = new AddKeyspace(KSMetaData.testMetadata("ks1", SimpleStrategy.class, KSMetaData.optsWithRF(3)));
+            ks1.apply();
 
-        assert Schema.instance.getTableDefinition("ks0") == null;
-        assert Schema.instance.getTableDefinition("ks1") == null;
-        
-        DatabaseDescriptor.loadSchemas();
+            assert Schema.instance.getTableDefinition("ks0") != null;
+            assert Schema.instance.getTableDefinition("ks1") != null;
 
-        assert Schema.instance.getTableDefinition("ks0") != null;
-        assert Schema.instance.getTableDefinition("ks1") != null;
+            Schema.instance.clearTableDefinition(Schema.instance.getTableDefinition("ks0"));
+            Schema.instance.clearTableDefinition(Schema.instance.getTableDefinition("ks1"));
+
+            assert Schema.instance.getTableDefinition("ks0") == null;
+            assert Schema.instance.getTableDefinition("ks1") == null;
+
+            DatabaseDescriptor.loadSchemas();
+
+            assert Schema.instance.getTableDefinition("ks0") != null;
+            assert Schema.instance.getTableDefinition("ks1") != null;
+        }
+        finally
+        {
+            Gossiper.instance.stop();
+        }
     }
 }

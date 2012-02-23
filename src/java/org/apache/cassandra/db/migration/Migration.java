@@ -20,6 +20,7 @@ package org.apache.cassandra.db.migration;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Collection;
 import java.util.UUID;
 
 import org.slf4j.Logger;
@@ -63,27 +64,36 @@ public abstract class Migration
 
     public final void apply() throws ConfigurationException, IOException
     {
-        applyImpl();
+        Collection<RowMutation> mutations = applyImpl();
+
+        assert !mutations.isEmpty();
 
         if (!StorageService.instance.isClientMode())
             MigrationHelper.flushSchemaCFs();
 
         Schema.instance.updateVersion();
+        announce(mutations);
     }
 
     /**
      * Class specific apply implementation where schema migration logic should be put
      *
+     * @return mutations to update native schema
+     *
      * @throws IOException on any I/O related error.
      * @throws ConfigurationException if there is object misconfiguration.
      */
-    protected abstract void applyImpl() throws ConfigurationException, IOException;
+    protected abstract Collection<RowMutation> applyImpl() throws ConfigurationException, IOException;
 
-    /** Send schema update (in form of row mutations) to alive nodes in the cluster. apply() must be called first. */
-    public final void announce()
+    /**
+     * Send schema update (in form of row mutations) to alive nodes in the cluster.
+     *
+     * @param mutations to distribute in the cluster
+     */
+    private void announce(Collection<RowMutation> mutations)
     {
         assert !StorageService.instance.isClientMode();
-        MigrationManager.announce(SystemTable.serializeSchema());
+        MigrationManager.announce(mutations);
         passiveAnnounce(); // keeps gossip in sync w/ what we just told everyone
     }
 
