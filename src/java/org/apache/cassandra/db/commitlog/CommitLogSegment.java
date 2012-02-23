@@ -29,7 +29,7 @@ import java.nio.MappedByteBuffer;
 import java.util.Collection;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.zip.CRC32;
+import java.util.zip.Checksum;
 import java.util.HashMap;
 
 import org.slf4j.Logger;
@@ -42,6 +42,7 @@ import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.utils.PureJavaCrc32;
 
 /*
  * A single commit log file on disk. Manages creation of the file and writing row mutations to disk,
@@ -244,7 +245,7 @@ public class CommitLogSegment
         ReplayPosition repPos = getContext();
         markDirty(rowMutation, repPos);
 
-        CRC32 checksum = new CRC32();
+        Checksum checksum = new PureJavaCrc32();
         byte[] serializedRow = rowMutation.getSerializedBuffer(MessagingService.version_);
 
         checksum.update(serializedRow.length);
@@ -252,7 +253,7 @@ public class CommitLogSegment
         buffer.putLong(checksum.getValue());
 
         buffer.put(serializedRow);
-        checksum.update(serializedRow);
+        checksum.update(serializedRow, 0, serializedRow.length);
         buffer.putLong(checksum.getValue());
 
         if (buffer.remaining() >= 4)
