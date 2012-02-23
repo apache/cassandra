@@ -26,6 +26,9 @@ import java.net.InetAddress;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -84,6 +87,10 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
 
     public static void rectifySchema(UUID theirVersion, final InetAddress endpoint)
     {
+        // Can't request migrations from nodes with versions younger than 1.1
+        if (Gossiper.instance.getVersion(endpoint) < MessagingService.VERSION_11)
+            return;
+
         if (Schema.instance.getVersion().equals(theirVersion))
             return;
 
@@ -125,6 +132,10 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
         {
             if (endpoint.equals(FBUtilities.getBroadcastAddress()))
                 continue; // don't push schema mutation to self
+
+            // don't send migrations to the nodes with the versions older than < 1.1
+            if (Gossiper.instance.getVersion(endpoint) < MessagingService.VERSION_11)
+                continue;
 
             pushSchemaMutation(endpoint, schema);
         }
@@ -195,9 +206,6 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
      */
     public static Collection<RowMutation> deserializeMigrationMessage(byte[] data, int version) throws IOException
     {
-        if (version < MessagingService.VERSION_11)
-            throw new IOException("Can't accept schema migrations from Cassandra versions previous to 1.1, please update first.");
-
         Collection<RowMutation> schema = new ArrayList<RowMutation>();
         DataInputStream in = new DataInputStream(new FastByteArrayInputStream(data));
 
