@@ -98,7 +98,7 @@ public class IncomingTcpConnection extends Thread
             {
                 // save the endpoint so gossip will reconnect to it
                 Gossiper.instance.addSavedEndpoint(from);
-                logger.info("Received " + (isStream ? "streaming " : "") + "connection from newer protocol version. Ignorning");
+                logger.info("Received " + (isStream ? "streaming " : "") + "connection from newer protocol version. Ignoring");
             }
             else if (msg != null)
             {
@@ -160,7 +160,7 @@ public class IncomingTcpConnection extends Thread
             MessagingService.instance().receive(message, id);
             return message;
         }
-        logger.debug("Received connection from newer protocol version {}. Ignorning message", version);
+        logger.debug("Received connection from newer protocol version {}. Ignoring message", version);
         return null;
     }
 
