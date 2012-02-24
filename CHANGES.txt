@@ -16,6 +16,7 @@ Merged from 1.0:
  * (cqlsh) ignore missing CfDef opts (CASSANDRA-3933)
  * (cqlsh) look for cqlshlib relative to realpath (CASSANDRA-3767)
  * Fix short read protection (CASSANDRA-3934)
+ * always compact away deleted hints immediately after handoff (CASSANDRA-3955)
 
 
 
@@ -98,6 +99,7 @@ Merged from 1.0:
  * Avoid NPE on aboarted stream-out sessions (CASSANDRA-3904)
  * BulkRecordWriter throws NPE for counter columns (CASSANDRA-3906)
  * Support compression using BulkWriter (CASSANDRA-3907)
+
 
 1.0.8
  * fix race between cleanup and flush on secondary index CFSes (CASSANDRA-3712)
