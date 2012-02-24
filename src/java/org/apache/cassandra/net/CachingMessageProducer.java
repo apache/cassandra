@@ -28,7 +28,7 @@ public class CachingMessageProducer implements MessageProducer
 
     public CachingMessageProducer(MessageProducer prod)
     {
-        this.prod = prod;    
+        this.prod = prod;
     }
 
     public synchronized Message getMessage(Integer version) throws IOException

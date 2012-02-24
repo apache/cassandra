@@ -71,7 +71,7 @@ public class DatacenterWriteResponseHandler extends WriteResponseHandler
                 condition.signal();
         }
     }
-    
+
     @Override
     public void assureSufficientLiveNodes() throws UnavailableException
     {

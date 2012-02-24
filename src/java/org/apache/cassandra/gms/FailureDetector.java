@@ -37,7 +37,7 @@ import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * This FailureDetector is an implementation of the paper titled
- * "The Phi Accrual Failure Detector" by Hayashibara. 
+ * "The Phi Accrual Failure Detector" by Hayashibara.
  * Check the paper and the <i>IFailureDetector</i> interface for details.
  */
 public class FailureDetector implements IFailureDetector, FailureDetectorMBean
@@ -51,7 +51,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
 
     private final Map<InetAddress, ArrivalWindow> arrivalSamples = new Hashtable<InetAddress, ArrivalWindow>();
     private final List<IFailureDetectionEventListener> fdEvntListeners = new CopyOnWriteArrayList<IFailureDetectionEventListener>();
-    
+
     public FailureDetector()
     {
         phiConvictThreshold = DatabaseDescriptor.getPhiConvictThreshold();
@@ -66,7 +66,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
             throw new RuntimeException(e);
         }
     }
-    
+
     public String getAllEndpointStates()
     {
         StringBuilder sb = new StringBuilder();
@@ -126,7 +126,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
             FileUtils.closeQuietly(os);
         }
     }
-    
+
     public void setPhiConvictThreshold(int phi)
     {
         phiConvictThreshold = phi;
@@ -136,7 +136,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
     {
         return phiConvictThreshold;
     }
-    
+
     public boolean isAlive(InetAddress ep)
     {
         if (ep.equals(FBUtilities.getBroadcastAddress()))
@@ -171,19 +171,19 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
         }
         heartbeatWindow.add(now);
     }
-    
+
     public void interpret(InetAddress ep)
     {
         ArrivalWindow hbWnd = arrivalSamples.get(ep);
         if ( hbWnd == null )
-        {            
+        {
             return;
         }
         long now = System.currentTimeMillis();
         double phi = hbWnd.phi(now);
         if (logger.isTraceEnabled())
             logger.trace("PHI for " + ep + " : " + phi);
-        
+
         if ( phi > phiConvictThreshold )
         {
             logger.trace("notifying listeners that {} is down", ep);
@@ -192,29 +192,29 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
             {
                 listener.convict(ep, phi);
             }
-        }        
+        }
     }
 
     public void remove(InetAddress ep)
     {
         arrivalSamples.remove(ep);
     }
-    
+
     public void registerFailureDetectionEventListener(IFailureDetectionEventListener listener)
     {
         fdEvntListeners.add(listener);
     }
-    
+
     public void unregisterFailureDetectionEventListener(IFailureDetectionEventListener listener)
     {
         fdEvntListeners.remove(listener);
     }
-    
+
     public String toString()
     {
         StringBuilder sb = new StringBuilder();
         Set<InetAddress> eps = arrivalSamples.keySet();
-        
+
         sb.append("-----------------------------------------------------------------------");
         for ( InetAddress ep : eps )
         {
@@ -226,9 +226,9 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
         sb.append("-----------------------------------------------------------------------");
         return sb.toString();
     }
-    
+
     public static void main(String[] args) throws Throwable
-    {           
+    {
     }
 }
 
@@ -253,12 +253,12 @@ class ArrivalWindow
     {
         arrivalIntervals = new BoundedStatsDeque(size);
     }
-    
+
     synchronized void add(double value)
     {
         double interArrivalTime;
         if ( tLast > 0L )
-        {                        
+        {
             interArrivalTime = (value - tLast);
         }
         else
@@ -271,32 +271,32 @@ class ArrivalWindow
             logger.debug("Ignoring interval time of {}", interArrivalTime);
         tLast = value;
     }
-    
+
     synchronized double sum()
     {
         return arrivalIntervals.sum();
     }
-    
+
     synchronized double sumOfDeviations()
     {
         return arrivalIntervals.sumOfDeviations();
     }
-    
+
     synchronized double mean()
     {
         return arrivalIntervals.mean();
     }
-    
+
     synchronized double variance()
     {
         return arrivalIntervals.variance();
     }
-    
+
     double stdev()
     {
         return arrivalIntervals.stdev();
     }
-    
+
     void clear()
     {
         arrivalIntervals.clear();
@@ -311,7 +311,7 @@ class ArrivalWindow
                ? PHI_FACTOR * t / mean()
                : 0.0;
     }
-    
+
     public String toString()
     {
         return StringUtils.join(arrivalIntervals.iterator(), " ");

@@ -25,15 +25,15 @@ import java.io.OutputStream;
  */
 public class MemoryOutputStream extends OutputStream
 {
-    
+
     private final Memory mem;
     private int position = 0;
-    
+
     public MemoryOutputStream(Memory mem)
     {
         this.mem = mem;
     }
-    
+
     public void write(int b)
     {
         mem.setByte(position++, (byte) b);

@@ -42,7 +42,7 @@ public class DeleteStatement extends AbstractModification
 {
     private List<Term> columns;
     private List<Term> keys;
-    
+
     public DeleteStatement(List<Term> columns, String keyspace, String columnFamily, String keyName, List<Term> keys, Attributes attrs)
     {
         super(keyspace, columnFamily, keyName, attrs);

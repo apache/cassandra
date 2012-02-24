@@ -51,7 +51,7 @@ public class SliceByNamesReadCommand extends ReadCommand
         readCommand.setDigestQuery(isDigestQuery());
         return readCommand;
     }
-    
+
     public Row getRow(Table table) throws IOException
     {
         DecoratedKey<?> dk = StorageService.getPartitioner().decorateKey(key);

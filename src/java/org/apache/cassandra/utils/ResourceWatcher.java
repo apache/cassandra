@@ -31,7 +31,7 @@ public class ResourceWatcher
     {
         StorageService.scheduledTasks.scheduleWithFixedDelay(new WatchedResource(resource, callback), period, period, TimeUnit.MILLISECONDS);
     }
-    
+
     public static class WatchedResource implements Runnable
     {
         private static final Logger logger = LoggerFactory.getLogger(WatchedResource.class);

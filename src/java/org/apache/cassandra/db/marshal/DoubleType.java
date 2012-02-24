@@ -26,17 +26,17 @@ public class DoubleType extends AbstractType<Double>
 {
     public static final DoubleType instance = new DoubleType();
 
-    DoubleType() {} // singleton    
+    DoubleType() {} // singleton
 
     public Double compose(ByteBuffer bytes)
     {
         return JdbcDouble.instance.compose(bytes);
     }
-    
+
     public ByteBuffer decompose(Double value)
     {
         return JdbcDouble.instance.decompose(value);
-    }    
+    }
 
     public int compare(ByteBuffer o1, ByteBuffer o2)
     {
@@ -48,12 +48,12 @@ public class DoubleType extends AbstractType<Double>
         {
             return 1;
         }
-        
+
         return compose(o1).compareTo(compose(o2));
     }
 
     public String getString(ByteBuffer bytes)
-    {   
+    {
         try
         {
             return JdbcDouble.instance.getString(bytes);
@@ -69,7 +69,7 @@ public class DoubleType extends AbstractType<Double>
       // Return an empty ByteBuffer for an empty string.
       if (source.isEmpty())
           return ByteBufferUtil.EMPTY_BYTE_BUFFER;
-      
+
       Double d;
       try
       {
@@ -79,7 +79,7 @@ public class DoubleType extends AbstractType<Double>
       {
           throw new MarshalException(String.format("unable to coerce '%s' to a double", source), e1);
       }
-          
+
       return decompose(d);
     }
 

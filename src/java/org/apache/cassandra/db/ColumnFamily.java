@@ -82,7 +82,7 @@ public class ColumnFamily extends AbstractColumnContainer
         assert cfm != null;
         this.cfm = cfm;
     }
-    
+
     public ColumnFamily cloneMeShallow(ISortedColumns.Factory factory, boolean reversedInsertOrder)
     {
         ColumnFamily cf = ColumnFamily.create(cfm, factory, reversedInsertOrder);

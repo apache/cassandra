@@ -29,7 +29,7 @@ import org.apache.cassandra.db.RowMutation;
 public class  AddColumnFamily extends Migration
 {
     private final CFMetaData cfm;
-    
+
     public AddColumnFamily(CFMetaData cfm) throws ConfigurationException
     {
         super(System.nanoTime());

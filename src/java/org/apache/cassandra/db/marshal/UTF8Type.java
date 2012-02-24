@@ -64,7 +64,7 @@ public class UTF8Type extends AbstractType<String>
         if (!UTF8Validator.validate(bytes))
             throw new MarshalException("String didn't validate.");
     }
-    
+
     static class UTF8Validator
     {
         enum State {
@@ -76,11 +76,11 @@ public class UTF8Type extends AbstractType<String>
             THREE_80bf_2,
             FOUR_90bf,
             FOUR_80bf_3,
-        };    
-        
+        };
+
         // since we're not converting to java strings, we don't need to worry about converting to surrogates.
         // buf has already been sliced/duplicated.
-        static boolean validate(ByteBuffer buf) 
+        static boolean validate(ByteBuffer buf)
         {
             buf = buf.slice();
             int b = 0;
@@ -115,7 +115,7 @@ public class UTF8Type extends AbstractType<String>
                                 state = State.THREE_a0bf;
                             else
                                 state = State.THREE_80bf_2;
-                            break;            
+                            break;
                         }
                         else if ((b >> 3) == -2)
                         {

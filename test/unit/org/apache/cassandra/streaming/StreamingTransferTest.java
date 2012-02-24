@@ -104,7 +104,7 @@ public class StreamingTransferTest extends CleanupHelper
 
         // and that the max timestamp for the file was rediscovered
         assertEquals(timestamp, cfs.getSSTables().iterator().next().getMaxTimestamp());
-        
+
         List<String> keys = new ArrayList<String>();
         for (int off : offs)
             keys.add("key" + off);
@@ -129,7 +129,7 @@ public class StreamingTransferTest extends CleanupHelper
     {
         final Table table = Table.open("Keyspace1");
         final ColumnFamilyStore cfs = table.getColumnFamilyStore("Indexed1");
-        
+
         List<String> keys = createAndTransfer(table, cfs, new Mutator()
         {
             public void mutate(String key, String col, long timestamp) throws Exception
@@ -167,7 +167,7 @@ public class StreamingTransferTest extends CleanupHelper
     {
         final Table table = Table.open("Keyspace1");
         final ColumnFamilyStore cfs = table.getColumnFamilyStore("Super1");
-        
+
         createAndTransfer(table, cfs, new Mutator()
         {
             public void mutate(String key, String col, long timestamp) throws Exception
@@ -185,7 +185,7 @@ public class StreamingTransferTest extends CleanupHelper
         final Table table = Table.open("Keyspace1");
         final ColumnFamilyStore cfs = table.getColumnFamilyStore("Counter1");
         final CounterContext cc = new CounterContext();
-        
+
         final Map<String, ColumnFamily> cleanedEntries = new HashMap<String, ColumnFamily>();
 
         List<String> keys = createAndTransfer(table, cfs, new Mutator()

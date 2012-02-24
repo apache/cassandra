@@ -46,11 +46,11 @@ public class JdbcDate extends AbstractJdbcType<Date>
             return new SimpleDateFormat(DEFAULT_FORMAT);
         }
     };
-    
+
     public static final JdbcDate instance = new JdbcDate();
-    
+
     JdbcDate() {}
-    
+
     public boolean isCaseSensitive()
     {
         return false;
@@ -96,7 +96,7 @@ public class JdbcDate extends AbstractJdbcType<Date>
         {
             throw new MarshalException("A date is exactly 8 bytes (stored as a long): " + bytes.remaining());
         }
-        
+
         // uses ISO-8601 formatted string
         return FORMATTER.get().format(new Date(bytes.getLong(bytes.position())));
     }
@@ -115,7 +115,7 @@ public class JdbcDate extends AbstractJdbcType<Date>
     {
         return new Date(ByteBufferUtil.toLong(bytes));
     }
-    
+
     public ByteBuffer decompose(Date value)
     {
       return (value==null) ? ByteBufferUtil.EMPTY_BYTE_BUFFER

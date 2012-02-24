@@ -79,7 +79,7 @@ public class SchemaLoader
         String ks_kcs = "KeyCacheSpace";
         String ks_rcs = "RowCacheSpace";
         String ks_nocommit = "NoCommitlogSpace";
-        
+
         Class<? extends AbstractReplicationStrategy> simple = SimpleStrategy.class;
 
         Map<String, String> opts_rf1 = KSMetaData.optsWithRF(1);
@@ -96,7 +96,7 @@ public class SchemaLoader
         aliases.put((byte)'b', BytesType.instance);
         aliases.put((byte)'t', TimeUUIDType.instance);
         AbstractType<?> dynamicComposite = DynamicCompositeType.getInstance(aliases);
-      
+
         // these column definitions will will be applied to the jdbc utf and integer column familes respectively.
         Map<ByteBuffer, ColumnDefinition> integerColumn = new HashMap<ByteBuffer, ColumnDefinition>();
         integerColumn.put(IntegerType.instance.fromString("42"), new ColumnDefinition(
@@ -247,7 +247,7 @@ public class SchemaLoader
 
         if (Boolean.parseBoolean(System.getProperty("cassandra.test.compression", "false")))
             useCompression(schema);
-        
+
         return schema;
     }
 

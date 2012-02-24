@@ -89,9 +89,9 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>
             }
         };
     }
-    
+
     public abstract T compose(ByteBuffer bytes);
-    
+
     public abstract ByteBuffer decompose(T value);
 
     /** get a string representation of the bytes suitable for log messages */

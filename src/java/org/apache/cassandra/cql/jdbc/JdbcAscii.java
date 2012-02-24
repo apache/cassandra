@@ -28,9 +28,9 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 public class JdbcAscii extends AbstractJdbcType<String>
 {
     public static final JdbcAscii instance = new JdbcAscii();
-    
+
     JdbcAscii() {}
-    
+
     public boolean isCaseSensitive()
     {
         return true;
@@ -92,7 +92,7 @@ public class JdbcAscii extends AbstractJdbcType<String>
     {
         return getString(bytes);
     }
-    
+
     public ByteBuffer decompose(String value)
     {
         return ByteBufferUtil.bytes(value, Charsets.US_ASCII);

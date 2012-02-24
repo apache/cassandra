@@ -26,7 +26,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.HeapAllocator;
 
 public class DeletedColumn extends Column
-{    
+{
     public DeletedColumn(ByteBuffer name, int localDeletionTime, long timestamp)
     {
         this(name, ByteBufferUtil.bytes(localDeletionTime), timestamp);
@@ -56,7 +56,7 @@ public class DeletedColumn extends Column
             return super.reconcile(column, allocator);
         return column.reconcile(this, allocator);
     }
-    
+
     @Override
     public IColumn localCopy(ColumnFamilyStore cfs)
     {

@@ -94,7 +94,7 @@ public class Throttle
     {
         return "Throttle(for=" + name + ")";
     }
-    
+
     public interface ThroughputFunction
     {
         /**

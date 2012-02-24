@@ -41,7 +41,7 @@ import org.apache.cassandra.utils.FBUtilities;
 * This class encapsulates the message that needs to be sent to nodes
 * that handoff data. The message contains information about ranges
 * that need to be transferred and the target node.
-* 
+*
 * If a file is specified, ranges and table will not. vice-versa should hold as well.
 */
 class StreamRequestMessage implements MessageProducer
@@ -59,10 +59,10 @@ class StreamRequestMessage implements MessageProducer
 
     protected final long sessionId;
     protected final InetAddress target;
-    
+
     // if this is specified, ranges and table should not be.
     protected final PendingFile file;
-    
+
     // if these are specified, file shoud not be.
     protected final Collection<Range<Token>> ranges;
     protected final String table;
@@ -90,7 +90,7 @@ class StreamRequestMessage implements MessageProducer
         table = null;
         columnFamilies = null;
     }
-    
+
     public Message getMessage(Integer version)
     {
         FastByteArrayOutputStream bos = new FastByteArrayOutputStream();

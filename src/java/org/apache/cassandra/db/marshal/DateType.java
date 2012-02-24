@@ -33,7 +33,7 @@ public class DateType extends AbstractType<Date>
     public static final DateType instance = new DateType();
 
     static final String DEFAULT_FORMAT = iso8601Patterns[3];
-    
+
     static final SimpleDateFormat FORMATTER = new SimpleDateFormat(DEFAULT_FORMAT);
 
     DateType() {} // singleton
@@ -42,12 +42,12 @@ public class DateType extends AbstractType<Date>
     {
         return JdbcDate.instance.compose(bytes);
     }
-    
+
     public ByteBuffer decompose(Date value)
     {
         return JdbcDate.instance.decompose(value);
     }
-    
+
     public int compare(ByteBuffer o1, ByteBuffer o2)
     {
         if (o1.remaining() == 0)
@@ -79,10 +79,10 @@ public class DateType extends AbstractType<Date>
       // Return an empty ByteBuffer for an empty string.
       if (source.isEmpty())
           return ByteBufferUtil.EMPTY_BYTE_BUFFER;
-      
+
       long millis;
       ByteBuffer idBytes = null;
-      
+
       if (source.toLowerCase().equals("now"))
       {
           millis = System.currentTimeMillis();
@@ -113,7 +113,7 @@ public class DateType extends AbstractType<Date>
               throw new MarshalException(String.format("unable to coerce '%s' to a  formatted date (long)", source), e1);
           }
       }
-          
+
       return idBytes;
     }
 

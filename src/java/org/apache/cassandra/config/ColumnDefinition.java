@@ -41,13 +41,13 @@ public class ColumnDefinition
     private IndexType index_type;
     private Map<String,String> index_options;
     private String index_name;
-    
+
     public ColumnDefinition(ByteBuffer name, AbstractType<?> validator, IndexType index_type, Map<String, String> index_options, String index_name)
     {
         this.name = name;
         this.index_name = index_name;
         this.validator = validator;
-    
+
         this.setIndexType(index_type, index_options);
     }
 
@@ -278,7 +278,7 @@ public class ColumnDefinition
     {
         return index_name;
     }
-    
+
     public void setIndexName(String s)
     {
         index_name = s;
@@ -287,19 +287,19 @@ public class ColumnDefinition
     public void setIndexType(IndexType index_type, Map<String,String> index_options)
     {
         this.index_type = index_type;
-        this.index_options = index_options;         
+        this.index_options = index_options;
     }
 
     public IndexType getIndexType()
     {
         return index_type;
     }
-    
+
     public Map<String,String> getIndexOptions()
     {
         return index_options;
     }
-    
+
     public AbstractType<?> getValidator()
     {
         return validator;
@@ -309,18 +309,18 @@ public class ColumnDefinition
     {
         this.validator = validator;
     }
-    
+
     public static Map<String,String> getStringMap(Map<CharSequence, CharSequence> charMap)
     {
         if (charMap == null)
             return null;
-        
+
         Map<String,String> stringMap = new HashMap<String, String>();
-            
-        for (Map.Entry<CharSequence, CharSequence> entry : charMap.entrySet())        
+
+        for (Map.Entry<CharSequence, CharSequence> entry : charMap.entrySet())
             stringMap.put(entry.getKey().toString(), entry.getValue().toString());
-            
-            
+
+
         return stringMap;
     }
 }

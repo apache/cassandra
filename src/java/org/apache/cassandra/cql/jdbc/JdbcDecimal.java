@@ -27,7 +27,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 public class JdbcDecimal extends AbstractJdbcType<BigDecimal>
 {
     public static final JdbcDecimal instance = new JdbcDecimal();
-    
+
     JdbcDecimal() {}
 
     public boolean isCaseSensitive()
@@ -85,7 +85,7 @@ public class JdbcDecimal extends AbstractJdbcType<BigDecimal>
     public BigDecimal compose(ByteBuffer bytes)
     {
         if (bytes == null) return null;
-                
+
         // do not consume the contents of the ByteBuffer
         bytes = bytes.duplicate();
         int scale = bytes.getInt();
@@ -103,16 +103,16 @@ public class JdbcDecimal extends AbstractJdbcType<BigDecimal>
     public ByteBuffer decompose(BigDecimal value)
     {
         if (value == null) return ByteBufferUtil.EMPTY_BYTE_BUFFER;
-        
+
         BigInteger bi = value.unscaledValue();
         Integer scale = value.scale();
         byte[] bibytes = bi.toByteArray();
         byte[] sbytes = ByteBufferUtil.bytes(scale).array();
         byte[] bytes = new byte[bi.toByteArray().length+4];
-        
+
         for (int i = 0 ; i < 4 ; i++) bytes[i] = sbytes[i];
         for (int i = 4 ; i < bibytes.length+4 ; i++) bytes[i] = bibytes[i-4];
-        
+
         return ByteBuffer.wrap(bytes);
     }
 

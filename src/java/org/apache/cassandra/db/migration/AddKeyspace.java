@@ -29,7 +29,7 @@ import org.apache.cassandra.db.RowMutation;
 public class AddKeyspace extends Migration
 {
     private final KSMetaData ksm;
-    
+
     public AddKeyspace(KSMetaData ksm) throws ConfigurationException
     {
         super(System.nanoTime());

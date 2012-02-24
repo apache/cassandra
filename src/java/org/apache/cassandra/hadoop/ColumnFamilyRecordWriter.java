@@ -43,44 +43,44 @@ import org.apache.thrift.transport.TSocket;
  * pairs to a Cassandra column family. In particular, it applies all mutations
  * in the value, which it associates with the key, and in turn the responsible
  * endpoint.
- * 
+ *
  * <p>
  * Furthermore, this writer groups the mutations by the endpoint responsible for
  * the rows being affected. This allows the mutations to be executed in parallel,
  * directly to a responsible endpoint.
  * </p>
- * 
+ *
  * @see ColumnFamilyOutputFormat
  * @see OutputFormat
- * 
+ *
  */
 final class ColumnFamilyRecordWriter extends RecordWriter<ByteBuffer,List<Mutation>>
 implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<Mutation>>
 {
     // The configuration this writer is associated with.
     private final Configuration conf;
-    
+
     // The ring cache that describes the token ranges each node in the ring is
     // responsible for. This is what allows us to group the mutations by
     // the endpoints they should be targeted at. The targeted endpoint
     // essentially
     // acts as the primary replica for the rows being affected by the mutations.
     private final RingCache ringCache;
-    
+
     // The number of mutations to buffer per endpoint
     private final int queueSize;
 
     // handles for clients for each range running in the threadpool
     private final Map<Range,RangeClient> clients;
     private final long batchThreshold;
-    
+
     private final ConsistencyLevel consistencyLevel;
 
 
     /**
      * Upon construction, obtain the map that this writer will use to collect
      * mutations, and the ring cache for the given keyspace.
-     * 
+     *
      * @param context the task attempt context
      * @throws IOException
      */
@@ -88,7 +88,7 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<Mutation>>
     {
         this(context.getConfiguration());
     }
-    
+
     ColumnFamilyRecordWriter(Configuration conf) throws IOException
     {
         this.conf = conf;
@@ -106,7 +106,7 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<Mutation>>
      * {@link Deletion}. Similarly, if the entire value for a key is missing
      * (i.e., null), then the entire key is marked for {@link Deletion}.
      * </p>
-     * 
+     *
      * @param keybuff
      *            the key to write.
      * @param value

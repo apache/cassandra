@@ -25,9 +25,9 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 public class JdbcDouble extends AbstractJdbcType<Double>
 {
     public static final JdbcDouble instance = new JdbcDouble();
-    
+
     JdbcDouble() {}
-    
+
     public boolean isCaseSensitive()
     {
         return false;
@@ -73,7 +73,7 @@ public class JdbcDouble extends AbstractJdbcType<Double>
         {
             throw new MarshalException("A double is exactly 8 bytes : "+bytes.remaining());
         }
-        
+
         return ((Double)ByteBufferUtil.toDouble(bytes)).toString();
     }
 
@@ -91,7 +91,7 @@ public class JdbcDouble extends AbstractJdbcType<Double>
     {
         return ByteBufferUtil.toDouble(bytes);
     }
-    
+
     public ByteBuffer decompose(Double value)
     {
         return (value==null) ? ByteBufferUtil.EMPTY_BYTE_BUFFER : ByteBufferUtil.bytes(value);

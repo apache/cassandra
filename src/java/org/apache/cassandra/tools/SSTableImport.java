@@ -173,7 +173,7 @@ public class SSTableImport
 
     /**
      * Add columns to a column family.
-     * 
+     *
      * @param row the columns associated with a row
      * @param superName name of the super column if any
      * @param cfamily the column family to add columns to
@@ -206,10 +206,10 @@ public class SSTableImport
             }
         }
     }
-    
+
     /**
      * Add super columns to a column family.
-     * 
+     *
      * @param row the super columns associated with a row
      * @param cfamily the column family to add columns to
      */
@@ -236,7 +236,7 @@ public class SSTableImport
 
     /**
      * Convert a JSON formatted file to an SSTable.
-     * 
+     *
      * @param jsonFile the file containing JSON formatted data
      * @param keyspace keyspace the data belongs to
      * @param cf column family the data belongs to
@@ -421,7 +421,7 @@ public class SSTableImport
     /**
      * Converts JSON to an SSTable file. JSON input can either be a file specified
      * using an optional command line argument, or supplied on standard in.
-     * 
+     *
      * @param args command line arguments
      * @throws IOException on failure to open/read/write files or output streams
      * @throws ParseException on failure to parse JSON input

@@ -29,7 +29,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.NodeId;
 
 public class SuperColumnTest
-{   
+{
     private static final CounterContext cc = new CounterContext();
 
     @Test
@@ -66,7 +66,7 @@ public class SuperColumnTest
         state.writeElement(NodeId.fromInt(3), 6L, 0L);
         state.writeElement(NodeId.fromInt(7), 3L, 0L);
         sc.addColumn(new CounterColumn(getBytes(2), state.context, 9L, 0L));
-                    
+
     	assertNotNull(sc.getSubColumn(getBytes(1)));
     	assertNull(sc.getSubColumn(getBytes(3)));
 

@@ -25,9 +25,9 @@ import org.apache.cassandra.utils.UUIDGen;
 public class JdbcTimeUUID extends AbstractJdbcUUID
 {
     public static final JdbcTimeUUID instance = new JdbcTimeUUID();
-    
+
     JdbcTimeUUID() {}
-    
+
     public String getString(ByteBuffer bytes)
     {
         if (bytes.remaining() == 0)

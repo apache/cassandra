@@ -46,20 +46,20 @@ public class WhereClause
 
     /**
      * Create a new WhereClause with the first parsed relation.
-     * 
+     *
      * @param firstRelation key or column relation
      */
     public WhereClause(Relation firstRelation)
     {
         and(firstRelation);
     }
-    
+
     public WhereClause()
     {}
-    
+
     /**
      * Add an additional relation to this WHERE clause.
-     * 
+     *
      * @param relation the relation to add.
      */
     public void and(Relation relation)
@@ -80,22 +80,22 @@ public class WhereClause
     {
         return columns;
     }
-    
+
     public boolean isKeyRange()
     {
         return startKey != null;
     }
-    
+
     public Term getStartKey()
     {
         return startKey;
     }
-    
+
     public Term getFinishKey()
     {
         return finishKey;
     }
-    
+
     public Set<Term> getKeys()
     {
         return keys;

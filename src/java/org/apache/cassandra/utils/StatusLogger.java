@@ -47,7 +47,7 @@ public class StatusLogger
     public static void log()
     {
         MBeanServer server = ManagementFactory.getPlatformMBeanServer();
-        
+
         // everything from o.a.c.concurrent
         logger.info(String.format("%-25s%10s%10s%10s", "Pool Name", "Active", "Pending", "Blocked"));
         Set<ObjectName> request, internal;

@@ -27,7 +27,7 @@ public class DecimalType extends AbstractType<BigDecimal>
 {
     public static final DecimalType instance = new DecimalType();
 
-    DecimalType() {} // singleton    
+    DecimalType() {} // singleton
 
     public int compare(ByteBuffer bb0, ByteBuffer bb1)
     {
@@ -39,7 +39,7 @@ public class DecimalType extends AbstractType<BigDecimal>
         {
             return 1;
         }
-        
+
         return compose(bb0).compareTo(compose(bb1));
     }
 
@@ -66,7 +66,7 @@ public class DecimalType extends AbstractType<BigDecimal>
     {
         // Return an empty ByteBuffer for an empty string.
         if (source.isEmpty()) return ByteBufferUtil.EMPTY_BYTE_BUFFER;
-        
+
         BigDecimal decimal;
 
         try

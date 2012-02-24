@@ -1,6 +1,6 @@
 package org.apache.cassandra.db;
 /*
- * 
+ *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -8,16 +8,16 @@ package org.apache.cassandra.db;
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
- * 
+ *
  */
 
 
@@ -49,16 +49,16 @@ public class ScrubTest extends CleanupHelper
     public String CF3 = "Standard2";
     public String  corruptSSTableName;
 
-    
-    public void copySSTables() throws IOException 
+
+    public void copySSTables() throws IOException
     {
         String root = System.getProperty("corrupt-sstable-root");
         assert root != null;
         File rootDir = new File(root);
         assert rootDir.isDirectory();
-        
+
         File destDir = Directories.create(TABLE, CF2).getDirectoryForNewSSTables(1);
-       
+
         FileUtils.createDirectory(destDir);
         for (File srcFile : rootDir.listFiles())
         {
@@ -68,23 +68,23 @@ public class ScrubTest extends CleanupHelper
             CLibrary.createHardLink(srcFile, destFile);
 
             assert destFile.exists() : destFile.getAbsoluteFile();
-            
+
             if(destFile.getName().endsWith("Data.db"))
                 corruptSSTableName = destFile.getCanonicalPath();
-        }   
+        }
 
         assert corruptSSTableName != null;
     }
-   
+
     @Test
     public void testScrubFile() throws Exception
-    {        
+    {
         copySSTables();
 
         Table table = Table.open(TABLE);
         ColumnFamilyStore cfs = table.getColumnFamilyStore(CF2);
         assert cfs.getSSTables().size() > 0;
-      
+
         List<Row> rows;
         boolean caught = false;
         try
@@ -97,13 +97,13 @@ public class ScrubTest extends CleanupHelper
             caught = true;
         }
         assert caught : "'corrupt' test file actually was not";
-        
+
         CompactionManager.instance.performScrub(cfs);
         rows = cfs.getRangeSlice(ByteBufferUtil.bytes("1"), Util.range("", ""), 1000, new IdentityQueryFilter(), null);
         assertEquals(100, rows.size());
     }
-    
-    
+
+
     @Test
     public void testScrubOneRow() throws IOException, ExecutionException, InterruptedException, ConfigurationException
     {
@@ -164,7 +164,7 @@ public class ScrubTest extends CleanupHelper
         rows = cfs.getRangeSlice(null, Util.range("", ""), 1000, new IdentityQueryFilter(), null);
         assertEquals(10, rows.size());
     }
-      
+
     protected void fillCF(ColumnFamilyStore cfs, int rowsPerSSTable) throws ExecutionException, InterruptedException, IOException
     {
         for (int i = 0; i < rowsPerSSTable; i++)
@@ -183,7 +183,7 @@ public class ScrubTest extends CleanupHelper
         cfs.forceBlockingFlush();
     }
 
-    
-    
-    
+
+
+
 }

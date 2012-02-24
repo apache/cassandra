@@ -57,7 +57,7 @@ public class Component
         {
             this.repr = repr;
         }
-        
+
         static Type fromRepresentation(String repr)
         {
             for (Type type : TYPES)

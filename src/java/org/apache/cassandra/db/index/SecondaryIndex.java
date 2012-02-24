@@ -37,32 +37,32 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Abstract base class for different types of secondary indexes.
- * 
+ *
  * Do not extend this directly, please pick from PerColumnSecondaryIndex or PerRowSecondaryIndex
  */
 public abstract class SecondaryIndex
 {
-    
+
     private static final Logger logger = LoggerFactory.getLogger(SecondaryIndex.class);
-    
+
     public static final String CUSTOM_INDEX_OPTION_NAME = "class_name";
 
     /**
      * Base CF that has many indexes
      */
     protected ColumnFamilyStore baseCfs;
-    
-    
+
+
     /**
      * The column definitions which this index is responsible for
      */
     protected final Set<ColumnDefinition> columnDefs = Collections.newSetFromMap(new ConcurrentHashMap<ColumnDefinition,Boolean>());
-    
+
     /**
      * Perform any initialization work
      */
     public abstract void init();
-    
+
     /**
      * Validates the index_options passed in the ColumnDef
      * @throws ConfigurationException
@@ -73,20 +73,20 @@ public abstract class SecondaryIndex
      * @return The name of the index
      */
     abstract public String getIndexName();
-   
-    
+
+
     /**
      * Return the unique name for this index and column
      * to be stored in the SystemTable that tracks if each column is built
-     * 
+     *
      * @param columnName the name of the column
      * @return the unique name
      */
     abstract public String getNameForSystemTable(ByteBuffer columnName);
-      
+
     /**
      * Checks if the index for specified column is fully built
-     * 
+     *
      * @param columnName the column
      * @return true if the index is fully built
      */
@@ -94,7 +94,7 @@ public abstract class SecondaryIndex
     {
         return SystemTable.isIndexBuilt(baseCfs.table.name, getNameForSystemTable(columnName));
     }
-    
+
     public void setIndexBuilt(ByteBuffer columnName)
     {
         SystemTable.setIndexBuilt(baseCfs.table.name, getNameForSystemTable(columnName));
@@ -104,7 +104,7 @@ public abstract class SecondaryIndex
     {
         SystemTable.setIndexRemoved(baseCfs.table.name, getNameForSystemTable(columnName));
     }
-    
+
     /**
      * Called at query time
      * Creates a implementation specific searcher instance for this index type
@@ -112,7 +112,7 @@ public abstract class SecondaryIndex
      * @return the secondary index search impl
      */
     protected abstract SecondaryIndexSearcher createSecondaryIndexSearcher(Set<ByteBuffer> columns);
-        
+
     /**
      * Forces this indexes in memory data to disk
      * @throws IOException
@@ -123,14 +123,14 @@ public abstract class SecondaryIndex
      * Get current amount of memory this index is consuming (in bytes)
      */
     public abstract long getLiveSize();
-    
+
     /**
      * Allow access to the underlying column family store if there is one
      * @return the underlying column family store or null
      */
     public abstract ColumnFamilyStore getIndexCfs();
-   
-    
+
+
     /**
      * Delete all files and references to this index
      * @param columnName the indexed column to remove
@@ -148,7 +148,7 @@ public abstract class SecondaryIndex
      * @param truncatedAt The truncation timestamp, all data before that timestamp should be rejected.
      */
     public abstract void truncate(long truncatedAt);
-    
+
     /**
      * Builds the index using the data in the underlying CFS
      * Blocks till it's complete
@@ -159,7 +159,7 @@ public abstract class SecondaryIndex
                 getIndexName(), StringUtils.join(baseCfs.getSSTables(), ", ")));
 
         SortedSet<ByteBuffer> columnNames = new TreeSet<ByteBuffer>();
-        
+
         for (ColumnDefinition cdef : columnDefs)
             columnNames.add(cdef.name);
 
@@ -172,7 +172,7 @@ public abstract class SecondaryIndex
         {
             future.get();
             forceBlockingFlush();
-            
+
             // Mark all indexed columns as built
             if (this instanceof PerRowSecondaryIndex)
             {
@@ -199,11 +199,11 @@ public abstract class SecondaryIndex
         logger.info("Index build of " + getIndexName() + " complete");
     }
 
-    
+
     /**
      * Builds the index using the data in the underlying CF, non blocking
-     * 
-     * 
+     *
+     *
      * @return A future object which the caller can block on (optional)
      */
     public Future<?> buildIndexAsync()
@@ -218,10 +218,10 @@ public abstract class SecondaryIndex
                 break;
             }
         }
-        
+
         if (allAreBuilt)
             return null;
-        
+
         // build it asynchronously; addIndex gets called by CFS open and schema update, neither of which
         // we want to block for a long period.  (actual build is serialized on CompactionManager.)
         Runnable runnable = new Runnable()
@@ -240,11 +240,11 @@ public abstract class SecondaryIndex
                 {
                     throw new AssertionError(e);
                 }
-                
+
                 try
                 {
                     buildIndexBlocking();
-                } 
+                }
                 catch (IOException e)
                 {
                     throw new RuntimeException(e);
@@ -252,11 +252,11 @@ public abstract class SecondaryIndex
             }
         };
         FutureTask<?> f = new FutureTask<Object>(runnable, null);
-       
+
         new Thread(f, "Creating index: " + getIndexName()).start();
         return f;
     }
-    
+
     public ColumnFamilyStore getBaseCfs()
     {
         return baseCfs;
@@ -276,7 +276,7 @@ public abstract class SecondaryIndex
     {
        columnDefs.add(columnDef);
     }
-    
+
     void removeColumnDef(ByteBuffer name)
     {
         Iterator<ColumnDefinition> it = columnDefs.iterator();
@@ -286,11 +286,11 @@ public abstract class SecondaryIndex
                 it.remove();
         }
     }
-    
+
     /**
      * This is the primary way to create a secondary index instance for a CF column.
      * It will validate the index_options before initializing.
-     * 
+     *
      * @param baseCfs the source of data for the Index
      * @param cdef the meta information about this column (index_type, index_options, name, etc...)
      *
@@ -300,33 +300,33 @@ public abstract class SecondaryIndex
     public static SecondaryIndex createInstance(ColumnFamilyStore baseCfs, ColumnDefinition cdef) throws ConfigurationException
     {
         SecondaryIndex index;
-        
+
         switch (cdef.getIndexType())
         {
-        case KEYS: 
+        case KEYS:
             index = new KeysIndex();
             break;
-        case CUSTOM:           
+        case CUSTOM:
             assert cdef.getIndexOptions() != null;
             String class_name = cdef.getIndexOptions().get(CUSTOM_INDEX_OPTION_NAME);
             assert class_name != null;
             try
             {
                 index = (SecondaryIndex) Class.forName(class_name).newInstance();
-            } 
+            }
             catch (Exception e)
             {
                 throw new RuntimeException(e);
-            }            
+            }
             break;
             default:
                 throw new RuntimeException("Unknown index type: " + cdef.getIndexName());
         }
-        
+
         index.addColumnDef(cdef);
         index.validateOptions();
         index.setBaseCfs(baseCfs);
-        
+
         return index;
     }
 }

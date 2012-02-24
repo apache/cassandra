@@ -40,7 +40,7 @@ public class OrderPreservingPartitioner extends AbstractPartitioner<StringToken>
     {
         return new DecoratedKey<StringToken>(getToken(key), key);
     }
-    
+
     public DecoratedKey<StringToken> convertFromDiskFormat(ByteBuffer key)
     {
         return new DecoratedKey<StringToken>(getToken(key), key);

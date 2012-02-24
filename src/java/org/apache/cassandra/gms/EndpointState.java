@@ -40,7 +40,7 @@ public class EndpointState
 
     private volatile HeartBeatState hbState;
     final Map<ApplicationState, VersionedValue> applicationState = new NonBlockingHashMap<ApplicationState, VersionedValue>();
-    
+
     /* fields below do not get serialized */
     private volatile long updateTimestamp;
     private volatile boolean isAlive;
@@ -49,19 +49,19 @@ public class EndpointState
     {
         return serializer;
     }
-    
+
     EndpointState(HeartBeatState initialHbState)
-    { 
+    {
         hbState = initialHbState;
         updateTimestamp = System.currentTimeMillis();
         isAlive = true;
     }
-        
+
     HeartBeatState getHeartBeatState()
     {
         return hbState;
     }
-    
+
     void setHeartBeatState(HeartBeatState newHbState)
     {
         updateTimestamp();
@@ -81,7 +81,7 @@ public class EndpointState
     {
         return applicationState;
     }
-    
+
     void addApplicationState(ApplicationState key, VersionedValue value)
     {
         applicationState.put(key, value);
@@ -92,14 +92,14 @@ public class EndpointState
     {
         return updateTimestamp;
     }
-    
+
     void updateTimestamp()
     {
         updateTimestamp = System.currentTimeMillis();
     }
-    
+
     public boolean isAlive()
-    {        
+    {
         return isAlive;
     }
 
@@ -109,7 +109,7 @@ public class EndpointState
     }
 
     void markDead()
-    {        
+    {
         isAlive = false;
     }
 }
@@ -117,7 +117,7 @@ public class EndpointState
 class EndpointStateSerializer implements IVersionedSerializer<EndpointState>
 {
     private static final Logger logger = LoggerFactory.getLogger(EndpointStateSerializer.class);
-    
+
     public void serialize(EndpointState epState, DataOutput dos, int version) throws IOException
     {
         /* serialize the HeartBeatState */

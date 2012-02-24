@@ -102,7 +102,7 @@ public class NodeProbe
 
     /**
      * Creates a NodeProbe using the specified JMX host and port.
-     * 
+     *
      * @param host hostname or IP address of the JMX agent
      * @param port TCP port of the remote JMX agent
      * @throws IOException on connection failures
@@ -113,10 +113,10 @@ public class NodeProbe
         this.port = port;
         connect();
     }
-    
+
     /**
      * Creates a NodeProbe using the specified JMX host and default port.
-     * 
+     *
      * @param host hostname or IP address of the JMX agent
      * @throws IOException on connection failures
      */
@@ -126,10 +126,10 @@ public class NodeProbe
         this.port = defaultPort;
         connect();
     }
-    
+
     /**
      * Create a connection to the JMX agent and setup the M[X]Bean proxies.
-     * 
+     *
      * @throws IOException on connection failures
      */
     private void connect() throws IOException
@@ -143,7 +143,7 @@ public class NodeProbe
         }
         jmxc = JMXConnectorFactory.connect(jmxUrl, env);
         mbeanServerConn = jmxc.getMBeanServerConnection();
-        
+
         try
         {
             ObjectName name = new ObjectName(ssObjName);
@@ -163,8 +163,8 @@ public class NodeProbe
             throw new RuntimeException(
                     "Invalid ObjectName? Please report this as a bug.", e);
         }
-        
-        memProxy = ManagementFactory.newPlatformMXBeanProxy(mbeanServerConn, 
+
+        memProxy = ManagementFactory.newPlatformMXBeanProxy(mbeanServerConn,
                 ManagementFactory.MEMORY_MXBEAN_NAME, MemoryMXBean.class);
         runtimeProxy = ManagementFactory.newPlatformMXBeanProxy(
                 mbeanServerConn, ManagementFactory.RUNTIME_MXBEAN_NAME, RuntimeMXBean.class);
@@ -224,7 +224,7 @@ public class NodeProbe
     {
         ssProxy.drain();
     }
-    
+
     public Map<String, String> getTokenToEndpointMap()
     {
         return ssProxy.getTokenToEndpointMap();
@@ -254,7 +254,7 @@ public class NodeProbe
     {
         return ssProxy.getUnreachableNodes();
     }
-    
+
     public Map<String, String> getLoadMap()
     {
         return ssProxy.getLoadMap();
@@ -309,7 +309,7 @@ public class NodeProbe
     {
         return ssProxy.getToken();
     }
-    
+
     public String getLoadString()
     {
         return ssProxy.getLoadString();
@@ -324,20 +324,20 @@ public class NodeProbe
     {
         return ssProxy.getCurrentGenerationNumber();
     }
-    
+
     public long getUptime()
     {
         return runtimeProxy.getUptime();
     }
-    
+
     public MemoryUsage getHeapMemoryUsage()
     {
         return memProxy.getHeapMemoryUsage();
     }
-    
+
     /**
      * Take a snapshot of all the tables.
-     * 
+     *
      * @param snapshotName the name of the snapshot.
      */
     public void takeSnapshot(String snapshotName, String... keyspaces) throws IOException
@@ -387,7 +387,7 @@ public class NodeProbe
     {
         ssProxy.forceRemoveCompletion();
     }
-  
+
     public Iterator<Map.Entry<String, JMXEnabledThreadPoolExecutorMBean>> getThreadPoolMBeanProxies()
     {
         try
@@ -506,14 +506,14 @@ public class NodeProbe
             throw new RuntimeException(e);
         }
     }
-    
+
     public ColumnFamilyStoreMBean getCfsProxy(String ks, String cf)
     {
         ColumnFamilyStoreMBean cfsProxy = null;
         try
         {
             cfsProxy = JMX.newMBeanProxy(mbeanServerConn,
-                    new ObjectName("org.apache.cassandra.db:type=ColumnFamilies,keyspace="+ks+",columnfamily="+cf), 
+                    new ObjectName("org.apache.cassandra.db:type=ColumnFamilies,keyspace="+ks+",columnfamily="+cf),
                     ColumnFamilyStoreMBean.class);
         }
         catch (MalformedObjectNameException mone)
@@ -667,7 +667,7 @@ class ColumnFamilyStoreMBeanIterator implements Iterator<Map.Entry<String, Colum
 {
     private Iterator<ObjectName> resIter;
     private MBeanServerConnection mbeanServerConn;
-    
+
     public ColumnFamilyStoreMBeanIterator(MBeanServerConnection mbeanServerConn)
     throws MalformedObjectNameException, NullPointerException, IOException
     {
@@ -699,8 +699,8 @@ class ThreadPoolProxyMBeanIterator implements Iterator<Map.Entry<String, JMXEnab
 {
     private final Iterator<ObjectName> resIter;
     private final MBeanServerConnection mbeanServerConn;
-    
-    public ThreadPoolProxyMBeanIterator(MBeanServerConnection mbeanServerConn) 
+
+    public ThreadPoolProxyMBeanIterator(MBeanServerConnection mbeanServerConn)
     throws MalformedObjectNameException, NullPointerException, IOException
     {
         Set<ObjectName> requests = mbeanServerConn.queryNames(new ObjectName("org.apache.cassandra.request:type=*"), null);
@@ -708,7 +708,7 @@ class ThreadPoolProxyMBeanIterator implements Iterator<Map.Entry<String, JMXEnab
         resIter = Iterables.concat(requests, internal).iterator();
         this.mbeanServerConn = mbeanServerConn;
     }
-    
+
     public boolean hasNext()
     {
         return resIter.hasNext();

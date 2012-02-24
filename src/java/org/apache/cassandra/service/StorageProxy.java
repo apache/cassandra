@@ -130,7 +130,7 @@ public class StorageProxy implements StorageProxyMBean
                               Collection<InetAddress> targets,
                               IWriteResponseHandler responseHandler,
                               String localDataCenter,
-                              ConsistencyLevel consistency_level) 
+                              ConsistencyLevel consistency_level)
             throws IOException
             {
                 if (logger.isDebugEnabled())
@@ -268,14 +268,14 @@ public class StorageProxy implements StorageProxyMBean
      * Note about hints:
      *
      * | Hinted Handoff | Consist. Level |
-     * | on             |       >=1      | --> wait for hints. We DO NOT notify the handler with handler.response() for hints; 
+     * | on             |       >=1      | --> wait for hints. We DO NOT notify the handler with handler.response() for hints;
      * | on             |       ANY      | --> wait for hints. Responses count towards consistency.
      * | off            |       >=1      | --> DO NOT fire hints. And DO NOT wait for them to complete.
      * | off            |       ANY      | --> DO NOT fire hints. And DO NOT wait for them to complete.
      *
-     * @throws TimeoutException if the hints cannot be written/enqueued 
+     * @throws TimeoutException if the hints cannot be written/enqueued
      */
-    public static void sendToHintedEndpoints(final RowMutation rm, 
+    public static void sendToHintedEndpoints(final RowMutation rm,
                                               Collection<InetAddress> targets,
                                               IWriteResponseHandler responseHandler,
                                               String localDataCenter,
@@ -542,7 +542,7 @@ public class StorageProxy implements StorageProxyMBean
         return performWrite(cm, cm.consistency(), localDataCenter, counterWriteOnCoordinatorPerformer);
     }
 
-    private static Runnable counterWriteTask(final IMutation mutation, 
+    private static Runnable counterWriteTask(final IMutation mutation,
                                              final Collection<InetAddress> targets,
                                              final IWriteResponseHandler responseHandler,
                                              final String localDataCenter,
@@ -944,8 +944,8 @@ public class StorageProxy implements StorageProxyMBean
         for (InetAddress endpoint : liveHosts)
         {
             Message message = new Message(FBUtilities.getBroadcastAddress(),
-                                          StorageService.Verb.SCHEMA_CHECK, 
-                                          ArrayUtils.EMPTY_BYTE_ARRAY, 
+                                          StorageService.Verb.SCHEMA_CHECK,
+                                          ArrayUtils.EMPTY_BYTE_ARRAY,
                                           Gossiper.instance.getVersion(endpoint));
             MessagingService.instance().sendRR(message, endpoint, cb);
         }
@@ -1145,7 +1145,7 @@ public class StorageProxy implements StorageProxyMBean
     {
         if (!hintedHandoffEnabled)
             return false;
-        
+
         boolean hintWindowExpired = Gossiper.instance.getEndpointDowntime(ep) > maxHintWindow;
         if (hintWindowExpired)
             logger.debug("not hinting {} which has been down {}ms", ep, Gossiper.instance.getEndpointDowntime(ep));

@@ -123,7 +123,7 @@ public final class SSLFactory
         }
         return ctx;
     }
-    
+
     private static String[] filterCipherSuites(String[] supported, String[] desired)
     {
         Set<String> des = Sets.newHashSet(desired);

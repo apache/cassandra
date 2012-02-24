@@ -38,22 +38,22 @@ public class Message
         this.body = body;
         this.version = version;
     }
-    
+
     public Message(InetAddress from, StorageService.Verb verb, byte[] body, int version)
     {
         this(new Header(from, verb), body, version);
-    } 
-        
+    }
+
     public byte[] getHeader(String key)
     {
         return header.getDetail(key);
     }
-    
+
     public Message withHeaderAdded(String key, byte[] value)
     {
         return new Message(header.withDetailsAdded(key, value), body, version);
     }
-    
+
     public Message withHeaderRemoved(String key)
     {
         return new Message(header.withDetailsRemoved(key), body, version);
@@ -63,7 +63,7 @@ public class Message
     {
         return body;
     }
-    
+
     public int getVersion()
     {
         return version;

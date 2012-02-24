@@ -35,37 +35,37 @@ import org.apache.commons.lang.ArrayUtils;
 
 /**
  * Utility methods to make ByteBuffers less painful
- * The following should illustrate the different ways byte buffers can be used 
- * 
+ * The following should illustrate the different ways byte buffers can be used
+ *
  *        public void testArrayOffet()
  *        {
- *                
+ *
  *            byte[] b = "test_slice_array".getBytes();
  *            ByteBuffer bb = ByteBuffer.allocate(1024);
- *    
+ *
  *            assert bb.position() == 0;
  *            assert bb.limit()    == 1024;
  *            assert bb.capacity() == 1024;
- *    
+ *
  *            bb.put(b);
- *            
+ *
  *            assert bb.position()  == b.length;
  *            assert bb.remaining() == bb.limit() - bb.position();
- *            
+ *
  *            ByteBuffer bb2 = bb.slice();
- *            
+ *
  *            assert bb2.position()    == 0;
- *            
+ *
  *            //slice should begin at other buffers current position
  *            assert bb2.arrayOffset() == bb.position();
- *            
- *            //to match the position in the underlying array one needs to 
+ *
+ *            //to match the position in the underlying array one needs to
  *            //track arrayOffset
  *            assert bb2.limit()+bb2.arrayOffset() == bb.limit();
- *            
- *           
+ *
+ *
  *            assert bb2.remaining() == bb.remaining();
- *                             
+ *
  *        }
  *
  * }
@@ -83,7 +83,7 @@ public class ByteBufferUtil
             return 0;
 
         if (o1.hasArray() && o2.hasArray())
-        {         
+        {
             return FBUtilities.compareUnsigned(o1.array(), o2.array(), o1.position() + o1.arrayOffset(),
                     o2.position() + o2.arrayOffset(), o1.remaining(), o2.remaining());
         }
@@ -99,7 +99,7 @@ public class ByteBufferUtil
         }
         return o1.remaining() - o2.remaining();
     }
-    
+
     public static int compare(byte[] o1, ByteBuffer o2)
     {
         return compareUnsigned(ByteBuffer.wrap(o1), o2);
@@ -249,10 +249,10 @@ public class ByteBufferUtil
     public static ByteBuffer clone(ByteBuffer buffer)
     {
         assert buffer != null;
-        
+
         if (buffer.remaining() == 0)
             return EMPTY_BYTE_BUFFER;
-          
+
         ByteBuffer clone = ByteBuffer.allocate(buffer.remaining());
 
         if (buffer.hasArray())
@@ -405,7 +405,7 @@ public class ByteBufferUtil
     {
         return bytes.getInt(bytes.position());
     }
-    
+
     public static long toLong(ByteBuffer bytes)
     {
         return bytes.getLong(bytes.position());

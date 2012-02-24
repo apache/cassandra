@@ -52,8 +52,8 @@ public class LongType extends AbstractType<Long>
         int diff = o1.get(o1.position()) - o2.get(o2.position());
         if (diff != 0)
             return diff;
-        
-       
+
+
         return ByteBufferUtil.compareUnsigned(o1, o2);
     }
 

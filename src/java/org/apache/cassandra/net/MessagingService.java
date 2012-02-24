@@ -261,7 +261,7 @@ public final class MessagingService implements MessagingServiceMBean
             // setReuseAddress happens in the factory.
             logger.info("Starting Encrypted Messaging Service on SSL port {}", DatabaseDescriptor.getSSLStoragePort());
         }
-        
+
         ServerSocketChannel serverChannel = ServerSocketChannel.open();
         ServerSocket socket = serverChannel.socket();
         socket.setReuseAddress(true);
@@ -340,7 +340,7 @@ public final class MessagingService implements MessagingServiceMBean
     {
         return addCallback(cb, message, to, DEFAULT_CALLBACK_TIMEOUT);
     }
-    
+
     public String addCallback(IMessageCallback cb, Message message, InetAddress to, long timeout)
     {
         String messageId = nextId();

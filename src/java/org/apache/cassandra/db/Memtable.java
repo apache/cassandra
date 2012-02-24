@@ -313,7 +313,7 @@ public class Memtable
 
     /**
      * @param startWith Include data in the result from and including this key and to the end of the memtable
-     * @return An iterator of entries with the data from the start key 
+     * @return An iterator of entries with the data from the start key
      */
     public Iterator<Map.Entry<DecoratedKey, ColumnFamily>> getEntryIterator(final RowPosition startWith, final RowPosition stopAt)
     {

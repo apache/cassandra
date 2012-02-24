@@ -167,7 +167,7 @@ public class QueryProcessor
                 throw new InvalidRequestException("Start key must sort before (or equal to) finish key in your partitioner!");
         }
         AbstractBounds<RowPosition> bounds = new Bounds<RowPosition>(startKey, finishKey);
-        
+
         // XXX: Our use of Thrift structs internally makes me Sad. :(
         SlicePredicate thriftSlicePredicate = slicePredicateFromSelect(select, metadata, variables);
         validateSlicePredicate(metadata, thriftSlicePredicate);
@@ -251,7 +251,7 @@ public class QueryProcessor
 
             rowMutations.addAll(update.prepareRowMutations(keyspace, clientState, variables));
         }
-        
+
         try
         {
             StorageProxy.mutate(rowMutations, consistency);
@@ -265,12 +265,12 @@ public class QueryProcessor
             throw new TimedOutException();
         }
     }
-    
+
     private static SlicePredicate slicePredicateFromSelect(SelectStatement select, CFMetaData metadata, List<ByteBuffer> variables)
     throws InvalidRequestException
     {
         SlicePredicate thriftSlicePredicate = new SlicePredicate();
-        
+
         if (select.isColumnRange() || select.getColumnNames().size() == 0)
         {
             SliceRange sliceRange = new SliceRange();
@@ -284,10 +284,10 @@ public class QueryProcessor
         {
             thriftSlicePredicate.column_names = getColumnNames(select, metadata, variables);
         }
-        
+
         return thriftSlicePredicate;
     }
-    
+
     /* Test for SELECT-specific taboos */
     private static void validateSelect(String keyspace, SelectStatement select, List<ByteBuffer> variables) throws InvalidRequestException
     {
@@ -296,15 +296,15 @@ public class QueryProcessor
         // Finish key w/o start key (KEY < foo)
         if (!select.isKeyRange() && (select.getKeyFinish() != null))
             throw new InvalidRequestException("Key range clauses must include a start key (i.e. KEY > term)");
-        
+
         // Key range and by-key(s) combined (KEY > foo AND KEY = bar)
         if (select.isKeyRange() && select.getKeys().size() > 0)
             throw new InvalidRequestException("You cannot combine key range and by-key clauses in a SELECT");
-        
+
         // Start and finish keys, *and* column relations (KEY > foo AND KEY < bar and name1 = value1).
         if (select.isKeyRange() && (select.getKeyFinish() != null) && (select.getColumnRelations().size() > 0))
             throw new InvalidRequestException("You cannot combine key range and by-column clauses in a SELECT");
-        
+
         // Can't use more than one KEY =
         if (!select.isMultiKey() && select.getKeys().size() > 1)
             throw new InvalidRequestException("You cannot use more than one KEY = in a SELECT");
@@ -360,7 +360,7 @@ public class QueryProcessor
 
         validateSchemaIsSettled();
     }
-    
+
     public static void validateKey(ByteBuffer key) throws InvalidRequestException
     {
         if (key == null || key.remaining() == 0)
@@ -403,7 +403,7 @@ public class QueryProcessor
     {
         validateColumnNames(Arrays.asList(column));
     }
-    
+
     public static void validateColumn(CFMetaData metadata, ByteBuffer name, ByteBuffer value)
     throws InvalidRequestException
     {
@@ -422,7 +422,7 @@ public class QueryProcessor
                                                             me.getMessage()));
         }
     }
-    
+
     private static void validateSlicePredicate(CFMetaData metadata, SlicePredicate predicate)
     throws InvalidRequestException
     {
@@ -431,13 +431,13 @@ public class QueryProcessor
         else
             validateColumnNames(predicate.column_names);
     }
-    
+
     private static void validateSliceRange(CFMetaData metadata, SliceRange range)
     throws InvalidRequestException
     {
         validateSliceRange(metadata, range.start, range.finish, range.reversed);
     }
-    
+
     private static void validateSliceRange(CFMetaData metadata, ByteBuffer start, ByteBuffer finish, boolean reversed)
     throws InvalidRequestException
     {
@@ -446,7 +446,7 @@ public class QueryProcessor
         if (start.remaining() > 0 && finish.remaining() > 0 && orderedComparator.compare(start, finish) > 0)
             throw new InvalidRequestException("range finish must come after start in traversal order");
     }
-    
+
     // Copypasta from CassandraServer (where it is private).
     private static void validateSchemaAgreement() throws SchemaDisagreementException
     {
@@ -465,13 +465,13 @@ public class QueryProcessor
     throws  UnavailableException, InvalidRequestException, TimedOutException, SchemaDisagreementException
     {
         String keyspace = null;
-        
+
         // Some statements won't have (or don't need) a keyspace (think USE, or CREATE).
         if (statement.type != StatementType.SELECT && StatementType.requiresKeyspace.contains(statement.type))
             keyspace = clientState.getKeyspace();
 
         CqlResult result = new CqlResult();
-        
+
         if (logger.isDebugEnabled()) logger.debug("CQL statement type: {}", statement.type.toString());
         CFMetaData metadata;
         switch (statement.type)
@@ -625,7 +625,7 @@ public class QueryProcessor
                 batchUpdate(clientState, Collections.singletonList(update), update.getConsistencyLevel(), variables);
                 result.type = CqlResultType.VOID;
                 return result;
-                
+
             case BATCH:
                 BatchStatement batch = (BatchStatement) statement.statement;
                 ThriftValidation.validateConsistencyLevel(keyspace, batch.getConsistencyLevel(), RequestType.WRITE);
@@ -659,20 +659,20 @@ public class QueryProcessor
 
                 result.type = CqlResultType.VOID;
                 return result;
-                
+
             case USE:
                 clientState.setKeyspace(CliUtils.unescapeSQLString((String) statement.statement));
                 result.type = CqlResultType.VOID;
-                
+
                 return result;
-            
+
             case TRUNCATE:
                 Pair<String, String> columnFamily = (Pair<String, String>)statement.statement;
                 keyspace = columnFamily.left == null ? clientState.getKeyspace() : columnFamily.left;
 
                 validateColumnFamily(keyspace, columnFamily.right);
                 clientState.hasColumnFamilyAccess(keyspace, columnFamily.right, Permission.WRITE);
-                
+
                 try
                 {
                     StorageProxy.truncateBlocking(keyspace, columnFamily.right);
@@ -685,10 +685,10 @@ public class QueryProcessor
                 {
                     throw (UnavailableException) new UnavailableException().initCause(e);
                 }
-                
+
                 result.type = CqlResultType.VOID;
                 return result;
-            
+
             case DELETE:
                 DeleteStatement delete = (DeleteStatement)statement.statement;
 
@@ -702,17 +702,17 @@ public class QueryProcessor
                 {
                     throw new TimedOutException();
                 }
-                
+
                 result.type = CqlResultType.VOID;
                 return result;
-                
+
             case CREATE_KEYSPACE:
                 CreateKeyspaceStatement create = (CreateKeyspaceStatement)statement.statement;
                 create.validate();
                 ThriftValidation.validateKeyspaceNotSystem(create.getName());
                 clientState.hasKeyspaceSchemaAccess(Permission.WRITE);
                 validateSchemaAgreement();
-                
+
                 try
                 {
                     KsDef ksd = new KsDef(create.getName(),
@@ -729,10 +729,10 @@ public class QueryProcessor
                     ex.initCause(e);
                     throw ex;
                 }
-                
+
                 result.type = CqlResultType.VOID;
                 return result;
-               
+
             case CREATE_COLUMNFAMILY:
                 CreateColumnFamilyStatement createCf = (CreateColumnFamilyStatement)statement.statement;
                 clientState.hasColumnFamilySchemaAccess(Permission.WRITE);
@@ -750,10 +750,10 @@ public class QueryProcessor
                     ex.initCause(e);
                     throw ex;
                 }
-                
+
                 result.type = CqlResultType.VOID;
                 return result;
-                
+
             case CREATE_INDEX:
                 CreateIndexStatement createIdx = (CreateIndexStatement)statement.statement;
                 clientState.hasColumnFamilySchemaAccess(Permission.WRITE);
@@ -773,7 +773,7 @@ public class QueryProcessor
                     {
                         if (cd.index_type != null)
                             throw new InvalidRequestException("Index already exists");
-                        if (logger.isDebugEnabled()) 
+                        if (logger.isDebugEnabled())
                             logger.debug("Updating column {} definition for index {}", oldCfm.comparator.getString(columnName), createIdx.getIndexName());
                         cd.setIndex_type(IndexType.KEYS);
                         cd.setIndex_name(createIdx.getIndexName());
@@ -796,7 +796,7 @@ public class QueryProcessor
                     ex.initCause(e);
                     throw ex;
                 }
-                
+
                 result.type = CqlResultType.VOID;
                 return result;
 
@@ -830,7 +830,7 @@ public class QueryProcessor
                 ThriftValidation.validateKeyspaceNotSystem(deleteKeyspace);
                 clientState.hasKeyspaceSchemaAccess(Permission.WRITE);
                 validateSchemaAgreement();
-                
+
                 try
                 {
                     applyMigrationOnStage(new DropKeyspace(deleteKeyspace));
@@ -841,15 +841,15 @@ public class QueryProcessor
                     ex.initCause(e);
                     throw ex;
                 }
-                
+
                 result.type = CqlResultType.VOID;
                 return result;
-            
+
             case DROP_COLUMNFAMILY:
                 String deleteColumnFamily = (String)statement.statement;
                 clientState.hasColumnFamilySchemaAccess(Permission.WRITE);
                 validateSchemaAgreement();
-                    
+
                 try
                 {
                     applyMigrationOnStage(new DropColumnFamily(keyspace, deleteColumnFamily));
@@ -860,7 +860,7 @@ public class QueryProcessor
                     ex.initCause(e);
                     throw ex;
                 }
-                
+
                 result.type = CqlResultType.VOID;
                 return result;
 
@@ -911,21 +911,21 @@ public class QueryProcessor
 
         return new CqlPreparedResult(statementId, statement.boundTerms);
     }
-   
+
     public static CqlResult processPrepared(CQLStatement statement, ClientState clientState, List<ByteBuffer> variables)
     throws UnavailableException, InvalidRequestException, TimedOutException, SchemaDisagreementException
     {
-        // Check to see if there are any bound variables to verify 
+        // Check to see if there are any bound variables to verify
         if (!(variables.isEmpty() && (statement.boundTerms == 0)))
         {
-            if (variables.size() != statement.boundTerms) 
+            if (variables.size() != statement.boundTerms)
                 throw new InvalidRequestException(String.format("there were %d markers(?) in CQL but %d bound variables",
                                                                 statement.boundTerms,
                                                                 variables.size()));
 
             // at this point there is a match in count between markers and variables that is non-zero
 
-            if (logger.isTraceEnabled()) 
+            if (logger.isTraceEnabled())
                 for (int i = 0; i < variables.size(); i++)
                     logger.trace("[{}] '{}'", i+1, variables.get(i));
         }
@@ -968,15 +968,15 @@ public class QueryProcessor
         CqlLexer lexer = new CqlLexer(stream);
         TokenStream tokenStream = new CommonTokenStream(lexer);
         CqlParser parser = new CqlParser(tokenStream);
-        
+
         // Parse the query string to a statement instance
         CQLStatement statement = parser.query();
-        
+
         // The lexer and parser queue up any errors they may have encountered
         // along the way, if necessary, we turn them into exceptions here.
         lexer.throwLastRecognitionError();
         parser.throwLastRecognitionError();
-        
+
         return statement;
     }
 

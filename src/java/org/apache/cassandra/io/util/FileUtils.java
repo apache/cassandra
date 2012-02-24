@@ -54,7 +54,7 @@ public class FileUtils
             throw new IOException("Failed to delete " + file.getAbsolutePath());
         }
     }
-    
+
     public static void renameWithConfirm(File from, File to) throws IOException
     {
         assert from.exists();
@@ -213,12 +213,12 @@ public class FileUtils
             return val + " KB";
         }
         else
-        {       
+        {
             String val = df.format(value);
             return val + " bytes";
-        }        
+        }
     }
-    
+
     /**
      * Deletes all files and subdirectories under "dir".
      * @param dir Directory to be deleted

@@ -25,9 +25,9 @@ import org.apache.cassandra.utils.UUIDGen;
 public class JdbcUUID extends AbstractJdbcUUID
 {
     public static final JdbcUUID instance = new JdbcUUID();
-    
+
     JdbcUUID() {}
-    
+
     public UUID compose(ByteBuffer bytes)
     {
         bytes = bytes.slice();
@@ -46,7 +46,7 @@ public class JdbcUUID extends AbstractJdbcUUID
         {
             throw new MarshalException("UUIDs must be exactly 16 bytes");
         }
-        
+
         return compose(bytes).toString();
     }
 

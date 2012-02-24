@@ -314,7 +314,7 @@ public final class CFMetaData
                       .bloomFilterFpChance(oldCFMD.bloomFilterFpChance)
                       .caching(oldCFMD.caching);
     }
-    
+
     /**
      * generate a column family name for an index corresponding to the given column.
      * This is NOT the same as the index's name! This is only used in sstable filenames and is not exposed to users.
@@ -436,7 +436,7 @@ public final class CFMetaData
     {
         return new ArrayList<T>(array);
     }
-    
+
     public String getComment()
     {
         return comment;
@@ -456,7 +456,7 @@ public final class CFMetaData
     {
         return replicateOnWrite;
     }
-    
+
     public int getGcGraceSeconds()
     {
         return gcGraceSeconds;
@@ -610,7 +610,7 @@ public final class CFMetaData
     }
 
     /** applies implicit defaults to cf definition. useful in updates */
-    public static void applyImplicitDefaults(org.apache.cassandra.thrift.CfDef cf_def) 
+    public static void applyImplicitDefaults(org.apache.cassandra.thrift.CfDef cf_def)
     {
         if (!cf_def.isSetComment())
             cf_def.setComment("");
@@ -780,7 +780,7 @@ public final class CFMetaData
         for (ByteBuffer name : column_metadata.keySet())
             if (!newColumns.contains(name))
                 toRemove.add(name);
-        
+
         // remove the ones leaving.
         for (ByteBuffer indexName : toRemove)
         {
@@ -801,7 +801,7 @@ public final class CFMetaData
         for (ColumnDef def : toAdd)
         {
             AbstractType<?> dValidClass = TypeParser.parse(def.validation_class);
-            ColumnDefinition cd = new ColumnDefinition(def.name, 
+            ColumnDefinition cd = new ColumnDefinition(def.name,
                                                        dValidClass,
                                                        def.index_type == null ? null : IndexType.valueOf(def.index_type.name()),
                                                        def.index_options,
@@ -966,7 +966,7 @@ public final class CFMetaData
         try
         {
             AbstractType<?> comparator = TypeParser.parse(cf_def.comparator_type);
-            
+
             for (org.apache.cassandra.thrift.ColumnDef column : cf_def.column_metadata)
             {
                 if (column.index_type != null && column.index_name == null)

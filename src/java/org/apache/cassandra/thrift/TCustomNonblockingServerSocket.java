@@ -59,7 +59,7 @@ public class TCustomNonblockingServerSocket extends TNonblockingServerSocket
         {
             logger.warn("Failed to set keep-alive on Thrift socket.", se);
         }
-        
+
         if (this.sendBufferSize != null)
         {
             try

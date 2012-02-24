@@ -25,7 +25,7 @@ import org.apache.cassandra.config.ConfigurationException;
 /**
  * Cassandra's resource hierarchy looks something like:
  * {{/cassandra/keyspaces/$ks_name/...}}
- * 
+ *
  * In table form:
  *  /cassandra/
  *    - no checked permissions
@@ -40,11 +40,11 @@ import org.apache.cassandra.config.ConfigurationException;
  *    - String
  *    * An individual keyspace: READ/WRITE permissions apply to the entire namespace and control the ability to both
  *      view and manipulate column families, and to read and write the data contained within.
- * 
+ *
  * Over time Cassandra _may_ add additional authorize calls for resources higher or lower in the hierarchy and
  * IAuthority implementations should be able to handle these calls (although many will choose to ignore them
  * completely).
- * 
+ *
  * NB: {{/cassandra/}} will not be checked for permissions via a call to IAuthority.authorize, so IAuthority
  * implementations can only deny access when a user attempts to access an ancestor resource.
  */
@@ -53,7 +53,7 @@ public interface IAuthority
     /**
      * @param user An authenticated user from a previous call to IAuthenticator.authenticate.
      * @param resource A List of Objects containing Strings and byte[]s: represents a resource in the hierarchy
-     * described in the Javadocs.  
+     * described in the Javadocs.
      * @return An AccessLevel representing the permissions for the user and resource: should never return null.
      */
     public EnumSet<Permission> authorize(AuthenticatedUser user, List<Object> resource);

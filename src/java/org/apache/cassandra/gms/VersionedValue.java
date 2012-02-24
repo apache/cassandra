@@ -29,12 +29,12 @@ import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * This abstraction represents the state associated with a particular node which an
- * application wants to make available to the rest of the nodes in the cluster. 
+ * application wants to make available to the rest of the nodes in the cluster.
  * Whenever a piece of state needs to be disseminated to the rest of cluster wrap
  * the state in an instance of <i>ApplicationState</i> and add it to the Gossiper.
- *  
+ *
  * e.g. if we want to disseminate load information for node A do the following:
- * 
+ *
  *      ApplicationState loadState = new ApplicationState(<string representation of load>);
  *      Gossiper.instance.addApplicationState("LOAD STATE", loadState);
  */

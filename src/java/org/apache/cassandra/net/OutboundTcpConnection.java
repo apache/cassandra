@@ -49,7 +49,7 @@ public class OutboundTcpConnection extends Thread
     private volatile BlockingQueue<Entry> backlog = new LinkedBlockingQueue<Entry>();
     private volatile BlockingQueue<Entry> active = new LinkedBlockingQueue<Entry>();
 
-    private final OutboundTcpConnectionPool poolReference;    
+    private final OutboundTcpConnectionPool poolReference;
 
     private DataOutputStream out;
     private Socket socket;

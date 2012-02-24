@@ -40,7 +40,7 @@ import org.apache.thrift.transport.TSocket;
  * OutputFormat that allows reduce tasks to store keys (and corresponding
  * values) as Cassandra rows (and respective columns) in a given
  * ColumnFamily.
- * 
+ *
  * <p>
  * As is the case with the {@link ColumnFamilyInputFormat}, you need to set the
  * Keyspace and ColumnFamily in your
@@ -48,7 +48,7 @@ import org.apache.thrift.transport.TSocket;
  * {@link ConfigHelper#setOutputColumnFamily} method, is provided to make this
  * simple.
  * </p>
- * 
+ *
  * <p>
  * For the sake of performance, this class employs a lazy write-back caching
  * mechanism, where its record writer batches mutations created based on the
@@ -60,13 +60,13 @@ public class ColumnFamilyOutputFormat extends OutputFormat<ByteBuffer,List<Mutat
     implements org.apache.hadoop.mapred.OutputFormat<ByteBuffer,List<Mutation>>
 {
     private static final Logger logger = LoggerFactory.getLogger(ColumnFamilyOutputFormat.class);
-    
+
     public static final String BATCH_THRESHOLD = "mapreduce.output.columnfamilyoutputformat.batch.threshold";
     public static final String QUEUE_SIZE = "mapreduce.output.columnfamilyoutputformat.queue.size";
 
     /**
      * Check for validity of the output-specification for the job.
-     * 
+     *
      * @param context
      *            information about the job
      * @throws IOException
@@ -92,7 +92,7 @@ public class ColumnFamilyOutputFormat extends OutputFormat<ByteBuffer,List<Mutat
 
     /**
      * The OutputCommitter for this format does not write any data to the DFS.
-     * 
+     *
      * @param context
      *            the task context
      * @return an output committer
@@ -104,7 +104,7 @@ public class ColumnFamilyOutputFormat extends OutputFormat<ByteBuffer,List<Mutat
     {
         return new NullOutputCommitter();
     }
-    
+
     /** Fills the deprecated OutputFormat interface for streaming. */
     @Deprecated
     public void checkOutputSpecs(org.apache.hadoop.fs.FileSystem filesystem, org.apache.hadoop.mapred.JobConf job) throws IOException
@@ -121,7 +121,7 @@ public class ColumnFamilyOutputFormat extends OutputFormat<ByteBuffer,List<Mutat
 
     /**
      * Get the {@link RecordWriter} for the given task.
-     * 
+     *
      * @param context
      *            the information about the current task.
      * @return a {@link RecordWriter} to write the output for the job.

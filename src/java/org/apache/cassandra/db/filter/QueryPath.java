@@ -89,8 +89,8 @@ public class QueryPath
         String cfName = din.readUTF();
         ByteBuffer scName = ByteBufferUtil.readWithShortLength(din);
         ByteBuffer cName = ByteBufferUtil.readWithShortLength(din);
-        return new QueryPath(cfName.isEmpty() ? null : cfName, 
-                             scName.remaining() == 0 ? null : scName, 
+        return new QueryPath(cfName.isEmpty() ? null : cfName,
+                             scName.remaining() == 0 ? null : scName,
                              cName.remaining() == 0 ? null : cName);
     }
 

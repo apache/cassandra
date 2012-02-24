@@ -46,7 +46,7 @@ public class CreateColumnFamilyStatement
     {
         this.name = name;
     }
-    
+
     /** Perform validation of parsed params */
     private void validate(List<ByteBuffer> variables) throws InvalidRequestException
     {
@@ -57,7 +57,7 @@ public class CreateColumnFamilyStatement
             throw new InvalidRequestException(String.format("\"%s\" is not a valid column family name", name));
         if (name.length() > 32)
             throw new InvalidRequestException(String.format("Column family names shouldn't be more than 32 character long (got \"%s\")", name));
-        
+
         // Ensure that exactly one key has been specified.
         if (keyValidator.size() < 1)
             throw new InvalidRequestException("You must specify a PRIMARY KEY");
@@ -86,18 +86,18 @@ public class CreateColumnFamilyStatement
 
         }
     }
-    
+
     /** Map a column name to a validator for its value */
     public void addColumn(Term term, String comparator)
     {
         columns.put(term, comparator);
     }
-    
+
     public void setKeyType(String validator)
     {
         keyValidator.add(validator);
     }
-    
+
     public String getKeyType()
     {
         return keyValidator.get(0);
@@ -121,12 +121,12 @@ public class CreateColumnFamilyStatement
     {
         return name;
     }
-    
+
     // Column definitions
     private Map<ByteBuffer, ColumnDefinition> getColumns(AbstractType<?> comparator) throws InvalidRequestException
     {
         Map<ByteBuffer, ColumnDefinition> columnDefs = new HashMap<ByteBuffer, ColumnDefinition>();
-        
+
         for (Map.Entry<Term, String> col : columns.entrySet())
         {
             try
@@ -145,14 +145,14 @@ public class CreateColumnFamilyStatement
                 throw ex;
             }
         }
-        
+
         return columnDefs;
     }
 
     /**
      * Returns a CFMetaData instance based on the parameters parsed from this
      * <code>CREATE</code> statement, or defaults where applicable.
-     * 
+     *
      * @param keyspace keyspace to apply this column family to
      * @return a CFMetaData instance corresponding to the values parsed from this statement
      * @throws InvalidRequestException on failure to validate parsed parameters
@@ -194,7 +194,7 @@ public class CreateColumnFamilyStatement
         }
         return newCFMD;
     }
-    
+
     private String getPropertyString(String key, String defaultValue)
     {
         return cfProps.getPropertyString(key, defaultValue);

@@ -28,16 +28,16 @@ import org.apache.cassandra.thrift.InvalidRequestException;
 
 /** A <code>CREATE KEYSPACE</code> statement parsed from a CQL query. */
 public class CreateKeyspaceStatement
-{   
+{
     private final String name;
     private final Map<String, String> attrs;
     private String strategyClass;
     private final Map<String, String> strategyOptions = new HashMap<String, String>();
-    
+
     /**
      * Creates a new <code>CreateKeyspaceStatement</code> instance for a given
      * keyspace name and keyword arguments.
-     *  
+     *
      * @param name the name of the keyspace to create
      * @param attrs map of the raw keyword arguments that followed the <code>WITH</code> keyword.
      */
@@ -46,12 +46,12 @@ public class CreateKeyspaceStatement
         this.name = name;
         this.attrs = attrs;
     }
-    
+
     /**
      * The <code>CqlParser</code> only goes as far as extracting the keyword arguments
      * from these statements, so this method is responsible for processing and
      * validating, and must be called prior to access.
-     * 
+     *
      * @throws InvalidRequestException if arguments are missing or unacceptable
      */
     public void validate() throws InvalidRequestException
@@ -61,12 +61,12 @@ public class CreateKeyspaceStatement
             throw new InvalidRequestException(String.format("\"%s\" is not a valid keyspace name", name));
         if (name.length() > 32)
             throw new InvalidRequestException(String.format("Keyspace names shouldn't be more than 32 character long (got \"%s\")", name));
-        
+
         // required
         if (!attrs.containsKey("strategy_class"))
             throw new InvalidRequestException("missing required argument \"strategy_class\"");
         strategyClass = attrs.get("strategy_class");
-        
+
         // optional
         for (String key : attrs.keySet())
             if ((key.contains(":")) && (key.startsWith("strategy_options")))

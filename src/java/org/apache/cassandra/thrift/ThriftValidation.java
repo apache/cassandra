@@ -675,16 +675,16 @@ public class ThriftValidation
                         if (!oldCd.getIndexName().equals(c.index_name))
                             throw new InvalidRequestException("Cannot modify index name");
                     }
-                    
+
                     if (c.index_type == IndexType.CUSTOM)
                     {
                         if (c.index_options == null || !c.index_options.containsKey(SecondaryIndex.CUSTOM_INDEX_OPTION_NAME))
-                            throw new InvalidRequestException("Required index option missing: " + SecondaryIndex.CUSTOM_INDEX_OPTION_NAME);                    
+                            throw new InvalidRequestException("Required index option missing: " + SecondaryIndex.CUSTOM_INDEX_OPTION_NAME);
                     }
-                    
+
                     // Create the index type and validate the options
                     ColumnDefinition cdef = ColumnDefinition.fromThrift(c);
-                   
+
                     // This method validates the column metadata but does not intialize the index
                     SecondaryIndex.createInstance(null, cdef);
                 }

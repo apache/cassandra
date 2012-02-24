@@ -30,9 +30,9 @@ import org.slf4j.LoggerFactory;
 public class SimpleSeedProvider implements SeedProvider
 {
     private static final Logger logger = LoggerFactory.getLogger(SimpleSeedProvider.class);
-    
+
     private final List<InetAddress> seeds;
-    
+
     public SimpleSeedProvider(Map<String, String> args)
     {
         String[] hosts = args.get("seeds").split(",", -1);
@@ -50,12 +50,12 @@ public class SimpleSeedProvider implements SeedProvider
             }
         }
     }
-    
+
     public List<InetAddress> getSeeds()
     {
         return Collections.unmodifiableList(seeds);
     }
-    
+
     // future planning?
     public void addSeed(InetAddress addr)
     {

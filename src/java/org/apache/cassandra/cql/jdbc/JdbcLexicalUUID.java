@@ -25,9 +25,9 @@ import org.apache.cassandra.utils.UUIDGen;
 public class JdbcLexicalUUID extends AbstractJdbcUUID
 {
     public static final JdbcLexicalUUID instance = new JdbcLexicalUUID();
-    
+
     public JdbcLexicalUUID() {}
-    
+
     public String getString(ByteBuffer bytes)
     {
         if (bytes.remaining() == 0)

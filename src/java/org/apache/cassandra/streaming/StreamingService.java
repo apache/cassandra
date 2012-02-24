@@ -85,7 +85,7 @@ public class StreamingService implements StreamingServiceMBean
         InetAddress dest = InetAddress.getByName(host);
         if (!existingDestinations.contains(dest))
             return files;
-        
+
         for (PendingFile f : StreamOutSession.getOutgoingFiles(dest))
             files.add(String.format("%s", f.toString()));
         return files;

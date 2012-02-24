@@ -55,7 +55,7 @@ public class NamesQueryFilter implements IFilter
     {
         return new SSTableNamesIterator(sstable, key, columns);
     }
-    
+
     public IColumnIterator getSSTableColumnIterator(SSTableReader sstable, FileDataInput file, DecoratedKey<?> key)
     {
         return new SSTableNamesIterator(sstable, file, key, columns);

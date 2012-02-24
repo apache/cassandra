@@ -25,9 +25,9 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 public class JdbcFloat extends AbstractJdbcType<Float>
 {
     public static final JdbcFloat instance = new JdbcFloat();
-    
+
     JdbcFloat() {}
-    
+
     public boolean isCaseSensitive()
     {
         return false;
@@ -73,7 +73,7 @@ public class JdbcFloat extends AbstractJdbcType<Float>
         {
             throw new MarshalException("A float is exactly 4 bytes : "+bytes.remaining());
         }
-        
+
         return ((Float)ByteBufferUtil.toFloat(bytes)).toString();
     }
 
@@ -91,7 +91,7 @@ public class JdbcFloat extends AbstractJdbcType<Float>
     {
         return ByteBufferUtil.toFloat(bytes);
     }
-    
+
     public ByteBuffer decompose(Float value)
     {
         return (value==null) ? ByteBufferUtil.EMPTY_BYTE_BUFFER : ByteBufferUtil.bytes(value);

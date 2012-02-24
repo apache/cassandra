@@ -33,7 +33,7 @@ public class SimpleCondition implements Condition
         while (!set)
             wait();
     }
-    
+
     public synchronized void reset()
     {
         set = false;

@@ -38,7 +38,7 @@ import org.slf4j.LoggerFactory;
 
 /**
  * This is a interim solution till THRIFT-1167 gets committed...
- * 
+ *
  * The idea here is to avoid sticking to one CPU for IO's. For better throughput
  * it is spread across multiple threads. Number of selector thread can be the
  * number of CPU available.
@@ -121,7 +121,7 @@ public class CustomTHsHaServer extends TNonblockingServer
             // wait till all done with stuff's
             for (SelectorThread thread : ioThreads)
                 thread.join();
-        } 
+        }
         catch (InterruptedException e)
         {
             LOGGER.error("Interrupted while joining threads!", e);
@@ -158,7 +158,7 @@ public class CustomTHsHaServer extends TNonblockingServer
                 this.selector = SelectorProvider.provider().openSelector();
                 this.serverTransport = (TNonblockingServerTransport) serverTransport_;
                 this.serverTransport.registerSelector(selector);
-            } 
+            }
             catch (IOException ex)
             {
                 throw new RuntimeException("Couldnt open the NIO selector", ex);
@@ -181,7 +181,7 @@ public class CustomTHsHaServer extends TNonblockingServer
                 {
                     // ignore this exception.
                 }
-            } 
+            }
             catch (Throwable t)
             {
                 LOGGER.error("Uncaught Exception: ", t);
@@ -216,7 +216,7 @@ public class CustomTHsHaServer extends TNonblockingServer
             // process the changes which are inserted after completion.
             processInterestChanges();
         }
-        
+
         private void handleAccept()
         {
             SelectionKey clientKey = null;
@@ -228,7 +228,7 @@ public class CustomTHsHaServer extends TNonblockingServer
                 clientKey = client.registerSelector(selector, SelectionKey.OP_READ);
                 // add this key to the map
                 FrameBuffer frameBuffer = new FrameBuffer(client, clientKey);
-                clientKey.attach(frameBuffer); 
+                clientKey.attach(frameBuffer);
             } catch (TTransportException ex)
             {
                 // ignore this might have been handled by the other threads.
@@ -246,7 +246,7 @@ public class CustomTHsHaServer extends TNonblockingServer
                     client.close();
             }
         }
-        
+
         private void handleRead(SelectionKey key)
         {
             FrameBuffer buffer = (FrameBuffer) key.attachment();
@@ -262,14 +262,14 @@ public class CustomTHsHaServer extends TNonblockingServer
                     cleanupSelectionkey(key);
             }
         }
-        
+
         private void handleWrite(SelectionKey key)
         {
             FrameBuffer buffer = (FrameBuffer) key.attachment();
             if (!buffer.write())
                 cleanupSelectionkey(key);
         }
-        
+
         public void requestSelectInterestChange(FrameBuffer frameBuffer)
         {
             synchronized (selectInterestChanges)
@@ -289,7 +289,7 @@ public class CustomTHsHaServer extends TNonblockingServer
                 selectInterestChanges.clear();
             }
         }
-        
+
         private void cleanupSelectionkey(SelectionKey key)
         {
             FrameBuffer buffer = (FrameBuffer) key.attachment();
@@ -298,13 +298,13 @@ public class CustomTHsHaServer extends TNonblockingServer
             // cancel the selection key
             key.cancel();
         }
-        
+
         public void wakeupSelector()
         {
             selector.wakeup();
         }
     }
-    
+
     protected boolean requestInvoke(FrameBuffer frameBuffer, SelectorThread thread)
     {
         try
@@ -312,7 +312,7 @@ public class CustomTHsHaServer extends TNonblockingServer
             Runnable invocation = new Invocation(frameBuffer, thread);
             invoker.execute(invocation);
             return true;
-        } 
+        }
         catch (RejectedExecutionException rx)
         {
             LOGGER.warn("ExecutorService rejected execution!", rx);

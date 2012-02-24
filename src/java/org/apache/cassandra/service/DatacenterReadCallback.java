@@ -72,7 +72,7 @@ public class DatacenterReadCallback<T> extends ReadCallback<T>
         // version of this method gets called
         return true;
     }
-        
+
     @Override
     public int determineBlockFor(ConsistencyLevel consistency_level, String table)
     {

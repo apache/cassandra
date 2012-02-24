@@ -23,18 +23,18 @@ import org.apache.cassandra.io.IVersionedSerializer;
 
 
 /**
- * HeartBeat State associated with any given endpoint. 
+ * HeartBeat State associated with any given endpoint.
  */
 
 class HeartBeatState
 {
     private static final IVersionedSerializer<HeartBeatState> serializer;
-    
+
     static
     {
         serializer = new HeartBeatStateSerializer();
     }
-    
+
     private int generation;
     private int version;
 
@@ -42,7 +42,7 @@ class HeartBeatState
     {
         this(gen, 0);
     }
-    
+
     HeartBeatState(int gen, int ver)
     {
         generation = gen;
@@ -53,7 +53,7 @@ class HeartBeatState
     {
         return serializer;
     }
-    
+
     int getGeneration()
     {
         return generation;
@@ -63,7 +63,7 @@ class HeartBeatState
     {
         version = VersionGenerator.getNextVersion();
     }
-    
+
     int getHeartBeatVersion()
     {
         return version;
@@ -82,7 +82,7 @@ class HeartBeatStateSerializer implements IVersionedSerializer<HeartBeatState>
         dos.writeInt(hbState.getGeneration());
         dos.writeInt(hbState.getHeartBeatVersion());
     }
-    
+
     public HeartBeatState deserialize(DataInput dis, int version) throws IOException
     {
         return new HeartBeatState(dis.readInt(), dis.readInt());

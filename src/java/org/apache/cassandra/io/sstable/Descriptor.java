@@ -108,7 +108,7 @@ public class Descriptor
     {
         return filenameFor(component.name());
     }
-    
+
     private String baseFilename()
     {
         StringBuilder buff = new StringBuilder();

@@ -123,7 +123,7 @@ public class CommitLogSegment
         catch (IOException e)
         {
             throw new IOError(e);
-        } 
+        }
     }
 
     /**
@@ -175,7 +175,7 @@ public class CommitLogSegment
 
     /**
      * Recycle processes an unneeded segment file for reuse.
-     * 
+     *
      * @return a new CommitLogSegment representing the newly reusable segment.
      */
     public CommitLogSegment recycle()
@@ -233,7 +233,7 @@ public class CommitLogSegment
    /**
      * Appends a row mutation onto the commit log.  Requres that hasCapacityFor has already been checked.
      *
-     * @param   rowMutation   the mutation to append to the commit log. 
+     * @param   rowMutation   the mutation to append to the commit log.
      * @return  the position of the appended mutation
      */
     public ReplayPosition write(RowMutation rowMutation) throws IOException
@@ -367,7 +367,7 @@ public class CommitLogSegment
     /**
      * Check to see if a certain ReplayPosition is contained by this segment file.
      *
-     * @param   context the replay position to be checked 
+     * @param   context the replay position to be checked
      * @return  true if the replay position is contained by this segment file.
      */
     public boolean contains(ReplayPosition context)

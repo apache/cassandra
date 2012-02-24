@@ -38,7 +38,7 @@ public class CliCompleter extends SimpleCompletor
             "rename keyspace",
             "rename column family",
             "consistencylevel",
-            
+
             "help connect",
             "help describe keyspace",
             "help exit",
@@ -77,7 +77,7 @@ public class CliCompleter extends SimpleCompletor
     {
         super(commands);
     }
-    
+
     String[] getKeyspaceCommands()
     {
         return keyspaceCommands;

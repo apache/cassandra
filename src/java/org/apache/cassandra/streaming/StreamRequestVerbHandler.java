@@ -35,7 +35,7 @@ import org.apache.cassandra.net.Message;
 public class StreamRequestVerbHandler implements IVerbHandler
 {
     private static final Logger logger = LoggerFactory.getLogger(StreamRequestVerbHandler.class);
-    
+
     public void doVerb(Message message, String id)
     {
         if (logger.isDebugEnabled())

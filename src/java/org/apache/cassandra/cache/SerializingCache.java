@@ -41,7 +41,7 @@ public class SerializingCache<K, V> implements ICache<K, V>
 {
     private static final Logger logger = LoggerFactory.getLogger(SerializingCache.class);
     private static final int DEFAULT_CONCURENCY_LEVEL = 64;
-    
+
     private final ConcurrentLinkedHashMap<K, FreeableMemory> map;
     private final ISerializer<V> serializer;
 

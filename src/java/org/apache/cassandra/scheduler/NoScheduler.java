@@ -22,7 +22,7 @@ import org.apache.cassandra.config.RequestSchedulerOptions;
 
 /**
  * This is basically not having a scheduler, the requests are
- * processed as normally would be handled by the JVM. 
+ * processed as normally would be handled by the JVM.
  */
 public class NoScheduler implements IRequestScheduler
 {

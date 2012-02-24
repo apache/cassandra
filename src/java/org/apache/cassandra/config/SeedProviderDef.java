@@ -26,7 +26,7 @@ public class SeedProviderDef
 {
     public String class_name;
     public Map<String, String> parameters;
-    
+
     public SeedProviderDef(LinkedHashMap p)
     {
         class_name = (String)p.get("class_name");

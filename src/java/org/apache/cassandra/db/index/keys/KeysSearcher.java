@@ -37,12 +37,12 @@ import org.slf4j.LoggerFactory;
 public class KeysSearcher extends SecondaryIndexSearcher
 {
     private static final Logger logger = LoggerFactory.getLogger(KeysSearcher.class);
-    
+
     public KeysSearcher(SecondaryIndexManager indexManager, Set<ByteBuffer> columns)
     {
         super(indexManager, columns);
     }
-    
+
     private IndexExpression highestSelectivityPredicate(List<IndexExpression> clause)
     {
         IndexExpression best = null;
@@ -52,7 +52,7 @@ public class KeysSearcher extends SecondaryIndexSearcher
             //skip columns belonging to a different index type
             if(!columns.contains(expression.column_name))
                 continue;
-            
+
             SecondaryIndex index = indexManager.getIndexForColumn(expression.column_name);
             if (index == null || (expression.op != IndexOperator.EQ))
                 continue;

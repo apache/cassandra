@@ -62,12 +62,12 @@ public class RingCache
     public void refreshEndpointMap()
     {
             try {
-                
+
                 Cassandra.Client client = ConfigHelper.getClientFromOutputAddressList(conf);
 
                 List<TokenRange> ring = client.describe_ring(ConfigHelper.getOutputKeyspace(conf));
                 rangeMap = ArrayListMultimap.create();
-                
+
                 for (TokenRange range : ring)
                 {
                     Token<?> left = partitioner.getTokenFactory().fromString(range.start_token);

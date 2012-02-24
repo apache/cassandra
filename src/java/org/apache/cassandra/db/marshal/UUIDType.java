@@ -37,7 +37,7 @@ import static org.apache.cassandra.cql.jdbc.JdbcDate.iso8601Patterns;
  * - nil UUID is always lesser<br>
  * - compare timestamps if both are time-based<br>
  * - compare lexically, unsigned msb-to-lsb comparison<br>
- * 
+ *
  * @see "com.fasterxml.uuid.UUIDComparator"
  */
 public class UUIDType extends AbstractType<UUID>

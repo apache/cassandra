@@ -101,7 +101,7 @@ public class SSTableWriter extends SSTable
 
         this.sstableMetadataCollector = sstableMetadataCollector;
     }
-    
+
     public void mark()
     {
         dataMark = dataFile.mark();

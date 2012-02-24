@@ -77,7 +77,7 @@ public class ExpiringColumn extends Column
     public int size()
     {
         /*
-         * An expired column adds to a Column : 
+         * An expired column adds to a Column :
          *    4 bytes for the localExpirationTime
          *  + 4 bytes for the timeToLive
         */
@@ -124,7 +124,7 @@ public class ExpiringColumn extends Column
             clonedName = allocator.clone(name);
         return new ExpiringColumn(clonedName, allocator.clone(value), timestamp, timeToLive, localExpirationTime);
     }
-    
+
     @Override
     public String getString(AbstractType<?> comparator)
     {

@@ -35,7 +35,7 @@ public interface StreamingServiceMBean
 
     /** details about incoming streams */
     public List<String> getIncomingFiles(String host) throws IOException;
-    
+
     /** What's currently happening wrt streaming. */
     public String getStatus();
 }

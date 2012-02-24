@@ -29,8 +29,8 @@ import org.apache.cassandra.config.RequestSchedulerOptions;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 /**
- * A very basic Round Robin implementation of the RequestScheduler. It handles 
- * request groups identified on user/keyspace by placing them in separate 
+ * A very basic Round Robin implementation of the RequestScheduler. It handles
+ * request groups identified on user/keyspace by placing them in separate
  * queues and servicing a request from each queue in a RoundRobin fashion.
  * It optionally adds weights for each round.
  */
@@ -131,7 +131,7 @@ public class RoundRobinScheduler implements IRequestScheduler
     }
 
     /*
-     * Get the Queue for the respective id, if one is not available 
+     * Get the Queue for the respective id, if one is not available
      * create a new queue for that corresponding id and return it
      */
     private WeightedQueue getWeightedQueue(String id)

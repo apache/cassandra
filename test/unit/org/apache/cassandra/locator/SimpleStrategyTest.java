@@ -103,7 +103,7 @@ public class SimpleStrategyTest extends CleanupHelper
             }
         }
     }
-    
+
     @Test
     public void testGetEndpointsDuringBootstrap() throws UnknownHostException, ConfigurationException
     {
@@ -114,13 +114,13 @@ public class SimpleStrategyTest extends CleanupHelper
 
         Token[] endpointTokens = new Token[RING_SIZE];
         Token[] keyTokens = new Token[RING_SIZE];
-        
+
         for (int i = 0; i < RING_SIZE; i++)
         {
             endpointTokens[i] = new BigIntegerToken(String.valueOf(RING_SIZE * 2 * i));
             keyTokens[i] = new BigIntegerToken(String.valueOf(RING_SIZE * 2 * i + RING_SIZE));
         }
-        
+
         List<InetAddress> hosts = new ArrayList<InetAddress>();
         for (int i = 0; i < endpointTokens.length; i++)
         {

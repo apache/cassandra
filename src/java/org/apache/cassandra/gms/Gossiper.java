@@ -62,7 +62,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     private static final DebuggableScheduledThreadPoolExecutor executor = new DebuggableScheduledThreadPoolExecutor("GossipTasks");
 
     static final ApplicationState[] STATES = ApplicationState.values();
-    static final List<String> DEAD_STATES = Arrays.asList(VersionedValue.REMOVING_TOKEN, VersionedValue.REMOVED_TOKEN, 
+    static final List<String> DEAD_STATES = Arrays.asList(VersionedValue.REMOVING_TOKEN, VersionedValue.REMOVED_TOKEN,
                                                           VersionedValue.STATUS_LEFT, VersionedValue.HIBERNATE);
 
     private ScheduledFuture<?> scheduledGossipTask;
@@ -71,7 +71,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     private static final Logger logger = LoggerFactory.getLogger(Gossiper.class);
     public static final Gossiper instance = new Gossiper();
 
-    public static final long aVeryLongTime = 259200 * 1000; // 3 days    
+    public static final long aVeryLongTime = 259200 * 1000; // 3 days
     private long FatClientTimeout;
     private final Random random = new Random();
     private final Comparator<InetAddress> inetcomparator = new Comparator<InetAddress>()
@@ -102,9 +102,9 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
      * after removal to prevent nodes from falsely reincarnating during the time when removal
      * gossip gets propagated to all nodes */
     private final Map<InetAddress, Long> justRemovedEndpoints = new ConcurrentHashMap<InetAddress, Long>();
-    
+
     private final Map<InetAddress, Long> expireTimeEndpointMap = new ConcurrentHashMap<InetAddress, Long>();
-    
+
     // protocol versions of the other nodes in the cluster
     private final ConcurrentMap<InetAddress, Integer> versions = new NonBlockingHashMap<InetAddress, Integer>();
 
@@ -116,7 +116,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             {
                 //wait on messaging service to start listening
                 MessagingService.instance().waitUntilListening();
-                
+
                 /* Update the local heartbeat counter. */
                 endpointStateMap.get(FBUtilities.getBroadcastAddress()).getHeartBeatState().updateHeartBeat();
                 if (logger.isTraceEnabled())
@@ -206,13 +206,13 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     {
         subscribers.remove(subscriber);
     }
-    
+
     public void setVersion(InetAddress address, int version)
     {
         logger.debug("Setting version {} for {}", version, address);
         versions.put(address, version);
     }
-    
+
     public void resetVersion(InetAddress endpoint)
     {
         logger.debug("Reseting version for {}", endpoint);
@@ -231,7 +231,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         else
             return v;
     }
-    
+
 
     public Set<InetAddress> getLiveMembers()
     {
@@ -547,7 +547,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         catch (IOException ex)
         {
             throw new IOError(ex);
-        }        
+        }
         return seeds.contains(to);
     }
 
@@ -639,7 +639,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                 }
             }
         }
-        
+
         if (!justRemovedEndpoints.isEmpty())
         {
             for (Entry<InetAddress, Long> entry : justRemovedEndpoints.entrySet())
@@ -653,7 +653,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             }
         }
     }
-    
+
     protected long getExpireTimeForEndpoint(InetAddress endpoint)
     {
         /* default expireTime is aVeryLongTime */
@@ -724,7 +724,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         EndpointState ep2 = getEndpointStateForEndpoint(addr2);
         assert ep1 != null && ep2 != null;
         return ep1.getHeartBeatState().getGeneration() - ep2.getHeartBeatState().getGeneration();
-    }    
+    }
 
     void notifyFailureDetector(List<GossipDigest> gDigests)
     {
@@ -1066,9 +1066,9 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                                                               Gossiper.intervalInMillis,
                                                               TimeUnit.MILLISECONDS);
     }
-    
+
     // initialize local HB state if needed.
-    public void maybeInitializeLocalState(int generationNbr) 
+    public void maybeInitializeLocalState(int generationNbr)
     {
         EndpointState localState = endpointStateMap.get(FBUtilities.getBroadcastAddress());
         if ( localState == null )
@@ -1079,7 +1079,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             endpointStateMap.put(FBUtilities.getBroadcastAddress(), localState);
         }
     }
-    
+
 
     /**
      * Add an endpoint we knew about previously, but whose state is unknown
@@ -1146,7 +1146,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     {
         return getCurrentGenerationNumber(InetAddress.getByName(address));
     }
-    
+
     public void addExpireTimeForEndpoint(InetAddress endpoint, long expireTime)
     {
         if (logger.isDebugEnabled())
@@ -1155,7 +1155,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         }
         expireTimeEndpointMap.put(endpoint, expireTime);
     }
-    
+
     public static long computeExpireTime() {
         return System.currentTimeMillis() + Gossiper.aVeryLongTime;
     }

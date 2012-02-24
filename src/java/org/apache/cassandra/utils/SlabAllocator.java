@@ -73,7 +73,7 @@ public class SlabAllocator extends Allocator
             currentRegion.compareAndSet(region, null);
         }
     }
-    
+
     /**
      * Get the current region, or, if there is no current region, allocate a new one
      */

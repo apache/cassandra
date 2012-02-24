@@ -25,9 +25,9 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 public class JdbcBoolean extends AbstractJdbcType<Boolean>
 {
     public static final JdbcBoolean instance = new JdbcBoolean();
-    
+
     JdbcBoolean() {}
-    
+
     public boolean isCaseSensitive()
     {
         return false;
@@ -74,7 +74,7 @@ public class JdbcBoolean extends AbstractJdbcType<Boolean>
             throw new MarshalException("A boolean is stored in exactly 1 byte: "+bytes.remaining());
         }
         byte value = bytes.get(bytes.position());
-        
+
         return value ==0 ? Boolean.FALSE.toString(): Boolean.TRUE.toString();
     }
 
@@ -93,7 +93,7 @@ public class JdbcBoolean extends AbstractJdbcType<Boolean>
         byte value = bytes.get(bytes.position());
         return Boolean.valueOf(value ==0 ? false:true);
     }
-    
+
     public ByteBuffer decompose(Boolean value)
     {
       return (value==null) ? ByteBufferUtil.EMPTY_BYTE_BUFFER

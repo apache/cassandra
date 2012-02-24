@@ -33,7 +33,7 @@ public class StreamUtil
      * Takes an stream request message and creates an empty status response. Exists here because StreamRequestMessage
      * is package protected.
      */
-    static public void finishStreamRequest(Message msg, InetAddress to) 
+    static public void finishStreamRequest(Message msg, InetAddress to)
     {
         byte[] body = msg.getMessageBody();
         ByteArrayInputStream bufIn = new ByteArrayInputStream(body);
@@ -46,7 +46,7 @@ public class StreamUtil
         }
         catch (Exception e)
         {
-            System.err.println(e); 
+            System.err.println(e);
             e.printStackTrace();
         }
     }

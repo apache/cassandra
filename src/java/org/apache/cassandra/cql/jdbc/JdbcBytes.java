@@ -26,7 +26,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 public class JdbcBytes extends AbstractJdbcType<ByteBuffer>
 {
     public static final JdbcBytes instance = new JdbcBytes();
-    
+
     JdbcBytes() {}
 
     public boolean isCaseSensitive()
@@ -83,7 +83,7 @@ public class JdbcBytes extends AbstractJdbcType<ByteBuffer>
     {
         return bytes.duplicate();
     }
-    
+
     public ByteBuffer decompose(ByteBuffer value)
     {
         return value;

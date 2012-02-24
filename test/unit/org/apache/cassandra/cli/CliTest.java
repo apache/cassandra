@@ -207,7 +207,7 @@ public class CliTest extends CleanupHelper
         "show schema",
         "show schema TestKeySpace"
     };
-   
+
     @Test
     public void testCli() throws IOException, TException, ConfigurationException, ClassNotFoundException, TimedOutException, NotFoundException, SchemaDisagreementException, NoSuchFieldException, InvalidRequestException, UnavailableException, InstantiationException, IllegalAccessException
     {

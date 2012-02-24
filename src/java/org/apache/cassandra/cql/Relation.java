@@ -27,10 +27,10 @@ public class Relation
     private final Term entity;
     private final RelationType relationType;
     private final Term value;
-    
+
     /**
      * Creates a new relation.
-     * 
+     *
      * @param entity the kind of relation this is; what the term is being compared to.
      * @param type the type that describes how this entity relates to the value.
      * @param value the value being compared.
@@ -41,22 +41,22 @@ public class Relation
         this.relationType = RelationType.forString(type);
         this.value = value;
     }
-    
+
     public RelationType operator()
     {
         return relationType;
     }
-    
+
     public Term getEntity()
     {
         return entity;
     }
-    
+
     public Term getValue()
     {
         return value;
     }
-    
+
     @Override
     public String toString()
     {
@@ -67,7 +67,7 @@ public class Relation
 enum RelationType
 {
     EQ, LT, LTE, GTE, GT;
-    
+
     public static RelationType forString(String s)
     {
         if (s.equals("="))
@@ -80,7 +80,7 @@ enum RelationType
             return GTE;
         else if (s.equals(">"))
             return GT;
-        
+
         return null;
     }
 }

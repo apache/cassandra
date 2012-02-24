@@ -49,7 +49,7 @@ public class TCustomServerSocket extends TServerTransport
 
     /**
      * Allows fine-tuning of the server socket including keep-alive, reuse of addresses, send and receive buffer sizes.
-     * 
+     *
      * @param bindAddr
      * @param keepAlive
      * @param sendBufferSize

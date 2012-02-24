@@ -26,7 +26,7 @@ import java.net.InetAddress;
  */
 
 public interface IFailureDetectionEventListener
-{  
+{
     /**
      * Convict the specified endpoint.
      * @param ep endpoint to be convicted

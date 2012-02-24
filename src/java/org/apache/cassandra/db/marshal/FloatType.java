@@ -27,17 +27,17 @@ public class FloatType extends AbstractType<Float>
 {
     public static final FloatType instance = new FloatType();
 
-    FloatType() {} // singleton    
+    FloatType() {} // singleton
 
     public Float compose(ByteBuffer bytes)
     {
         return JdbcFloat.instance.compose(bytes);
     }
-    
+
     public ByteBuffer decompose(Float value)
     {
         return JdbcFloat.instance.decompose(value);
-    }    
+    }
 
     public int compare(ByteBuffer o1, ByteBuffer o2)
     {
@@ -49,7 +49,7 @@ public class FloatType extends AbstractType<Float>
         {
             return 1;
         }
-        
+
         return compose(o1).compareTo(compose(o2));
     }
 
@@ -70,7 +70,7 @@ public class FloatType extends AbstractType<Float>
       // Return an empty ByteBuffer for an empty string.
       if (source.isEmpty())
           return ByteBufferUtil.EMPTY_BYTE_BUFFER;
-      
+
       try
       {
           float f = Float.parseFloat(source);
@@ -79,7 +79,7 @@ public class FloatType extends AbstractType<Float>
       catch (NumberFormatException e1)
       {
           throw new MarshalException(String.format("unable to coerce '%s' to a float", source), e1);
-      }  
+      }
     }
 
     public void validate(ByteBuffer bytes) throws MarshalException

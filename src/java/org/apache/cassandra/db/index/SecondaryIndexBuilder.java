@@ -37,7 +37,7 @@ public class SecondaryIndexBuilder extends CompactionInfo.Holder
     private final ColumnFamilyStore cfs;
     private final SortedSet<ByteBuffer> columns;
     private final ReducingKeyIterator iter;
-    
+
     public SecondaryIndexBuilder(ColumnFamilyStore cfs, SortedSet<ByteBuffer> columns, ReducingKeyIterator iter)
     {
         this.cfs = cfs;

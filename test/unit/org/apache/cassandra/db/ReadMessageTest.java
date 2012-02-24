@@ -44,10 +44,10 @@ public class ReadMessageTest extends SchemaLoader
         ArrayList<ByteBuffer> colList = new ArrayList<ByteBuffer>();
         colList.add(ByteBufferUtil.bytes("col1"));
         colList.add(ByteBufferUtil.bytes("col2"));
-        
+
         ReadCommand rm, rm2;
         DecoratedKey dk = Util.dk("row1");
-        
+
         rm = new SliceByNamesReadCommand("Keyspace1", dk.key, new QueryPath("Standard1"), colList);
         rm2 = serializeAndDeserializeReadMessage(rm);
         assert rm2.toString().equals(rm.toString());
@@ -55,7 +55,7 @@ public class ReadMessageTest extends SchemaLoader
         rm = new SliceFromReadCommand("Keyspace1", dk.key, new QueryPath("Standard1"), ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, true, 2);
         rm2 = serializeAndDeserializeReadMessage(rm);
         assert rm2.toString().equals(rm.toString());
-        
+
         rm = new SliceFromReadCommand("Keyspace1", dk.key, new QueryPath("Standard1"), ByteBufferUtil.bytes("a"), ByteBufferUtil.bytes("z"), true, 5);
         rm2 = serializeAndDeserializeReadMessage(rm);
         assertEquals(rm2.toString(), rm.toString());
@@ -79,7 +79,7 @@ public class ReadMessageTest extends SchemaLoader
         bis = new ByteArrayInputStream(dos.getData(), 0, dos.getLength());
         return rms.deserialize(new DataInputStream(bis), MessagingService.current_version);
     }
-    
+
     @Test
     public void testGetColumn() throws IOException, ColumnFamilyNotDefinedException
     {
@@ -97,43 +97,43 @@ public class ReadMessageTest extends SchemaLoader
         IColumn col = row.cf.getColumn(ByteBufferUtil.bytes("Column1"));
         assertEquals(col.value(), ByteBuffer.wrap("abcd".getBytes()));
     }
-    
-    @Test 
+
+    @Test
     public void testNoCommitLog() throws Exception
     {
-                   
+
         RowMutation rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes("row"));
         rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes("commit1")), ByteBufferUtil.bytes("abcd"), 0);
         rm.apply();
-          
+
         rm = new RowMutation("NoCommitlogSpace", ByteBufferUtil.bytes("row"));
         rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes("commit2")), ByteBufferUtil.bytes("abcd"), 0);
         rm.apply();
-        
+
         boolean commitLogMessageFound = false;
         boolean noCommitLogMessageFound = false;
-            
+
         File commitLogDir = new File(DatabaseDescriptor.getCommitLogLocation());
-            
+
         for(String filename : commitLogDir.list())
         {
             BufferedReader f = new BufferedReader(new FileReader(commitLogDir.getAbsolutePath()+File.separator+filename));
-                
+
             String line = null;
             while( (line = f.readLine()) != null)
             {
                 if(line.contains("commit1"))
                     commitLogMessageFound = true;
-                    
+
                 if(line.contains("commit2"))
                     noCommitLogMessageFound = true;
             }
-                
+
             f.close();
         }
-            
+
         assertTrue(commitLogMessageFound);
-        assertFalse(noCommitLogMessageFound);         
+        assertFalse(noCommitLogMessageFound);
     }
-    
+
 }

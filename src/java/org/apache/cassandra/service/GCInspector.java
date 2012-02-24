@@ -41,7 +41,7 @@ public class GCInspector
     final static long INTERVAL_IN_MS = 1000;
     final static long MIN_DURATION = 200;
     final static long MIN_DURATION_TPSTATS = 1000;
-    
+
     public static final GCInspector instance = new GCInspector();
 
     private final HashMap<String, Long> gctimes = new HashMap<String, Long>();
@@ -74,7 +74,7 @@ public class GCInspector
     {
         // don't bother starting a thread that will do nothing.
         if (beans.size() == 0)
-            return;         
+            return;
         Runnable t = new Runnable()
         {
             public void run()
@@ -100,12 +100,12 @@ public class GCInspector
 
             Long previousCount = gccounts.get(gc.getName());
             Long count = gc.getCollectionCount();
-            
+
             if (previousCount == null)
-                previousCount = 0L;           
+                previousCount = 0L;
             if (count.equals(previousCount))
                 continue;
-            
+
             gccounts.put(gc.getName(), count);
 
             MemoryUsage mu = membean.getHeapMemoryUsage();

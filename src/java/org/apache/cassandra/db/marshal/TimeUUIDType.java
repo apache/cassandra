@@ -110,9 +110,9 @@ public class TimeUUIDType extends AbstractType<UUID>
         // Return an empty ByteBuffer for an empty string.
         if (source.isEmpty())
             return ByteBufferUtil.EMPTY_BYTE_BUFFER;
-        
+
         ByteBuffer idBytes = null;
-        
+
         // ffffffff-ffff-ffff-ffff-ffffffffff
         if (regexPattern.matcher(source).matches())
         {
@@ -126,7 +126,7 @@ public class TimeUUIDType extends AbstractType<UUID>
             {
                 throw new MarshalException(String.format("unable to make UUID from '%s'", source), e);
             }
-            
+
             if (uuid.version() != 1)
                 throw new MarshalException("TimeUUID supports only version 1 UUIDs");
         }
@@ -159,7 +159,7 @@ public class TimeUUIDType extends AbstractType<UUID>
                 throw new MarshalException(String.format("unable to coerce '%s' to version 1 UUID", source), e1);
             }
         }
-            
+
         return idBytes;
     }
 

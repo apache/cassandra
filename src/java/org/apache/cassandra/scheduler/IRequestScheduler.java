@@ -26,7 +26,7 @@ public interface IRequestScheduler
 {
     /**
      * Queue incoming request threads
-     * 
+     *
      * @param t Thread handing the request
      * @param id    Scheduling parameter, an id to distinguish profiles (users/keyspace)
      * @param timeoutMS   The max time in milliseconds to spend blocking for a slot

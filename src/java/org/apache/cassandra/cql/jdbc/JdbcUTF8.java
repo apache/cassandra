@@ -28,9 +28,9 @@ import com.google.common.base.Charsets;
 public class JdbcUTF8 extends AbstractJdbcType<String>
 {
     public static final JdbcUTF8 instance = new JdbcUTF8();
-    
+
     public JdbcUTF8() {}
-    
+
     public boolean isCaseSensitive()
     {
         return true;

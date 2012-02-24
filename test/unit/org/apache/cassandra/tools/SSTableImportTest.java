@@ -48,7 +48,7 @@ import org.json.simple.parser.ParseException;
 import org.junit.Test;
 
 public class SSTableImportTest extends SchemaLoader
-{   
+{
     @Test
     public void testImportSimpleCf() throws IOException, URISyntaxException
     {
@@ -106,7 +106,7 @@ public class SSTableImportTest extends SchemaLoader
         String jsonUrl = resourcePath("SuperCF.json");
         File tempSS = tempSSTableFile("Keyspace1", "Super4");
         SSTableImport.importJson(jsonUrl, "Keyspace1", "Super4", tempSS.getPath());
-        
+
         // Verify results
         SSTableReader reader = SSTableReader.open(Descriptor.fromFilename(tempSS.getPath()));
         QueryFilter qf = QueryFilter.getNamesFilter(Util.dk("rowA"), new QueryPath("Super4", null, null), ByteBufferUtil.bytes("superA"));

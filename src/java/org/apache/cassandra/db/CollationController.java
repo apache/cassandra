@@ -148,7 +148,7 @@ public class CollationController
             };
             ColumnFamily returnCF = container.cloneMeShallow();
             filter.collateColumns(returnCF, Collections.singletonList(toCollate), gcBefore);
-            
+
             // "hoist up" the requested data into a more recent sstable
             if (sstablesIterated > cfs.getMinimumCompactionThreshold()
                 && !cfs.isCompactionDisabled()

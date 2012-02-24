@@ -23,7 +23,7 @@ import java.util.Map;
 public class TypesMap
 {
     private final static Map<String, AbstractJdbcType<?>> map = new HashMap<String, AbstractJdbcType<?>>();
-    
+
     static
     {
         map.put("org.apache.cassandra.db.marshal.AsciiType", JdbcAscii.instance);
@@ -42,7 +42,7 @@ public class TypesMap
         map.put("org.apache.cassandra.db.marshal.UTF8Type", JdbcUTF8.instance);
         map.put("org.apache.cassandra.db.marshal.UUIDType", JdbcUUID.instance);
     }
-    
+
     public static AbstractJdbcType<?> getTypeForComparator(String comparator)
     {
         // If not fully qualified, assume it's the short name for a built-in.

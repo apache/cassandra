@@ -23,7 +23,7 @@ import org.apache.cassandra.service.StorageProxy;
 
 /**
  * Encapsulates the callback information.
- * The ability to set the message is useful in cases for when a hint needs 
+ * The ability to set the message is useful in cases for when a hint needs
  * to be written due to a timeout in the response from a replica.
  */
 class CallbackInfo

@@ -38,7 +38,7 @@ public class BytesType extends AbstractType<ByteBuffer>
     {
         return JdbcBytes.instance.decompose(value);
     }
-    
+
     public int compare(ByteBuffer o1, ByteBuffer o2)
     {
         return BytesType.bytesCompare(o1, o2);
@@ -50,7 +50,7 @@ public class BytesType extends AbstractType<ByteBuffer>
             if(null == o2) return 0;
             else return -1;
         }
-              
+
         return ByteBufferUtil.compareUnsigned(o1, o2);
     }
 

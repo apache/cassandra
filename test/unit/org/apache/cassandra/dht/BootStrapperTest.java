@@ -51,30 +51,30 @@ public class BootStrapperTest extends CleanupHelper
         // fetch a bootstrap token from the local node
         assert BootStrapper.getBootstrapTokenFrom(FBUtilities.getBroadcastAddress()) != null;
     }
-    
+
     @Test
     public void testMulitipleAutomaticBootstraps() throws IOException
     {
         StorageService ss = StorageService.instance;
         generateFakeEndpoints(5);
-        InetAddress[] addrs = new InetAddress[] 
+        InetAddress[] addrs = new InetAddress[]
         {
-            InetAddress.getByName("127.0.0.2"),  
-            InetAddress.getByName("127.0.0.3"),  
-            InetAddress.getByName("127.0.0.4"),  
-            InetAddress.getByName("127.0.0.5"),  
+            InetAddress.getByName("127.0.0.2"),
+            InetAddress.getByName("127.0.0.3"),
+            InetAddress.getByName("127.0.0.4"),
+            InetAddress.getByName("127.0.0.5"),
         };
         InetAddress[] bootstrapAddrs = new InetAddress[]
         {
-            InetAddress.getByName("127.0.0.12"),  
-            InetAddress.getByName("127.0.0.13"),  
-            InetAddress.getByName("127.0.0.14"),  
-            InetAddress.getByName("127.0.0.15"),  
+            InetAddress.getByName("127.0.0.12"),
+            InetAddress.getByName("127.0.0.13"),
+            InetAddress.getByName("127.0.0.14"),
+            InetAddress.getByName("127.0.0.15"),
         };
         Map<InetAddress, Double> load = new HashMap<InetAddress, Double>();
         for (int i = 0; i < addrs.length; i++)
             load.put(addrs[i], (double)i+2);
-        
+
         // give every node a bootstrap source.
         for (int i = 3; i >=0; i--)
         {
@@ -82,24 +82,24 @@ public class BootStrapperTest extends CleanupHelper
             assert bootstrapSource != null;
             assert bootstrapSource.equals(addrs[i]) : String.format("expected %s but got %s for %d", addrs[i], bootstrapSource, i);
             assert !ss.getTokenMetadata().getBootstrapTokens().containsValue(bootstrapSource);
-            
+
             Range<Token> range = ss.getPrimaryRangeForEndpoint(bootstrapSource);
             Token token = StorageService.getPartitioner().midpoint(range.left, range.right);
             assert range.contains(token);
             ss.onChange(bootstrapAddrs[i], ApplicationState.STATUS, StorageService.instance.valueFactory.bootstrapping(token));
         }
-        
+
         // any further attempt to bootsrtap should fail since every node in the cluster is splitting.
         try
         {
             BootStrapper.getBootstrapSource(ss.getTokenMetadata(), load);
             throw new AssertionError("This bootstrap should have failed.");
         }
-        catch (RuntimeException ex) 
+        catch (RuntimeException ex)
         {
             // success!
         }
-        
+
         // indicate that one of the nodes is done. see if the node it was bootstrapping from is still available.
         Range<Token> range = ss.getPrimaryRangeForEndpoint(addrs[2]);
         Token token = StorageService.getPartitioner().midpoint(range.left, range.right);

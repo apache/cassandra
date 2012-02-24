@@ -23,7 +23,7 @@ public class Hex
 {
     private static final Constructor<String> stringConstructor = getProtectedConstructor(String.class, int.class, int.class, char[].class);
     private final static byte[] charToByte = new byte[256];
-    
+
     // package protected for use by ByteBufferUtil. Do not modify this array !!
     static final char[] byteToChar = new char[16];
     static
@@ -45,7 +45,7 @@ public class Hex
             byteToChar[i] = Integer.toHexString(i).charAt(0);
         }
     }
-    
+
     public static byte[] hexToBytes(String str)
     {
         if (str.length() % 2 == 1)
@@ -75,7 +75,7 @@ public class Hex
 
         return wrapCharArray(c);
     }
-    
+
     /**
      * Create a String from a char array with zero-copy (if available), using reflection to access a package-protected constructor of String.
      * */
@@ -99,7 +99,7 @@ public class Hex
         }
         return s == null ? new String(c) : s;
     }
-    
+
     /**
      * Used to get access to protected/private constructor of the specified class
      * @param klass - name of the class

@@ -26,9 +26,9 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 public class JdbcInteger extends AbstractJdbcType<BigInteger>
 {
     public static final JdbcInteger instance = new JdbcInteger();
-    
+
     JdbcInteger() {}
-    
+
     public boolean isCaseSensitive()
     {
         return false;

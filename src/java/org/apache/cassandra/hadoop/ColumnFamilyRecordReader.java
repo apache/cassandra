@@ -80,7 +80,7 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
         this.keyBufferSize = keyBufferSize;
     }
 
-    public void close() 
+    public void close()
     {
         if (socket != null && socket.isOpen())
         {
@@ -89,7 +89,7 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
             client = null;
         }
     }
-    
+
     public ByteBuffer getCurrentKey()
     {
         return currentRow.left;
@@ -99,35 +99,35 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
     {
         return currentRow.right;
     }
-    
+
     public float getProgress()
     {
         // TODO this is totally broken for wide rows
         // the progress is likely to be reported slightly off the actual but close enough
         return ((float)iter.rowsRead()) / totalRowCount;
     }
-    
+
     static boolean isEmptyPredicate(SlicePredicate predicate)
     {
         if (predicate == null)
             return true;
-              
+
         if (predicate.isSetColumn_names() && predicate.getSlice_range() == null)
             return false;
-        
+
         if (predicate.getSlice_range() == null)
             return true;
-        
+
         byte[] start  = predicate.getSlice_range().getStart();
-        byte[] finish = predicate.getSlice_range().getFinish(); 
+        byte[] finish = predicate.getSlice_range().getFinish();
         if ( (start == null || start == ArrayUtils.EMPTY_BYTE_ARRAY) &&
              (finish == null || finish == ArrayUtils.EMPTY_BYTE_ARRAY) )
             return true;
-        
-        
-        return false;       
+
+
+        return false;
     }
-    
+
     public void initialize(InputSplit split, TaskAttemptContext context) throws IOException
     {
         this.split = (ColumnFamilySplit) split;
@@ -141,10 +141,10 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
         batchSize = ConfigHelper.getRangeBatchSize(conf);
         cfName = ConfigHelper.getInputColumnFamily(conf);
         consistencyLevel = ConsistencyLevel.valueOf(ConfigHelper.getReadConsistencyLevel(conf));
-        
-        
+
+
         keyspace = ConfigHelper.getInputKeyspace(conf);
-        
+
         try
         {
             // only need to connect once
@@ -176,7 +176,7 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
 
         iter = widerows ? new WideRowIterator() : new StaticRowIterator();
     }
-    
+
     public boolean nextKeyValue() throws IOException
     {
         if (!iter.hasNext())
@@ -455,7 +455,7 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
                     rows = null;
                     return;
                 }
-                    
+
                 // nothing new? reached the end
                 if (lastRow != null && (rows.get(0).key.equals(lastRow.key) || rows.get(0).columns.get(0).column.name.equals(startColumn)))
                 {

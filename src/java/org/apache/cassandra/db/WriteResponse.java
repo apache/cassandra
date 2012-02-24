@@ -29,11 +29,11 @@ import org.apache.cassandra.utils.FBUtilities;
 
 
 /*
- * This message is sent back the row mutation verb handler 
- * and basically specifies if the write succeeded or not for a particular 
+ * This message is sent back the row mutation verb handler
+ * and basically specifies if the write succeeded or not for a particular
  * key in a table
  */
-public class WriteResponse 
+public class WriteResponse
 {
     private static final WriteResponseSerializer serializer = new WriteResponseSerializer();
 

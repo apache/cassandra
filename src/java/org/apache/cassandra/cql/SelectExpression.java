@@ -25,23 +25,23 @@ import java.util.List;
  * determine which columns will appear in the result set.  SelectExpression
  * instances encapsulate a parsed expression from a <code>SELECT</code>
  * statement.
- * 
+ *
  * See: doc/cql/CQL.html#SpecifyingColumns
  */
 public class SelectExpression
 {
     public static final int MAX_COLUMNS_DEFAULT = 10000;
-    
+
     private int numColumns = MAX_COLUMNS_DEFAULT;
     private boolean reverseColumns = false;
     private final boolean hasFirstSet;
     private final boolean wildcard;
     private final Term start, finish;
     private final List<Term> columns;
-    
+
     /**
      * Create a new SelectExpression for a range (slice) of columns.
-     * 
+     *
      * @param start the starting column name
      * @param finish the finishing column name
      * @param count the number of columns to limit the results to
@@ -59,10 +59,10 @@ public class SelectExpression
         hasFirstSet = firstSet;
         this.columns = null;
     }
-    
+
     /**
      * Create a new SelectExpression for a list of columns.
-     * 
+     *
      * @param first the first (possibly only) column name to select on.
      * @param count the number of columns to limit the results on
      * @param reverse true to reverse column order
@@ -79,10 +79,10 @@ public class SelectExpression
         start = null;
         finish = null;
     }
-    
+
     /**
      * Add an additional column name to a SelectExpression.
-     * 
+     *
      * @param addTerm
      */
     public void and(Term addTerm)
@@ -90,12 +90,12 @@ public class SelectExpression
         assert !isColumnRange();    // Not possible when invoked by parser
         columns.add(addTerm);
     }
-    
+
     public boolean isColumnRange()
     {
         return (start != null);
     }
-    
+
     public boolean isColumnList()
     {
         return !isColumnRange();
@@ -109,12 +109,12 @@ public class SelectExpression
     {
         return reverseColumns;
     }
-    
+
     public void setColumnsReversed(boolean reversed)
     {
         reverseColumns = reversed;
     }
-    
+
     public void setColumnsLimit(int limit)
     {
         numColumns = limit;
@@ -159,6 +159,6 @@ public class SelectExpression
                              finish,
                              columns);
     }
-    
-    
+
+
 }

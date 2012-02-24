@@ -25,7 +25,7 @@ public class ResponseVerbHandler implements IVerbHandler
     private static final Logger logger = LoggerFactory.getLogger( ResponseVerbHandler.class );
 
     public void doVerb(Message message, String id)
-    {     
+    {
         double age = System.currentTimeMillis() - MessagingService.instance().getRegisteredCallbackAge(id);
         CallbackInfo callbackInfo = MessagingService.instance().removeRegisteredCallback(id);
         if (callbackInfo == null)

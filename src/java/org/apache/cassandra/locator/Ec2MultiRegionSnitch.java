@@ -33,15 +33,15 @@ import org.apache.cassandra.service.StorageService;
 
 /**
  * 1) Snitch will automatically set the public IP by querying the AWS API
- * 
+ *
  * 2) Snitch will set the private IP as a Gossip application state.
- * 
+ *
  * 3) Snitch implements IESCS and will reset the connection if it is within the
  * same region to communicate via private IP.
- * 
+ *
  * Implements Ec2Snitch to inherit its functionality and extend it for
  * Multi-Region.
- * 
+ *
  * Operational: All the nodes in this cluster needs to be able to (modify the
  * Security group settings in AWS) communicate via Public IP's.
  */
@@ -61,7 +61,7 @@ public class Ec2MultiRegionSnitch extends Ec2Snitch implements IEndpointStateCha
         // use the Public IP to broadcast Address to other nodes.
         DatabaseDescriptor.setBroadcastAddress(public_ip);
     }
-    
+
     @Override
     public void onJoin(InetAddress endpoint, EndpointState epState)
     {
@@ -105,7 +105,7 @@ public class Ec2MultiRegionSnitch extends Ec2Snitch implements IEndpointStateCha
     {
         if (!getDatacenter(endpoint).equals(getDatacenter(public_ip)))
             return; // do nothing return back...
-        
+
         try
         {
             InetAddress remoteIP = InetAddress.getByName(versionedValue.value);
@@ -116,7 +116,7 @@ public class Ec2MultiRegionSnitch extends Ec2Snitch implements IEndpointStateCha
             logger.error("Error in getting the IP address resolved: ", e);
         }
     }
-    
+
     public void gossiperStarting()
     {
         super.gossiperStarting();

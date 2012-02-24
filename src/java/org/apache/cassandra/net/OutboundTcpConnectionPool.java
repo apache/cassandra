@@ -64,14 +64,14 @@ public class OutboundTcpConnectionPool
         for (OutboundTcpConnection con : new OutboundTcpConnection[] { cmdCon, ackCon })
             con.closeSocket();
     }
-    
+
     public void reset(InetAddress remoteEP)
     {
         resetedEndpoint = remoteEP;
         for (OutboundTcpConnection con : new OutboundTcpConnection[] { cmdCon, ackCon })
             con.softCloseSocket();
     }
-    
+
     public Socket newSocket() throws IOException
     {
         // zero means 'bind on any available port.'
@@ -90,12 +90,12 @@ public class OutboundTcpConnectionPool
                 return new Socket(endPoint(), DatabaseDescriptor.getStoragePort(), FBUtilities.getLocalAddress(), 0);
         }
     }
-    
+
     InetAddress endPoint()
     {
         return resetedEndpoint == null ? id : resetedEndpoint;
     }
-    
+
     boolean isEncryptedChannel()
     {
         switch (DatabaseDescriptor.getEncryptionOptions().internode_encryption)

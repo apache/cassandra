@@ -56,7 +56,7 @@ public class Ec2Snitch extends AbstractNetworkTopologySnitch
         ec2region = splits.length < 3 ? splits[0] : splits[0] + "-" + splits[1];
         logger.info("EC2Snitch using region: " + ec2region + ", zone: " + ec2zone + ".");
     }
-    
+
     String awsApiCall(String url) throws IOException, ConfigurationException
     {
         // Populate the region and zone by introspection, fail if 404 on metadata

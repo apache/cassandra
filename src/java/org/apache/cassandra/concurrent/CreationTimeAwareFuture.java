@@ -32,25 +32,25 @@ import java.util.concurrent.TimeoutException;
  *
  * @param <V>
  */
-public class CreationTimeAwareFuture<V> implements Future<V> 
+public class CreationTimeAwareFuture<V> implements Future<V>
 {
 
     private final long creationTime = System.currentTimeMillis();
     private final Future<V> future;
 
-    public CreationTimeAwareFuture(Future<V> future) 
+    public CreationTimeAwareFuture(Future<V> future)
     {
         this.future = future;
     }
 
-    public V get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException 
+    public V get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException
     {
         timeout = unit.toMillis(timeout);
         long overallTimeout = timeout - (System.currentTimeMillis() - creationTime);
         return future.get(overallTimeout, TimeUnit.MILLISECONDS);
     }
 
-    public boolean cancel(boolean mayInterruptIfRunning) 
+    public boolean cancel(boolean mayInterruptIfRunning)
     {
         return future.cancel(mayInterruptIfRunning);
     }

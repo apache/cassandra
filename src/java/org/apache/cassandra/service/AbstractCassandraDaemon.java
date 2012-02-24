@@ -52,7 +52,7 @@ import org.apache.cassandra.utils.Mx4jTool;
  * service, which defines not only a way to activate and deactivate it, but also
  * hooks into its lifecycle methods (see {@link #setup()}, {@link #start()},
  * {@link #stop()} and {@link #setup()}).
- * 
+ *
  */
 public abstract class AbstractCassandraDaemon implements CassandraDaemon
 {
@@ -75,7 +75,7 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
                 // then try loading from the classpath.
                 configLocation = AbstractCassandraDaemon.class.getClassLoader().getResource(config);
             }
-        
+
             if (configLocation == null)
                 throw new RuntimeException("Couldn't figure out log4j configuration: "+config);
 
@@ -103,11 +103,11 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
     private static final Logger logger = LoggerFactory.getLogger(AbstractCassandraDaemon.class);
 
     static final AtomicInteger exceptions = new AtomicInteger();
-    
+
     protected InetAddress listenAddr;
     protected int listenPort;
     protected volatile boolean isRunning = false;
-    
+
     /**
      * This is a hook for concrete daemons to initialize themselves suitably.
      *
@@ -174,7 +174,7 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
             logger.error("Fatal exception during initialization", e);
             System.exit(100);
         }
-        
+
         // load keyspace descriptions.
         try
         {
@@ -185,7 +185,7 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
             logger.error("Fatal exception during initialization", e);
             System.exit(100);
         }
-        
+
         // clean up debris in the rest of the tables
         for (String table : Schema.instance.getTables())
         {
@@ -243,7 +243,7 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
      * Initialize the Cassandra Daemon based on the given <a
      * href="http://commons.apache.org/daemon/jsvc.html">Commons
      * Daemon</a>-specific arguments. To clarify, this is a hook for JSVC.
-     * 
+     *
      * @param arguments
      *            the arguments passed in from JSVC
      * @throws IOException
@@ -252,7 +252,7 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
     {
         setup();
     }
-    
+
     /**
      * Start the Cassandra Daemon, assuming that it has already been
      * initialized via {@link #init(String[])}
@@ -272,7 +272,7 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
             logger.info("Not starting RPC server as requested. Use JMX (StorageService->startRPCServer()) to start it");
         }
     }
-    
+
     /**
      * Stop the daemon, ideally in an idempotent manner.
      *
@@ -332,42 +332,42 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
      */
     protected abstract void stopServer();
 
-    
+
     /**
      * Clean up all resources obtained during the lifetime of the daemon. This
      * is a hook for JSVC.
      */
     public void destroy()
     {}
-    
+
     /**
      * A convenience method to initialize and start the daemon in one shot.
      */
     public void activate()
     {
         String pidFile = System.getProperty("cassandra-pidfile");
-        
+
         try
         {
             setup();
-            
+
             if (pidFile != null)
             {
                 new File(pidFile).deleteOnExit();
             }
-            
+
             if (System.getProperty("cassandra-foreground") == null)
             {
                 System.out.close();
                 System.err.close();
             }
-            
+
             start();
         }
         catch (Throwable e)
         {
             logger.error("Exception encountered during startup", e);
-            
+
             // try to warn user on stdout too, if we haven't already detached
             e.printStackTrace();
             System.out.println("Exception encountered during startup: " + e.getMessage());
@@ -375,7 +375,7 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
             System.exit(3);
         }
     }
-    
+
     /**
      * A convenience method to stop and destroy the daemon in one shot.
      */
@@ -384,7 +384,7 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
         stop();
         destroy();
     }
-    
+
     /**
      * A subclass of Java's ThreadPoolExecutor which implements Jetty's ThreadPool
      * interface (for integration with Avro), and performs ClientState cleanup.
@@ -392,7 +392,7 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
      * (Note that the tasks being executed perform their own while-command-process
      * loop until the client disconnects.)
      */
-    public static class CleaningThreadPool extends ThreadPoolExecutor 
+    public static class CleaningThreadPool extends ThreadPoolExecutor
     {
         private final ThreadLocal<ClientState> state;
         public CleaningThreadPool(ThreadLocal<ClientState> state, int minWorkerThread, int maxWorkerThreads)

@@ -74,7 +74,7 @@ public class EmbeddedCassandraServiceTest extends CleanupHelper
         client.set_keyspace("Keyspace1");
 
         ByteBuffer key_user_id = ByteBufferUtil.bytes("1");
-        
+
         long timestamp = System.currentTimeMillis();
         ColumnPath cp = new ColumnPath("Standard1");
         ColumnParent par = new ColumnParent("Standard1");

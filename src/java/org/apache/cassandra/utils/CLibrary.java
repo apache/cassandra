@@ -38,7 +38,7 @@ public final class CLibrary
 
     private static final int MCL_CURRENT = 1;
     private static final int MCL_FUTURE = 2;
-    
+
     private static final int ENOMEM = 12;
 
     private static final int F_GETFL   = 3;  /* get file status flags */

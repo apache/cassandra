@@ -35,7 +35,7 @@ public class AllowAllAuthenticator implements IAuthenticator
     {
         return USER;
     }
-    
+
     public void validateConfiguration() throws ConfigurationException
     {
         // pass

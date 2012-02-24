@@ -32,7 +32,7 @@ public class BulkOutputFormat extends OutputFormat<ByteBuffer,List<Mutation>>
     implements org.apache.hadoop.mapred.OutputFormat<ByteBuffer,List<Mutation>>
 {
     private static final Logger logger = LoggerFactory.getLogger(BulkOutputFormat.class);
-    
+
     @Override
     public void checkOutputSpecs(JobContext context)
     {
@@ -52,7 +52,7 @@ public class BulkOutputFormat extends OutputFormat<ByteBuffer,List<Mutation>>
     {
         return new NullOutputCommitter();
     }
-    
+
     /** Fills the deprecated OutputFormat interface for streaming. */
     @Deprecated
     public void checkOutputSpecs(org.apache.hadoop.fs.FileSystem filesystem, org.apache.hadoop.mapred.JobConf job) throws IOException

@@ -231,10 +231,10 @@ public class ColumnFamilyInputFormat extends InputFormat<ByteBuffer, SortedMap<B
         for (int i = 0; i < range.rpc_endpoints.size(); i++)
         {
             String host = range.rpc_endpoints.get(i);
-            
+
             if (host == null || host.equals("0.0.0.0"))
                 host = range.endpoints.get(i);
-                        
+
             try
             {
                 Cassandra.Client client = ConfigHelper.createConnection(host, ConfigHelper.getInputRpcPort(conf), true);

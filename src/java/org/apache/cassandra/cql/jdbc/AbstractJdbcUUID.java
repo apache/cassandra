@@ -26,7 +26,7 @@ public abstract class AbstractJdbcUUID extends AbstractJdbcType<UUID>
     {
         return obj.toString();
     }
-    
+
     public boolean isCaseSensitive()
     {
         return false;

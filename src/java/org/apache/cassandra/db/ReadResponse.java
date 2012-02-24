@@ -26,7 +26,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 
 /*
- * The read response message is sent by the server when reading data 
+ * The read response message is sent by the server when reading data
  * this encapsulates the tablename and the row that has been read.
  * The table name is needed so that we can use it to create repairs.
  */
@@ -61,12 +61,12 @@ private static final IVersionedSerializer<ReadResponse> serializer;
         this.digest = null;
     }
 
-    public Row row() 
+    public Row row()
     {
         return row;
     }
 
-    public ByteBuffer digest() 
+    public ByteBuffer digest()
     {
         return digest;
     }

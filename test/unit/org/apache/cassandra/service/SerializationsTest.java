@@ -1,6 +1,6 @@
 package org.apache.cassandra.service;
 /*
- * 
+ *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -8,16 +8,16 @@ package org.apache.cassandra.service;
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
- * 
+ *
  */
 
 
@@ -51,19 +51,19 @@ public class SerializationsTest extends AbstractSerializationsTester
         messageSerializer.serialize(AntiEntropyService.TreeRequestVerbHandler.makeVerb(Statics.req, getVersion()), out, getVersion());
         out.close();
     }
-    
+
     @Test
     public void testTreeRequestRead() throws IOException
     {
         if (EXECUTE_WRITES)
             testTreeRequestWrite();
-        
+
         DataInputStream in = getInput("service.TreeRequest.bin");
         assert AntiEntropyService.TreeRequestVerbHandler.SERIALIZER.deserialize(in, getVersion()) != null;
         assert messageSerializer.deserialize(in, getVersion()) != null;
         in.close();
     }
-    
+
     private void testTreeResponseWrite() throws IOException
     {
         AntiEntropyService.Validator v0 = new AntiEntropyService.Validator(Statics.req);
@@ -84,13 +84,13 @@ public class SerializationsTest extends AbstractSerializationsTester
         messageSerializer.serialize(AntiEntropyService.TreeResponseVerbHandler.makeVerb(FBUtilities.getBroadcastAddress(), v1), out, getVersion());
         out.close();
     }
-    
+
     @Test
     public void testTreeResponseRead() throws IOException
     {
         if (EXECUTE_WRITES)
             testTreeResponseWrite();
-        
+
         DataInputStream in = getInput("service.TreeResponse.bin");
         assert AntiEntropyService.TreeResponseVerbHandler.SERIALIZER.deserialize(in, getVersion()) != null;
         assert AntiEntropyService.TreeResponseVerbHandler.SERIALIZER.deserialize(in, getVersion()) != null;
@@ -98,7 +98,7 @@ public class SerializationsTest extends AbstractSerializationsTester
         assert messageSerializer.deserialize(in, getVersion()) != null;
         in.close();
     }
-    
+
     private static class Statics
     {
         private static final AntiEntropyService.CFPair pair = new AntiEntropyService.CFPair("Keyspace1", "Standard1");

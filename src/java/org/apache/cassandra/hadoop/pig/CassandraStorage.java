@@ -80,7 +80,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
 
     private final static String DEFAULT_INPUT_FORMAT = "org.apache.cassandra.hadoop.ColumnFamilyInputFormat";
     private final static String DEFAULT_OUTPUT_FORMAT = "org.apache.cassandra.hadoop.ColumnFamilyOutputFormat";
-    
+
     private final static ByteBuffer BOUND = ByteBufferUtil.EMPTY_BYTE_BUFFER;
     private static final Log logger = LogFactory.getLog(CassandraStorage.class);
 
@@ -114,7 +114,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
         this.limit = limit;
     }
 
-    public int getLimit() 
+    public int getLimit()
     {
         return limit;
     }
@@ -384,7 +384,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
         if (System.getenv(PIG_ALLOW_DELETES) != null)
             allow_deletes = Boolean.valueOf(System.getenv(PIG_ALLOW_DELETES));
     }
-    
+
     private String getFullyQualifiedClassName(String classname)
     {
         return classname.contains(".") ? classname : "org.apache.cassandra.hadoop." + classname;

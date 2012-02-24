@@ -949,7 +949,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                 return Lists.newArrayList();
             }
         });
-        
+
         List<Range<Token>> ranges = getAllRanges(tokenMetadata.sortedTokens());
         for (Range<Token> range : ranges)
         {
@@ -2639,20 +2639,20 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
     }
 
     public Map<String, Float> effectiveOwnership(String keyspace) throws ConfigurationException
-    {   
+    {
         Map<String, Float> effective = Maps.newHashMap();
         if (Schema.instance.getNonSystemTables().size() <= 0)
             throw new ConfigurationException("Couldn't find any Non System Keyspaces to infer replication topology");
         if (keyspace == null && !hasSameReplication(Schema.instance.getNonSystemTables()))
             throw new ConfigurationException("Non System keyspaces doesnt have the same topology");
-        
+
         if (keyspace == null)
             keyspace = Schema.instance.getNonSystemTables().get(0);
-        
+
         List<Token> sortedTokens = new ArrayList<Token>(tokenMetadata.getTokenToEndpointMapForReading().keySet());
         Collections.sort(sortedTokens);
         Map<Token, Float> ownership = getPartitioner().describeOwnership(sortedTokens);
-        
+
         for (Entry<InetAddress, Collection<Range<Token>>> ranges : constructEndpointToRangeMap(keyspace).entrySet())
         {
             Token token = tokenMetadata.getToken(ranges.getKey());
@@ -2664,7 +2664,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         }
         return effective;
     }
-    
+
     private boolean hasSameReplication(List<String> list)
     {
         if (list.isEmpty())
@@ -2673,8 +2673,8 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
         {
             KSMetaData ksm1 = Schema.instance.getKSMetaData(Schema.instance.getNonSystemTables().get(i));
             KSMetaData ksm2 = Schema.instance.getKSMetaData(Schema.instance.getNonSystemTables().get(i + 1));
-            if (!ksm1.strategyClass.equals(ksm2.strategyClass) || 
-                    !Iterators.elementsEqual(ksm1.strategyOptions.entrySet().iterator(), 
+            if (!ksm1.strategyClass.equals(ksm2.strategyClass) ||
+                    !Iterators.elementsEqual(ksm1.strategyOptions.entrySet().iterator(),
                                              ksm2.strategyOptions.entrySet().iterator()))
                 return false;
         }
@@ -2756,7 +2756,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
                 latch.countDown();
                 continue;
             }
-            
+
             final String table = entry.getKey();
 
             final Set<Map.Entry<Range<Token>, InetAddress>> pending = new HashSet<Map.Entry<Range<Token>, InetAddress>>(rangesWithEndpoints.entries());
@@ -2969,7 +2969,7 @@ public class StorageService implements IEndpointStateChangeSubscriber, StorageSe
             sampledKeys.add(key.getToken().toString());
         return sampledKeys;
     }
-    
+
     public void rebuildSecondaryIndex(String ksName, String cfName, String... idxNames)
     {
         ColumnFamilyStore.rebuildSecondaryIndex(ksName, cfName, idxNames);

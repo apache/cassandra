@@ -39,7 +39,7 @@ public class StageManager
     static
     {
         stages.put(Stage.MUTATION, multiThreadedConfigurableStage(Stage.MUTATION, getConcurrentWriters()));
-        stages.put(Stage.READ, multiThreadedConfigurableStage(Stage.READ, getConcurrentReaders()));        
+        stages.put(Stage.READ, multiThreadedConfigurableStage(Stage.READ, getConcurrentReaders()));
         stages.put(Stage.REQUEST_RESPONSE, multiThreadedStage(Stage.REQUEST_RESPONSE, Runtime.getRuntime().availableProcessors()));
         stages.put(Stage.INTERNAL_RESPONSE, multiThreadedStage(Stage.INTERNAL_RESPONSE, Runtime.getRuntime().availableProcessors()));
         stages.put(Stage.REPLICATE_ON_WRITE, multiThreadedConfigurableStage(Stage.REPLICATE_ON_WRITE, getConcurrentReplicators()));
@@ -61,7 +61,7 @@ public class StageManager
                                                 new NamedThreadFactory(stage.getJmxName()),
                                                 stage.getJmxType());
     }
-    
+
     private static ThreadPoolExecutor multiThreadedConfigurableStage(Stage stage, int numThreads)
     {
         return new JMXConfigurableThreadPoolExecutor(numThreads,
@@ -80,7 +80,7 @@ public class StageManager
     {
         return stages.get(stage);
     }
-    
+
     /**
      * This method shuts down all registered stages.
      */

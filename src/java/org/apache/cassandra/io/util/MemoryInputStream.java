@@ -26,14 +26,14 @@ public class MemoryInputStream extends AbstractDataInput
 {
     private final FreeableMemory mem;
     private int position = 0;
-    
+
     public MemoryInputStream(FreeableMemory mem)
     {
         this.mem = mem;
     }
-    
+
     public int read() throws IOException
-    {       
+    {
         return mem.getByte(position++) & 0xFF;
     }
 
@@ -47,18 +47,18 @@ public class MemoryInputStream extends AbstractDataInput
     {
         position = pos;
     }
-    
+
     protected int getPosition()
     {
         return position;
     }
-    
+
     public int skipBytes(int n) throws IOException
     {
         seekInternal(getPosition() + n);
         return position;
     }
-    
+
     public void close()
     {
         // do nothing.

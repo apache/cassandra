@@ -172,7 +172,7 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
     {
         Double scored1 = scores.get(a1);
         Double scored2 = scores.get(a2);
-        
+
         if (scored1 == null)
         {
             scored1 = 0.0;
@@ -211,7 +211,7 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
 
     private void updateScores() // this is expensive
     {
-        if (!StorageService.instance.isInitialized()) 
+        if (!StorageService.instance.isInitialized())
             return;
         if (!registered)
         {

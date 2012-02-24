@@ -38,26 +38,26 @@ class GossipDigestAckMessage
     {
         serializer = new GossipDigestAckMessageSerializer();
     }
-    
+
     final List<GossipDigest> gDigestList;
     final Map<InetAddress, EndpointState> epStateMap;
-    
+
     static IVersionedSerializer<GossipDigestAckMessage> serializer()
     {
         return serializer;
     }
-    
+
     GossipDigestAckMessage(List<GossipDigest> gDigestList, Map<InetAddress, EndpointState> epStateMap)
     {
         this.gDigestList = gDigestList;
         this.epStateMap = epStateMap;
     }
-    
+
     List<GossipDigest> getGossipDigestList()
     {
         return gDigestList;
     }
-    
+
     Map<InetAddress, EndpointState> getEndpointStateMap()
     {
         return epStateMap;

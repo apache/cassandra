@@ -23,26 +23,26 @@ public class CreateIndexStatement
     private final String columnFamily;
     private final String indexName;
     private final Term columnName;
-    
+
     public CreateIndexStatement(String indexName, String columnFamily, Term columnName)
     {
         this.indexName = indexName;
         this.columnFamily = columnFamily;
         this.columnName = columnName;
     }
-    
+
     /** Column family namespace. */
     public String getColumnFamily()
     {
         return columnFamily;
     }
-    
+
     /** Column name to index. */
     public Term getColumnName()
     {
         return columnName;
     }
-    
+
     /** Index name (or null). */
     public String getIndexName()
     {

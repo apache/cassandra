@@ -24,7 +24,7 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.net.CompactEndpointSerializationHelper;
 
 /**
- * Contains information about a specified list of Endpoints and the largest version 
+ * Contains information about a specified list of Endpoints and the largest version
  * of the state they have generated as known by the local endpoint.
  */
 
@@ -35,7 +35,7 @@ public class GossipDigest implements Comparable<GossipDigest>
     {
         serializer = new GossipDigestSerializer();
     }
-    
+
     final InetAddress endpoint;
     final int generation;
     final int maxVersion;
@@ -44,36 +44,36 @@ public class GossipDigest implements Comparable<GossipDigest>
     {
         return serializer;
     }
-    
+
     GossipDigest(InetAddress ep, int gen, int version)
     {
         endpoint = ep;
         generation = gen;
         maxVersion = version;
     }
-    
+
     InetAddress getEndpoint()
     {
         return endpoint;
     }
-    
+
     int getGeneration()
     {
         return generation;
     }
-    
+
     int getMaxVersion()
     {
         return maxVersion;
     }
-    
+
     public int compareTo(GossipDigest gDigest)
     {
         if ( generation != gDigest.generation )
             return ( generation - gDigest.generation );
         return (maxVersion - gDigest.maxVersion);
     }
-    
+
     public String toString()
     {
         StringBuilder sb = new StringBuilder();
@@ -87,9 +87,9 @@ public class GossipDigest implements Comparable<GossipDigest>
 }
 
 class GossipDigestSerializer implements IVersionedSerializer<GossipDigest>
-{       
+{
     public void serialize(GossipDigest gDigest, DataOutput dos, int version) throws IOException
-    {        
+    {
         CompactEndpointSerializationHelper.serialize(gDigest.endpoint, dos);
         dos.writeInt(gDigest.generation);
         dos.writeInt(gDigest.maxVersion);

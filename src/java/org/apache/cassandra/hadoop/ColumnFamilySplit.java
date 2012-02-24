@@ -51,7 +51,7 @@ public class ColumnFamilySplit extends InputSplit implements Writable, org.apach
     }
 
     // getLength and getLocations satisfy the InputSplit abstraction
-    
+
     public long getLength()
     {
         // only used for sorting splits. we don't have the capability, yet.

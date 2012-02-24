@@ -40,7 +40,7 @@ public class SelectStatement
     private final ConsistencyLevel cLevel;
     private final WhereClause clause;
     private final int numRecords;
-    
+
     public SelectStatement(SelectExpression expression, boolean isCountOper, String keyspace, String columnFamily,
             ConsistencyLevel cLevel, WhereClause clause, int numRecords)
     {
@@ -52,32 +52,32 @@ public class SelectStatement
         this.clause = (clause != null) ? clause : new WhereClause();
         this.numRecords = numRecords;
     }
-    
+
     public boolean isKeyRange()
     {
         return clause.isKeyRange();
     }
-    
+
     public Set<Term> getKeys()
     {
         return clause.getKeys();
     }
-    
+
     public Term getKeyStart()
     {
         return clause.getStartKey();
     }
-    
+
     public Term getKeyFinish()
     {
         return clause.getFinishKey();
     }
-    
+
     public List<Relation> getColumnRelations()
     {
         return clause.getColumnRelations();
     }
-    
+
     public boolean isColumnRange()
     {
         return expression.isColumnRange();
@@ -96,12 +96,12 @@ public class SelectStatement
     {
         return expression.getColumns();
     }
-    
+
     public Term getColumnStart()
     {
         return expression.getStart();
     }
-    
+
     public Term getColumnFinish()
     {
         return expression.getFinish();
@@ -121,12 +121,12 @@ public class SelectStatement
     {
         return columnFamily;
     }
-    
+
     public boolean isColumnsReversed()
     {
         return expression.isColumnsReversed();
     }
-    
+
     public ConsistencyLevel getConsistencyLevel()
     {
         return cLevel;
@@ -141,7 +141,7 @@ public class SelectStatement
     {
         return expression.getColumnsLimit();
     }
-    
+
     public boolean isCountOperation()
     {
         return isCountOper;
@@ -176,7 +176,7 @@ public class SelectStatement
     {
         return Schema.instance.getComparator(keyspace, columnFamily);
     }
-    
+
     public AbstractType<?> getValueValidator(String keyspace, ByteBuffer column)
     {
         return Schema.instance.getValueValidator(keyspace, columnFamily, column);
@@ -193,6 +193,6 @@ public class SelectStatement
                              clause,
                              numRecords);
     }
-    
+
 
 }

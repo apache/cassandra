@@ -36,7 +36,7 @@ public class BooleanType extends AbstractType<Boolean>
   {
       return JdbcBoolean.instance.decompose(value);
   }
-  
+
   public int compare(ByteBuffer o1, ByteBuffer o2)
   {
       if ((o1 == null) || (o1.remaining() != 1))
@@ -61,15 +61,15 @@ public class BooleanType extends AbstractType<Boolean>
 
   public ByteBuffer fromString(String source) throws MarshalException
   {
-    
+
       if (source.isEmpty()|| source.equalsIgnoreCase(Boolean.FALSE.toString()))
           return decompose(false);
-      
+
       if (source.equalsIgnoreCase(Boolean.TRUE.toString()))
           return decompose(true);
-      
+
       throw new MarshalException(String.format("unable to make boolean from '%s'", source));
-      
+
  }
 
   public void validate(ByteBuffer bytes) throws MarshalException

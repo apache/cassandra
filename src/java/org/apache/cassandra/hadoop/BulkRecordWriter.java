@@ -74,7 +74,7 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<Mutation>>
     {
         this(context.getConfiguration());
     }
-    
+
     BulkRecordWriter(Configuration conf) throws IOException
     {
         Config.setLoadYaml(false);

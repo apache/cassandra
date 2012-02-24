@@ -51,7 +51,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
 
     protected volatile ScheduledFuture<?> saveTask;
     protected final CacheService.CacheType cacheType;
-    
+
     public AutoSavingCache(ICache<K, V> cache, CacheService.CacheType cacheType)
     {
         super(cache);

@@ -301,7 +301,7 @@ public class TokenMetadata
     {
         assert endpoint != null;
         assert isMember(endpoint); // don't want to return nulls
-        
+
         lock.readLock().lock();
         try
         {
@@ -312,7 +312,7 @@ public class TokenMetadata
             lock.readLock().unlock();
         }
     }
-    
+
     public boolean isMember(InetAddress endpoint)
     {
         assert endpoint != null;

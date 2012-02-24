@@ -60,7 +60,7 @@ public class SliceQueryFilter implements IFilter
     {
         return new SSTableSliceIterator(sstable, key, start, finish, reversed);
     }
-    
+
     public IColumnIterator getSSTableColumnIterator(SSTableReader sstable, FileDataInput file, DecoratedKey<?> key)
     {
         return new SSTableSliceIterator(sstable, file, key, start, finish, reversed);
@@ -122,9 +122,9 @@ public class SliceQueryFilter implements IFilter
                 && ((!reversed && comparator.compare(column.name(), finish) > 0))
                     || (reversed && comparator.compare(column.name(), finish) < 0))
                 break;
- 
+
             // only count live columns towards the `count` criteria
-            if (column.isLive() 
+            if (column.isLive()
                 && (!container.isMarkedForDelete()
                     || column.mostRecentLiveChangeAt() > container.getMarkedForDeleteAt()))
             {

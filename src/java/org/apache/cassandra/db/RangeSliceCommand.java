@@ -62,7 +62,7 @@ import org.apache.thrift.TSerializer;
 public class RangeSliceCommand implements MessageProducer, IReadCommand
 {
     private static final RangeSliceCommandSerializer serializer = new RangeSliceCommandSerializer();
-    
+
     public final String keyspace;
 
     public final String column_family;

@@ -92,7 +92,7 @@ public class StreamOutSession implements IEndpointStateChangeSubscriber, IFailur
     {
         return context.right;
     }
-    
+
     public void addFilesToStream(List<PendingFile> pendingFiles)
     {
         for (PendingFile pendingFile : pendingFiles)
@@ -102,7 +102,7 @@ public class StreamOutSession implements IEndpointStateChangeSubscriber, IFailur
             files.put(pendingFile.getFilename(), pendingFile);
         }
     }
-    
+
     public void retry()
     {
         streamFile(files.get(currentFile));

@@ -70,7 +70,7 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
         for (Map.Entry<ColumnIdentifier, String> col : columns.entrySet())
         {
             AbstractType<?> validator = CFPropDefs.parseType(col.getValue());
-            
+
             columnDefs.put(col.getKey().key, new ColumnDefinition(col.getKey().key, validator, null, null, null));
         }
 

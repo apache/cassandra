@@ -70,7 +70,7 @@ public class ConfigHelper
     private static final String WRITE_CONSISTENCY_LEVEL = "cassandra.consistencylevel.write";
     private static final String OUTPUT_COMPRESSION_CLASS = "cassandra.output.compression.class";
     private static final String OUTPUT_COMPRESSION_CHUNK_LENGTH = "cassandra.output.compression.length";
-    
+
     private static final Logger logger = LoggerFactory.getLogger(ConfigHelper.class);
 
 
@@ -194,7 +194,7 @@ public class ConfigHelper
         String s = conf.get(INPUT_PREDICATE_CONFIG);
         return s == null ? null : predicateFromString(s);
     }
-    
+
     private static String thriftToString(TBase object)
     {
         assert object != null;
@@ -283,17 +283,17 @@ public class ConfigHelper
     {
         return conf.get(INPUT_KEYSPACE_CONFIG);
     }
-    
+
     public static String getOutputKeyspace(Configuration conf)
     {
         return conf.get(OUTPUT_KEYSPACE_CONFIG);
     }
-    
+
     public static String getInputKeyspaceUserName(Configuration conf)
     {
         return conf.get(INPUT_KEYSPACE_USERNAME_CONFIG);
     }
-    
+
     public static String getInputKeyspacePassword(Configuration conf)
     {
         return conf.get(INPUT_KEYSPACE_PASSWD_CONFIG);
@@ -303,7 +303,7 @@ public class ConfigHelper
     {
         return conf.get(OUTPUT_KEYSPACE_USERNAME_CONFIG);
     }
-    
+
     public static String getOutputKeyspacePassword(Configuration conf)
     {
         return conf.get(OUTPUT_KEYSPACE_PASSWD_CONFIG);
@@ -318,7 +318,7 @@ public class ConfigHelper
     {
         return Boolean.valueOf(conf.get(INPUT_WIDEROWS_CONFIG));
     }
-    
+
     public static String getOutputColumnFamily(Configuration conf)
     {
         return conf.get(OUTPUT_COLUMNFAMILY_CONFIG);
@@ -370,7 +370,7 @@ public class ConfigHelper
             throw new RuntimeException(e);
         }
     }
-    
+
     public static int getOutputRpcPort(Configuration conf)
     {
         return Integer.parseInt(conf.get(OUTPUT_THRIFT_PORT, "9160"));

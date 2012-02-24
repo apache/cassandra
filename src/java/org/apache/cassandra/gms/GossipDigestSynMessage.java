@@ -30,8 +30,8 @@ import org.apache.cassandra.net.CompactEndpointSerializationHelper;
 
 
 /**
- * This is the first message that gets sent out as a start of the Gossip protocol in a 
- * round. 
+ * This is the first message that gets sent out as a start of the Gossip protocol in a
+ * round.
  */
 
 class GossipDigestSynMessage
@@ -41,7 +41,7 @@ class GossipDigestSynMessage
     {
         serializer = new GossipDigestSynMessageSerializer();
     }
-    
+
     final String clusterId;
     final List<GossipDigest> gDigests;
 
@@ -49,13 +49,13 @@ class GossipDigestSynMessage
     {
         return serializer;
     }
- 
+
     public GossipDigestSynMessage(String clusterId, List<GossipDigest> gDigests)
-    {      
+    {
         this.clusterId = clusterId;
         this.gDigests = gDigests;
     }
-    
+
     List<GossipDigest> getGossipDigests()
     {
         return gDigests;
@@ -75,13 +75,13 @@ class GossipDigestSerializationHelper
 
     static List<GossipDigest> deserialize(DataInput dis, int version) throws IOException
     {
-        int size = dis.readInt();            
+        int size = dis.readInt();
         List<GossipDigest> gDigests = new ArrayList<GossipDigest>(size);
-        
+
         for ( int i = 0; i < size; ++i )
         {
             gDigests.add(GossipDigest.serializer().deserialize(dis, version));
-        }        
+        }
         return gDigests;
     }
 }
@@ -101,7 +101,7 @@ class EndpointStatesSerializationHelper
 
     static Map<InetAddress, EndpointState> deserialize(DataInput dis, int version) throws IOException
     {
-        int size = dis.readInt();            
+        int size = dis.readInt();
         Map<InetAddress, EndpointState> epStateMap = new HashMap<InetAddress, EndpointState>(size);
 
         for ( int i = 0; i < size; ++i )
@@ -115,9 +115,9 @@ class EndpointStatesSerializationHelper
 }
 
 class GossipDigestSynMessageSerializer implements IVersionedSerializer<GossipDigestSynMessage>
-{   
+{
     public void serialize(GossipDigestSynMessage gDigestSynMessage, DataOutput dos, int version) throws IOException
-    {    
+    {
         dos.writeUTF(gDigestSynMessage.clusterId);
         GossipDigestSerializationHelper.serialize(gDigestSynMessage.gDigests, dos, version);
     }

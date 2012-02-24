@@ -59,7 +59,7 @@ public class OpenBitSet implements Serializable {
    * Constructs an OpenBitSet large enough to hold numBits.
    * @param numBits
    */
-  public OpenBitSet(long numBits) 
+  public OpenBitSet(long numBits)
   {
       wlen = bits2words(numBits);
       int lastPageSize = wlen % PAGE_SIZE;
@@ -86,7 +86,7 @@ public class OpenBitSet implements Serializable {
   {
       return PAGE_SIZE;
   }
-  
+
   public int getPageCount()
   {
       return pageCount;
@@ -96,7 +96,7 @@ public class OpenBitSet implements Serializable {
   {
       return bits[pageIdx];
   }
-  
+
   /** Contructs an OpenBitset from a BitSet
   */
   public OpenBitSet(BitSet bits) {
@@ -240,7 +240,7 @@ public class OpenBitSet implements Serializable {
       bits[startWord / PAGE_SIZE][startWord % PAGE_SIZE] &= (startmask | endmask);
       return;
     }
-    
+
 
     bits[startWord / PAGE_SIZE][startWord % PAGE_SIZE]  &= startmask;
 
@@ -372,12 +372,12 @@ public class OpenBitSet implements Serializable {
   }
 
   /** @return the number of set bits */
-  public long cardinality() 
+  public long cardinality()
   {
     long bitCount = 0L;
     for (int i=getPageCount();i-->0;)
         bitCount+=BitUtil.pop_array(bits[i],0,wlen);
-    
+
     return bitCount;
   }
 
@@ -435,7 +435,7 @@ public class OpenBitSet implements Serializable {
     while(--pos>=0) {
       thisArr[pos / thisPageSize][ pos % thisPageSize] &= otherArr[pos / otherPageSize][pos % otherPageSize];
     }
-    
+
     if (this.wlen > newLen) {
       // fill zeros from the new shorter length to the old length
       for (pos=wlen;pos-->newLen;)
@@ -478,7 +478,7 @@ public class OpenBitSet implements Serializable {
     } else {
       a=this;
     }
-    
+
     int aPageSize = this.PAGE_SIZE;
     int bPageSize = b.PAGE_SIZE;
 

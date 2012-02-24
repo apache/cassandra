@@ -30,12 +30,12 @@ public final class DataOutputBuffer extends DataOutputStream
     {
         this(128);
     }
-    
+
     public DataOutputBuffer(int size)
     {
         super(new OutputBuffer(size));
     }
-    
+
     private OutputBuffer buffer()
     {
         return (OutputBuffer)out;
@@ -49,13 +49,13 @@ public final class DataOutputBuffer extends DataOutputStream
     {
         return buffer().getData();
     }
-    
+
     /** Returns the length of the valid data currently in the buffer. */
     public int getLength()
     {
         return buffer().getLength();
     }
-    
+
     /** Resets the buffer to empty. */
     public DataOutputBuffer reset()
     {
