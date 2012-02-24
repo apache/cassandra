@@ -25,13 +25,13 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.*;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import java.util.concurrent.*;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
 import com.google.common.collect.ImmutableSortedSet;
+import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.SSTable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -166,7 +166,6 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
             return;
         Token<?> token = StorageService.instance.getTokenMetadata().getToken(endpoint);
         ByteBuffer tokenBytes = StorageService.getPartitioner().getTokenFactory().toByteArray(token);
-        final ColumnFamilyStore hintStore = Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(HINTS_CF);
         final RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, tokenBytes);
         rm.delete(new QueryPath(HINTS_CF), System.currentTimeMillis());
 
@@ -179,8 +178,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                 {
                     logger_.info("Deleting any stored hints for " + endpoint);
                     rm.apply();
-                    hintStore.forceBlockingFlush();
-                    CompactionManager.instance.submitMaximal(hintStore, Integer.MAX_VALUE);
+                    compact();
                 }
                 catch (Exception e)
                 {
@@ -189,6 +187,16 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
             }
         };
         StorageService.optionalTasks.execute(runnable);
+    }
+
+    private Future<?> compact() throws ExecutionException, InterruptedException
+    {
+        final ColumnFamilyStore hintStore = Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(HINTS_CF);
+        hintStore.forceBlockingFlush();
+        ArrayList<Descriptor> descriptors = new ArrayList<Descriptor>();
+        for (SSTable sstable : hintStore.getSSTables())
+            descriptors.add(sstable.descriptor);
+        return CompactionManager.instance.submitUserDefined(hintStore, descriptors, Integer.MAX_VALUE);
     }
 
     private static boolean pagingFinished(ColumnFamily hintColumnFamily, ByteBuffer startColumn)
@@ -361,8 +369,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         {
             try
             {
-                hintStore.forceBlockingFlush();
-                CompactionManager.instance.submitMaximal(hintStore, Integer.MAX_VALUE).get();
+                compact().get();
             }
             catch (Exception e)
             {
