@@ -79,6 +79,8 @@ tokens {
     PAIR;
 
     NODE_LIMIT;
+    NODE_COLUMNS;
+    NODE_REVERSED;
     NODE_KEY_RANGE;
 }
 
@@ -291,8 +293,8 @@ showStatement
     ;
 
 listStatement
-    : LIST columnFamily keyRangeExpr? ('LIMIT' limit=IntegerPositiveLiteral)?
-        -> ^(NODE_LIST columnFamily keyRangeExpr? ^(NODE_LIMIT $limit)?)
+    : LIST columnFamily keyRangeExpr? rowLimitExpr? columnLimitExpr?
+        -> ^(NODE_LIST columnFamily keyRangeExpr? rowLimitExpr? columnLimitExpr?)
     ;
 
 truncateStatement
@@ -426,6 +428,21 @@ columnFamilyExpr
 keyRangeExpr
     :    '[' ( startKey=entityName? ':' endKey=entityName? )? ']'
       -> ^(NODE_KEY_RANGE $startKey? $endKey?)
+    ;
+
+rowLimitExpr
+    : 'LIMIT' limit=IntegerPositiveLiteral
+        -> ^(NODE_LIMIT $limit)
+    ;
+
+columnLimitExpr
+    : 'COLUMNS' columns=IntegerPositiveLiteral reversedExpr?
+        -> ^(NODE_COLUMNS $columns reversedExpr?)
+    ;
+
+reversedExpr
+    : 'REVERSED'
+        -> ^(NODE_REVERSED)
     ;
 
 columnName

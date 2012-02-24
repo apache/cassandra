@@ -993,6 +993,7 @@ commands:
         list <cf>[<startKey>:];
         list <cf>[<startKey>:<endKey>];
         list <cf>[<startKey>:<endKey>] limit <limit>;
+        list <cf>[<startKey>:<endKey>] ?(limit <limit>) ?(columns <col_limit> ?(reversed));
 
         List a range of rows, and all of their columns, in the specified column
         family.
@@ -1008,6 +1009,9 @@ commands:
 
         - limit: Number of rows to return. Default is 100.
 
+        - columns: Number of columns to return per row, Default to MAX_INTEGER. reversed -
+        columns in reverse order.
+
         - startKey: Key start the range from. The start key will be
         included in the result. Defaults to an empty byte array.
 
@@ -1015,6 +1019,9 @@ commands:
         list Standard1;
         list Super1[j:];
         list Standard1[j:k] limit 40;
+        list Standard1 columns 2;
+        list Standard1 limit 40 columns 0;
+        list Standard1 columns 3 reversed;
     - name: NODE_TRUNCATE
       help: |
         truncate <cf>;

@@ -1309,6 +1309,8 @@ public class CliClient
         String rawStartKey = "";
         String rawEndKey = "";
         int limitCount = Integer.MAX_VALUE; // will reset to default later if it's not specified
+        int columnCount = Integer.MAX_VALUE;
+        boolean reversed = false;
 
         // optional arguments: key range and limit
         for (int i = 1; i < statement.getChildCount(); i++)
@@ -1323,17 +1325,46 @@ public class CliClient
                         rawEndKey = CliUtils.unescapeSQLString(child.getChild(1).getText());
                 }
             }
-            else
+            else if (child.getType() == CliParser.NODE_LIMIT)
             {
                 if (child.getChildCount() != 1)
                 {
                     sessionState.out.println("Invalid limit clause");
                     return;
                 }
+
                 limitCount = Integer.parseInt(child.getChild(0).getText());
                 if (limitCount <= 0)
                 {
                     sessionState.out.println("Invalid limit " + limitCount);
+                    return;
+                }
+            }
+            else if (child.getType() == CliParser.NODE_COLUMNS)
+            {
+                if ((child.getChildCount() < 1) || (child.getChildCount() > 2))
+                {
+                    sessionState.err.println("Invalid columns clause.");
+                    return;
+                }
+
+                String columns = child.getChild(0).getText();
+
+                try
+                {
+                    columnCount = Integer.parseInt(columns);
+                    if (columnCount < 0)
+                    {
+                        sessionState.err.println("Invalid column limit: " + columnCount);
+                        return;
+                    }
+
+                    if (child.getChildCount() == 2)
+                        reversed = child.getChild(1).getType() == CliParser.NODE_REVERSED;
+                }
+                catch (NumberFormatException nfe)
+                {
+                    sessionState.err.println("Invalid column number format: " + columns);
                     return;
                 }
             }
@@ -1351,7 +1382,8 @@ public class CliClient
         SlicePredicate predicate = new SlicePredicate();
         SliceRange sliceRange = new SliceRange();
         sliceRange.setStart(new byte[0]).setFinish(new byte[0]);
-        sliceRange.setCount(Integer.MAX_VALUE);
+        sliceRange.setCount(columnCount);
+        sliceRange.setReversed(reversed);
         predicate.setSlice_range(sliceRange);
 
         // set the key range
