@@ -726,7 +726,10 @@ def alter_table_cf_completer(ctxt, cass):
 @completer_for('alterInstructions', 'existcol')
 def alter_table_col_completer(ctxt, cass):
     cfdef = cass.get_columnfamily(cql_dequote(ctxt.get_binding('cf')))
-    return map(maybe_cql_escape, [md.name for md in cfdef.column_metadata])
+    cols = [md.name for md in cfdef.column_metadata]
+    if cfdef.key_alias is not None:
+        cols.append(cfdef.key_alias)
+    return map(maybe_cql_escape, cols)
 
 explain_completion('alterInstructions', 'newcol', '<new_column_name>')
 

@@ -124,6 +124,18 @@ Merged from 1.0:
  * (cqlsh) ignore missing CfDef opts (CASSANDRA-3933)
  * (cqlsh) look for cqlshlib relative to realpath (CASSANDRA-3767)
  * Fix short read protection (CASSANDRA-3934)
+ * Make sure infered and actual schema match (CASSANDRA-3371)
+ * Fix NPE during HH delivery (CASSANDRA-3677)
+ * Don't put boostrapping node in 'hibernate' status (CASSANDRA-3737)
+ * Fix double quotes in windows bat files (CASSANDRA-3744)
+ * Fix bad validator lookup (CASSANDRA-3789)
+ * Fix soft reset in EC2MultiRegionSnitch (CASSANDRA-3835)
+ * Don't leave zombie connections with THSHA thrift server (CASSANDRA-3867)
+ * (cqlsh) fix deserialization of data (CASSANDRA-3874)
+ * Fix removetoken force causing an inconsistent state (CASSANDRA-3876)
+ * Fix ahndling of some types with Pig (CASSANDRA-3886)
+ * Don't allow to drop the system keyspace (CASSANDRA-3759)
+ * Make Pig deletes disabled by default and configurable (CASSANDRA-3628)
 Merged from 0.8:
  * (Pig) fix CassandraStorage to use correct comparator in Super ColumnFamily
    case (CASSANDRA-3251)
