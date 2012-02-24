@@ -1,3 +1,7 @@
+1.0.9
+ * always compact away deleted hints immediately after handoff (CASSANDRA-3955)
+
+
 1.0.8
  * fix race between cleanup and flush on secondary index CFSes (CASSANDRA-3712)
  * avoid including non-queried nodes in rangeslice read repair
