@@ -21,7 +21,7 @@ import jline.SimpleCompletor;
 
 public class CliCompleter extends SimpleCompletor
 {
-    private static String[] commands = {
+    private static final String[] commands = {
             "connect",
             "describe keyspace",
             "exit",
@@ -62,7 +62,7 @@ public class CliCompleter extends SimpleCompletor
             "help truncate",
             "help consistencylevel"
     };
-    private static String[] keyspaceCommands = {
+    private static final String[] keyspaceCommands = {
             "get",
             "set",
             "count",

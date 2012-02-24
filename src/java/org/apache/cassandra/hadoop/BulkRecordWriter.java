@@ -53,7 +53,7 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<Mutation>>
     private final Configuration conf;
     private SSTableSimpleUnsortedWriter writer;
     private SSTableLoader loader;
-    private File outputdir;
+    private final File outputdir;
 
     private enum CFType
     {
@@ -200,8 +200,8 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<Mutation>>
     static class ExternalClient extends SSTableLoader.Client
     {
         private final Map<String, Set<String>> knownCfs = new HashMap<String, Set<String>>();
-        private String hostlist;
-        private int rpcPort;
+        private final String hostlist;
+        private final int rpcPort;
 
         public ExternalClient(String hostlist, int port)
         {

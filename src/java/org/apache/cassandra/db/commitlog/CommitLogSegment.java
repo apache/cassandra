@@ -52,7 +52,7 @@ public class CommitLogSegment
 
     private static final String FILENAME_PREFIX = "CommitLog-";
     private static final String FILENAME_EXTENSION = ".log";
-    private static Pattern COMMIT_LOG_FILE_PATTERN = Pattern.compile(FILENAME_PREFIX + "(\\d+)" + FILENAME_EXTENSION);
+    private static final Pattern COMMIT_LOG_FILE_PATTERN = Pattern.compile(FILENAME_PREFIX + "(\\d+)" + FILENAME_EXTENSION);
 
     // The commit log entry overhead in bytes (int: length + long: head checksum + long: tail checksum)
     static final int ENTRY_OVERHEAD_SIZE = 4 + 8 + 8;
@@ -63,7 +63,7 @@ public class CommitLogSegment
     public final long id;
 
     private final File logFile;
-    private RandomAccessFile logFileAccessor;
+    private final RandomAccessFile logFileAccessor;
 
     private boolean needsSync = false;
 

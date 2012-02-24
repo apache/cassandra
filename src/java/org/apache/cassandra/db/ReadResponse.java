@@ -32,7 +32,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
  */
 public class ReadResponse
 {
-private static IVersionedSerializer<ReadResponse> serializer;
+private static final IVersionedSerializer<ReadResponse> serializer;
 
     static
     {

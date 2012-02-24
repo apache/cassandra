@@ -37,7 +37,7 @@ import org.apache.cassandra.utils.CloseableIterator;
 
 public class CollationController
 {
-    private static Logger logger = LoggerFactory.getLogger(CollationController.class);
+    private static final Logger logger = LoggerFactory.getLogger(CollationController.class);
 
     private final ColumnFamilyStore cfs;
     private final boolean mutableColumns;

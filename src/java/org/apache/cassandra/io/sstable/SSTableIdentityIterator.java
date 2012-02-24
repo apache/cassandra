@@ -42,9 +42,9 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
 
     private final ColumnFamily columnFamily;
     private final int columnCount;
-    private long columnPosition;
+    private final long columnPosition;
 
-    private BytesReadTracker inputWithTracker; // tracks bytes read
+    private final BytesReadTracker inputWithTracker; // tracks bytes read
 
     // Used by lazilyCompactedRow, so that we see the same things when deserializing the first and second time
     private final int expireBefore;

@@ -60,7 +60,7 @@ import org.apache.thrift.TException;
 
 public class CassandraServer implements Cassandra.Iface
 {
-    private static Logger logger = LoggerFactory.getLogger(CassandraServer.class);
+    private static final Logger logger = LoggerFactory.getLogger(CassandraServer.class);
     
     private final static int COUNT_PAGE_SIZE = 1024;
 

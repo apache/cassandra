@@ -25,8 +25,8 @@ public class LatencyTracker
     private final AtomicLong totalLatency = new AtomicLong(0);
     private long lastLatency = 0;
     private long lastOpCount = 0;
-    private EstimatedHistogram totalHistogram = new EstimatedHistogram();
-    private EstimatedHistogram recentHistogram = new EstimatedHistogram();
+    private final EstimatedHistogram totalHistogram = new EstimatedHistogram();
+    private final EstimatedHistogram recentHistogram = new EstimatedHistogram();
 
     /** takes nanoseconds **/
     public void addNano(long nanos)

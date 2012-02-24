@@ -31,7 +31,7 @@ import org.apache.cassandra.net.Message;
 
 public class GossipDigestAck2VerbHandler implements IVerbHandler
 {
-    private static Logger logger = LoggerFactory.getLogger(GossipDigestAck2VerbHandler.class);
+    private static final Logger logger = LoggerFactory.getLogger(GossipDigestAck2VerbHandler.class);
 
     public void doVerb(Message message, String id)
     {

@@ -26,7 +26,7 @@ import org.apache.commons.cli.*;
  */
 public class CliOptions
 {
-    private static CLIOptions options = null; // Info about command line options
+    private static final CLIOptions options; // Info about command line options
 
     // Name of the command line tool (used for error messages)
     private static final String TOOL_NAME = "cassandra-cli";

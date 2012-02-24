@@ -46,19 +46,17 @@ import static org.apache.cassandra.utils.ByteBufferUtil.hexToBytes;
  */
 public class SSTableExport
 {
-    private static ObjectMapper jsonMapper = new ObjectMapper();
+    private static final ObjectMapper jsonMapper = new ObjectMapper();
 
     private static final String KEY_OPTION = "k";
     private static final String EXCLUDEKEY_OPTION = "x";
     private static final String ENUMERATEKEYS_OPTION = "e";
 
-    private static Options options;
+    private static final Options options = new Options();
     private static CommandLine cmd;
     
     static
     {
-        options = new Options();
-
         Option optKey = new Option(KEY_OPTION, true, "Row key");
         // Number of times -k <key> can be passed on the command line.
         optKey.setArgs(500);

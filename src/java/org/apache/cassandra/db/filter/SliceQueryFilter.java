@@ -37,7 +37,7 @@ import org.apache.cassandra.io.util.FileDataInput;
 
 public class SliceQueryFilter implements IFilter
 {
-    private static Logger logger = LoggerFactory.getLogger(SliceQueryFilter.class);
+    private static final Logger logger = LoggerFactory.getLogger(SliceQueryFilter.class);
 
     public final ByteBuffer start; public final ByteBuffer finish;
     public final boolean reversed;

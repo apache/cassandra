@@ -41,7 +41,7 @@ import org.apache.cassandra.utils.FBUtilities;
  */
 public class StreamIn
 {
-    private static Logger logger = LoggerFactory.getLogger(StreamIn.class);
+    private static final Logger logger = LoggerFactory.getLogger(StreamIn.class);
 
     /** Request ranges for all column families in the given keyspace. */
     public static void requestRanges(InetAddress source, String tableName, Collection<Range<Token>> ranges, Runnable callback, OperationType type)

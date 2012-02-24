@@ -32,7 +32,7 @@ import org.apache.cassandra.thrift.UnavailableException;
 
 public class CounterMutationVerbHandler implements IVerbHandler
 {
-    private static Logger logger = LoggerFactory.getLogger(CounterMutationVerbHandler.class);
+    private static final Logger logger = LoggerFactory.getLogger(CounterMutationVerbHandler.class);
 
     public void doVerb(Message message, String id)
     {

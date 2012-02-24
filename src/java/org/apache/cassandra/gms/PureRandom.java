@@ -29,7 +29,7 @@ import java.util.Random;
 
 class PureRandom extends Random
 {
-    private BitSet bs = new BitSet();
+    private final BitSet bs = new BitSet();
     private int lastUb;
 
     PureRandom()

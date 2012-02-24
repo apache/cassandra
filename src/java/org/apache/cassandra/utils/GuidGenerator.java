@@ -24,9 +24,9 @@ import java.security.SecureRandom;
 import java.util.Random;
 
 public class GuidGenerator {
-    private static Random myRand;
-    private static SecureRandom mySecureRand;
-    private static String s_id;
+    private static final Random myRand;
+    private static final SecureRandom mySecureRand;
+    private static final String s_id;
 
     static {
         if (System.getProperty("java.security.egd") == null) {

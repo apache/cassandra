@@ -36,14 +36,14 @@ import org.apache.cassandra.service.CacheService;
  */
 public class CompactionController
 {
-    private static Logger logger = LoggerFactory.getLogger(CompactionController.class);
+    private static final Logger logger = LoggerFactory.getLogger(CompactionController.class);
 
     private final ColumnFamilyStore cfs;
     private final Set<SSTableReader> sstables;
     private final boolean forceDeserialize;
 
     public final int gcBefore;
-    public boolean keyExistenceIsExpensive;
+    public final boolean keyExistenceIsExpensive;
     public final int mergeShardBefore;
 
     public CompactionController(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, int gcBefore, boolean forceDeserialize)
@@ -58,7 +58,7 @@ public class CompactionController
         // current 'stop all write during memtable switch' situation).
         this.mergeShardBefore = (int) ((cfs.oldestUnflushedMemtable() + 5 * 3600) / 1000);
         this.forceDeserialize = forceDeserialize;
-        keyExistenceIsExpensive = cfs.getCompactionStrategy().isKeyExistenceExpensive(this.sstables);
+        this.keyExistenceIsExpensive = cfs.getCompactionStrategy().isKeyExistenceExpensive(this.sstables);
     }
 
     public String getKeyspace()

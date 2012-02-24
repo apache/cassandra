@@ -38,7 +38,7 @@ import org.apache.cassandra.utils.HeapAllocator;
 public class ColumnFamily extends AbstractColumnContainer
 {
     /* The column serializer for this Column Family. Create based on config. */
-    private static ColumnFamilySerializer serializer = new ColumnFamilySerializer();
+    private static final ColumnFamilySerializer serializer = new ColumnFamilySerializer();
     private final CFMetaData cfm;
 
     public static ColumnFamilySerializer serializer()

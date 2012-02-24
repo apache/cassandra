@@ -33,10 +33,10 @@ class AsyncResult implements IAsyncResult
     private static final Logger logger = LoggerFactory.getLogger(AsyncResult.class);
 
     private byte[] result;
-    private AtomicBoolean done = new AtomicBoolean(false);
-    private Lock lock = new ReentrantLock();
-    private Condition condition;
-    private long startTime;
+    private final AtomicBoolean done = new AtomicBoolean(false);
+    private final Lock lock = new ReentrantLock();
+    private final Condition condition;
+    private final long startTime;
     private InetAddress from;
 
     public AsyncResult()

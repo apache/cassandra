@@ -32,7 +32,7 @@ import org.apache.cassandra.utils.Pair;
  */
 public class PendingFile
 {
-    private static PendingFileSerializer serializer = new PendingFileSerializer();
+    private static final PendingFileSerializer serializer = new PendingFileSerializer();
 
     public static PendingFileSerializer serializer()
     {

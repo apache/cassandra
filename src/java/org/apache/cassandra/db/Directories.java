@@ -59,7 +59,7 @@ import org.apache.cassandra.utils.Pair;
  */
 public class Directories
 {
-    private static Logger logger = LoggerFactory.getLogger(Directories.class);
+    private static final Logger logger = LoggerFactory.getLogger(Directories.class);
 
     public static final String BACKUPS_SUBDIR = "backups";
     public static final String SNAPSHOT_SUBDIR = "snapshots";

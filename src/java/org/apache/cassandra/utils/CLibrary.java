@@ -34,7 +34,7 @@ import com.sun.jna.Native;
 
 public final class CLibrary
 {
-    private static Logger logger = LoggerFactory.getLogger(CLibrary.class);
+    private static final Logger logger = LoggerFactory.getLogger(CLibrary.class);
 
     private static final int MCL_CURRENT = 1;
     private static final int MCL_FUTURE = 2;

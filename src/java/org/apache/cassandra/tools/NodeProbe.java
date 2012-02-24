@@ -697,8 +697,8 @@ class ColumnFamilyStoreMBeanIterator implements Iterator<Map.Entry<String, Colum
 
 class ThreadPoolProxyMBeanIterator implements Iterator<Map.Entry<String, JMXEnabledThreadPoolExecutorMBean>>
 {
-    private Iterator<ObjectName> resIter;
-    private MBeanServerConnection mbeanServerConn;
+    private final Iterator<ObjectName> resIter;
+    private final MBeanServerConnection mbeanServerConn;
     
     public ThreadPoolProxyMBeanIterator(MBeanServerConnection mbeanServerConn) 
     throws MalformedObjectNameException, NullPointerException, IOException

@@ -25,7 +25,7 @@ import org.apache.cassandra.net.Message;
 
 public class SinkManager
 {
-    private static List<IMessageSink> sinks = new ArrayList<IMessageSink>();
+    private static final List<IMessageSink> sinks = new ArrayList<IMessageSink>();
 
     public static void add(IMessageSink ms)
     {

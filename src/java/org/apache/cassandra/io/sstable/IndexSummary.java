@@ -30,8 +30,8 @@ import org.apache.cassandra.db.DecoratedKey;
  */
 public class IndexSummary
 {
-    private ArrayList<Long> positions;
-    private ArrayList<DecoratedKey<?>> keys;
+    private final ArrayList<Long> positions;
+    private final ArrayList<DecoratedKey<?>> keys;
     private long keysWritten = 0;
 
     public IndexSummary(long expectedKeys)

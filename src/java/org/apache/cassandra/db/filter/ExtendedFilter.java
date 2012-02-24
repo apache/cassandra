@@ -37,7 +37,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
  */
 public abstract class ExtendedFilter
 {
-    private static Logger logger = LoggerFactory.getLogger(ExtendedFilter.class);
+    private static final Logger logger = LoggerFactory.getLogger(ExtendedFilter.class);
 
     public final ColumnFamilyStore cfs;
     protected final IFilter originalFilter;

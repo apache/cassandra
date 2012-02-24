@@ -24,9 +24,9 @@ package org.apache.cassandra.cql;
  */
 public class Relation
 {
-    private Term entity;
-    private RelationType relationType;
-    private Term value;
+    private final Term entity;
+    private final RelationType relationType;
+    private final Term value;
     
     /**
      * Creates a new relation.

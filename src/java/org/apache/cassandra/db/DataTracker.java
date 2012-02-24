@@ -43,10 +43,8 @@ public class DataTracker
 {
     private static final Logger logger = LoggerFactory.getLogger(DataTracker.class);
 
-    public Collection<INotificationConsumer> subscribers = new CopyOnWriteArrayList<INotificationConsumer>();
-
+    public final Collection<INotificationConsumer> subscribers = new CopyOnWriteArrayList<INotificationConsumer>();
     public final ColumnFamilyStore cfstore;
-
     private final AtomicReference<View> view;
 
     // On disk live and total size

@@ -23,7 +23,7 @@ import org.apache.cassandra.io.util.Memory;
 
 public class FreeableMemory extends Memory
 {
-    AtomicInteger references = new AtomicInteger(1);
+    private final AtomicInteger references = new AtomicInteger(1);
 
     public FreeableMemory(long size)
     {

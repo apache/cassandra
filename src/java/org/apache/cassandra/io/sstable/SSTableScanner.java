@@ -35,7 +35,7 @@ import org.apache.cassandra.utils.CloseableIterator;
 
 public class SSTableScanner implements CloseableIterator<IColumnIterator>
 {
-    private static Logger logger = LoggerFactory.getLogger(SSTableScanner.class);
+    private static final Logger logger = LoggerFactory.getLogger(SSTableScanner.class);
 
     protected final RandomAccessReader file;
     public final SSTableReader sstable;

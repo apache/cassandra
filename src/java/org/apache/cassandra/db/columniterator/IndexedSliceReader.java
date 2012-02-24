@@ -51,9 +51,9 @@ class IndexedSliceReader extends AbstractIterator<IColumn> implements IColumnIte
     private final ByteBuffer finishColumn;
     private final boolean reversed;
 
-    private BlockFetcher fetcher;
-    private Deque<IColumn> blockColumns = new ArrayDeque<IColumn>();
-    private AbstractType<?> comparator;
+    private final BlockFetcher fetcher;
+    private final Deque<IColumn> blockColumns = new ArrayDeque<IColumn>();
+    private final AbstractType<?> comparator;
 
     public IndexedSliceReader(SSTableReader sstable, FileDataInput input, ByteBuffer startColumn, ByteBuffer finishColumn, boolean reversed)
     {
@@ -61,7 +61,7 @@ class IndexedSliceReader extends AbstractIterator<IColumn> implements IColumnIte
         this.startColumn = startColumn;
         this.finishColumn = finishColumn;
         this.reversed = reversed;
-        comparator = sstable.metadata.comparator;
+        this.comparator = sstable.metadata.comparator;
         try
         {
             IndexHelper.skipBloomFilter(file);

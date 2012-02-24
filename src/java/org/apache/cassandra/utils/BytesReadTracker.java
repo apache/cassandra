@@ -28,7 +28,7 @@ public class BytesReadTracker implements DataInput
 {
 
     private long bytesRead;
-    private DataInput source;
+    private final DataInput source;
 
     public BytesReadTracker(DataInput source)
     {

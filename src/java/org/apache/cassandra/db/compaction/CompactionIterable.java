@@ -34,7 +34,7 @@ import org.apache.cassandra.utils.MergeIterator;
 
 public class CompactionIterable extends AbstractCompactionIterable
 {
-    private static Logger logger = LoggerFactory.getLogger(CompactionIterable.class);
+    private static final Logger logger = LoggerFactory.getLogger(CompactionIterable.class);
 
     private long row;
     private final List<SSTableScanner> scanners;

@@ -41,7 +41,7 @@ import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 public class SuperColumn extends AbstractColumnContainer implements IColumn
 {
-    private static NonBlockingHashMap<Comparator, SuperColumnSerializer> serializers = new NonBlockingHashMap<Comparator, SuperColumnSerializer>();
+    private static final NonBlockingHashMap<Comparator, SuperColumnSerializer> serializers = new NonBlockingHashMap<Comparator, SuperColumnSerializer>();
     public static SuperColumnSerializer serializer(AbstractType<?> comparator)
     {
         SuperColumnSerializer serializer = serializers.get(comparator);
@@ -53,7 +53,7 @@ public class SuperColumn extends AbstractColumnContainer implements IColumn
         return serializer;
     }
 
-    private ByteBuffer name;
+    private final ByteBuffer name;
 
     public SuperColumn(ByteBuffer name, AbstractType<?> comparator)
     {
@@ -337,7 +337,7 @@ public class SuperColumn extends AbstractColumnContainer implements IColumn
 
 class SuperColumnSerializer implements IColumnSerializer
 {
-    private AbstractType<?> comparator;
+    private final AbstractType<?> comparator;
 
     public SuperColumnSerializer(AbstractType<?> comparator)
     {

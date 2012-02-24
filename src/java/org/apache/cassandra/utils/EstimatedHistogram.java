@@ -29,7 +29,7 @@ import org.apache.cassandra.io.ISerializer;
 
 public class EstimatedHistogram
 {
-    public static EstimatedHistogramSerializer serializer = new EstimatedHistogramSerializer();
+    public static final EstimatedHistogramSerializer serializer = new EstimatedHistogramSerializer();
 
     /**
      * The series of values to which the counts in `buckets` correspond:

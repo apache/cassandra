@@ -50,7 +50,7 @@ import org.apache.cassandra.utils.FBUtilities;
  */
 public class ThriftValidation
 {
-    private static Logger logger = LoggerFactory.getLogger(ThriftValidation.class);
+    private static final Logger logger = LoggerFactory.getLogger(ThriftValidation.class);
 
     public static void validateKey(CFMetaData metadata, ByteBuffer key) throws InvalidRequestException
     {

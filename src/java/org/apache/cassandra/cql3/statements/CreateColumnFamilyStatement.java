@@ -50,7 +50,7 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
     private AbstractType<?> keyValidator;
 
     private ByteBuffer keyAlias;
-    private List<ByteBuffer> columnAliases = new ArrayList<ByteBuffer>();
+    private final List<ByteBuffer> columnAliases = new ArrayList<ByteBuffer>();
     private ByteBuffer valueAlias;
 
     private final Map<ColumnIdentifier, String> columns = new HashMap<ColumnIdentifier, String>();
@@ -132,10 +132,10 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
         private final CFPropDefs properties = new CFPropDefs();
 
         private final List<ColumnIdentifier> keyAliases = new ArrayList<ColumnIdentifier>();
-        private List<ColumnIdentifier> columnAliases = new ArrayList<ColumnIdentifier>();
+        private final List<ColumnIdentifier> columnAliases = new ArrayList<ColumnIdentifier>();
 
         private boolean useCompactStorage;
-        private Multiset<ColumnIdentifier> definedNames = HashMultiset.create(1);
+        private final Multiset<ColumnIdentifier> definedNames = HashMultiset.create(1);
 
         public RawStatement(CFName name)
         {

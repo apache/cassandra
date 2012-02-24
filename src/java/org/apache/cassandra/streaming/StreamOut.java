@@ -74,7 +74,7 @@ import org.apache.cassandra.utils.Pair;
  */
 public class StreamOut
 {
-    private static Logger logger = LoggerFactory.getLogger(StreamOut.class);
+    private static final Logger logger = LoggerFactory.getLogger(StreamOut.class);
 
     /**
      * Stream the given ranges to the target endpoint from each CF in the given keyspace.

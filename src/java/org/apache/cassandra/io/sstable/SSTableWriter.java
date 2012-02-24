@@ -41,14 +41,14 @@ import org.apache.cassandra.utils.*;
 
 public class SSTableWriter extends SSTable
 {
-    private static Logger logger = LoggerFactory.getLogger(SSTableWriter.class);
+    private static final Logger logger = LoggerFactory.getLogger(SSTableWriter.class);
 
     private IndexWriter iwriter;
     private SegmentedFile.Builder dbuilder;
     private final SequentialWriter dataFile;
     private DecoratedKey<?> lastWrittenKey;
     private FileMark dataMark;
-    private SSTableMetadata.Collector sstableMetadataCollector;
+    private final SSTableMetadata.Collector sstableMetadataCollector;
 
     public SSTableWriter(String filename, long keyCount) throws IOException
     {

@@ -140,12 +140,12 @@ public class CliClient
     private final String NEWLINE = System.getProperty("line.separator");
     private final String TAB = "  ";
 
-    private Cassandra.Client thriftClient = null;
-    private CliSessionState sessionState  = null;
+    private final Cassandra.Client thriftClient;
+    private final CliSessionState sessionState;
     private String keySpace = null;
     private String username = null;
-    private Map<String, KsDef> keyspacesMap = new HashMap<String, KsDef>();
-    private Map<String, AbstractType<?>> cfKeysComparators;
+    private final Map<String, KsDef> keyspacesMap = new HashMap<String, KsDef>();
+    private final Map<String, AbstractType<?>> cfKeysComparators;
     private ConsistencyLevel consistencyLevel = ConsistencyLevel.ONE;
     private CliUserHelp help;
     public CliClient(CliSessionState cliSessionState, Cassandra.Client thriftClient)

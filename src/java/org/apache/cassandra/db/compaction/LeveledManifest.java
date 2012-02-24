@@ -51,7 +51,7 @@ public class LeveledManifest
      * uses a pessimistic estimate of how many keys overlap (none), so we risk wasting memory
      * or even OOMing when compacting highly overlapping sstables
      */
-    static int MAX_COMPACTING_L0 = 32;
+    static final int MAX_COMPACTING_L0 = 32;
 
     private final ColumnFamilyStore cfs;
     private final List<SSTableReader>[] generations;

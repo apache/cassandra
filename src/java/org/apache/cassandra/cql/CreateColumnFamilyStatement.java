@@ -38,9 +38,9 @@ public class CreateColumnFamilyStatement
 {
     private final String name;
     private final Map<Term, String> columns = new HashMap<Term, String>();
-    private List<String> keyValidator = new ArrayList<String>();
+    private final List<String> keyValidator = new ArrayList<String>();
     private ByteBuffer keyAlias = null;
-    private CFPropDefs cfProps = new CFPropDefs();
+    private final CFPropDefs cfProps = new CFPropDefs();
 
     public CreateColumnFamilyStatement(String name)
     {

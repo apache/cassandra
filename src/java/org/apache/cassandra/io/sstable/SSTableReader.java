@@ -84,7 +84,7 @@ public class SSTableReader extends SSTable
 
     private InstrumentingCache<KeyCacheKey, Long> keyCache;
 
-    private BloomFilterTracker bloomFilterTracker = new BloomFilterTracker();
+    private final BloomFilterTracker bloomFilterTracker = new BloomFilterTracker();
 
     private final AtomicInteger references = new AtomicInteger(1);
     // technically isCompacted is not necessary since it should never be unreferenced unless it is also compacted,

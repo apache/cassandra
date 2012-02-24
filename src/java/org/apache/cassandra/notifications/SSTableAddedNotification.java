@@ -21,7 +21,7 @@ import org.apache.cassandra.io.sstable.SSTableReader;
 
 public class SSTableAddedNotification implements INotification
 {
-    public SSTableReader added;
+    public final SSTableReader added;
     public SSTableAddedNotification(SSTableReader added)
     {
         this.added = added;

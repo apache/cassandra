@@ -42,7 +42,7 @@ public class CreateKeyspaceStatement extends SchemaAlteringStatement
     private final String name;
     private final Map<String, String> attrs;
     private String strategyClass;
-    private Map<String, String> strategyOptions = new HashMap<String, String>();
+    private final Map<String, String> strategyOptions = new HashMap<String, String>();
 
     /**
      * Creates a new <code>CreateKeyspaceStatement</code> instance for a given

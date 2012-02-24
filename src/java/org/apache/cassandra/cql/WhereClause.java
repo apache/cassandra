@@ -34,11 +34,11 @@ public class WhereClause
 {
     // all relations (except for `<key> IN (.., .., ..)` which can be directly interpreted) from parser
     // are stored into this array and are filtered to the keys/columns by extractKeysFromColumns(...)
-    private List<Relation> clauseRelations = new ArrayList<Relation>();
-    private List<Relation> columns = new ArrayList<Relation>();
+    private final List<Relation> clauseRelations = new ArrayList<Relation>();
+    private final List<Relation> columns = new ArrayList<Relation>();
 
     // added to either by the parser from an IN clause or by extractKeysFromColumns
-    private Set<Term> keys = new LinkedHashSet<Term>();
+    private final Set<Term> keys = new LinkedHashSet<Term>();
     private Term startKey, finishKey;
     private boolean includeStartKey = false, includeFinishKey = false, multiKey = false;
     // set by extractKeysFromColumns

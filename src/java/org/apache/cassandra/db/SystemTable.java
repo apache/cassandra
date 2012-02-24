@@ -48,7 +48,7 @@ import org.apache.cassandra.utils.NodeId;
 
 public class SystemTable
 {
-    private static Logger logger = LoggerFactory.getLogger(SystemTable.class);
+    private static final Logger logger = LoggerFactory.getLogger(SystemTable.class);
     public static final String STATUS_CF = "LocationInfo"; // keep the old CF string for backwards-compatibility
     public static final String INDEX_CF = "IndexInfo";
     public static final String NODE_ID_CF = "NodeIdInfo";

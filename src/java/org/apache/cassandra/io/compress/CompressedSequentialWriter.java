@@ -51,7 +51,7 @@ public class CompressedSequentialWriter extends SequentialWriter
 
     private long originalSize = 0, compressedSize = 0;
 
-    private Collector sstableMetadataCollector;
+    private final Collector sstableMetadataCollector;
     
     public CompressedSequentialWriter(File file, String indexFilePath, boolean skipIOCache, CompressionParameters parameters, Collector sstableMetadataCollector) throws IOException
     {
@@ -198,12 +198,12 @@ public class CompressedSequentialWriter extends SequentialWriter
     protected static class CompressedFileWriterMark implements FileMark
     {
         // chunk offset in the compressed file
-        long chunkOffset;
+        final long chunkOffset;
         // uncompressed data offset (real data offset)
-        long uncDataOffset;
+        final long uncDataOffset;
 
-        int bufferOffset;
-        int nextChunkIndex;
+        final int bufferOffset;
+        final int nextChunkIndex;
 
         public CompressedFileWriterMark(long chunkOffset, long uncDataOffset, int bufferOffset, int nextChunkIndex)
         {

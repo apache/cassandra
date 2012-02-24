@@ -103,7 +103,7 @@ public final class MessagingService implements MessagingServiceMBean
     private static final Logger logger = LoggerFactory.getLogger(MessagingService.class);
     private static final int LOG_DROPPED_INTERVAL_IN_MS = 5000;
 
-    private List<SocketThread> socketThreads = Lists.newArrayList();
+    private final List<SocketThread> socketThreads = Lists.newArrayList();
     private final SimpleCondition listenGate;
 
     /**
@@ -356,7 +356,7 @@ public final class MessagingService implements MessagingServiceMBean
         return messageId;
     }
 
-    private static AtomicInteger idGen = new AtomicInteger(0);
+    private static final AtomicInteger idGen = new AtomicInteger(0);
     // TODO make these integers to avoid unnecessary int -> string -> int conversions
     private static String nextId()
     {

@@ -34,10 +34,10 @@ public class SelectExpression
     
     private int numColumns = MAX_COLUMNS_DEFAULT;
     private boolean reverseColumns = false;
-    private boolean hasFirstSet;
+    private final boolean hasFirstSet;
     private final boolean wildcard;
-    private Term start, finish;
-    private List<Term> columns;
+    private final Term start, finish;
+    private final List<Term> columns;
     
     /**
      * Create a new SelectExpression for a range (slice) of columns.
@@ -57,6 +57,7 @@ public class SelectExpression
         reverseColumns = reverse;
         this.wildcard = wildcard;
         hasFirstSet = firstSet;
+        this.columns = null;
     }
     
     /**
@@ -75,6 +76,8 @@ public class SelectExpression
         numColumns = count;
         reverseColumns = reverse;
         hasFirstSet = firstSet;
+        start = null;
+        finish = null;
     }
     
     /**

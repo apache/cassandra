@@ -26,7 +26,7 @@ import org.slf4j.LoggerFactory;
  */
 public class Throttle
 {
-    private static Logger logger = LoggerFactory.getLogger(Throttle.class);
+    private static final Logger logger = LoggerFactory.getLogger(Throttle.class);
 
     private final String name;
     private final ThroughputFunction fun;

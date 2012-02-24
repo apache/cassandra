@@ -41,7 +41,7 @@ import org.slf4j.LoggerFactory;
  */
 public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor
 {
-    protected static Logger logger = LoggerFactory.getLogger(DebuggableThreadPoolExecutor.class);
+    protected static final Logger logger = LoggerFactory.getLogger(DebuggableThreadPoolExecutor.class);
     public static final RejectedExecutionHandler blockingExecutionHandler = new RejectedExecutionHandler()
     {
         public void rejectedExecution(Runnable task, ThreadPoolExecutor executor)

@@ -31,13 +31,13 @@ import org.apache.cassandra.io.IVersionedSerializer;
 
 class GossipDigestAck2Message
 {
-    private static  IVersionedSerializer<GossipDigestAck2Message> serializer;
+    private static final IVersionedSerializer<GossipDigestAck2Message> serializer;
     static
     {
         serializer = new GossipDigestAck2MessageSerializer();
     }
     
-    Map<InetAddress, EndpointState> epStateMap;
+    final Map<InetAddress, EndpointState> epStateMap;
 
     public static IVersionedSerializer<GossipDigestAck2Message> serializer()
     {

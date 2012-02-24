@@ -34,7 +34,7 @@ import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 public class EndpointState
 {
-    protected static Logger logger = LoggerFactory.getLogger(EndpointState.class);
+    protected static final Logger logger = LoggerFactory.getLogger(EndpointState.class);
 
     private final static IVersionedSerializer<EndpointState> serializer = new EndpointStateSerializer();
 
@@ -116,7 +116,7 @@ public class EndpointState
 
 class EndpointStateSerializer implements IVersionedSerializer<EndpointState>
 {
-    private static Logger logger = LoggerFactory.getLogger(EndpointStateSerializer.class);
+    private static final Logger logger = LoggerFactory.getLogger(EndpointStateSerializer.class);
     
     public void serialize(EndpointState epState, DataOutput dos, int version) throws IOException
     {

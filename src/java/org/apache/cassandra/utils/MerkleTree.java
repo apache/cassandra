@@ -626,7 +626,7 @@ public class MerkleTree implements Serializable
         private Hashable lchild;
         private Hashable rchild;
 
-        private static InnerSerializer serializer = new InnerSerializer();
+        private static final InnerSerializer serializer = new InnerSerializer();
         
         /**
          * Constructs an Inner with the given token and children, and a null hash.
@@ -738,7 +738,7 @@ public class MerkleTree implements Serializable
     {
         public static final long serialVersionUID = 1L;
         static final byte IDENT = 1;
-        private static LeafSerializer serializer = new LeafSerializer();
+        private static final LeafSerializer serializer = new LeafSerializer();
         
         /**
          * Constructs a null hash.
@@ -821,7 +821,7 @@ public class MerkleTree implements Serializable
     static abstract class Hashable implements Serializable
     {
         private static final long serialVersionUID = 1L;
-        private static IVersionedSerializer<Hashable> serializer = new HashableSerializer();
+        private static final IVersionedSerializer<Hashable> serializer = new HashableSerializer();
 
         protected byte[] hash;
 

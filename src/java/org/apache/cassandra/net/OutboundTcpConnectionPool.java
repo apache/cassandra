@@ -30,7 +30,7 @@ import org.apache.cassandra.utils.FBUtilities;
 
 public class OutboundTcpConnectionPool
 {
-    private IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
+    private final IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
     // pointer for the real Address.
     private final InetAddress id;
     public final OutboundTcpConnection cmdCon;

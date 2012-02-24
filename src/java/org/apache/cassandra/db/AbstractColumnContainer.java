@@ -34,7 +34,7 @@ import org.apache.cassandra.utils.HeapAllocator;
 
 public abstract class AbstractColumnContainer implements IColumnContainer, IIterableColumns
 {
-    private static Logger logger = LoggerFactory.getLogger(AbstractColumnContainer.class);
+    private static final Logger logger = LoggerFactory.getLogger(AbstractColumnContainer.class);
 
     protected final ISortedColumns columns;
 

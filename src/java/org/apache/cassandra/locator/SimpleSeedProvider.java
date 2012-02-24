@@ -31,7 +31,7 @@ public class SimpleSeedProvider implements SeedProvider
 {
     private static final Logger logger = LoggerFactory.getLogger(SimpleSeedProvider.class);
     
-    private List<InetAddress> seeds;
+    private final List<InetAddress> seeds;
     
     public SimpleSeedProvider(Map<String, String> args)
     {

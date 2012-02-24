@@ -34,9 +34,9 @@ public class ResourceWatcher
     
     public static class WatchedResource implements Runnable
     {
-        private static Logger logger = LoggerFactory.getLogger(WatchedResource.class);
-        private String resource;
-        private Runnable callback;
+        private static final Logger logger = LoggerFactory.getLogger(WatchedResource.class);
+        private final String resource;
+        private final Runnable callback;
         private long lastLoaded;
 
         public WatchedResource(String resource, Runnable callback)

@@ -32,7 +32,7 @@ import org.apache.cassandra.utils.FBUtilities;
 
 public class StreamHeader
 {
-    private static IVersionedSerializer<StreamHeader> serializer;
+    private static final IVersionedSerializer<StreamHeader> serializer;
 
     static
     {

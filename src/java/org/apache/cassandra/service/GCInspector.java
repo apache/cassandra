@@ -44,11 +44,11 @@ public class GCInspector
     
     public static final GCInspector instance = new GCInspector();
 
-    private HashMap<String, Long> gctimes = new HashMap<String, Long>();
-    private HashMap<String, Long> gccounts = new HashMap<String, Long>();
+    private final HashMap<String, Long> gctimes = new HashMap<String, Long>();
+    private final HashMap<String, Long> gccounts = new HashMap<String, Long>();
 
-    List<GarbageCollectorMXBean> beans = new ArrayList<GarbageCollectorMXBean>();
-    MemoryMXBean membean = ManagementFactory.getMemoryMXBean();
+    final List<GarbageCollectorMXBean> beans = new ArrayList<GarbageCollectorMXBean>();
+    final MemoryMXBean membean = ManagementFactory.getMemoryMXBean();
 
     private volatile boolean cacheSizesReduced;
 

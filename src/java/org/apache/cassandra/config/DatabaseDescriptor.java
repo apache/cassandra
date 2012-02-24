@@ -58,7 +58,7 @@ import org.yaml.snakeyaml.error.YAMLException;
 
 public class DatabaseDescriptor
 {
-    private static Logger logger = LoggerFactory.getLogger(DatabaseDescriptor.class);
+    private static final Logger logger = LoggerFactory.getLogger(DatabaseDescriptor.class);
 
     private static IEndpointSnitch snitch;
     private static InetAddress listenAddress; // leave null so we can fall through to getLocalHost

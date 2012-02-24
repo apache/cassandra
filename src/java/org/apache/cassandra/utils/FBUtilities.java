@@ -56,7 +56,7 @@ import org.apache.thrift.TSerializer;
 
 public class FBUtilities
 {
-    private static Logger logger = LoggerFactory.getLogger(FBUtilities.class);
+    private static final Logger logger = LoggerFactory.getLogger(FBUtilities.class);
 
     public static final BigInteger TWO = new BigInteger("2");
 

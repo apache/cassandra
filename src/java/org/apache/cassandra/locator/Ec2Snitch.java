@@ -41,7 +41,7 @@ import org.apache.cassandra.utils.FBUtilities;
  */
 public class Ec2Snitch extends AbstractNetworkTopologySnitch
 {
-    protected static Logger logger = LoggerFactory.getLogger(Ec2Snitch.class);
+    protected static final Logger logger = LoggerFactory.getLogger(Ec2Snitch.class);
     protected static final String ZONE_NAME_QUERY_URL = "http://169.254.169.254/latest/meta-data/placement/availability-zone";
     private static final String DEFAULT_DC = "UNKNOWN-DC";
     private static final String DEFAULT_RACK = "UNKNOWN-RACK";

@@ -56,7 +56,7 @@ public abstract class SecondaryIndex
     /**
      * The column definitions which this index is responsible for
      */
-    protected Set<ColumnDefinition> columnDefs = Collections.newSetFromMap(new ConcurrentHashMap<ColumnDefinition,Boolean>());
+    protected final Set<ColumnDefinition> columnDefs = Collections.newSetFromMap(new ConcurrentHashMap<ColumnDefinition,Boolean>());
     
     /**
      * Perform any initialization work

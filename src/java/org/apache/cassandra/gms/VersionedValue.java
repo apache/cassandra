@@ -90,7 +90,7 @@ public class VersionedValue implements Comparable<VersionedValue>
 
     public static class VersionedValueFactory
     {
-        IPartitioner partitioner;
+        final IPartitioner partitioner;
 
         public VersionedValueFactory(IPartitioner partitioner)
         {

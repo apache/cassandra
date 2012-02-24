@@ -47,7 +47,7 @@ public class DatacenterSyncWriteResponseHandler extends AbstractWriteResponseHan
     }
 
     private final NetworkTopologyStrategy strategy;
-    private HashMap<String, AtomicInteger> responses = new HashMap<String, AtomicInteger>();
+    private final HashMap<String, AtomicInteger> responses = new HashMap<String, AtomicInteger>();
 
     protected DatacenterSyncWriteResponseHandler(Collection<InetAddress> writeEndpoints, ConsistencyLevel consistencyLevel, String table)
     {

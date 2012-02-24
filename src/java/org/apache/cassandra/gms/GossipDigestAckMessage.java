@@ -33,14 +33,14 @@ import org.apache.cassandra.io.IVersionedSerializer;
 
 class GossipDigestAckMessage
 {
-    private static IVersionedSerializer<GossipDigestAckMessage> serializer;
+    private static final IVersionedSerializer<GossipDigestAckMessage> serializer;
     static
     {
         serializer = new GossipDigestAckMessageSerializer();
     }
     
-    List<GossipDigest> gDigestList;
-    Map<InetAddress, EndpointState> epStateMap;
+    final List<GossipDigest> gDigestList;
+    final Map<InetAddress, EndpointState> epStateMap;
     
     static IVersionedSerializer<GossipDigestAckMessage> serializer()
     {

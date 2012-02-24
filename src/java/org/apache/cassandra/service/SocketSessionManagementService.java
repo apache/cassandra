@@ -25,7 +25,7 @@ public class SocketSessionManagementService
 {
     public final static SocketSessionManagementService instance = new SocketSessionManagementService();
     public final static ThreadLocal<SocketAddress> remoteSocket = new ThreadLocal<SocketAddress>();
-    private Map<SocketAddress, ClientState> activeSocketSessions = new ConcurrentHashMap<SocketAddress, ClientState>();
+    private final Map<SocketAddress, ClientState> activeSocketSessions = new ConcurrentHashMap<SocketAddress, ClientState>();
 
     public ClientState get(SocketAddress key)
     {

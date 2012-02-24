@@ -47,8 +47,8 @@ public class RoundRobinScheduler implements IRequestScheduler
     // Used by the the scheduler thread so we don't need to busy-wait until there is a request to process
     private final Semaphore queueSize = new Semaphore(0, false);
 
-    private int defaultWeight;
-    private Map<String, Integer> weights;
+    private final int defaultWeight;
+    private final Map<String, Integer> weights;
 
     public RoundRobinScheduler(RequestSchedulerOptions options)
     {

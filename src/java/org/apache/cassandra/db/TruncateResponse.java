@@ -31,7 +31,7 @@ import org.apache.cassandra.utils.FBUtilities;
  */
 public class TruncateResponse
 {
-    private static TruncateResponseSerializer serializer = new TruncateResponseSerializer();
+    private static final TruncateResponseSerializer serializer = new TruncateResponseSerializer();
 
     public static TruncateResponseSerializer serializer()
     {

@@ -27,7 +27,7 @@ public class LegacyBloomFilter extends Filter
 {
     private static final int EXCESS = 20;
     private static final Logger logger = LoggerFactory.getLogger(LegacyBloomFilter.class);
-    static LegacyBloomFilterSerializer serializer = new LegacyBloomFilterSerializer();
+    static final LegacyBloomFilterSerializer serializer = new LegacyBloomFilterSerializer();
 
     public static LegacyBloomFilterSerializer serializer()
     {

@@ -45,7 +45,7 @@ import org.apache.cassandra.utils.UUIDGen;
 
 public class RowMutation implements IMutation, MessageProducer
 {
-    private static RowMutationSerializer serializer = new RowMutationSerializer();
+    private static final RowMutationSerializer serializer = new RowMutationSerializer();
     public static final String FORWARD_HEADER = "FORWARD";
 
     public static RowMutationSerializer serializer()
@@ -53,23 +53,21 @@ public class RowMutation implements IMutation, MessageProducer
         return serializer;
     }
 
-    private String table;
-    private ByteBuffer key;
+    private final String table;
+    private final ByteBuffer key;
     // map of column family id to mutations for that column family.
-    protected Map<Integer, ColumnFamily> modifications = new HashMap<Integer, ColumnFamily>();
+    protected final Map<Integer, ColumnFamily> modifications;
 
-    private Map<Integer, byte[]> preserializedBuffers = new HashMap<Integer, byte[]>();
+    private final Map<Integer, byte[]> preserializedBuffers = new HashMap<Integer, byte[]>();
 
     public RowMutation(String table, ByteBuffer key)
     {
-        this.table = table;
-        this.key = key;
+        this(table, key, new HashMap<Integer, ColumnFamily>());
     }
 
     public RowMutation(String table, Row row)
     {
-        this.table = table;
-        this.key = row.key.key;
+        this(table, row.key.key);
         add(row.cf);
     }
 

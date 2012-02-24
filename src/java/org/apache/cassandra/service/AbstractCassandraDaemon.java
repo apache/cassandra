@@ -100,7 +100,7 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
         }
     }
 
-    private static Logger logger = LoggerFactory.getLogger(AbstractCassandraDaemon.class);
+    private static final Logger logger = LoggerFactory.getLogger(AbstractCassandraDaemon.class);
 
     static final AtomicInteger exceptions = new AtomicInteger();
     
@@ -394,7 +394,7 @@ public abstract class AbstractCassandraDaemon implements CassandraDaemon
      */
     public static class CleaningThreadPool extends ThreadPoolExecutor 
     {
-        private ThreadLocal<ClientState> state;
+        private final ThreadLocal<ClientState> state;
         public CleaningThreadPool(ThreadLocal<ClientState> state, int minWorkerThread, int maxWorkerThreads)
         {
             super(minWorkerThread, maxWorkerThreads, 60, TimeUnit.SECONDS, new SynchronousQueue<Runnable>(), new NamedThreadFactory("Thrift"));

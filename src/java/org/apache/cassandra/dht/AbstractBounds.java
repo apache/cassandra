@@ -31,7 +31,7 @@ import org.apache.cassandra.utils.Pair;
 public abstract class AbstractBounds<T extends RingPosition> implements Serializable
 {
     private static final long serialVersionUID = 1L;
-    private static AbstractBoundsSerializer serializer = new AbstractBoundsSerializer();
+    private static final AbstractBoundsSerializer serializer = new AbstractBoundsSerializer();
 
     public static AbstractBoundsSerializer serializer()
     {

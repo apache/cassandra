@@ -43,9 +43,9 @@ public class CliMain
 
     private static TTransport transport = null;
     private static Cassandra.Client thriftClient = null;
-    public  static CliSessionState sessionState = new CliSessionState();
+    public  static final CliSessionState sessionState = new CliSessionState();
     private static CliClient cliClient;
-    private static CliCompleter completer = new CliCompleter();
+    private static final CliCompleter completer = new CliCompleter();
     private static int lineNumber = 1;
 
     /**

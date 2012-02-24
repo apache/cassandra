@@ -27,7 +27,7 @@ public class MessageDeliveryTask implements Runnable
 {
     private static final Logger logger = LoggerFactory.getLogger(MessageDeliveryTask.class);
 
-    private Message message;
+    private final Message message;
     private final long constructionTime = System.currentTimeMillis();
     private final String id;
 

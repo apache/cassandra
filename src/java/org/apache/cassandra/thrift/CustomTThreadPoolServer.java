@@ -47,13 +47,13 @@ public class CustomTThreadPoolServer extends TServer
     private static final Logger logger = LoggerFactory.getLogger(CustomTThreadPoolServer.class.getName());
 
     // Executor service for handling client connections
-    private ExecutorService executorService;
+    private final ExecutorService executorService;
 
     // Flag for stopping the server
     private volatile boolean stopped;
 
     // Server options
-    private TThreadPoolServer.Args args;
+    private final TThreadPoolServer.Args args;
 
     //Track and Limit the number of connected clients
     private final AtomicInteger activeClients = new AtomicInteger(0);

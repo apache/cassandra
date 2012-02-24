@@ -27,9 +27,9 @@ import org.apache.cassandra.thrift.IndexExpression;
 
 public abstract class SecondaryIndexSearcher
 {
-    protected SecondaryIndexManager    indexManager;
-    protected Set<ByteBuffer> columns;
-    protected ColumnFamilyStore baseCfs;
+    protected final SecondaryIndexManager    indexManager;
+    protected final Set<ByteBuffer> columns;
+    protected final ColumnFamilyStore baseCfs;
     
     public SecondaryIndexSearcher(SecondaryIndexManager indexManager, Set<ByteBuffer> columns)
     {

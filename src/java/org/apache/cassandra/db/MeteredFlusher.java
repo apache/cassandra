@@ -31,7 +31,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 
 class MeteredFlusher implements Runnable
 {
-    private static Logger logger = LoggerFactory.getLogger(MeteredFlusher.class);
+    private static final Logger logger = LoggerFactory.getLogger(MeteredFlusher.class);
 
     public void run()
     {

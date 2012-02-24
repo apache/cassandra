@@ -35,7 +35,7 @@ import java.util.Map;
 import java.util.Set;
 
 public class CFPropDefs {
-    private static Logger logger = LoggerFactory.getLogger(CFPropDefs.class);
+    private static final Logger logger = LoggerFactory.getLogger(CFPropDefs.class);
 
     public static final String KW_COMPARATOR = "comparator";
     public static final String KW_COMMENT = "comment";

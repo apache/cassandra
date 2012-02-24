@@ -41,7 +41,7 @@ import org.slf4j.LoggerFactory;
  */
 public class SlabAllocator extends Allocator
 {
-    private static Logger logger = LoggerFactory.getLogger(SlabAllocator.class);
+    private static final Logger logger = LoggerFactory.getLogger(SlabAllocator.class);
 
     private final static int REGION_SIZE = 1024 * 1024;
     private final static int MAX_CLONED_SIZE = 128 * 1024; // bigger than this don't go in the region

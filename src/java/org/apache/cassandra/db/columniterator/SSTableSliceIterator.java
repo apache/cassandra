@@ -36,7 +36,7 @@ public class SSTableSliceIterator implements IColumnIterator
 {
     private final FileDataInput fileToClose;
     private IColumnIterator reader;
-    private DecoratedKey key;
+    private final DecoratedKey key;
 
     public SSTableSliceIterator(SSTableReader sstable, DecoratedKey key, ByteBuffer startColumn, ByteBuffer finishColumn, boolean reversed)
     {

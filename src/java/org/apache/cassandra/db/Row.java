@@ -26,7 +26,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class Row
 {
-    private static RowSerializer serializer = new RowSerializer();
+    private static final RowSerializer serializer = new RowSerializer();
 
     public static RowSerializer serializer()
     {

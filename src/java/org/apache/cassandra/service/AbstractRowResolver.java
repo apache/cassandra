@@ -37,7 +37,7 @@ import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 public abstract class AbstractRowResolver implements IResponseResolver<Row>
 {
-    protected static Logger logger = LoggerFactory.getLogger(AbstractRowResolver.class);
+    protected static final Logger logger = LoggerFactory.getLogger(AbstractRowResolver.class);
 
     private static final Message FAKE_MESSAGE = new Message(FBUtilities.getBroadcastAddress(), StorageService.Verb.INTERNAL_RESPONSE, ArrayUtils.EMPTY_BYTE_ARRAY, -1);
 

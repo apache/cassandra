@@ -31,18 +31,18 @@ import org.apache.cassandra.streaming.StreamHeader;
 
 public class IncomingTcpConnection extends Thread
 {
-    private static Logger logger = LoggerFactory.getLogger(IncomingTcpConnection.class);
+    private static final Logger logger = LoggerFactory.getLogger(IncomingTcpConnection.class);
 
     private static final int CHUNK_SIZE = 1024 * 1024;
     
-    private Socket socket;
-    public InetAddress from;
+    private final Socket socket;
+    public final InetAddress from;
 
     public IncomingTcpConnection(Socket socket)
     {
         assert socket != null;
         this.socket = socket;
-        from = socket.getInetAddress(); // maximize chance of this not being nulled by disconnect
+        this.from = socket.getInetAddress(); // maximize chance of this not being nulled by disconnect
     }
 
     /**

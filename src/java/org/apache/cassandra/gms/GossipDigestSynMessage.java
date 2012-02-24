@@ -36,14 +36,14 @@ import org.apache.cassandra.net.CompactEndpointSerializationHelper;
 
 class GossipDigestSynMessage
 {
-    private static IVersionedSerializer<GossipDigestSynMessage> serializer;
+    private static final IVersionedSerializer<GossipDigestSynMessage> serializer;
     static
     {
         serializer = new GossipDigestSynMessageSerializer();
     }
     
-    String clusterId;
-    List<GossipDigest> gDigests = new ArrayList<GossipDigest>();
+    final String clusterId;
+    final List<GossipDigest> gDigests;
 
     public static IVersionedSerializer<GossipDigestSynMessage> serializer()
     {

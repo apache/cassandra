@@ -30,15 +30,15 @@ import org.apache.cassandra.net.CompactEndpointSerializationHelper;
 
 public class GossipDigest implements Comparable<GossipDigest>
 {
-    private static IVersionedSerializer<GossipDigest> serializer;
+    private static final IVersionedSerializer<GossipDigest> serializer;
     static
     {
         serializer = new GossipDigestSerializer();
     }
     
-    InetAddress endpoint;
-    int generation;
-    int maxVersion;
+    final InetAddress endpoint;
+    final int generation;
+    final int maxVersion;
 
     public static IVersionedSerializer<GossipDigest> serializer()
     {

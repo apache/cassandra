@@ -148,7 +148,7 @@ class ColumnSet implements Set<Map.Entry<ByteBuffer, IColumn>>
     private final ColumnSerializer serializer;
     private final DataInput dis;
     private final int length;
-    private IColumnSerializer.Flag flag;
+    private final IColumnSerializer.Flag flag;
     private final int expireBefore;
 
     public ColumnSet(ColumnSerializer serializer, DataInput dis, int length, IColumnSerializer.Flag flag, int expireBefore)

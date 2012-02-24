@@ -60,7 +60,7 @@ public class CassandraDaemon extends org.apache.cassandra.service.AbstractCassan
         AbstractCassandraDaemon.initLog4j();
     }
 
-    private static Logger logger = LoggerFactory.getLogger(CassandraDaemon.class);
+    private static final Logger logger = LoggerFactory.getLogger(CassandraDaemon.class);
     private final static String SYNC = "sync";
     private final static String ASYNC = "async";
     private final static String HSHA = "hsha";

@@ -28,9 +28,9 @@ public class BloomFilter extends Filter
 {
     private static final Logger logger = LoggerFactory.getLogger(BloomFilter.class);
     private static final int EXCESS = 20;
-    static BloomFilterSerializer serializer = new BloomFilterSerializer();
+    static final BloomFilterSerializer serializer = new BloomFilterSerializer();
 
-    public OpenBitSet bitset;
+    public final OpenBitSet bitset;
 
     BloomFilter(int hashes, OpenBitSet bs)
     {

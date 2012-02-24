@@ -959,14 +959,13 @@ public class AntiEntropyService
             public final String cfname;
             public final TreeResponse r1;
             public final TreeResponse r2;
-            public List<Range<Token>> differences;
+            public final List<Range<Token>> differences = new ArrayList<Range<Token>>();
 
             Differencer(String cfname, TreeResponse r1, TreeResponse r2)
             {
                 this.cfname = cfname;
                 this.r1 = r1;
                 this.r2 = r2;
-                this.differences = new ArrayList<Range<Token>>();
             }
 
             /**

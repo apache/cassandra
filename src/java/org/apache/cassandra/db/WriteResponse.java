@@ -35,7 +35,7 @@ import org.apache.cassandra.utils.FBUtilities;
  */
 public class WriteResponse 
 {
-    private static WriteResponseSerializer serializer = new WriteResponseSerializer();
+    private static final WriteResponseSerializer serializer = new WriteResponseSerializer();
 
     public static WriteResponseSerializer serializer()
     {

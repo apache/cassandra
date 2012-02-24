@@ -52,14 +52,12 @@ public class NodeCmd
     private static final String DEFAULT_HOST = "127.0.0.1";
     private static final int DEFAULT_PORT = 7199;
 
-    private static ToolOptions options = null;
+    private static final ToolOptions options = new ToolOptions();
 
-    private NodeProbe probe;
+    private final NodeProbe probe;
     
     static
     {
-        options = new ToolOptions();
-
         options.addOption(HOST_OPT,     true, "node hostname or ip address");
         options.addOption(PORT_OPT,     true, "remote jmx agent port number");
         options.addOption(USERNAME_OPT, true, "remote jmx agent username");

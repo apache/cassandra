@@ -76,7 +76,7 @@ import org.apache.cassandra.utils.WrappedRunnable;
  */
 public class StorageService implements IEndpointStateChangeSubscriber, StorageServiceMBean
 {
-    private static Logger logger = LoggerFactory.getLogger(StorageService.class);
+    private static final Logger logger = LoggerFactory.getLogger(StorageService.class);
 
     public static final int RING_DELAY = getRingDelay(); // delay after which we assume ring has stablized
 

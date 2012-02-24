@@ -168,8 +168,8 @@ public class BulkLoader
     {
         private final Map<String, Set<String>> knownCfs = new HashMap<String, Set<String>>();
         private final SSTableLoader.OutputHandler outputHandler;
-        private Set<InetAddress> hosts = new HashSet<InetAddress>();
-        private int rpcPort;
+        private final Set<InetAddress> hosts;
+        private final int rpcPort;
 
         public ExternalClient(SSTableLoader.OutputHandler outputHandler, Set<InetAddress> hosts, int port)
         {
@@ -248,8 +248,8 @@ public class BulkLoader
         public int rpcPort = 9160;
         public int throttle = 0;
 
-        public Set<InetAddress> hosts = new HashSet<InetAddress>();
-        public Set<InetAddress> ignores = new HashSet<InetAddress>();
+        public final Set<InetAddress> hosts = new HashSet<InetAddress>();
+        public final Set<InetAddress> ignores = new HashSet<InetAddress>();
 
         LoaderOptions(File directory)
         {

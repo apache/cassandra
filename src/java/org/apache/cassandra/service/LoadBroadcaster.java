@@ -34,7 +34,7 @@ public class LoadBroadcaster implements IEndpointStateChangeSubscriber
 
     private static final Logger logger = LoggerFactory.getLogger(LoadBroadcaster.class);
 
-    private Map<InetAddress, Double> loadInfo = new HashMap<InetAddress, Double>();
+    private final Map<InetAddress, Double> loadInfo = new HashMap<InetAddress, Double>();
 
     private LoadBroadcaster()
     {

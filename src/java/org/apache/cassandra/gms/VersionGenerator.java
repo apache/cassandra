@@ -26,7 +26,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class VersionGenerator
 {
-    private static AtomicInteger version = new AtomicInteger(0);
+    private static final AtomicInteger version = new AtomicInteger(0);
     
     public static int getNextVersion()
     {

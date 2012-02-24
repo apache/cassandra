@@ -28,7 +28,7 @@ import org.apache.cassandra.io.IVersionedSerializer;
 
 class HeartBeatState
 {
-    private static IVersionedSerializer<HeartBeatState> serializer;
+    private static final IVersionedSerializer<HeartBeatState> serializer;
     
     static
     {

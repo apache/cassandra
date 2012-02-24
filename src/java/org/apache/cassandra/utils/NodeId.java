@@ -42,7 +42,7 @@ public class NodeId implements Comparable<NodeId>
         static final LocalNodeIdHistory instance = new LocalNodeIdHistory();
     }
 
-    private ByteBuffer id;
+    private final ByteBuffer id;
 
     private static LocalNodeIdHistory localIds()
     {

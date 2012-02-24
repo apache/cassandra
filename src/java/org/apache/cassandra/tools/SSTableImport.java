@@ -55,18 +55,16 @@ public class SSTableImport
     private static final String KEY_COUNT_OPTION = "n";
     private static final String IS_SORTED_OPTION = "s";
 
-    private static Options options;
+    private static final Options options = new Options();
     private static CommandLine cmd;
 
     private static Integer keyCountToImport = null;
     private static boolean isSorted = false;
 
-    private static JsonFactory factory = new MappingJsonFactory().configure(JsonParser.Feature.INTERN_FIELD_NAMES, false);
+    private static final JsonFactory factory = new MappingJsonFactory().configure(JsonParser.Feature.INTERN_FIELD_NAMES, false);
 
     static
     {
-        options = new Options();
-
         Option optKeyspace = new Option(KEYSPACE_OPTION, true, "Keyspace name.");
         optKeyspace.setRequired(true);
         options.addOption(optKeyspace);

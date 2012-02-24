@@ -46,9 +46,9 @@ import org.slf4j.LoggerFactory;
 public class CustomTHsHaServer extends TNonblockingServer
 {
     private static final Logger LOGGER = LoggerFactory.getLogger(CustomTHsHaServer.class.getName());
-    private Set<SelectorThread> ioThreads = new HashSet<SelectorThread>();
+    private final Set<SelectorThread> ioThreads = new HashSet<SelectorThread>();
     private volatile boolean stopped = true;
-    private ExecutorService invoker;
+    private final ExecutorService invoker;
 
     /**
      * All the arguments to Non Blocking Server will apply here. In addition,
@@ -86,7 +86,7 @@ public class CustomTHsHaServer extends TNonblockingServer
     protected class Invocation implements Runnable
     {
         private final FrameBuffer frameBuffer;
-        private SelectorThread thread;
+        private final SelectorThread thread;
 
         public Invocation(final FrameBuffer frameBuffer, SelectorThread thread)
         {
@@ -147,8 +147,8 @@ public class CustomTHsHaServer extends TNonblockingServer
     protected class SelectorThread extends Thread
     {
         private final Selector selector;
-        private TNonblockingServerTransport serverTransport;
-        private Set<FrameBuffer> selectInterestChanges = new HashSet<FrameBuffer>();
+        private final TNonblockingServerTransport serverTransport;
+        private final Set<FrameBuffer> selectInterestChanges = new HashSet<FrameBuffer>();
 
         public SelectorThread(String name)
         {

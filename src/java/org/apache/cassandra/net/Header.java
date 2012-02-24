@@ -32,7 +32,7 @@ import com.google.common.collect.Maps;
 
 public class Header
 {
-    private static IVersionedSerializer<Header> serializer;
+    private static final IVersionedSerializer<Header> serializer;
 
     static
     {

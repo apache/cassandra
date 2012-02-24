@@ -45,7 +45,7 @@ public class UpdateStatement extends AbstractModification
 {
     private Map<Term, Operation> columns;
     private List<Term> columnNames, columnValues;
-    private List<Term> keys;
+    private final List<Term> keys;
 
     /**
      * Creates a new UpdateStatement from a column family name, columns map, consistency

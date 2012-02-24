@@ -41,8 +41,8 @@ import org.apache.cassandra.utils.HeapAllocator;
 
 public class Column implements IColumn
 {
-    private static Logger logger = LoggerFactory.getLogger(Column.class);
-    private static ColumnSerializer serializer = new ColumnSerializer();
+    private static final Logger logger = LoggerFactory.getLogger(Column.class);
+    private static final ColumnSerializer serializer = new ColumnSerializer();
 
     public static ColumnSerializer serializer()
     {

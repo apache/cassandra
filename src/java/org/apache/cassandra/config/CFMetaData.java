@@ -59,7 +59,7 @@ public final class CFMetaData
     // for how to do so safely.
     //
 
-    private static Logger logger = LoggerFactory.getLogger(CFMetaData.class);
+    private static final Logger logger = LoggerFactory.getLogger(CFMetaData.class);
 
     public final static double DEFAULT_READ_REPAIR_CHANCE = 0.1;
     public final static double DEFAULT_DCLOCAL_READ_REPAIR_CHANCE = 0.0;

@@ -340,7 +340,7 @@ public class SequentialWriter extends OutputStream
      */
     protected static class BufferedFileWriterMark implements FileMark
     {
-        long pointer;
+        final long pointer;
 
         public BufferedFileWriterMark(long pointer)
         {

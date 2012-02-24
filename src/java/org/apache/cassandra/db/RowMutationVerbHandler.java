@@ -32,7 +32,7 @@ import org.apache.cassandra.net.MessagingService;
 
 public class RowMutationVerbHandler implements IVerbHandler
 {
-    private static Logger logger = LoggerFactory.getLogger(RowMutationVerbHandler.class);
+    private static final Logger logger = LoggerFactory.getLogger(RowMutationVerbHandler.class);
 
     public void doVerb(Message message, String id)
     {

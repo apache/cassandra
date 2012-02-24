@@ -42,7 +42,7 @@ import org.apache.cassandra.utils.Filter;
 
 public class SSTableNamesIterator extends SimpleAbstractColumnIterator implements IColumnIterator
 {
-    private static Logger logger = LoggerFactory.getLogger(SSTableNamesIterator.class);
+    private static final Logger logger = LoggerFactory.getLogger(SSTableNamesIterator.class);
 
     private ColumnFamily cf;
     private Iterator<IColumn> iter;

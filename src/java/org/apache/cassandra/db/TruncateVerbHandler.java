@@ -31,7 +31,7 @@ import org.apache.cassandra.net.MessagingService;
 
 public class TruncateVerbHandler implements IVerbHandler
 {
-    private static Logger logger = LoggerFactory.getLogger(TruncateVerbHandler.class);
+    private static final Logger logger = LoggerFactory.getLogger(TruncateVerbHandler.class);
 
     public void doVerb(Message message, String id)
     {

@@ -54,7 +54,7 @@ import org.apache.cassandra.utils.*;
  */
 public class ParallelCompactionIterable extends AbstractCompactionIterable
 {
-    private static Logger logger = LoggerFactory.getLogger(ParallelCompactionIterable.class);
+    private static final Logger logger = LoggerFactory.getLogger(ParallelCompactionIterable.class);
 
     private final List<SSTableScanner> scanners;
     private final int maxInMemorySize;

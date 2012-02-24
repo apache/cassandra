@@ -21,8 +21,8 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class BloomFilterTracker
 {
-    private AtomicLong falsePositiveCount = new AtomicLong(0);
-    private AtomicLong truePositiveCount = new AtomicLong(0);
+    private final AtomicLong falsePositiveCount = new AtomicLong(0);
+    private final AtomicLong truePositiveCount = new AtomicLong(0);
     private long lastFalsePositiveCount = 0L;
     private long lastTruePositiveCount = 0L;
 

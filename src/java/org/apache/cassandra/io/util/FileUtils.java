@@ -31,7 +31,7 @@ import org.apache.cassandra.utils.WrappedRunnable;
 
 public class FileUtils
 {
-    private static Logger logger = LoggerFactory.getLogger(FileUtils.class);
+    private static final Logger logger = LoggerFactory.getLogger(FileUtils.class);
     private static final double KB = 1024d;
     private static final double MB = 1024*1024d;
     private static final double GB = 1024*1024*1024d;

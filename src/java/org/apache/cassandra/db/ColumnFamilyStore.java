@@ -65,7 +65,7 @@ import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 {
-    private static Logger logger = LoggerFactory.getLogger(ColumnFamilyStore.class);
+    private static final Logger logger = LoggerFactory.getLogger(ColumnFamilyStore.class);
 
     /*
      * maybeSwitchMemtable puts Memtable.getSortedContents on the writer executor.  When the write is complete,
@@ -108,12 +108,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private volatile int memtableSwitchCount = 0;
 
     /* This is used to generate the next index for a SSTable */
-    private AtomicInteger fileIndexGenerator = new AtomicInteger(0);
+    private final AtomicInteger fileIndexGenerator = new AtomicInteger(0);
 
     public final SecondaryIndexManager indexManager;
 
-    private LatencyTracker readStats = new LatencyTracker();
-    private LatencyTracker writeStats = new LatencyTracker();
+    private final LatencyTracker readStats = new LatencyTracker();
+    private final LatencyTracker writeStats = new LatencyTracker();
 
     // counts of sstables accessed by reads
     private final EstimatedHistogram recentSSTablesPerRead = new EstimatedHistogram(35);

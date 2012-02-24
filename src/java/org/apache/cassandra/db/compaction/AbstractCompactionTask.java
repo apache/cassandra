@@ -27,7 +27,7 @@ import org.apache.cassandra.db.compaction.CompactionManager.CompactionExecutorSt
 
 public abstract class AbstractCompactionTask
 {
-    protected ColumnFamilyStore cfs;
+    protected final ColumnFamilyStore cfs;
     protected Collection<SSTableReader> sstables;
 
     public AbstractCompactionTask(ColumnFamilyStore cfs, Collection<SSTableReader> sstables)

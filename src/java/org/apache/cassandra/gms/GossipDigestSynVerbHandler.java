@@ -33,7 +33,7 @@ import org.apache.cassandra.net.MessagingService;
 
 public class GossipDigestSynVerbHandler implements IVerbHandler
 {
-    private static Logger logger = LoggerFactory.getLogger( GossipDigestSynVerbHandler.class);
+    private static final Logger logger = LoggerFactory.getLogger( GossipDigestSynVerbHandler.class);
 
     public void doVerb(Message message, String id)
     {

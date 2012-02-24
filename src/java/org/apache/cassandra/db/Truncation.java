@@ -31,7 +31,7 @@ import org.apache.cassandra.utils.FBUtilities;
  */
 public class Truncation implements MessageProducer
 {
-    private static IVersionedSerializer<Truncation> serializer;
+    private static final IVersionedSerializer<Truncation> serializer;
 
     public final String keyspace;
     public final String columnFamily;

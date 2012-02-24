@@ -93,8 +93,8 @@ public class CompactionManager implements CompactionManagerMBean
         }
     }
 
-    private CompactionExecutor executor = new CompactionExecutor();
-    private CompactionExecutor validationExecutor = new ValidationExecutor();
+    private final CompactionExecutor executor = new CompactionExecutor();
+    private final CompactionExecutor validationExecutor = new ValidationExecutor();
 
     /**
      * @return A lock, for which acquisition means no compactions can run.

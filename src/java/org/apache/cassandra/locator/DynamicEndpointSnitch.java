@@ -42,10 +42,10 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
     private static final int UPDATES_PER_INTERVAL = 10000;
     private static final int WINDOW_SIZE = 100;
 
-    private int UPDATE_INTERVAL_IN_MS = DatabaseDescriptor.getDynamicUpdateInterval();
-    private int RESET_INTERVAL_IN_MS = DatabaseDescriptor.getDynamicResetInterval();
-    private double BADNESS_THRESHOLD = DatabaseDescriptor.getDynamicBadnessThreshold();
-    private String mbeanName;
+    private final int UPDATE_INTERVAL_IN_MS = DatabaseDescriptor.getDynamicUpdateInterval();
+    private final int RESET_INTERVAL_IN_MS = DatabaseDescriptor.getDynamicResetInterval();
+    private final double BADNESS_THRESHOLD = DatabaseDescriptor.getDynamicBadnessThreshold();
+    private final String mbeanName;
     private boolean registered = false;
 
     private final ConcurrentHashMap<InetAddress, Double> scores = new ConcurrentHashMap<InetAddress, Double>();

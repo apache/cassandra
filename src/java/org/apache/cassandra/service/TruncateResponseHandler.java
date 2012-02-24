@@ -34,7 +34,7 @@ public class TruncateResponseHandler implements IAsyncCallback
     protected static final Logger logger = LoggerFactory.getLogger(TruncateResponseHandler.class);
     protected final SimpleCondition condition = new SimpleCondition();
     private final int responseCount;
-    protected AtomicInteger responses = new AtomicInteger(0);
+    protected final AtomicInteger responses = new AtomicInteger(0);
     private final long startTime;
 
     public TruncateResponseHandler(int responseCount)

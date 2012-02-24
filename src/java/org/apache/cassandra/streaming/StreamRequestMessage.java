@@ -46,7 +46,7 @@ import org.apache.cassandra.utils.FBUtilities;
 */
 class StreamRequestMessage implements MessageProducer
 {
-    private static IVersionedSerializer<StreamRequestMessage> serializer;
+    private static final IVersionedSerializer<StreamRequestMessage> serializer;
     static
     {
         serializer = new StreamRequestMessageSerializer();

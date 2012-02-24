@@ -40,7 +40,7 @@ import org.apache.cassandra.utils.HeapAllocator;
  */
 public class PrecompactedRow extends AbstractCompactedRow
 {
-    private static Logger logger = LoggerFactory.getLogger(PrecompactedRow.class);
+    private static final Logger logger = LoggerFactory.getLogger(PrecompactedRow.class);
 
     private final ColumnFamily compactedCf;
 

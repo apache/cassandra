@@ -234,7 +234,7 @@ public class RandomAccessReader extends RandomAccessFile implements FileDataInpu
      */
     protected static class BufferedRandomAccessFileMark implements FileMark
     {
-        long pointer;
+        final long pointer;
 
         public BufferedRandomAccessFileMark(long pointer)
         {
