@@ -634,7 +634,7 @@ h3. Changing the type of a typed column
 bc(sample). 
 ALTER COLUMNFAMILY addamsFamily ALTER lastKnownLocation TYPE uuid;
 
-@ALTER COLUMNFAMILY ... ALTER@ changes the expected storage type for a column. The column must already have a type in the column family metadata. The column may or may not already exist in current rows-- but be aware that no validation of existing data is done. The bytes stored in values for that column will remain unchanged, and if existing data is not deserializable according to the new type, this may cause your CQL driver or interface to report errors.
+@ALTER COLUMNFAMILY ... ALTER@ changes the expected storage type for a column. The column must either be the key alias or already have a type in the column family metadata. The column may or may not already exist in current rows-- but be aware that no validation of existing data is done. The bytes stored in values for that column will remain unchanged, and if existing data is not deserializable according to the new type, this may cause your CQL driver or interface to report errors.
 
 h3. Adding a typed column
 
